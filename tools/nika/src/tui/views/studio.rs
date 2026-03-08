@@ -39,6 +39,8 @@ use crate::ast::Workflow;
 use crate::error::NikaError;
 use crate::tui::diagnostics::DiagnosticsEngine;
 use crate::tui::edit_history::EditHistory;
+use crate::tui::git::{GitStatus, LineChange};
+use crate::tui::selection::{Position, Selection, SelectionSet};
 use crate::tui::state::TuiState;
 use crate::tui::theme::{TaskStatus, Theme, VerbColor};
 use crate::tui::views::TuiView;
@@ -763,7 +765,9 @@ impl StudioView {
             }
             KeyCode::Enter => {
                 // Clone the command ID to avoid borrow conflict
-                let cmd_id = self.command_palette.selected_command()
+                let cmd_id = self
+                    .command_palette
+                    .selected_command()
                     .map(|cmd| cmd.id.clone());
                 if let Some(id) = cmd_id {
                     let action = self.execute_palette_command(&id);
@@ -860,7 +864,11 @@ impl StudioView {
             ('z', 'b') => {
                 // Cursor to bottom of viewport
                 let visible = self.editor.buffer.visible_height.get();
-                self.editor.buffer.scroll_offset = self.editor.buffer.cursor_row.saturating_sub(visible.saturating_sub(1));
+                self.editor.buffer.scroll_offset = self
+                    .editor
+                    .buffer
+                    .cursor_row
+                    .saturating_sub(visible.saturating_sub(1));
                 ViewAction::None
             }
             // Space (leader) prefix - Common commands
@@ -926,6 +934,9 @@ pub struct TextBuffer {
     visible_height: Cell<usize>,
     /// v0.22: Track if buffer has unsaved changes
     modified: bool,
+    /// v0.21.2: Selection state (anchor/head model)
+    /// v0.21.3: Upgraded to SelectionSet for multi-cursor support
+    selections: SelectionSet,
 }
 
 impl Clone for TextBuffer {
@@ -937,6 +948,7 @@ impl Clone for TextBuffer {
             scroll_offset: self.scroll_offset,
             visible_height: Cell::new(self.visible_height.get()),
             modified: self.modified,
+            selections: self.selections.clone(),
         }
     }
 }
@@ -950,6 +962,7 @@ impl Default for TextBuffer {
             scroll_offset: 0,
             visible_height: Cell::new(20),
             modified: false,
+            selections: SelectionSet::origin(),
         }
     }
 }
@@ -969,6 +982,7 @@ impl TextBuffer {
             scroll_offset: 0,
             visible_height: Cell::new(20),
             modified: false, // Fresh content is not modified
+            selections: SelectionSet::origin(),
         }
     }
 
@@ -1144,6 +1158,314 @@ impl TextBuffer {
         self.scroll_offset
     }
 
+    // === v0.21.2: Selection Support ===
+    // === v0.21.3: Multi-cursor via SelectionSet ===
+
+    /// Get current selection (primary selection from SelectionSet)
+    pub fn selection(&self) -> &Selection {
+        self.selections.primary()
+    }
+
+    /// Get mutable selection (primary selection from SelectionSet)
+    pub fn selection_mut(&mut self) -> &mut Selection {
+        self.selections.primary_mut()
+    }
+
+    /// Get all selections (for multi-cursor support)
+    pub fn selections(&self) -> &SelectionSet {
+        &self.selections
+    }
+
+    /// Get mutable selections (for multi-cursor support)
+    pub fn selections_mut(&mut self) -> &mut SelectionSet {
+        &mut self.selections
+    }
+
+    /// Check if there is an active selection (any selection is active)
+    pub fn has_selection(&self) -> bool {
+        self.selections.has_active_selection()
+    }
+
+    /// Check if multi-cursor mode is active
+    pub fn is_multi_cursor(&self) -> bool {
+        self.selections.is_multi_cursor()
+    }
+
+    /// Get number of cursors
+    pub fn cursor_count(&self) -> usize {
+        self.selections.cursor_count()
+    }
+
+    /// Clear all selections (collapse to primary cursor position)
+    pub fn clear_selection(&mut self) {
+        let pos = Position::new(self.cursor_row, self.cursor_col);
+        self.selections.move_all_to(pos);
+    }
+
+    /// Clear additional cursors, keep primary
+    pub fn clear_additional_cursors(&mut self) {
+        self.selections.clear_additional();
+    }
+
+    /// Start a new selection at current cursor position
+    pub fn start_selection(&mut self) {
+        // Reset to single cursor mode with fresh selection
+        let pos = Position::new(self.cursor_row, self.cursor_col);
+        self.selections = SelectionSet::new(pos);
+    }
+
+    /// Extend selection to current cursor position
+    pub fn extend_selection(&mut self) {
+        let pos = Position::new(self.cursor_row, self.cursor_col);
+        self.selections.primary_mut().extend_to(pos);
+    }
+
+    /// Sync selection head with cursor (call after cursor movement when extending)
+    pub fn sync_selection_to_cursor(&mut self) {
+        let pos = Position::new(self.cursor_row, self.cursor_col);
+        self.selections.primary_mut().extend_to(pos);
+    }
+
+    /// Add a cursor at position (multi-cursor support)
+    pub fn add_cursor(&mut self, line: usize, col: usize) {
+        let pos = Position::new(line, col);
+        self.selections.add_selection(pos);
+    }
+
+    /// Get the selected text as a string (primary selection)
+    pub fn get_selected_text(&self) -> Option<String> {
+        if !self.has_selection() {
+            return None;
+        }
+
+        let selection = self.selections.primary();
+        let start = selection.start();
+        let end = selection.end();
+
+        if start.line == end.line {
+            // Single line selection
+            let line = self.lines.get(start.line)?;
+            let start_col = start.col.min(line.len());
+            let end_col = end.col.min(line.len());
+            Some(line[start_col..end_col].to_string())
+        } else {
+            // Multi-line selection
+            let mut result = String::new();
+
+            // First line (from start_col to end)
+            if let Some(first_line) = self.lines.get(start.line) {
+                let start_col = start.col.min(first_line.len());
+                result.push_str(&first_line[start_col..]);
+            }
+
+            // Middle lines (full lines)
+            for line_idx in (start.line + 1)..end.line {
+                result.push('\n');
+                if let Some(line) = self.lines.get(line_idx) {
+                    result.push_str(line);
+                }
+            }
+
+            // Last line (from start to end_col)
+            if let Some(last_line) = self.lines.get(end.line) {
+                result.push('\n');
+                let end_col = end.col.min(last_line.len());
+                result.push_str(&last_line[..end_col]);
+            }
+
+            Some(result)
+        }
+    }
+
+    /// Delete selected text and collapse selection (primary selection)
+    pub fn delete_selection(&mut self) -> bool {
+        if !self.has_selection() {
+            return false;
+        }
+
+        let selection = self.selections.primary();
+        let start = selection.start();
+        let end = selection.end();
+
+        if start.line == end.line {
+            // Single line deletion
+            if let Some(line) = self.lines.get_mut(start.line) {
+                let start_col = start.col.min(line.len());
+                let end_col = end.col.min(line.len());
+                line.replace_range(start_col..end_col, "");
+            }
+        } else {
+            // Multi-line deletion
+            // Keep start of first line + end of last line
+            let first_part = self
+                .lines
+                .get(start.line)
+                .map(|l| l[..start.col.min(l.len())].to_string())
+                .unwrap_or_default();
+
+            let last_part = self
+                .lines
+                .get(end.line)
+                .map(|l| l[end.col.min(l.len())..].to_string())
+                .unwrap_or_default();
+
+            // Remove lines from start.line to end.line (inclusive)
+            self.lines.drain(start.line..=end.line);
+
+            // Insert merged line
+            let merged = format!("{}{}", first_part, last_part);
+            self.lines.insert(start.line, merged);
+        }
+
+        // Move cursor to selection start
+        self.cursor_row = start.line;
+        self.cursor_col = start.col;
+        self.clear_selection();
+        self.modified = true;
+
+        true
+    }
+
+    /// Select all text
+    pub fn select_all(&mut self) {
+        let start = Position::new(0, 0);
+        let last_line = self.lines.len().saturating_sub(1);
+        let last_col = self.lines.get(last_line).map(|l| l.len()).unwrap_or(0);
+        let end = Position::new(last_line, last_col);
+        self.selections.primary_mut().select_range(start, end);
+        self.cursor_row = last_line;
+        self.cursor_col = last_col;
+    }
+
+    /// Select next occurrence of current selection (Ctrl+D - VS Code style)
+    /// Returns true if a new occurrence was found and selected
+    pub fn select_next_occurrence(&mut self) -> bool {
+        // Get the current selected text
+        let selected = match self.get_selected_text() {
+            Some(text) if !text.is_empty() => text,
+            _ => {
+                // No selection - select word under cursor
+                return self.select_word_under_cursor();
+            }
+        };
+
+        // Get current primary selection end position
+        let primary = self.selections.primary();
+        let search_start_line = primary.end().line;
+        let search_start_col = primary.end().col;
+
+        // Search for next occurrence after the current selection
+        for line_idx in search_start_line..self.lines.len() {
+            if let Some(line) = self.lines.get(line_idx) {
+                let start_col = if line_idx == search_start_line {
+                    search_start_col
+                } else {
+                    0
+                };
+
+                // Search in this line from start_col
+                if start_col < line.len() {
+                    if let Some(found_col) = line[start_col..].find(&selected) {
+                        let abs_col = start_col + found_col;
+                        // Add new cursor at this occurrence
+                        let new_anchor = Position::new(line_idx, abs_col);
+                        let new_head = Position::new(line_idx, abs_col + selected.len());
+
+                        // Add a new selection spanning the occurrence
+                        let mut new_selection = Selection::new(new_anchor);
+                        new_selection.extend_to(new_head);
+                        self.selections.add_selection_spanning(new_anchor, new_head);
+
+                        // Move cursor to the new selection
+                        self.cursor_row = line_idx;
+                        self.cursor_col = abs_col + selected.len();
+
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Wrap around and search from beginning
+        for line_idx in 0..=search_start_line {
+            if let Some(line) = self.lines.get(line_idx) {
+                let end_col = if line_idx == search_start_line {
+                    search_start_col.saturating_sub(selected.len())
+                } else {
+                    line.len()
+                };
+
+                if let Some(found_col) = line[..end_col].find(&selected) {
+                    let new_anchor = Position::new(line_idx, found_col);
+                    let new_head = Position::new(line_idx, found_col + selected.len());
+                    self.selections.add_selection_spanning(new_anchor, new_head);
+                    self.cursor_row = line_idx;
+                    self.cursor_col = found_col + selected.len();
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Select the word under cursor (helper for select_next_occurrence)
+    fn select_word_under_cursor(&mut self) -> bool {
+        if let Some(line) = self.lines.get(self.cursor_row) {
+            if line.is_empty() || self.cursor_col >= line.len() {
+                return false;
+            }
+
+            let chars: Vec<char> = line.chars().collect();
+            let col = self.cursor_col.min(chars.len().saturating_sub(1));
+
+            // Check if current char is a word char
+            if !chars
+                .get(col)
+                .map(|c| c.is_alphanumeric() || *c == '_')
+                .unwrap_or(false)
+            {
+                return false;
+            }
+
+            // Find word start
+            let mut word_start = col;
+            while word_start > 0 {
+                if !chars
+                    .get(word_start - 1)
+                    .map(|c| c.is_alphanumeric() || *c == '_')
+                    .unwrap_or(false)
+                {
+                    break;
+                }
+                word_start -= 1;
+            }
+
+            // Find word end
+            let mut word_end = col;
+            while word_end < chars.len() {
+                if !chars
+                    .get(word_end)
+                    .map(|c| c.is_alphanumeric() || *c == '_')
+                    .unwrap_or(false)
+                {
+                    break;
+                }
+                word_end += 1;
+            }
+
+            // Select the word
+            let start = Position::new(self.cursor_row, word_start);
+            let end = Position::new(self.cursor_row, word_end);
+            self.selections.primary_mut().select_range(start, end);
+            self.cursor_col = word_end;
+
+            true
+        } else {
+            false
+        }
+    }
+
     // === v0.11.0: Edit History Support ===
 
     /// Get cursor position as linear index (for EditHistory)
@@ -1225,6 +1547,12 @@ pub struct YamlEditorPanel {
     // === v0.21.2: Real-time Diagnostics ===
     /// Diagnostics engine for real-time error display (gutter + underline)
     diagnostics: DiagnosticsEngine,
+    // === v0.21.2: Clipboard support ===
+    /// System clipboard for copy/paste
+    clipboard: Option<arboard::Clipboard>,
+    // === v0.21.3: Git gutter support ===
+    /// Git status for line-level change indicators
+    git_status: Option<GitStatus>,
 }
 
 impl YamlEditorPanel {
@@ -1250,6 +1578,10 @@ impl YamlEditorPanel {
             edit_history: EditHistory::new(100),
             // v0.21.2: Real-time Diagnostics
             diagnostics: DiagnosticsEngine::new(),
+            // v0.21.2: Clipboard (graceful fallback if unavailable)
+            clipboard: arboard::Clipboard::new().ok(),
+            // v0.21.3: Git gutter (initialized on file load)
+            git_status: None,
         }
     }
 
@@ -1310,11 +1642,13 @@ impl YamlEditorPanel {
     pub fn load_file(&mut self, path: PathBuf) -> Result<(), std::io::Error> {
         let content = std::fs::read_to_string(&path)?;
         self.buffer = TextBuffer::from_content(&content);
-        self.path = Some(path);
+        self.path = Some(path.clone());
         self.modified = false;
         self.validate();
         // v0.11.0: Initialize edit history with loaded content
         self.edit_history.init(&content, 0);
+        // v0.21.3: Initialize git status for gutter display
+        self.git_status = GitStatus::open(&path);
         Ok(())
     }
 
@@ -1603,6 +1937,65 @@ impl YamlEditorPanel {
                     self.redo();
                     return ViewAction::None;
                 }
+                // v0.21.2: Ctrl+A for select all
+                KeyCode::Char('a') => {
+                    self.buffer.select_all();
+                    return ViewAction::None;
+                }
+                // v0.21.2: Ctrl+C for copy
+                KeyCode::Char('c') => {
+                    if let Some(text) = self.buffer.get_selected_text() {
+                        if let Some(ref mut clipboard) = self.clipboard {
+                            let _ = clipboard.set_text(text);
+                        }
+                    }
+                    return ViewAction::None;
+                }
+                // v0.21.2: Ctrl+X for cut
+                KeyCode::Char('x') => {
+                    if let Some(text) = self.buffer.get_selected_text() {
+                        if let Some(ref mut clipboard) = self.clipboard {
+                            let _ = clipboard.set_text(text);
+                        }
+                        self.buffer.delete_selection();
+                        self.mark_edited();
+                    }
+                    return ViewAction::None;
+                }
+                // v0.21.2: Ctrl+V for paste
+                KeyCode::Char('v') => {
+                    if let Some(ref mut clipboard) = self.clipboard {
+                        if let Ok(text) = clipboard.get_text() {
+                            // Delete selection first if active
+                            if self.buffer.has_selection() {
+                                self.buffer.delete_selection();
+                            }
+                            // Insert pasted text character by character
+                            for c in text.chars() {
+                                if c == '\n' {
+                                    self.buffer.insert_newline();
+                                } else if c != '\r' {
+                                    self.buffer.insert_char(c);
+                                }
+                            }
+                            self.mark_edited();
+                        }
+                    }
+                    return ViewAction::None;
+                }
+                // v0.21.3: Ctrl+D for select next occurrence (multi-cursor)
+                KeyCode::Char('d') => {
+                    self.buffer.select_next_occurrence();
+                    return ViewAction::None;
+                }
+                // v0.21.3: Escape clears additional cursors first
+                KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    // Ctrl+G: Clear additional cursors (back to single cursor mode)
+                    if self.buffer.is_multi_cursor() {
+                        self.buffer.clear_additional_cursors();
+                        return ViewAction::None;
+                    }
+                }
                 _ => {}
             }
         }
@@ -1616,52 +2009,115 @@ impl YamlEditorPanel {
             return ViewAction::None;
         }
 
+        // v0.21.2: Shift+Arrow for selection extension
+        let extending = key.modifiers.contains(KeyModifiers::SHIFT);
+
         match key.code {
             KeyCode::Esc => {
-                self.mode = EditorMode::Normal;
+                // v0.21.2: Clear selection first, then exit insert mode
+                if self.buffer.has_selection() {
+                    self.buffer.clear_selection();
+                } else {
+                    self.mode = EditorMode::Normal;
+                }
                 ViewAction::None
             }
             KeyCode::Up => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
                 self.buffer.cursor_up();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
                 ViewAction::None
             }
             KeyCode::Down => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
                 self.buffer.cursor_down();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
                 ViewAction::None
             }
             KeyCode::Left => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
                 self.buffer.cursor_left();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
                 ViewAction::None
             }
             KeyCode::Right => {
+                if extending && !self.buffer.has_selection() {
+                    self.buffer.start_selection();
+                }
                 self.buffer.cursor_right();
+                if extending {
+                    self.buffer.sync_selection_to_cursor();
+                } else {
+                    self.buffer.clear_selection();
+                }
                 ViewAction::None
             }
             KeyCode::Enter => {
+                // v0.21.2: Delete selection before inserting newline
+                if self.buffer.has_selection() {
+                    self.buffer.delete_selection();
+                }
                 self.buffer.insert_newline();
-                self.mark_edited(); // Debounced validation
+                self.mark_edited();
                 ViewAction::None
             }
             KeyCode::Backspace => {
-                self.buffer.backspace();
-                self.mark_edited(); // Debounced validation
+                // v0.21.2: Delete selection if active
+                if self.buffer.has_selection() {
+                    self.buffer.delete_selection();
+                    self.mark_edited();
+                } else {
+                    self.buffer.backspace();
+                    self.mark_edited();
+                }
                 ViewAction::None
             }
             KeyCode::Delete => {
-                self.buffer.delete();
-                self.mark_edited(); // Debounced validation
+                // v0.21.2: Delete selection if active
+                if self.buffer.has_selection() {
+                    self.buffer.delete_selection();
+                    self.mark_edited();
+                } else {
+                    self.buffer.delete();
+                    self.mark_edited();
+                }
                 ViewAction::None
             }
             KeyCode::Char(c) => {
+                // v0.21.2: Replace selection with typed character
+                if self.buffer.has_selection() {
+                    self.buffer.delete_selection();
+                }
                 self.buffer.insert_char(c);
-                self.mark_edited(); // Debounced validation
+                self.mark_edited();
                 ViewAction::None
             }
             KeyCode::Tab => {
-                // Insert 2 spaces for tab
+                // v0.21.2: Replace selection with tab spaces
+                if self.buffer.has_selection() {
+                    self.buffer.delete_selection();
+                }
                 self.buffer.insert_char(' ');
                 self.buffer.insert_char(' ');
-                self.mark_edited(); // Debounced validation
+                self.mark_edited();
                 ViewAction::None
             }
             _ => ViewAction::None,
@@ -1669,7 +2125,7 @@ impl YamlEditorPanel {
     }
 
     /// Render just the editor content (for use in StudioView 3-panel layout)
-    pub(crate) fn render_editor(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    pub(crate) fn render_editor(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mode_indicator = match self.mode {
             EditorMode::Normal => "",
             EditorMode::Insert => " [INSERT]",
@@ -1746,7 +2202,18 @@ impl YamlEditorPanel {
         let visible_height = content_area.height as usize;
         self.buffer.set_visible_height(visible_height);
 
-        // Build lines with line numbers and syntax highlighting
+        // Build lines with line numbers, syntax highlighting, and selection
+        let selection = self.buffer.selection();
+
+        // v0.21.3: Get git line changes for gutter display
+        // We clone the changes to avoid borrow issues in the closure
+        let git_line_changes: Option<HashMap<usize, LineChange>> =
+            self.path.as_ref().and_then(|p| {
+                self.git_status
+                    .as_mut()
+                    .map(|gs| gs.line_changes(p).changes_map())
+            });
+
         let lines: Vec<Line> = self
             .buffer
             .lines()
@@ -1764,14 +2231,62 @@ impl YamlEditorPanel {
                     Style::default()
                 };
 
-                // Line number
-                let mut spans = vec![Span::styled(
-                    format!("{:4} ", line_num),
-                    Style::default().fg(theme.text_muted),
-                )];
+                // v0.21.3: Git gutter indicator
+                let git_gutter = git_line_changes
+                    .as_ref()
+                    .and_then(|changes| changes.get(&i))
+                    .map(|change| {
+                        let (symbol, color) = match change {
+                            LineChange::Added => ("+", theme.git_added),
+                            LineChange::Modified => ("~", theme.git_modified),
+                            LineChange::Deleted => ("-", theme.git_deleted),
+                        };
+                        Span::styled(symbol, Style::default().fg(color))
+                    })
+                    .unwrap_or_else(|| Span::raw(" "));
 
-                // Syntax-highlighted content (v0.7.0+)
-                spans.extend(YamlHighlight::highlight_line(line, base_style));
+                // Line number with git gutter prefix
+                let mut spans = vec![
+                    git_gutter,
+                    Span::styled(
+                        format!("{:4} ", line_num),
+                        Style::default().fg(theme.text_muted),
+                    ),
+                ];
+
+                // v0.21.2: Check for selection on this line
+                let selection_range = selection.line_range(i);
+
+                if let Some((sel_start, sel_end)) = selection_range {
+                    // Line has selection - split into before/selected/after
+                    let sel_end_col = sel_end.unwrap_or(line.len());
+                    let sel_start = sel_start.min(line.len());
+                    let sel_end_col = sel_end_col.min(line.len());
+
+                    // Before selection
+                    if sel_start > 0 {
+                        let before = &line[..sel_start];
+                        spans.extend(YamlHighlight::highlight_line(before, base_style));
+                    }
+
+                    // Selected portion
+                    if sel_start < sel_end_col {
+                        let selected = &line[sel_start..sel_end_col];
+                        let selection_style = Style::default().bg(theme.selection).fg(theme.text);
+                        spans.push(Span::styled(selected.to_string(), selection_style));
+                    }
+
+                    // After selection (only if selection ends on this line)
+                    if sel_end.is_some() && sel_end_col < line.len() {
+                        let after = &line[sel_end_col..];
+                        spans.extend(YamlHighlight::highlight_line(after, base_style));
+                    } else if sel_end.is_none() {
+                        // Selection continues to next line - no after portion
+                    }
+                } else {
+                    // No selection on this line - normal highlighting
+                    spans.extend(YamlHighlight::highlight_line(line, base_style));
+                }
 
                 Line::from(spans)
             })
@@ -1800,12 +2315,23 @@ impl YamlEditorPanel {
         }
 
         // v0.22: Render status bar (Ln:Col | Mode | Schema)
+        // v0.21.3: Show cursor count when multi-cursor active
         let (cursor_row, cursor_col) = self.buffer.cursor();
         let mode_str = match self.mode {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
         };
-        let status_left = format!(" Ln {}, Col {} ", cursor_row + 1, cursor_col + 1);
+        let cursor_count = self.buffer.cursor_count();
+        let status_left = if cursor_count > 1 {
+            format!(
+                " Ln {}, Col {} ({} cursors) ",
+                cursor_row + 1,
+                cursor_col + 1,
+                cursor_count
+            )
+        } else {
+            format!(" Ln {}, Col {} ", cursor_row + 1, cursor_col + 1)
+        };
         let status_right = format!(" {} | nika/workflow ", mode_str);
 
         // Calculate padding for right-alignment
@@ -2721,5 +3247,186 @@ unknown_field: "should fail""#;
             StudioFocus::Editor,
             "Tab should NOT cycle panels when editor is in Insert mode"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.21.2: Selection tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_text_buffer_selection_single_line() {
+        let mut buffer = TextBuffer::from_content("hello world");
+
+        // Select "world"
+        buffer.start_selection();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.cursor_right(); // Now at position 6
+        buffer.sync_selection_to_cursor();
+
+        assert!(buffer.has_selection());
+        assert_eq!(buffer.get_selected_text(), Some("hello ".to_string()));
+    }
+
+    #[test]
+    fn test_text_buffer_selection_clear() {
+        let mut buffer = TextBuffer::from_content("hello");
+        buffer.start_selection();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.sync_selection_to_cursor();
+
+        assert!(buffer.has_selection());
+        buffer.clear_selection();
+        assert!(!buffer.has_selection());
+    }
+
+    #[test]
+    fn test_text_buffer_delete_selection() {
+        let mut buffer = TextBuffer::from_content("hello world");
+
+        // Select "hello "
+        buffer.start_selection();
+        for _ in 0..6 {
+            buffer.cursor_right();
+        }
+        buffer.sync_selection_to_cursor();
+
+        assert!(buffer.delete_selection());
+        assert_eq!(buffer.content(), "world");
+        assert!(!buffer.has_selection());
+    }
+
+    #[test]
+    fn test_text_buffer_select_all() {
+        let mut buffer = TextBuffer::from_content("line1\nline2\nline3");
+        buffer.select_all();
+
+        assert!(buffer.has_selection());
+        assert_eq!(
+            buffer.get_selected_text(),
+            Some("line1\nline2\nline3".to_string())
+        );
+    }
+
+    #[test]
+    fn test_text_buffer_delete_multiline_selection() {
+        let mut buffer = TextBuffer::from_content("aaa\nbbb\nccc");
+
+        // Move to line 0, col 1 and start selection
+        buffer.cursor_right();
+        buffer.start_selection();
+
+        // Move to line 2, col 1
+        buffer.cursor_down();
+        buffer.cursor_down();
+        buffer.sync_selection_to_cursor();
+
+        assert!(buffer.has_selection());
+        buffer.delete_selection();
+
+        // Should have "a" + "cc" = "acc"
+        assert_eq!(buffer.content(), "acc");
+    }
+
+    // === v0.21.3: Multi-cursor tests ===
+
+    #[test]
+    fn test_multi_cursor_add_cursor() {
+        let mut buffer = TextBuffer::from_content("line1\nline2\nline3");
+
+        assert_eq!(buffer.cursor_count(), 1);
+        assert!(!buffer.is_multi_cursor());
+
+        buffer.add_cursor(1, 0);
+        assert_eq!(buffer.cursor_count(), 2);
+        assert!(buffer.is_multi_cursor());
+
+        buffer.add_cursor(2, 0);
+        assert_eq!(buffer.cursor_count(), 3);
+    }
+
+    #[test]
+    fn test_multi_cursor_clear_additional() {
+        let mut buffer = TextBuffer::from_content("hello\nworld");
+
+        buffer.add_cursor(1, 0);
+        buffer.add_cursor(1, 2);
+        assert_eq!(buffer.cursor_count(), 3);
+
+        buffer.clear_additional_cursors();
+        assert_eq!(buffer.cursor_count(), 1);
+        assert!(!buffer.is_multi_cursor());
+    }
+
+    #[test]
+    fn test_select_word_under_cursor() {
+        let mut buffer = TextBuffer::from_content("hello world test");
+
+        // Position cursor in "world"
+        for _ in 0..7 {
+            buffer.cursor_right();
+        }
+
+        // First Ctrl+D should select "world"
+        let selected = buffer.select_next_occurrence();
+        assert!(selected);
+        assert!(buffer.has_selection());
+        assert_eq!(buffer.get_selected_text(), Some("world".to_string()));
+    }
+
+    #[test]
+    fn test_select_next_occurrence() {
+        let mut buffer = TextBuffer::from_content("foo bar foo baz foo");
+
+        // Select first "foo" manually
+        buffer.start_selection();
+        for _ in 0..3 {
+            buffer.cursor_right();
+        }
+        buffer.sync_selection_to_cursor();
+
+        assert_eq!(buffer.get_selected_text(), Some("foo".to_string()));
+        assert_eq!(buffer.cursor_count(), 1);
+
+        // Ctrl+D should find next "foo" and add cursor
+        let found = buffer.select_next_occurrence();
+        assert!(found);
+        assert_eq!(buffer.cursor_count(), 2);
+    }
+
+    #[test]
+    fn test_select_next_occurrence_wraps() {
+        let mut buffer = TextBuffer::from_content("ab cd ab");
+
+        // Select last "ab" (position 6-8)
+        for _ in 0..6 {
+            buffer.cursor_right();
+        }
+        buffer.start_selection();
+        buffer.cursor_right();
+        buffer.cursor_right();
+        buffer.sync_selection_to_cursor();
+
+        assert_eq!(buffer.get_selected_text(), Some("ab".to_string()));
+
+        // Should wrap around and find "ab" at position 0
+        let found = buffer.select_next_occurrence();
+        assert!(found);
+        assert_eq!(buffer.cursor_count(), 2);
+    }
+
+    #[test]
+    fn test_select_word_boundary() {
+        let mut buffer = TextBuffer::from_content("hello_world test_case");
+
+        // cursor at 'h'
+        let selected = buffer.select_next_occurrence();
+        assert!(selected);
+        // Should select "hello_world" (underscore is part of word)
+        assert_eq!(buffer.get_selected_text(), Some("hello_world".to_string()));
     }
 }

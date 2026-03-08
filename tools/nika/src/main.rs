@@ -4919,7 +4919,8 @@ fn handle_new_command(
     }
 
     // Determine mode: wizard, template, or custom flags
-    let has_flags = template.is_some()
+    // Prefix with _ to avoid unused warning when TUI is disabled
+    let _has_flags = template.is_some()
         || verb.is_some()
         || provider.is_some()
         || output.is_some()
@@ -4929,7 +4930,7 @@ fn handle_new_command(
 
     // If wizard flag is set, or no name and no flags, launch wizard
     #[cfg(feature = "tui")]
-    if wizard || (name.is_none() && !has_flags) {
+    if wizard || (name.is_none() && !_has_flags) {
         let path = nika::new::wizard::run_wizard(output_dir)?;
         if !quiet {
             println!("{} Created: {}", "SUCCESS!".green().bold(), path.display());

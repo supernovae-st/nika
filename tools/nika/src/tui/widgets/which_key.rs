@@ -92,8 +92,14 @@ impl WhichKeyGroup {
         self
     }
 
-    pub fn add_with_icon(mut self, key: char, description: &'static str, icon: &'static str) -> Self {
-        self.bindings.push(WhichKeyBinding::new(key, description).with_icon(icon));
+    pub fn add_with_icon(
+        mut self,
+        key: char,
+        description: &'static str,
+        icon: &'static str,
+    ) -> Self {
+        self.bindings
+            .push(WhichKeyBinding::new(key, description).with_icon(icon));
         self
     }
 }
@@ -109,7 +115,6 @@ pub fn default_which_key_groups() -> Vec<WhichKeyGroup> {
             .add_with_icon('r', "References", "◎")
             .add_with_icon('i', "Implementation", "⚙")
             .add_with_icon('t', "Type definition", "T"),
-
         // z prefix - View/Fold commands
         WhichKeyGroup::new('z', "View/Fold")
             .add_with_icon('z', "Center cursor", "◉")
@@ -118,7 +123,6 @@ pub fn default_which_key_groups() -> Vec<WhichKeyGroup> {
             .add_with_icon('o', "Open fold", "▼")
             .add_with_icon('c', "Close fold", "▶")
             .add_with_icon('a', "Toggle fold", "⇄"),
-
         // [ prefix - Previous
         WhichKeyGroup::new('[', "Previous")
             .add_with_icon('e', "Error", "●")
@@ -126,7 +130,6 @@ pub fn default_which_key_groups() -> Vec<WhichKeyGroup> {
             .add_with_icon('d', "Diagnostic", "◆")
             .add_with_icon('h', "Hunk (git)", "±")
             .add_with_icon('c', "Change", "~"),
-
         // ] prefix - Next
         WhichKeyGroup::new(']', "Next")
             .add_with_icon('e', "Error", "●")
@@ -134,7 +137,6 @@ pub fn default_which_key_groups() -> Vec<WhichKeyGroup> {
             .add_with_icon('d', "Diagnostic", "◆")
             .add_with_icon('h', "Hunk (git)", "±")
             .add_with_icon('c', "Change", "~"),
-
         // Space (leader) prefix - Commands
         WhichKeyGroup::new(' ', "Leader")
             .add_with_icon('f', "Find file", "🔍")
@@ -274,8 +276,8 @@ impl Widget for WhichKey<'_> {
 
         // Calculate popup size
         let num_bindings = group.bindings.len();
-        let cols = 2.min((num_bindings + 3) / 4); // 2 columns max
-        let rows = (num_bindings + cols - 1) / cols;
+        let cols = 2.min(num_bindings.div_ceil(4)); // 2 columns max
+        let rows = num_bindings.div_ceil(cols);
 
         let popup_width = 60.min(area.width.saturating_sub(4));
         let popup_height = (rows as u16 + 4).min(area.height.saturating_sub(4));
@@ -326,20 +328,13 @@ impl Widget for WhichKey<'_> {
                 x,
                 y,
                 &key_display,
-                Style::default()
-                    .fg(COLOR_KEY)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(COLOR_KEY).add_modifier(Modifier::BOLD),
             );
 
             // Icon (if any)
             let icon_offset = key_display.len() as u16;
             if let Some(icon) = binding.icon {
-                buf.set_string(
-                    x + icon_offset,
-                    y,
-                    icon,
-                    Style::default().fg(COLOR_MUTED),
-                );
+                buf.set_string(x + icon_offset, y, icon, Style::default().fg(COLOR_MUTED));
             }
 
             // Description
@@ -368,7 +363,9 @@ impl Widget for WhichKey<'_> {
                 hint_x,
                 hint_y,
                 hint,
-                Style::default().fg(COLOR_MUTED).add_modifier(Modifier::ITALIC),
+                Style::default()
+                    .fg(COLOR_MUTED)
+                    .add_modifier(Modifier::ITALIC),
             );
         }
     }
