@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.3] - 2026-03-08
+
+### Fixed
+
+- **ChatView Freeze Bug** — Mention autocomplete no longer traps keyboard input
+  - Root cause: `_ => {}` fallthrough kept autocomplete visible
+  - Fix: Dismiss autocomplete on any non-navigation key (Tab/Enter/Up/Down/Esc)
+  - Added proper `on_enter()` / `on_leave()` lifecycle hooks to ChatView
+
+### Changed
+
+- **Dead Code Cleanup** — Removed ~85 lines of unused code from app module
+  - Removed: `ensure_chat_agent()`, `build_conversation_context()`, `get_mcp_server_names()`
+  - Removed: `handle_mouse()`, `handle_scroll_to_top/bottom()`
+  - Mouse events now return `Action::Continue` (not implemented)
+
+### Added
+
+- **Which-Key Widget** — Vim-style keybinding popup for discoverability
+  - Shows available keybindings after pressing prefix keys (g, z, [, ], Space)
+  - 300ms delay before popup, 3s auto-close timeout
+  - Solarized-inspired colors matching TUI theme
+  - Integrated into StudioView with CommandPalette overlay
+
 ## [0.21.2] - 2026-03-07
 
 ### Fixed
