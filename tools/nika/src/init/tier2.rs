@@ -513,6 +513,7 @@ pub const WORKFLOW_06_PARALLEL_FOREACH: &str = r##"# ╔════════
 # ║                                                                               ║
 # ║  KEY CONCEPTS:                                                                ║
 # ║  • for_each: Array of items to iterate over                                   ║
+# ║  • for_each: $inputs.items - iterate over workflow inputs (v0.22+)            ║
 # ║  • as: Variable name for current item                                         ║
 # ║  • concurrency: Max parallel executions (default: 1)                          ║
 # ║  • fail_fast: Stop all on first error (default: true)                         ║
@@ -656,6 +657,21 @@ flows:
 # ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ for_each: $previous_task_array   # Array from another task                 │
 # │ as: item                                                                    │
+# └─────────────────────────────────────────────────────────────────────────────┘
+#
+# FROM WORKFLOW INPUTS (v0.22+):
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ # Define inputs at workflow level                                          │
+# │ inputs:                                                                     │
+# │   locales:                                                                  │
+# │     type: array                                                             │
+# │     default: ["en-US", "fr-FR", "de-DE"]                                   │
+# │                                                                             │
+# │ tasks:                                                                      │
+# │   - id: translate                                                           │
+# │     for_each: $inputs.locales    # NEW in v0.22!                           │
+# │     as: locale                                                              │
+# │     infer: "Translate to {{use.locale}}"                                   │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
 # CONCURRENCY GUIDE:

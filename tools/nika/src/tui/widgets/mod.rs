@@ -56,6 +56,9 @@ pub mod tree;
 mod verb_input;
 mod which_key;
 
+// v0.22: Shared panel components for view composition
+pub mod panels;
+
 pub use agent_turns::{AgentTurns, TurnEntry};
 // Animation utilities (v0.10.4)
 pub use animation::{AnimationState, AnimationTicker, Easing};
@@ -146,3 +149,7 @@ pub use task_box::{
 pub use tree::{GitStatus, NodeId, NodeKind, TreeAction, TreeColors, TreeNode, TreeState};
 // Which-key popup (v0.21.2 - vim-style leader key hints)
 pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
+// Panel components (v0.22 - shared between views)
+pub use panels::{
+    BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
+};

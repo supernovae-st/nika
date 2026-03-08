@@ -165,6 +165,7 @@ impl MonitorView {
 
         // Convert TaskStatus to BoxState
         let box_state = match &task.status {
+            TaskStatus::Queued => BoxState::Queued,
             TaskStatus::Pending => BoxState::Queued,
             TaskStatus::Running => BoxState::running(),
             TaskStatus::Success => BoxState::success(task.duration_ms.unwrap_or(0)),
@@ -173,6 +174,7 @@ impl MonitorView {
                 task.duration_ms.unwrap_or(0),
             ),
             TaskStatus::Paused => BoxState::Queued, // Treat paused as queued visually
+            TaskStatus::Skipped => BoxState::Queued, // Treat skipped as queued visually
         };
 
         match task_type {
@@ -315,11 +317,13 @@ impl MonitorView {
     #[allow(dead_code)] // Reserved for future inline status rendering
     fn status_icon(status: &TaskStatus) -> &'static str {
         match status {
-            TaskStatus::Pending => "○",
+            TaskStatus::Queued => "○",
+            TaskStatus::Pending => "◦",
             TaskStatus::Running => "►",
             TaskStatus::Success => "✓",
             TaskStatus::Failed => "✗",
             TaskStatus::Paused => "⏸",
+            TaskStatus::Skipped => "⊘",
         }
     }
 
@@ -405,7 +409,8 @@ impl MonitorView {
 
                     // Status indicator with BoxState-style animation
                     let (status_icon, status_color) = match &task.status {
-                        TaskStatus::Pending => ("○", theme.text_muted),
+                        TaskStatus::Queued => ("○", theme.text_muted),
+                        TaskStatus::Pending => ("◦", theme.text_muted),
                         TaskStatus::Running => {
                             // Animated spinner using BoxState braille pattern
                             let spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -428,6 +433,7 @@ impl MonitorView {
                         TaskStatus::Success => ("✓", theme.status_success),
                         TaskStatus::Failed => ("✗", theme.status_failed),
                         TaskStatus::Paused => ("⏸", theme.status_paused),
+                        TaskStatus::Skipped => ("⊘", theme.text_muted),
                     };
 
                     // Compact mode: single line with verb icon + task + status
@@ -619,11 +625,13 @@ impl MonitorView {
                 if let Some(task) = state.tasks.get(task_id) {
                     let verb = task.task_type.as_deref().unwrap_or("unknown");
                     let status = match &task.status {
-                        TaskStatus::Pending => "○",
+                        TaskStatus::Queued => "○",
+                        TaskStatus::Pending => "◦",
                         TaskStatus::Running => "◐",
                         TaskStatus::Success => "✓",
                         TaskStatus::Failed => "✗",
                         TaskStatus::Paused => "⏸",
+                        TaskStatus::Skipped => "⊘",
                     };
                     content.push_str(&format!("  - {}: {} {}\n", task_id, verb, status));
                 }
@@ -1384,11 +1392,13 @@ mod tests {
 
     #[test]
     fn test_status_icon() {
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Pending), "○");
+        assert_eq!(MonitorView::status_icon(&TaskStatus::Queued), "○");
+        assert_eq!(MonitorView::status_icon(&TaskStatus::Pending), "◦");
         assert_eq!(MonitorView::status_icon(&TaskStatus::Running), "►");
         assert_eq!(MonitorView::status_icon(&TaskStatus::Success), "✓");
         assert_eq!(MonitorView::status_icon(&TaskStatus::Failed), "✗");
         assert_eq!(MonitorView::status_icon(&TaskStatus::Paused), "⏸");
+        assert_eq!(MonitorView::status_icon(&TaskStatus::Skipped), "⊘");
     }
 
     #[test]

@@ -198,8 +198,8 @@
             },
             {
               "type": "string",
-              "pattern": "^\\$[a-z][a-z0-9_]*$",
-              "description": "Binding reference to an array (e.g., $locales)"
+              "pattern": "^\\$[a-z][a-z0-9_.]*$",
+              "description": "Binding reference to an array (e.g., $locales, $inputs.items) (v0.22+ supports $inputs.*)"
             },
             {
               "type": "string",
@@ -412,6 +412,12 @@
             "cwd": {
               "type": "string",
               "description": "Working directory for command"
+            },
+            "env": {
+              "type": "object",
+              "description": "Environment variables to set for the command (v0.22+)",
+              "additionalProperties": { "type": "string" },
+              "examples": [{"NODE_ENV": "production", "DEBUG": "true"}]
             }
           }
         }
@@ -441,6 +447,11 @@
         "body": {
           "type": "string",
           "description": "Request body (for POST/PUT/PATCH)"
+        },
+        "json": {
+          "type": "object",
+          "description": "JSON body (auto-serialized, sets Content-Type: application/json) (v0.22+)",
+          "additionalProperties": true
         },
         "timeout": {
           "type": "integer",

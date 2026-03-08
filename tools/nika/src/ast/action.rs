@@ -222,6 +222,8 @@ pub struct ExecParams {
     pub timeout: Option<u64>,
     /// Working directory for command execution
     pub cwd: Option<String>,
+    /// Environment variables to pass to the command (v0.22)
+    pub env: Option<FxHashMap<String, String>>,
 }
 
 impl<'de> Deserialize<'de> for ExecParams {
@@ -241,6 +243,8 @@ impl<'de> Deserialize<'de> for ExecParams {
                 timeout: Option<u64>,
                 #[serde(default)]
                 cwd: Option<String>,
+                #[serde(default)]
+                env: Option<FxHashMap<String, String>>,
             },
         }
 
@@ -250,17 +254,20 @@ impl<'de> Deserialize<'de> for ExecParams {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             }),
             ExecParamsHelper::Full {
                 command,
                 shell,
                 timeout,
                 cwd,
+                env,
             } => Ok(ExecParams {
                 command,
                 shell,
                 timeout,
                 cwd,
+                env,
             }),
         }
     }
@@ -295,6 +302,10 @@ fn default_multiplier() -> f64 {
 }
 
 /// Fetch action - HTTP request
+///
+/// ## JSON Body (v0.22)
+/// - `json: { ... }` — Auto-serializes to JSON and sets Content-Type: application/json
+/// - Mutually exclusive with `body` (json takes precedence)
 #[derive(Debug, Clone, Deserialize)]
 pub struct FetchParams {
     pub url: String,
@@ -303,6 +314,11 @@ pub struct FetchParams {
     #[serde(default)]
     pub headers: FxHashMap<String, String>,
     pub body: Option<String>,
+    /// JSON body to auto-serialize (v0.22)
+    /// If provided, serializes to string and sets Content-Type: application/json
+    /// Takes precedence over `body` if both are specified
+    #[serde(default)]
+    pub json: Option<serde_json::Value>,
     /// Request timeout in seconds (matches JSON schema)
     pub timeout: Option<u64>,
     /// Optional retry configuration for failed requests
@@ -901,6 +917,60 @@ fetch:
         }
     }
 
+    #[test]
+    fn test_fetch_params_with_json() {
+        let yaml = r#"
+fetch:
+  url: "https://api.example.com/users"
+  method: "POST"
+  json:
+    name: "Alice"
+    age: 30
+    active: true
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.url, "https://api.example.com/users");
+                assert_eq!(fetch.method, "POST");
+                assert!(fetch.json.is_some());
+                let json = fetch.json.unwrap();
+                assert_eq!(json["name"], "Alice");
+                assert_eq!(json["age"], 30);
+                assert_eq!(json["active"], true);
+                assert!(fetch.body.is_none()); // body not set, json is used
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_params_json_with_nested_objects() {
+        let yaml = r#"
+fetch:
+  url: "https://api.example.com/data"
+  method: "POST"
+  json:
+    user:
+      name: "Bob"
+      email: "bob@example.com"
+    tags:
+      - "admin"
+      - "active"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                let json = fetch.json.unwrap();
+                assert_eq!(json["user"]["name"], "Bob");
+                assert_eq!(json["user"]["email"], "bob@example.com");
+                assert_eq!(json["tags"][0], "admin");
+                assert_eq!(json["tags"][1], "active");
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
     // =========================================================================
     // InvokeParams Tests
     // =========================================================================
@@ -1146,6 +1216,7 @@ agent:
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
         assert_eq!(action.verb_name(), "exec");
@@ -1159,6 +1230,7 @@ agent:
                 method: "GET".to_string(),
                 headers: FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -1370,6 +1442,7 @@ fetch:
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
         let fetch = TaskAction::Fetch {
@@ -1378,6 +1451,7 @@ fetch:
                 method: "GET".to_string(),
                 headers: FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },

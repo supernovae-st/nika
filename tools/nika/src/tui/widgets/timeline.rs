@@ -120,6 +120,10 @@ impl<'a> Timeline<'a> {
     /// Get status color with theme fallback
     fn status_color(&self, status: TaskStatus) -> Color {
         match status {
+            TaskStatus::Queued => self
+                .theme
+                .map(|t| t.text_muted)
+                .unwrap_or(DEFAULT_PENDING_COLOR),
             TaskStatus::Pending => self
                 .theme
                 .map(|t| t.status_pending)
@@ -140,6 +144,10 @@ impl<'a> Timeline<'a> {
                 .theme
                 .map(|t| t.status_paused)
                 .unwrap_or(DEFAULT_PAUSED_COLOR),
+            TaskStatus::Skipped => self
+                .theme
+                .map(|t| t.text_muted)
+                .unwrap_or(DEFAULT_PENDING_COLOR),
         }
     }
 
@@ -149,11 +157,13 @@ impl<'a> Timeline<'a> {
             return "◉";
         }
         match status {
-            TaskStatus::Pending => "○",
+            TaskStatus::Queued => "○",
+            TaskStatus::Pending => "◦",
             TaskStatus::Running => "◉", // Will be replaced by spinner
             TaskStatus::Success => "●",
             TaskStatus::Failed => "⊗",
             TaskStatus::Paused => "◎",
+            TaskStatus::Skipped => "⊘",
         }
     }
 

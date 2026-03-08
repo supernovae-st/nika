@@ -681,11 +681,13 @@ impl Theme {
     /// Get style for task status
     pub fn status_style(&self, status: TaskStatus) -> Style {
         let color = match status {
+            TaskStatus::Queued => self.text_muted,
             TaskStatus::Pending => self.status_pending,
             TaskStatus::Running => self.status_running,
             TaskStatus::Success => self.status_success,
             TaskStatus::Failed => self.status_failed,
             TaskStatus::Paused => self.status_paused,
+            TaskStatus::Skipped => self.text_muted,
         };
         Style::default().fg(color)
     }
@@ -782,22 +784,26 @@ impl Theme {
 /// Task status for styling
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskStatus {
+    Queued,
     Pending,
     Running,
     Success,
     Failed,
     Paused,
+    Skipped,
 }
 
 impl TaskStatus {
     /// Get theme-aware color for this status
     pub fn color(&self, theme: &Theme) -> Color {
         match self {
+            Self::Queued => theme.text_muted,
             Self::Pending => theme.status_pending,
             Self::Running => theme.status_running,
             Self::Success => theme.status_success,
             Self::Failed => theme.status_failed,
             Self::Paused => theme.status_paused,
+            Self::Skipped => theme.text_muted,
         }
     }
 }

@@ -906,23 +906,72 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .unwrap_or_default();
 
                         if let Some(alias) = binding_str.strip_prefix('$') {
-                            // $alias format (e.g., "$locales")
-                            match bindings.get_resolved(alias, &self.datastore) {
-                                Ok(value) => value.as_array().cloned(),
-                                Err(e) => {
-                                    // Binding not found - fail the task
-                                    self.datastore.insert(
-                                        intern(&task.id),
-                                        TaskResult::failed(
-                                            format!(
-                                                "for_each binding '{}' not found: {}",
-                                                alias, e
+                            // v0.22: Check for $inputs.xxx format first (workflow inputs)
+                            if alias.starts_with("inputs.") {
+                                match self.datastore.resolve_input_path(alias) {
+                                    Some(value) => value.as_array().cloned(),
+                                    None => {
+                                        self.datastore.insert(
+                                            intern(&task.id),
+                                            TaskResult::failed(
+                                                format!(
+                                                    "for_each input '{}' not found in workflow inputs",
+                                                    alias
+                                                ),
+                                                std::time::Duration::ZERO,
                                             ),
-                                            std::time::Duration::ZERO,
-                                        ),
-                                    );
-                                    continue;
+                                        );
+                                        continue;
+                                    }
                                 }
+                            } else {
+                                // $alias format (e.g., "$locales")
+                                match bindings.get_resolved(alias, &self.datastore) {
+                                    Ok(value) => value.as_array().cloned(),
+                                    Err(e) => {
+                                        // Binding not found - fail the task
+                                        self.datastore.insert(
+                                            intern(&task.id),
+                                            TaskResult::failed(
+                                                format!(
+                                                    "for_each binding '{}' not found: {}",
+                                                    alias, e
+                                                ),
+                                                std::time::Duration::ZERO,
+                                            ),
+                                        );
+                                        continue;
+                                    }
+                                }
+                            }
+                        } else if binding_str.contains("{{inputs.") {
+                            // v0.22: Template format for inputs (e.g., "{{inputs.items}}")
+                            if let Some(start) = binding_str.find("{{inputs.") {
+                                let after = &binding_str[start + 9..]; // "{{inputs." is 9 chars
+                                if let Some(end) = after.find("}}") {
+                                    let param_path = &after[..end];
+                                    let full_path = format!("inputs.{}", param_path);
+                                    match self.datastore.resolve_input_path(&full_path) {
+                                        Some(value) => value.as_array().cloned(),
+                                        None => {
+                                            self.datastore.insert(
+                                                intern(&task.id),
+                                                TaskResult::failed(
+                                                    format!(
+                                                        "for_each input '{}' not found in workflow inputs",
+                                                        full_path
+                                                    ),
+                                                    std::time::Duration::ZERO,
+                                                ),
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
                             }
                         } else if binding_str.contains("{{use.") {
                             // Template format (e.g., "{{use.locales}}")
@@ -1367,6 +1416,7 @@ mod tests {
                         shell: None,
                         timeout: None,
                         cwd: None,
+                        env: None,
                     },
                 },
                 use_wiring: None,
@@ -1436,6 +1486,7 @@ mod tests {
                         shell: None,
                         timeout: None,
                         cwd: None,
+                        env: None,
                     },
                 },
                 use_wiring: None,
@@ -1510,6 +1561,7 @@ mod tests {
                                 shell: None,
                                 timeout: None,
                                 cwd: None,
+                                env: None,
                             },
                         },
                         artifact: None,
@@ -1941,6 +1993,7 @@ mod tests {
                         shell: None,
                         timeout: None,
                         cwd: None,
+                        env: None,
                     },
                 },
                 use_wiring: None,
@@ -2000,6 +2053,7 @@ mod tests {
                         shell: None,
                         timeout: None,
                         cwd: None,
+                        env: None,
                     },
                 },
                 use_wiring: None,
@@ -2049,6 +2103,7 @@ mod tests {
                         shell: None,
                         timeout: None,
                         cwd: None,
+                        env: None,
                     },
                 },
                 use_wiring: None,
@@ -2068,6 +2123,226 @@ mod tests {
         // All items should be processed
         let parent_result = runner.datastore.get("continue");
         assert!(parent_result.is_some());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH WITH INPUTS.* SUPPORT (v0.22)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn for_each_with_dollar_inputs_array() {
+        use serde_json::json;
+
+        // Test for_each: $inputs.items resolves from workflow inputs
+        let mut workflow = make_empty_workflow();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "items".to_string(),
+            json!({
+                "type": "array",
+                "default": ["alpha", "beta", "gamma"]
+            }),
+        );
+        workflow.inputs = Some(inputs);
+        workflow.tasks = vec![Arc::new(Task {
+            id: "process_items".to_string(),
+            for_each: Some(serde_json::json!("$inputs.items")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        })];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        // Should have processed all 3 items
+        let task_result = runner.datastore.get("process_items");
+        assert!(task_result.is_some(), "Task result should exist");
+        assert!(task_result.unwrap().is_success(), "Task should succeed");
+    }
+
+    #[tokio::test]
+    async fn for_each_with_template_inputs() {
+        use serde_json::json;
+
+        // Test for_each: "{{inputs.locales}}" resolves from workflow inputs
+        let mut workflow = make_empty_workflow();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "locales".to_string(),
+            json!({
+                "type": "array",
+                "default": ["fr-FR", "en-US"]
+            }),
+        );
+        workflow.inputs = Some(inputs);
+        workflow.tasks = vec![Arc::new(Task {
+            id: "translate".to_string(),
+            for_each: Some(json!("{{inputs.locales}}")),
+            for_each_as: Some("locale".to_string()),
+            concurrency: Some(2),
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo Translating to {{use.locale}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        })];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("translate");
+        assert!(task_result.is_some(), "Task result should exist");
+        assert!(task_result.unwrap().is_success(), "Task should succeed");
+    }
+
+    #[tokio::test]
+    async fn for_each_with_inputs_missing_fails_gracefully() {
+        use serde_json::json;
+
+        // Test for_each: $inputs.nonexistent fails with clear error
+        let mut workflow = make_empty_workflow();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "other_param".to_string(),
+            json!({
+                "type": "string",
+                "default": "test"
+            }),
+        );
+        workflow.inputs = Some(inputs);
+        workflow.tasks = vec![Arc::new(Task {
+            id: "missing_input".to_string(),
+            for_each: Some(json!("$inputs.nonexistent")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        })];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        // The workflow completes but the task fails
+        assert!(result.is_ok(), "Workflow should complete");
+
+        let task_result = runner.datastore.get("missing_input");
+        assert!(task_result.is_some(), "Task result should exist");
+        let tr = task_result.unwrap();
+        assert!(!tr.is_success(), "Task should fail due to missing input");
+        // Error message is in status field, not output (TaskResult::failed stores error in status)
+        let error_msg = tr.error().expect("Failed task should have error message");
+        assert!(
+            error_msg.contains("not found"),
+            "Error should mention 'not found': {}",
+            error_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_with_inputs_nested_path() {
+        use serde_json::json;
+
+        // Test for_each: $inputs.data.items with nested input structure
+        let mut workflow = make_empty_workflow();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "data".to_string(),
+            json!({
+                "type": "object",
+                "default": {
+                    "items": ["one", "two", "three"]
+                }
+            }),
+        );
+        workflow.inputs = Some(inputs);
+        workflow.tasks = vec![Arc::new(Task {
+            id: "nested".to_string(),
+            for_each: Some(json!("$inputs.data.items")),
+            for_each_as: Some("n".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.n}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        })];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("nested");
+        assert!(task_result.is_some(), "Task result should exist");
+        assert!(task_result.unwrap().is_success(), "Task should succeed");
     }
 
     // ═══════════════════════════════════════════════════════════════

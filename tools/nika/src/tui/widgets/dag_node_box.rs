@@ -186,6 +186,24 @@ impl BorderChars {
     /// Get border characters for a task status with optional rounded corners
     fn for_status(status: TaskStatus, style: BorderStyle) -> Self {
         match (status, style) {
+            // Queued: thin dashed borders - rounded
+            (TaskStatus::Queued, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '┄',
+                v: '┆',
+            },
+            // Queued: thin dashed borders - sharp
+            (TaskStatus::Queued, BorderStyle::Sharp) => Self {
+                tl: '┌',
+                tr: '┐',
+                bl: '└',
+                br: '┘',
+                h: '┄',
+                v: '┆',
+            },
             // Pending: dashed borders (light) - rounded
             (TaskStatus::Pending, BorderStyle::Rounded) => Self {
                 tl: '╭',
@@ -275,6 +293,24 @@ impl BorderChars {
                 br: '┘',
                 h: '┈',
                 v: '┊',
+            },
+            // Skipped: thin dashed borders - rounded
+            (TaskStatus::Skipped, BorderStyle::Rounded) => Self {
+                tl: '╭',
+                tr: '╮',
+                bl: '╰',
+                br: '╯',
+                h: '┄',
+                v: '┆',
+            },
+            // Skipped: thin dashed borders - sharp
+            (TaskStatus::Skipped, BorderStyle::Sharp) => Self {
+                tl: '┌',
+                tr: '┐',
+                bl: '└',
+                br: '┘',
+                h: '┄',
+                v: '┆',
             },
         }
     }
@@ -399,7 +435,8 @@ impl<'a> NodeBox<'a> {
     /// Get the status badge character (animated for running/success)
     fn status_badge(&self) -> &'static str {
         match self.data.status {
-            TaskStatus::Pending => "○",
+            TaskStatus::Queued => "○",
+            TaskStatus::Pending => "◦",
             TaskStatus::Running => {
                 // Animated spinner
                 let idx = (self.frame as usize / 4) % SPINNER_FRAMES.len();
@@ -412,6 +449,7 @@ impl<'a> NodeBox<'a> {
             }
             TaskStatus::Failed => "✗",
             TaskStatus::Paused => "◐",
+            TaskStatus::Skipped => "⊘",
         }
     }
 
@@ -447,11 +485,13 @@ impl<'a> NodeBox<'a> {
             .unwrap_or(DEFAULT_FAILED_COLOR);
 
         let color = match self.data.status {
+            TaskStatus::Queued => self.data.verb.muted(),
             TaskStatus::Pending => self.data.verb.muted(),
             TaskStatus::Running => self.data.verb.rgb(),
             TaskStatus::Success => self.data.verb.rgb(),
             TaskStatus::Failed => failed_color,
             TaskStatus::Paused => self.data.verb.muted(),
+            TaskStatus::Skipped => self.data.verb.muted(),
         };
 
         let mut style = Style::default().fg(color);
@@ -483,11 +523,13 @@ impl<'a> NodeBox<'a> {
             .unwrap_or(DEFAULT_FAILED_COLOR);
 
         let color = match self.data.status {
+            TaskStatus::Queued => muted_color,
             TaskStatus::Pending => muted_color,
             TaskStatus::Running => active_color,
             TaskStatus::Success => active_color,
             TaskStatus::Failed => failed_color,
             TaskStatus::Paused => muted_color,
+            TaskStatus::Skipped => muted_color,
         };
 
         Style::default().fg(color)
@@ -517,11 +559,13 @@ impl<'a> NodeBox<'a> {
             .unwrap_or(DEFAULT_PAUSED_BADGE_COLOR);
 
         let color = match self.data.status {
+            TaskStatus::Queued => pending_color,
             TaskStatus::Pending => pending_color,
             TaskStatus::Running => running_color,
             TaskStatus::Success => success_color,
             TaskStatus::Failed => failed_color,
             TaskStatus::Paused => paused_color,
+            TaskStatus::Skipped => paused_color,
         };
 
         Style::default().fg(color)
@@ -898,7 +942,13 @@ mod tests {
 
     #[test]
     fn test_status_badges() {
+        // Default status is Pending (small circle)
         let data = NodeBoxData::new("t", VerbColor::Infer);
+        let widget = NodeBox::new(&data);
+        assert_eq!(widget.status_badge(), "◦");
+
+        // Queued status (empty circle)
+        let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Queued);
         let widget = NodeBox::new(&data);
         assert_eq!(widget.status_badge(), "○");
 
@@ -925,6 +975,10 @@ mod tests {
         let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Paused);
         let widget = NodeBox::new(&data);
         assert_eq!(widget.status_badge(), "◐");
+
+        let data = NodeBoxData::new("t", VerbColor::Infer).with_status(TaskStatus::Skipped);
+        let widget = NodeBox::new(&data);
+        assert_eq!(widget.status_badge(), "⊘");
     }
 
     #[test]

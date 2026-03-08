@@ -834,6 +834,7 @@ flows:
                     method: "GET".to_string(),
                     headers: rustc_hash::FxHashMap::default(),
                     body: None,
+                    json: None,
                     timeout: None,
                     retry: None,
                 },

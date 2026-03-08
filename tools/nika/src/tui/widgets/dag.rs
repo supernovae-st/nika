@@ -346,11 +346,13 @@ impl<'a> Dag<'a> {
         } else {
             // Fallback for backward compatibility
             match status {
+                TaskStatus::Queued => DEFAULT_PENDING_COLOR,
                 TaskStatus::Pending => DEFAULT_PENDING_COLOR,
                 TaskStatus::Running => DEFAULT_RUNNING_COLOR,
                 TaskStatus::Success => DEFAULT_SUCCESS_COLOR,
                 TaskStatus::Failed => DEFAULT_FAILED_COLOR,
                 TaskStatus::Paused => DEFAULT_PAUSED_COLOR,
+                TaskStatus::Skipped => DEFAULT_PENDING_COLOR,
             }
         }
     }
@@ -361,11 +363,13 @@ impl<'a> Dag<'a> {
             return "▶";
         }
         match status {
-            TaskStatus::Pending => "○",
+            TaskStatus::Queued => "○",
+            TaskStatus::Pending => "◦",
             TaskStatus::Running => "◉", // Will be replaced by spinner
             TaskStatus::Success => "●",
             TaskStatus::Failed => "⊗",
             TaskStatus::Paused => "◎",
+            TaskStatus::Skipped => "⊘",
         }
     }
 

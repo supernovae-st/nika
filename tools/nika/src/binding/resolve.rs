@@ -193,12 +193,34 @@ impl ResolvedBindings {
 /// Resolve a single UseEntry to a Value
 ///
 /// Unified resolution logic:
-/// 1. Extract task_id from path (first segment)
-/// 2. Get task output from datastore
-/// 3. Resolve remaining path within output
-/// 4. Apply default if value is null/missing
+/// 1. Check for inputs.* path (v0.22 - workflow inputs support)
+/// 2. Extract task_id from path (first segment)
+/// 3. Get task output from datastore
+/// 4. Resolve remaining path within output
+/// 5. Apply default if value is null/missing
 fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
     let path = &entry.path;
+
+    // v0.22: Check for inputs.* path first
+    if path.starts_with("inputs.") {
+        let value = datastore.resolve_input_path(path);
+        return match value {
+            Some(v) if !v.is_null() => Ok(v),
+            Some(_) => entry
+                .default
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| NikaError::NullValue {
+                    path: path.clone(),
+                    alias: alias.to_string(),
+                }),
+            None => entry
+                .default
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| NikaError::PathNotFound { path: path.clone() }),
+        };
+    }
 
     // Split path into task_id and remaining path
     let (task_id, field_path) = split_path(path);
@@ -1037,5 +1059,186 @@ mod tests {
         let mut bindings = ResolvedBindings::new();
         bindings.set("empty_obj", json!({}));
         assert_eq!(bindings.get("empty_obj"), Some(&json!({})));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // inputs.* binding support (v0.22)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn resolve_inputs_simple() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        // Set up workflow inputs
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "AI trends 2025"
+            }),
+        );
+        store.set_inputs(inputs);
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("topic_val".to_string(), UseEntry::new("inputs.topic"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("topic_val"), Some(&json!("AI trends 2025")));
+    }
+
+    #[test]
+    fn resolve_inputs_nested_field() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        // Set up workflow inputs with nested object
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "config".to_string(),
+            json!({
+                "type": "object",
+                "default": {
+                    "theme": "dark",
+                    "version": 2,
+                    "nested": {
+                        "deep": "value"
+                    }
+                }
+            }),
+        );
+        store.set_inputs(inputs);
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("theme".to_string(), UseEntry::new("inputs.config.theme"));
+        wiring.insert(
+            "deep".to_string(),
+            UseEntry::new("inputs.config.nested.deep"),
+        );
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("theme"), Some(&json!("dark")));
+        assert_eq!(bindings.get("deep"), Some(&json!("value")));
+    }
+
+    #[test]
+    fn resolve_inputs_with_default_on_missing() {
+        let store = DataStore::new();
+        // No inputs set
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert(
+            "fallback".to_string(),
+            UseEntry::with_default("inputs.missing", json!("default_value")),
+        );
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("fallback"), Some(&json!("default_value")));
+    }
+
+    #[test]
+    fn resolve_inputs_missing_no_default() {
+        let store = DataStore::new();
+        // No inputs set
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("missing".to_string(), UseEntry::new("inputs.missing"));
+
+        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-052")); // PathNotFound
+    }
+
+    #[test]
+    fn resolve_inputs_lazy_binding() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "lazy_input".to_string(),
+            json!({
+                "type": "string",
+                "default": "lazy_value"
+            }),
+        );
+        store.set_inputs(inputs);
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert(
+            "lazy_alias".to_string(),
+            UseEntry::new_lazy("inputs.lazy_input"),
+        );
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // Lazy binding should be pending
+        assert!(bindings.is_lazy("lazy_alias"));
+        assert_eq!(bindings.get("lazy_alias"), None);
+
+        // But can be resolved on demand
+        let resolved = bindings.get_resolved("lazy_alias", &store).unwrap();
+        assert_eq!(resolved, json!("lazy_value"));
+    }
+
+    #[test]
+    fn resolve_inputs_mixed_with_task_outputs() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        // Set up workflow inputs
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "AI"
+            }),
+        );
+        store.set_inputs(inputs);
+
+        // Set up task output
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"result": "generated"}), Duration::from_secs(1)),
+        );
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("from_input".to_string(), UseEntry::new("inputs.topic"));
+        wiring.insert("from_task".to_string(), UseEntry::new("step1.result"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+
+        // Both should resolve correctly
+        assert_eq!(bindings.get("from_input"), Some(&json!("AI")));
+        assert_eq!(bindings.get("from_task"), Some(&json!("generated")));
+    }
+
+    #[test]
+    fn resolve_inputs_array_value() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "items".to_string(),
+            json!({
+                "type": "array",
+                "default": ["a", "b", "c"]
+            }),
+        );
+        store.set_inputs(inputs);
+
+        let mut wiring = WiringSpec::default();
+        wiring.insert("all_items".to_string(), UseEntry::new("inputs.items"));
+
+        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        assert_eq!(bindings.get("all_items"), Some(&json!(["a", "b", "c"])));
     }
 }

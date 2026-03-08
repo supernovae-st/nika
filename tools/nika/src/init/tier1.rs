@@ -65,6 +65,7 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # ├── shell: true vs false (security)
 # ├── cwd: working directory
 # ├── timeout: command timeout (seconds)
+# ├── env: environment variables (v0.22+)
 # ├── use: bindings between tasks
 # └── flows: task dependencies
 #
@@ -134,6 +135,20 @@ tasks:
       cwd: "/tmp"
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # ENVIRONMENT VARIABLES (v0.22+): Set custom env vars for the command
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: with_env_vars
+    exec:
+      command: 'echo "App: $APP_NAME v$APP_VERSION (env: $NODE_ENV)"'
+      shell: true
+      # NEW in v0.22: Environment variables for this command
+      env:
+        APP_NAME: "Nika"
+        APP_VERSION: "0.22.0"
+        NODE_ENV: "production"
+        DEBUG: "false"
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # SHELL-FREE MODE (Default & Secure)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: secure_command
@@ -151,6 +166,7 @@ tasks:
     use:
       sys_info: show_system_info
       cwd_demo: with_cwd
+      env_demo: with_env_vars
       secure: secure_command
     exec:
       command: |
@@ -162,6 +178,7 @@ tasks:
         echo "   • Use full form for cwd, timeouts, shell mode"
         echo "   • shell: false (default) is more secure"
         echo "   • shell: true needed for pipes, redirects, variables"
+        echo "   • env: { KEY: value } sets environment variables (v0.22+)"
       shell: true
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -180,6 +197,8 @@ flows:
   - source: show_system_info
     target: with_cwd
   - source: with_cwd
+    target: with_env_vars
+  - source: with_env_vars
     target: secure_command
   - source: secure_command
     target: summary
@@ -230,7 +249,8 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 #
 # FEATURES DEMONSTRATED:
 # ├── fetch: with GET method
-# ├── fetch: with POST and body
+# ├── fetch: with POST and body (string)
+# ├── fetch: with POST and json (auto-serialized) (v0.22+)
 # ├── headers: custom HTTP headers
 # ├── timeout: request timeout (seconds)
 # └── use: parsing JSON responses
@@ -278,10 +298,10 @@ tasks:
       headers:
         Accept: "application/json"
         X-Custom-Header: "Nika-Workflow"
-        User-Agent: "Nika/0.21.0"
+        User-Agent: "Nika/0.22.0"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # POST WITH JSON BODY
+  # POST WITH JSON BODY (String Method)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: post_data
     use:
@@ -295,8 +315,28 @@ tasks:
       headers:
         Content-Type: "application/json"
         Accept: "application/json"
-      # Body as JSON string
+      # Body as JSON string (old method - still works)
       body: '{"message": "Hello from Nika!", "ip": "{{use.my_ip}}", "nested": {"key": "value", "number": 42}}'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # POST WITH JSON (Auto-serialized) - NEW in v0.22!
+  # ─────────────────────────────────────────────────────────────────────────────
+  - id: post_json_auto
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      # NEW in v0.22: json: auto-serializes and sets Content-Type header!
+      # No need to manually stringify or set Content-Type!
+      json:
+        message: "Hello from Nika v0.22!"
+        features:
+          - "auto-serialization"
+          - "automatic Content-Type header"
+          - "cleaner YAML syntax"
+        nested:
+          key: "value"
+          number: 42
+          enabled: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # AUTHENTICATED REQUEST
@@ -321,6 +361,7 @@ tasks:
       json_result: get_json
       headers_result: get_headers
       post_result: post_data
+      post_json_result: post_json_auto
       auth_result: with_auth_header
     exec:
       command: |
@@ -337,8 +378,11 @@ tasks:
         echo "📋 GET /headers (with custom headers):"
         echo "{{use.headers_result}}" | head -5
         echo ""
-        echo "📤 POST /post (with JSON body):"
-        echo "{{use.post_result}}" | head -10
+        echo "📤 POST /post (with body: string):"
+        echo "{{use.post_result}}" | head -8
+        echo ""
+        echo "🆕 POST /post (with json: auto-serialized - v0.22!):"
+        echo "{{use.post_json_result}}" | head -8
         echo ""
         echo "🔐 GET /bearer (with auth):"
         echo "{{use.auth_result}}"
@@ -350,6 +394,7 @@ tasks:
         echo "   • Use method: GET, POST, PUT, DELETE, PATCH"
         echo "   • Add custom headers: for auth, content-type, etc."
         echo "   • Use body: for request body (string)"
+        echo "   • Use json: for auto-serialized JSON body (v0.22+)"
         echo "   • timeout: prevents hanging on slow endpoints (seconds)"
       shell: true
 
@@ -365,8 +410,10 @@ flows:
   - source: get_headers
     target: post_data
 
-  # Sequential: post_data -> auth -> display
+  # Sequential: post_data -> post_json_auto -> auth -> display
   - source: post_data
+    target: post_json_auto
+  - source: post_json_auto
     target: with_auth_header
   - source: with_auth_header
     target: display_results

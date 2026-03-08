@@ -831,24 +831,31 @@ impl TaskExecutor {
         });
 
         // v0.15.0: Shell-free execution by default, opt-in to shell mode
+        // v0.22: Support for env vars
         let output = if params.shell == Some(true) {
             // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
             tracing::debug!(task_id = %task_id, "exec: using shell mode (sh -c)");
-            tokio::time::timeout(
-                EXEC_TIMEOUT,
-                tokio::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(resolved_cmd.as_ref())
-                    .output(),
-            )
-            .await
-            .map_err(|_| {
-                NikaError::Execution(format!(
-                    "Command timed out after {}s",
-                    EXEC_TIMEOUT.as_secs()
-                ))
-            })?
-            .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
+            let mut cmd = tokio::process::Command::new("sh");
+            cmd.arg("-c").arg(resolved_cmd.as_ref());
+
+            // Add environment variables if specified (v0.22)
+            if let Some(ref env_vars) = params.env {
+                for (key, value) in env_vars {
+                    // Resolve templates in env values
+                    let resolved_value = template_resolve(value, bindings, datastore)?;
+                    cmd.env(key, resolved_value.as_ref());
+                }
+            }
+
+            tokio::time::timeout(EXEC_TIMEOUT, cmd.output())
+                .await
+                .map_err(|_| {
+                    NikaError::Execution(format!(
+                        "Command timed out after {}s",
+                        EXEC_TIMEOUT.as_secs()
+                    ))
+                })?
+                .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
         } else {
             // Shell-free mode (default): parse with shlex, execute directly
             tracing::debug!(task_id = %task_id, "exec: using shell-free mode (shlex)");
@@ -863,20 +870,27 @@ impl TaskExecutor {
                 return Err(NikaError::Execution("Empty command".to_string()));
             }
 
-            tokio::time::timeout(
-                EXEC_TIMEOUT,
-                tokio::process::Command::new(&parts[0])
-                    .args(&parts[1..])
-                    .output(),
-            )
-            .await
-            .map_err(|_| {
-                NikaError::Execution(format!(
-                    "Command timed out after {}s",
-                    EXEC_TIMEOUT.as_secs()
-                ))
-            })?
-            .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
+            let mut cmd = tokio::process::Command::new(&parts[0]);
+            cmd.args(&parts[1..]);
+
+            // Add environment variables if specified (v0.22)
+            if let Some(ref env_vars) = params.env {
+                for (key, value) in env_vars {
+                    // Resolve templates in env values
+                    let resolved_value = template_resolve(value, bindings, datastore)?;
+                    cmd.env(key, resolved_value.as_ref());
+                }
+            }
+
+            tokio::time::timeout(EXEC_TIMEOUT, cmd.output())
+                .await
+                .map_err(|_| {
+                    NikaError::Execution(format!(
+                        "Command timed out after {}s",
+                        EXEC_TIMEOUT.as_secs()
+                    ))
+                })?
+                .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
         };
 
         if !output.status.success() {
@@ -938,8 +952,27 @@ impl TaskExecutor {
             request = request.header(key, resolved_value.as_ref());
         }
 
-        // Add body if present
-        if let Some(body) = &fetch.body {
+        // Handle json field (v0.22) - takes precedence over body
+        // Auto-serializes to JSON string and sets Content-Type: application/json
+        if let Some(ref json_value) = fetch.json {
+            // Serialize JSON value to string
+            let json_body =
+                serde_json::to_string(json_value).map_err(|e| NikaError::InvalidJson {
+                    details: format!("Failed to serialize json body: {e}"),
+                })?;
+
+            // Set Content-Type header if not already set
+            if !fetch
+                .headers
+                .keys()
+                .any(|k| k.eq_ignore_ascii_case("content-type"))
+            {
+                request = request.header("Content-Type", "application/json");
+            }
+
+            request = request.body(json_body);
+        } else if let Some(body) = &fetch.body {
+            // Add body if present (only if json not set)
             let resolved_body = template_resolve(body, bindings, datastore)?;
             request = request.body(resolved_body.into_owned());
         }
@@ -1543,6 +1576,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -1567,6 +1601,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -1591,6 +1626,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -1625,6 +1661,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -1665,6 +1702,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -1691,6 +1729,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -1961,6 +2000,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -1986,6 +2026,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2009,6 +2050,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2033,6 +2075,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2064,6 +2107,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2250,6 +2294,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2283,6 +2328,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
         assert_eq!(action_type(&exec_action), "exec");
@@ -2293,6 +2339,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -2361,6 +2408,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2399,6 +2447,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2429,6 +2478,7 @@ mod tests {
                 shell: None,
                 timeout: None,
                 cwd: None,
+                env: None,
             },
         };
 
@@ -2468,6 +2518,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -2505,6 +2556,7 @@ mod tests {
                 method: "GET".to_string(),
                 headers: rustc_hash::FxHashMap::default(),
                 body: None,
+                json: None,
                 timeout: None,
                 retry: None,
             },
@@ -2594,6 +2646,7 @@ mod tests {
             shell: None, // Default: shell-free
             timeout: None,
             cwd: None,
+            env: None,
         };
 
         let result = executor
@@ -2622,6 +2675,7 @@ mod tests {
             shell: Some(true), // Opt-in to shell mode
             timeout: None,
             cwd: None,
+            env: None,
         };
 
         let result = executor
@@ -2647,6 +2701,7 @@ mod tests {
             shell: None, // Default: shell-free
             timeout: None,
             cwd: None,
+            env: None,
         };
 
         let result = executor
@@ -2671,6 +2726,7 @@ mod tests {
             shell: None,
             timeout: None,
             cwd: None,
+            env: None,
         };
 
         let result = executor

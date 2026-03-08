@@ -1556,11 +1556,13 @@ impl TuiState {
                 for task_id in &self.task_order {
                     if let Some(task) = self.tasks.get(task_id) {
                         let status = match task.status {
+                            TaskStatus::Queued => "[.]",
                             TaskStatus::Pending => "[ ]",
                             TaskStatus::Running => "[~]",
                             TaskStatus::Success => "[x]",
                             TaskStatus::Failed => "[!]",
                             TaskStatus::Paused => "[-]",
+                            TaskStatus::Skipped => "[/]",
                         };
                         let deps = if task.dependencies.is_empty() {
                             String::new()
