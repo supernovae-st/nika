@@ -1,11 +1,10 @@
 //! App Event Handling
 //!
-//! Contains event polling, keyboard handling, mouse handling, and stream processing.
+//! Contains event polling, keyboard handling, and stream processing.
 
 use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
-use ratatui::layout::Rect;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::broadcast;
 
 use crate::event::EventKind;
@@ -180,19 +179,6 @@ impl App {
             TuiView::Chat => self.chat_view.handle_key(key, &mut self.state),
             TuiView::Settings => self.settings_view.handle_key(key, &mut self.state),
         }
-    }
-
-    /// Handle mouse events
-    ///
-    /// Processes mouse clicks and scrolling.
-    #[allow(dead_code)]
-    pub(crate) fn handle_mouse(
-        &mut self,
-        _mouse: MouseEvent,
-        _terminal_size: Option<Rect>,
-    ) -> Action {
-        // TODO: Implement mouse handling for panel clicks, scrolling
-        Action::Continue
     }
 
     /// Handle Ctrl+C with double-tap to quit (like Claude Code)

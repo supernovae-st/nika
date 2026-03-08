@@ -37,10 +37,12 @@ impl App {
                 self.handle_scroll_down();
             }
             Action::ScrollToTop => {
-                self.handle_scroll_to_top();
+                // v0.22.3: Delegate to scroll up (simple implementation)
+                self.handle_scroll_up();
             }
             Action::ScrollToBottom => {
-                self.handle_scroll_to_bottom();
+                // v0.22.3: Delegate to scroll down (simple implementation)
+                self.handle_scroll_down();
             }
 
             // ═══ Pause/Step ═══
@@ -351,17 +353,5 @@ impl App {
     fn handle_scroll_down(&mut self) {
         // Delegate to current view's scroll handler
         self.state.chat_overlay.scroll_down();
-    }
-
-    /// Handle scroll to top action
-    #[allow(dead_code)]
-    fn handle_scroll_to_top(&mut self) {
-        // Scroll to top of current view
-    }
-
-    /// Handle scroll to bottom action
-    #[allow(dead_code)]
-    fn handle_scroll_to_bottom(&mut self) {
-        // Scroll to bottom of current view
     }
 }

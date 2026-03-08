@@ -514,8 +514,8 @@ impl App {
             // 4. Render frame based on current view
             self.render_unified_frame()?;
 
-            // 5. Get terminal size for input handling
-            let terminal_size = if let Some(ref terminal) = self.terminal {
+            // 5. Get terminal size for input handling (reserved for future mouse support)
+            let _terminal_size = if let Some(ref terminal) = self.terminal {
                 terminal
                     .size()
                     .ok()
@@ -540,7 +540,8 @@ impl App {
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
-                    Event::Mouse(mouse) => self.handle_mouse(mouse, terminal_size),
+                    // v0.22.3: Mouse events ignored (not yet implemented)
+                    Event::Mouse(_) => Action::Continue,
                     _ => Action::Continue,
                 };
                 self.apply_action(action);
