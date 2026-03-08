@@ -302,6 +302,12 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 bindings.push(Keybinding {
                     code: KeyCode::Enter,
                     modifiers: KeyModifiers::NONE,
+                    description: "Open file",
+                    category: KeyCategory::Action,
+                });
+                bindings.push(Keybinding {
+                    code: KeyCode::F(5),
+                    modifiers: KeyModifiers::NONE,
                     description: "Run workflow",
                     category: KeyCategory::Action,
                 });
