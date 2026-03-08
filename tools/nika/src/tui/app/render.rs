@@ -5,7 +5,7 @@
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Block, Clear};
+use ratatui::widgets::{Clear, Paragraph};
 
 use crate::error::{NikaError, Result};
 
@@ -113,10 +113,10 @@ impl App {
                         }
                     }
 
-                    // v0.22.1 FIX: Clear entire frame to prevent intro animation artifacts
-                    // Ratatui uses differential updates - old intro pixels would persist
+                    // v0.22.2 FIX: Clear entire frame and fill with background color
+                    // Block without borders renders nothing - use Paragraph for proper fill
                     frame.render_widget(Clear, size);
-                    let bg = Block::default().style(Style::default().bg(theme.background));
+                    let bg = Paragraph::new("").style(Style::default().bg(theme.background));
                     frame.render_widget(bg, size);
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)

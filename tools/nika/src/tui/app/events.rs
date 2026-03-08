@@ -140,8 +140,13 @@ impl App {
             return Action::Continue;
         }
 
-        // 4. View switching (Normal mode only) - 4-view architecture v0.22
-        if self.input_mode == InputMode::Normal && modifiers.is_empty() {
+        // 4. View switching - 4-view architecture v0.22
+        // FIX v0.22.2: Allow Alt+1-4 in ANY mode for view switching
+        // This ensures users can always navigate even in Insert/Search mode
+        let alt_pressed = modifiers.contains(KeyModifiers::ALT);
+        let is_normal = self.input_mode == InputMode::Normal;
+
+        if (is_normal && modifiers.is_empty()) || alt_pressed {
             if let Some(view) = match code {
                 KeyCode::Char('1') => Some(TuiView::Studio),
                 KeyCode::Char('2') => Some(TuiView::Runner),

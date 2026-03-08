@@ -502,15 +502,13 @@ impl App {
                 }
             }
 
-            // FIX v0.22.1: Clear intro_state and initialize view when done
+            // FIX v0.22.2: Clear intro_state and initialize view when done
+            // IMPORTANT: Don't call terminal.clear() here - it interferes with ratatui's
+            // differential rendering. The Clear widget in render.rs handles this properly.
             if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
                 self.intro_state = None;
                 // Call on_enter() NOW when view first becomes visible (not at startup)
                 self.call_view_on_enter(self.current_view);
-                // Clear terminal to remove any intro artifacts
-                if let Some(ref mut terminal) = self.terminal {
-                    let _ = terminal.clear();
-                }
             }
 
             // 4. Render frame based on current view
