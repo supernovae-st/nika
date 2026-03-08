@@ -9,42 +9,225 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.22.0] - 2026-03-08
 
-### Added
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.22.0 — LANGUAGE IMPROVEMENTS + TUI PANELS                         ║
+║  Enhanced workflow syntax and modular UI architecture                          ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
+║  │  NEW FEATURES                                                           │  ║
+║  ├─────────────────────────────────────────────────────────────────────────┤  ║
+║  │  🔧 exec.env      — Environment variable injection for exec tasks       │  ║
+║  │  📦 fetch.json    — Auto-serialize JSON body for fetch tasks            │  ║
+║  │  🔗 inputs.xxx    — Access workflow inputs in use: blocks               │  ║
+║  │  🔄 $inputs       — for_each binding over workflow inputs               │  ║
+║  │  📊 TaskStatus    — New Queued (○) and Skipped (⊘) states               │  ║
+║  │  🎨 TUI panels/   — Modular panel widget architecture                   │  ║
+║  └─────────────────────────────────────────────────────────────────────────┘  ║
+║                                                                               ║
+║  Tests: 4,282 passing | Docker: ✅ Verified | Init Workflows: 30 updated     ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
 
-- **exec.env** — Environment variable injection for exec tasks
-  - Syntax: `env: { KEY: value }` in exec params
-  - Template resolution: `env: { API_KEY: "{{use.secret}}" }`
-  - Supports both shell and shell-free modes
+### exec.env — Environment Variable Injection
 
-- **fetch.json** — Auto-serialize JSON body for fetch tasks
-  - Syntax: `json: { ... }` in fetch params
-  - Automatic Content-Type: application/json header
-  - Precedence: json takes priority over body field
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🔧 EXEC ENVIRONMENT VARIABLES                                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Inject environment variables into exec tasks                                   │
+│                                                                                 │
+│  Syntax:                                                                        │
+│  ├── env: { KEY: value }           — Static values                              │
+│  ├── env: { KEY: "{{use.secret}}"} — Template resolution                        │
+│  └── env: { PATH: "/custom/path" } — Override system vars                       │
+│                                                                                 │
+│  Example:                                                                       │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │  - id: deploy                                                            │   │
+│  │    exec:                                                                 │   │
+│  │      command: ./deploy.sh                                                │   │
+│  │      env:                                                                │   │
+│  │        API_KEY: "{{use.secret}}"                                         │   │
+│  │        NODE_ENV: production                                              │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  Works with both shell: true and shell: false modes                             │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
-- **inputs.xxx references** — Access workflow inputs in use: blocks
-  - Syntax: `use: { data: inputs.config }`
-  - Nested paths: `inputs.config.theme.primary`
-  - Default values supported
+### fetch.json — Auto-Serialize JSON Body
 
-- **$inputs binding** — for_each accepts binding expressions
-  - Syntax: `for_each: $inputs.items`
-  - Dynamic iteration over workflow input arrays
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  📦 FETCH JSON BODY                                                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Automatic JSON serialization for fetch requests                                │
+│                                                                                 │
+│  Features:                                                                      │
+│  ├── Auto Content-Type: application/json                                        │
+│  ├── Precedence: json > body                                                    │
+│  └── Supports nested objects and arrays                                         │
+│                                                                                 │
+│  Example:                                                                       │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │  - id: create_user                                                       │   │
+│  │    fetch:                                                                │   │
+│  │      url: https://api.example.com/users                                  │   │
+│  │      method: POST                                                        │   │
+│  │      json:                                                               │   │
+│  │        name: "{{use.name}}"                                              │   │
+│  │        email: "{{use.email}}"                                            │   │
+│  │        roles: [admin, user]                                              │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
-- **TaskStatus::Queued/Skipped** — New task lifecycle states
-  - Queued: task not yet scheduled (○ icon)
-  - Skipped: task explicitly skipped (⊘ icon)
+### inputs.xxx — Workflow Input References
 
-- **TUI panels/ module** — Modular panel widgets
-  - TaskListPanel: selectable task list with status
-  - TaskBoxFlow: scrollable task box renderer
-  - BrowserPanel: file browser panel
-  - InfoPanel: context info display
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🔗 INPUT REFERENCES IN USE BLOCKS                                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Access workflow inputs directly in use: blocks                                 │
+│                                                                                 │
+│  Syntax:                                                                        │
+│  ├── inputs.config             — Top-level input                                │
+│  ├── inputs.config.theme       — Nested path                                    │
+│  └── inputs.items[0]           — Array access                                   │
+│                                                                                 │
+│  Example:                                                                       │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │  inputs:                                                                 │   │
+│  │    theme: { primary: "#3b82f6", mode: "dark" }                           │   │
+│  │                                                                          │   │
+│  │  tasks:                                                                  │   │
+│  │    - id: style                                                           │   │
+│  │      use:                                                                │   │
+│  │        color: inputs.theme.primary                                       │   │
+│  │        mode: inputs.theme.mode                                           │   │
+│  │      infer: "Generate CSS with {{use.color}}"                            │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### $inputs Binding — Dynamic for_each
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🔄 FOR_EACH OVER WORKFLOW INPUTS                                               │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Iterate over input arrays with $inputs binding                                 │
+│                                                                                 │
+│  Example:                                                                       │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │  inputs:                                                                 │   │
+│  │    locales: [fr-FR, en-US, de-DE, es-ES]                                 │   │
+│  │                                                                          │   │
+│  │  tasks:                                                                  │   │
+│  │    - id: translate                                                       │   │
+│  │      for_each: $inputs.locales                                           │   │
+│  │      as: locale                                                          │   │
+│  │      concurrency: 4                                                      │   │
+│  │      infer: "Translate to {{use.locale}}"                                │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+│  Works with nested paths: $inputs.config.items                                  │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### TaskStatus — New Lifecycle States
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  📊 TASK STATUS VARIANTS                                                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Icon   Status    Description                                                   │
+│  ────   ──────    ───────────────────────────────────────                       │
+│   ○     Queued    Task not yet scheduled for execution                          │
+│   ◦     Pending   Task waiting for dependencies                                 │
+│   ►     Running   Task currently executing                                      │
+│   ✓     Success   Task completed successfully                                   │
+│   ✗     Failed    Task execution failed                                         │
+│   ⏸     Paused    Task temporarily paused                                       │
+│   ⊘     Skipped   Task explicitly skipped (NEW)                                 │
+│                                                                                 │
+│  Queued vs Pending:                                                             │
+│  ├── Queued  → Not yet added to execution queue                                 │
+│  └── Pending → In queue, waiting for upstream tasks                             │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### TUI panels/ Module
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│  🎨 MODULAR PANEL ARCHITECTURE                                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  New src/tui/widgets/panels/ module with reusable components                    │
+│                                                                                 │
+│  Panels:                                                                        │
+│  ├── TaskListPanel    — Selectable list with status badges                      │
+│  ├── TaskBoxFlow      — Scrollable task box renderer                            │
+│  ├── BrowserPanel     — File browser with git status                            │
+│  └── InfoPanel        — Context information display                             │
+│                                                                                 │
+│  Architecture:                                                                  │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │  WorkspaceView (8)                                                       │   │
+│  │  ┌─────────────┬───────────────────────┬─────────────┐                   │   │
+│  │  │ BrowserPanel│   EditorPanel         │  DAGPanel   │                   │   │
+│  │  │             │   (code editor)       │  (preview)  │                   │   │
+│  │  │   files/    │                       │             │                   │   │
+│  │  │   tree      │   TaskListPanel or    │   TaskBox   │                   │   │
+│  │  │             │   TaskBoxFlow         │   Flow      │                   │   │
+│  │  └─────────────┴───────────────────────┴─────────────┘                   │   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Statistics
+
+```
+╭─────────────────────────────────────────────────────────────────────────────────╮
+│  📈 v0.22.0 STATISTICS                                                          │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  Tests:       4,282 passing (up from 4,214)                                     │
+│  Workflows:   30 init workflows updated with v0.22 features                     │
+│  Docker:      ✅ Verified with Rust 1.94.0                                      │
+│  Schema:      v0.22 with exec.env + fetch.json properties                       │
+│  Clippy:      Zero warnings                                                     │
+│                                                                                 │
+│  Files Changed:                                                                 │
+│  ├── src/ast/raw/action.rs      — exec.env, fetch.json parsing                  │
+│  ├── src/ast/analyzed/action.rs — Validation                                    │
+│  ├── src/binding/inputs.rs      — inputs.xxx resolution                         │
+│  ├── src/runtime/executor.rs    — Environment injection                         │
+│  ├── src/tui/widgets/panels/    — New module (4 panels)                         │
+│  └── init/workflows/*.nika.yaml — 30 workflows updated                          │
+│                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────╯
+```
 
 ### Changed
 
-- **4,282 tests** — Up from 4,214 (new binding/inputs tests)
-- **Schema v0.22** — Added exec.env and fetch.json properties
-- **30 init workflows** — Updated with v0.22 features
+- **Schema v0.22** — Added exec.env and fetch.json properties with strict validation
+- **30 init workflows** — Updated to showcase v0.22 features (87% coverage)
 
 ## [0.21.4] - 2026-03-08
 
