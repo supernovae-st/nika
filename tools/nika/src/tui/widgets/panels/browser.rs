@@ -198,15 +198,20 @@ impl BrowserPanel {
             .map(|h| h.to_string_lossy().to_string())
             .unwrap_or_default();
         let display = if path_str.starts_with(&home) {
-            format!("~{}", &path_str[home.len()..])
+            // UTF-8 safe: strip_prefix handles char boundaries correctly
+            path_str
+                .strip_prefix(&home)
+                .map(|rest| format!("~{}", rest))
+                .unwrap_or_else(|| path_str.to_string())
         } else {
             path_str.to_string()
         };
 
-        // Truncate if too long (keep first 8 and last 8 chars)
-        if display.len() > 20 {
-            let start = &display[..8];
-            let end = &display[display.len() - 8..];
+        // Truncate if too long (UTF-8 safe: use chars())
+        let char_count = display.chars().count();
+        if char_count > 20 {
+            let start: String = display.chars().take(8).collect();
+            let end: String = display.chars().skip(char_count - 8).collect();
             format!("{}..{}", start, end)
         } else {
             display

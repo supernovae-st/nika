@@ -174,16 +174,17 @@ impl InfoPanel {
                 Style::default().fg(theme.text_muted),
             )));
 
-            // Display input JSON preview
+            // Display input JSON preview (single pass for performance)
             let input_str =
                 serde_json::to_string_pretty(&**input).unwrap_or_else(|_| "...".to_string());
-            for line in input_str.lines().take(5) {
+            let input_lines: Vec<_> = input_str.lines().collect();
+            for line in input_lines.iter().take(5) {
                 lines.push(Line::from(Span::styled(
-                    line.to_string(),
+                    (*line).to_string(),
                     Style::default().fg(theme.text_secondary),
                 )));
             }
-            if input_str.lines().count() > 5 {
+            if input_lines.len() > 5 {
                 lines.push(Line::from(Span::styled(
                     "...",
                     Style::default().fg(theme.text_muted),
@@ -200,16 +201,17 @@ impl InfoPanel {
                 Style::default().fg(theme.text_muted),
             )));
 
-            // Display output JSON preview
+            // Display output JSON preview (single pass for performance)
             let output_str =
                 serde_json::to_string_pretty(&**output).unwrap_or_else(|_| "...".to_string());
-            for line in output_str.lines().take(10) {
+            let output_lines: Vec<_> = output_str.lines().collect();
+            for line in output_lines.iter().take(10) {
                 lines.push(Line::from(Span::styled(
-                    line.to_string(),
+                    (*line).to_string(),
                     Style::default().fg(theme.text_primary),
                 )));
             }
-            if output_str.lines().count() > 10 {
+            if output_lines.len() > 10 {
                 lines.push(Line::from(Span::styled(
                     "...",
                     Style::default().fg(theme.text_muted),

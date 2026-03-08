@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-03-08
+
+### Added
+
+- **exec.env** — Environment variable injection for exec tasks
+  - Syntax: `env: { KEY: value }` in exec params
+  - Template resolution: `env: { API_KEY: "{{use.secret}}" }`
+  - Supports both shell and shell-free modes
+
+- **fetch.json** — Auto-serialize JSON body for fetch tasks
+  - Syntax: `json: { ... }` in fetch params
+  - Automatic Content-Type: application/json header
+  - Precedence: json takes priority over body field
+
+- **inputs.xxx references** — Access workflow inputs in use: blocks
+  - Syntax: `use: { data: inputs.config }`
+  - Nested paths: `inputs.config.theme.primary`
+  - Default values supported
+
+- **$inputs binding** — for_each accepts binding expressions
+  - Syntax: `for_each: $inputs.items`
+  - Dynamic iteration over workflow input arrays
+
+- **TaskStatus::Queued/Skipped** — New task lifecycle states
+  - Queued: task not yet scheduled (○ icon)
+  - Skipped: task explicitly skipped (⊘ icon)
+
+- **TUI panels/ module** — Modular panel widgets
+  - TaskListPanel: selectable task list with status
+  - TaskBoxFlow: scrollable task box renderer
+  - BrowserPanel: file browser panel
+  - InfoPanel: context info display
+
+### Changed
+
+- **4,282 tests** — Up from 4,214 (new binding/inputs tests)
+- **Schema v0.22** — Added exec.env and fetch.json properties
+- **30 init workflows** — Updated with v0.22 features
+
 ## [0.21.4] - 2026-03-08
 
 ### Fixed

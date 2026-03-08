@@ -101,9 +101,10 @@ impl TaskListPanel {
                     let status_icon = Self::status_icon(task.status);
                     let status_color = Self::status_color(task.status, theme);
 
-                    // Format: "⚡ task_name   ✓"
-                    let name = if task_id.len() > 12 {
-                        format!("{}..", &task_id[..10])
+                    // Format: "⚡ task_name   ✓" (UTF-8 safe truncation)
+                    let name = if task_id.chars().count() > 12 {
+                        let truncated: String = task_id.chars().take(10).collect();
+                        format!("{}..", truncated)
                     } else {
                         task_id.clone()
                     };
@@ -125,8 +126,18 @@ impl TaskListPanel {
 
         self.task_count = items.len();
 
-        // Select first if nothing selected
-        if self.list_state.selected().is_none() && !items.is_empty() {
+        // Clamp selection to valid range or select first item
+        if let Some(selected) = self.list_state.selected() {
+            if selected >= self.task_count {
+                // Selection is out of bounds - clamp to last valid index
+                if self.task_count > 0 {
+                    self.list_state.select(Some(self.task_count - 1));
+                } else {
+                    self.list_state.select(None);
+                }
+            }
+        } else if !items.is_empty() {
+            // Nothing selected, select first
             self.list_state.select(Some(0));
         }
 
