@@ -266,8 +266,16 @@ impl StudioView {
     /// Render the browser panel with TreeWidget
     fn render_browser(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let style = self.border_style(StudioFocus::Browser, theme);
+
+        // v0.21 FIX: Show filter badge in title so users know which filter is active
+        let title = if self.filter_config.filter.badge().is_empty() {
+            " Browser ".to_string()
+        } else {
+            format!(" Browser [{}] ", self.filter_config.filter.badge())
+        };
+
         let block = Block::default()
-            .title(Span::styled(" Browser ", style))
+            .title(Span::styled(title, style))
             .borders(Borders::ALL)
             .border_style(style);
 
@@ -440,13 +448,22 @@ impl View for StudioView {
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction {
         // Global shortcuts first
         match (key.code, key.modifiers) {
-            // Tab: Cycle focus forward
+            // Tab: Cycle focus forward (but NOT when editor is in Insert mode)
+            // v0.21 FIX: Allow Tab for indentation in Insert mode
             (KeyCode::Tab, KeyModifiers::NONE) => {
+                if self.focus == StudioFocus::Editor && self.editor.mode == EditorMode::Insert {
+                    // Let editor handle Tab for indentation
+                    return self.editor.handle_key(key, state);
+                }
                 self.focus = self.focus.next();
                 return ViewAction::None;
             }
-            // Shift+Tab: Cycle focus backward
+            // Shift+Tab: Cycle focus backward (or dedent in Insert mode)
             (KeyCode::BackTab, _) => {
+                if self.focus == StudioFocus::Editor && self.editor.mode == EditorMode::Insert {
+                    // Let editor handle Shift+Tab for dedent
+                    return self.editor.handle_key(key, state);
+                }
                 self.focus = self.focus.prev();
                 return ViewAction::None;
             }
@@ -514,8 +531,31 @@ impl View for StudioView {
     }
 
     fn on_enter(&mut self, _state: &mut TuiState) {
-        // Initialize editor when entering view
-        // Could restore session state here
+        // === v0.21 FIX: Initialize TreeState on view enter ===
+        // Root cause: visible_nodes was never populated at startup,
+        // causing keyboard navigation to fail.
+
+        let root_path = Utf8Path::from_path(&self.root_dir).unwrap_or(Utf8Path::new("."));
+
+        // 1. Refresh git cache
+        self.git_cache = build_git_status_cache(root_path);
+        self.git_cache_time = Instant::now();
+
+        // 2. Build tree and cache it
+        let root_node = TreeNode::build_tree(root_path, Some(&self.git_cache), None);
+        self.cached_tree = Some(root_node.clone());
+
+        // 3. Update visible_nodes for navigation
+        self.tree_state.update_visible_nodes(&root_node);
+
+        // 4. Expand root directory so children are visible
+        self.tree_state.expand(root_node.id);
+
+        // 5. Re-update visible_nodes after expansion (to include children)
+        self.tree_state.update_visible_nodes(&root_node);
+
+        // 6. Select first item for immediate navigation
+        self.tree_state.select_first_if_none();
     }
 
     fn on_leave(&mut self, _state: &mut TuiState) {
@@ -2062,5 +2102,122 @@ unknown_field: "should fail""#;
         let spans = YamlHighlight::highlight_line("", base);
         assert_eq!(spans.len(), 1);
         assert!(spans[0].content.is_empty());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // StudioView lifecycle tests (TDD v0.21 fix)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_studio_view_on_enter_initializes_tree_state() {
+        use crate::tui::state::TuiState;
+        use crate::tui::views::View;
+
+        // Create a StudioView with the current directory (which should have files)
+        let mut studio = StudioView::new();
+        let mut state = TuiState::new("test.yaml");
+
+        // Before on_enter: tree_state should be empty
+        assert!(
+            studio.tree_state.visible_nodes().is_empty(),
+            "visible_nodes should be empty before on_enter"
+        );
+        assert!(
+            studio.tree_state.selected().is_none(),
+            "selection should be None before on_enter"
+        );
+
+        // Call on_enter (the lifecycle hook)
+        studio.on_enter(&mut state);
+
+        // After on_enter: tree_state should be initialized
+        assert!(
+            !studio.tree_state.visible_nodes().is_empty(),
+            "visible_nodes should NOT be empty after on_enter"
+        );
+        assert!(
+            studio.tree_state.selected().is_some(),
+            "selection should be Some after on_enter"
+        );
+        assert!(
+            studio.cached_tree.is_some(),
+            "cached_tree should be Some after on_enter"
+        );
+    }
+
+    #[test]
+    fn test_studio_view_on_enter_expands_root() {
+        use crate::tui::state::TuiState;
+        use crate::tui::views::View;
+
+        let mut studio = StudioView::new();
+        let mut state = TuiState::new("test.yaml");
+
+        studio.on_enter(&mut state);
+
+        // Root directory should be expanded
+        if let Some(ref tree) = studio.cached_tree {
+            assert!(
+                studio.tree_state.is_expanded(tree.id),
+                "Root directory should be expanded after on_enter"
+            );
+        } else {
+            panic!("cached_tree should be Some after on_enter");
+        }
+    }
+
+    #[test]
+    fn test_studio_view_tab_cycles_panels_in_normal_mode() {
+        use crate::tui::state::TuiState;
+        use crate::tui::views::View;
+
+        let mut studio = StudioView::new();
+        let mut state = TuiState::new("test.yaml");
+
+        // Start in Browser focus, editor in Normal mode
+        studio.focus = StudioFocus::Browser;
+        studio.editor.mode = EditorMode::Normal;
+
+        // Press Tab - should cycle to Editor
+        let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        studio.handle_key(key, &mut state);
+
+        assert_eq!(
+            studio.focus,
+            StudioFocus::Editor,
+            "Tab should cycle from Browser to Editor"
+        );
+
+        // Press Tab again - should cycle to Dag (not insert indent)
+        studio.handle_key(key, &mut state);
+        assert_eq!(
+            studio.focus,
+            StudioFocus::Dag,
+            "Tab should cycle from Editor to Dag when in Normal mode"
+        );
+    }
+
+    #[test]
+    fn test_studio_view_tab_indents_in_insert_mode() {
+        use crate::tui::state::TuiState;
+        use crate::tui::views::View;
+
+        let mut studio = StudioView::new();
+        let mut state = TuiState::new("test.yaml");
+
+        // Focus editor in Insert mode
+        studio.focus = StudioFocus::Editor;
+        studio.editor.mode = EditorMode::Insert;
+
+        // Press Tab - should NOT cycle panels (handled by editor)
+        let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        studio.handle_key(key, &mut state);
+
+        // Focus should still be Editor (Tab was sent to editor, not used for cycling)
+        assert_eq!(
+            studio.focus,
+            StudioFocus::Editor,
+            "Tab should NOT cycle panels when editor is in Insert mode"
+        );
     }
 }
