@@ -78,8 +78,8 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # spn daemon client for unified secret management (v0.20)
 # Solves macOS Keychain popup issue - daemon is sole keychain accessor
 # Enable with: cargo build --features spn-daemon
-# v0.2: Re-exports spn-core types (providers, validation, backend)
-spn-client = { version = "0.2.1", optional = true }
+# v0.2.4: Re-exports spn-core types (providers, validation, backend)
+spn-client = { version = "0.2.4", optional = true }
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
