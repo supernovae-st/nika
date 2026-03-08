@@ -52,9 +52,9 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # │                               │                                             │
 # │                               ▼                                             │
 # │                    ┌──────────────────────┐                                 │
-# │                    │    with_env_vars     │                                 │
+# │                    │      with_cwd        │                                 │
 # │                    │       exec:          │                                 │
-# │                    │   env: { VAR: val }  │                                 │
+# │                    │    cwd: "/tmp"       │                                 │
 # │                    └──────────────────────┘                                 │
 # │                                                                             │
 # └─────────────────────────────────────────────────────────────────────────────┘
@@ -63,8 +63,8 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # ├── exec: shorthand syntax (just a string)
 # ├── exec: full form with options
 # ├── shell: true vs false (security)
-# ├── env: environment variables
-# ├── timeout_ms: command timeout
+# ├── cwd: working directory
+# ├── timeout: command timeout (seconds)
 # ├── use: bindings between tasks
 # └── flows: task dependencies
 #
@@ -120,20 +120,18 @@ tasks:
       # WARNING: Only use shell: true when you need shell features!
       # shell: false (default) is more secure
       shell: true
-      # Timeout in milliseconds (30 seconds)
-      timeout_ms: 30000
+      # Timeout in seconds (30 seconds)
+      timeout: 30
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # ENVIRONMENT VARIABLES: Pass custom env vars to commands
+  # WORKING DIRECTORY: Run commands in specific directory
   # ─────────────────────────────────────────────────────────────────────────────
-  - id: with_env_vars
+  - id: with_cwd
     exec:
-      command: 'echo "Greeting: $GREETING | Mode: $MODE"'
+      command: "pwd && ls -la"
       shell: true
-      env:
-        GREETING: "Hello from Nika!"
-        MODE: "demo"
-        CUSTOM_VAR: "This is a custom environment variable"
+      # Optional: run in specific directory
+      cwd: "/tmp"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # SHELL-FREE MODE (Default & Secure)
@@ -152,7 +150,7 @@ tasks:
   - id: summary
     use:
       sys_info: show_system_info
-      env_demo: with_env_vars
+      cwd_demo: with_cwd
       secure: secure_command
     exec:
       command: |
@@ -161,7 +159,7 @@ tasks:
         echo ""
         echo "💡 Key takeaways:"
         echo "   • Use shorthand 'exec: \"command\"' for simple commands"
-        echo "   • Use full form for env vars, timeouts, shell mode"
+        echo "   • Use full form for cwd, timeouts, shell mode"
         echo "   • shell: false (default) is more secure"
         echo "   • shell: true needed for pipes, redirects, variables"
       shell: true
@@ -180,8 +178,8 @@ flows:
 
   # Sequential chain
   - source: show_system_info
-    target: with_env_vars
-  - source: with_env_vars
+    target: with_cwd
+  - source: with_cwd
     target: secure_command
   - source: secure_command
     target: summary
@@ -211,7 +209,7 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 # │                    │      post_data        │                                │
 # │                    │       fetch:          │                                │
 # │                    │    POST /post         │                                │
-# │                    │    json: { data }     │                                │
+# │                    │    body: "{ ... }"    │                                │
 # │                    └───────────┬───────────┘                                │
 # │                                │                                            │
 # │                                ▼                                            │
@@ -232,10 +230,9 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 #
 # FEATURES DEMONSTRATED:
 # ├── fetch: with GET method
-# ├── fetch: with POST and JSON body
+# ├── fetch: with POST and body
 # ├── headers: custom HTTP headers
-# ├── timeout_ms: request timeout
-# ├── follow_redirects: redirect handling
+# ├── timeout: request timeout (seconds)
 # └── use: parsing JSON responses
 #
 # PREREQUISITES: None! Uses httpbin.org (free public API)
@@ -258,8 +255,8 @@ tasks:
       url: "https://httpbin.org/ip"
       # HTTP method (GET is default, but explicit is clearer)
       method: GET
-      # Timeout in milliseconds (10 seconds)
-      timeout_ms: 10000
+      # Timeout in seconds (10 seconds)
+      timeout: 10
 
   # ─────────────────────────────────────────────────────────────────────────────
   # GET JSON DATA
@@ -298,14 +295,8 @@ tasks:
       headers:
         Content-Type: "application/json"
         Accept: "application/json"
-      # JSON body (automatically serialized)
-      json:
-        message: "Hello from Nika!"
-        timestamp: "{{use.my_ip}}"
-        nested:
-          key: "value"
-          number: 42
-          array: ["a", "b", "c"]
+      # Body as JSON string
+      body: '{"message": "Hello from Nika!", "ip": "{{use.my_ip}}", "nested": {"key": "value", "number": 42}}'
 
   # ─────────────────────────────────────────────────────────────────────────────
   # AUTHENTICATED REQUEST
@@ -318,8 +309,8 @@ tasks:
         # Bearer token authentication (this is a test endpoint)
         Authorization: "Bearer test-token-12345"
         Accept: "application/json"
-      # Follow redirects (default: true)
-      follow_redirects: true
+      # Request timeout
+      timeout: 10
 
   # ─────────────────────────────────────────────────────────────────────────────
   # DISPLAY ALL RESULTS
@@ -358,9 +349,8 @@ tasks:
         echo "💡 Key takeaways:"
         echo "   • Use method: GET, POST, PUT, DELETE, PATCH"
         echo "   • Add custom headers: for auth, content-type, etc."
-        echo "   • Use json: for JSON body (auto-serialized)"
-        echo "   • Use body: for raw text body"
-        echo "   • timeout_ms: prevents hanging on slow endpoints"
+        echo "   • Use body: for request body (string)"
+        echo "   • timeout: prevents hanging on slow endpoints (seconds)"
       shell: true
 
 # ─────────────────────────────────────────────────────────────────────────────

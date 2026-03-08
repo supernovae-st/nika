@@ -116,13 +116,12 @@ tasks:
       temperature: 0.3                 # 🎯 Lower = more focused
 
       # ─────────────────────────────────────────────────────────────────────────
-      # 🛑 STOP CONDITIONS
+      # 🛑 STOP CONDITIONS (array of phrases that trigger stop)
       # ─────────────────────────────────────────────────────────────────────────
-      stop_conditions:
-        phrases:                       # 🏁 Stop when agent says these
-          - "TASK_COMPLETE"
-          - "ANALYSIS COMPLETE"
-          - "I have finished"
+      stop_conditions:                 # 🏁 Stop when agent says these
+        - "TASK_COMPLETE"
+        - "ANALYSIS COMPLETE"
+        - "I have finished"
 
       # ─────────────────────────────────────────────────────────────────────────
       # 🧠 SYSTEM PROMPT
@@ -183,8 +182,8 @@ flows:
 # │     max_turns: 10                  # 🔄 Max iterations                     │
 # │     temperature: 0.5               # 🎲 Creativity level                   │
 # │     system: "You are..."           # 🧠 Persona/role                       │
-# │     stop_conditions:               # 🛑 When to stop                       │
-# │       phrases: ["DONE"]                                                    │
+# │     stop_conditions:               # 🛑 When to stop (array of phrases)   │
+# │       - "DONE"                                                             │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # FILE TOOLS REFERENCE:
@@ -433,7 +432,7 @@ tasks:
       max_turns: 5
       temperature: 0.4
       stop_conditions:
-        phrases: ["ANALYSIS_COMPLETE"]
+        - "ANALYSIS_COMPLETE"
 
     # Agent output also validated against schema
     output:
@@ -500,8 +499,8 @@ tasks:
       max_tokens: 400
 
     artifact:
-      path: ./output/reports/executive_summary_{{date}}.md
-      format: markdown
+      path: ./output/reports/executive_summary_{{date}}.txt
+      format: text
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLOWS
@@ -549,7 +548,7 @@ flows:
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ artifact:                                                                  │
 # │   path: ./output/{{task_id}}_{{date}}.json   # File path with templates   │
-# │   format: json                                # json, yaml, markdown, raw │
+# │   format: json                                # json, yaml, or text         │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # TEMPLATE VARIABLES:

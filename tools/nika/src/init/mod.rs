@@ -19,25 +19,25 @@
 //! use nika::init::{WORKFLOWS, CONTEXT_FILES, SCHEMAS, PARTIALS, README};
 //! ```
 
+mod context;
+mod partials;
+mod schemas;
 mod tier1;
 mod tier2;
 mod tier3;
 mod tier4;
 mod tier5;
 mod tier6;
-mod context;
-mod schemas;
-mod partials;
 
+pub use context::*;
+pub use partials::*;
+pub use schemas::*;
 pub use tier1::*;
 pub use tier2::*;
 pub use tier3::*;
 pub use tier4::*;
 pub use tier5::*;
 pub use tier6::*;
-pub use context::*;
-pub use schemas::*;
-pub use partials::*;
 
 /// Workflow definition with metadata
 pub struct WorkflowTemplate {
@@ -226,12 +226,30 @@ mod tests {
         let workflows = get_all_workflows();
 
         // Count workflows per tier
-        let tier1 = workflows.iter().filter(|w| w.tier_dir == "tier-1-no-deps").count();
-        let tier2 = workflows.iter().filter(|w| w.tier_dir == "tier-2-llm").count();
-        let tier3 = workflows.iter().filter(|w| w.tier_dir == "tier-3-agent").count();
-        let tier4 = workflows.iter().filter(|w| w.tier_dir == "tier-4-mcp").count();
-        let tier5 = workflows.iter().filter(|w| w.tier_dir == "tier-5-dev").count();
-        let tier6 = workflows.iter().filter(|w| w.tier_dir == "tier-6-magic").count();
+        let tier1 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-1-no-deps")
+            .count();
+        let tier2 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-2-llm")
+            .count();
+        let tier3 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-3-agent")
+            .count();
+        let tier4 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-4-mcp")
+            .count();
+        let tier5 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-5-dev")
+            .count();
+        let tier6 = workflows
+            .iter()
+            .filter(|w| w.tier_dir == "tier-6-magic")
+            .count();
 
         assert_eq!(tier1, 3, "Tier 1 should have 3 workflows");
         assert_eq!(tier2, 4, "Tier 2 should have 4 workflows");
@@ -248,15 +266,27 @@ mod tests {
         let len_before = filenames.len();
         filenames.sort();
         filenames.dedup();
-        assert_eq!(filenames.len(), len_before, "All workflow filenames should be unique");
+        assert_eq!(
+            filenames.len(),
+            len_before,
+            "All workflow filenames should be unique"
+        );
     }
 
     #[test]
     fn test_workflow_filenames_format() {
         let workflows = get_all_workflows();
         for w in &workflows {
-            assert!(w.filename.ends_with(".nika.yaml"), "Workflow {} should end with .nika.yaml", w.filename);
-            assert!(w.filename.starts_with(char::is_numeric), "Workflow {} should start with a number", w.filename);
+            assert!(
+                w.filename.ends_with(".nika.yaml"),
+                "Workflow {} should end with .nika.yaml",
+                w.filename
+            );
+            assert!(
+                w.filename.starts_with(char::is_numeric),
+                "Workflow {} should start with a number",
+                w.filename
+            );
         }
     }
 
@@ -265,10 +295,11 @@ mod tests {
         let workflows = get_all_workflows();
         for w in &workflows {
             assert!(
-                w.content.contains("schema: \"nika/workflow@0.10\"") ||
-                w.content.contains("schema: 'nika/workflow@0.10'") ||
-                w.content.contains("schema: nika/workflow@0.10"),
-                "Workflow {} should have schema declaration", w.filename
+                w.content.contains("schema: \"nika/workflow@0.10\"")
+                    || w.content.contains("schema: 'nika/workflow@0.10'")
+                    || w.content.contains("schema: nika/workflow@0.10"),
+                "Workflow {} should have schema declaration",
+                w.filename
             );
         }
     }
@@ -279,7 +310,8 @@ mod tests {
         for w in &workflows {
             assert!(
                 w.content.contains("workflow:"),
-                "Workflow {} should have workflow: declaration", w.filename
+                "Workflow {} should have workflow: declaration",
+                w.filename
             );
         }
     }
@@ -290,7 +322,8 @@ mod tests {
         for w in &workflows {
             assert!(
                 w.content.contains("tasks:"),
-                "Workflow {} should have tasks: section", w.filename
+                "Workflow {} should have tasks: section",
+                w.filename
             );
         }
     }
@@ -311,10 +344,19 @@ mod tests {
     fn test_schema_files_valid_json() {
         let files = get_all_schemas();
         for f in &files {
-            assert!(f.filename.ends_with(".schema.json"), "Schema {} should end with .schema.json", f.filename);
+            assert!(
+                f.filename.ends_with(".schema.json"),
+                "Schema {} should end with .schema.json",
+                f.filename
+            );
             // Parse as JSON to verify validity
             let parsed: Result<serde_json::Value, _> = serde_json::from_str(f.content);
-            assert!(parsed.is_ok(), "Schema {} should be valid JSON: {:?}", f.filename, parsed.err());
+            assert!(
+                parsed.is_ok(),
+                "Schema {} should be valid JSON: {:?}",
+                f.filename,
+                parsed.err()
+            );
         }
     }
 
@@ -327,8 +369,14 @@ mod tests {
     #[test]
     fn test_readme_exists() {
         assert!(!WORKFLOWS_README.is_empty(), "README should not be empty");
-        assert!(WORKFLOWS_README.contains("Nika Example Workflows"), "README should have title");
-        assert!(WORKFLOWS_README.contains("Quick Start"), "README should have Quick Start section");
+        assert!(
+            WORKFLOWS_README.contains("Nika Example Workflows"),
+            "README should have title"
+        );
+        assert!(
+            WORKFLOWS_README.contains("Quick Start"),
+            "README should have Quick Start section"
+        );
     }
 
     #[test]

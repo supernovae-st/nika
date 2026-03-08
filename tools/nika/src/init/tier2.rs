@@ -751,8 +751,7 @@ context:
 # Skills are markdown files with prompt patterns that can be referenced.
 
 skills:
-  - path: ./skills/copywriting.md
-    alias: copywriter
+  copywriter: ./skills/copywriting.md
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INCLUDE - DAG Fusion (merge tasks from other workflows)
@@ -896,14 +895,11 @@ flows:
 # │     # no prefix → tasks keep original IDs (watch for conflicts!)           │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
-# SKILLS:
+# SKILLS (object format - alias: path):
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ skills:                                                                     │
-# │   - path: ./skills/writing.md    # Local file                              │
-# │     alias: writer                                                           │
-# │                                                                             │
-# │   - path: pkg:@spn/core@1.0.0/skills/coding.md  # From registry            │
-# │     alias: coder                                                            │
+# │   writer: ./skills/writing.md              # Local file                    │
+# │   coder: pkg:@spn/core@1.0.0/skills/coding.md  # From registry             │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # SECURITY NOTE:

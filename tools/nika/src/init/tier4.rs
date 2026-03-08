@@ -101,11 +101,10 @@ workflow: mcp-novanet-demo
 # Secrets like NEO4J_PASSWORD are resolved via `spn` daemon.
 
 mcp:
-  servers:
-    # ─────────────────────────────────────────────────────────────────────────────
-    # 🧠 NovaNet - Knowledge Graph MCP Server
-    # ─────────────────────────────────────────────────────────────────────────────
-    novanet:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 🧠 NovaNet - Knowledge Graph MCP Server
+  # ─────────────────────────────────────────────────────────────────────────────
+  novanet:
       command: cargo
       args:
         - run
@@ -341,13 +340,12 @@ flows:
 # MCP SERVER CONFIGURATION:
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ mcp:                                                                       │
-# │   servers:                                                                 │
-# │     my_server:                    # Server name (use in invoke: mcp:)     │
-# │       command: npx                # Executable                            │
-# │       args: ["-y", "@scope/pkg"]  # Arguments                            │
-# │       env:                        # Environment variables                 │
-# │         API_KEY: "${spn:key}"     # Resolved by spn daemon               │
-# │         STATIC_VAR: "value"       # Static value                          │
+# │   my_server:                      # Server name (use in invoke: mcp:)     │
+# │     command: npx                  # Executable                            │
+# │     args: ["-y", "@scope/pkg"]    # Arguments                             │
+# │     env:                          # Environment variables                 │
+# │       API_KEY: "${spn:key}"       # Resolved by spn daemon                │
+# │       STATIC_VAR: "value"         # Static value                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # INVOKE SYNTAX:
@@ -385,11 +383,9 @@ flows:
 
 /// Returns all Tier 4 workflows (10)
 pub fn get_tier4_workflows() -> Vec<WorkflowTemplate> {
-    vec![
-        WorkflowTemplate {
-            filename: "10-mcp-novanet.nika.yaml",
-            tier_dir: TIER4_DIR,
-            content: WORKFLOW_10_MCP_NOVANET,
-        },
-    ]
+    vec![WorkflowTemplate {
+        filename: "10-mcp-novanet.nika.yaml",
+        tier_dir: TIER4_DIR,
+        content: WORKFLOW_10_MCP_NOVANET,
+    }]
 }

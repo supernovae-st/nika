@@ -422,7 +422,8 @@ impl App {
         self.broadcast_rx = Some(event_rx);
 
         // 6. Reset TUI state for new workflow execution
-        let workflow_name = path.file_name()
+        let workflow_name = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("workflow")
             .to_string();

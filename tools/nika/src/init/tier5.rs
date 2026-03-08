@@ -313,8 +313,8 @@ tasks:
       temperature: 0.3
       max_tokens: 500
     artifact:
-      path: ./output/code-review/report_{{date}}.md
-      format: markdown
+      path: ./output/code-review/report_{{date}}.txt
+      format: text
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # GENERATE FIXES
@@ -341,10 +341,10 @@ tasks:
       max_turns: 5
       temperature: 0.2
       stop_conditions:
-        phrases: ["CODE_FIXED"]
+        - "CODE_FIXED"
     artifact:
       path: ./output/code-review/fixed_code_{{date}}.ts
-      format: raw
+      format: text
 
 flows:
   - source: parse_code
@@ -463,14 +463,13 @@ tasks:
     as: target
     concurrency: 4
     use:
-      source: inputs.source_content
       analysis: $analyze_content
     infer:
       prompt: |
         Localize this content for {{use.target.language}} ({{use.target.locale}}):
 
         SOURCE:
-        {{use.source}}
+        {{inputs.source_content}}
 
         LOCALIZATION ANALYSIS:
         {{use.analysis}}
@@ -520,8 +519,8 @@ tasks:
       temperature: 0.2
       max_tokens: 500
     artifact:
-      path: ./output/localization/quality_report_{{date}}.md
-      format: markdown
+      path: ./output/localization/quality_report_{{date}}.txt
+      format: text
 
   - id: export_files
     use:
@@ -544,7 +543,7 @@ tasks:
         - nika:write
       max_turns: 5
       stop_conditions:
-        phrases: ["EXPORT_COMPLETE"]
+        - "EXPORT_COMPLETE"
 
 flows:
   - source: analyze_content
@@ -757,7 +756,7 @@ tasks:
       max_tokens: 4000
     artifact:
       path: ./output/seo/article_{{date}}.html
-      format: raw
+      format: text
 
 flows:
   - source: keyword_research
@@ -830,7 +829,7 @@ tasks:
         - nika:read
       max_turns: 10
       stop_conditions:
-        phrases: ["SCAN_COMPLETE"]
+        - "SCAN_COMPLETE"
 
   - id: generate_docs
     use:
@@ -857,7 +856,7 @@ tasks:
       max_turns: 20
       temperature: 0.3
       stop_conditions:
-        phrases: ["DOCS_COMPLETE"]
+        - "DOCS_COMPLETE"
 
   - id: generate_index
     use:
@@ -880,7 +879,7 @@ tasks:
         - nika:write
       max_turns: 10
       stop_conditions:
-        phrases: ["INDEX_COMPLETE"]
+        - "INDEX_COMPLETE"
 
 flows:
   - source: scan_project
@@ -957,7 +956,7 @@ tasks:
         - nika:write
       max_turns: 3
       stop_conditions:
-        phrases: ["LOAD_COMPLETE"]
+        - "LOAD_COMPLETE"
 
 flows:
   - source: extract
@@ -1004,10 +1003,10 @@ tasks:
       depth_limit: 2
       temperature: 0.4
       stop_conditions:
-        phrases: ["RESEARCH_COMPLETE"]
+        - "RESEARCH_COMPLETE"
     artifact:
-      path: ./output/research/summary_{{date}}.md
-      format: markdown
+      path: ./output/research/summary_{{date}}.txt
+      format: text
 "##;
 
 pub const WORKFLOW_17_PR_REVIEW: &str = r##"# ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -1168,8 +1167,8 @@ tasks:
       temperature: 0.3
       max_tokens: 400
     artifact:
-      path: ./output/meetings/summary_{{date}}.md
-      format: markdown
+      path: ./output/meetings/summary_{{date}}.txt
+      format: text
 
 flows:
   - source: extract_info
@@ -1318,7 +1317,7 @@ tasks:
       max_tokens: 600
     artifact:
       path: ./output/knowledge/graph_{{date}}.cypher
-      format: raw
+      format: text
 
 flows:
   - source: extract_entities
