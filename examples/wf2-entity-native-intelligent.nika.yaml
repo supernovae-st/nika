@@ -55,8 +55,7 @@ inputs:
   entity_native_key:
     type: string
     description: "EntityNative key in format entity:{key}@{locale}"
-    required: true
-    # Example: "entity:qr-code@fr-FR"
+    default: "entity:qr-code@en-US"  # en-US has 47 SEOKeywords
 
   token_budget:
     type: integer
@@ -115,13 +114,16 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_assemble
       params:
-        focus_key: "{{use.parsed.entity_key}}"
+        focus_key: "entity:{{use.parsed.entity_key}}"
         locale: "{{use.parsed.locale}}"
-        mode: block
-        token_budget: "{{inputs.token_budget}}"
-        spreading_depth: 2
+        strategy: breadth
+        token_budget: 8000
+        max_depth: 3
+        include_entities: true
+        include_knowledge: true
+        include_structure: true
     output:
       format: json
     artifact:
@@ -505,7 +507,7 @@ tasks:
           description:
             type: string
             minLength: 100
-            maxLength: 1000
+            maxLength: 2000
           meta_title:
             type: string
             maxLength: 65
