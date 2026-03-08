@@ -20,6 +20,23 @@ pub type NodeId = u64;
 /// Maximum depth for tree recursion (prevents runaway expansion)
 pub const MAX_TREE_DEPTH: usize = 10;
 
+/// Directories that should NOT have their children loaded during tree building.
+/// These are shown in the tree but collapsed by default and never auto-expanded.
+/// This prevents multi-second startup delays from traversing thousands of files.
+const HEAVY_DIRECTORIES: &[&str] = &[
+    "target",       // Rust build artifacts (can be 10k+ files)
+    "node_modules", // npm packages (can be 100k+ files)
+    ".git",         // Git internals
+    "dist",         // Build outputs
+    "build",        // Build outputs
+    ".cargo",       // Cargo cache
+    "__pycache__",  // Python cache
+    ".venv",        // Python virtual env
+    "venv",         // Python virtual env
+    ".next",        // Next.js build
+    ".nuxt",        // Nuxt.js build
+];
+
 /// Git status cache - maps relative paths to their status
 pub type GitStatusCache = FxHashMap<String, GitStatus>;
 
@@ -166,7 +183,11 @@ impl TreeNode {
         }
 
         // If directory and under max depth, populate children
-        if node.kind.is_directory() && depth < max_depth {
+        // v0.21.2 PERF FIX: Skip loading children for heavy directories (target/, node_modules/, etc.)
+        // These directories can contain thousands of files and cause multi-second startup delays.
+        // The directories are still shown in the tree but collapsed with no children loaded.
+        let is_heavy_dir = HEAVY_DIRECTORIES.contains(&node.name.as_str());
+        if node.kind.is_directory() && depth < max_depth && !is_heavy_dir {
             node.children = Self::load_children(root, path, git_cache, depth, max_depth);
             node.sort_children();
         }
@@ -1017,5 +1038,66 @@ mod tests {
         assert_eq!(GitStatus::from_status_chars('?', '?'), GitStatus::Untracked);
         assert_eq!(GitStatus::from_status_chars('D', ' '), GitStatus::Deleted);
         assert_eq!(GitStatus::from_status_chars(' ', ' '), GitStatus::Clean);
+    }
+
+    #[test]
+    fn test_heavy_directories_skipped() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        let temp = tempdir().unwrap();
+        let root = temp.path();
+
+        // Create heavy directories with nested content
+        let target_dir = root.join("target/debug/build/some-crate");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::write(target_dir.join("output.txt"), "build artifact").unwrap();
+
+        let node_modules = root.join("node_modules/react/lib");
+        fs::create_dir_all(&node_modules).unwrap();
+        fs::write(node_modules.join("index.js"), "module.exports = {}").unwrap();
+
+        let git_dir = root.join(".git/objects/pack");
+        fs::create_dir_all(&git_dir).unwrap();
+        fs::write(git_dir.join("pack.idx"), "git data").unwrap();
+
+        // Also create a normal src directory for comparison
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
+
+        let root_utf8 = Utf8Path::from_path(root).unwrap();
+        let tree = TreeNode::build_tree(root_utf8, None, None);
+
+        // Heavy directories should exist but have NO children loaded
+        let target = tree.find_by_path(&Utf8PathBuf::from(root.join("target").to_str().unwrap()));
+        assert!(target.is_some(), "target directory should exist in tree");
+        assert!(
+            target.unwrap().children.is_empty(),
+            "target should have no children (skipped)"
+        );
+
+        let node_mod =
+            tree.find_by_path(&Utf8PathBuf::from(root.join("node_modules").to_str().unwrap()));
+        assert!(node_mod.is_some(), "node_modules should exist in tree");
+        assert!(
+            node_mod.unwrap().children.is_empty(),
+            "node_modules should have no children (skipped)"
+        );
+
+        let git = tree.find_by_path(&Utf8PathBuf::from(root.join(".git").to_str().unwrap()));
+        assert!(git.is_some(), ".git should exist in tree");
+        assert!(
+            git.unwrap().children.is_empty(),
+            ".git should have no children (skipped)"
+        );
+
+        // Normal src directory SHOULD have children
+        let src = tree.find_by_path(&Utf8PathBuf::from(root.join("src").to_str().unwrap()));
+        assert!(src.is_some(), "src should exist in tree");
+        assert!(
+            !src.unwrap().children.is_empty(),
+            "src should have children"
+        );
     }
 }

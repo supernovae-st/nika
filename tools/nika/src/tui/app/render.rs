@@ -4,6 +4,8 @@
 //! v0.22 4-Views: Studio, Runner, Chat, Settings (Scheduler removed)
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Style;
+use ratatui::widgets::{Block, Clear};
 
 use crate::error::{NikaError, Result};
 
@@ -108,6 +110,12 @@ impl App {
                             return;
                         }
                     }
+
+                    // v0.22.1 FIX: Clear entire frame to prevent intro animation artifacts
+                    // Ratatui uses differential updates - old intro pixels would persist
+                    frame.render_widget(Clear, size);
+                    let bg = Block::default().style(Style::default().bg(theme.background));
+                    frame.render_widget(bg, size);
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
                     let chunks = Layout::default()

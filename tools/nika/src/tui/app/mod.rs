@@ -443,11 +443,12 @@ impl App {
         // Initialize terminal
         self.init_terminal()?;
 
-        // v0.21.1 FIX: Call on_enter() for the initial view
-        // This was missing - on_enter() was only called on view SWITCH,
-        // not for the initial view at startup. This caused the Browser
-        // tree to appear collapsed (root only) because on_enter() expands it.
-        self.call_view_on_enter(self.current_view);
+        // v0.22.1 FIX: Call on_enter() for initial view, but only if no intro
+        // If intro is active, defer on_enter() until intro completes (see line ~507)
+        // This ensures view state (tree cache, git status) is fresh when visible
+        if self.intro_state.is_none() {
+            self.call_view_on_enter(self.current_view);
+        }
 
         // PERF: Adaptive frame rate
         // - Fast (60 FPS) when streaming or animations active
@@ -495,6 +496,20 @@ impl App {
                         .map(|s| Rect::new(0, 0, s.width, s.height))
                         .unwrap_or_else(|| Rect::new(0, 0, 80, 24));
                     intro.tick(intro_area);
+                } else {
+                    // FIX v0.22: Mark dirty when intro completes so views render
+                    self.state.dirty.mark_all();
+                }
+            }
+
+            // FIX v0.22.1: Clear intro_state and initialize view when done
+            if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
+                self.intro_state = None;
+                // Call on_enter() NOW when view first becomes visible (not at startup)
+                self.call_view_on_enter(self.current_view);
+                // Clear terminal to remove any intro artifacts
+                if let Some(ref mut terminal) = self.terminal {
+                    let _ = terminal.clear();
                 }
             }
 
