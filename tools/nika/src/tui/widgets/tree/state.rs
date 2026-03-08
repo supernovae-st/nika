@@ -298,7 +298,7 @@ impl TreeState {
         }
 
         let current_idx = self.current_index();
-        if current_idx < self.visible_nodes.len() - 1 {
+        if current_idx < self.visible_nodes.len().saturating_sub(1) {
             let new_idx = current_idx + 1;
             self.selected = Some(self.visible_nodes[new_idx]);
             self.ensure_visible();
@@ -365,8 +365,8 @@ impl TreeState {
     }
 
     fn move_last(&mut self) -> Option<NodeId> {
-        if !self.visible_nodes.is_empty() {
-            self.selected = Some(self.visible_nodes[self.visible_nodes.len() - 1]);
+        if let Some(last) = self.visible_nodes.last() {
+            self.selected = Some(*last);
             self.ensure_visible();
         }
         self.selected
@@ -390,7 +390,8 @@ impl TreeState {
         }
 
         let current_idx = self.current_index();
-        let new_idx = (current_idx + self.viewport_height).min(self.visible_nodes.len() - 1);
+        let max_idx = self.visible_nodes.len().saturating_sub(1);
+        let new_idx = (current_idx + self.viewport_height).min(max_idx);
         self.selected = Some(self.visible_nodes[new_idx]);
         self.ensure_visible();
         self.selected

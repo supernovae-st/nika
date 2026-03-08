@@ -4,7 +4,7 @@
 
 use crate::tui::InputMode;
 
-use super::super::views::TuiView;
+use super::super::views::{TuiView, View, ViewAction};
 use super::types::Action;
 use super::App;
 
@@ -161,18 +161,183 @@ impl App {
 
             // ═══ Continue (no-op) ═══
             Action::Continue => {}
+
+            // ═══ View-Specific Actions (v0.21 TUI Fix) ═══
+            Action::ViewSpecific(view_action) => {
+                self.apply_view_action(view_action);
+            }
+        }
+    }
+
+    /// Apply view-specific actions that need App-level orchestration
+    ///
+    /// v0.21 FIX: These actions come from view handle_key() methods
+    /// and need access to App-level state (spawning tasks, MCP clients, etc.)
+    fn apply_view_action(&mut self, action: ViewAction) {
+        match action {
+            // Chat commands - TODO: delegate to ChatAgent when implemented
+            ViewAction::ChatInfer(prompt) => {
+                self.chat_view
+                    .add_user_message(format!("/infer {}", prompt));
+                self.set_status("Infer command received");
+                tracing::debug!("ChatInfer: {}", prompt);
+            }
+            ViewAction::ChatExec(cmd) => {
+                self.chat_view.add_user_message(format!("/exec {}", cmd));
+                self.set_status("Exec command received");
+                tracing::debug!("ChatExec: {}", cmd);
+            }
+            ViewAction::ChatFetch(url, method) => {
+                self.chat_view
+                    .add_user_message(format!("/fetch {} {}", method, url));
+                self.set_status("Fetch command received");
+                tracing::debug!("ChatFetch: {} {}", method, url);
+            }
+            ViewAction::ChatInvoke(tool, server, _params) => {
+                self.chat_view
+                    .add_user_message(format!("/invoke {} {:?}", tool, server));
+                self.set_status("Invoke command received");
+                tracing::debug!("ChatInvoke: {} {:?}", tool, server);
+            }
+            ViewAction::ChatAgent(goal, max_turns, extended, servers) => {
+                self.chat_view.add_user_message(format!("/agent {}", goal));
+                self.set_status(&format!(
+                    "Agent: {} (turns={:?}, ext={}, servers={:?})",
+                    goal, max_turns, extended, servers
+                ));
+                tracing::debug!("ChatAgent: {}", goal);
+            }
+            ViewAction::ChatClear => {
+                self.chat_view.messages.clear();
+                self.set_status("Chat cleared");
+            }
+            ViewAction::ChatModelSwitch(provider) => {
+                self.set_status(&format!("Switched to {:?}", provider));
+                tracing::debug!("ChatModelSwitch: {:?}", provider);
+            }
+            ViewAction::ChatMcp(_mcp_action) => {
+                self.set_status("MCP action received");
+            }
+            ViewAction::SendChatMessage(msg) => {
+                self.chat_view.add_user_message(msg.clone());
+                self.set_status("Message sent");
+                tracing::debug!("SendChatMessage: {}", msg);
+            }
+
+            // Workflow actions
+            ViewAction::RunWorkflow(path) => {
+                self.set_status(&format!("Running: {}", path.display()));
+                tracing::info!("RunWorkflow: {}", path.display());
+            }
+            ViewAction::OpenInStudio(path) => {
+                let _ = self.studio_view.load_file(path.clone());
+                self.switch_to_view(TuiView::Studio);
+                self.set_status(&format!("Opened: {}", path.display()));
+            }
+            ViewAction::ValidateWorkflow(path) => {
+                self.set_status(&format!("Validating: {}", path.display()));
+                tracing::debug!("ValidateWorkflow: {}", path.display());
+            }
+
+            // Theme actions
+            ViewAction::SetTheme(variant) => {
+                self.cosmic_theme = super::super::cosmic_theme::CosmicTheme::new(variant);
+                self.theme = self.cosmic_theme.as_theme();
+                self.set_status(&format!("Theme set to: {:?}", variant));
+            }
+            ViewAction::ToggleTheme => {
+                self.toggle_theme();
+            }
+
+            // Provider actions - TODO: implement verification
+            ViewAction::VerifyProviders => {
+                self.set_status("Verifying providers...");
+            }
+            ViewAction::RefreshVerification => {
+                self.set_status("Refreshing verification...");
+            }
+            ViewAction::ProviderSelectorConfirm { provider_id, model } => {
+                self.set_status(&format!("Selected: {} / {}", provider_id, model));
+                tracing::debug!("ProviderSelectorConfirm: {} / {}", provider_id, model);
+            }
+
+            // Ollama actions - TODO: implement Ollama management
+            ViewAction::PullOllamaModel(model) => {
+                self.set_status(&format!("Pulling: {}", model));
+            }
+            ViewAction::DeleteOllamaModel(model) => {
+                self.set_status(&format!("Deleting: {}", model));
+            }
+            ViewAction::RefreshOllamaModels => {
+                self.set_status("Refreshing Ollama models...");
+            }
+
+            // Chat overlay
+            ViewAction::ToggleChatOverlay => {
+                // Note: Chat overlay visibility is controlled via input mode, not state toggle
+                self.set_status("Chat overlay toggled");
+            }
+
+            // Error handling
+            ViewAction::Error(msg) => {
+                self.set_status(&format!("Error: {}", msg));
+            }
+
+            // Navigation - already handled by from_view_action conversion
+            ViewAction::None
+            | ViewAction::Quit
+            | ViewAction::SwitchView(_)
+            | ViewAction::OpenSettings => {
+                // These are converted to Action variants directly
+            }
         }
     }
 
     /// Switch to a specific view with appropriate mode changes
+    ///
+    /// v0.21 FIX: Now calls lifecycle hooks (on_leave, on_enter)
     fn switch_to_view(&mut self, view: TuiView) {
+        // Skip if already on this view
+        if self.current_view == view {
+            return;
+        }
+
+        // Call on_leave for the current view
+        self.call_view_on_leave(self.current_view);
+
+        // Switch view
+        let old_view = self.current_view;
         self.current_view = view;
 
-        // Chat view uses Insert mode by default
-        if view == TuiView::Chat {
-            self.input_mode = InputMode::Insert;
-        } else {
-            self.input_mode = InputMode::Normal;
+        // Set appropriate input mode
+        self.input_mode = match view {
+            TuiView::Chat => InputMode::Insert,
+            _ => InputMode::Normal,
+        };
+
+        // Call on_enter for the new view
+        self.call_view_on_enter(view);
+
+        tracing::debug!("Switched view: {:?} -> {:?}", old_view, view);
+    }
+
+    /// Call on_enter lifecycle hook for a view
+    fn call_view_on_enter(&mut self, view: TuiView) {
+        match view {
+            TuiView::Studio => self.studio_view.on_enter(&mut self.state),
+            TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
+            TuiView::Chat => self.chat_view.on_enter(&mut self.state),
+            TuiView::Settings => self.settings_view.on_enter(&mut self.state),
+        }
+    }
+
+    /// Call on_leave lifecycle hook for a view
+    fn call_view_on_leave(&mut self, view: TuiView) {
+        match view {
+            TuiView::Studio => self.studio_view.on_leave(&mut self.state),
+            TuiView::Runner => self.monitor_view.on_leave(&mut self.state),
+            TuiView::Chat => self.chat_view.on_leave(&mut self.state),
+            TuiView::Settings => self.settings_view.on_leave(&mut self.state),
         }
     }
 

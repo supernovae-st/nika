@@ -3,13 +3,13 @@
 //! Contains the Action enum and other shared types for the TUI application.
 
 use super::super::state::{PanelId, TuiMode};
-use super::super::views::TuiView;
+use super::super::views::{TuiView, ViewAction};
 
 /// Action resulting from input handling
 ///
 /// Note: Some variants are temporarily unused during module extraction refactoring.
 /// They will be used when events.rs and routing.rs are fully implemented.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub enum Action {
     /// Continue normal operation
@@ -129,4 +129,48 @@ pub enum Action {
     ChatOverlayScrollUp,
     /// Scroll down in chat overlay
     ChatOverlayScrollDown,
+    // ═══ View-Specific Actions (v0.21 TUI Fix) ═══
+    /// Action delegated from a view's handle_key() that needs App-level handling
+    ViewSpecific(ViewAction),
+}
+
+impl Action {
+    /// Convert ViewAction to Action for unified event handling
+    ///
+    /// This bridges the view-level event system with the app-level action system,
+    /// enabling view handle_key() methods to trigger app-wide state changes.
+    pub fn from_view_action(view_action: ViewAction) -> Self {
+        match view_action {
+            // Direct mappings to Action variants
+            ViewAction::None => Action::Continue,
+            ViewAction::Quit => Action::Quit,
+            ViewAction::SwitchView(view) => Action::SwitchView(view),
+            ViewAction::ToggleTheme => Action::ToggleTheme,
+            ViewAction::OpenSettings => Action::SwitchView(TuiView::Settings),
+
+            // Chat/Editor/Agent actions need App-level orchestration
+            ViewAction::ChatInfer(_)
+            | ViewAction::ChatExec(_)
+            | ViewAction::ChatFetch(_, _)
+            | ViewAction::ChatInvoke(_, _, _)
+            | ViewAction::ChatAgent(_, _, _, _)
+            | ViewAction::ChatClear
+            | ViewAction::ChatModelSwitch(_)
+            | ViewAction::ChatMcp(_)
+            | ViewAction::RunWorkflow(_)
+            | ViewAction::OpenInStudio(_)
+            | ViewAction::ValidateWorkflow(_)
+            | ViewAction::SendChatMessage(_)
+            | ViewAction::ToggleChatOverlay
+            | ViewAction::SetTheme(_)
+            | ViewAction::VerifyProviders
+            | ViewAction::RefreshVerification
+            | ViewAction::ProviderSelectorConfirm { .. }
+            | ViewAction::PullOllamaModel(_)
+            | ViewAction::DeleteOllamaModel(_)
+            | ViewAction::RefreshOllamaModels
+            | ViewAction::Error(_) => Action::ViewSpecific(view_action),
+            // Note: No catch-all - we explicitly handle all variants
+        }
+    }
 }

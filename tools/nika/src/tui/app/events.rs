@@ -4,14 +4,14 @@
 
 use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyModifiers, MouseEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
 use ratatui::layout::Rect;
 use tokio::sync::broadcast;
 
 use crate::event::EventKind;
 use crate::provider::rig::StreamChunk;
 
-use super::super::views::TuiView;
+use super::super::views::{TuiView, View, ViewAction};
 use super::types::Action;
 use super::App;
 use crate::tui::InputMode;
@@ -119,38 +119,61 @@ impl App {
     /// Handle unified keyboard events across all views
     ///
     /// Processes key events and returns the appropriate Action.
+    /// v0.21 FIX: Now delegates to view handle_key() after checking global shortcuts.
     pub(crate) fn handle_unified_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
-        match (code, modifiers) {
-            // Global shortcuts
-            (KeyCode::Char('c'), KeyModifiers::CONTROL) => self.handle_ctrl_c(),
-            (KeyCode::Char('q'), KeyModifiers::NONE) => Action::Quit,
+        // 1. Global shortcuts (always available)
+        if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (code, modifiers) {
+            return self.handle_ctrl_c();
+        }
 
-            // Mode switching
-            (KeyCode::Esc, _) => {
-                if self.input_mode != InputMode::Normal {
-                    self.input_mode = InputMode::Normal;
-                    Action::Continue
-                } else {
-                    Action::Continue
-                }
-            }
+        // 2. Quit (Normal mode only)
+        if code == KeyCode::Char('q')
+            && modifiers.is_empty()
+            && self.input_mode == InputMode::Normal
+        {
+            return Action::Quit;
+        }
 
-            // View switching (Normal mode only) - 4-view architecture v0.22
-            (KeyCode::Char('1'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
-                Action::SwitchView(TuiView::Studio)
-            }
-            (KeyCode::Char('2'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
-                Action::SwitchView(TuiView::Runner)
-            }
-            (KeyCode::Char('3'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
-                Action::SwitchView(TuiView::Chat)
-            }
-            (KeyCode::Char('4'), KeyModifiers::NONE) if self.input_mode == InputMode::Normal => {
-                Action::SwitchView(TuiView::Settings)
-            }
+        // 3. Mode switching with Escape
+        if code == KeyCode::Esc && self.input_mode != InputMode::Normal {
+            self.input_mode = InputMode::Normal;
+            return Action::Continue;
+        }
 
-            // Default - no action
-            _ => Action::Continue,
+        // 4. View switching (Normal mode only) - 4-view architecture v0.22
+        if self.input_mode == InputMode::Normal && modifiers.is_empty() {
+            if let Some(view) = match code {
+                KeyCode::Char('1') => Some(TuiView::Studio),
+                KeyCode::Char('2') => Some(TuiView::Runner),
+                KeyCode::Char('3') => Some(TuiView::Chat),
+                KeyCode::Char('4') => Some(TuiView::Settings),
+                _ => None,
+            } {
+                return Action::SwitchView(view);
+            }
+        }
+
+        // 5. Delegate to current view's handle_key
+        // v0.21 FIX: This was the missing connection!
+        let view_action = self.dispatch_to_current_view(code, modifiers);
+
+        // 6. Convert ViewAction to Action
+        Action::from_view_action(view_action)
+    }
+
+    /// Dispatch key event to the current view's handle_key method
+    ///
+    /// v0.21 FIX: This bridges the gap between the app event loop
+    /// and view-specific keyboard handling.
+    fn dispatch_to_current_view(&mut self, code: KeyCode, modifiers: KeyModifiers) -> ViewAction {
+        // Convert KeyCode + modifiers to KeyEvent
+        let key = KeyEvent::new(code, modifiers);
+
+        match self.current_view {
+            TuiView::Studio => self.studio_view.handle_key(key, &mut self.state),
+            TuiView::Runner => self.monitor_view.handle_key(key, &mut self.state),
+            TuiView::Chat => self.chat_view.handle_key(key, &mut self.state),
+            TuiView::Settings => self.settings_view.handle_key(key, &mut self.state),
         }
     }
 

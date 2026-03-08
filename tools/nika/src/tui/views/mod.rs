@@ -290,7 +290,7 @@ pub use crate::tui::command::{McpAction, ModelProvider};
 pub use crate::tui::tokens::CosmicVariant;
 
 /// Result of handling a key event in a view
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ViewAction {
     /// No action needed
     None,

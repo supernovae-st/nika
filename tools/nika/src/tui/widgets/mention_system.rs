@@ -332,7 +332,7 @@ impl MentionAutocompleteState {
             self.selected = self
                 .selected
                 .checked_sub(1)
-                .unwrap_or(self.suggestions.len() - 1);
+                .unwrap_or(self.suggestions.len().saturating_sub(1));
         }
     }
 
