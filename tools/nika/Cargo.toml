@@ -26,7 +26,7 @@ spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management 
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
-docker = ["tui", "dep:openssl"]  # Docker build: TUI enabled, no keychain (uses env vars for secrets), vendored OpenSSL for musl
+docker = ["tui"]  # Docker build: TUI enabled, no keychain (uses env vars for secrets)
 
 [dependencies]
 # CLI
@@ -87,10 +87,10 @@ ropey = "1.6"  # Efficient rope data structure for text editing
 # Git integration (v0.21.3 - Git gutter + file status)
 git2 = "0.19"  # libgit2 bindings for git operations
 
-# OpenSSL vendored for musl static builds (docker feature)
-# git2 -> libgit2-sys -> openssl-sys requires OpenSSL
-# Using vendored feature compiles OpenSSL statically for musl targets
-openssl = { version = "0.10", features = ["vendored"], optional = true }
+# OpenSSL vendored for cross-compilation (required by git2 -> libgit2-sys -> openssl-sys)
+# Using vendored feature compiles OpenSSL statically, avoiding system OpenSSL dependency
+# Required for: musl static builds, cross-compilation (aarch64-linux-gnu), CI builds
+openssl = { version = "0.10", features = ["vendored"] }
 
 # Utilities
 bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
