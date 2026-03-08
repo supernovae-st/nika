@@ -322,7 +322,7 @@ impl App {
     }
 
     /// Call on_enter lifecycle hook for a view
-    fn call_view_on_enter(&mut self, view: TuiView) {
+    pub(super) fn call_view_on_enter(&mut self, view: TuiView) {
         match view {
             TuiView::Studio => self.studio_view.on_enter(&mut self.state),
             TuiView::Runner => self.monitor_view.on_enter(&mut self.state),

@@ -443,6 +443,12 @@ impl App {
         // Initialize terminal
         self.init_terminal()?;
 
+        // v0.21.1 FIX: Call on_enter() for the initial view
+        // This was missing - on_enter() was only called on view SWITCH,
+        // not for the initial view at startup. This caused the Browser
+        // tree to appear collapsed (root only) because on_enter() expands it.
+        self.call_view_on_enter(self.current_view);
+
         // PERF: Adaptive frame rate
         // - Fast (60 FPS) when streaming or animations active
         // - Slow (10 FPS) when idle to save CPU

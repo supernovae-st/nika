@@ -535,6 +535,12 @@ impl View for SettingsView {
         }
     }
 
+    fn on_enter(&mut self, _state: &mut TuiState) {
+        // v0.21.1: Refresh provider data when entering Settings view
+        // This ensures data is fresh every time the user switches to Settings
+        self.refresh_data();
+    }
+
     fn status_line(&self, _state: &TuiState) -> String {
         format!("Settings • {} selected", self.section.title())
     }

@@ -306,6 +306,14 @@ impl StudioView {
         self.tree_state.update_visible_nodes(&root_node);
         self.tree_state.select_first_if_none();
 
+        // v0.21.1 FAILSAFE: If root is not expanded, expand it
+        // This handles edge cases where on_enter() hasn't run yet
+        // (e.g., first render before lifecycle hooks complete)
+        if !self.tree_state.is_expanded(root_node.id) {
+            self.tree_state.expand(root_node.id);
+            self.tree_state.update_visible_nodes(&root_node);
+        }
+
         // Use solarized colors (dark by default, matching Theme::default())
         self.tree_colors = TreeColors::solarized_dark();
 
@@ -1308,6 +1316,30 @@ impl YamlEditorPanel {
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
+
+        // v0.21.1: Show placeholder when no file is loaded
+        if self.path.is_none() {
+            let placeholder = vec![
+                Line::from(""),
+                Line::from(""),
+                Line::from(vec![Span::styled(
+                    "  No file selected",
+                    Style::default().fg(theme.text_muted),
+                )]),
+                Line::from(""),
+                Line::from(vec![Span::styled(
+                    "  Press [Tab] to focus Browser",
+                    Style::default().fg(theme.text_muted),
+                )]),
+                Line::from(vec![Span::styled(
+                    "  Select a .nika.yaml file with [Enter]",
+                    Style::default().fg(theme.text_muted),
+                )]),
+            ];
+            let paragraph = Paragraph::new(placeholder);
+            frame.render_widget(paragraph, inner);
+            return;
+        }
 
         // Calculate visible height (excluding borders) and sync to buffer
         let visible_height = inner.height as usize;

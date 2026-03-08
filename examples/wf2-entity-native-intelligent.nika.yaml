@@ -55,7 +55,7 @@ inputs:
   entity_native_key:
     type: string
     description: "EntityNative key in format entity:{key}@{locale}"
-    default: "entity:qr-code@en-US"  # en-US has 47 SEOKeywords
+    default: "entity:qr-code@en-US"  # For testing - en-US has 47 SEOKeywords
 
   token_budget:
     type: integer
@@ -507,7 +507,7 @@ tasks:
           description:
             type: string
             minLength: 100
-            maxLength: 2000
+            maxLength: 1000
           meta_title:
             type: string
             maxLength: 65

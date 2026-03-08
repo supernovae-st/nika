@@ -20,21 +20,25 @@ use super::{
     TreeState,
 };
 
-/// Tree branch characters
+/// Tree branch characters (VS Code-style box-drawing)
 pub mod chars {
-    /// Vertical line
-    pub const VERTICAL: &str = "";
-    /// Branch (tee)
-    pub const BRANCH: &str = "";
-    /// Last branch (corner)
-    pub const LAST: &str = "";
-    /// Horizontal line
-    pub const HORIZONTAL: &str = "";
-    /// Collapsed folder arrow
+    /// Vertical line (indent guide)
+    pub const VERTICAL: &str = "│";
+    /// Branch (tee) - middle child
+    pub const BRANCH: &str = "├";
+    /// Last branch (corner) - last child
+    pub const LAST: &str = "└";
+    /// Horizontal line (connector)
+    pub const HORIZONTAL: &str = "─";
+    /// Collapsed folder arrow (Nerd Font)
     pub const COLLAPSED: &str = "";
-    /// Expanded folder arrow
+    /// Expanded folder arrow (Nerd Font)
     pub const EXPANDED: &str = "";
-    /// Spacer (empty)
+    /// Collapsed folder arrow (fallback)
+    pub const COLLAPSED_FALLBACK: &str = "▶";
+    /// Expanded folder arrow (fallback)
+    pub const EXPANDED_FALLBACK: &str = "▼";
+    /// Spacer (empty indent)
     pub const SPACER: &str = "  ";
 }
 
@@ -195,9 +199,15 @@ impl<'a> TreeWidget<'a> {
         // Folder expand/collapse indicator
         if node.is_directory {
             let indicator = if node.is_expanded {
-                chars::EXPANDED
-            } else {
+                if self.use_nerd_icons {
+                    chars::EXPANDED
+                } else {
+                    chars::EXPANDED_FALLBACK
+                }
+            } else if self.use_nerd_icons {
                 chars::COLLAPSED
+            } else {
+                chars::COLLAPSED_FALLBACK
             };
             spans.push(Span::styled(
                 indicator,
@@ -205,6 +215,7 @@ impl<'a> TreeWidget<'a> {
             ));
             spans.push(Span::raw(" "));
         } else {
+            // File - add spacing to align with folder indicators
             spans.push(Span::raw("  "));
         }
 
