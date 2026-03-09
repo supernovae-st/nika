@@ -7,6 +7,31 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.22.4](https://github.com/supernovae-st/nika/releases/tag/0.22.4) - 2026-03-10
+
+### Fixed
+
+- **BUG-003**: `use:` block now creates implicit `depends_on` edges
+  - `Dag::from_workflow()` auto-creates DAG edges from `use:` wiring entries
+  - No more NIKA-081 errors for valid `use:` references
+  - Removes need for redundant `depends_on: [task_id]` declarations
+  - Location: `src/dag/flow.rs:112-154`
+
+- **BUG-004**: Workflow final output now selects deepest terminal task
+  - New `get_deepest_final_task()` method with topological depth calculation
+  - Branching DAGs now return the correct "final" task output
+  - Ties broken by task definition order
+  - Location: `src/dag/flow.rs:198-280`, `src/runtime/runner.rs:265-284`
+
+- **BUG-005**: `for_each: $items` with `as:` alias now works
+  - Fixed by BUG-003 - implicit dependencies ensure data availability
+  - `use: { items: generate_task }` creates proper ordering
+
+### Added
+
+- 10 new unit tests for BUG-003 and BUG-004 fixes
+- E2E validation workflows: `bug003-fix-validation.nika.yaml`, `bug004-fix-validation.nika.yaml`, `bug005-fix-validation.nika.yaml`
+
 ## [0.22.2](https://github.com/supernovae-st/nika/releases/tag/0.22.2) - 2026-03-09
 
 ### Changed

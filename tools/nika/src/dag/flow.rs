@@ -109,6 +109,50 @@ impl Dag {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // BUG-003 FIX: Build implicit edges from task-level use: wiring (v0.22.4)
+        // use: { data: step1 } creates implicit dependency: step1 -> this_task
+        // ═══════════════════════════════════════════════════════════════════════════
+        for task in &workflow.tasks {
+            if let Some(ref wiring) = task.use_wiring {
+                let tgt_arc = task_set
+                    .get(task.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| intern(&task.id));
+
+                for entry in wiring.values() {
+                    let dep_task_id = entry.task_id();
+
+                    // Skip self-references
+                    if dep_task_id == task.id {
+                        continue;
+                    }
+
+                    // Skip non-task paths: context.*, inputs.*, etc.
+                    // Only create edges for actual task references
+                    if !task_set.contains(dep_task_id) {
+                        continue;
+                    }
+
+                    let src_arc = task_set
+                        .get(dep_task_id)
+                        .cloned()
+                        .unwrap_or_else(|| intern(dep_task_id));
+
+                    // Add edge: dependency -> current_task (avoid duplicates)
+                    let adj_entry = adjacency.entry(Arc::clone(&src_arc)).or_default();
+                    if !adj_entry.iter().any(|x| x.as_ref() == tgt_arc.as_ref()) {
+                        adj_entry.push(Arc::clone(&tgt_arc));
+                    }
+
+                    let pred_entry = predecessors.entry(Arc::clone(&tgt_arc)).or_default();
+                    if !pred_entry.iter().any(|x| x.as_ref() == src_arc.as_ref()) {
+                        pred_entry.push(src_arc);
+                    }
+                }
+            }
+        }
+
         Self {
             adjacency,
             predecessors,
@@ -149,6 +193,91 @@ impl Dag {
             })
             .cloned() // Arc::clone is O(1)
             .collect()
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BUG-004 FIX: Get deepest terminal task for output selection (v0.22.4)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Compute topological depth for each node (longest path from any root)
+    fn compute_depths(&self) -> FxHashMap<Arc<str>, usize> {
+        let mut depths: FxHashMap<Arc<str>, usize> =
+            FxHashMap::with_capacity_and_hasher(self.task_ids.len(), Default::default());
+
+        // Initialize roots (no predecessors) with depth 0
+        for task_id in &self.task_ids {
+            if self
+                .predecessors
+                .get(task_id.as_ref())
+                .is_none_or(SmallVec::is_empty)
+            {
+                depths.insert(Arc::clone(task_id), 0);
+            }
+        }
+
+        // Process remaining nodes in topological order
+        let mut remaining: FxHashSet<Arc<str>> = self
+            .task_ids
+            .iter()
+            .filter(|id| !depths.contains_key(id.as_ref()))
+            .cloned()
+            .collect();
+
+        while !remaining.is_empty() {
+            let mut progress = false;
+            let mut to_remove = Vec::new();
+
+            for task_id in &remaining {
+                let preds = self.get_dependencies(task_id.as_ref());
+                if preds.iter().all(|p| depths.contains_key(p.as_ref())) {
+                    let max_pred_depth = preds
+                        .iter()
+                        .filter_map(|p| depths.get(p.as_ref()).copied())
+                        .max()
+                        .unwrap_or(0);
+                    depths.insert(Arc::clone(task_id), max_pred_depth + 1);
+                    to_remove.push(Arc::clone(task_id));
+                    progress = true;
+                }
+            }
+
+            for id in to_remove {
+                remaining.remove(&id);
+            }
+
+            // Break if no progress (cycle or issue)
+            if !progress {
+                break;
+            }
+        }
+
+        depths
+    }
+
+    /// Get the deepest terminal task (for workflow output selection)
+    ///
+    /// Returns the terminal task with highest topological depth.
+    /// On ties, picks the one that appears last in task definition order.
+    pub fn get_deepest_final_task(&self) -> Option<Arc<str>> {
+        let final_tasks = self.get_final_tasks();
+
+        // Fast path: single or no terminal
+        if final_tasks.len() <= 1 {
+            return final_tasks.into_iter().next();
+        }
+
+        let depths = self.compute_depths();
+
+        final_tasks.into_iter().max_by(|a, b| {
+            let depth_a = depths.get(a.as_ref()).copied().unwrap_or(0);
+            let depth_b = depths.get(b.as_ref()).copied().unwrap_or(0);
+            depth_a.cmp(&depth_b).then_with(|| {
+                // Tiebreaker: task definition order (last defined wins)
+                let pos_a = self.task_ids.iter().position(|x| x == a).unwrap_or(0);
+                let pos_b = self.task_ids.iter().position(|x| x == b).unwrap_or(0);
+                pos_a.cmp(&pos_b)
+            })
+        })
     }
 
     /// Check if task exists
@@ -270,6 +399,263 @@ impl Dag {
 mod tests {
     use super::*;
     use crate::serde_yaml;
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-003: IMPLICIT DEPENDS_ON FROM USE: WIRING
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_use_wiring_creates_implicit_dependency() {
+        // BUG-003: use: { data: step1 } should create step1 -> step2 edge
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_implicit_dep
+tasks:
+  - id: step1
+    infer: "Generate data"
+  - id: step2
+    use:
+      data: step1
+    infer: "Process: {{use.data}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        // step2 should depend on step1 (implicit from use:)
+        let deps = dag.get_dependencies("step2");
+        assert!(
+            deps.iter().any(|d| d.as_ref() == "step1"),
+            "step2 should have implicit dependency on step1 from use: block"
+        );
+    }
+
+    #[test]
+    fn test_use_wiring_no_duplicate_edges() {
+        // When both use: and depends_on: reference same task, only 1 edge
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_no_dup
+tasks:
+  - id: step1
+    infer: "Generate"
+  - id: step2
+    depends_on: [step1]
+    use:
+      data: step1
+    infer: "{{use.data}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deps = dag.get_dependencies("step2");
+        // Should have exactly 1 edge, not 2 (deduped)
+        let step1_count = deps.iter().filter(|d| d.as_ref() == "step1").count();
+        assert_eq!(
+            step1_count, 1,
+            "Should have exactly 1 edge to step1, not duplicated"
+        );
+    }
+
+    #[test]
+    fn test_use_wiring_skips_context_refs() {
+        // context.files.* paths should NOT create task dependencies
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_context_ref
+tasks:
+  - id: step1
+    use:
+      brand: context.files.brand
+    infer: "{{use.brand}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deps = dag.get_dependencies("step1");
+        assert!(deps.is_empty(), "context refs should not create task deps");
+    }
+
+    #[test]
+    fn test_use_wiring_skips_inputs_refs() {
+        // inputs.* paths should NOT create task dependencies
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_inputs_ref
+inputs:
+  message:
+    type: string
+tasks:
+  - id: step1
+    use:
+      msg: inputs.message
+    infer: "{{use.msg}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deps = dag.get_dependencies("step1");
+        assert!(deps.is_empty(), "inputs refs should not create task deps");
+    }
+
+    #[test]
+    fn test_use_wiring_multiple_deps() {
+        // Multiple use: entries create multiple edges
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_multi_deps
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+  - id: c
+    use:
+      data_a: a
+      data_b: b
+    infer: "{{use.data_a}} + {{use.data_b}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deps = dag.get_dependencies("c");
+        assert!(
+            deps.iter().any(|d| d.as_ref() == "a"),
+            "c should depend on a"
+        );
+        assert!(
+            deps.iter().any(|d| d.as_ref() == "b"),
+            "c should depend on b"
+        );
+    }
+
+    #[test]
+    fn test_use_wiring_with_field_path() {
+        // use: { data: task.field } should create dependency on "task"
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_field_path
+tasks:
+  - id: producer
+    infer: "Produce"
+  - id: consumer
+    use:
+      name: producer.name
+      price: producer.price
+    infer: "{{use.name}} costs {{use.price}}"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deps = dag.get_dependencies("consumer");
+        // Both refs are to "producer" (task_id extracts first segment)
+        let producer_count = deps.iter().filter(|d| d.as_ref() == "producer").count();
+        assert_eq!(
+            producer_count, 1,
+            "Should have exactly 1 edge to producer (deduped)"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-004: DEEPEST TERMINAL TASK SELECTION
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_deepest_final_task_simple_chain() {
+        // a -> b -> c (depths: 0, 1, 2)
+        // c should be selected as deepest terminal
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: chain
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    depends_on: [a]
+    infer: "B"
+  - id: c
+    depends_on: [b]
+    infer: "C"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deepest = dag.get_deepest_final_task();
+        assert_eq!(deepest.unwrap().as_ref(), "c");
+    }
+
+    #[test]
+    fn test_deepest_final_task_branching() {
+        // source -> branch_a (depth 1, terminal)
+        //        -> branch_b -> final (depth 2, terminal)
+        // final should be selected (depth 2 > depth 1)
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: branching
+tasks:
+  - id: source
+    infer: "Source"
+  - id: branch_a
+    depends_on: [source]
+    infer: "A"
+  - id: branch_b
+    depends_on: [source]
+    infer: "B"
+  - id: final
+    depends_on: [branch_b]
+    infer: "Final"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deepest = dag.get_deepest_final_task();
+        assert_eq!(deepest.unwrap().as_ref(), "final");
+    }
+
+    #[test]
+    fn test_deepest_final_task_parallel_same_depth() {
+        // a -> b (depth 1)
+        // a -> c (depth 1)
+        // Both terminals at same depth, pick last defined (c)
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: parallel
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    depends_on: [a]
+    infer: "B"
+  - id: c
+    depends_on: [a]
+    infer: "C"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deepest = dag.get_deepest_final_task();
+        assert_eq!(
+            deepest.unwrap().as_ref(),
+            "c",
+            "Should pick last defined on tie"
+        );
+    }
+
+    #[test]
+    fn test_deepest_final_task_single() {
+        // Single task workflow
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: single
+tasks:
+  - id: only
+    infer: "Only task"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let dag = Dag::from_workflow(&workflow);
+
+        let deepest = dag.get_deepest_final_task();
+        assert_eq!(deepest.unwrap().as_ref(), "only");
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // CYCLE DETECTION TESTS

@@ -972,10 +972,13 @@ tasks:
     }
 
     #[test]
-    fn validate_wiring_not_upstream() {
+    fn validate_wiring_implicit_dependency_from_use() {
+        // BUG-003 FIX (v0.22.4): `use:` block now creates implicit dependency
+        // task3 references task2 via use: - this should be VALID now
+        // Previously this was NIKA-081 error, now it works via implicit edge
         let yaml = r#"
 schema: nika/workflow@0.1
-id: not_upstream
+id: implicit_dep
 tasks:
   - id: task1
     infer:
@@ -995,9 +998,12 @@ flows:
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
         let flow_graph = Dag::from_workflow(&workflow);
 
+        // BUG-003 FIX: Now succeeds because use: creates implicit edge task2 -> task3
         let result = validate_use_wiring(&workflow, &flow_graph);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-081"));
+        assert!(
+            result.is_ok(),
+            "use: should create implicit dependency (BUG-003 fix)"
+        );
     }
 
     #[test]

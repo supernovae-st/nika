@@ -1,0 +1,26 @@
+# Test: BUG-004 Fix Validation - Deepest terminal task selection
+# Before fix: branch_a output (depth 1) was returned
+# After fix: final output (depth 2) is returned
+
+schema: nika/workflow@0.9
+workflow: bug004-fix-validation
+provider: openai
+
+tasks:
+  - id: source
+    infer: "Return EXACTLY: SOURCE"
+
+  - id: branch_a
+    use:
+      data: source
+    infer: "Return EXACTLY: BRANCH_A (received {{use.data}})"
+
+  - id: branch_b
+    use:
+      data: source
+    infer: "Return EXACTLY: BRANCH_B (received {{use.data}})"
+
+  - id: final
+    use:
+      data: branch_b
+    infer: "Return EXACTLY: FINAL (received {{use.data}})"

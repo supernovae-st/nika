@@ -258,10 +258,22 @@ impl Runner {
     }
 
     /// Get the final output (from tasks with no successors)
+    ///
+    /// BUG-004 FIX (v0.22.4): Now uses `get_deepest_final_task()` to select the
+    /// terminal task with the highest topological depth. This ensures branching
+    /// DAGs return the correct output (e.g., "final" task, not "branch_a").
     fn get_final_output(&self) -> Option<String> {
-        let final_tasks = self.flow_graph.get_final_tasks();
+        // BUG-004: Use deepest terminal task instead of arbitrary selection
+        if let Some(deepest_task) = self.flow_graph.get_deepest_final_task() {
+            if let Some(result) = self.datastore.get(deepest_task.as_ref()) {
+                if result.is_success() {
+                    return Some(result.output_str().into_owned());
+                }
+            }
+        }
 
-        // Return first successful final task output
+        // Fallback: Try any successful final task (for backwards compatibility)
+        let final_tasks = self.flow_graph.get_final_tasks();
         for task_id in final_tasks {
             if let Some(result) = self.datastore.get(&task_id) {
                 if result.is_success() {

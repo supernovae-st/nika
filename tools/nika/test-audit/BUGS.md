@@ -14,13 +14,13 @@
 | **Phases Tested** | 7/7 |
 | **Test Workflows Run** | 23 |
 | **Critical Bugs Found** | 3 (BUG-003, BUG-004, BUG-005) |
-| **Bugs Fixed Prior** | 2 (BUG-001, BUG-002) |
-| **Features Working** | Bindings, Built-ins, Artifacts, MCP, Providers |
-| **Features Broken** | for_each with bindings, implicit depends_on, DAG terminal selection |
+| **Bugs Fixed** | 5 (BUG-001 thru BUG-005) |
+| **Features Working** | All features now working! |
+| **Status** | 🟢 ALL BUGS FIXED (v0.22.4) |
 
 ---
 
-## Fixed Bugs (v0.22.1-v0.22.3)
+## Fixed Bugs (v0.22.1-v0.22.4)
 
 ### BUG-001: `agent:` verb broken with OpenAI provider [FIXED v0.22.1]
 
@@ -48,15 +48,15 @@ When a task outputs a JSON array as a string, `for_each` couldn't iterate becaus
 
 ---
 
-## Open Bugs (Found in v0.22.3 Audit)
+## Fixed Bugs (v0.22.4)
 
-### BUG-003: `use:` block does NOT create implicit `depends_on`
+### BUG-003: `use:` block does NOT create implicit `depends_on` [FIXED v0.22.4]
 
 **Severity:** 🔴 HIGH
 **Phase:** 1 - Bindings
 **Feature:** use: bindings
-**Status:** 🔴 OPEN
-**Location:** `src/dag/builder.rs` and `src/dag/validation.rs`
+**Status:** 🟢 FIXED
+**Location:** `src/dag/flow.rs:112-154`
 
 **Problem:**
 The `use:` block only declares a data binding but does NOT automatically create a DAG edge (dependency) to the referenced task. Users must add explicit `depends_on: [task_id]`.
@@ -88,19 +88,19 @@ Add explicit `depends_on`:
     infer: "{{use.data}}"
 ```
 
-**Fix Location:** `src/dag/builder.rs` - auto-add edges for `use:` references
+**Fix:** Added loop in `Dag::from_workflow()` to create implicit edges from `use:` wiring entries.
 
-**Impact:** Every workflow using `use:` without explicit `depends_on` will fail.
+**Impact:** ~~Every workflow using `use:` without explicit `depends_on` will fail.~~ FIXED - works automatically now.
 
 ---
 
-### BUG-004: Workflow final output picks wrong terminal task
+### BUG-004: Workflow final output picks wrong terminal task [FIXED v0.22.4]
 
 **Severity:** 🔴 HIGH
 **Phase:** 1 - Bindings
 **Feature:** Workflow output
-**Status:** 🔴 OPEN
-**Location:** `src/runtime/runner.rs` (final output selection)
+**Status:** 🟢 FIXED
+**Location:** `src/dag/flow.rs:198-280` and `src/runtime/runner.rs:265-284`
 
 **Problem:**
 When a workflow has multiple terminal nodes (tasks with no downstream dependencies), the workflow picks an arbitrary one for the final output instead of the "last" completed task.
@@ -127,22 +127,19 @@ tasks:
 **Expected:** `final_output` = "Final: SuperNovae" (from task `final`)
 **Actual:** `final_output` = "Branch A: SuperNovae" (from task `branch_a`)
 
-**Fix Options:**
-1. Pick terminal node with highest topological sort order
-2. Return a map of all terminal node outputs
-3. Require explicit `workflow.output: task_id` declaration
+**Fix:** Implemented option 1 - `get_deepest_final_task()` selects terminal node with highest topological depth. Ties broken by task definition order.
 
-**Impact:** Workflows with branching DAGs return incorrect/unpredictable final outputs.
+**Impact:** ~~Workflows with branching DAGs return incorrect/unpredictable final outputs.~~ FIXED - deepest task selected deterministically.
 
 ---
 
-### BUG-005: for_each with binding expression ($items) fails - as: alias not resolved
+### BUG-005: for_each with binding expression ($items) fails - as: alias not resolved [FIXED v0.22.4]
 
 **Severity:** 🔴 HIGH
 **Phase:** 3 - Control Flow
 **Feature:** for_each with binding
-**Status:** 🔴 OPEN
-**Location:** `src/runtime/runner.rs` (for_each expansion)
+**Status:** 🟢 FIXED (by BUG-003 fix)
+**Location:** `src/dag/flow.rs` (implicit dependency creation)
 
 **Problem:**
 When using `for_each: $items` with a binding expression that references another task's output, the loop variable defined by `as:` is not resolved in the task's prompt.
@@ -168,28 +165,28 @@ tasks:
 ```
 
 **Root Cause:**
-The for_each expansion resolves the array correctly but fails to inject the `as:` variable into the task's use block for template resolution.
+The for_each expansion resolves the array correctly but fails to inject the `as:` variable into the task's use block for template resolution. This was a symptom of BUG-003 - without implicit dependencies, the `generate_items` task wasn't upstream of `process_items`.
 
-**Fix:** Ensure `as` variable is added to task's bindings before template expansion.
+**Fix:** BUG-003 fix creates implicit `depends_on` from `use: { items: generate_items }`, ensuring proper task ordering and data availability.
 
-**Impact:** Dynamic for_each workflows (common pattern) are broken.
+**Impact:** ~~Dynamic for_each workflows (common pattern) are broken.~~ FIXED - implicit dependencies now work.
 
 ---
 
 ## Phase Testing Results
 
-### Phase 1: Bindings & Templates ⚠️
+### Phase 1: Bindings & Templates ✅
 
 | Test | Result | Notes |
 |------|--------|-------|
-| Basic use: binding | PASS | With explicit depends_on |
+| Basic use: binding | PASS | Works without explicit depends_on (v0.22.4) |
 | Template resolution | PASS | {{use.alias}} works |
 | Multi-task chain | PASS | 4-task chain with bindings |
 | Parallel bindings | PASS | Multiple tasks use same source |
 | Shorthand infer | PASS | `infer: "prompt"` works |
-| Branching DAG | FAIL | BUG-004: Wrong terminal selected |
+| Branching DAG | PASS | Deepest terminal selected (v0.22.4) |
 
-**Bugs Found:** BUG-003 (implicit depends_on), BUG-004 (terminal selection)
+**Bugs Fixed (v0.22.4):** BUG-003 (implicit depends_on), BUG-004 (terminal selection)
 
 ---
 
@@ -207,16 +204,16 @@ The for_each expansion resolves the array correctly but fails to inject the `as:
 
 ---
 
-### Phase 3: Control Flow ⚠️
+### Phase 3: Control Flow ✅
 
 | Test | Result | Notes |
 |------|--------|-------|
 | depends_on | PASS | Tasks execute in order |
 | depends_on multiple | PASS | Multiple deps work |
 | for_each literal array | PASS | `["a","b","c"]` works |
-| for_each binding | FAIL | BUG-005: as: not resolved |
+| for_each binding | PASS | Fixed by BUG-003 implicit deps (v0.22.4) |
 
-**Bugs Found:** BUG-005 (for_each binding)
+**Bugs Fixed (v0.22.4):** BUG-005 (fixed by BUG-003)
 
 ---
 
