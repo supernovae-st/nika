@@ -2,6 +2,9 @@
 //!
 //! Integrates the artifact system with the task execution flow.
 //! Called after successful task completion when `artifact:` is configured.
+//!
+//! v0.22: Added template support - artifacts can now specify a `template:` field
+//! which supports `{{use.*}}` bindings for dynamic content generation.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,12 +14,14 @@ use tracing::{debug, warn};
 use crate::ast::artifact::{
     ArtifactFormat, ArtifactMode, ArtifactOutput, ArtifactSpec, ArtifactsConfig,
 };
+use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::io::security::DEFAULT_ARTIFACT_DIR;
 use crate::io::writer::{ArtifactWriter, WriteRequest, WriteResult};
 use crate::serde_yaml;
+use crate::store::DataStore;
 use crate::OutputFormat;
 
 /// Result of processing artifacts for a task
@@ -40,10 +45,13 @@ pub struct ArtifactProcessResult {
 /// * `workflow_config` - Workflow-level artifact defaults
 /// * `base_path` - Base path for artifact resolution (workflow directory)
 /// * `event_log` - Optional event log for emitting artifact events
+/// * `bindings` - Resolved bindings for template resolution (v0.22)
+/// * `datastore` - Data store for lazy binding resolution (v0.22)
 ///
 /// # Returns
 ///
 /// `ArtifactProcessResult` with write status and any errors
+#[allow(clippy::too_many_arguments)]
 pub async fn process_task_artifacts(
     task_id: &str,
     output: &str,
@@ -51,6 +59,8 @@ pub async fn process_task_artifacts(
     workflow_config: Option<&ArtifactsConfig>,
     base_path: &std::path::Path,
     event_log: Option<&EventLog>,
+    bindings: &ResolvedBindings,
+    datastore: &DataStore,
 ) -> ArtifactProcessResult {
     let mut result = ArtifactProcessResult {
         written: 0,
@@ -72,6 +82,7 @@ pub async fn process_task_artifacts(
             vec![ArtifactOutput {
                 path: format!("{}.{}", task_id, format.extension()),
                 source: None,
+                template: None, // v0.22: No template for default artifacts
                 format: Some(*format),
                 mode: workflow_config.map(|c| c.mode),
             }]
@@ -95,7 +106,17 @@ pub async fn process_task_artifacts(
 
     // Process each output
     for output_spec in outputs {
-        match write_single_artifact(task_id, output, &output_spec, workflow_config, &writer).await {
+        match write_single_artifact(
+            task_id,
+            output,
+            &output_spec,
+            workflow_config,
+            &writer,
+            bindings,
+            datastore,
+        )
+        .await
+        {
             Ok(write_result) => {
                 debug!(
                     task_id = %task_id,
@@ -143,12 +164,17 @@ pub async fn process_task_artifacts(
 }
 
 /// Write a single artifact output
+///
+/// v0.22: Now supports `template:` field - if set, resolves template with bindings
+/// instead of using task output directly.
 async fn write_single_artifact(
     task_id: &str,
     output: &str,
     output_spec: &ArtifactOutput,
     workflow_config: Option<&ArtifactsConfig>,
     writer: &ArtifactWriter,
+    bindings: &ResolvedBindings,
+    datastore: &DataStore,
 ) -> Result<WriteResult, NikaError> {
     // Determine format (task spec > workflow default)
     let format = output_spec
@@ -162,8 +188,34 @@ async fn write_single_artifact(
         .or(workflow_config.map(|c| c.mode))
         .unwrap_or(ArtifactMode::Overwrite);
 
+    // v0.22: Determine content source - template or task output
+    let raw_content: String = if let Some(ref tpl) = output_spec.template {
+        // Resolve template with bindings
+        debug!(
+            task_id = %task_id,
+            template = %tpl,
+            "Resolving artifact template"
+        );
+        match template_resolve(tpl, bindings, datastore) {
+            Ok(resolved) => resolved.into_owned(),
+            Err(e) => {
+                warn!(
+                    task_id = %task_id,
+                    template = %tpl,
+                    error = %e,
+                    "Failed to resolve artifact template, using raw template"
+                );
+                // On template resolution failure, use the raw template
+                tpl.clone()
+            }
+        }
+    } else {
+        // No template - use task output directly
+        output.to_string()
+    };
+
     // Convert content based on format
-    let content = format_output(output, format)?;
+    let content = format_output(&raw_content, format)?;
 
     // Convert ArtifactFormat to OutputFormat for the writer
     let output_format = match format {
@@ -397,6 +449,8 @@ mod tests {
     #[tokio::test]
     async fn test_process_task_artifacts_disabled() {
         let base = tempdir().unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = DataStore::new();
         let result = process_task_artifacts(
             "task1",
             "output",
@@ -404,6 +458,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
+            &bindings,
+            &datastore,
         )
         .await;
 
@@ -417,6 +473,8 @@ mod tests {
         let base = tempdir().unwrap();
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = DataStore::new();
 
         let result = process_task_artifacts(
             "task1",
@@ -425,6 +483,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
+            &bindings,
+            &datastore,
         )
         .await;
 
@@ -451,10 +511,13 @@ mod tests {
         let base = tempdir().unwrap();
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = DataStore::new();
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.json".to_string(),
             source: None,
+            template: None, // v0.22: No template
             format: Some(ArtifactFormat::Json),
             mode: None,
         });
@@ -466,6 +529,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
+            &bindings,
+            &datastore,
         )
         .await;
 
@@ -478,17 +543,21 @@ mod tests {
         let base = tempdir().unwrap();
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = DataStore::new();
 
         let spec = ArtifactSpec::Multiple(vec![
             ArtifactOutput {
                 path: "raw.txt".to_string(),
                 source: None,
+                template: None, // v0.22
                 format: Some(ArtifactFormat::Text),
                 mode: None,
             },
             ArtifactOutput {
                 path: "processed.json".to_string(),
                 source: None,
+                template: None, // v0.22
                 format: Some(ArtifactFormat::Json),
                 mode: None,
             },
@@ -501,6 +570,8 @@ mod tests {
             None,
             base.path(),
             None, // No event log for tests
+            &bindings,
+            &datastore,
         )
         .await;
 
@@ -554,5 +625,141 @@ mod tests {
         // Works with default artifact directory
         let result = normalize_artifact_path("./.nika/artifacts/output.json", ".nika/artifacts");
         assert_eq!(result, "output.json");
+    }
+
+    // ========== v0.22: Template resolution tests ==========
+
+    #[tokio::test]
+    async fn test_artifact_template_resolution() {
+        use crate::store::TaskResult;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Create datastore with task result that has JSON data
+        let datastore = DataStore::new();
+        let task_result = TaskResult::success_str(
+            r#"{"name": "Alice", "age": 30}"#.to_string(),
+            Duration::from_millis(100),
+        );
+        datastore.insert(Arc::from("generate_data"), task_result);
+
+        // Create bindings that reference the upstream task
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("data", serde_json::json!({"name": "Alice", "age": 30}));
+
+        // Create artifact spec with template
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "report.md".to_string(),
+            source: None,
+            template: Some(
+                "# Report\n\nUser: {{use.data.name}}, Age: {{use.data.age}}".to_string(),
+            ),
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "generate_report",
+            "task output (ignored when template is set)",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        assert_eq!(
+            result.written, 1,
+            "Expected 1 artifact written, errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result.errors.is_empty(),
+            "Unexpected errors: {:?}",
+            result.errors
+        );
+
+        // Read the artifact content and verify template was resolved
+        let artifact_content = std::fs::read_to_string(&result.paths[0]).unwrap();
+        assert_eq!(artifact_content, "# Report\n\nUser: Alice, Age: 30");
+    }
+
+    #[tokio::test]
+    async fn test_artifact_without_template_uses_output() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = DataStore::new();
+
+        // Create artifact spec WITHOUT template
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.txt".to_string(),
+            source: None,
+            template: None, // No template - should use task output
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "This is the task output",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        assert_eq!(result.written, 1);
+
+        // Read the artifact content and verify it's the task output
+        let artifact_content = std::fs::read_to_string(&result.paths[0]).unwrap();
+        assert_eq!(artifact_content, "This is the task output");
+    }
+
+    #[tokio::test]
+    async fn test_artifact_template_with_missing_binding() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default(); // Empty bindings
+        let datastore = DataStore::new();
+
+        // Create artifact spec with template that references missing binding
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "report.md".to_string(),
+            source: None,
+            template: Some("Hello {{use.missing}}!".to_string()),
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "fallback output",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        // Should still write, but with raw template (on resolution error)
+        assert_eq!(result.written, 1);
+
+        let artifact_content = std::fs::read_to_string(&result.paths[0]).unwrap();
+        // On template resolution failure, it uses the raw template
+        assert_eq!(artifact_content, "Hello {{use.missing}}!");
     }
 }

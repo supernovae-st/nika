@@ -638,6 +638,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         };
 
         // v0.18: Process artifacts if task succeeded and has artifact config
+        // v0.22: Pass bindings and datastore for template resolution
         if task_result.is_success() {
             if let Some(ref artifact_spec) = task.artifact {
                 // Get the output content for artifact writing
@@ -650,6 +651,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     workflow_artifacts.as_ref(),
                     &base_path,
                     Some(&event_log), // Pass event log for artifact events
+                    &bindings,        // v0.22: For template resolution
+                    &datastore,       // v0.22: For lazy binding resolution
                 )
                 .await;
 

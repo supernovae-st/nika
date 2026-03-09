@@ -871,6 +871,10 @@
               "type": "string",
               "description": "Which binding to save (default: task result)"
             },
+            "template": {
+              "type": "string",
+              "description": "Template string to render with {{use.*}} bindings (v0.22+)"
+            },
             "format": {
               "type": "string",
               "enum": ["text", "json", "yaml"],
@@ -892,6 +896,7 @@
             "properties": {
               "path": { "type": "string" },
               "source": { "type": "string" },
+              "template": { "type": "string", "description": "Template string (v0.22+)" },
               "format": { "type": "string", "enum": ["text", "json", "yaml"] },
               "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
             }

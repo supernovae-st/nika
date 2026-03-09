@@ -227,7 +227,9 @@ pub fn resolve<'a>(
                 // Apply modifier or context-based escaping (v0.13)
                 let replacement = match modifier {
                     Some("shell") => escape_for_shell(&replacement),
-                    _ if is_in_json_context(template_str, m.start()) => escape_for_json(&replacement),
+                    _ if is_in_json_context(template_str, m.start()) => {
+                        escape_for_json(&replacement)
+                    }
                     _ => replacement,
                 };
 
@@ -834,7 +836,10 @@ mod tests {
     #[test]
     fn resolve_bracket_notation_mixed_syntax() {
         let mut bindings = ResolvedBindings::new();
-        bindings.set("data", json!({"users": [{"name": "Alice"}, {"name": "Bob"}]}));
+        bindings.set(
+            "data",
+            json!({"users": [{"name": "Alice"}, {"name": "Bob"}]}),
+        );
         let ds = empty_datastore();
 
         // Mix of dot and bracket notation

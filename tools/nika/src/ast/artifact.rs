@@ -110,6 +110,11 @@ pub struct ArtifactOutput {
     #[serde(default)]
     pub source: Option<String>,
 
+    /// Template string to render (supports {{use.*}} bindings)
+    /// If set, this is used instead of task output
+    #[serde(default)]
+    pub template: Option<String>,
+
     /// Output format override
     #[serde(default)]
     pub format: Option<ArtifactFormat>,
