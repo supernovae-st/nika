@@ -36,6 +36,39 @@ use super::structured_output::StructuredOutputEngine;
 use crate::ast::artifact::ArtifactsConfig;
 use std::path::PathBuf;
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helper Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Try to extract an array from a Value, parsing JSON strings if needed (v0.22.1).
+///
+/// This function handles the case where a task output is a JSON array stored as a
+/// string (e.g., from `exec: 'echo ''["a","b","c"]'''`). The for_each resolution
+/// needs to iterate over arrays, but task outputs are stored as strings.
+///
+/// # Returns
+/// - `Some(Vec<Value>)` if the value is an array or a parseable JSON array string
+/// - `None` if the value cannot be converted to an array
+fn value_to_array(value: &Value) -> Option<Vec<Value>> {
+    // First, try direct array access
+    if let Some(arr) = value.as_array() {
+        return Some(arr.clone());
+    }
+
+    // If it's a string, try to parse it as a JSON array
+    if let Some(s) = value.as_str() {
+        let trimmed = s.trim();
+        // Only try to parse if it looks like a JSON array
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            if let Ok(parsed) = serde_json::from_str::<Vec<Value>>(trimmed) {
+                return Some(parsed);
+            }
+        }
+    }
+
+    None
+}
+
 /// Result of executing a task iteration
 /// For for_each tasks, includes the iteration index for ordered aggregation
 struct IterationResult {
@@ -912,7 +945,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             // v0.22: Check for $inputs.xxx format first (workflow inputs)
                             if alias.starts_with("inputs.") {
                                 match self.datastore.resolve_input_path(alias) {
-                                    Some(value) => value.as_array().cloned(),
+                                    Some(value) => value_to_array(&value),
                                     None => {
                                         self.datastore.insert(
                                             intern(&task.id),
@@ -930,7 +963,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             } else {
                                 // $alias format (e.g., "$locales")
                                 match bindings.get_resolved(alias, &self.datastore) {
-                                    Ok(value) => value.as_array().cloned(),
+                                    Ok(value) => value_to_array(&value),
                                     Err(e) => {
                                         // Binding not found - fail the task
                                         self.datastore.insert(
@@ -955,7 +988,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     let param_path = &after[..end];
                                     let full_path = format!("inputs.{}", param_path);
                                     match self.datastore.resolve_input_path(&full_path) {
-                                        Some(value) => value.as_array().cloned(),
+                                        Some(value) => value_to_array(&value),
                                         None => {
                                             self.datastore.insert(
                                                 intern(&task.id),
@@ -984,7 +1017,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 if let Some(end) = after.find("}}") {
                                     let alias = &after[..end];
                                     match bindings.get_resolved(alias, &self.datastore) {
-                                        Ok(value) => value.as_array().cloned(),
+                                        Ok(value) => value_to_array(&value),
                                         Err(e) => {
                                             self.datastore.insert(
                                                 intern(&task.id),
@@ -1009,8 +1042,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             None
                         }
                     } else {
-                        // Direct array value
-                        for_each.as_array().cloned()
+                        // Direct array value (or JSON array string)
+                        value_to_array(for_each)
                     }
                 } else {
                     None
@@ -2697,5 +2730,116 @@ mod tests {
 
         let inner_result = result.unwrap().unwrap();
         assert!(inner_result.is_ok(), "Workflow should succeed");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v0.22.1: VALUE_TO_ARRAY HELPER TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_value_to_array_direct_array() {
+        use serde_json::json;
+
+        let value = json!(["a", "b", "c"]);
+        let result = value_to_array(&value);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_value_to_array_json_string() {
+        use serde_json::json;
+
+        // String containing JSON array (common case from exec output)
+        let value = json!(r#"["x","y","z"]"#);
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Should parse JSON array string");
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0], "x");
+        assert_eq!(arr[1], "y");
+        assert_eq!(arr[2], "z");
+    }
+
+    #[test]
+    fn test_value_to_array_json_string_with_whitespace() {
+        use serde_json::json;
+
+        // String with leading/trailing whitespace
+        let value = json!("  [1, 2, 3]  ");
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Should handle whitespace");
+        assert_eq!(result.unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_value_to_array_not_array_string() {
+        use serde_json::json;
+
+        // String that's not a JSON array
+        let value = json!("hello world");
+        let result = value_to_array(&value);
+        assert!(result.is_none(), "Should return None for non-array string");
+    }
+
+    #[test]
+    fn test_value_to_array_object() {
+        use serde_json::json;
+
+        // Object should return None
+        let value = json!({"key": "value"});
+        let result = value_to_array(&value);
+        assert!(result.is_none(), "Should return None for object");
+    }
+
+    #[test]
+    fn test_value_to_array_number() {
+        use serde_json::json;
+
+        // Number should return None
+        let value = json!(42);
+        let result = value_to_array(&value);
+        assert!(result.is_none(), "Should return None for number");
+    }
+
+    #[test]
+    fn test_value_to_array_nested_json_string() {
+        use serde_json::json;
+
+        // Complex JSON array as string
+        let value = json!(r#"[{"id": 1}, {"id": 2}]"#);
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Should parse complex JSON array string");
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["id"], 1);
+        assert_eq!(arr[1]["id"], 2);
+    }
+
+    #[test]
+    fn test_value_to_array_invalid_json_string() {
+        use serde_json::json;
+
+        // Invalid JSON that looks like an array
+        let value = json!("[not valid json");
+        let result = value_to_array(&value);
+        assert!(result.is_none(), "Should return None for invalid JSON");
+    }
+
+    #[test]
+    fn test_value_to_array_empty_array() {
+        use serde_json::json;
+
+        // Empty array (direct)
+        let value = json!([]);
+        let result = value_to_array(&value);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().len(), 0);
+
+        // Empty array (as string)
+        let value = json!("[]");
+        let result = value_to_array(&value);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().len(), 0);
     }
 }
