@@ -174,7 +174,7 @@ impl BuiltinTool for CompleteTool {
                 "metadata": {
                     "type": "object",
                     "description": "Additional metadata about the result",
-                    "additionalProperties": true
+                    "additionalProperties": false
                 }
             },
             "required": ["result"],
