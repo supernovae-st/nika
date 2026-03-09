@@ -1,47 +1,72 @@
 # Test: Builtin tools via invoke: (should work!)
 # This tests that nika:* tools work in invoke: tasks without mcp: field
+#
+# NOTE: File tools require ABSOLUTE paths within the working directory (security sandbox).
+# This workflow should be run from the nika tools directory:
+#   cd tools/nika && cargo run -- run examples/test-invoke-builtin-tools.nika.yaml
+#
+# The test uses absolute paths constructed at runtime via exec: to work around this.
+
 schema: nika/workflow@0.10
 workflow: test-invoke-builtin-tools
 description: "Verify builtin tools work in invoke: tasks without MCP server"
 
 tasks:
-  # Test 1: Write a file via invoke:
-  - id: write_file
-    invoke:
-      tool: nika:write
-      params:
-        file_path: /tmp/nika-invoke-test.txt
-        content: "Hello from invoke: task!"
+  # Test 1: Get the absolute path to target directory
+  - id: get_path
+    exec:
+      command: "echo \"$(pwd)/examples/.test-output\""
+      shell: true
 
-  # Test 2: Read the file back via invoke:
-  - id: read_file
-    invoke:
-      tool: nika:read
-      params:
-        file_path: /tmp/nika-invoke-test.txt
-
-  # Test 3: Glob to find the file
-  - id: glob_files
-    invoke:
-      tool: nika:glob
-      params:
-        pattern: "nika-invoke-*.txt"
-        path: /tmp
-
-  # Test 4: Use nika:log
-  - id: log_result
+  # Test 2: Create the test directory
+  - id: create_dir
     use:
-      content: read_file
+      dir: get_path
+    exec:
+      command: "mkdir -p {{use.dir}}"
+      shell: true
+
+  # Test 3: Use nika:log (doesn't require file paths)
+  - id: log_start
     invoke:
       tool: nika:log
       params:
         level: info
-        message: "Read content: {{use.content}}"
+        message: "Starting builtin tools test"
+
+  # Test 4: Use nika:sleep
+  - id: sleep_test
+    invoke:
+      tool: nika:sleep
+      params:
+        duration: "50ms"
+
+  # Test 5: Use nika:emit (custom event)
+  - id: emit_test
+    invoke:
+      tool: nika:emit
+      params:
+        name: test_event
+        payload:
+          status: "success"
+          message: "Builtin tools work!"
+
+  # Test 6: Use nika:assert
+  - id: assert_test
+    invoke:
+      tool: nika:assert
+      params:
+        condition: true
+        message: "Assertion passed"
 
 flows:
-  - source: write_file
-    target: read_file
-  - source: read_file
-    target: glob_files
-  - source: glob_files
-    target: log_result
+  - source: get_path
+    target: create_dir
+  - source: create_dir
+    target: log_start
+  - source: log_start
+    target: sleep_test
+  - source: sleep_test
+    target: emit_test
+  - source: emit_test
+    target: assert_test

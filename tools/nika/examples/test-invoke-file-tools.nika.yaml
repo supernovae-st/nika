@@ -1,35 +1,81 @@
 # Test: File tools via invoke: (should work!)
 # This tests that nika:write works in invoke: tasks, not just agent: tasks
+#
+# NOTE: File tools require ABSOLUTE paths within the working directory (security sandbox).
+# This workflow demonstrates the pattern of getting the working directory dynamically.
+#
+# Run from nika tools directory:
+#   cd tools/nika && cargo run -- run examples/test-invoke-file-tools.nika.yaml
+
 schema: nika/workflow@0.10
 workflow: test-invoke-file-tools
 description: "Verify file tools work in invoke: tasks"
 
 tasks:
-  # Test 1: Write a file via invoke: (NOT agent:)
+  # Test 1: Get absolute paths for test files
+  - id: get_paths
+    exec:
+      command: |
+        mkdir -p examples/.test-output
+        echo "$(pwd)/examples/.test-output/invoke-test.txt"
+      shell: true
+
+  # Test 2: Write a file via invoke: (NOT agent:)
   - id: write_via_invoke
+    use:
+      file_path: get_paths
     invoke:
       tool: nika:write
       params:
-        file_path: /tmp/nika-invoke-test.txt
+        file_path: "{{use.file_path}}"
         content: "Hello from invoke: task!"
 
-  # Test 2: Read the file back via invoke:
+  # Test 3: Read the file back via invoke:
   - id: read_via_invoke
+    use:
+      file_path: get_paths
     invoke:
       tool: nika:read
       params:
-        file_path: /tmp/nika-invoke-test.txt
+        file_path: "{{use.file_path}}"
 
-  # Test 3: Glob to find the file
+  # Test 4: Glob to find the file
   - id: glob_via_invoke
+    exec:
+      command: "echo \"$(pwd)/examples/.test-output\""
+      shell: true
+
+  # Test 5: Actually run the glob
+  - id: glob_result
+    use:
+      dir: glob_via_invoke
     invoke:
       tool: nika:glob
       params:
         pattern: "*.txt"
-        path: /tmp
+        path: "{{use.dir}}"
+
+  # Test 6: Log the result
+  - id: log_result
+    use:
+      content: read_via_invoke
+      files: glob_result
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Read content: {{use.content}} | Found files: {{use.files}}"
 
 flows:
+  - source: get_paths
+    target: write_via_invoke
   - source: write_via_invoke
     target: read_via_invoke
-  - source: read_via_invoke
+  - source: get_paths
     target: glob_via_invoke
+  - source: glob_via_invoke
+    target: glob_result
+  - source: read_via_invoke
+    target: log_result
+  - source: glob_result
+    target: log_result
