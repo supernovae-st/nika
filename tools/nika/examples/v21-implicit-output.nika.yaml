@@ -6,9 +6,7 @@
 
 schema: "nika/workflow@0.10"
 
-provider:
-  name: mock
-  model: mock-model
+provider: mock
 
 tasks:
   # Step 1: Generate initial content
@@ -38,9 +36,11 @@ tasks:
     infer: "Summarize this outline: {{use.outline}}"
 
 flows:
-  - name: main
-    tasks:
-      - generate_title
-      - expand_title
-      - create_outline
-      - final_summary
+  - source: generate_title
+    target: expand_title
+  - source: generate_title
+    target: create_outline
+  - source: expand_title
+    target: create_outline
+  - source: create_outline
+    target: final_summary

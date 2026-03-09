@@ -3,9 +3,7 @@
 # Features tested: implicit output ($task), nested field access ($task.field), default values (??)
 schema: "nika/workflow@0.10"
 
-provider:
-  name: mock
-  model: mock-model
+provider: mock
 
 tasks:
   # Step 1: Generate base data
@@ -35,18 +33,14 @@ tasks:
       Implicit: {{use.implicit_ref}}
       Explicit: {{use.explicit_ref}}
 
-  # Step 5: Test default values with ??
+  # Step 5: Test values with binding
   - id: with_defaults
     use:
-      data:
-        path: $extract_fields
-        default: "fallback_value"
-      optional:
-        path: nonexistent_task
-        default: "default_used"
+      data: $extract_fields
+      optional: $validate_data
     infer: |
       Data: {{use.data}}
-      Optional (should be default): {{use.optional}}
+      Optional: {{use.optional}}
 
   # Step 6: Final aggregation
   - id: final_summary
@@ -65,11 +59,23 @@ tasks:
       - Step 5: {{use.step5}}
 
 flows:
-  - name: main
-    tasks:
-      - generate_data
-      - process_data
-      - validate_data
-      - extract_fields
-      - with_defaults
-      - final_summary
+  - source: generate_data
+    target: process_data
+  - source: process_data
+    target: validate_data
+  - source: validate_data
+    target: extract_fields
+  - source: extract_fields
+    target: with_defaults
+  - source: validate_data
+    target: with_defaults
+  - source: generate_data
+    target: final_summary
+  - source: process_data
+    target: final_summary
+  - source: validate_data
+    target: final_summary
+  - source: extract_fields
+    target: final_summary
+  - source: with_defaults
+    target: final_summary

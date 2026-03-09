@@ -3,9 +3,7 @@
 # Features tested: for_each, concurrency, implicit output ($task), as variable, fail_fast
 schema: "nika/workflow@0.10"
 
-provider:
-  name: mock
-  model: mock-model
+provider: mock
 
 tasks:
   # Step 1: Generate source array
@@ -83,13 +81,23 @@ tasks:
       All for_each executions completed successfully.
 
 flows:
-  - name: main
-    tasks:
-      - generate_locales
-      - process_locales
-      - aggregate_results
-      - generate_items
-      - process_items_parallel
-      - mixed_parallel
-      - sequential_processing
-      - final_aggregation
+  - source: generate_locales
+    target: process_locales
+  - source: process_locales
+    target: aggregate_results
+  - source: generate_items
+    target: process_items_parallel
+  - source: aggregate_results
+    target: mixed_parallel
+  - source: process_items_parallel
+    target: mixed_parallel
+  - source: mixed_parallel
+    target: sequential_processing
+  - source: process_locales
+    target: final_aggregation
+  - source: process_items_parallel
+    target: final_aggregation
+  - source: mixed_parallel
+    target: final_aggregation
+  - source: sequential_processing
+    target: final_aggregation

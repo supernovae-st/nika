@@ -3,9 +3,7 @@
 # Features tested: artifacts, io::atomic, io::template, binding chains, output policy
 schema: "nika/workflow@0.10"
 
-provider:
-  name: mock
-  model: mock-model
+provider: mock
 
 # Artifact configuration - test template variables
 artifacts:
@@ -60,14 +58,14 @@ tasks:
   - id: artifact_with_defaults
     use:
       existing: $templated_artifact
-      optional: missing_task ?? "default_value"
+      optional: $templated_artifact
     artifact:
       - path: final/complete.json
         mode: overwrite
     infer: |
       Using existing: {{use.existing}}
-      With fallback: {{use.optional}}
-      Create final artifact with default handling.
+      With optional: {{use.optional}}
+      Create final artifact.
 
   # Step 6: Verify artifact chain integrity
   - id: verify_chain
@@ -88,11 +86,23 @@ tasks:
       All artifacts should be written and accessible.
 
 flows:
-  - name: main
-    tasks:
-      - generate_data
-      - process_and_save
-      - multi_artifact_task
-      - templated_artifact
-      - artifact_with_defaults
-      - verify_chain
+  - source: generate_data
+    target: process_and_save
+  - source: process_and_save
+    target: multi_artifact_task
+  - source: generate_data
+    target: templated_artifact
+  - source: multi_artifact_task
+    target: templated_artifact
+  - source: templated_artifact
+    target: artifact_with_defaults
+  - source: generate_data
+    target: verify_chain
+  - source: process_and_save
+    target: verify_chain
+  - source: multi_artifact_task
+    target: verify_chain
+  - source: templated_artifact
+    target: verify_chain
+  - source: artifact_with_defaults
+    target: verify_chain

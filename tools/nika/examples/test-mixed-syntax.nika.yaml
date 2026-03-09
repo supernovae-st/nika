@@ -3,9 +3,7 @@
 # Features tested: implicit output ($task), explicit output (task), mixed references
 schema: "nika/workflow@0.10"
 
-provider:
-  name: mock
-  model: mock-model
+provider: mock
 
 tasks:
   # Step 1: Generate source data
@@ -31,8 +29,8 @@ tasks:
       explicit_result: explicit_consumer
     infer: |
       Compare results from both syntaxes:
-      - Implicit ($source_data → $implicit_consumer): {{use.implicit_result}}
-      - Explicit (source_data → explicit_consumer): {{use.explicit_result}}
+      - Implicit (via implicit_consumer): {{use.implicit_result}}
+      - Explicit (via explicit_consumer): {{use.explicit_result}}
 
       Verify they are identical.
 
@@ -60,16 +58,22 @@ tasks:
       no_dollar: mixed_references
     infer: |
       Edge case verification:
-      - $mixed_references resolves to: {{use.single_dollar}}
-      - mixed_references resolves to: {{use.no_dollar}}
+      - Implicit syntax resolves to: {{use.single_dollar}}
+      - Explicit syntax resolves to: {{use.no_dollar}}
       Both should be identical.
 
 flows:
-  - name: main
-    tasks:
-      - source_data
-      - implicit_consumer
-      - explicit_consumer
-      - compare_results
-      - mixed_references
-      - edge_case_test
+  - source: source_data
+    target: implicit_consumer
+  - source: source_data
+    target: explicit_consumer
+  - source: implicit_consumer
+    target: compare_results
+  - source: explicit_consumer
+    target: compare_results
+  - source: source_data
+    target: mixed_references
+  - source: compare_results
+    target: mixed_references
+  - source: mixed_references
+    target: edge_case_test
