@@ -253,10 +253,34 @@ mod tests {
     fn test_offset_to_position_simple() {
         let content = "hello\nworld";
 
-        assert_eq!(offset_to_position(content, ByteOffset(0)), Position { line: 0, character: 0 });
-        assert_eq!(offset_to_position(content, ByteOffset(4)), Position { line: 0, character: 4 });
-        assert_eq!(offset_to_position(content, ByteOffset(6)), Position { line: 1, character: 0 });
-        assert_eq!(offset_to_position(content, ByteOffset(10)), Position { line: 1, character: 4 });
+        assert_eq!(
+            offset_to_position(content, ByteOffset(0)),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            offset_to_position(content, ByteOffset(4)),
+            Position {
+                line: 0,
+                character: 4
+            }
+        );
+        assert_eq!(
+            offset_to_position(content, ByteOffset(6)),
+            Position {
+                line: 1,
+                character: 0
+            }
+        );
+        assert_eq!(
+            offset_to_position(content, ByteOffset(10)),
+            Position {
+                line: 1,
+                character: 4
+            }
+        );
     }
 
     #[test]
@@ -279,12 +303,36 @@ mod tests {
         let content = "hello\nworld";
 
         let range = byte_range_to_lsp_range(content, ByteOffset(0), ByteOffset(5));
-        assert_eq!(range.start, Position { line: 0, character: 0 });
-        assert_eq!(range.end, Position { line: 0, character: 5 });
+        assert_eq!(
+            range.start,
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            range.end,
+            Position {
+                line: 0,
+                character: 5
+            }
+        );
 
         let range = byte_range_to_lsp_range(content, ByteOffset(6), ByteOffset(11));
-        assert_eq!(range.start, Position { line: 1, character: 0 });
-        assert_eq!(range.end, Position { line: 1, character: 5 });
+        assert_eq!(
+            range.start,
+            Position {
+                line: 1,
+                character: 0
+            }
+        );
+        assert_eq!(
+            range.end,
+            Position {
+                line: 1,
+                character: 5
+            }
+        );
     }
 
     #[test]
@@ -301,7 +349,10 @@ mod tests {
         let content = "hello-world_test 123";
 
         let (start, end) = word_boundaries_at_offset(content, ByteOffset(3));
-        assert_eq!(&content[start.as_usize()..end.as_usize()], "hello-world_test");
+        assert_eq!(
+            &content[start.as_usize()..end.as_usize()],
+            "hello-world_test"
+        );
 
         let (start, end) = word_boundaries_at_offset(content, ByteOffset(17));
         assert_eq!(&content[start.as_usize()..end.as_usize()], "123");
@@ -309,10 +360,26 @@ mod tests {
 
     #[test]
     fn test_offset_in_range() {
-        assert!(offset_in_range(ByteOffset(5), ByteOffset(0), ByteOffset(10)));
-        assert!(offset_in_range(ByteOffset(0), ByteOffset(0), ByteOffset(10)));
-        assert!(!offset_in_range(ByteOffset(10), ByteOffset(0), ByteOffset(10))); // exclusive end
-        assert!(!offset_in_range(ByteOffset(15), ByteOffset(0), ByteOffset(10)));
+        assert!(offset_in_range(
+            ByteOffset(5),
+            ByteOffset(0),
+            ByteOffset(10)
+        ));
+        assert!(offset_in_range(
+            ByteOffset(0),
+            ByteOffset(0),
+            ByteOffset(10)
+        ));
+        assert!(!offset_in_range(
+            ByteOffset(10),
+            ByteOffset(0),
+            ByteOffset(10)
+        )); // exclusive end
+        assert!(!offset_in_range(
+            ByteOffset(15),
+            ByteOffset(0),
+            ByteOffset(10)
+        ));
     }
 
     #[test]

@@ -67,7 +67,9 @@ impl DocumentState {
     /// Convert byte offset to LSP Position.
     pub fn byte_offset_to_position(&self, byte_offset: usize) -> lsp_types::Position {
         // Convert byte offset to char index
-        let char_idx = self.rope.byte_to_char(byte_offset.min(self.rope.len_bytes()));
+        let char_idx = self
+            .rope
+            .byte_to_char(byte_offset.min(self.rope.len_bytes()));
         self.char_idx_to_position(char_idx)
     }
 
@@ -111,8 +113,14 @@ mod tests {
         // Replace "world" with "rust"
         doc.apply_change(&TextDocumentContentChangeEvent {
             range: Some(Range {
-                start: Position { line: 0, character: 6 },
-                end: Position { line: 0, character: 11 },
+                start: Position {
+                    line: 0,
+                    character: 6,
+                },
+                end: Position {
+                    line: 0,
+                    character: 11,
+                },
             }),
             range_length: None,
             text: "rust".to_string(),

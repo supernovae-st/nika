@@ -88,8 +88,7 @@ pub fn get_completion_context(doc: &DocumentState, position: Position) -> Comple
     let ast_result = find_context_at_position(&content, position.line, position.character);
 
     // Convert to CompletionContext
-    let completion_ctx =
-        ast_context_to_completion(&ast_result.context, &ast_result.word_at_cursor);
+    let completion_ctx = ast_context_to_completion(&ast_result.context, &ast_result.word_at_cursor);
 
     // If AST detection found something, use it
     if completion_ctx != CompletionContext::Unknown {
@@ -337,7 +336,11 @@ pub fn structured_output_completions() -> Vec<CompletionItem> {
     // JSON Schema type completions
     let types = [
         ("string", "String type", "Validates string values"),
-        ("number", "Number type", "Validates numeric values (integers and floats)"),
+        (
+            "number",
+            "Number type",
+            "Validates numeric values (integers and floats)",
+        ),
         ("integer", "Integer type", "Validates integer values only"),
         ("boolean", "Boolean type", "Validates true/false values"),
         ("array", "Array type", "Validates array values"),
@@ -395,12 +398,15 @@ properties:
         }),
         documentation: Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: "**Array Schema Template**\n\nCreates an array schema with item type definition.".to_string(),
+            value:
+                "**Array Schema Template**\n\nCreates an array schema with item type definition."
+                    .to_string(),
         })),
         insert_text: Some(
             r#"type: array
 items:
-  type: ${1|string,number,integer,boolean,object|}$0"#.to_string()
+  type: ${1|string,number,integer,boolean,object|}$0"#
+                .to_string(),
         ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
@@ -415,13 +421,15 @@ items:
         }),
         documentation: Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: "**String Enum Template**\n\nCreates a string type with allowed values.".to_string(),
+            value: "**String Enum Template**\n\nCreates a string type with allowed values."
+                .to_string(),
         })),
         insert_text: Some(
             r#"type: string
 enum:
   - "$1"
-  - "$2"$0"#.to_string()
+  - "$2"$0"#
+                .to_string(),
         ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
@@ -436,14 +444,17 @@ enum:
         }),
         documentation: Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: "**Nested Object Template**\n\nCreates an object property with nested properties.".to_string(),
+            value:
+                "**Nested Object Template**\n\nCreates an object property with nested properties."
+                    .to_string(),
         })),
         insert_text: Some(
             r#"$1:
   type: object
   properties:
     $2:
-      type: ${3|string,number,integer,boolean|}$0"#.to_string()
+      type: ${3|string,number,integer,boolean|}$0"#
+                .to_string(),
         ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
@@ -458,12 +469,14 @@ enum:
         }),
         documentation: Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: "**String with Constraints**\n\nCreates a string type with length constraints.".to_string(),
+            value: "**String with Constraints**\n\nCreates a string type with length constraints."
+                .to_string(),
         })),
         insert_text: Some(
             r#"type: string
 minLength: ${1:1}
-maxLength: ${2:100}$0"#.to_string()
+maxLength: ${2:100}$0"#
+                .to_string(),
         ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
@@ -478,12 +491,14 @@ maxLength: ${2:100}$0"#.to_string()
         }),
         documentation: Some(Documentation::MarkupContent(MarkupContent {
             kind: MarkupKind::Markdown,
-            value: "**Number with Range**\n\nCreates a number type with min/max constraints.".to_string(),
+            value: "**Number with Range**\n\nCreates a number type with min/max constraints."
+                .to_string(),
         })),
         insert_text: Some(
             r#"type: number
 minimum: ${1:0}
-maximum: ${2:100}$0"#.to_string()
+maximum: ${2:100}$0"#
+                .to_string(),
         ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         ..Default::default()
@@ -537,7 +552,6 @@ pub fn extract_mcp_servers(content: &str) -> Vec<String> {
     servers
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -574,7 +588,11 @@ mod tests {
 
     #[test]
     fn test_task_id_completions() {
-        let task_ids = vec!["step1".to_string(), "step2".to_string(), "generate".to_string()];
+        let task_ids = vec![
+            "step1".to_string(),
+            "step2".to_string(),
+            "generate".to_string(),
+        ];
 
         let all = task_id_completions(&task_ids, "");
         assert_eq!(all.len(), 3);

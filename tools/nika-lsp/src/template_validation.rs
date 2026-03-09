@@ -13,9 +13,8 @@ use crate::document::DocumentState;
 
 /// Regex to find `{{use.alias}}` patterns with their positions.
 /// Captures the full match and the path (e.g., "alias.field").
-static USE_TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap()
-});
+static USE_TEMPLATE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap());
 
 /// Extracted template reference with position information.
 #[derive(Debug)]
@@ -103,10 +102,7 @@ pub fn validate_templates(
                             task_id
                         )
                     } else {
-                        format!(
-                            "Available aliases: {}",
-                            declared_aliases.join(", ")
-                        )
+                        format!("Available aliases: {}", declared_aliases.join(", "))
                     };
 
                     diagnostics.push(Diagnostic {
@@ -140,7 +136,10 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
     match action {
         Some(RawTaskAction::Infer(infer)) => {
             // Main prompt
-            prompts.push((infer.prompt.value.clone(), infer.prompt.span.start.as_usize()));
+            prompts.push((
+                infer.prompt.value.clone(),
+                infer.prompt.span.start.as_usize(),
+            ));
 
             // System prompt if present
             if let Some(ref system) = infer.system {
@@ -153,7 +152,10 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
         }
         Some(RawTaskAction::Exec(exec)) => {
             // Exec command may have templates
-            prompts.push((exec.command.value.clone(), exec.command.span.start.as_usize()));
+            prompts.push((
+                exec.command.value.clone(),
+                exec.command.span.start.as_usize(),
+            ));
         }
         Some(RawTaskAction::Fetch(fetch)) => {
             // URL may have templates
@@ -182,8 +184,8 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika::ast::raw;
     use nika::ast::analyzer::analyze;
+    use nika::ast::raw;
     use nika::source::FileId;
 
     fn validate_yaml(content: &str) -> Vec<Diagnostic> {
@@ -211,7 +213,11 @@ tasks:
     infer: "Process {{use.data}}"
 "#;
         let diagnostics = validate_yaml(content);
-        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "Expected no errors, got: {:?}",
+            diagnostics
+        );
     }
 
     #[test]
@@ -229,7 +235,9 @@ tasks:
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("Undefined template binding"));
+        assert!(diagnostics[0]
+            .message
+            .contains("Undefined template binding"));
         assert!(diagnostics[0].message.contains("unknown"));
         assert!(diagnostics[0].message.contains("Available aliases: data"));
     }
@@ -245,7 +253,9 @@ tasks:
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 1);
-        assert!(diagnostics[0].message.contains("Undefined template binding"));
+        assert!(diagnostics[0]
+            .message
+            .contains("Undefined template binding"));
         assert!(diagnostics[0].message.contains("No bindings declared"));
     }
 
@@ -283,7 +293,11 @@ tasks:
 "#;
         let diagnostics = validate_yaml(content);
         // Should be valid - the alias 'data' is declared
-        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "Expected no errors, got: {:?}",
+            diagnostics
+        );
     }
 
     #[test]

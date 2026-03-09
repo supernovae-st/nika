@@ -459,7 +459,13 @@ mod tests {
     #[test]
     fn test_hover_on_verb() {
         let doc = DocumentState::new("tasks:\n  - id: step1\n    infer: \"Hello\"".to_string(), 1);
-        let hover = get_hover(&doc, Position { line: 2, character: 5 });
+        let hover = get_hover(
+            &doc,
+            Position {
+                line: 2,
+                character: 5,
+            },
+        );
 
         assert!(hover.is_some());
         if let HoverContents::Markup(markup) = hover.unwrap().contents {

@@ -2,7 +2,9 @@
 //!
 //! Converts `AnalyzeError` to LSP `Diagnostic` for real-time error display.
 
-use lsp_types::{Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Url};
+use lsp_types::{
+    Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Url,
+};
 use nika::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
 use nika::source::{SourceRegistry, Span};
 
@@ -54,7 +56,9 @@ pub fn to_lsp_diagnostic(
     Diagnostic {
         range,
         severity: Some(severity),
-        code: Some(lsp_types::NumberOrString::String(error.kind.code().to_string())),
+        code: Some(lsp_types::NumberOrString::String(
+            error.kind.code().to_string(),
+        )),
         code_description: None,
         source: Some("nika".to_string()),
         message,
@@ -69,8 +73,14 @@ pub fn span_to_range(span: &Span, doc: &DocumentState) -> Range {
     if span.is_dummy() {
         // Dummy span: point to start of document
         return Range {
-            start: lsp_types::Position { line: 0, character: 0 },
-            end: lsp_types::Position { line: 0, character: 1 },
+            start: lsp_types::Position {
+                line: 0,
+                character: 0,
+            },
+            end: lsp_types::Position {
+                line: 0,
+                character: 1,
+            },
         };
     }
 
@@ -82,8 +92,8 @@ pub fn span_to_range(span: &Span, doc: &DocumentState) -> Range {
 
 /// Validate a document and return diagnostics.
 pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
-    use nika::ast::raw;
     use nika::ast::analyzer::analyze;
+    use nika::ast::raw;
     use nika::source::FileId;
 
     use crate::template_validation::validate_templates;
@@ -159,7 +169,11 @@ tasks:
         let diagnostics = validate_document(content, &uri);
 
         // Should have no errors for valid workflow
-        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "Expected no errors, got: {:?}",
+            diagnostics
+        );
     }
 
     #[test]

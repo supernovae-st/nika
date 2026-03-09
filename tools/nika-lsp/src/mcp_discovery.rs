@@ -3,7 +3,9 @@
 //! Provides intelligent completions for MCP server names and tool names
 //! based on workflow definitions and static knowledge of common MCP servers.
 
-use lsp_types::{CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent, MarkupKind};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent, MarkupKind,
+};
 
 /// Known MCP tool definition with metadata for completions
 #[derive(Debug, Clone)]
@@ -167,7 +169,10 @@ pub fn novanet_tool_completions() -> Vec<CompletionItem> {
 }
 
 /// Get completions for invoke: block based on context
-pub fn invoke_completions(server_names: &[String], partial_server: Option<&str>) -> Vec<CompletionItem> {
+pub fn invoke_completions(
+    server_names: &[String],
+    partial_server: Option<&str>,
+) -> Vec<CompletionItem> {
     let mut completions = Vec::new();
 
     match partial_server {
@@ -189,7 +194,10 @@ pub fn invoke_completions(server_names: &[String], partial_server: Option<&str>)
 /// Used for determining which tool completions to provide.
 #[allow(dead_code)] // Public API for future use
 pub fn is_novanet_server(name: &str) -> bool {
-    matches!(name.to_lowercase().as_str(), "novanet" | "nova" | "novanet-mcp" | "novanet_mcp")
+    matches!(
+        name.to_lowercase().as_str(),
+        "novanet" | "nova" | "novanet-mcp" | "novanet_mcp"
+    )
 }
 
 #[cfg(test)]
