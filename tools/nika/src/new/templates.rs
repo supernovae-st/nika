@@ -61,10 +61,12 @@ tasks:
     description: "Display the result"
     use:
       content: generate
-    shell: |
-      echo "Generated content:"
-      echo "=================="
-      echo "{{{{use.content}}}}"
+    exec:
+      command: |
+        echo "Generated content:"
+        echo "=================="
+        echo "{{{{use.content}}}}"
+      shell: true
     flow: [generate]
 "#
     )
@@ -169,11 +171,13 @@ tasks:
     use:
       zen: get_zen
       user: get_user
-    shell: |
-      echo "GitHub Zen: {{{{use.zen}}}}"
-      echo ""
-      echo "User: {{{{use.user.login}}}}"
-      echo "Name: {{{{use.user.name}}}}"
+    exec:
+      command: |
+        echo "GitHub Zen: {{{{use.zen}}}}"
+        echo ""
+        echo "User: {{{{use.user.login}}}}"
+        echo "Name: {{{{use.user.name}}}}"
+      shell: true
     flow: [get_zen, get_user]
 "#
     )
@@ -464,13 +468,15 @@ inputs:
 tasks:
   - id: read_code
     description: "Read the source file"
-    shell: |
-      if [ -f "{{{{inputs.file_path}}}}" ]; then
-        cat "{{{{inputs.file_path}}}}"
-      else
-        echo "File not found: {{{{inputs.file_path}}}}"
-        exit 1
-      fi
+    exec:
+      command: |
+        if [ -f "{{{{inputs.file_path}}}}" ]; then
+          cat "{{{{inputs.file_path}}}}"
+        else
+          echo "File not found: {{{{inputs.file_path}}}}"
+          exit 1
+        fi
+      shell: true
     output:
       format: text
 
@@ -729,13 +735,15 @@ tasks:
     description: "Generate automation report"
     use:
       result: browse
-    shell: |
-      echo "=== Browser Automation Report ==="
-      echo "URL: {{{{use.result.url}}}}"
-      echo "Title: {{{{use.result.title}}}}"
-      echo ""
-      echo "Summary:"
-      echo "{{{{use.result.content_summary}}}}"
+    exec:
+      command: |
+        echo "=== Browser Automation Report ==="
+        echo "URL: {{{{use.result.url}}}}"
+        echo "Title: {{{{use.result.title}}}}"
+        echo ""
+        echo "Summary:"
+        echo "{{{{use.result.content_summary}}}}"
+      shell: true
     flow: [browse]
 "#
     )
@@ -1107,11 +1115,9 @@ tasks:
   # Generate weather summary (mock - replace with real API)
   - id: weather
     description: "Generate weather summary"
-    use:
-      location: "{{{{inputs.location}}}}"
     infer:
       prompt: |
-        Generate a realistic weather forecast for {{{{use.location}}}} for today.
+        Generate a realistic weather forecast for {{{{inputs.location}}}} for today.
 
         Include:
         - Current temperature
