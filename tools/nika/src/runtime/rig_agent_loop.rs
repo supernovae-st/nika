@@ -1519,6 +1519,10 @@ impl RigAgentLoop {
                     }
 
                     // Final response with token usage
+                    // NOTE: We intentionally overwrite accumulated response_text here.
+                    // FinalResponse from rig-core is authoritative - it contains the
+                    // complete response and accurate token counts from the LLM provider.
+                    // The streaming accumulation (push_str) is only for real-time TUI display.
                     MultiTurnStreamItem::FinalResponse(resp) => {
                         response_text = resp.response().to_string();
                         let usage = resp.usage();
