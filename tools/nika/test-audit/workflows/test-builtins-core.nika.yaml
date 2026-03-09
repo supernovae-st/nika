@@ -1,0 +1,73 @@
+schema: nika/workflow@0.9
+workflow: test-builtins-core
+
+# Test all 7 core builtin tools
+# Each task should emit events that we can verify in the trace
+
+tasks:
+  # 1. nika:sleep - Should pause execution
+  - id: test_sleep
+    invoke:
+      tool: nika:sleep
+      params:
+        duration: "100ms"
+    use.ctx: sleep_result
+
+  # 2. nika:log - Should emit log at info level
+  - id: test_log_info
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Test log message from builtin audit"
+    use.ctx: log_result
+
+  # 3. nika:log - Test warn level
+  - id: test_log_warn
+    invoke:
+      tool: nika:log
+      params:
+        level: warn
+        message: "Warning message test"
+    use.ctx: warn_result
+
+  # 4. nika:emit - Should emit custom event
+  - id: test_emit
+    invoke:
+      tool: nika:emit
+      params:
+        name: audit_custom_event
+        payload:
+          test: true
+          timestamp: "2024-01-01"
+    use.ctx: emit_result
+
+  # 5. nika:assert - Should pass with true condition
+  - id: test_assert_pass
+    invoke:
+      tool: nika:assert
+      params:
+        condition: true
+        message: "This assertion should pass"
+    use.ctx: assert_result
+
+  # 6. nika:prompt - Should use default in headless mode
+  - id: test_prompt
+    invoke:
+      tool: nika:prompt
+      params:
+        message: "Do you confirm?"
+        default: "yes_default_used"
+    use.ctx: prompt_result
+
+flows:
+  - source: test_sleep
+    target: test_log_info
+  - source: test_log_info
+    target: test_log_warn
+  - source: test_log_warn
+    target: test_emit
+  - source: test_emit
+    target: test_assert_pass
+  - source: test_assert_pass
+    target: test_prompt

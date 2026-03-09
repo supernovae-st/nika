@@ -1,0 +1,40 @@
+# Test: $task shorthand syntax (v0.21)
+# Expected: $task should resolve identically to task
+
+schema: nika/workflow@0.9
+workflow: test-shorthand-syntax
+provider: openai
+
+tasks:
+  - id: step1
+    infer: |
+      Return EXACTLY: "Hello from step1"
+      No quotes around the output, no explanation.
+
+  - id: step2_explicit
+    depends_on: [step1]
+    use:
+      msg: step1
+    infer: |
+      Echo back: {{use.msg}}
+      Return the exact same text, nothing else.
+
+  - id: step2_shorthand
+    depends_on: [step1]
+    use:
+      msg: $step1
+    infer: |
+      Echo back: {{use.msg}}
+      Return the exact same text, nothing else.
+
+  - id: verify
+    depends_on: [step2_explicit, step2_shorthand]
+    use:
+      explicit: step2_explicit
+      shorthand: step2_shorthand
+    infer: |
+      Compare these two values:
+      - Explicit: {{use.explicit}}
+      - Shorthand: {{use.shorthand}}
+
+      Return EXACTLY "PASS" if they are identical, "FAIL" if different.

@@ -1,0 +1,32 @@
+# Test: for_each with binding expression ($items)
+# Expected: Iterate over dynamically generated array
+
+schema: nika/workflow@0.9
+workflow: test-for-each-binding
+provider: openai
+
+tasks:
+  - id: generate_items
+    infer: |
+      Return EXACTLY this JSON array (no explanation):
+      ["red", "green", "blue"]
+
+  - id: process_items
+    depends_on: [generate_items]
+    use:
+      items: generate_items
+    for_each: $items
+    as: color
+    infer: |
+      Process color: {{use.color}}
+      Return: "Color is <color>"
+
+  - id: verify
+    depends_on: [process_items]
+    use:
+      results: process_items
+    infer: |
+      Results: {{use.results}}
+
+      If all 3 colors (red, green, blue) were processed, return "PASS".
+      Otherwise return "FAIL".

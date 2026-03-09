@@ -1,0 +1,22 @@
+# Test: Basic use: block binding
+# Expected: Task B receives output from Task A via use: alias
+
+schema: nika/workflow@0.9
+workflow: test-basic-use
+
+tasks:
+  - id: produce_data
+    infer: |
+      Return EXACTLY this JSON (no explanation, just the JSON):
+      {"name": "TestProduct", "price": 99}
+
+  - id: consume_data
+    use:
+      data: produce_data
+    infer: |
+      You received this data: {{use.data}}
+
+      Extract the name and price, then return EXACTLY:
+      {"received_name": "<name>", "received_price": <price>}
+
+      No explanation, just the JSON.

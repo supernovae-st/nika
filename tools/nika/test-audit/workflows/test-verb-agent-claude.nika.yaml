@@ -1,0 +1,27 @@
+schema: "nika/workflow@0.9"
+provider: claude
+
+tasks:
+  - id: simple_agent
+    agent:
+      prompt: |
+        You are analyzing a simple task.
+
+        List 3 programming languages and one advantage of each.
+        Format as JSON: {"languages": [{"name": "...", "advantage": "..."}]}
+
+        End your response with "ANALYSIS_DONE".
+      max_turns: 2
+      stop_conditions:
+        - "ANALYSIS_DONE"
+
+  - id: process_result
+    use:
+      analysis: simple_agent
+    exec:
+      command: "echo 'Agent test completed successfully. Output received.'"
+      shell: true
+
+flows:
+  - source: simple_agent
+    target: process_result

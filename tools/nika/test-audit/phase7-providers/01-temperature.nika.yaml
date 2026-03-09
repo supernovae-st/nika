@@ -1,0 +1,29 @@
+# Test: Temperature control for infer:
+# Expected: Low temp = deterministic, high temp = varied
+
+schema: nika/workflow@0.9
+workflow: test-temperature
+provider: openai
+
+tasks:
+  - id: low_temp
+    infer:
+      prompt: "Complete this sentence with exactly ONE word: The sky is ___"
+      temperature: 0.0
+
+  - id: high_temp
+    infer:
+      prompt: "Complete this sentence creatively with exactly ONE word: The sky is ___"
+      temperature: 1.0
+
+  - id: verify
+    depends_on: [low_temp, high_temp]
+    use:
+      low: low_temp
+      high: high_temp
+    infer: |
+      Low temperature result: {{use.low}}
+      High temperature result: {{use.high}}
+
+      Both should be single words. Return "PASS" if both are valid words.
+      Return "FAIL" otherwise.

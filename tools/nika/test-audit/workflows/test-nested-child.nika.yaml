@@ -1,0 +1,27 @@
+schema: nika/workflow@0.9
+workflow: test-nested-child
+
+# Simple child workflow to be invoked by nika:run
+
+tasks:
+  - id: child_log
+    invoke:
+      tool: nika:log
+      params:
+        level: info
+        message: "Hello from nested child workflow!"
+    use.ctx: child_result
+
+  - id: child_emit
+    invoke:
+      tool: nika:emit
+      params:
+        name: child_workflow_event
+        payload:
+          from: nested_child
+          success: true
+    use.ctx: emit_result
+
+flows:
+  - source: child_log
+    target: child_emit

@@ -2,4 +2,3 @@
 .worktrees/
 dist/
 generated/
-test-audit/

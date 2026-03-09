@@ -1,0 +1,18 @@
+schema: "nika/workflow@0.5"
+provider: openai
+
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+tasks:
+  - id: simple_agent
+    agent:
+      prompt: |
+        You are a helpful assistant. Answer with a brief greeting.
+        Use the nika:log tool to log "Agent executed successfully" with level "info".
+        Then respond with "Agent task complete."
+      mcp: [dummy]
+      max_turns: 3
+      depth_limit: 1

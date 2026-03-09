@@ -1,0 +1,12 @@
+schema: nika/workflow@0.9
+workflow: test-assert-fail
+
+# Test nika:assert with false condition - should fail workflow
+
+tasks:
+  - id: assert_should_fail
+    invoke:
+      tool: nika:assert
+      params:
+        condition: false
+        message: "This assertion should fail the workflow"

@@ -1,0 +1,38 @@
+# Test: Nested field access in bindings
+# Expected: Can access nested fields like $task.field.subfield
+
+schema: nika/workflow@0.9
+workflow: test-nested-access
+
+tasks:
+  - id: produce_nested
+    infer: |
+      Return EXACTLY this JSON (no explanation):
+      {"user": {"name": "Alice", "address": {"city": "Paris", "zip": "75001"}}, "active": true}
+
+  - id: access_shallow
+    use:
+      data: produce_nested
+    infer: |
+      Data: {{use.data}}
+
+      Parse the JSON and return ONLY the value of the "active" field (true or false).
+
+  - id: access_deep
+    use:
+      data: produce_nested
+    infer: |
+      Data: {{use.data}}
+
+      Parse the JSON and return ONLY the city name from user.address.city.
+
+  - id: verify
+    use:
+      active: access_shallow
+      city: access_deep
+    infer: |
+      Active: {{use.active}}
+      City: {{use.city}}
+
+      If active is "true" and city is "Paris", return "PASS".
+      Otherwise return "FAIL: active={{use.active}}, city={{use.city}}".

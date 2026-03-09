@@ -1,0 +1,57 @@
+# Test: nika:emit custom events
+# Expected: Custom events appear in trace with payload
+
+schema: nika/workflow@0.9
+workflow: test-emit-events
+
+mcp:
+  servers:
+    dummy:
+      command: "echo"
+      args: ["not used"]
+
+tasks:
+  - id: emit_simple
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "simple_event"
+        payload:
+          message: "Hello from emit"
+
+  - id: emit_complex
+    depends_on: [emit_simple]
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "complex_event"
+        payload:
+          user:
+            name: "Test User"
+            id: 12345
+          items:
+            - "item1"
+            - "item2"
+          metadata:
+            version: "1.0.0"
+            timestamp: "2026-03-09T00:00:00Z"
+
+  - id: emit_numeric
+    depends_on: [emit_complex]
+    invoke:
+      mcp: dummy
+      tool: nika:emit
+      params:
+        name: "numeric_event"
+        payload:
+          count: 42
+          price: 99.99
+          enabled: true
+
+  - id: verify
+    depends_on: [emit_numeric]
+    infer: |
+      Three custom events emitted: simple_event, complex_event, numeric_event.
+      Return "PASS" to confirm.

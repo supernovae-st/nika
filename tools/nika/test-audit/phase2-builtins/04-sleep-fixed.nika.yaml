@@ -1,0 +1,34 @@
+# Test: nika:sleep with various duration formats
+# Expected: Sleep pauses execution for specified duration
+
+schema: nika/workflow@0.9
+workflow: test-sleep-durations
+provider: openai
+
+mcp:
+  dummy:
+    command: "echo"
+    args: ["not used"]
+
+tasks:
+  - id: sleep_500ms
+    invoke:
+      mcp: dummy
+      tool: nika:sleep
+      params:
+        duration: "500ms"
+
+  - id: sleep_1s
+    depends_on: [sleep_500ms]
+    invoke:
+      mcp: dummy
+      tool: nika:sleep
+      params:
+        duration: "1s"
+
+  - id: verify
+    depends_on: [sleep_1s]
+    infer: |
+      Sleep durations tested: 500ms, 1s.
+      Total expected: ~1.5 seconds.
+      Return "PASS" to confirm.

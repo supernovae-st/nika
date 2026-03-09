@@ -1,0 +1,46 @@
+# Test: Multi-step value propagation
+# Expected: Values flow correctly through chain of tasks
+
+schema: nika/workflow@0.9
+workflow: test-cross-task-propagation
+
+tasks:
+  - id: step1
+    infer: |
+      Return EXACTLY: 100
+      Just the number, nothing else.
+
+  - id: step2
+    use:
+      val: step1
+    infer: |
+      Input value: {{use.val}}
+
+      Add 50 to it and return just the result number.
+
+  - id: step3
+    use:
+      val: step2
+    infer: |
+      Input value: {{use.val}}
+
+      Multiply by 2 and return just the result number.
+
+  - id: step4
+    use:
+      val: step3
+    infer: |
+      Input value: {{use.val}}
+
+      Subtract 100 and return just the result number.
+
+  - id: verify
+    use:
+      final: step4
+    infer: |
+      Final value: {{use.final}}
+
+      Expected: (100 + 50) * 2 - 100 = 200
+
+      If final value is 200, return "PASS".
+      Otherwise return "FAIL: expected 200, got <value>".

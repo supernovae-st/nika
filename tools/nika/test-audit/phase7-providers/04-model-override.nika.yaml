@@ -1,0 +1,30 @@
+# Test: model override per-task
+# Expected: Different models can be used per task
+
+schema: nika/workflow@0.9
+workflow: test-model-override
+provider: openai
+
+tasks:
+  - id: gpt4o_mini
+    infer:
+      prompt: "What model are you? Just say your model name, nothing else."
+      model: gpt-4o-mini
+
+  - id: gpt4o
+    infer:
+      prompt: "What model are you? Just say your model name, nothing else."
+      model: gpt-4o
+
+  - id: verify
+    depends_on: [gpt4o_mini, gpt4o]
+    use:
+      mini_response: gpt4o_mini
+      full_response: gpt4o
+    infer: |
+      Mini model said: {{use.mini_response}}
+      Full model said: {{use.full_response}}
+
+      Both tasks should have executed successfully (we got responses).
+      Return "PASS" if both responses contain text.
+      Return "FAIL" if either is empty or failed.

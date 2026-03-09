@@ -1,0 +1,71 @@
+schema: nika/workflow@0.9
+workflow: test-builtins-files
+
+# Test all 5 file builtin tools via invoke:
+# nika:read, nika:write, nika:edit, nika:glob, nika:grep
+
+tasks:
+  # 1. nika:glob - Find files by pattern
+  - id: test_glob
+    invoke:
+      tool: nika:glob
+      params:
+        pattern: "*.yaml"
+        path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data"
+    use.ctx: glob_result
+
+  # 2. nika:read - Read file with line numbers
+  - id: test_read
+    invoke:
+      tool: nika:read
+      params:
+        file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/test-file.txt"
+    use.ctx: read_result
+
+  # 3. nika:write - Create/overwrite file
+  - id: test_write
+    invoke:
+      tool: nika:write
+      params:
+        file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
+        content: "Written by nika:write tool\nSecond line"
+    use.ctx: write_result
+
+  # 4. nika:read again to verify write worked
+  - id: verify_write
+    invoke:
+      tool: nika:read
+      params:
+        file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
+    use.ctx: verify_result
+
+  # 5. nika:edit - Modify file (old_string -> new_string)
+  - id: test_edit
+    invoke:
+      tool: nika:edit
+      params:
+        file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
+        old_string: "Second line"
+        new_string: "Modified second line"
+    use.ctx: edit_result
+
+  # 6. nika:grep - Search content with regex
+  - id: test_grep
+    invoke:
+      tool: nika:grep
+      params:
+        pattern: "Line [0-9]+"
+        path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/test-file.txt"
+    use.ctx: grep_result
+
+flows:
+  - source: test_glob
+    target: test_read
+  - source: test_read
+    target: test_write
+  - source: test_write
+    target: verify_write
+  - source: verify_write
+    target: test_edit
+  - source: test_edit
+    target: test_grep

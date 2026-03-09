@@ -1,0 +1,20 @@
+# Test: include: DAG fusion
+# Expected: Tasks from included workflow are merged
+
+schema: nika/workflow@0.9
+workflow: test-include-basic
+provider: openai
+
+include:
+  - path: ./test-audit/phase5-composition/partial-setup.nika.yaml
+    prefix: setup_
+
+tasks:
+  - id: main_task
+    depends_on: [setup_init]
+    use:
+      init_result: setup_init
+    infer: |
+      Init result: {{use.init_result}}
+      If it says "INIT_COMPLETE", return "PASS".
+      Otherwise return "FAIL".

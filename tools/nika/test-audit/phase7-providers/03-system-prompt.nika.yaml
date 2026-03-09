@@ -1,0 +1,22 @@
+# Test: system prompt for infer:
+# Expected: System prompt affects model behavior
+
+schema: nika/workflow@0.9
+workflow: test-system-prompt
+provider: openai
+
+tasks:
+  - id: with_system
+    infer:
+      prompt: "Hello"
+      system: "You are a pirate. You must respond to everything with pirate language and include 'Arrr!' in your response."
+
+  - id: verify
+    depends_on: [with_system]
+    use:
+      response: with_system
+    infer: |
+      Response: {{use.response}}
+
+      If the response contains pirate language (like "Arrr", "matey", "ahoy", etc.), return "PASS".
+      Otherwise return "FAIL".

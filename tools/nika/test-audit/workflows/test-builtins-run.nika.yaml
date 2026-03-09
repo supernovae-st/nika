@@ -1,0 +1,12 @@
+schema: nika/workflow@0.9
+workflow: test-builtins-run
+
+# Test nika:run - should execute a nested workflow
+
+tasks:
+  - id: run_nested_workflow
+    invoke:
+      tool: nika:run
+      params:
+        workflow: ./test-audit/workflows/test-nested-child.nika.yaml
+    use.ctx: run_result

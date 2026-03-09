@@ -1,0 +1,23 @@
+# Test: max_tokens limit for infer:
+# Expected: Output is truncated to max_tokens
+
+schema: nika/workflow@0.9
+workflow: test-max-tokens
+provider: openai
+
+tasks:
+  - id: limited_output
+    infer:
+      prompt: "Write a very long story about a dragon. Be detailed and expansive."
+      max_tokens: 20
+
+  - id: verify
+    depends_on: [limited_output]
+    use:
+      story: limited_output
+    infer: |
+      Story output: {{use.story}}
+
+      The output should be very short (truncated to ~20 tokens).
+      If the output is less than 100 characters, return "PASS".
+      If the output is longer (max_tokens was ignored), return "FAIL".

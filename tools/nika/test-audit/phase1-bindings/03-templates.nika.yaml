@@ -1,0 +1,37 @@
+# Test: {{use.alias}} template expansion in various positions
+# Expected: Templates expand in prompts, params, and nested structures
+
+schema: nika/workflow@0.9
+workflow: test-templates
+
+tasks:
+  - id: source
+    infer: |
+      Return EXACTLY: SuperNovae
+      Just the word, nothing else.
+
+  - id: template_in_prompt
+    use:
+      company: source
+    infer: |
+      The company name is: {{use.company}}
+
+      Confirm by returning: "Company: <name>"
+
+  - id: template_multiple
+    use:
+      company: source
+    infer: |
+      First mention: {{use.company}}
+      Second mention: {{use.company}}
+      Third mention: {{use.company}}
+
+      How many times does "{{use.company}}" appear in your input? Return just the number.
+
+  - id: verify_count
+    use:
+      count: template_multiple
+    infer: |
+      The count was: {{use.count}}
+
+      If the count is 3, return "PASS". Otherwise return "FAIL: <count>".

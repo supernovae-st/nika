@@ -1,0 +1,41 @@
+# Test: {{use.alias}} template expansion in various positions
+# Expected: Templates expand in prompts correctly
+
+schema: nika/workflow@0.9
+workflow: test-templates
+provider: openai
+
+tasks:
+  - id: source
+    infer: |
+      Return EXACTLY: SuperNovae
+      Just the word, nothing else.
+
+  - id: template_in_prompt
+    depends_on: [source]
+    use:
+      company: source
+    infer: |
+      The company name is: {{use.company}}
+
+      Confirm by returning: "Company: <name>"
+
+  - id: template_multiple
+    depends_on: [source]
+    use:
+      company: source
+    infer: |
+      First mention: {{use.company}}
+      Second mention: {{use.company}}
+      Third mention: {{use.company}}
+
+      How many times does the company name "SuperNovae" appear in your input above? Return just the number.
+
+  - id: verify_count
+    depends_on: [template_multiple]
+    use:
+      count: template_multiple
+    infer: |
+      The count was: {{use.count}}
+
+      If the count is 3, return "PASS". Otherwise return "FAIL: <count>".
