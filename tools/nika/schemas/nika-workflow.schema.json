@@ -713,6 +713,9 @@
           "maximum": 10,
           "default": 2,
           "description": "Maximum retry attempts on validation failure (v0.10)"
+        },
+        "fallback_value": {
+          "description": "Default value to use if validation fails after all retries (v0.22)"
         }
       }
     },
