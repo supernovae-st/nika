@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.22.2](https://github.com/supernovae-st/nika/releases/tag/0.22.2) - 2026-03-09
+
+### Changed
+
+- Add #[ignore] to exec tests requiring API key
+- Fix formatting issues
+
+### Fixed
+
+- **examples**: Correct provider and flows format in test workflows
+
+
 ## [0.21.3] - 2026-03-08
 
 ### Added
