@@ -40,6 +40,7 @@ use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
 use crate::runtime::SkillInjector;
+use crate::tools::{EditTool, GlobTool, GrepTool, PermissionMode, ReadTool, ToolContext, WriteTool};
 use crate::util::STREAM_CHUNK_TIMEOUT;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -365,9 +366,9 @@ impl RigAgentLoop {
             tools.push(Box::new(spawn_tool));
         }
 
-        // Add builtin nika:* tools (v0.12.0)
-        // These are always available to agents for workflow control and observability.
-        // LogTool and EmitTool now emit EventKind::Log and EventKind::Custom events.
+        // Add builtin nika:* tools (v0.12.0, v0.22: filtered by params.tools)
+        // If params.tools is non-empty, only add tools that are explicitly requested.
+        // If params.tools is empty, add all core tools for backward compatibility.
         use super::builtin::{
             AssertTool, CompleteTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool,
             RunTool, SleepTool,
@@ -378,26 +379,108 @@ impl RigAgentLoop {
         let event_log_arc = Arc::new(event_log.clone());
         let task_id_arc: Arc<str> = task_id.as_str().into();
 
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
-        // v0.12.0: LogTool now emits EventKind::Log to EventLog
-        tools.push(Box::new(
-            NikaBuiltinToolAdapter::new(Arc::new(LogTool))
-                .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
-        ));
-        // v0.12.0: EmitTool now emits EventKind::Custom to EventLog
-        tools.push(Box::new(
-            NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
-                .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
-        ));
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
-            PromptTool::default(),
-        ))));
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
-        // v0.21: CompleteTool for explicit completion mode
-        tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
-            CompleteTool,
-        ))));
+        // v0.22: Filter builtin tools based on params.tools
+        // Extract the nika:* tools from params.tools for filtering
+        let requested_nika_tools: Vec<&str> = params
+            .tools
+            .iter()
+            .filter(|t| t.starts_with("nika:"))
+            .map(|t| t.as_str())
+            .collect();
+
+        // Helper: check if a tool should be added
+        // If no nika:* tools requested, add all core tools (backward compat)
+        // Otherwise, only add if explicitly requested
+        let should_add = |name: &str| -> bool {
+            if requested_nika_tools.is_empty() {
+                true // No filter specified, add all
+            } else {
+                let full_name = format!("nika:{}", name);
+                requested_nika_tools.contains(&full_name.as_str())
+            }
+        };
+
+        // Core builtin tools (only add if requested or no filter)
+        if should_add("sleep") {
+            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
+        }
+        if should_add("log") {
+            tools.push(Box::new(
+                NikaBuiltinToolAdapter::new(Arc::new(LogTool))
+                    .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
+            ));
+        }
+        if should_add("emit") {
+            tools.push(Box::new(
+                NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
+                    .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
+            ));
+        }
+        if should_add("assert") {
+            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
+        }
+        if should_add("prompt") {
+            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                PromptTool::default(),
+            ))));
+        }
+        if should_add("run") {
+            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
+        }
+        if should_add("complete") {
+            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                CompleteTool,
+            ))));
+        }
+
+        // v0.22: Add file tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
+        // File tools require a ToolContext for security boundaries
+        // Only add if explicitly requested in params.tools
+        let file_tools_requested: Vec<&str> = requested_nika_tools
+            .iter()
+            .filter(|t| {
+                matches!(
+                    **t,
+                    "nika:read" | "nika:write" | "nika:edit" | "nika:glob" | "nika:grep"
+                )
+            })
+            .copied()
+            .collect();
+
+        if !file_tools_requested.is_empty() {
+            // Create ToolContext with current working directory and YoloMode
+            // (agents need full access to perform their tasks)
+            let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::YoloMode));
+
+            use super::builtin::FileToolAdapter;
+
+            if file_tools_requested.contains(&"nika:read") {
+                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FileToolAdapter::new(ReadTool::new(Arc::clone(&tool_ctx))),
+                ))));
+            }
+            if file_tools_requested.contains(&"nika:write") {
+                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FileToolAdapter::new(WriteTool::new(Arc::clone(&tool_ctx))),
+                ))));
+            }
+            if file_tools_requested.contains(&"nika:edit") {
+                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FileToolAdapter::new(EditTool::new(Arc::clone(&tool_ctx))),
+                ))));
+            }
+            if file_tools_requested.contains(&"nika:glob") {
+                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FileToolAdapter::new(GlobTool::new(Arc::clone(&tool_ctx))),
+                ))));
+            }
+            if file_tools_requested.contains(&"nika:grep") {
+                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                    FileToolAdapter::new(GrepTool::new(tool_ctx)),
+                ))));
+            }
+        }
 
         // PERF: Pre-allocate history capacity based on max_turns.
         // Each turn adds 2 messages (user + assistant), so capacity = max_turns * 2.
