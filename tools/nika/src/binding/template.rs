@@ -25,9 +25,14 @@ use super::resolve::ResolvedBindings;
 
 /// Pre-compiled regex for {{use.alias}} or {{use.alias.field}} pattern
 /// v0.13: Now supports optional |shell modifier: {{use.alias|shell}}
+/// v0.22: Also supports bracket notation after preprocessing: {{use.items[0]}} → {{use.items.0}}
 static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
 });
+
+/// Pre-compiled regex for bracket array notation (v0.22)
+/// Converts [0] to .0 for uniform handling
+static BRACKET_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[(\d+)\]").unwrap());
 
 /// Pre-compiled regex for {{context.files.alias}} or {{context.session.key}} pattern (v0.14.2)
 static CONTEXT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -95,6 +100,17 @@ pub fn escape_for_shell(s: &str) -> String {
     result
 }
 
+/// Normalize bracket notation to dot notation (v0.22)
+///
+/// Converts `{{use.items[0]}}` to `{{use.items.0}}` for uniform handling.
+/// This allows users to use familiar JavaScript-style array indexing.
+fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
+    if !template.contains('[') {
+        return Cow::Borrowed(template);
+    }
+    Cow::Owned(BRACKET_RE.replace_all(template, ".$1").to_string())
+}
+
 /// Resolve all {{use.alias}}, {{context.*}}, and {{inputs.*}} templates (v0.19.4)
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
@@ -129,21 +145,26 @@ pub fn resolve<'a>(
         return Ok(Cow::Borrowed(template));
     }
 
+    // v0.22: Normalize bracket notation to dot notation
+    // {{use.items[0]}} → {{use.items.0}}
+    let normalized = normalize_bracket_notation(template);
+    let template_str: &str = normalized.as_ref();
+
     // Single-pass: build result by copying segments + inserting replacements
     // Better capacity: template length + some extra for expansions
-    let mut result = String::with_capacity(template.len() + 64);
+    let mut result = String::with_capacity(template_str.len() + 64);
     let mut last_end = 0;
     // SmallVec: stack-allocated for up to 4 errors (common case: 0-1 errors)
     // Note: must be String because alias borrows from cap which is dropped each iteration
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
-    for cap in USE_RE.captures_iter(template) {
+    for cap in USE_RE.captures_iter(template_str) {
         let m = cap.get(0).unwrap();
         let path = &cap[1]; // e.g., "forecast" or "flight_info.departure"
         let modifier = cap.get(2).map(|m| m.as_str()); // v0.13: optional |shell modifier
 
         // Copy segment before this match
-        result.push_str(&template[last_end..m.start()]);
+        result.push_str(&template_str[last_end..m.start()]);
 
         // Split: first segment is alias, rest is nested path
         let mut parts = path.split('.');
@@ -206,7 +227,7 @@ pub fn resolve<'a>(
                 // Apply modifier or context-based escaping (v0.13)
                 let replacement = match modifier {
                     Some("shell") => escape_for_shell(&replacement),
-                    _ if is_in_json_context(template, m.start()) => escape_for_json(&replacement),
+                    _ if is_in_json_context(template_str, m.start()) => escape_for_json(&replacement),
                     _ => replacement,
                 };
 
@@ -229,7 +250,7 @@ pub fn resolve<'a>(
     }
 
     // Copy remaining segment after last match
-    result.push_str(&template[last_end..]);
+    result.push_str(&template_str[last_end..]);
 
     // ─────────────────────────────────────────────────────────────
     // Pass 2: Resolve {{context.files.alias}} and {{context.session.key}} (v0.14.2)
@@ -766,6 +787,92 @@ mod tests {
 
         let result = resolve("Item: {{use.items.0}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Item: first");
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v0.22: Bracket notation tests (array indexing with [N])
+    // ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn resolve_bracket_notation_simple() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["first", "second", "third"]));
+        let ds = empty_datastore();
+
+        // Bracket notation should work like dot notation
+        let result = resolve("Item: {{use.items[0]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Item: first");
+    }
+
+    #[test]
+    fn resolve_bracket_notation_second_element() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["first", "second", "third"]));
+        let ds = empty_datastore();
+
+        let result = resolve("Item: {{use.items[1]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "Item: second");
+    }
+
+    #[test]
+    fn resolve_bracket_notation_nested() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set(
+            "data",
+            json!({
+                "user": {"name": "Alice", "address": {"city": "Paris"}},
+                "items": ["one", "two", "three"]
+            }),
+        );
+        let ds = empty_datastore();
+
+        // Nested object + bracket notation for array
+        let result = resolve("First item: {{use.data.items[0]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "First item: one");
+    }
+
+    #[test]
+    fn resolve_bracket_notation_mixed_syntax() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("data", json!({"users": [{"name": "Alice"}, {"name": "Bob"}]}));
+        let ds = empty_datastore();
+
+        // Mix of dot and bracket notation
+        let result = resolve("User: {{use.data.users[0].name}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "User: Alice");
+    }
+
+    #[test]
+    fn resolve_bracket_notation_multiple() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["a", "b", "c"]));
+        let ds = empty_datastore();
+
+        // Multiple bracket notations in one template
+        let result = resolve("{{use.items[0]}} and {{use.items[2]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "a and c");
+    }
+
+    #[test]
+    fn normalize_bracket_notation_unit() {
+        // Direct test of the normalization function
+        assert_eq!(
+            normalize_bracket_notation("{{use.items[0]}}"),
+            "{{use.items.0}}"
+        );
+        assert_eq!(
+            normalize_bracket_notation("{{use.data.items[1].name}}"),
+            "{{use.data.items.1.name}}"
+        );
+        assert_eq!(
+            normalize_bracket_notation("no brackets here"),
+            "no brackets here"
+        );
+        // Multiple brackets
+        assert_eq!(
+            normalize_bracket_notation("{{use.a[0]}} and {{use.b[2]}}"),
+            "{{use.a.0}} and {{use.b.2}}"
+        );
     }
 
     // ─────────────────────────────────────────────────────────────
