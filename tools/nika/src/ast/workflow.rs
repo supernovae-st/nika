@@ -361,14 +361,16 @@ pub struct Task {
     /// Task IDs that must complete before this task can execute.
     /// Alternative to workflow-level `flows:` declaration.
     ///
+    /// Accepts both `flow` and `depends_on` as field names.
+    ///
     /// # Example
     ///
     /// ```yaml
     /// - id: process
-    ///   flow: [fetch_data, validate]
+    ///   depends_on: [fetch_data, validate]
     ///   infer: "Process {{use.data}}"
     /// ```
-    #[serde(default)]
+    #[serde(default, alias = "depends_on")]
     pub flow: Option<Vec<String>>,
     /// Structured output configuration (v0.21)
     ///
@@ -493,11 +495,13 @@ impl Task {
 
     /// Get list of task IDs this task depends on
     ///
-    /// Note: Task-level dependencies are defined via `flows` at the Workflow level.
-    /// This method returns an empty vector as tasks don't have inline `depends_on`.
-    /// Use Dag for full dependency analysis.
+    /// Returns task IDs from the `flow`/`depends_on` field.
+    /// These are combined with workflow-level `flows:` in DAG construction.
     pub fn depends_on_ids(&self) -> Vec<&str> {
-        Vec::new()
+        self.flow
+            .as_ref()
+            .map(|deps| deps.iter().map(|s| s.as_str()).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -1361,7 +1365,7 @@ flows: []
     }
 
     #[test]
-    fn test_task_depends_on_ids_returns_empty() {
+    fn test_task_depends_on_ids_returns_empty_when_no_deps() {
         let yaml = r#"
 id: task1
 infer: "Test"
@@ -1369,6 +1373,30 @@ infer: "Test"
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
         let deps = task.depends_on_ids();
         assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_task_depends_on_alias_works() {
+        let yaml = r#"
+id: task1
+depends_on: [step_a, step_b]
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let deps = task.depends_on_ids();
+        assert_eq!(deps, vec!["step_a", "step_b"]);
+    }
+
+    #[test]
+    fn test_task_flow_field_works() {
+        let yaml = r#"
+id: task1
+flow: [step_a, step_b]
+infer: "Test"
+"#;
+        let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let deps = task.depends_on_ids();
+        assert_eq!(deps, vec!["step_a", "step_b"]);
     }
 
     #[test]
