@@ -127,11 +127,44 @@ tasks:
       # 🧠 SYSTEM PROMPT
       # ─────────────────────────────────────────────────────────────────────────
       system: |
-        You are a meticulous code analyst. Always:
-        1. Explore thoroughly before drawing conclusions
-        2. Read files completely, don't assume
-        3. Provide structured, actionable analysis
-        4. End with TASK_COMPLETE when done
+        You are a meticulous code analyst.
+
+        CRITICAL: You ONLY have access to these tools:
+        - nika:glob - Find files by pattern
+        - nika:read - Read file contents
+        - nika:write - Create or overwrite files
+
+        DO NOT attempt to use any other tools. If you need functionality
+        not provided by these tools, state what you would need and continue
+        with what you have.
+
+        Process:
+        1. Use nika:glob to find files in the directory
+        2. Use nika:read to read each file's content
+        3. Analyze the project structure
+        4. Use nika:write to create the ANALYSIS.md file
+        5. End with TASK_COMPLETE when done
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 📐 OUTPUT SCHEMA - Validates final agent response
+    # ─────────────────────────────────────────────────────────────────────────
+    output:
+      schema:
+        type: object
+        required:
+          - status
+          - summary
+        properties:
+          status:
+            type: string
+            enum: [TASK_COMPLETE, ANALYSIS COMPLETE, FAILED]
+          summary:
+            type: string
+            description: "Brief description of what was analyzed"
+          files_found:
+            type: array
+            items:
+              type: string
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # TASK 3: Verify Output
@@ -258,6 +291,15 @@ pub const WORKFLOW_09_STRUCTURED_OUTPUT: &str = r##"# ╔═══════�
 schema: nika/workflow@0.10
 workflow: structured-output-artifacts
 
+# ─────────────────────────────────────────────────────────────────────────────────
+# 📁 ARTIFACTS CONFIG - Set base directory for artifact outputs
+# ─────────────────────────────────────────────────────────────────────────────────
+# All artifact paths are relative to this directory.
+artifacts:
+  dir: ./output
+  format: json
+  mode: overwrite
+
 tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
   # TASK 1: Generate Product Data with Schema Validation
@@ -339,7 +381,7 @@ tasks:
     # The validated output is persisted to a file.
 
     artifact:
-      path: ./output/products/{{task_id}}_{{date}}.json
+      path: products/{{task_id}}_{{date}}.json
       format: json
 
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -398,7 +440,7 @@ tasks:
                 description: "Description for AI image generation"
 
     artifact:
-      path: ./output/marketing/{{task_id}}_{{date}}.json
+      path: marketing/{{task_id}}_{{date}}.json
       format: json
 
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -469,7 +511,7 @@ tasks:
                 maxLength: 200
 
     artifact:
-      path: ./output/analysis/{{task_id}}_{{timestamp}}.json
+      path: analysis/{{task_id}}_{{timestamp}}.json
       format: json
 
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -499,7 +541,7 @@ tasks:
       max_tokens: 400
 
     artifact:
-      path: ./output/reports/executive_summary_{{date}}.txt
+      path: reports/executive_summary_{{date}}.txt
       format: text
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -547,7 +589,7 @@ flows:
 # ARTIFACT SYNTAX:
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ artifact:                                                                  │
-# │   path: ./output/{{task_id}}_{{date}}.json   # File path with templates   │
+# │   path: {{task_id}}_{{date}}.json             # File path with templates   │
 # │   format: json                                # json, yaml, or text         │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
