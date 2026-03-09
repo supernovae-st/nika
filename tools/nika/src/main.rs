@@ -10,11 +10,11 @@ use nika::ast::schema_validator::WorkflowSchemaValidator;
 use nika::ast::{expand_includes, TaskAction, Workflow};
 use nika::dag::{validate_use_wiring, Dag};
 use nika::error::NikaError;
-use nika::mcp::validation::{McpValidator, ValidationConfig};
-use nika::mcp::{McpClient, McpConfig};
 use nika::init::{
     get_all_context_files, get_all_partials, get_all_schemas, get_all_workflows, WORKFLOWS_README,
 };
+use nika::mcp::validation::{McpValidator, ValidationConfig};
+use nika::mcp::{McpClient, McpConfig};
 use nika::registry::resolver; // Package resolution
 use nika::runtime::Runner;
 use nika::serde_yaml; // serde-saphyr alias (replaces deprecated serde_yaml)

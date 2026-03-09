@@ -99,8 +99,8 @@ impl OutputPolicy {
         let schema = self.schema.clone().unwrap();
         Some(super::structured::StructuredOutputSpec {
             schema,
-            enable_extractor: None,  // Use defaults
-            enable_tool_use: None,   // Use defaults
+            enable_extractor: None, // Use defaults
+            enable_tool_use: None,  // Use defaults
             enable_retry: Some(true),
             enable_repair: Some(true),
             max_retries: self.max_retries,

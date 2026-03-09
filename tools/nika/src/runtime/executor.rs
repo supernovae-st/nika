@@ -807,7 +807,9 @@ impl TaskExecutor {
                         StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()));
 
                     // Validate through 4-layer defense system
-                    let result = engine.validate(task_id.as_ref(), &stream_result.text).await?;
+                    let result = engine
+                        .validate(task_id.as_ref(), &stream_result.text)
+                        .await?;
 
                     debug!(
                         task_id = %task_id,

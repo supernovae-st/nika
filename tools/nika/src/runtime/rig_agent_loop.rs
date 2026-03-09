@@ -40,7 +40,9 @@ use crate::event::{AgentTurnMetadata, EventKind, EventLog};
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
 use crate::runtime::SkillInjector;
-use crate::tools::{EditTool, GlobTool, GrepTool, PermissionMode, ReadTool, ToolContext, WriteTool};
+use crate::tools::{
+    EditTool, GlobTool, GrepTool, PermissionMode, ReadTool, ToolContext, WriteTool,
+};
 use crate::util::STREAM_CHUNK_TIMEOUT;
 
 // ═══════════════════════════════════════════════════════════════════════════
