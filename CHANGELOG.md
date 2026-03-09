@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-03-09
+
+### Fixed
+
+- **schema** — Add `fallback_value` to OutputPolicy JSON schema definition
+
 ## [0.22.1] - 2026-03-09
 
 ### Fixed
