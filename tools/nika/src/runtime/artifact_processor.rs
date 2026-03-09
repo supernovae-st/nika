@@ -172,8 +172,15 @@ async fn write_single_artifact(
         ArtifactFormat::Yaml => OutputFormat::Text, // YAML treated as text for validation
     };
 
+    // Normalize the artifact path to prevent doubled paths when user specifies
+    // full path like ./artifacts/custom.txt instead of just custom.txt
+    let artifact_dir_str = workflow_config
+        .and_then(|c| c.dir.as_deref())
+        .unwrap_or(DEFAULT_ARTIFACT_DIR);
+    let normalized_path = normalize_artifact_path(&output_spec.path, artifact_dir_str);
+
     // Build write request - we need to keep output_format for WriteResult
-    let request = WriteRequest::new(task_id, &output_spec.path)
+    let request = WriteRequest::new(task_id, &normalized_path)
         .with_content(content)
         .with_format(output_format.clone());
 
@@ -182,7 +189,7 @@ async fn write_single_artifact(
         ArtifactMode::Overwrite => writer.write(request).await,
         ArtifactMode::Append => {
             // For append mode, we need to use atomic append
-            let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
+            let resolved_path = writer.validate_path(task_id, &normalized_path)?;
             write_append(&resolved_path, request.content.as_bytes())
                 .await
                 .map_err(|e| NikaError::ArtifactWriteError {
@@ -197,7 +204,7 @@ async fn write_single_artifact(
         }
         ArtifactMode::Unique => {
             // For unique mode, generate unique filename
-            let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
+            let resolved_path = writer.validate_path(task_id, &normalized_path)?;
             let unique_path = write_unique(&resolved_path, request.content.as_bytes())
                 .await
                 .map_err(|e| NikaError::ArtifactWriteError {
@@ -212,7 +219,7 @@ async fn write_single_artifact(
         }
         ArtifactMode::Fail => {
             // For fail mode, error if file exists
-            let resolved_path = writer.validate_path(task_id, &output_spec.path)?;
+            let resolved_path = writer.validate_path(task_id, &normalized_path)?;
             write_fail(&resolved_path, request.content.as_bytes())
                 .await
                 .map_err(|e| NikaError::ArtifactWriteError {
@@ -294,6 +301,41 @@ fn resolve_artifact_dir(
 
     // Canonicalize to resolve symlinks (important for macOS /var -> /private/var)
     artifact_dir.canonicalize().unwrap_or(artifact_dir)
+}
+
+/// Normalize artifact output path to prevent doubled paths
+///
+/// If the artifact path starts with `./` and contains the artifact_dir path,
+/// strip the redundant prefix to prevent paths like:
+/// `artifacts/./artifacts/custom.txt` → `artifacts/custom.txt`
+///
+/// This handles the common user mistake of specifying full paths in artifact spec.
+fn normalize_artifact_path(path: &str, artifact_dir_str: &str) -> String {
+    let path = path.trim();
+    let artifact_dir = artifact_dir_str
+        .trim_start_matches("./")
+        .trim_end_matches('/');
+
+    // Check if path starts with ./ and contains the artifact_dir
+    if path.starts_with("./") {
+        let path_without_dot = path.trim_start_matches("./");
+        // If path starts with artifact_dir, strip it to get the relative part
+        if path_without_dot.starts_with(artifact_dir) {
+            let relative = path_without_dot
+                .trim_start_matches(artifact_dir)
+                .trim_start_matches('/');
+            if !relative.is_empty() {
+                debug!(
+                    original = %path,
+                    normalized = %relative,
+                    "Normalized artifact path (removed redundant prefix)"
+                );
+                return relative.to_string();
+            }
+        }
+    }
+
+    path.to_string()
 }
 
 #[cfg(test)]
@@ -464,5 +506,53 @@ mod tests {
 
         assert_eq!(result.written, 2);
         assert_eq!(result.paths.len(), 2);
+    }
+
+    // ========== normalize_artifact_path tests ==========
+
+    #[test]
+    fn test_normalize_artifact_path_simple_filename() {
+        // Simple filename should not be modified
+        let result = normalize_artifact_path("custom.txt", "./examples/.test-output/artifacts");
+        assert_eq!(result, "custom.txt");
+    }
+
+    #[test]
+    fn test_normalize_artifact_path_doubled_path() {
+        // Doubled path should be normalized
+        let result = normalize_artifact_path(
+            "./examples/.test-output/artifacts/custom.txt",
+            "./examples/.test-output/artifacts",
+        );
+        assert_eq!(result, "custom.txt");
+    }
+
+    #[test]
+    fn test_normalize_artifact_path_nested_doubled() {
+        // Nested doubled path should be normalized
+        let result =
+            normalize_artifact_path("./output/artifacts/subdir/file.json", "./output/artifacts");
+        assert_eq!(result, "subdir/file.json");
+    }
+
+    #[test]
+    fn test_normalize_artifact_path_no_leading_dot() {
+        // Path without leading ./ should not be modified
+        let result = normalize_artifact_path("subdir/file.txt", "./artifacts");
+        assert_eq!(result, "subdir/file.txt");
+    }
+
+    #[test]
+    fn test_normalize_artifact_path_different_prefix() {
+        // Path that doesn't match artifact_dir should not be modified
+        let result = normalize_artifact_path("./other/path/file.txt", "./artifacts");
+        assert_eq!(result, "./other/path/file.txt");
+    }
+
+    #[test]
+    fn test_normalize_artifact_path_default_dir() {
+        // Works with default artifact directory
+        let result = normalize_artifact_path("./.nika/artifacts/output.json", ".nika/artifacts");
+        assert_eq!(result, "output.json");
     }
 }
