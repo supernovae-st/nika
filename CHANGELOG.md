@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-03-09
+
+### Fixed
+
+- **agent: file tools** — File tools (`nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`) now properly available in agent tasks when explicitly requested in `tools:` list
+- **init WF-08** — Agent template now includes explicit tool list and improved system prompt for reliable file operations
+
+### Changed
+
+- Agent tool filtering now respects the `tools:` parameter for fine-grained control over available tools
+
 ## [0.22.0] - 2026-03-08
 
 ```
