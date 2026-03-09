@@ -1,9 +1,9 @@
-//! Unified secrets management (v0.20.1).
+//! Unified secrets management (v0.22).
 //!
 //! ## Architecture
 //!
 //! ```text
-//! With spn-daemon feature:
+//! With spn-daemon feature (RECOMMENDED):
 //!
 //! Nika Process
 //!     │
@@ -11,16 +11,24 @@
 //!         │
 //!         └── spn daemon (~/.spn/daemon.sock)
 //!             │
-//!             └── OS Keychain (single accessor, no popups)
+//!             └── OS Keychain (SOLE accessor, no popups)
 //!
 //! Without spn-daemon feature (fallback):
 //!
 //! Nika Process
 //!     │
-//!     └── Direct access
+//!     └── Direct access (causes macOS popups!)
 //!         ├── OS Keychain (keyring crate)
 //!         └── Environment variables
 //! ```
+//!
+//! ## v0.22 Changes
+//!
+//! When `spn-daemon` feature is enabled, Nika will NEVER access the keychain directly.
+//! The daemon is the SOLE keychain accessor. If the daemon doesn't have a secret,
+//! it's marked as "not found" instead of falling back to direct keyring access.
+//!
+//! This completely eliminates macOS Keychain popup fatigue.
 //!
 //! ## Usage
 //!
@@ -47,7 +55,8 @@ use spn_client::KNOWN_PROVIDERS;
 #[cfg(feature = "tui")]
 use crate::tui::providers::env_var as provider_env_var;
 
-#[cfg(feature = "tui")]
+// v0.22: SpnKeyring only needed when spn-daemon is NOT enabled (fallback_only module)
+#[cfg(all(feature = "tui", not(feature = "spn-daemon")))]
 use crate::tui::widgets::provider_modal::SpnKeyring;
 
 // Fallback: provider_env_var without TUI (uses same logic as tui::providers::fallback)
@@ -235,12 +244,11 @@ mod daemon_integration {
                     }
                 }
                 Err(_) => {
-                    // Try direct keyring as last resort
-                    if try_load_from_keyring(provider, env_var) {
-                        result.from_fallback.push(provider.to_string());
-                    } else {
-                        result.not_found.push(provider.to_string());
-                    }
+                    // v0.22: Do NOT fall back to direct keyring when daemon is available.
+                    // The daemon is the SOLE keychain accessor to prevent macOS popups.
+                    // If daemon doesn't have the secret, mark as not found.
+                    trace!("{}: not found in daemon", provider);
+                    result.not_found.push(provider.to_string());
                 }
             }
         }
@@ -260,7 +268,7 @@ mod daemon_integration {
             }
         }
 
-        // Try daemon client
+        // Try daemon client (v0.22: NO fallback to direct keyring)
         if let Some(client_lock) = get_or_init_client().await {
             let mut guard = client_lock.lock().await;
             if let Some(client) = guard.as_mut() {
@@ -270,8 +278,8 @@ mod daemon_integration {
             }
         }
 
-        // Final fallback: direct keyring
-        SpnKeyring::get_secret(provider).ok()
+        // v0.22: Do NOT fall back to direct keyring - daemon is sole accessor
+        None
     }
 
     /// Check if a secret exists for a provider.
@@ -283,7 +291,7 @@ mod daemon_integration {
             return true;
         }
 
-        // Try daemon client
+        // Try daemon client (v0.22: NO fallback to direct keyring)
         if let Some(client_lock) = get_or_init_client().await {
             let mut guard = client_lock.lock().await;
             if let Some(client) = guard.as_mut() {
@@ -293,11 +301,12 @@ mod daemon_integration {
             }
         }
 
-        // Final fallback: direct keyring
-        SpnKeyring::exists(provider)
+        // v0.22: Do NOT fall back to direct keyring - daemon is sole accessor
+        false
     }
 
     /// Fallback-only loading (when daemon completely unavailable).
+    /// v0.22: Only checks env vars - NO direct keyring access to prevent popups.
     async fn load_fallback_only() -> SecretsLoadResult {
         let mut result = SecretsLoadResult {
             daemon_available: false,
@@ -312,33 +321,14 @@ mod daemon_integration {
             if std::env::var(env_var).is_ok() {
                 trace!("{}: already in env", provider);
                 result.from_fallback.push(provider.to_string());
-                continue;
-            }
-
-            if try_load_from_keyring(provider, env_var) {
-                result.from_fallback.push(provider.to_string());
             } else {
+                // v0.22: Do NOT fall back to keyring - only env vars when daemon unavailable
                 result.not_found.push(provider.to_string());
             }
         }
 
         info!("Secrets (fallback only): {}", result.summary());
         result
-    }
-
-    /// Try loading from keyring and inject into env if found.
-    fn try_load_from_keyring(provider: &str, env_var: &str) -> bool {
-        match SpnKeyring::get(provider) {
-            Ok(secret) => {
-                std::env::set_var(env_var, &*secret);
-                debug!("{}: loaded from keyring → {}", provider, env_var);
-                true
-            }
-            Err(_) => {
-                trace!("{}: not in keyring", provider);
-                false
-            }
-        }
     }
 }
 
