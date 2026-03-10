@@ -222,12 +222,10 @@ impl RigProvider {
         config: Option<spn_native::LoadConfig>,
     ) -> Result<(), RigInferError> {
         match self {
-            RigProvider::Native(client) => {
-                client
-                    .load(model_path, config)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))
-            }
+            RigProvider::Native(client) => client
+                .load(model_path, config)
+                .await
+                .map_err(|e| RigInferError::PromptError(e.to_string())),
             _ => Err(RigInferError::PromptError(
                 "load_native_model only valid for Native provider".to_string(),
             )),
