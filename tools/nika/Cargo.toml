@@ -18,7 +18,7 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "spn-daemon", "native-keychain"]
+default = ["tui", "spn-daemon", "native-keychain", "native-inference"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:syntect"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
@@ -84,8 +84,8 @@ spn-client = { version = "0.2.4", optional = true }
 
 # Native inference via mistral.rs (v0.24)
 # Enables local GGUF model inference without Ollama
-# Enable with: cargo build --features native-inference
-spn-native = { path = "../../../supernovae-cli/crates/spn-native", features = ["inference"], optional = true }
+# Now enabled by default in v0.24+
+spn-native = { version = "0.1.0", features = ["inference"], optional = true }
 
 # Text editing (v0.21.2 - VS Code quality)
 ropey = "1.6"  # Efficient rope data structure for text editing
