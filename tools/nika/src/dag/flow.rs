@@ -37,7 +37,12 @@ pub struct Dag {
 }
 
 impl Dag {
-    pub fn from_workflow(workflow: &Workflow) -> Self {
+    /// Build a DAG from a workflow.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(NikaError::DuplicateTaskId)` if duplicate task IDs are found.
+    pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
         let capacity = workflow.tasks.len();
         let mut adjacency: FxHashMap<Arc<str>, DepVec> =
             FxHashMap::with_capacity_and_hasher(capacity, Default::default());
@@ -48,8 +53,14 @@ impl Dag {
             FxHashSet::with_capacity_and_hasher(capacity, Default::default());
 
         // Intern task IDs once, reuse everywhere (single allocation per unique ID)
+        // BUG-001 FIX: Detect duplicate task IDs before insertion
         for task in &workflow.tasks {
             let id = intern(&task.id); // Interned Arc<str>
+            if task_set.contains(&id) {
+                return Err(NikaError::DuplicateTaskId {
+                    task_id: task.id.clone(),
+                });
+            }
             task_ids.push(Arc::clone(&id));
             task_set.insert(Arc::clone(&id));
             adjacency.insert(Arc::clone(&id), DepVec::new());
@@ -153,12 +164,12 @@ impl Dag {
             }
         }
 
-        Self {
+        Ok(Self {
             adjacency,
             predecessors,
             task_ids,
             task_set,
-        }
+        })
     }
 
     /// Get dependencies of a task (returns `Arc<str>` slice)
@@ -419,7 +430,7 @@ tasks:
     infer: "Process: {{use.data}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         // step2 should depend on step1 (implicit from use:)
         let deps = dag.get_dependencies("step2");
@@ -445,7 +456,7 @@ tasks:
     infer: "{{use.data}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step2");
         // Should have exactly 1 edge, not 2 (deduped)
@@ -469,7 +480,7 @@ tasks:
     infer: "{{use.brand}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step1");
         assert!(deps.is_empty(), "context refs should not create task deps");
@@ -491,7 +502,7 @@ tasks:
     infer: "{{use.msg}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step1");
         assert!(deps.is_empty(), "inputs refs should not create task deps");
@@ -515,7 +526,7 @@ tasks:
     infer: "{{use.data_a}} + {{use.data_b}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deps = dag.get_dependencies("c");
         assert!(
@@ -544,7 +555,7 @@ tasks:
     infer: "{{use.name}} costs {{use.price}}"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deps = dag.get_dependencies("consumer");
         // Both refs are to "producer" (task_id extracts first segment)
@@ -577,7 +588,7 @@ tasks:
     infer: "C"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "c");
@@ -605,7 +616,7 @@ tasks:
     infer: "Final"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "final");
@@ -630,7 +641,7 @@ tasks:
     infer: "C"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(
@@ -651,7 +662,7 @@ tasks:
     infer: "Only task"
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow);
+        let dag = Dag::from_workflow(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "only");
@@ -686,7 +697,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -717,7 +728,7 @@ flows:
     target: c
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         assert!(graph.detect_cycles().is_ok());
     }
@@ -737,7 +748,7 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -770,7 +781,7 @@ flows:
     target: d
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         assert!(graph.detect_cycles().is_ok());
         assert_eq!(graph.get_final_tasks().len(), 1);
@@ -803,7 +814,7 @@ flows:
     target: d
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         assert!(graph.detect_cycles().is_ok());
         assert_eq!(graph.get_final_tasks().len(), 2);
@@ -834,12 +845,68 @@ flows:
     target: a
 "#;
         let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         // Should contain cycle path
         assert!(err_msg.contains("→"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-001: DUPLICATE TASK ID DETECTION
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_duplicate_task_id_detection() {
+        // BUG-001 FIX: Duplicate task IDs should return error, not silently overwrite
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_duplicate
+tasks:
+  - id: fetch
+    infer: "First fetch"
+  - id: fetch
+    infer: "Second fetch (duplicate!)"
+  - id: process
+    infer: "Process results"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let result = Dag::from_workflow(&workflow);
+
+        assert!(result.is_err(), "Should detect duplicate task ID 'fetch'");
+        let err = match result {
+            Err(e) => e,
+            Ok(_) => panic!("Expected error for duplicate task ID"),
+        };
+        assert!(
+            err.to_string().contains("NIKA-022"),
+            "Should be NIKA-022 error code"
+        );
+        assert!(
+            err.to_string().contains("fetch"),
+            "Should mention the duplicate task ID"
+        );
+    }
+
+    #[test]
+    fn test_unique_task_ids_ok() {
+        // No duplicates should pass
+        let yaml = r#"
+schema: nika/workflow@0.9
+workflow: test_unique
+tasks:
+  - id: fetch
+    infer: "Fetch"
+  - id: process
+    infer: "Process"
+  - id: report
+    infer: "Report"
+"#;
+        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let result = Dag::from_workflow(&workflow);
+
+        assert!(result.is_ok(), "Unique task IDs should succeed");
     }
 }
