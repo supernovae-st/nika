@@ -2,13 +2,13 @@
 source: tests/regression/workflow_snapshots.rs
 expression: "json!({\n    \"schema\": workflow.schema, \"provider\": workflow.provider, \"task_count\":\n    workflow.tasks.len(), \"task_ids\":\n    workflow.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),\n    \"has_flows\": !workflow.flows.is_empty(), \"flow_count\":\n    workflow.flows.len()\n})"
 ---
-flow_count: 3
-has_flows: true
-provider: claude
 schema: nika/workflow@0.5
+provider: claude
 task_count: 4
 task_ids:
   - fetch_data
   - process
   - analyze
   - report
+has_flows: true
+flow_count: 3
