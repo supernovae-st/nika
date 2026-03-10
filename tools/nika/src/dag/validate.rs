@@ -837,6 +837,7 @@ flows:
                     json: None,
                     timeout: None,
                     retry: None,
+                    follow_redirects: None,
                 },
             },
             use_wiring: Some({

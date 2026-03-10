@@ -963,19 +963,46 @@ impl TaskExecutor {
             result: url.to_string(),
         });
 
+        // Select HTTP client based on follow_redirects setting (v0.23)
+        // Default behavior (None or Some(true)) uses the shared client with redirects enabled
+        // When follow_redirects = false, create a one-off client without redirect following
+        let http_client: std::borrow::Cow<'_, reqwest::Client> =
+            if fetch.follow_redirects == Some(false) {
+                tracing::debug!(
+                    task_id = %task_id,
+                    "fetch: using no-redirect client (follow_redirects=false)"
+                );
+                std::borrow::Cow::Owned(
+                    reqwest::Client::builder()
+                        .timeout(FETCH_TIMEOUT)
+                        .connect_timeout(CONNECT_TIMEOUT)
+                        .redirect(reqwest::redirect::Policy::none())
+                        .user_agent("nika-cli/0.1")
+                        .build()
+                        .unwrap_or_else(|e| {
+                            tracing::error!(
+                                "No-redirect HTTP client build failed: {e}. Using default."
+                            );
+                            reqwest::Client::new()
+                        }),
+                )
+            } else {
+                std::borrow::Cow::Borrowed(&self.http_client)
+            };
+
         // Build request based on HTTP method (v0.19.5: added PATCH and HEAD support)
         let mut request = if fetch.method.eq_ignore_ascii_case("POST") {
-            self.http_client.post(url.as_ref())
+            http_client.post(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("PUT") {
-            self.http_client.put(url.as_ref())
+            http_client.put(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("DELETE") {
-            self.http_client.delete(url.as_ref())
+            http_client.delete(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("PATCH") {
-            self.http_client.patch(url.as_ref())
+            http_client.patch(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("HEAD") {
-            self.http_client.head(url.as_ref())
+            http_client.head(url.as_ref())
         } else {
-            self.http_client.get(url.as_ref()) // Default to GET
+            http_client.get(url.as_ref()) // Default to GET
         };
 
         // Add headers
@@ -1737,6 +1764,7 @@ mod tests {
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
 
@@ -1764,6 +1792,7 @@ mod tests {
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
 
@@ -2374,6 +2403,7 @@ mod tests {
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
         assert_eq!(action_type(&fetch_action), "fetch");
@@ -2553,6 +2583,7 @@ mod tests {
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
 
@@ -2591,6 +2622,7 @@ mod tests {
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
 

@@ -306,6 +306,10 @@ fn default_multiplier() -> f64 {
 /// ## JSON Body (v0.22)
 /// - `json: { ... }` — Auto-serializes to JSON and sets Content-Type: application/json
 /// - Mutually exclusive with `body` (json takes precedence)
+///
+/// ## Redirect Control (v0.23)
+/// - `follow_redirects: true` (default) — Follows HTTP redirects up to 10 hops
+/// - `follow_redirects: false` — Disables redirect following, returns 3xx response
 #[derive(Debug, Clone, Deserialize)]
 pub struct FetchParams {
     pub url: String,
@@ -324,6 +328,10 @@ pub struct FetchParams {
     /// Optional retry configuration for failed requests
     #[serde(default)]
     pub retry: Option<RetryConfig>,
+    /// Whether to follow HTTP redirects (v0.23)
+    /// Defaults to true if not specified
+    #[serde(default)]
+    pub follow_redirects: Option<bool>,
 }
 
 fn default_method() -> String {
@@ -971,6 +979,56 @@ fetch:
         }
     }
 
+    #[test]
+    fn test_fetch_params_follow_redirects_true() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com/redirect"
+  follow_redirects: true
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.url, "https://example.com/redirect");
+                assert_eq!(fetch.follow_redirects, Some(true));
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_params_follow_redirects_false() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com/redirect"
+  follow_redirects: false
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.url, "https://example.com/redirect");
+                assert_eq!(fetch.follow_redirects, Some(false));
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_params_follow_redirects_default_none() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com/api"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.url, "https://example.com/api");
+                assert!(fetch.follow_redirects.is_none()); // Defaults to None (meaning true)
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
     // =========================================================================
     // InvokeParams Tests
     // =========================================================================
@@ -1233,6 +1291,7 @@ agent:
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1454,6 +1513,7 @@ fetch:
                 json: None,
                 timeout: None,
                 retry: None,
+                follow_redirects: None,
             },
         };
 
