@@ -3906,7 +3906,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.24.0"
+version = "0.25.0"
 dependencies = [
  "arboard",
  "async-trait",
@@ -6446,10 +6446,14 @@ dependencies = [
 [[package]]
 name = "spn-core"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d182a847ea945a9e3f6c47887a062215d0d6daa7ba385746f46c064114b9582"
 
 [[package]]
 name = "spn-native"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22fa072c144c062695602ba36c5704ad5e9960e7dda91e4d27ed8284d99fa1d5"
 dependencies = [
  "anyhow",
  "async-stream",
