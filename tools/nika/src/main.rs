@@ -1105,8 +1105,13 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     // Validate schema version and task config
     workflow.validate_schema()?;
 
-    // Build flow graph and validate use: bindings (NIKA-080, NIKA-081, NIKA-082)
-    let flow_graph = Dag::from_workflow(&workflow);
+    // Build flow graph (validates duplicate task IDs: NIKA-022)
+    let flow_graph = Dag::from_workflow(&workflow)?;
+
+    // BUG-002 FIX: Detect cycles (NIKA-020) during nika check
+    flow_graph.detect_cycles()?;
+
+    // Validate use: bindings (NIKA-080, NIKA-081, NIKA-082)
     validate_use_wiring(&workflow, &flow_graph)?;
 
     println!("{} Workflow '{}' is valid", "✓".green(), file);
@@ -1145,8 +1150,9 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     // Validate schema version and task config
     workflow.validate_schema()?;
 
-    // Phase 2: Binding validation
-    let flow_graph = Dag::from_workflow(&workflow);
+    // Phase 2: DAG validation
+    let flow_graph = Dag::from_workflow(&workflow)?;
+    flow_graph.detect_cycles()?;
     validate_use_wiring(&workflow, &flow_graph)?;
 
     // Phase 3: MCP parameter validation (strict mode)
