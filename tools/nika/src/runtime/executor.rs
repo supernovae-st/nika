@@ -1351,7 +1351,7 @@ impl TaskExecutor {
     /// 3. Emit AgentStart event
     /// 4. Get LLM provider (task override or workflow default)
     /// 5. Build MCP client map for required servers
-    /// 6. Create and run AgentLoop
+    /// 6. Create and run RigAgentLoop
     /// 7. Emit AgentComplete event
     /// 8. Return final output as JSON string
     #[instrument(skip(self, bindings, datastore, output_policy), fields(max_turns = %agent.effective_max_turns()))]
