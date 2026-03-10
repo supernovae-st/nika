@@ -14,7 +14,7 @@ pub static LLM_PROVIDER_IDS: &[&str] = &[
     "ollama",
 ];
 
-/// MCP service provider IDs (6 total)
+/// MCP service provider IDs (8 total)
 pub static MCP_PROVIDER_IDS: &[&str] = &[
     "neo4j",
     "github",
@@ -22,6 +22,8 @@ pub static MCP_PROVIDER_IDS: &[&str] = &[
     "perplexity",
     "firecrawl",
     "supadata",
+    "dataforseo",
+    "ahrefs",
 ];
 
 /// Get environment variable name for a provider
@@ -44,6 +46,8 @@ pub fn provider_env_var(provider: &str) -> &'static str {
         "perplexity" => "PERPLEXITY_API_KEY",
         "firecrawl" => "FIRECRAWL_API_KEY",
         "supadata" => "SUPADATA_API_KEY",
+        "dataforseo" => "DATAFORSEO_API_KEY",
+        "ahrefs" => "AHREFS_API_KEY",
         // Unknown
         _ => "UNKNOWN_API_KEY",
     }
@@ -79,7 +83,7 @@ mod tests {
 
     #[test]
     fn test_mcp_provider_count() {
-        assert_eq!(MCP_PROVIDER_IDS.len(), 6);
+        assert_eq!(MCP_PROVIDER_IDS.len(), 8);
     }
 
     #[test]

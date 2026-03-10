@@ -76,6 +76,8 @@ fn provider_env_var(provider: &str) -> &'static str {
         "perplexity" => "PERPLEXITY_API_KEY",
         "firecrawl" => "FIRECRAWL_API_KEY",
         "supadata" => "SUPADATA_API_KEY",
+        "dataforseo" => "DATAFORSEO_API_KEY",
+        "ahrefs" => "AHREFS_API_KEY",
         _ => "UNKNOWN_API_KEY",
     }
 }
