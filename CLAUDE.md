@@ -77,9 +77,19 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.23.1 — Provider Definitions Fix
-**Tests**: 4,481 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.24.0 — Comprehensive Bug Fix Release
+**Tests**: 4,391 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
+
+**v0.24.0 Changes:**
+- **StructuredOutput Layers 3 & 4** — Now actually call LLM for retry/repair
+- **Control Flow: fail_fast** — Properly cancels in-flight tasks with `tokio::select!`
+- **Deadlock Detection** — Distinguishes true deadlock from dependency chain failure
+- **MCP Operation Timeouts** — 5 minute deadline for all MCP tasks
+- **Sleep Tool Limits** — 5 minute maximum to prevent unbounded sleep
+- **MCP Error Code Preservation** — JSON-RPC error codes preserved from servers
+- **New Error Codes** — NIKA-025, NIKA-026, NIKA-027 for task failures
+- **New TaskStatus Variants** — `DependencyFailed`, `Skipped` with reasons
 
 **v0.22.0 Changes:**
 - **exec.env** — Environment variable injection: `env: { KEY: value }`
