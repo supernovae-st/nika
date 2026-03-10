@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-03-10
+
+### Audit Release — Comprehensive Feature Verification
+
+**Methodology:** 15 Opus 4.5 agents + Ultrathink + TDD + Ralph Wiggum Loop
+
+**Coverage:**
+- Two-Phase AST Architecture (19 raw types, 22 analyzed types)
+- Runtime execution (5 verbs, for_each parallelism, DAG execution)
+- MCP client (10 error codes, timeout hierarchy)
+- 7 LLM providers with full streaming
+- 75+ error codes verified (NIKA-001 to NIKA-303)
+- 8/11 benchmarks within performance targets
+
+**Test Results:**
+- 4,481 unit tests passing
+- 29 doc tests passing
+- Zero clippy warnings
+
+### Fixed
+
+- **BUG-003**: `use:` block now creates implicit `depends_on` edges
+- **BUG-004**: Workflow final output now selects deepest terminal task
+- **BUG-005**: `for_each: $items` with `as:` alias now works
+
 ## [0.22.2] - 2026-03-09
 
 ### Fixed
