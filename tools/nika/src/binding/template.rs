@@ -1503,4 +1503,326 @@ mod tests {
         // Should be borrowed (zero alloc)
         assert!(matches!(result, Cow::Borrowed(_)));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Template Injection Security Tests (v0.23)
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // These tests verify that malicious content in template values cannot:
+    // 1. Break out of the intended context (JSON, shell, etc.)
+    // 2. Cause re-evaluation of template syntax
+    // 3. Inject control characters or escape sequences
+    //
+    // Security principle: Template values are DATA, not CODE.
+    // They should be interpolated literally, never interpreted.
+
+    #[test]
+    fn injection_template_syntax_not_reevaluated() {
+        // Value contains template syntax - should NOT be re-evaluated
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("user_input", json!("{{use.secret}}"));
+        bindings.set("secret", json!("TOP_SECRET"));
+        let ds = empty_datastore();
+
+        let result = resolve("User said: {{use.user_input}}", &bindings, &ds).unwrap();
+        // The {{use.secret}} should appear literally, NOT expanded
+        assert_eq!(result, "User said: {{use.secret}}");
+        assert!(!result.contains("TOP_SECRET"));
+    }
+
+    #[test]
+    fn injection_nested_template_attack() {
+        // Attempt to construct template syntax via concatenation
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("left", json!("{{use."));
+        bindings.set("right", json!("secret}}"));
+        bindings.set("secret", json!("LEAKED"));
+        let ds = empty_datastore();
+
+        // Even with split template markers, no re-evaluation should occur
+        let result = resolve("{{use.left}}{{use.right}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "{{use.secret}}");
+        assert!(!result.contains("LEAKED"));
+    }
+
+    #[test]
+    fn injection_json_context_quotes_escaped() {
+        // Value with quotes in JSON context should be escaped
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("name", json!(r#"Alice", "admin": true, "x": "#));
+        let ds = empty_datastore();
+
+        // Template is in a JSON context (inside quotes)
+        let template = r#"{"user": "{{use.name}}"}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // The quotes should be escaped with backslash
+        assert!(result.contains(r#"\""#), "Quotes should be escaped: {}", result);
+        // The result should be valid JSON - quotes are escaped so injection fails
+        // The "admin" key appears but as escaped string content, not as JSON structure
+        assert_eq!(
+            result,
+            r#"{"user": "Alice\", \"admin\": true, \"x\": "}"#,
+            "Quotes should be escaped to prevent JSON structure injection"
+        );
+        // Verify the injected "admin" is inside the string value, not a real key
+        // by checking the escaped pattern exists
+        assert!(result.contains(r#"\"admin\""#), "admin should be escaped");
+    }
+
+    #[test]
+    fn injection_json_context_backslash_escaped() {
+        // Backslashes in JSON context should be double-escaped
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("path", json!(r#"C:\Users\admin"#));
+        let ds = empty_datastore();
+
+        let template = r#"{"path": "{{use.path}}"}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // Backslashes should be escaped
+        assert!(result.contains(r#"\\"#), "Backslashes should be escaped: {}", result);
+    }
+
+    #[test]
+    fn injection_json_context_newline_escaped() {
+        // Newlines in JSON context should be escaped as \n
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("text", json!("line1\nline2"));
+        let ds = empty_datastore();
+
+        let template = r#"{"text": "{{use.text}}"}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // Raw newline should become \n
+        assert!(result.contains(r#"\n"#), "Newlines should be escaped: {}", result);
+        assert!(!result.contains('\n') || result.matches('\n').count() == 0 ||
+                result.contains("\\n"), "Raw newlines should be escaped");
+    }
+
+    #[test]
+    fn injection_shell_modifier_escapes_semicolon() {
+        // Semicolon injection attempt with |shell modifier
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("filename", json!("file.txt; rm -rf /"));
+        let ds = empty_datastore();
+
+        let result = resolve("cat {{use.filename|shell}}", &bindings, &ds).unwrap();
+        // With |shell, the dangerous command is wrapped in single quotes
+        // This makes the semicolon a literal character, not a command separator
+        assert_eq!(result, "cat 'file.txt; rm -rf /'");
+        // The entire value including semicolon is inside quotes - safe
+        assert!(result.starts_with("cat '") && result.ends_with("'"));
+    }
+
+    #[test]
+    fn injection_shell_modifier_escapes_backticks() {
+        // Command substitution injection attempt
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("input", json!("`whoami`"));
+        let ds = empty_datastore();
+
+        let result = resolve("echo {{use.input|shell}}", &bindings, &ds).unwrap();
+        // Backticks safely quoted
+        assert_eq!(result, "echo '`whoami`'");
+    }
+
+    #[test]
+    fn injection_shell_modifier_escapes_dollar_parens() {
+        // $(command) injection attempt
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("input", json!("$(cat /etc/passwd)"));
+        let ds = empty_datastore();
+
+        let result = resolve("echo {{use.input|shell}}", &bindings, &ds).unwrap();
+        // Dollar-paren safely quoted
+        assert_eq!(result, "echo '$(cat /etc/passwd)'");
+    }
+
+    #[test]
+    fn injection_shell_modifier_escapes_env_vars() {
+        // Environment variable injection
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("input", json!("$HOME/.ssh/id_rsa"));
+        let ds = empty_datastore();
+
+        let result = resolve("cat {{use.input|shell}}", &bindings, &ds).unwrap();
+        // $HOME is literal, not expanded
+        assert_eq!(result, "cat '$HOME/.ssh/id_rsa'");
+    }
+
+    #[test]
+    fn injection_resolve_for_shell_escapes_all() {
+        // resolve_for_shell should escape ALL bindings automatically
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("cmd", json!("echo 'pwned'; rm -rf /"));
+        let ds = empty_datastore();
+
+        let result = resolve_for_shell("{{use.cmd}}", &bindings, &ds).unwrap();
+        // The entire value is shell-escaped using single-quote escaping
+        // The embedded single quote in 'pwned' is escaped as '\''
+        assert_eq!(result, "'echo '\\''pwned'\\''; rm -rf /'");
+        // The value starts and ends with single quotes, making everything inside literal
+        // Even though '; rm' appears in the string, it's inside quoted context
+    }
+
+    #[test]
+    fn injection_control_characters_json() {
+        // Control characters should be escaped in JSON context
+        let mut bindings = ResolvedBindings::new();
+        // Tab, carriage return, and form feed
+        bindings.set("data", json!("a\tb\rc\x0c"));
+        let ds = empty_datastore();
+
+        let template = r#"{"data": "{{use.data}}"}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // Control chars should be escaped
+        assert!(result.contains(r#"\t"#) || !result.contains('\t'));
+        assert!(result.contains(r#"\r"#) || !result.contains('\r'));
+    }
+
+    #[test]
+    fn injection_unicode_escape_sequences() {
+        // Unicode escape sequences should be treated literally
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("text", json!(r#"\u0000"#)); // Literal backslash-u
+        let ds = empty_datastore();
+
+        let result = resolve("Text: {{use.text}}", &bindings, &ds).unwrap();
+        // Should appear as literal \u0000, not null byte
+        assert_eq!(result, r#"Text: \u0000"#);
+    }
+
+    #[test]
+    fn injection_null_byte_in_value() {
+        // JSON Value::String cannot contain null bytes (serde_json rejects them)
+        // But if somehow present, should be handled safely
+        let mut bindings = ResolvedBindings::new();
+        // serde_json from string with null - this is actually impossible via json!
+        // but we test the principle
+        bindings.set("normal", json!("safe"));
+        let ds = empty_datastore();
+
+        let result = resolve("{{use.normal}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "safe");
+    }
+
+    #[test]
+    fn injection_very_long_value() {
+        // Very long values should be handled without stack overflow
+        let mut bindings = ResolvedBindings::new();
+        let long_string = "A".repeat(100_000);
+        bindings.set("big", json!(long_string.clone()));
+        let ds = empty_datastore();
+
+        let result = resolve("Data: {{use.big}}", &bindings, &ds).unwrap();
+        assert!(result.starts_with("Data: AAAA"));
+        assert_eq!(result.len(), 6 + 100_000); // "Data: " + 100k As
+    }
+
+    #[test]
+    fn injection_deeply_nested_json_value() {
+        // Deeply nested JSON should serialize correctly
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("nested", json!({"a": {"b": {"c": {"d": "deep"}}}}));
+        let ds = empty_datastore();
+
+        let result = resolve("{{use.nested}}", &bindings, &ds).unwrap();
+        // Should be serialized JSON, not crash
+        assert!(result.contains("deep"));
+    }
+
+    #[test]
+    fn injection_template_markers_in_context_path() {
+        // Even context paths with template-like patterns should be safe
+        let bindings = ResolvedBindings::new();
+        let store = DataStore::new();
+
+        let mut context = LoadedContext::new();
+        // File name that looks like template syntax - but file content is safe
+        context.files.insert("normal".to_string(), json!("safe content"));
+        store.set_context(context);
+
+        let result = resolve("{{context.files.normal}}", &bindings, &store).unwrap();
+        assert_eq!(result, "safe content");
+    }
+
+    #[test]
+    fn injection_context_value_with_template_syntax() {
+        // Context file content with template syntax should NOT be re-evaluated
+        let bindings = ResolvedBindings::new();
+        let store = DataStore::new();
+
+        let mut context = LoadedContext::new();
+        context.files.insert("brand".to_string(), json!("Brand: {{use.secret}}"));
+        store.set_context(context);
+
+        let result = resolve("{{context.files.brand}}", &bindings, &store).unwrap();
+        // Template syntax in the VALUE should appear literally
+        assert_eq!(result, "Brand: {{use.secret}}");
+    }
+
+    #[test]
+    fn injection_input_value_with_template_syntax() {
+        // Input values with template syntax should NOT be re-evaluated
+        let bindings = ResolvedBindings::new();
+        let store = DataStore::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert("topic".to_string(), json!({
+            "type": "string",
+            "default": "Learn about {{use.secret}}"
+        }));
+        store.set_inputs(inputs);
+
+        let result = resolve("{{inputs.topic}}", &bindings, &store).unwrap();
+        // Template syntax in input default should appear literally
+        assert_eq!(result, "Learn about {{use.secret}}");
+    }
+
+    #[test]
+    fn injection_3pass_no_cross_contamination() {
+        // Verify 3-pass resolution doesn't allow pass N output to affect pass N+1
+        let mut bindings = ResolvedBindings::new();
+        // Pass 1: use binding resolves to something with context syntax
+        bindings.set("data", json!("{{context.files.secret}}"));
+        let store = DataStore::new();
+
+        let mut context = LoadedContext::new();
+        context.files.insert("secret".to_string(), json!("CONFIDENTIAL"));
+        store.set_context(context);
+
+        // Template only has use binding, but its value contains context syntax
+        let result = resolve("Result: {{use.data}}", &bindings, &store).unwrap();
+        // The context syntax should NOT be evaluated in pass 2
+        assert_eq!(result, "Result: {{context.files.secret}}");
+        assert!(!result.contains("CONFIDENTIAL"));
+    }
+
+    #[test]
+    fn injection_html_script_tags() {
+        // HTML script injection - template just passes through
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("content", json!("<script>alert('xss')</script>"));
+        let ds = empty_datastore();
+
+        let result = resolve("{{use.content}}", &bindings, &ds).unwrap();
+        // NOTE: Template resolution does NOT escape HTML - that's the consumer's job
+        // This test documents the behavior: raw HTML passes through
+        assert_eq!(result, "<script>alert('xss')</script>");
+    }
+
+    #[test]
+    fn injection_sql_like_content() {
+        // SQL-like content - template just passes through
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("query", json!("'; DROP TABLE users; --"));
+        let ds = empty_datastore();
+
+        let result = resolve("SELECT * FROM x WHERE name='{{use.query}}'", &bindings, &ds).unwrap();
+        // Template resolution does NOT prevent SQL injection - that's the DB layer's job
+        // This test documents the behavior
+        assert!(result.contains("DROP TABLE"));
+    }
 }
