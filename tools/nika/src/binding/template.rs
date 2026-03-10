@@ -1,14 +1,79 @@
-//! Template Resolution - `{{use.alias}}` substitution (v0.5)
+//! Template Resolution — 3-Pass Variable Substitution (v0.23)
 //!
-//! Single syntax: {{use.alias}} or {{use.alias.field}}
-//! True single-pass resolution with `Cow<str>` for zero-alloc when no templates.
+//! This module resolves template variables in workflow strings using a 3-pass
+//! architecture that ensures security isolation between different binding sources.
 //!
-//! Performance optimizations:
+//! # 3-Pass Resolution Architecture
+//!
+//! Template resolution happens in strict sequential order:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────┐
+//! │  3-PASS TEMPLATE RESOLUTION (v0.23)                                    │
+//! ├─────────────────────────────────────────────────────────────────────────┤
+//! │                                                                         │
+//! │  Pass 1: {{use.alias}} — Task output bindings                          │
+//! │  ─────────────────────────────────────────────────────────────────────  │
+//! │  • Resolves task outputs bound via `use:` block                         │
+//! │  • Supports nested paths: {{use.data.field}}                            │
+//! │  • Supports array indexing: {{use.items[0]}} or {{use.items.0}}         │
+//! │  • Supports |shell modifier: {{use.value|shell}}                        │
+//! │  • Lazy bindings resolved on-demand via DataStore                       │
+//! │                                                                         │
+//! │  Pass 2: {{context.*}} — Workflow context files                         │
+//! │  ─────────────────────────────────────────────────────────────────────  │
+//! │  • {{context.files.alias}} — Loaded from `context.files` block          │
+//! │  • {{context.session.key}} — Loaded from `context.session` file         │
+//! │  • Content is loaded at workflow start, before task execution           │
+//! │                                                                         │
+//! │  Pass 3: {{inputs.param}} — Workflow input parameters                   │
+//! │  ─────────────────────────────────────────────────────────────────────  │
+//! │  • Resolves from workflow `inputs:` definitions                         │
+//! │  • Uses `default` values when not provided at runtime                   │
+//! │  • Supports nested paths: {{inputs.config.theme}}                       │
+//! │                                                                         │
+//! └─────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! # Security Isolation
+//!
+//! **CRITICAL**: Each pass operates on the OUTPUT of the previous pass, but
+//! template markers in VALUES are NOT re-evaluated. This prevents injection:
+//!
+//! ```yaml
+//! # If {{use.user_input}} resolves to "{{context.files.secret}}"
+//! # The output is literally "{{context.files.secret}}", NOT the file content
+//! ```
+//!
+//! See the `injection_*` tests for comprehensive security verification.
+//!
+//! # Syntax Reference
+//!
+//! | Pattern | Source | Example |
+//! |---------|--------|---------|
+//! | `{{use.alias}}` | Task `use:` block | `{{use.forecast}}` |
+//! | `{{use.alias.field}}` | Nested JSON access | `{{use.data.name}}` |
+//! | `{{use.alias[N]}}` | Array indexing | `{{use.items[0]}}` |
+//! | `{{use.alias\|shell}}` | Shell-escaped | `{{use.filename\|shell}}` |
+//! | `{{context.files.X}}` | Context file | `{{context.files.brand}}` |
+//! | `{{context.session.X}}` | Session data | `{{context.session.focus}}` |
+//! | `{{inputs.param}}` | Input parameter | `{{inputs.topic}}` |
+//!
+//! # Performance
+//!
+//! - Returns `Cow::Borrowed` when no templates (zero allocation)
 //! - Zero-clone traversal (references until final value)
-//! - SmallVec for error collection (stack-allocated)
-//! - Better capacity estimation for result string
+//! - SmallVec for error collection (stack-allocated up to 4)
+//! - Pre-compiled regex via `LazyLock`
 //!
-//! v0.5: Supports lazy bindings via DataStore parameter.
+//! # Version History
+//!
+//! - v0.5: Initial with lazy bindings
+//! - v0.13: Added `|shell` modifier
+//! - v0.14.2: Added Pass 2 (context bindings)
+//! - v0.19.4: Added Pass 3 (input bindings)
+//! - v0.22: Added bracket notation `[N]`
+//! - v0.23: Security test suite, documentation
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
