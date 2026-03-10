@@ -144,6 +144,8 @@ pub struct RawForEach {
     pub as_var: Option<Spanned<String>>,
     /// Maximum parallelism
     pub parallel: Option<Spanned<u32>>,
+    /// Stop all iterations on first error (default: true)
+    pub fail_fast: Option<Spanned<bool>>,
 }
 
 /// Retry configuration.

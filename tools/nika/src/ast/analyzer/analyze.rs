@@ -814,6 +814,7 @@ mod tests {
                 items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
                 as_var: None,
                 parallel: None,
+                fail_fast: None,
             },
             make_span(0, 50),
         ));
@@ -840,6 +841,7 @@ mod tests {
                 items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
                 as_var: None,
                 parallel: None,
+                fail_fast: None,
             },
             make_span(0, 50),
         ));
@@ -949,6 +951,7 @@ mod tests {
                 items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
                 as_var: None,
                 parallel: None,
+                fail_fast: None,
             },
             make_span(0, 30),
         ));
@@ -987,6 +990,7 @@ mod tests {
                 items: Spanned::new("[\"x\"]".to_string(), make_span(0, 5)),
                 as_var: None,
                 parallel: None,
+                fail_fast: None,
             },
             make_span(0, 30),
         ));

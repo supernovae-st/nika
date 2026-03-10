@@ -696,6 +696,7 @@ fn parse_for_each(
                     as_var: get_string_field(file, map, "as")?,
                     parallel: get_u32_field(file, map, "concurrency")?
                         .or(get_u32_field(file, map, "parallel")?),
+                    fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
             )))
@@ -708,6 +709,7 @@ fn parse_for_each(
                     as_var: get_string_field(file, map, "as")?,
                     parallel: get_u32_field(file, map, "concurrency")?
                         .or(get_u32_field(file, map, "parallel")?),
+                    fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
             )))
