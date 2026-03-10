@@ -45,34 +45,15 @@ use crate::error::NikaError;
 /// - Loading files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    let canonical_base = base_path
-        .canonicalize()
-        .map_err(|e| NikaError::ContextLoadError {
+    // SECURITY: Use centralized path validation from io::security
+    // This ensures consistent security checks across all file loading operations
+    crate::io::security::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
+        NikaError::ContextLoadError {
             alias: String::new(),
-            path: base_path.display().to_string(),
-            reason: format!("Cannot resolve base path: {}", e),
-        })?;
-    let canonical_target = target_path
-        .canonicalize()
-        .map_err(|e| NikaError::ContextLoadError {
-            alias: String::new(),
-            path: target_path.display().to_string(),
-            reason: format!("Cannot resolve path: {}", e),
-        })?;
-
-    if !canonical_target.starts_with(&canonical_base) {
-        return Err(NikaError::ContextLoadError {
-            alias: String::new(),
-            path: target_path.display().to_string(),
-            reason: format!(
-                "Path traversal detected: '{}' is outside project boundary '{}'",
-                target_path.display(),
-                base_path.display()
-            ),
-        });
-    }
-
-    Ok(())
+            path: e.target_path.display().to_string(),
+            reason: e.reason,
+        }
+    })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -651,7 +632,7 @@ mod tests {
         assert!(result.is_err());
         let err_str = result.unwrap_err().to_string();
         assert!(
-            err_str.contains("Cannot resolve path"),
+            err_str.contains("Cannot resolve target path"),
             "Expected cannot resolve error, got: {}",
             err_str
         );

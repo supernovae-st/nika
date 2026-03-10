@@ -48,34 +48,20 @@ const MAX_INCLUDE_DEPTH: usize = 10;
 /// - Including files from parent directories
 /// - Symlink attacks pointing outside project
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    // SECURITY: Do NOT use unwrap_or_else fallback - that bypasses security validation
-    // If canonicalize fails, we must return an error, not proceed with unvalidated path
-    let canonical_base = base_path
-        .canonicalize()
-        .map_err(|e| NikaError::ValidationError {
-            reason: format!(
-                "Failed to canonicalize base path '{}': {}. Cannot validate path boundary.",
-                base_path.display(),
-                e
-            ),
-        })?;
-    let canonical_target = target_path
-        .canonicalize()
-        .map_err(|e| NikaError::WorkflowNotFound {
-            path: format!("{}: {}", target_path.display(), e),
-        })?;
-
-    if !canonical_target.starts_with(&canonical_base) {
-        return Err(NikaError::ValidationError {
-            reason: format!(
-                "Path traversal detected: '{}' is outside project boundary '{}'",
-                target_path.display(),
-                base_path.display()
-            ),
-        });
-    }
-
-    Ok(())
+    // SECURITY: Use centralized path validation from io::security
+    // This ensures consistent security checks across all file loading operations
+    crate::io::security::validate_canonicalized_boundary(base_path, target_path).map_err(|e| {
+        // Convert to context-appropriate error type
+        if e.reason.contains("Cannot resolve target path") {
+            NikaError::WorkflowNotFound {
+                path: format!("{}: {}", e.target_path.display(), e.reason),
+            }
+        } else if e.reason.contains("Cannot resolve base path") {
+            NikaError::ValidationError { reason: e.reason }
+        } else {
+            NikaError::ValidationError { reason: e.reason }
+        }
+    })
 }
 
 /// Expand all includes in a workflow

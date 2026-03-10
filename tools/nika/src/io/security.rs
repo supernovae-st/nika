@@ -224,6 +224,95 @@ fn normalize_path(path: &Path) -> PathBuf {
     normalized
 }
 
+/// Error type for path boundary validation
+///
+/// Contains the paths and reason for conversion to context-specific error types.
+#[derive(Debug, Clone)]
+pub struct PathBoundaryError {
+    /// The base path that was validated against
+    pub base_path: PathBuf,
+    /// The target path that failed validation
+    pub target_path: PathBuf,
+    /// Human-readable reason for the failure
+    pub reason: String,
+}
+
+impl std::fmt::Display for PathBoundaryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.reason)
+    }
+}
+
+impl std::error::Error for PathBoundaryError {}
+
+/// Validate that a path stays within a base directory boundary using canonicalization
+///
+/// This is the primary security function for validating file paths. It uses
+/// `canonicalize()` to resolve symlinks and verify the real path stays within bounds.
+///
+/// # Security
+///
+/// - Both paths must exist for canonicalization to work
+/// - Symlinks are resolved to their real targets
+/// - Prevents path traversal attacks using `../` or symlinks
+///
+/// # Arguments
+///
+/// * `base_path` - The boundary directory (must exist)
+/// * `target_path` - The path to validate (must exist)
+///
+/// # Returns
+///
+/// `Ok(())` if the target is within the base, or `PathBoundaryError` with details.
+///
+/// # Example
+///
+/// ```ignore
+/// use nika::io::security::validate_canonicalized_boundary;
+///
+/// let project = Path::new("/project");
+/// let file = Path::new("/project/data/file.txt");
+/// validate_canonicalized_boundary(project, file)?;
+/// ```
+pub fn validate_canonicalized_boundary(
+    base_path: &Path,
+    target_path: &Path,
+) -> Result<(), PathBoundaryError> {
+    let canonical_base = base_path.canonicalize().map_err(|e| PathBoundaryError {
+        base_path: base_path.to_path_buf(),
+        target_path: target_path.to_path_buf(),
+        reason: format!(
+            "Cannot resolve base path '{}': {}",
+            base_path.display(),
+            e
+        ),
+    })?;
+
+    let canonical_target = target_path.canonicalize().map_err(|e| PathBoundaryError {
+        base_path: base_path.to_path_buf(),
+        target_path: target_path.to_path_buf(),
+        reason: format!(
+            "Cannot resolve target path '{}': {}",
+            target_path.display(),
+            e
+        ),
+    })?;
+
+    if !canonical_target.starts_with(&canonical_base) {
+        return Err(PathBoundaryError {
+            base_path: base_path.to_path_buf(),
+            target_path: target_path.to_path_buf(),
+            reason: format!(
+                "Path traversal detected: '{}' is outside project boundary '{}'",
+                target_path.display(),
+                base_path.display()
+            ),
+        });
+    }
+
+    Ok(())
+}
+
 /// Validate that a path stays within a base directory boundary
 ///
 /// This is a general-purpose boundary check used by `resolve_artifact_dir`.
