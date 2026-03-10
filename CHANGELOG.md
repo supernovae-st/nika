@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-03-10
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.24.0 — COMPREHENSIVE BUG FIX RELEASE                              ║
+║  Critical runtime fixes discovered by 4 Opus 4.5 agents                        ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  🔴 CRITICAL FIXES:                                                           ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  1. StructuredOutput Layers 3 & 4 — Now actually call LLM for retry/repair    ║
+║  2. fail_fast — Properly cancels in-flight tasks with tokio::select!          ║
+║  3. Deadlock Detection — Distinguishes deadlock from dependency chain fail    ║
+║  4. MCP Timeouts — 5 minute deadline for all MCP operations                   ║
+║  5. Sleep Tool Limit — 5 minute max prevents unbounded blocking               ║
+║  6. MCP Error Codes — JSON-RPC codes preserved from servers                   ║
+║                                                                               ║
+║  Tests: 4,391 passing | Zero clippy warnings | ARMADA CI green               ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Fixed
+
+#### 1. StructuredOutput Layers 3 & 4 — LLM Retry/Repair Now Works
+
+**Problem:** Layers 3 (Retry) and 4 (Repair) were logging errors but NOT calling the LLM.
+
+**Solution:**
+- Add `InferCallback` type for LLM invocation during validation
+- Layer 3 (Retry) now calls LLM on JSON validation failure
+- Layer 4 (Repair) generates repair prompt and calls LLM to fix
+
+```rust
+// Before: Just logged and returned Err
+// After: Actually calls LLM with structured prompt
+pub type InferCallback = Arc<dyn Fn(&str) -> BoxFuture<'static, Result<String>> + Send + Sync>;
+```
+
+#### 2. fail_fast — Proper Task Cancellation
+
+**Problem:** `fail_fast: true` wasn't canceling in-flight tasks.
+
+**Solution:**
+- Use `tokio::select!` to race semaphore acquisition against cancellation
+- Add `TaskStatus::DependencyFailed { dependency: String }` variant
+- Add `TaskStatus::Skipped { reason: String }` variant
+
+```rust
+tokio::select! {
+    permit = semaphore.acquire() => { /* execute task */ }
+    _ = cancel_token.cancelled() => {
+        return TaskStatus::Skipped { reason: "Workflow cancelled".into() }
+    }
+}
+```
+
+#### 3. Deadlock Detection vs Dependency Chain Failure
+
+**Problem:** True deadlocks were confused with dependency chain failures.
+
+**Solution:**
+- New error codes: NIKA-025, NIKA-026, NIKA-027
+- Clear error messages showing failed dependency chain
+- Distinguishes "task A failed → B can't run" from actual cycles
+
+#### 4. MCP Operation Timeouts
+
+**Problem:** MCP operations could hang indefinitely.
+
+**Solution:**
+- Add `INVOKE_TASK_DEADLINE` constant (5 minutes)
+- Wrap all MCP operations with `tokio::time::timeout()`
+
+```rust
+const INVOKE_TASK_DEADLINE: Duration = Duration::from_secs(5 * 60);
+timeout(INVOKE_TASK_DEADLINE, mcp_operation).await??
+```
+
+#### 5. Sleep Tool Limits
+
+**Problem:** `nika:sleep` could block workflows indefinitely (e.g., `1000h`).
+
+**Solution:**
+- Add `MAX_SLEEP_DURATION` constant (5 minutes)
+- Return error for excessive durations
+
+```rust
+pub const MAX_SLEEP_DURATION: Duration = Duration::from_secs(5 * 60);
+```
+
+#### 6. MCP Error Code Preservation
+
+**Problem:** JSON-RPC error codes from MCP servers were lost.
+
+**Solution:**
+- Add `McpErrorCode` enum for structured errors
+- Preserve -32700 to -32603 range in error messages
+
+### Changed
+
+- Test count: 4,282 → 4,391 (109 new tests for bug fixes)
+- New ADR: NIKA-008 (New Error Codes for v0.24.0)
+
 ## [0.23.1] - 2026-03-10
 
 ### Fixed
