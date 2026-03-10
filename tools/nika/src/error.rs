@@ -428,9 +428,10 @@ pub enum NikaError {
     TuiError { reason: String },
 
     // ═══════════════════════════════════════════
-    // CONFIG ERRORS (140-149) - NEW v0.5
+    // CONFIG ERRORS (135-139) - Range reassigned to avoid NIKA-140 collision
+    // Note: NIKA-140-149 is reserved for AST analyzer errors (see ast/analyzer/errors.rs)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-140] Config error: {reason}")]
+    #[error("[NIKA-135] Config error: {reason}")]
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
@@ -718,7 +719,7 @@ impl NikaError {
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
             // Config errors
-            Self::ConfigError { .. } => "NIKA-140",
+            Self::ConfigError { .. } => "NIKA-135",
             // Startup errors
             Self::StartupError { .. } => "NIKA-150",
             // Tool errors (code is dynamic)
@@ -1810,7 +1811,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CONFIG ERRORS (140-149)
+    // CONFIG ERRORS (135-139)
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1818,9 +1819,9 @@ mod tests {
         let err = NikaError::ConfigError {
             reason: "invalid TOML syntax".to_string(),
         };
-        assert_eq!(err.code(), "NIKA-140");
+        assert_eq!(err.code(), "NIKA-135");
         let msg = err.to_string();
-        assert!(msg.contains("[NIKA-140]"));
+        assert!(msg.contains("[NIKA-135]"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
