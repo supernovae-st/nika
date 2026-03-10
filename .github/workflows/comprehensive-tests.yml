@@ -427,6 +427,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [dag-tests, smoke-tests, regression-tests, filesystem-tests, benchmarks]
     if: always()
+    defaults:
+      run:
+        working-directory: .
     steps:
       - name: Generate summary
         env:
