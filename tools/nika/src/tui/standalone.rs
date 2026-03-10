@@ -511,7 +511,15 @@ impl StandaloneState {
         result.push_str("│ ✓ Schema version valid\n");
 
         // Step 5: Build and validate DAG
-        let flow_graph = Dag::from_workflow(&workflow);
+        let flow_graph = match Dag::from_workflow(&workflow) {
+            Ok(dag) => dag,
+            Err(e) => {
+                result.push_str(&format!("│ ✗ DAG construction failed: {}\n", e));
+                result.push_str("╰─\n");
+                self.preview_content = result;
+                return;
+            }
+        };
         if let Err(e) = validate_use_wiring(&workflow, &flow_graph) {
             result.push_str(&format!("│ ✗ Binding validation failed: {}\n", e));
             result.push_str("╰─\n");
