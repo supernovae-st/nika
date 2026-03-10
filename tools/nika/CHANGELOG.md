@@ -7,6 +7,73 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/supernovae-st/nika/releases/tag/0.23.0) - 2026-03-10
+
+### Audit Release
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.23.0 — COMPREHENSIVE AUDIT RELEASE                                   ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  Methodology:  15 Opus 4.5 agents + Ultrathink + TDD + Ralph Wiggum Loop      ║
+║  Coverage:     100% feature verification across 5 phases                       ║
+║  Tests:        4,325 unit + 29 doc tests passing                              ║
+║  Quality:      Zero clippy warnings                                           ║
+║                                                                               ║
+║  Audited Domains:                                                             ║
+║  ├── AST: Two-Phase IR (Raw → Analyzed), 10 schema versions                  ║
+║  ├── Runtime: 5 verbs, for_each parallelism, DAG execution                    ║
+║  ├── MCP: Client lifecycle, timeout handling, JSON-RPC errors                 ║
+║  ├── TUI: 4-view architecture, 40+ widgets                                    ║
+║  ├── Providers: 7 LLM providers, full streaming                               ║
+║  ├── Errors: 75+ error codes (NIKA-001 to NIKA-303)                          ║
+║  └── Performance: 8/11 benchmarks within targets                              ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Verified
+
+- **Two-Phase AST Architecture** — Raw AST (spans) → Analyzed AST (validated)
+  - 19 raw types, 22 analyzed types, NIKA-140-149 analyzer error codes
+  - Schema version gating for all 10 versions (v0.1 - v0.10)
+
+- **Runtime Execution** — All 5 verbs verified with edge cases
+  - `infer:`, `exec:`, `fetch:`, `invoke:`, `agent:`
+  - `for_each` with concurrency and fail_fast behavior
+
+- **MCP Client** — Full protocol compliance verified
+  - 10 MCP error codes with JSON-RPC preservation
+  - Timeout hierarchy: 20s connect, 60s calls, 90s init
+
+- **7 LLM Providers** — All with streaming support
+  - Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, Ollama
+  - Token tracking verified (with documented limitations)
+
+- **Error Handling** — 75+ error codes mapped
+  - RecoverableError trait for retry logic
+  - FixSuggestion trait for actionable guidance
+
+### Performance
+
+| Benchmark | Target | Measured | Status |
+|-----------|--------|----------|--------|
+| YAML parsing (1 task) | <10µs | 4.6µs | ✅ |
+| YAML parsing (100 tasks) | <500µs | 340µs | ✅ |
+| DAG validation (10 nodes) | <1µs | 800ns | ✅ |
+| DAG validation linear | <1µs | 1.27µs | ⚠️ |
+| Binding resolution | <1µs | 450ns | ✅ |
+| Binding 10 entries | <1µs | 1.508µs | ⚠️ |
+| for_each 100 items | <500ms | 344µs | ✅ |
+| DataStore get | <10ns | 6ns | ✅ |
+
+### Documentation
+
+- **Error Code Inventory** — Complete mapping of NIKA-001 to NIKA-303
+- **Audit Reports** — `test-audit/v023-audit/AUDIT-SUMMARY.md`
+- **Master Plan** — `docs/plans/MASTER-AUDIT-v0.23.md`
+
 ## [0.22.4](https://github.com/supernovae-st/nika/releases/tag/0.22.4) - 2026-03-10
 
 ### Fixed
