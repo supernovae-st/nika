@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.22.0 | Language Improvements + TUI Panels | 4,282 tests | Zero clippy warnings
+**Current version:** v0.23.1 | Provider Definitions Fix | 4,481 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -1445,30 +1445,27 @@ cargo llvm-cov nextest
 cargo bench
 ```
 
-### TUI Views (v0.20 - 8 Views)
+### TUI Views (v0.22+ - 4 Views)
 
-The TUI provides 8 interactive views:
+The TUI provides 4 interactive views (consolidated from 8 in v0.20):
 
 | View | Key | Purpose |
 |------|-----|---------|
-| **Browse** | `1` | File browser for .nika.yaml workflows |
-| **Editor** | `2` | YAML editor with schema validation |
-| **Runner** | `3` | Workflow execution monitor |
-| **Chat** | `4` | Conversational agent (5 verbs) |
-| **Scheduler** | `5` | DAG visualization and scheduling |
-| **Settings** | `6` | Configuration and preferences |
-| **Split** | `7` | Editor + Runner side-by-side |
-| **Workspace** | `8` | Browser + Editor + DAG unified (NEW in v0.20) |
+| **Studio** | `1` / `s` | 3-panel unified workspace (Browser + Editor + DAG Preview) |
+| **Runner** | `2` / `r` | Workflow execution monitor |
+| **Chat** | `3` / `c` | Conversational agent (5 verbs) |
+| **Settings** | `4` / `,` | Configuration and preferences |
 
-**Workspace View (v0.20):**
+**Studio View (default):**
 - 3-panel layout: Browser | Editor | DAG Preview
 - Tab cycles between panels
 - Ctrl+] cycles panel ratios (Balanced/Editor+/Browser+/DAG+)
-- F10 exits workspace
+- File browser with tui-tree-widget v0.24
+- Integrated YAML syntax highlighting and schema validation
 
 ## Testing Strategy
 
-- **Unit tests:** In-file `#[cfg(test)]` modules (3,562+ tests)
+- **Unit tests:** In-file `#[cfg(test)]` modules (4,481+ tests)
 - **Integration tests:** `tests/` directory
 - **Snapshot tests:** insta for YAML/JSON outputs
 - **Property tests:** proptest for parser fuzzing

@@ -77,8 +77,8 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.22.0 — Language Improvements + TUI Panels
-**Tests**: 4,282 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.23.1 — Provider Definitions Fix
+**Tests**: 4,481 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
 
 **v0.22.0 Changes:**
@@ -90,10 +90,12 @@ Nika is the "body" of the SuperNovae AGI architecture, executing workflows that 
 - **TUI panels/ module** — TaskListPanel, TaskBoxFlow, BrowserPanel
 
 **v0.20.x Changes:**
-- **8-View TUI Architecture** — VS Code-inspired unified workspace
-  - `WorkspaceView`: 3-panel layout (Browser | Editor | DAG Preview)
-  - `SplitView`: Editor + Runner side-by-side
-  - Keyboard shortcuts: `7` for Split, `8` for Workspace
+- **4-View TUI Architecture** — Streamlined from 8 views to 4 focused views
+  - `Studio`: 3-panel unified workspace (Browser | Editor | DAG Preview)
+  - `Runner`: Real-time execution monitoring
+  - `Chat`: Conversational agent interface
+  - `Settings`: Provider config and preferences
+  - Keyboard shortcuts: `1-4` or `s/r/c/,`
 - **Tree Widget Integration** — tui-tree-widget v0.24 for VS Code-like file browser
 - **spn Daemon Secret Management** — Unified keychain access
 - **Two-Phase IR Architecture** — Raw AST → Analyzed AST pipeline
@@ -215,7 +217,7 @@ nika trace export <id>        # Export JSON/YAML
 
 # Development
 cd tools/nika
-cargo test                    # Run 4,369 tests
+cargo test                    # Run 4,481 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
