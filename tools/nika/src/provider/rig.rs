@@ -126,7 +126,7 @@ pub struct InferOptions {
     pub system: Option<String>,
 }
 
-/// Provider type enum for rig-core providers (v0.6: expanded, v0.15.0: +Gemini)
+/// Provider type enum for rig-core providers (v0.6: expanded, v0.15.0: +Gemini, v0.24: +Native)
 ///
 /// Nika leverages rig-core's native multi-provider support.
 /// Each variant wraps the corresponding rig-core client.
@@ -146,6 +146,10 @@ pub enum RigProvider {
     DeepSeek(deepseek::Client),
     /// Gemini (Google) provider (v0.15.0) - GEMINI_API_KEY
     Gemini(gemini::Client),
+    /// Native local provider (v0.24) - GGUF models via mistral.rs
+    /// Requires `native-inference` feature and explicit model loading.
+    #[cfg(feature = "native-inference")]
+    Native(super::native::NativeClient),
 }
 
 impl RigProvider {
@@ -193,6 +197,52 @@ impl RigProvider {
         RigProvider::Gemini(client)
     }
 
+    /// Create a Native provider for local GGUF inference (v0.24)
+    ///
+    /// The provider is created without a model loaded. Call `load_native_model()`
+    /// before running inference.
+    ///
+    /// Requires the `native-inference` feature.
+    #[cfg(feature = "native-inference")]
+    pub fn native() -> Self {
+        RigProvider::Native(super::native::NativeClient::new())
+    }
+
+    /// Load a model for native inference.
+    ///
+    /// Only valid for `RigProvider::Native`. Returns an error for other providers.
+    ///
+    /// # Arguments
+    /// * `model_path` - Path to the GGUF model file
+    /// * `config` - Optional load configuration (context size, GPU layers, etc.)
+    #[cfg(feature = "native-inference")]
+    pub async fn load_native_model(
+        &self,
+        model_path: impl Into<std::path::PathBuf>,
+        config: Option<spn_native::LoadConfig>,
+    ) -> Result<(), RigInferError> {
+        match self {
+            RigProvider::Native(client) => {
+                client
+                    .load(model_path, config)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))
+            }
+            _ => Err(RigInferError::PromptError(
+                "load_native_model only valid for Native provider".to_string(),
+            )),
+        }
+    }
+
+    /// Check if native model is loaded.
+    #[cfg(feature = "native-inference")]
+    pub async fn is_native_loaded(&self) -> bool {
+        match self {
+            RigProvider::Native(client) => client.is_loaded().await,
+            _ => false,
+        }
+    }
+
     /// Get the provider name
     pub fn name(&self) -> &'static str {
         match self {
@@ -203,6 +253,8 @@ impl RigProvider {
             RigProvider::Groq(_) => "groq",
             RigProvider::DeepSeek(_) => "deepseek",
             RigProvider::Gemini(_) => "gemini",
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => "native",
         }
     }
 
@@ -217,6 +269,7 @@ impl RigProvider {
     /// | Groq | llama-3.3-70b-versatile | Fast inference |
     /// | DeepSeek | deepseek-chat | Cost-effective |
     /// | Gemini | gemini-2.0-flash | Latest stable (v0.15.0) |
+    /// | Native | (loaded model) | Uses pre-loaded GGUF model |
     pub fn default_model(&self) -> &'static str {
         match self {
             // Note: rig-core's CLAUDE_3_5_SONNET constant is outdated
@@ -228,6 +281,9 @@ impl RigProvider {
             RigProvider::Groq(_) => "llama-3.3-70b-versatile",
             RigProvider::DeepSeek(_) => "deepseek-chat",
             RigProvider::Gemini(_) => "gemini-2.0-flash",
+            // Native uses whatever model is loaded, no default
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => "native-model",
         }
     }
 
@@ -292,6 +348,16 @@ impl RigProvider {
                     .prompt(prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(client) => {
+                // Native inference uses direct API, not rig-core agent
+                // Model must be pre-loaded via load_native_model()
+                client
+                    .infer(prompt, None)
+                    .await
+                    .map(|r| r.message.content)
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))
             }
         }
     }
@@ -411,6 +477,20 @@ impl RigProvider {
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(client) => {
+                // Native inference uses spn-native ChatOptions
+                let chat_options = spn_native::ChatOptions {
+                    temperature: options.temperature.map(|t| t as f32),
+                    max_tokens: options.max_tokens,
+                    ..Default::default()
+                };
+                client
+                    .infer(&full_prompt, Some(chat_options))
+                    .await
+                    .map(|r| r.message.content)
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))
+            }
         }
     }
 
@@ -453,6 +533,12 @@ impl RigProvider {
         // Ollama is opt-in: requires OLLAMA_API_BASE_URL to be explicitly set
         if has_key("OLLAMA_API_BASE_URL") {
             return Some(Self::ollama());
+        }
+        // v0.24: Native is opt-in: requires NIKA_NATIVE_MODEL to be set
+        // Note: Model must still be loaded via load_native_model() before inference
+        #[cfg(feature = "native-inference")]
+        if has_key("NIKA_NATIVE_MODEL") {
+            return Some(Self::native());
         }
         None
     }
@@ -546,6 +632,12 @@ impl RigProvider {
             RigProvider::Ollama(_) => {
                 // Ollama doesn't need API key, so is always "configured"
                 // Actual server availability checked separately via check_ollama_available()
+                true
+            }
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => {
+                // Native doesn't need API key, but requires model to be loaded
+                // Use is_native_loaded() to check if ready for inference
                 true
             }
         }
@@ -1107,6 +1199,28 @@ impl RigProvider {
                     }
                 }
             }
+            // v0.24: Native provider - fallback to non-streaming (streaming not yet implemented)
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(client) => {
+                // Native inference doesn't support streaming yet.
+                // Fall back to non-streaming and send complete response as single chunk.
+                let response = client
+                    .infer(prompt, None)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                let content = response.message.content;
+                response_parts.push(content.clone());
+                let _ = tx.try_send(StreamChunk::Token(content));
+
+                // Update token counts if available (cast u32 to u64)
+                if let Some(input) = response.prompt_eval_count {
+                    result.input_tokens = u64::from(input);
+                }
+                if let Some(output) = response.eval_count {
+                    result.output_tokens = u64::from(output);
+                }
+            }
         }
 
         let complete_response = response_parts.concat();
@@ -1543,6 +1657,33 @@ impl RigProvider {
                             return Err(RigInferError::PromptError(e.to_string()));
                         }
                     }
+                }
+            }
+            // v0.24: Native provider - fallback to non-streaming with options
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(client) => {
+                // Native inference doesn't support streaming yet.
+                // Fall back to non-streaming with options and send complete response as single chunk.
+                let chat_options = spn_native::ChatOptions {
+                    temperature: options.temperature.map(|t| t as f32),
+                    max_tokens: options.max_tokens,
+                    ..Default::default()
+                };
+                let response = client
+                    .infer(&full_prompt, Some(chat_options))
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+
+                let content = response.message.content;
+                response_parts.push(content.clone());
+                let _ = tx.try_send(StreamChunk::Token(content));
+
+                // Update token counts if available (cast u32 to u64)
+                if let Some(input) = response.prompt_eval_count {
+                    result.input_tokens = u64::from(input);
+                }
+                if let Some(output) = response.eval_count {
+                    result.output_tokens = u64::from(output);
                 }
             }
         }

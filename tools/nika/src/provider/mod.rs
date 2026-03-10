@@ -41,6 +41,14 @@
 pub mod cost;
 pub mod rig;
 
+// Native inference via spn-native (requires native-inference feature)
+#[cfg(feature = "native-inference")]
+pub mod native;
+
 // Re-export main types for convenience
 pub use cost::{calculate_cost, format_cost, get_model_pricing, ModelPricing, ProviderKind};
 pub use rig::{NikaMcpTool, RigProvider, StreamResult};
+
+// Re-export native client when feature is enabled
+#[cfg(feature = "native-inference")]
+pub use native::NativeClient;

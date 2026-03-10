@@ -587,6 +587,10 @@ impl TaskExecutor {
                         }
                         RigProvider::gemini()
                     }
+                    // v0.24: Native local inference (requires native-inference feature)
+                    // Note: Model must be loaded separately via load_native_model()
+                    #[cfg(feature = "native-inference")]
+                    "native" | "local" => RigProvider::native(),
                     _ => {
                         return Err(NikaError::ProviderNotConfigured {
                             provider: name.to_string(),

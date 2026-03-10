@@ -24,6 +24,7 @@ lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Prot
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
 spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+native-inference = ["dep:spn-native"]  # Native LLM inference via mistral.rs (local GGUF models)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
 docker = ["tui"]  # Docker build: TUI enabled, no keychain (uses env vars for secrets)
@@ -80,6 +81,11 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # Enable with: cargo build --features spn-daemon
 # v0.2.4: Re-exports spn-core types (providers, validation, backend)
 spn-client = { version = "0.2.4", optional = true }
+
+# Native inference via mistral.rs (v0.24)
+# Enables local GGUF model inference without Ollama
+# Enable with: cargo build --features native-inference
+spn-native = { path = "../../../supernovae-cli/crates/spn-native", features = ["inference"], optional = true }
 
 # Text editing (v0.21.2 - VS Code quality)
 ropey = "1.6"  # Efficient rope data structure for text editing
