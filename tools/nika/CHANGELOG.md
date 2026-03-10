@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.23.1](https://github.com/supernovae-st/nika/releases/tag/v0.23.1) - 2026-03-10
+
+### Fixed
+
+- **Provider Definitions** — Add DataForSEO and Ahrefs to fallback provider definitions
+  - Add `dataforseo` and `ahrefs` to `MCP_PROVIDER_IDS` in fallback.rs (6→8 providers)
+  - Add `DATAFORSEO_API_KEY` and `AHREFS_API_KEY` to `provider_env_var()`
+  - Fix `secrets.rs` `provider_env_var` for non-TUI builds
+  - Ensures consistency with spn-core `KNOWN_PROVIDERS` when spn-daemon feature is disabled
+
 ## [0.23.0](https://github.com/supernovae-st/nika/releases/tag/0.23.0) - 2026-03-10
 
 ### Audit Release

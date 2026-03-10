@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-03-10
+
+### Fixed
+
+- **Provider Definitions** — Add DataForSEO and Ahrefs to fallback provider definitions
+  - Add `dataforseo` and `ahrefs` to `MCP_PROVIDER_IDS` (6→8 providers)
+  - Add `DATAFORSEO_API_KEY` and `AHREFS_API_KEY` to `provider_env_var()`
+  - Ensures consistency with spn-core `KNOWN_PROVIDERS`
+
 ## [0.23.0] - 2026-03-10
 
 ### Audit Release — Comprehensive Feature Verification
