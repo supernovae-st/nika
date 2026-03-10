@@ -62,18 +62,21 @@ Production-ready workflow patterns for real-world scenarios.
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.5` (or earlier versions for compatibility).
+All workflows use schema `nika/workflow@0.10` (or earlier versions for compatibility).
 
-**v0.5 Schema Features:**
-- `decompose:` — Dynamic DAG expansion (MVP 8)
-- `lazy:` bindings — Deferred binding resolution
-- `spawn_agent` — Nested agent spawning with depth protection
-
-**Release v0.8.0** adds TUI DX improvements (Edit History, Session Persistence, Solarized Theme, Config System) but these don't change the workflow schema.
+**Current Schema Features (v0.10):**
+- `context:` — File loading at workflow start (v0.9+)
+- `include:` — DAG fusion from external workflows (v0.9+)
+- `exec.env:` — Environment variable injection (v0.22+)
+- `fetch.json:` — Auto-serialize JSON body (v0.22+)
+- `$inputs.*` bindings — Access workflow inputs in for_each (v0.22+)
+- `decompose:` — Dynamic DAG expansion (v0.5+)
+- `lazy:` bindings — Deferred binding resolution (v0.5+)
+- `spawn_agent` — Nested agent spawning with depth protection (v0.5+)
 
 ```yaml
-schema: "nika/workflow@0.5"
-provider: claude  # or openai (via rig-core)
+schema: "nika/workflow@0.10"
+provider: claude  # or openai, mistral, groq, deepseek, gemini, ollama
 
 mcp:
   novanet:

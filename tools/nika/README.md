@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.21.1-blue?logo=rust&logoColor=white)](Cargo.toml)
-[![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](../../docs/plans/2025-02-25-nika-fortress-design.md)
-[![Tests](https://img.shields.io/badge/tests-4152%20passing-brightgreen)](src/)
+[![Version](https://img.shields.io/badge/version-0.24.0-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-4282%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -43,20 +43,22 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.16.1 Features
+## v0.24.0 Features
 
-- **Registry Integration** - Fetch packages from SuperNovae registry
-- **Skill Injection** - Dynamic skill loading with `skill_injector.rs`
-- **Security Hardening** - Enhanced security module with `security.rs`
-- **Package Resolution** - Improved package resolution with `pkg_resolver.rs`
-- **3,358 tests passing** (full regression coverage)
+- **Language Improvements**
+  - `exec.env` - Environment variable injection for exec tasks
+  - `fetch.json` - Auto-serialize JSON body (sets Content-Type automatically)
+  - `inputs.xxx` references - Access workflow inputs in `use:` blocks
+  - `$inputs` binding - for_each accepts `$inputs.items` expressions
+- **TUI Panels Module** - TaskListPanel, TaskBoxFlow, BrowserPanel
+- **New Task Status** - `TaskStatus::Queued` and `TaskStatus::Skipped` variants
+- **4,282 tests passing** (full regression coverage)
 
-## v0.16.0 Features
+## v0.22.0+ Features
 
-- **TaskBox Rendering** - Improved task output display
-- **Studio DX Enhancements** - Better YAML editing experience
-- **Session Management** - Edit history and session persistence
-- **Solarized Theme** - Consistent color scheme across TUI
+- **4-View TUI Architecture** - Studio, Runner, Chat, Settings
+- **Two-Phase IR** - Raw AST → Analyzed AST pipeline
+- **spn Daemon Integration** - Unified secret management
 
 ## v0.15.0 Features
 
@@ -246,16 +248,16 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test                    # All 3,358 tests
+cargo test                    # All 4,282 tests
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.16.1)
-- **3,358 tests passing** (registry + security tests added)
+### Test Breakdown (v0.24.0)
+- **4,282 tests passing**
 - Zero clippy warnings
-- Schema @0.9 validation in CI
+- Schema @0.10 validation in CI
 
 ## ARMADA Quality System
 

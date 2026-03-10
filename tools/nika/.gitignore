@@ -1,4 +1,13 @@
+# Nika runtime directories
 .nika/
 .worktrees/
+
+# Build outputs
 dist/
 generated/
+
+# Trace files (generated during runs)
+traces/
+
+# Package artifacts
+target/package/
