@@ -143,6 +143,13 @@ pub enum NikaError {
     #[error("[NIKA-021] Missing dependency: task '{task_id}' depends on unknown '{dep_id}'")]
     MissingDependency { task_id: String, dep_id: String },
 
+    #[error("[NIKA-022] Duplicate task ID: '{task_id}' appears multiple times in workflow")]
+    #[diagnostic(
+        code(nika::duplicate_task_id),
+        help("Each task must have a unique ID. Rename one of the duplicate tasks.")
+    )]
+    DuplicateTaskId { task_id: String },
+
     #[error("[NIKA-025] Task '{task_id}' cannot run: dependency '{dependency}' failed")]
     #[diagnostic(
         code(nika::dependency_failed),
@@ -701,6 +708,7 @@ impl NikaError {
             // DAG errors
             Self::CycleDetected { .. } => "NIKA-020",
             Self::MissingDependency { .. } => "NIKA-021",
+            Self::DuplicateTaskId { .. } => "NIKA-022",
             Self::TaskDependencyFailed { .. } => "NIKA-025",
             Self::DependencyChainFailed { .. } => "NIKA-026",
             Self::TaskCancelled { .. } => "NIKA-027",
@@ -1088,6 +1096,10 @@ impl FixSuggestion for NikaError {
             // MCP reconnect (v0.24)
             NikaError::McpReconnectFailed { .. } => {
                 Some("MCP server reconnection failed. Check server is running and network connectivity.")
+            }
+            // Duplicate task ID (v0.25)
+            NikaError::DuplicateTaskId { .. } => {
+                Some("Each task must have a unique ID. Rename one of the duplicate tasks.")
             }
         }
     }
