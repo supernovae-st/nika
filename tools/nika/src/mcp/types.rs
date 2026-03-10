@@ -113,6 +113,24 @@ impl McpErrorCode {
             Self::Unknown(_) => "Unknown error",
         }
     }
+
+    /// Check if this error is potentially recoverable through retry.
+    ///
+    /// Returns `true` for transient errors that might succeed on retry:
+    /// - Internal errors (might be temporary server issues)
+    /// - Server errors (implementation-defined, often transient)
+    ///
+    /// Returns `false` for client errors that require fixing the request:
+    /// - Parse errors (invalid JSON won't become valid)
+    /// - Invalid request (malformed request structure)
+    /// - Invalid params (wrong parameters)
+    /// - Method not found (method doesn't exist)
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::InternalError | Self::ServerError(_) | Self::Unknown(_)
+        )
+    }
 }
 
 impl std::fmt::Display for McpErrorCode {
@@ -886,6 +904,52 @@ mod tests {
         let code = McpErrorCode::ParseError;
         let num: i32 = code.into();
         assert_eq!(num, -32700);
+    }
+
+    // ==========================================================================
+    // Tests for is_retryable() (v0.24 - Bug fix: structured error handling)
+    // ==========================================================================
+
+    #[test]
+    fn test_mcp_error_code_retryable_internal_error() {
+        let code = McpErrorCode::InternalError;
+        assert!(code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_retryable_server_error() {
+        let code = McpErrorCode::ServerError(-32050);
+        assert!(code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_retryable_unknown() {
+        let code = McpErrorCode::Unknown(-999);
+        assert!(code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_not_retryable_parse_error() {
+        let code = McpErrorCode::ParseError;
+        assert!(!code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_not_retryable_invalid_request() {
+        let code = McpErrorCode::InvalidRequest;
+        assert!(!code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_not_retryable_invalid_params() {
+        let code = McpErrorCode::InvalidParams;
+        assert!(!code.is_retryable());
+    }
+
+    #[test]
+    fn test_mcp_error_code_not_retryable_method_not_found() {
+        let code = McpErrorCode::MethodNotFound;
+        assert!(!code.is_retryable());
     }
 
     // ==========================================================================

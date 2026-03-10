@@ -1622,12 +1622,15 @@ mod tests {
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // The quotes should be escaped with backslash
-        assert!(result.contains(r#"\""#), "Quotes should be escaped: {}", result);
+        assert!(
+            result.contains(r#"\""#),
+            "Quotes should be escaped: {}",
+            result
+        );
         // The result should be valid JSON - quotes are escaped so injection fails
         // The "admin" key appears but as escaped string content, not as JSON structure
         assert_eq!(
-            result,
-            r#"{"user": "Alice\", \"admin\": true, \"x\": "}"#,
+            result, r#"{"user": "Alice\", \"admin\": true, \"x\": "}"#,
             "Quotes should be escaped to prevent JSON structure injection"
         );
         // Verify the injected "admin" is inside the string value, not a real key
@@ -1646,7 +1649,11 @@ mod tests {
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // Backslashes should be escaped
-        assert!(result.contains(r#"\\"#), "Backslashes should be escaped: {}", result);
+        assert!(
+            result.contains(r#"\\"#),
+            "Backslashes should be escaped: {}",
+            result
+        );
     }
 
     #[test]
@@ -1660,9 +1667,15 @@ mod tests {
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // Raw newline should become \n
-        assert!(result.contains(r#"\n"#), "Newlines should be escaped: {}", result);
-        assert!(!result.contains('\n') || result.matches('\n').count() == 0 ||
-                result.contains("\\n"), "Raw newlines should be escaped");
+        assert!(
+            result.contains(r#"\n"#),
+            "Newlines should be escaped: {}",
+            result
+        );
+        assert!(
+            !result.contains('\n') || result.matches('\n').count() == 0 || result.contains("\\n"),
+            "Raw newlines should be escaped"
+        );
     }
 
     #[test]
@@ -1806,7 +1819,9 @@ mod tests {
 
         let mut context = LoadedContext::new();
         // File name that looks like template syntax - but file content is safe
-        context.files.insert("normal".to_string(), json!("safe content"));
+        context
+            .files
+            .insert("normal".to_string(), json!("safe content"));
         store.set_context(context);
 
         let result = resolve("{{context.files.normal}}", &bindings, &store).unwrap();
@@ -1820,7 +1835,9 @@ mod tests {
         let store = DataStore::new();
 
         let mut context = LoadedContext::new();
-        context.files.insert("brand".to_string(), json!("Brand: {{use.secret}}"));
+        context
+            .files
+            .insert("brand".to_string(), json!("Brand: {{use.secret}}"));
         store.set_context(context);
 
         let result = resolve("{{context.files.brand}}", &bindings, &store).unwrap();
@@ -1835,10 +1852,13 @@ mod tests {
         let store = DataStore::new();
 
         let mut inputs = FxHashMap::default();
-        inputs.insert("topic".to_string(), json!({
-            "type": "string",
-            "default": "Learn about {{use.secret}}"
-        }));
+        inputs.insert(
+            "topic".to_string(),
+            json!({
+                "type": "string",
+                "default": "Learn about {{use.secret}}"
+            }),
+        );
         store.set_inputs(inputs);
 
         let result = resolve("{{inputs.topic}}", &bindings, &store).unwrap();
@@ -1855,7 +1875,9 @@ mod tests {
         let store = DataStore::new();
 
         let mut context = LoadedContext::new();
-        context.files.insert("secret".to_string(), json!("CONFIDENTIAL"));
+        context
+            .files
+            .insert("secret".to_string(), json!("CONFIDENTIAL"));
         store.set_context(context);
 
         // Template only has use binding, but its value contains context syntax

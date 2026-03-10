@@ -38,7 +38,7 @@ use parking_lot::Mutex;
 use rmcp::model::{CallToolRequestParams, ListToolsResult};
 use rmcp::service::{RoleClient, RunningService};
 use rmcp::transport::TokioChildProcess;
-use rmcp::ServiceExt;
+use rmcp::{ServiceError, ServiceExt};
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::Mutex as AsyncMutex;
@@ -49,12 +49,45 @@ use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
 use crate::mcp::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,
 };
-use crate::util::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT};
+use crate::util::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT, RECONNECT_TIMEOUT};
 
-/// Extract JSON-RPC error code from error message if present.
+/// Extract JSON-RPC error code from rmcp ServiceError.
+///
+/// Uses structured error extraction from rmcp's ServiceError type.
+/// Falls back to regex-based extraction for legacy compatibility.
+fn extract_mcp_error_code(error: &ServiceError) -> Option<McpErrorCode> {
+    match error {
+        ServiceError::McpError(mcp_error) => {
+            // Direct structured access to error code from ErrorData
+            Some(McpErrorCode::from_code(mcp_error.code.0))
+        }
+        ServiceError::Timeout { .. } => {
+            // Timeout is not a JSON-RPC error, but we can map it
+            None
+        }
+        ServiceError::TransportClosed | ServiceError::TransportSend(_) => {
+            // Transport errors are not JSON-RPC errors
+            None
+        }
+        ServiceError::Cancelled { .. } => {
+            // Cancellation is not a JSON-RPC error
+            None
+        }
+        ServiceError::UnexpectedResponse => {
+            // Protocol error, not JSON-RPC
+            None
+        }
+        // ServiceError is #[non_exhaustive], handle any new variants
+        _ => None,
+    }
+}
+
+/// Extract JSON-RPC error code from error message string (fallback).
 ///
 /// Attempts to find standard JSON-RPC error codes (-32xxx) in error strings.
-fn extract_error_code(error: &str) -> Option<McpErrorCode> {
+/// Used as fallback when structured extraction is not available.
+#[allow(dead_code)] // Kept for legacy compatibility and fallback scenarios
+fn extract_error_code_from_string(error: &str) -> Option<McpErrorCode> {
     // Look for patterns like "code: -32602" or "(-32602)" or "error -32602"
     let patterns = [r"code:\s*(-?\d+)", r"\((-\d+)\)", r"error\s+(-\d+)"];
 
@@ -242,14 +275,32 @@ impl RmcpClientAdapter {
     /// Reconnect to the MCP server.
     ///
     /// Disconnects if connected, then establishes a new connection.
+    /// The entire reconnection operation has a timeout of RECONNECT_TIMEOUT (30 seconds)
+    /// to prevent indefinite hanging on unresponsive MCP servers.
+    ///
+    /// # v0.24 Bug Fix
+    ///
+    /// Prior to v0.24, reconnection attempts could hang indefinitely if the MCP server
+    /// became unresponsive during reconnection. This fix wraps the entire operation
+    /// with a 30-second timeout.
     pub async fn reconnect(&self) -> Result<()> {
         tracing::info!(
             mcp_server = %self.name,
-            "Attempting MCP server reconnection"
+            timeout_secs = RECONNECT_TIMEOUT.as_secs(),
+            "Attempting MCP server reconnection with timeout"
         );
 
-        self.disconnect().await?;
-        self.connect().await
+        // Wrap entire reconnection with timeout to prevent indefinite hanging
+        timeout(RECONNECT_TIMEOUT, async {
+            self.disconnect().await?;
+            self.connect().await
+        })
+        .await
+        .map_err(|_| NikaError::McpTimeout {
+            name: self.name.clone(),
+            operation: "reconnect".to_string(),
+            timeout_secs: RECONNECT_TIMEOUT.as_secs(),
+        })?
     }
 
     /// Call an MCP tool with the given parameters.
@@ -296,11 +347,12 @@ impl RmcpClientAdapter {
                 timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
             })?
             .map_err(|e| {
-                let error_str = e.to_string();
+                // Use structured error code extraction from ServiceError
+                let error_code = extract_mcp_error_code(&e);
                 NikaError::McpToolError {
                     tool: name.to_string(),
-                    reason: error_str.clone(),
-                    error_code: extract_error_code(&error_str),
+                    reason: e.to_string(),
+                    error_code,
                 }
             })?;
 
@@ -396,18 +448,23 @@ impl RmcpClientAdapter {
                 timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
             })?
             .map_err(|e| {
-                // Check for not found error
-                let error_str = e.to_string().to_lowercase();
-                if error_str.contains("not found") {
+                // Use structured error code extraction
+                let error_code = extract_mcp_error_code(&e);
+
+                // Check for resource not found (either via error code or message)
+                // MCP uses -32002 (RESOURCE_NOT_FOUND) which maps to ServerError(-32002)
+                let is_not_found = matches!(error_code, Some(McpErrorCode::ServerError(-32002)))
+                    || e.to_string().to_lowercase().contains("not found");
+
+                if is_not_found {
                     NikaError::McpResourceNotFound {
                         uri: uri.to_string(),
                     }
                 } else {
-                    let error_str = e.to_string();
                     NikaError::McpToolError {
                         tool: "resources/read".to_string(),
-                        reason: error_str.clone(),
-                        error_code: extract_error_code(&error_str),
+                        reason: e.to_string(),
+                        error_code,
                     }
                 }
             })?;
@@ -460,11 +517,12 @@ impl RmcpClientAdapter {
                     timeout_secs: MCP_CALL_TIMEOUT.as_secs(),
                 })?
                 .map_err(|e| {
-                    let error_str = e.to_string();
+                    // Use structured error code extraction
+                    let error_code = extract_mcp_error_code(&e);
                     NikaError::McpToolError {
                         tool: "tools/list".to_string(),
-                        reason: error_str.clone(),
-                        error_code: extract_error_code(&error_str),
+                        reason: e.to_string(),
+                        error_code,
                     }
                 })?;
 
@@ -777,6 +835,11 @@ mod tests {
     // Error Code Extraction Tests (v0.5.3)
     // ═══════════════════════════════════════════════════════════════════════════
 
+    /// Alias for extract_error_code_from_string for test compatibility
+    fn extract_error_code(error: &str) -> Option<McpErrorCode> {
+        extract_error_code_from_string(error)
+    }
+
     #[test]
     fn test_extract_error_code_with_code_pattern() {
         let error = "JSON-RPC error code: -32602 - Invalid params";
@@ -893,6 +956,119 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // Structured Error Code Extraction Tests (v0.22 - Bug 3 fix)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    use rmcp::model::ErrorCode;
+
+    /// Helper to create an McpError (ErrorData) for testing
+    fn make_mcp_error(code: i32, message: &str) -> ServiceError {
+        ServiceError::McpError(rmcp::ErrorData::new(
+            ErrorCode(code),
+            message.to_string(),
+            None,
+        ))
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_invalid_params() {
+        let error = make_mcp_error(-32602, "Invalid params");
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, Some(McpErrorCode::InvalidParams));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_method_not_found() {
+        let error = make_mcp_error(-32601, "Method not found");
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, Some(McpErrorCode::MethodNotFound));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_parse_error() {
+        let error = make_mcp_error(-32700, "Parse error");
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, Some(McpErrorCode::ParseError));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_invalid_request() {
+        let error = make_mcp_error(-32600, "Invalid request");
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, Some(McpErrorCode::InvalidRequest));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_internal_error() {
+        let error = make_mcp_error(-32603, "Internal error");
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, Some(McpErrorCode::InternalError));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_server_error() {
+        let error = make_mcp_error(-32050, "Server error");
+        let code = extract_mcp_error_code(&error);
+        assert!(matches!(code, Some(McpErrorCode::ServerError(-32050))));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_resource_not_found() {
+        let error = make_mcp_error(-32002, "Resource not found");
+        let code = extract_mcp_error_code(&error);
+        // -32002 is in the ServerError range (-32099..=-32000)
+        // MCP uses this for RESOURCE_NOT_FOUND
+        assert_eq!(code, Some(McpErrorCode::ServerError(-32002)));
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_various_server_errors() {
+        let test_cases = vec![
+            (-32000, McpErrorCode::ServerError(-32000)),
+            (-32050, McpErrorCode::ServerError(-32050)),
+            (-32099, McpErrorCode::ServerError(-32099)),
+        ];
+
+        for (error_code, expected) in test_cases {
+            let error = make_mcp_error(error_code, "Test error");
+            let code = extract_mcp_error_code(&error);
+            assert_eq!(code, Some(expected), "Failed for code: {}", error_code);
+        }
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_timeout_returns_none() {
+        let error = ServiceError::Timeout {
+            timeout: std::time::Duration::from_secs(30),
+        };
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_transport_closed_returns_none() {
+        let error = ServiceError::TransportClosed;
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_cancelled_returns_none() {
+        let error = ServiceError::Cancelled {
+            reason: Some("User cancelled".to_string()),
+        };
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, None);
+    }
+
+    #[test]
+    fn test_extract_mcp_error_code_unexpected_response_returns_none() {
+        let error = ServiceError::UnexpectedResponse;
+        let code = extract_mcp_error_code(&error);
+        assert_eq!(code, None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Integration Tests (Configuration & Conversion)
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -923,5 +1099,36 @@ mod tests {
         let adapter = RmcpClientAdapter::new(config);
 
         assert_eq!(adapter.name(), "my-test-server");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // v0.24: Reconnection Timeout Tests
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_reconnect_timeout_constant_is_30_seconds() {
+        // v0.24: Reconnection has explicit 30-second timeout
+        assert_eq!(RECONNECT_TIMEOUT.as_secs(), 30);
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_when_not_connected() {
+        // Reconnect on disconnected adapter should attempt connect
+        let config = McpConfig::new("test", "nonexistent_command_xyz");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Reconnect should fail (command doesn't exist), but with proper error
+        let result = adapter.reconnect().await;
+        assert!(result.is_err());
+
+        // Should not be connected after failed reconnect
+        assert!(!adapter.is_connected().await);
+    }
+
+    #[test]
+    fn test_reconnect_timeout_exceeds_connect_timeout() {
+        // Reconnect timeout should be >= connect timeout
+        // since reconnect involves disconnect + connect
+        assert!(RECONNECT_TIMEOUT >= CONNECT_TIMEOUT);
     }
 }

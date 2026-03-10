@@ -56,9 +56,8 @@ fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), Ni
             NikaError::WorkflowNotFound {
                 path: format!("{}: {}", e.target_path.display(), e.reason),
             }
-        } else if e.reason.contains("Cannot resolve base path") {
-            NikaError::ValidationError { reason: e.reason }
         } else {
+            // Covers both "Cannot resolve base path" and other validation errors
             NikaError::ValidationError { reason: e.reason }
         }
     })

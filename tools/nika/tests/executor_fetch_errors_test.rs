@@ -33,6 +33,7 @@ fn fetch_params(url: &str) -> FetchParams {
         json: None,
         timeout: None,
         retry: None,
+        follow_redirects: None,
     }
 }
 

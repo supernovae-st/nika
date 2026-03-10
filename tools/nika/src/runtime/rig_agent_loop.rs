@@ -24,7 +24,7 @@ use futures::StreamExt;
 use rig::agent::AgentBuilder;
 use rig::agent::{MultiTurnStreamItem, StreamingResult as RigStreamingResult};
 use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::{Chat, CompletionModel as _, GetTokenUsage, Prompt};
+use rig::completion::{Chat, CompletionModel as _, GetTokenUsage};
 use rig::message::{Message, ReasoningContent, ToolChoice as RigToolChoice};
 use rig::providers::{anthropic, openai};
 use rig::streaming::{StreamedAssistantContent, StreamingPrompt};
@@ -1285,23 +1285,23 @@ impl RigAgentLoop {
         })
     }
 
-    /// Execute agent with tools using streaming for token tracking (when possible).
+    /// Execute agent with tools using streaming for token tracking (v0.24.0: always tracked).
     ///
     /// This handles the case where we need both tool calling AND token tracking.
     ///
     /// **Strategy:**
     /// - No tools: Use `model.stream()` for pure streaming with full token tracking
-    /// - With tools: Fall back to `agent.prompt()` (tokens will be 0)
+    /// - With tools + TUI: Use `stream_prompt()` with real-time chunk delivery
+    /// - With tools + CLI: Use `stream_prompt()` without TUI, still captures tokens
     ///
-    /// **NOTE:** Waiting on rig-core streaming agent API (upstream limitation).
-    /// Tracking: https://github.com/0xPlaygrounds/rig/issues (check for streaming agent RFC)
-    /// When available, migrate from `agent.prompt()` to streaming agent API for full token tracking with tools.
+    /// **v0.24.0 Fix:** Previously, CLI mode with tools returned 0 tokens. Now all paths
+    /// use `stream_prompt()` which provides token usage via `FinalResponse::usage()`.
     ///
     /// # Type Parameters
     /// - `M`: A rig completion model that supports streaming
     ///
     /// # Returns
-    /// A `StreamingResult` - with accurate tokens when no tools, 0 tokens otherwise.
+    /// A `StreamingResult` with accurate token tracking in all modes.
     async fn stream_with_tools<M>(
         &mut self,
         model: M,
@@ -1327,7 +1327,8 @@ impl RigAgentLoop {
                     .await;
             }
 
-            // Fallback: No TUI (CLI mode) - use blocking agent.prompt()
+            // CLI mode (no TUI): Use stream_prompt() for token tracking (v0.24.0)
+            // Even without TUI, we need streaming to extract token usage from FinalResponse
             // Use preamble with injected skills (v0.15.4)
             let mut builder = AgentBuilder::new(model)
                 .preamble(&preamble)
@@ -1348,20 +1349,70 @@ impl RigAgentLoop {
 
             let agent = builder.build();
 
-            let response = agent
-                .prompt(prompt)
-                .max_turns(max_turns)
-                .await
-                .map_err(|e| NikaError::AgentExecutionError {
-                    task_id: self.task_id.clone(),
-                    reason: e.to_string(),
-                })?;
+            // v0.24.0: Use stream_prompt() to get token usage via FinalResponse
+            // This consumes the stream without sending to TUI, but captures token counts
+            let mut stream: RigStreamingResult<_> = agent
+                .stream_prompt(prompt)
+                .multi_turn(max_turns.saturating_sub(1))
+                .await;
+
+            let mut response_text = String::new();
+            let mut thinking_text: Option<String> = None;
+            let mut input_tokens = 0u32;
+            let mut output_tokens = 0u32;
+
+            // Consume stream, extracting text and token usage
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(item) => match item {
+                        // Accumulate text chunks
+                        MultiTurnStreamItem::StreamAssistantItem(
+                            StreamedAssistantContent::Text(text),
+                        ) => {
+                            response_text.push_str(&text.text);
+                        }
+                        // Capture reasoning (Claude extended thinking)
+                        MultiTurnStreamItem::StreamAssistantItem(
+                            StreamedAssistantContent::Reasoning(reasoning),
+                        ) => {
+                            let reasoning_str = reasoning
+                                .content
+                                .iter()
+                                .filter_map(|c| match c {
+                                    ReasoningContent::Text { text, .. } => Some(text.as_str()),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("");
+                            match &mut thinking_text {
+                                Some(t) => t.push_str(&reasoning_str),
+                                None => thinking_text = Some(reasoning_str),
+                            }
+                        }
+                        // Final response with authoritative text and token usage
+                        MultiTurnStreamItem::FinalResponse(resp) => {
+                            response_text = resp.response().to_string();
+                            let usage = resp.usage();
+                            input_tokens = usage.input_tokens as u32;
+                            output_tokens = usage.output_tokens as u32;
+                        }
+                        // Ignore tool calls and other items in CLI mode
+                        _ => {}
+                    },
+                    Err(e) => {
+                        return Err(NikaError::AgentExecutionError {
+                            task_id: self.task_id.clone(),
+                            reason: format!("Stream error: {}", e),
+                        });
+                    }
+                }
+            }
 
             Ok(StreamingResult {
-                response,
-                input_tokens: 0, // Not available with agent.prompt()
-                output_tokens: 0,
-                thinking: None,
+                response: response_text,
+                input_tokens, // Now tracked via FinalResponse
+                output_tokens,
+                thinking: thinking_text,
             })
         }
     }

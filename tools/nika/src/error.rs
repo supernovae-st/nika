@@ -143,6 +143,34 @@ pub enum NikaError {
     #[error("[NIKA-021] Missing dependency: task '{task_id}' depends on unknown '{dep_id}'")]
     MissingDependency { task_id: String, dep_id: String },
 
+    #[error("[NIKA-025] Task '{task_id}' cannot run: dependency '{dependency}' failed")]
+    #[diagnostic(
+        code(nika::dependency_failed),
+        help("A task in the dependency chain failed. Check earlier task failures for the root cause.")
+    )]
+    TaskDependencyFailed { task_id: String, dependency: String },
+
+    #[error("[NIKA-026] Dependency chain failed: {count} task(s) blocked by failed dependencies")]
+    #[diagnostic(
+        code(nika::dependency_chain_failed),
+        help("One or more upstream tasks failed, blocking downstream tasks. Fix the failing tasks first.")
+    )]
+    DependencyChainFailed {
+        /// Number of tasks blocked
+        count: usize,
+        /// List of blocked task IDs
+        blocked_tasks: Vec<String>,
+        /// The root failure that caused the chain
+        root_failure: Option<String>,
+    },
+
+    #[error("[NIKA-027] Task '{task_id}' was cancelled due to fail_fast")]
+    #[diagnostic(
+        code(nika::task_cancelled),
+        help("Another task in the for_each batch failed with fail_fast=true, causing remaining tasks to be cancelled.")
+    )]
+    TaskCancelled { task_id: String, reason: String },
+
     // ═══════════════════════════════════════════
     // PROVIDER ERRORS (030-039)
     // ═══════════════════════════════════════════
@@ -222,6 +250,13 @@ pub enum NikaError {
 
     #[error("[NIKA-056] Invalid default value '{raw}': {reason}")]
     InvalidDefault { raw: String, reason: String },
+
+    #[error("[NIKA-057] Builtin tool '{tool}' timed out after {timeout_secs} seconds")]
+    #[diagnostic(
+        code(nika::builtin_tool_timeout),
+        help("Builtin tools have a maximum execution time to prevent workflow blocking")
+    )]
+    BuiltinToolTimeout { tool: String, timeout_secs: u64 },
 
     // ═══════════════════════════════════════════
     // OUTPUT ERRORS (060-069) - v0.1
@@ -417,6 +452,22 @@ pub enum NikaError {
 
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     Timeout { operation: String, duration_ms: u64 },
+
+    #[error(
+        "[NIKA-122] Task exceeded MCP deadline after {call_count} calls ({deadline_secs}s total)"
+    )]
+    #[diagnostic(
+        code(nika::task_mcp_deadline_exceeded),
+        help("Reduce the number of MCP calls or increase task timeout")
+    )]
+    TaskMcpDeadlineExceeded { call_count: u32, deadline_secs: u64 },
+
+    #[error("[NIKA-123] MCP server '{server}' reconnection failed after {attempts} attempts")]
+    #[diagnostic(
+        code(nika::mcp_reconnect_failed),
+        help("Check MCP server is running and network connectivity")
+    )]
+    McpReconnectFailed { server: String, attempts: u32 },
 
     #[error("[NIKA-125] MCP tool call '{tool}' failed: {reason}")]
     McpToolCallFailed { tool: String, reason: String },
@@ -650,6 +701,9 @@ impl NikaError {
             // DAG errors
             Self::CycleDetected { .. } => "NIKA-020",
             Self::MissingDependency { .. } => "NIKA-021",
+            Self::TaskDependencyFailed { .. } => "NIKA-025",
+            Self::DependencyChainFailed { .. } => "NIKA-026",
+            Self::TaskCancelled { .. } => "NIKA-027",
             // Provider errors
             Self::Provider(_) => "NIKA-030", // legacy
             Self::ProviderNotConfigured { .. } => "NIKA-030",
@@ -670,6 +724,7 @@ impl NikaError {
             Self::BlockedCommand { .. } => "NIKA-053",
             Self::InvalidTaskId { .. } => "NIKA-055",
             Self::InvalidDefault { .. } => "NIKA-056",
+            Self::BuiltinToolTimeout { .. } => "NIKA-057",
             // Output errors
             Self::InvalidJson { .. } => "NIKA-060",
             Self::SchemaFailed { .. } => "NIKA-061",
@@ -715,6 +770,8 @@ impl NikaError {
             // Resilience errors
             Self::ProviderError { .. } => "NIKA-120",
             Self::Timeout { .. } => "NIKA-121",
+            Self::TaskMcpDeadlineExceeded { .. } => "NIKA-122",
+            Self::McpReconnectFailed { .. } => "NIKA-123",
             Self::McpToolCallFailed { .. } => "NIKA-125",
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
@@ -768,11 +825,15 @@ impl NikaError {
                 | Self::Timeout { .. }
                 | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
+                // Reconnection failures are potentially recoverable
+                | Self::McpReconnectFailed { .. }
                 // Structured output errors that can be retried (v0.21)
                 | Self::StructuredOutputExtractionFailed { .. }
                 | Self::StructuredOutputValidationFailed { .. }
                 | Self::StructuredOutputRepairFailed { .. }
         )
+        // Note: BuiltinToolTimeout and TaskMcpDeadlineExceeded are NOT recoverable
+        // because they indicate a resource exhaustion issue that won't be fixed by retrying
     }
 }
 
@@ -1005,6 +1066,28 @@ impl FixSuggestion for NikaError {
             }
             NikaError::StructuredOutputAllLayersFailed { .. } => {
                 Some("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
+            }
+            // Task dependency/lifecycle errors (v0.24)
+            NikaError::TaskDependencyFailed { .. } => {
+                Some("A dependency task failed. Check upstream task errors.")
+            }
+            NikaError::DependencyChainFailed { .. } => {
+                Some("Dependency chain failed. Fix upstream task errors first.")
+            }
+            NikaError::TaskCancelled { .. } => {
+                Some("Task was cancelled. Check workflow execution logs.")
+            }
+            // Builtin tool timeout (v0.24)
+            NikaError::BuiltinToolTimeout { .. } => {
+                Some("Builtin tool timed out. Increase timeout or check for deadlocks.")
+            }
+            // MCP deadline (v0.24)
+            NikaError::TaskMcpDeadlineExceeded { .. } => {
+                Some("Task exceeded MCP call deadline. Reduce MCP calls or increase deadline.")
+            }
+            // MCP reconnect (v0.24)
+            NikaError::McpReconnectFailed { .. } => {
+                Some("MCP server reconnection failed. Check server is running and network connectivity.")
             }
         }
     }

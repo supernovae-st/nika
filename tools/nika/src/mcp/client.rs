@@ -64,6 +64,7 @@ use crate::event::{EventKind, EventLog};
 use crate::mcp::rmcp_adapter::RmcpClientAdapter;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
 use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
+use crate::util::MAX_RECONNECT_ATTEMPTS;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HEALTH CHECK TYPES (v0.8.2)
@@ -876,7 +877,7 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = 3;
+        let max_retries = MAX_RECONNECT_ATTEMPTS;
         let mut last_error: Option<NikaError> = None;
 
         for attempt in 0..=max_retries {
@@ -1055,7 +1056,7 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = 3;
+        let max_retries = MAX_RECONNECT_ATTEMPTS;
         let mut last_error: Option<NikaError> = None;
 
         for attempt in 0..=max_retries {
@@ -1163,7 +1164,7 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = 3;
+        let max_retries = MAX_RECONNECT_ATTEMPTS;
         let mut last_error: Option<NikaError> = None;
 
         for attempt in 0..=max_retries {

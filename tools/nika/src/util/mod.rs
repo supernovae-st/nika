@@ -14,7 +14,8 @@ pub mod jsonpath;
 // Re-export public types
 pub use constants::{
     CONNECT_TIMEOUT, DECOMPOSE_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, INFER_TIMEOUT,
-    MCP_CALL_TIMEOUT, MCP_INIT_TIMEOUT, REDIRECT_LIMIT, STREAM_CHUNK_TIMEOUT,
+    INVOKE_TASK_DEADLINE, MAX_RECONNECT_ATTEMPTS, MCP_CALL_TIMEOUT, MCP_INIT_TIMEOUT,
+    RECONNECT_TIMEOUT, REDIRECT_LIMIT, STREAM_CHUNK_TIMEOUT,
 };
 pub use fs::{atomic_write, atomic_write_async, check_preview_size, format_size};
 pub use interner::{intern, Interner};

@@ -25,10 +25,12 @@ use crate::mcp::{McpClient, McpConfig};
 use crate::provider::rig::{InferOptions, RigProvider, StreamChunk};
 use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::{PolicyDecision, PolicyEnforcer};
-use crate::runtime::{BuiltinToolRouter, RigAgentLoop, StructuredOutputEngine};
+use crate::runtime::{BuiltinToolRouter, InferCallback, RigAgentLoop, StructuredOutputEngine};
 use crate::store::DataStore;
 use crate::tools::{PermissionMode, ToolContext};
-use crate::util::{CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
+use crate::util::{
+    CONNECT_TIMEOUT, EXEC_TIMEOUT, FETCH_TIMEOUT, INVOKE_TASK_DEADLINE, REDIRECT_LIMIT,
+};
 
 /// Task executor with cached providers, shared HTTP client, and event logging
 #[derive(Clone)]
@@ -794,6 +796,7 @@ impl TaskExecutor {
         });
 
         // v0.22.0: Structured output validation via StructuredOutputEngine
+        // v0.24.0: Added InferCallback for real Layer 3 & 4 LLM retry/repair
         // If output policy requires JSON with schema, validate and repair the output
         if let Some(policy) = output_policy {
             if policy.is_structured() {
@@ -803,8 +806,29 @@ impl TaskExecutor {
                         "Validating structured output via StructuredOutputEngine"
                     );
 
+                    // Create inference callback for Layer 3 & 4 (v0.24.0)
+                    // This allows the engine to actually call the LLM for retries and repairs
+                    let infer_callback: InferCallback = {
+                        let provider = provider.clone();
+                        let model_for_retry = model.map(|s| s.to_string());
+                        Arc::new(move |retry_prompt: String| {
+                            let provider = provider.clone();
+                            let model = model_for_retry.clone();
+                            Box::pin(async move {
+                                provider
+                                    .infer(&retry_prompt, model.as_deref())
+                                    .await
+                                    .map_err(|e| NikaError::ProviderApiError {
+                                        message: format!("structured output retry failed: {}", e),
+                                    })
+                            })
+                        })
+                    };
+
                     let mut engine =
-                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()));
+                        StructuredOutputEngine::new(spec, Arc::new(self.event_log.clone()))
+                            .with_infer_callback(infer_callback)
+                            .with_original_prompt(prompt.to_string());
 
                     // Validate through 4-layer defense system
                     let result = engine
@@ -1234,52 +1258,67 @@ impl TaskExecutor {
             .ok_or_else(|| NikaError::ValidationError {
                 reason: "MCP server name required for non-builtin tools".to_string(),
             })?;
-        let client = self.get_mcp_client(mcp_name).await?;
 
-        let is_error = false;
-        let result = if let Some(tool) = &invoke.tool {
-            // Tool call path - use already-resolved params (v0.12.1: moved resolution before event)
-            let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
-            // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
-            let tool_result = client
-                .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
-                .await?;
+        // v0.24: Wrap MCP operations with task deadline to prevent unbounded execution
+        // This prevents N retries × MCP_CALL_TIMEOUT from causing runaway tasks
+        let mcp_result = tokio::time::timeout(INVOKE_TASK_DEADLINE, async {
+            let client = self.get_mcp_client(mcp_name).await?;
 
-            // Check if tool returned an error
-            if tool_result.is_error {
-                // Emit response event before returning error
-                let duration_ms = start_time.elapsed().as_millis() as u64;
-                let error_text = tool_result.text();
-                self.event_log.emit(EventKind::McpResponse {
-                    task_id: Arc::clone(task_id),
-                    call_id: call_id.clone(),
-                    output_len: error_text.len(),
-                    duration_ms,
-                    cached: false,
-                    is_error: true,
-                    response: Some(serde_json::json!({"error": error_text.clone()})),
-                });
-                return Err(NikaError::McpToolError {
-                    tool: tool.clone(),
-                    reason: error_text,
-                    error_code: None,
-                });
-            }
+            let is_error = false;
+            let result = if let Some(tool) = &invoke.tool {
+                // Tool call path - use already-resolved params (v0.12.1: moved resolution before event)
+                let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
+                // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
+                let tool_result = client
+                    .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
+                    .await?;
 
-            // Extract text and try to parse as JSON
-            let text = tool_result.text();
-            serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
-        } else if let Some(resource) = &invoke.resource {
-            // Resource read path
-            let content = client.read_resource(resource).await?;
-            content
-                .text
-                .and_then(|t| serde_json::from_str(&t).ok())
-                .unwrap_or(serde_json::Value::Null)
-        } else {
-            // validate() ensures this never happens
-            unreachable!("validate() ensures tool or resource is set")
-        };
+                // Check if tool returned an error
+                if tool_result.is_error {
+                    // Emit response event before returning error
+                    let duration_ms = start_time.elapsed().as_millis() as u64;
+                    let error_text = tool_result.text();
+                    self.event_log.emit(EventKind::McpResponse {
+                        task_id: Arc::clone(task_id),
+                        call_id: call_id.clone(),
+                        output_len: error_text.len(),
+                        duration_ms,
+                        cached: false,
+                        is_error: true,
+                        response: Some(serde_json::json!({"error": error_text.clone()})),
+                    });
+                    return Err(NikaError::McpToolError {
+                        tool: tool.clone(),
+                        reason: error_text,
+                        error_code: None,
+                    });
+                }
+
+                // Extract text and try to parse as JSON
+                let text = tool_result.text();
+                serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
+            } else if let Some(resource) = &invoke.resource {
+                // Resource read path
+                let content = client.read_resource(resource).await?;
+                content
+                    .text
+                    .and_then(|t| serde_json::from_str(&t).ok())
+                    .unwrap_or(serde_json::Value::Null)
+            } else {
+                // validate() ensures this never happens
+                unreachable!("validate() ensures tool or resource is set")
+            };
+
+            Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))
+        })
+        .await
+        .map_err(|_| NikaError::McpTimeout {
+            name: mcp_name.clone(),
+            operation: format!("invoke task (deadline {}s)", INVOKE_TASK_DEADLINE.as_secs()),
+            timeout_secs: INVOKE_TASK_DEADLINE.as_secs(),
+        })??;
+
+        let (result, is_error, client) = mcp_result;
 
         // EMIT: McpResponse event (with full response for TUI display)
         let duration_ms = start_time.elapsed().as_millis() as u64;

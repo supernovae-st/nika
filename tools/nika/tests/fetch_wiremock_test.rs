@@ -46,6 +46,7 @@ fn fetch_params(url: &str, http_method: &str, body: Option<String>) -> FetchPara
         json: None,
         timeout: None,
         retry: None,
+        follow_redirects: None,
     }
 }
 
@@ -67,6 +68,7 @@ fn fetch_params_with_headers(
         json: None,
         timeout: None,
         retry: None,
+        follow_redirects: None,
     }
 }
 

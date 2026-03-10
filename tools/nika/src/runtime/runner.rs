@@ -231,6 +231,9 @@ impl Runner {
     }
 
     /// Get tasks that are ready to run (all dependencies satisfied)
+    ///
+    /// v0.24: Also detects and marks tasks whose dependencies have failed.
+    /// These tasks are marked as DependencyFailed and stored in the datastore.
     fn get_ready_tasks(&self) -> Vec<Arc<Task>> {
         self.workflow
             .tasks
@@ -241,20 +244,79 @@ impl Runner {
                     return false;
                 }
 
-                // Check all dependencies are done AND successful
+                // Check all dependencies
                 let deps = self.flow_graph.get_dependencies(&task.id);
-                deps.iter().all(|dep| self.datastore.is_success(dep))
+                for dep in deps.iter() {
+                    // Check if dependency has completed
+                    if let Some(dep_result) = self.datastore.get(dep.as_ref()) {
+                        // If dependency failed (either directly or via its own dependencies),
+                        // mark this task as DependencyFailed
+                        if !dep_result.is_success() {
+                            // Store DependencyFailed result for this task
+                            self.datastore.insert(
+                                intern(&task.id),
+                                TaskResult::dependency_failed(dep.as_ref()),
+                            );
+
+                            // Emit event for observability
+                            self.event_log.emit(EventKind::TaskFailed {
+                                task_id: Arc::from(task.id.as_str()),
+                                error: format!("Cannot run: dependency '{}' failed", dep.as_ref()),
+                                duration_ms: 0,
+                            });
+
+                            debug!(
+                                task_id = %task.id,
+                                dependency = %dep.as_ref(),
+                                "Task blocked due to failed dependency"
+                            );
+
+                            return false;
+                        }
+                    } else {
+                        // Dependency hasn't completed yet - task not ready
+                        return false;
+                    }
+                }
+
+                // All dependencies succeeded - task is ready
+                true
             })
             .cloned() // Clone the Arc, not the Task
             .collect()
     }
 
-    /// Check if all tasks are done
+    /// Check if all tasks are done (completed, failed, or blocked by dependency failure)
     fn all_done(&self) -> bool {
         self.workflow
             .tasks
             .iter()
             .all(|t| self.datastore.contains(&t.id))
+    }
+
+    /// Get tasks that are blocked waiting for incomplete dependencies (not failed)
+    ///
+    /// v0.24: Used to distinguish actual deadlocks from dependency failures.
+    fn get_pending_tasks(&self) -> Vec<String> {
+        self.workflow
+            .tasks
+            .iter()
+            .filter(|task| !self.datastore.contains(&task.id))
+            .map(|t| t.id.clone())
+            .collect()
+    }
+
+    /// Get the first failed task in the workflow (for error reporting) (v0.24)
+    fn find_root_failure(&self) -> Option<String> {
+        for task in &self.workflow.tasks {
+            if let Some(result) = self.datastore.get(&task.id) {
+                // Only consider actual failures, not dependency failures
+                if matches!(result.status, crate::store::TaskStatus::Failed(_)) {
+                    return Some(task.id.clone());
+                }
+            }
+        }
+        None
     }
 
     /// Get the final output (from tasks with no successors)
@@ -852,19 +914,56 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             let ready = self.get_ready_tasks();
 
-            // Check for completion or deadlock
+            // Check for completion or deadlock (v0.24: improved error messages)
             if ready.is_empty() {
                 if self.all_done() {
                     break;
                 }
-                // EMIT: WorkflowFailed (deadlock)
+
+                // v0.24: Check if we're blocked due to dependency failures (not a deadlock)
+                let pending = self.get_pending_tasks();
+                if pending.is_empty() {
+                    // All tasks are done - shouldn't happen, but check for consistency
+                    break;
+                }
+
+                // Check for dependency chain failures
+                let blocked_by_dep_failure: Vec<String> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .filter(|t| self.datastore.is_dependency_failed(&t.id))
+                    .map(|t| t.id.clone())
+                    .collect();
+
+                if !blocked_by_dep_failure.is_empty() {
+                    // Not a deadlock - tasks are blocked due to failed dependencies
+                    let root_failure = self.find_root_failure();
+
+                    self.event_log.emit(EventKind::WorkflowFailed {
+                        error: format!(
+                            "Dependency chain failed: {} task(s) blocked by failed dependencies",
+                            blocked_by_dep_failure.len()
+                        ),
+                        failed_task: root_failure.clone().map(Arc::from),
+                    });
+                    self.write_trace();
+                    return Err(NikaError::DependencyChainFailed {
+                        count: blocked_by_dep_failure.len(),
+                        blocked_tasks: blocked_by_dep_failure,
+                        root_failure,
+                    });
+                }
+
+                // Actual deadlock - no tasks ready and no dependency failures detected
+                // This indicates a cycle or other structural issue
                 self.event_log.emit(EventKind::WorkflowFailed {
                     error: "Deadlock: no tasks ready but workflow not complete".to_string(),
                     failed_task: None,
                 });
-                self.write_trace(); // FIX: Write trace on failure
+                self.write_trace();
                 return Err(NikaError::Execution(
-                    "Deadlock: no tasks ready but workflow not complete".to_string(),
+                    "Deadlock: no tasks ready but workflow not complete. Check for circular dependencies.".to_string(),
                 ));
             }
 
@@ -1109,29 +1208,64 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let artifact_base_path = artifact_base_path.clone();
 
                             join_set.spawn(async move {
-                                // Acquire semaphore permit (blocks if at concurrency limit)
-                                // Semaphore only errors when closed; we own it and never close it
-                                let _permit = match semaphore.acquire().await {
-                                    Ok(p) => p,
-                                    Err(_) => {
+                                // v0.24 FIX: Check cancellation BEFORE acquiring semaphore
+                                // This prevents tasks from executing after fail_fast triggers
+                                if cancelled.load(Ordering::SeqCst) {
+                                    return IterationResult {
+                                        store_id: task_id,
+                                        result: TaskResult::skipped(
+                                            "Cancelled due to fail_fast before semaphore acquire"
+                                                .to_string(),
+                                        ),
+                                        for_each_info: Some((parent_task_id, idx)),
+                                    };
+                                }
+
+                                // v0.24 FIX: Use tokio::select! to race semaphore acquisition
+                                // against cancellation check. This ensures tasks waiting on
+                                // semaphore can be cancelled promptly.
+                                let _permit = tokio::select! {
+                                    biased;  // Check cancellation first
+
+                                    // Poll cancellation periodically while waiting for semaphore
+                                    _ = async {
+                                        while !cancelled.load(Ordering::SeqCst) {
+                                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                                        }
+                                    } => {
                                         return IterationResult {
                                             store_id: task_id,
-                                            result: TaskResult::failed(
-                                                "Semaphore closed unexpectedly".to_string(),
-                                                std::time::Duration::ZERO,
+                                            result: TaskResult::skipped(
+                                                "Cancelled while waiting for semaphore".to_string(),
                                             ),
                                             for_each_info: Some((parent_task_id, idx)),
                                         };
                                     }
+
+                                    // Try to acquire semaphore
+                                    permit = semaphore.acquire() => {
+                                        match permit {
+                                            Ok(p) => p,
+                                            Err(_) => {
+                                                return IterationResult {
+                                                    store_id: task_id,
+                                                    result: TaskResult::failed(
+                                                        "Semaphore closed unexpectedly".to_string(),
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                    for_each_info: Some((parent_task_id, idx)),
+                                                };
+                                            }
+                                        }
+                                    }
                                 };
 
-                                // Check cancellation before executing
-                                if cancelled.load(Ordering::Relaxed) {
+                                // Final check after acquiring permit (double-check)
+                                if cancelled.load(Ordering::SeqCst) {
                                     return IterationResult {
                                         store_id: task_id,
-                                        result: TaskResult::failed(
-                                            "Cancelled due to fail_fast".to_string(),
-                                            std::time::Duration::ZERO,
+                                        result: TaskResult::skipped(
+                                            "Cancelled after semaphore acquire".to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
                                     };
@@ -1150,9 +1284,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 )
                                 .await;
 
-                                // If failed and fail_fast, set cancellation flag
+                                // If failed and fail_fast, set cancellation flag with SeqCst
+                                // for maximum visibility across threads
                                 if !result.result.is_success() && fail_fast {
-                                    cancelled.store(true, Ordering::Relaxed);
+                                    cancelled.store(true, Ordering::SeqCst);
                                 }
 
                                 result
@@ -1188,6 +1323,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
             let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 FxHashMap::default();
+
+            // v0.24: Track if we've already triggered abort_all for fail_fast
+            let mut fail_fast_triggered = false;
 
             // Wait for all spawned tasks to complete (with cancellation support v0.5.2)
             loop {
@@ -1229,16 +1367,21 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                                 completed += 1;
                                 let success = task_result.is_success();
+                                let skipped = task_result.is_skipped();
 
                                 let status = if success {
                                     format!("[{}/{}]", completed, total_tasks).green()
+                                } else if skipped {
+                                    format!("[{}/{}]", completed, total_tasks).yellow()
                                 } else {
                                     format!("[{}/{}]", completed, total_tasks).red()
                                 };
 
-                                let symbol = if success { "✓" } else { "✗" };
+                                let symbol = if success { "✓" } else if skipped { "⊘" } else { "✗" };
                                 let symbol_colored = if success {
                                     symbol.green()
+                                } else if skipped {
+                                    symbol.yellow()
                                 } else {
                                     symbol.red()
                                 };
@@ -1252,13 +1395,29 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     );
 
                                     if let Some(err) = task_result.error() {
-                                        println!("      {} {}", "Error:".red(), err);
+                                        if !skipped {
+                                            println!("      {} {}", "Error:".red(), err);
+                                        }
                                     }
                                 }
 
                                 // Store individual result
                                 self.datastore
                                     .insert(Arc::clone(&store_id), task_result.clone());
+
+                                // v0.24 FIX: If this is a for_each failure with fail_fast,
+                                // abort all remaining in-flight tasks immediately
+                                if !success && !skipped && for_each_info.is_some() && !fail_fast_triggered {
+                                    // Check if the parent task had fail_fast enabled
+                                    // We detect this by checking if we're in a for_each context
+                                    // and the task failed (not skipped - skipped means already cancelled)
+                                    fail_fast_triggered = true;
+                                    debug!(
+                                        store_id = %store_id,
+                                        "Triggering abort_all due to fail_fast"
+                                    );
+                                    join_set.abort_all();
+                                }
 
                                 // If this is a for_each iteration, collect for aggregation
                                 if let Some((parent_id, idx)) = for_each_info {
@@ -1269,13 +1428,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 }
                             }
                             Some(Err(e)) => {
-                                // EMIT: WorkflowFailed (task panic)
-                                self.event_log.emit(EventKind::WorkflowFailed {
-                                    error: format!("Task panicked: {}", e),
-                                    failed_task: None,
-                                });
-                                self.write_trace(); // FIX: Write trace on failure
-                                return Err(NikaError::Execution(format!("Task panicked: {}", e)));
+                                // Task was aborted (likely via abort_all) or panicked
+                                if e.is_cancelled() {
+                                    // v0.24: Task was aborted by abort_all - this is expected
+                                    debug!("Task aborted (likely due to fail_fast)");
+                                    // Continue collecting remaining results
+                                } else {
+                                    // EMIT: WorkflowFailed (task panic)
+                                    self.event_log.emit(EventKind::WorkflowFailed {
+                                        error: format!("Task panicked: {}", e),
+                                        failed_task: None,
+                                    });
+                                    self.write_trace(); // FIX: Write trace on failure
+                                    return Err(NikaError::Execution(format!("Task panicked: {}", e)));
+                                }
                             }
                             None => {
                                 // All tasks in this batch completed

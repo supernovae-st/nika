@@ -75,8 +75,9 @@ pub use security::{check_blocklist, validate_command_string, validate_exec_comma
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 
 // v0.21.0: Structured output engine for JSON Schema compliance
+// v0.24.0: Added InferCallback for real Layer 3 & 4 LLM calls
 pub use structured_output::{
-    validate_structured_output, StructuredOutputEngine, StructuredOutputResult,
+    validate_structured_output, InferCallback, StructuredOutputEngine, StructuredOutputResult,
 };
 
 // v0.24.0: Agent execution limits tracking

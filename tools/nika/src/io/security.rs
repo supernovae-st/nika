@@ -281,11 +281,7 @@ pub fn validate_canonicalized_boundary(
     let canonical_base = base_path.canonicalize().map_err(|e| PathBoundaryError {
         base_path: base_path.to_path_buf(),
         target_path: target_path.to_path_buf(),
-        reason: format!(
-            "Cannot resolve base path '{}': {}",
-            base_path.display(),
-            e
-        ),
+        reason: format!("Cannot resolve base path '{}': {}", base_path.display(), e),
     })?;
 
     let canonical_target = target_path.canonicalize().map_err(|e| PathBoundaryError {

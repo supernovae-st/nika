@@ -23,6 +23,16 @@ use crate::util::jsonpath;
 pub enum TaskStatus {
     Success,
     Failed(String),
+    /// Task cannot run because a dependency failed (v0.24)
+    DependencyFailed {
+        /// ID of the failed dependency
+        dependency: String,
+    },
+    /// Task was skipped (not executed)
+    Skipped {
+        /// Reason for skipping
+        reason: String,
+    },
 }
 
 /// Task execution result (unified storage)
@@ -64,15 +74,69 @@ impl TaskResult {
         }
     }
 
+    /// Create a result for a task that cannot run because its dependency failed (v0.24)
+    ///
+    /// This is distinct from `failed()` because the task itself didn't fail -
+    /// it simply cannot run because an upstream dependency failed.
+    pub fn dependency_failed(dependency: impl Into<String>) -> Self {
+        Self {
+            output: Arc::new(Value::Null),
+            duration: Duration::ZERO,
+            status: TaskStatus::DependencyFailed {
+                dependency: dependency.into(),
+            },
+        }
+    }
+
+    /// Create a skipped result (v0.24)
+    ///
+    /// Used when a task is skipped due to cancellation or other reasons.
+    pub fn skipped(reason: impl Into<String>) -> Self {
+        Self {
+            output: Arc::new(Value::Null),
+            duration: Duration::ZERO,
+            status: TaskStatus::Skipped {
+                reason: reason.into(),
+            },
+        }
+    }
+
     /// Check if task succeeded
     pub fn is_success(&self) -> bool {
         matches!(self.status, TaskStatus::Success)
+    }
+
+    /// Check if task failed due to a dependency failure (v0.24)
+    pub fn is_dependency_failed(&self) -> bool {
+        matches!(self.status, TaskStatus::DependencyFailed { .. })
+    }
+
+    /// Check if task was skipped (v0.24)
+    pub fn is_skipped(&self) -> bool {
+        matches!(self.status, TaskStatus::Skipped { .. })
+    }
+
+    /// Check if task is in a terminal state (not pending)
+    ///
+    /// Returns true for Success, Failed, DependencyFailed, and Skipped.
+    pub fn is_terminal(&self) -> bool {
+        true // All TaskStatus variants are terminal states
+    }
+
+    /// Get the failed dependency name if this is a DependencyFailed result (v0.24)
+    pub fn failed_dependency(&self) -> Option<&str> {
+        match &self.status {
+            TaskStatus::DependencyFailed { dependency } => Some(dependency),
+            _ => None,
+        }
     }
 
     /// Get error message if failed
     pub fn error(&self) -> Option<&str> {
         match &self.status {
             TaskStatus::Failed(e) => Some(e),
+            TaskStatus::DependencyFailed { dependency } => Some(dependency),
+            TaskStatus::Skipped { reason } => Some(reason),
             TaskStatus::Success => None,
         }
     }
@@ -133,6 +197,27 @@ impl DataStore {
     /// Check if task succeeded
     pub fn is_success(&self, task_id: &str) -> bool {
         self.get(task_id).is_some_and(|r| r.is_success())
+    }
+
+    /// Check if task failed (either directly or due to dependency failure) (v0.24)
+    pub fn is_failed(&self, task_id: &str) -> bool {
+        self.get(task_id).is_some_and(|r| {
+            matches!(
+                r.status,
+                TaskStatus::Failed(_) | TaskStatus::DependencyFailed { .. }
+            )
+        })
+    }
+
+    /// Check if task failed due to a dependency failure (v0.24)
+    pub fn is_dependency_failed(&self, task_id: &str) -> bool {
+        self.get(task_id).is_some_and(|r| r.is_dependency_failed())
+    }
+
+    /// Get the failed dependency name if task has DependencyFailed status (v0.24)
+    pub fn get_failed_dependency(&self, task_id: &str) -> Option<String> {
+        self.get(task_id)
+            .and_then(|r| r.failed_dependency().map(String::from))
     }
 
     /// Get just the output Value for a task (for JSONPath resolution)

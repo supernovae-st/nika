@@ -1,4 +1,4 @@
-//! Structured Output Engine (v0.21)
+//! Structured Output Engine (v0.24)
 //!
 //! 4-layer defense system for ~99.99% JSON Schema compliance:
 //!
@@ -19,13 +19,26 @@
 //! let spec = StructuredOutputSpec::with_file_schema("./schema.json");
 //! let engine = StructuredOutputEngine::new(spec, event_log.clone());
 //!
-//! // Validate raw output
+//! // Validate raw output (Layer 2 only without callback)
 //! let result = engine.validate("task-1", raw_output).await?;
+//!
+//! // With inference callback for full Layer 3 & 4 support
+//! let callback: InferCallback = Arc::new(move |prompt: String| {
+//!     let provider = provider.clone();
+//!     Box::pin(async move {
+//!         provider.infer(&prompt, None).await
+//!             .map_err(|e| NikaError::ProviderApiError { message: e.to_string() })
+//!     })
+//! });
+//! let engine = engine.with_infer_callback(callback);
 //! ```
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use serde_json::Value;
+use tracing::debug;
 
 use crate::ast::output::SchemaRef;
 use crate::ast::StructuredOutputSpec;
@@ -33,6 +46,17 @@ use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 
 use super::output::{extract_json, format_validation_errors, validate_schema_ref};
+
+/// Callback type for LLM inference during retry/repair (Layer 3 & 4)
+///
+/// This callback is invoked when the engine needs to re-call the LLM:
+/// - Layer 3: Retry with validation error feedback
+/// - Layer 4: Repair call to fix invalid JSON
+///
+/// The callback receives the prompt and returns the LLM response.
+pub type InferCallback = Arc<
+    dyn Fn(String) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send>> + Send + Sync,
+>;
 
 /// Layer names for event tracking
 #[allow(dead_code)] // Layer 1 not yet implemented - requires compile-time types
@@ -58,6 +82,16 @@ pub struct StructuredOutputResult {
 ///
 /// Attempts validation through multiple layers until success or exhaustion.
 /// All attempts are tracked via events for observability.
+///
+/// ## Layers
+///
+/// - **Layer 1**: rig Extractor (not implemented - requires compile-time types)
+/// - **Layer 2**: Provider-Native - validates JSON extraction from raw output
+/// - **Layer 3**: Retry with Feedback - re-calls LLM with validation errors (requires `infer_fn`)
+/// - **Layer 4**: LLM Repair - calls repair model to fix invalid JSON (requires `infer_fn`)
+///
+/// Without `infer_fn`, only Layer 2 is functional. Layers 3 & 4 will emit warnings
+/// and gracefully skip to the next layer.
 pub struct StructuredOutputEngine {
     /// Structured output specification (schema + layer config)
     spec: StructuredOutputSpec,
@@ -65,6 +99,14 @@ pub struct StructuredOutputEngine {
     log: Arc<EventLog>,
     /// Cached compiled schema (for validation speed)
     compiled_schema: Option<Value>,
+    /// Callback for LLM inference in Layer 3 & 4 (v0.24.0)
+    ///
+    /// When set, enables actual LLM retries and repairs instead of just re-validation.
+    infer_fn: Option<InferCallback>,
+    /// Original prompt for retry context (v0.24.0)
+    ///
+    /// Used by Layer 3 to construct the retry prompt with full context.
+    original_prompt: Option<String>,
 }
 
 impl StructuredOutputEngine {
@@ -74,7 +116,39 @@ impl StructuredOutputEngine {
             spec,
             log,
             compiled_schema: None,
+            infer_fn: None,
+            original_prompt: None,
         }
+    }
+
+    /// Set the inference callback for Layer 3 & 4 (v0.24.0)
+    ///
+    /// This enables actual LLM retries and repairs. Without this callback,
+    /// only Layer 2 validation is functional.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let callback: InferCallback = Arc::new(move |prompt: String| {
+    ///     let provider = provider.clone();
+    ///     Box::pin(async move {
+    ///         provider.infer(&prompt, None).await
+    ///             .map_err(|e| NikaError::ProviderApiError { message: e.to_string() })
+    ///     })
+    /// });
+    /// let engine = engine.with_infer_callback(callback);
+    /// ```
+    pub fn with_infer_callback(mut self, callback: InferCallback) -> Self {
+        self.infer_fn = Some(callback);
+        self
+    }
+
+    /// Set the original prompt for retry context (v0.24.0)
+    ///
+    /// Used by Layer 3 to construct the retry prompt with full context.
+    pub fn with_original_prompt(mut self, prompt: String) -> Self {
+        self.original_prompt = Some(prompt);
+        self
     }
 
     /// Load and cache the schema for validation
@@ -238,10 +312,12 @@ impl StructuredOutputEngine {
         }
     }
 
-    /// Layer 3: Retry with Feedback
+    /// Layer 3: Retry with Feedback (v0.24.0 - REAL IMPLEMENTATION)
     ///
-    /// Re-validates the same output (in a real implementation, this would
-    /// re-prompt the LLM with validation error feedback).
+    /// Re-calls the LLM with validation error feedback to get corrected output.
+    /// Requires `infer_fn` callback to be set via `with_infer_callback()`.
+    ///
+    /// Without `infer_fn`, this layer is skipped with a warning.
     async fn try_layer_3(
         &self,
         task_id: &Arc<str>,
@@ -250,15 +326,78 @@ impl StructuredOutputEngine {
         retry_num: u8,
         attempt: u32,
     ) -> Result<Value, NikaError> {
-        // In a full implementation, this would:
-        // 1. Generate error feedback from previous validation
-        // 2. Re-call the LLM with the feedback
-        // 3. Validate the new output
-        //
-        // For now, we just re-validate (since we can't call the LLM from here)
-        // The executor will handle the actual retry loop
+        // Check if we have an inference callback
+        let infer_fn = match &self.infer_fn {
+            Some(f) => f,
+            None => {
+                // No callback - Layer 3 is disabled
+                debug!(
+                    task_id = %task_id,
+                    retry = retry_num,
+                    "Layer 3 skipped: no infer callback configured"
+                );
+                self.emit_attempt(
+                    task_id,
+                    3,
+                    LAYER_3_NAME,
+                    attempt,
+                    false,
+                    Some(format!(
+                        "retry {}: no infer callback - Layer 3 disabled",
+                        retry_num
+                    )),
+                );
+                return Err(NikaError::StructuredOutputValidationFailed {
+                    task_id: task_id.to_string(),
+                    layer: LAYER_3_NAME.to_string(),
+                    attempt,
+                    errors: vec!["Layer 3 requires infer callback".to_string()],
+                });
+            }
+        };
 
-        let json_value = match extract_json(raw_output) {
+        // Collect validation errors from the raw output
+        let validation_errors = self
+            .collect_validation_errors(raw_output, schema)
+            .join("\n");
+
+        // Generate retry prompt with feedback
+        let original_prompt = self.original_prompt.as_deref().unwrap_or("");
+        let retry_prompt =
+            self.generate_retry_prompt(original_prompt, raw_output, &validation_errors);
+
+        debug!(
+            task_id = %task_id,
+            retry = retry_num,
+            prompt_len = retry_prompt.len(),
+            "Layer 3: calling LLM with retry prompt"
+        );
+
+        // Actually call the LLM with the retry prompt
+        let new_output = match infer_fn(retry_prompt).await {
+            Ok(output) => output,
+            Err(e) => {
+                self.emit_attempt(
+                    task_id,
+                    3,
+                    LAYER_3_NAME,
+                    attempt,
+                    false,
+                    Some(format!("retry {}: LLM call failed: {}", retry_num, e)),
+                );
+                return Err(e);
+            }
+        };
+
+        debug!(
+            task_id = %task_id,
+            retry = retry_num,
+            output_len = new_output.len(),
+            "Layer 3: received LLM response"
+        );
+
+        // Extract JSON from the new output
+        let json_value = match extract_json(&new_output) {
             Ok(v) => v,
             Err(e) => {
                 self.emit_attempt(
@@ -267,7 +406,7 @@ impl StructuredOutputEngine {
                     LAYER_3_NAME,
                     attempt,
                     false,
-                    Some(format!("retry {}: {}", retry_num, e)),
+                    Some(format!("retry {}: extraction failed: {}", retry_num, e)),
                 );
                 return Err(NikaError::StructuredOutputExtractionFailed {
                     task_id: task_id.to_string(),
@@ -277,8 +416,14 @@ impl StructuredOutputEngine {
             }
         };
 
+        // Validate the new output against schema
         match validate_schema_ref(&json_value, &SchemaRef::Inline(schema.clone())).await {
             Ok(()) => {
+                debug!(
+                    task_id = %task_id,
+                    retry = retry_num,
+                    "Layer 3: validation succeeded"
+                );
                 self.emit_attempt(task_id, 3, LAYER_3_NAME, attempt, true, None);
                 Ok(json_value)
             }
@@ -289,7 +434,7 @@ impl StructuredOutputEngine {
                     LAYER_3_NAME,
                     attempt,
                     false,
-                    Some(format!("retry {}: {}", retry_num, e)),
+                    Some(format!("retry {}: validation failed: {}", retry_num, e)),
                 );
                 Err(NikaError::StructuredOutputValidationFailed {
                     task_id: task_id.to_string(),
@@ -301,10 +446,15 @@ impl StructuredOutputEngine {
         }
     }
 
-    /// Layer 4: LLM Repair
+    /// Layer 4: LLM Repair (v0.24.0 - REAL IMPLEMENTATION)
     ///
-    /// Attempts to repair invalid JSON using a separate LLM call.
-    /// In a full implementation, this would call the repair model.
+    /// Calls a repair LLM to fix invalid JSON.
+    /// Requires `infer_fn` callback to be set via `with_infer_callback()`.
+    ///
+    /// The repair prompt includes the invalid output and schema, asking the LLM
+    /// to return only the corrected JSON.
+    ///
+    /// Without `infer_fn`, this layer is skipped with a warning.
     async fn try_layer_4(
         &self,
         task_id: &Arc<str>,
@@ -312,19 +462,75 @@ impl StructuredOutputEngine {
         schema: &Value,
         attempt: u32,
     ) -> Result<Value, NikaError> {
-        // In a full implementation, this would:
-        // 1. Call a repair LLM (self.spec.repair_model or default)
-        // 2. Pass the invalid output and schema
-        // 3. Get repaired JSON back
-        // 4. Validate the repair
-        //
-        // For now, we make one final validation attempt
-        // The executor will need to integrate with the provider for actual repair
+        // Check if we have an inference callback
+        let infer_fn = match &self.infer_fn {
+            Some(f) => f,
+            None => {
+                // No callback - Layer 4 is disabled
+                debug!(
+                    task_id = %task_id,
+                    "Layer 4 skipped: no infer callback configured"
+                );
+                self.emit_attempt(
+                    task_id,
+                    4,
+                    LAYER_4_NAME,
+                    attempt,
+                    false,
+                    Some("no infer callback - Layer 4 disabled".to_string()),
+                );
+                return Err(NikaError::StructuredOutputValidationFailed {
+                    task_id: task_id.to_string(),
+                    layer: LAYER_4_NAME.to_string(),
+                    attempt,
+                    errors: vec!["Layer 4 requires infer callback".to_string()],
+                });
+            }
+        };
 
-        let json_value = match extract_json(raw_output) {
+        // Generate repair prompt
+        let repair_prompt = self.generate_repair_prompt(raw_output, schema);
+
+        debug!(
+            task_id = %task_id,
+            prompt_len = repair_prompt.len(),
+            "Layer 4: calling repair LLM"
+        );
+
+        // Call the LLM to repair the JSON
+        let repaired_output = match infer_fn(repair_prompt).await {
+            Ok(output) => output,
+            Err(e) => {
+                self.emit_attempt(
+                    task_id,
+                    4,
+                    LAYER_4_NAME,
+                    attempt,
+                    false,
+                    Some(format!("repair LLM call failed: {}", e)),
+                );
+                return Err(e);
+            }
+        };
+
+        debug!(
+            task_id = %task_id,
+            output_len = repaired_output.len(),
+            "Layer 4: received repair LLM response"
+        );
+
+        // Extract JSON from the repaired output
+        let json_value = match extract_json(&repaired_output) {
             Ok(v) => v,
             Err(e) => {
-                self.emit_attempt(task_id, 4, LAYER_4_NAME, attempt, false, Some(e.clone()));
+                self.emit_attempt(
+                    task_id,
+                    4,
+                    LAYER_4_NAME,
+                    attempt,
+                    false,
+                    Some(format!("repair extraction failed: {}", e)),
+                );
                 return Err(NikaError::StructuredOutputExtractionFailed {
                     task_id: task_id.to_string(),
                     layer: LAYER_4_NAME.to_string(),
@@ -333,8 +539,13 @@ impl StructuredOutputEngine {
             }
         };
 
+        // Validate the repaired output against schema
         match validate_schema_ref(&json_value, &SchemaRef::Inline(schema.clone())).await {
             Ok(()) => {
+                debug!(
+                    task_id = %task_id,
+                    "Layer 4: repair validation succeeded"
+                );
                 self.emit_attempt(task_id, 4, LAYER_4_NAME, attempt, true, None);
                 Ok(json_value)
             }
@@ -345,7 +556,7 @@ impl StructuredOutputEngine {
                     LAYER_4_NAME,
                     attempt,
                     false,
-                    Some(e.to_string()),
+                    Some(format!("repair validation failed: {}", e)),
                 );
                 Err(NikaError::StructuredOutputValidationFailed {
                     task_id: task_id.to_string(),
@@ -851,5 +1062,292 @@ Hope this helps!"#;
         let arr = result.unwrap().value;
         assert!(arr.is_array());
         assert_eq!(arr.as_array().unwrap().len(), 3);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAYER 3 TESTS (v0.24.0 - Real LLM Retry)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    #[tokio::test]
+    async fn layer3_actually_retries_llm() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        // Mock callback that returns valid JSON on second call
+        let callback: InferCallback = Arc::new(move |_prompt: String| {
+            let count = call_count_clone.clone();
+            Box::pin(async move {
+                let n = count.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    // First call from Layer 3 retry: return valid JSON
+                    Ok(r#"{"name": "Alice", "age": 30}"#.to_string())
+                } else {
+                    // Shouldn't be called more than once if first retry succeeds
+                    Ok(r#"{"name": "Bob", "age": 25}"#.to_string())
+                }
+            })
+        });
+
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.enable_retry = Some(true);
+        spec.max_retries = Some(3);
+        spec.enable_repair = Some(false); // Disable Layer 4
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback)
+            .with_original_prompt("Generate a user object".to_string());
+
+        // Invalid JSON should trigger Layer 3 retry
+        let result = engine.validate("test-task", r#"{"invalid": true}"#).await;
+
+        assert!(result.is_ok(), "Should succeed after Layer 3 retry");
+        let r = result.unwrap();
+        assert_eq!(r.layer, 3, "Should succeed at Layer 3");
+        assert_eq!(r.layer_name, "retry_with_feedback");
+        assert_eq!(r.value["name"], "Alice");
+        assert!(
+            call_count.load(Ordering::SeqCst) >= 1,
+            "Should have called LLM at least once"
+        );
+    }
+
+    #[tokio::test]
+    async fn layer3_skipped_without_callback() {
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.enable_retry = Some(true);
+        spec.max_retries = Some(3);
+        spec.enable_repair = Some(false);
+
+        // No callback - Layer 3 should be skipped
+        let mut engine = StructuredOutputEngine::new(spec, log.clone());
+
+        let result = engine.validate("test-task", r#"{"invalid": true}"#).await;
+
+        assert!(result.is_err(), "Should fail without callback");
+
+        // Check that Layer 3 attempts were made but failed due to no callback
+        let events = log.events();
+        let layer3_attempts = events.iter().filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::StructuredOutputAttempt {
+                    layer: 3,
+                    success: false,
+                    error: Some(err),
+                    ..
+                } if err.contains("no infer callback")
+            )
+        });
+        assert!(
+            layer3_attempts.count() > 0,
+            "Should have Layer 3 attempt events showing no callback"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LAYER 4 TESTS (v0.24.0 - Real LLM Repair)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn layer4_actually_repairs_json() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        // Mock callback that returns repaired JSON
+        let callback: InferCallback = Arc::new(move |prompt: String| {
+            let count = call_count_clone.clone();
+            Box::pin(async move {
+                count.fetch_add(1, Ordering::SeqCst);
+                // Verify we received a repair prompt
+                assert!(
+                    prompt.contains("repair") || prompt.contains("schema"),
+                    "Should receive repair prompt"
+                );
+                // Return valid JSON
+                Ok(r#"{"name": "Repaired", "age": 25}"#.to_string())
+            })
+        });
+
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.enable_retry = Some(false); // Skip Layer 3
+        spec.enable_repair = Some(true);
+
+        let mut engine =
+            StructuredOutputEngine::new(spec, log.clone()).with_infer_callback(callback);
+
+        let result = engine.validate("test-task", "totally broken json").await;
+
+        assert!(result.is_ok(), "Should succeed after Layer 4 repair");
+        let r = result.unwrap();
+        assert_eq!(r.layer, 4, "Should succeed at Layer 4");
+        assert_eq!(r.layer_name, "llm_repair");
+        assert_eq!(r.value["name"], "Repaired");
+        assert!(
+            call_count.load(Ordering::SeqCst) >= 1,
+            "Should have called repair LLM"
+        );
+    }
+
+    #[tokio::test]
+    async fn layer4_skipped_without_callback() {
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.enable_retry = Some(false);
+        spec.enable_repair = Some(true);
+
+        // No callback - Layer 4 should be skipped
+        let mut engine = StructuredOutputEngine::new(spec, log.clone());
+
+        let result = engine.validate("test-task", "broken json").await;
+
+        assert!(result.is_err(), "Should fail without callback");
+
+        // Check that Layer 4 attempt was made but failed due to no callback
+        let events = log.events();
+        let layer4_attempts = events.iter().filter(|e| {
+            matches!(
+                &e.kind,
+                EventKind::StructuredOutputAttempt {
+                    layer: 4,
+                    success: false,
+                    error: Some(err),
+                    ..
+                } if err.contains("no infer callback")
+            )
+        });
+        assert!(
+            layer4_attempts.count() > 0,
+            "Should have Layer 4 attempt event showing no callback"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MAX_RETRIES TESTS (v0.24.0)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn max_retries_is_respected() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        // Mock callback that always returns invalid JSON
+        let callback: InferCallback = Arc::new(move |_prompt: String| {
+            let count = call_count_clone.clone();
+            Box::pin(async move {
+                count.fetch_add(1, Ordering::SeqCst);
+                // Always return invalid JSON (missing age)
+                Ok(r#"{"still_invalid": true}"#.to_string())
+            })
+        });
+
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.max_retries = Some(3);
+        spec.enable_retry = Some(true);
+        spec.enable_repair = Some(false); // Skip Layer 4
+
+        let mut engine =
+            StructuredOutputEngine::new(spec, log.clone()).with_infer_callback(callback);
+
+        let result = engine.validate("test-task", r#"{"invalid": true}"#).await;
+
+        assert!(result.is_err(), "Should fail after max retries");
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            3,
+            "Should have retried exactly max_retries times"
+        );
+    }
+
+    #[tokio::test]
+    async fn layer3_layer4_chain_works() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        // Mock callback:
+        // - Layer 3 retries all fail (return invalid JSON)
+        // - Layer 4 repair succeeds (return valid JSON)
+        // Note: Detect Layer 4 by "JSON repair assistant" which is unique to repair prompt
+        let callback: InferCallback = Arc::new(move |prompt: String| {
+            let count = call_count_clone.clone();
+            Box::pin(async move {
+                let n = count.fetch_add(1, Ordering::SeqCst);
+                if prompt.contains("JSON repair assistant") {
+                    // Layer 4 repair call - succeed
+                    Ok(r#"{"name": "Repaired", "age": 42}"#.to_string())
+                } else {
+                    // Layer 3 retry calls - always fail
+                    Ok(format!(
+                        r#"{{"retry_attempt": {}, "still_invalid": true}}"#,
+                        n
+                    ))
+                }
+            })
+        });
+
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.max_retries = Some(2);
+        spec.enable_retry = Some(true);
+        spec.enable_repair = Some(true);
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback)
+            .with_original_prompt("Generate user".to_string());
+
+        let result = engine.validate("test-task", r#"{"invalid": true}"#).await;
+
+        assert!(result.is_ok(), "Should succeed after Layer 4 repair");
+        let r = result.unwrap();
+        assert_eq!(r.layer, 4, "Should succeed at Layer 4");
+        assert_eq!(r.value["name"], "Repaired");
+        // Should have: 2 Layer 3 retries + 1 Layer 4 repair = 3 calls
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            3,
+            "Should have made 2 retry calls + 1 repair call"
+        );
+    }
+
+    #[tokio::test]
+    async fn original_prompt_included_in_retry() {
+        let captured_prompt = Arc::new(std::sync::Mutex::new(String::new()));
+        let captured_prompt_clone = captured_prompt.clone();
+
+        let callback: InferCallback = Arc::new(move |prompt: String| {
+            let captured = captured_prompt_clone.clone();
+            Box::pin(async move {
+                *captured.lock().unwrap() = prompt.clone();
+                // Return valid JSON
+                Ok(r#"{"name": "Test", "age": 30}"#.to_string())
+            })
+        });
+
+        let log = create_test_log();
+        let mut spec = StructuredOutputSpec::with_inline_schema(create_user_schema());
+        spec.enable_retry = Some(true);
+        spec.max_retries = Some(1);
+        spec.enable_repair = Some(false);
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback)
+            .with_original_prompt("Generate a user object for testing".to_string());
+
+        let _ = engine.validate("test-task", r#"{"invalid": true}"#).await;
+
+        let prompt = captured_prompt.lock().unwrap().clone();
+        assert!(
+            prompt.contains("Generate a user object for testing"),
+            "Retry prompt should include original prompt"
+        );
+        assert!(
+            prompt.contains("invalid"),
+            "Retry prompt should include the invalid output"
+        );
     }
 }
