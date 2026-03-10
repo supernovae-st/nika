@@ -7,6 +7,90 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/supernovae-st/nika/releases/tag/v0.24.0) - 2026-03-10
+
+### Bug Fix Release
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  NIKA v0.24.0 — COMPREHENSIVE BUG FIX RELEASE                                 ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  Methodology:  4 Opus 4.5 agents executing detailed Master Plans              ║
+║  Tests:        4,391 passing | Zero clippy warnings                           ║
+║  Changes:      18 files, +1,548 lines, -173 lines                             ║
+║                                                                               ║
+║  Fixed Bugs:                                                                  ║
+║  ├── MP1: StructuredOutput Layer 3 & 4 now call LLM                          ║
+║  ├── MP2: System prompts use .preamble() API correctly                        ║
+║  ├── MP3: fail_fast aborts in-flight tasks, deadlock detection fixed          ║
+║  └── MP4: MCP timeouts, sleep limits, error code preservation                 ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Fixed
+
+- **StructuredOutput Layer 3 & 4** — Now actually call LLM for retry/repair
+  - Add `InferCallback` type: `Arc<dyn Fn(String) -> Pin<Box<dyn Future<...>>>>`
+  - Layer 3 (Retry) calls LLM on JSON validation failure
+  - Layer 4 (Repair) generates repair prompt and calls LLM
+  - New builder methods: `with_infer_callback()`, `with_original_prompt()`
+  - 8 new tests for callback functionality
+
+- **Control Flow: fail_fast Abort** — Now properly cancels in-flight tasks
+  - Use `tokio::select!` to race semaphore acquisition against cancellation
+  - New `TaskStatus::DependencyFailed { dependency: String }` variant
+  - New `TaskStatus::Skipped { reason: String }` variant
+  - Proper abort propagation via cancellation tokens
+
+- **Deadlock Detection** — Now properly reports dependency failures
+  - Distinguish between true deadlock and dependency chain failure
+  - New error codes: NIKA-025, NIKA-026, NIKA-027
+  - Clear error messages showing failed dependency chain
+
+- **MCP Operation Timeouts** — Prevent unbounded execution
+  - Add `INVOKE_TASK_DEADLINE` (5 minutes) for total MCP task time
+  - Wrap all MCP operations with `tokio::time::timeout()`
+  - Returns `NikaError::McpTimeout` on deadline exceeded
+
+- **Sleep Tool Limits** — Prevent unbounded sleep
+  - Add `MAX_SLEEP_DURATION` (5 minutes) constant
+  - Validate duration before execution
+  - Clear error message when limit exceeded
+
+- **MCP Error Code Preservation** — Structured error extraction
+  - Add `McpErrorCode` enum for JSON-RPC error codes
+  - Preserve original error codes from MCP servers
+  - Add reconnection timeout (30s) and max attempts (3)
+
+### Added
+
+- **New Error Codes**
+  - `NIKA-025`: TaskDependencyFailed
+  - `NIKA-026`: DependencyChainFailed
+  - `NIKA-027`: TaskCancelled
+
+- **New Constants** (`src/util/constants.rs`)
+  - `MAX_SLEEP_DURATION`: 5 minutes
+  - `INVOKE_TASK_DEADLINE`: 5 minutes
+  - `RECONNECT_TIMEOUT`: 30 seconds
+  - `MAX_RECONNECT_ATTEMPTS`: 3
+
+- **New TaskStatus Variants** (`src/store/datastore.rs`)
+  - `DependencyFailed { dependency: String }`
+  - `Skipped { reason: String }`
+  - Helper methods: `is_failed()`, `is_dependency_failed()`, `get_failed_dependency()`
+
+### Documentation
+
+- Add 5 Master Plan documents in `docs/plans/`:
+  - `2026-03-10-v0.24.0-bugfix-masterplan.md`
+  - `2026-03-10-mp1-structured-output.md`
+  - `2026-03-10-mp2-provider-system.md`
+  - `2026-03-10-mp3-control-flow.md`
+  - `2026-03-10-mp4-mcp-builtin.md`
+
 ## [0.23.1](https://github.com/supernovae-st/nika/releases/tag/v0.23.1) - 2026-03-10
 
 ### Fixed
