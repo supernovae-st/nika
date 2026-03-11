@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.24.0-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.27.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-4282%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-4433%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -43,7 +43,7 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.24.0 Features
+## v0.27.0 Features
 
 - **Language Improvements**
   - `exec.env` - Environment variable injection for exec tasks
