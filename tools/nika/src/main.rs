@@ -253,6 +253,16 @@ enum Commands {
         action: ModelAction,
     },
 
+    /// Manage installed packages (workflows, skills, schemas) (v0.27 spn fusion)
+    ///
+    /// List, add, remove, and install packages from the SuperNovae registry.
+    /// Packages are stored in ~/.spn/packages/
+    #[command(visible_alias = "p")]
+    Pkg {
+        #[command(subcommand)]
+        action: PkgAction,
+    },
+
     /// Generate shell completions (v0.13.1)
     Completion {
         /// Shell to generate completions for
@@ -542,6 +552,86 @@ enum McpAction {
         workflow: String,
         /// MCP server name
         server: String,
+    },
+}
+
+/// Package management actions (v0.27 spn fusion)
+///
+/// Manage SuperNovae packages (workflows, skills, schemas) stored in ~/.spn/packages/
+#[derive(Subcommand)]
+enum PkgAction {
+    /// List installed packages
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Show information about a package
+    Info {
+        /// Package name (e.g., @nika/seo-audit, @workflows/code-review)
+        package: String,
+    },
+
+    /// Add a package to the project
+    ///
+    /// Downloads and installs the package and its dependencies.
+    /// Updates spn.yaml and spn.lock in the project directory.
+    Add {
+        /// Package name (e.g., @nika/seo-audit, @workflows/code-review)
+        package: String,
+
+        /// Package type (workflow, agent, skill, prompt, job, schema)
+        #[arg(short, long)]
+        r#type: Option<String>,
+
+        /// Version constraint (e.g., ^0.1, 1.0.0)
+        #[arg(long, visible_alias = "ver")]
+        version: Option<String>,
+
+        /// Add as dev dependency
+        #[arg(long)]
+        dev: bool,
+    },
+
+    /// Remove a package from the project
+    Remove {
+        /// Package name to remove
+        package: String,
+
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
+    },
+
+    /// Install packages from spn.yaml
+    Install {
+        /// Use exact versions from spn.lock
+        #[arg(long)]
+        frozen: bool,
+    },
+
+    /// Update packages to latest compatible versions
+    Update {
+        /// Package to update (updates all if not specified)
+        package: Option<String>,
+    },
+
+    /// List outdated packages
+    Outdated,
+
+    /// Search packages in the registry
+    Search {
+        /// Search query
+        query: String,
+
+        /// Package type filter (workflow, agent, skill, prompt, job, schema)
+        #[arg(short, long)]
+        r#type: Option<String>,
+
+        /// Maximum results to show
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
     },
 }
 
@@ -959,6 +1049,9 @@ async fn main() {
         // Model management (v0.27 spn fusion)
         #[cfg(feature = "native-inference")]
         Some(Commands::Model { action }) => handle_model_command(action, quiet).await,
+
+        // Package management (v0.27 spn fusion)
+        Some(Commands::Pkg { action }) => handle_pkg_command(action).await,
 
         // Shell completion (v0.13.1)
         Some(Commands::Completion { shell }) => {
@@ -2822,6 +2915,204 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             println!("{} tools available", tools.len());
             Ok(())
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PACKAGE COMMAND HANDLER (v0.27 spn fusion)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle package management commands.
+///
+/// Manages packages (workflows, skills, schemas) stored in ~/.spn/packages/
+async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
+    use colored::Colorize;
+    use nika::registry::{list_installed, load_manifest, load_registry};
+
+    match action {
+        PkgAction::List { json } => {
+            let packages = list_installed()?;
+
+            if json {
+                let registry = load_registry()?;
+                println!("{}", serde_json::to_string_pretty(&registry)?);
+            } else if packages.is_empty() {
+                println!("{} No packages installed", "ℹ".cyan());
+                println!();
+                println!("Install packages with:");
+                println!("  nika pkg add @nika/seo-audit");
+                println!("  nika pkg install  # Install from spn.yaml");
+            } else {
+                println!("{}", "Installed Packages".bold());
+                println!("{}", "─".repeat(60));
+
+                for (name, version) in &packages {
+                    println!("  {}@{}", name.cyan(), version.green());
+                }
+
+                println!();
+                println!("{} package(s) installed", packages.len());
+            }
+            Ok(())
+        }
+
+        PkgAction::Info { package } => {
+            // Try to find the installed version
+            let registry = load_registry()?;
+
+            if let Some(installed) = registry.get(&package) {
+                println!("{}", format!("Package: {}", package).bold());
+                println!("{}", "─".repeat(60));
+                println!("  Version:   {}", installed.version.green());
+                println!("  Path:      {}", installed.manifest_path.dimmed());
+                println!(
+                    "  Installed: {}",
+                    installed.installed_at.dimmed()
+                );
+
+                // Try to load manifest for more details
+                match load_manifest(&package, &installed.version) {
+                    Ok(manifest) => {
+                        if let Some(ref desc) = manifest.description {
+                            println!("  Description: {}", desc);
+                        }
+                        if !manifest.skills.is_empty() {
+                            println!();
+                            println!("  Skills:");
+                            for (name, skill) in &manifest.skills {
+                                println!("    • {} ({})", name.cyan(), skill.path.dimmed());
+                            }
+                        }
+                    }
+                    Err(_) => {}
+                }
+            } else {
+                println!("{} Package '{}' not installed", "ℹ".cyan(), package);
+                println!();
+                println!("To install: nika pkg add {}", package);
+            }
+            Ok(())
+        }
+
+        PkgAction::Add {
+            package,
+            r#type,
+            version: _version,
+            dev: _dev,
+        } => {
+            println!("{} Adding package: {}", "📦".cyan(), package.green());
+
+            // Infer type from scope if not provided
+            let pkg_type = r#type
+                .as_deref()
+                .or_else(|| infer_package_type(&package))
+                .unwrap_or("workflow");
+
+            println!("  Type: {}", pkg_type.dimmed());
+
+            // TODO: Implement full package resolution and installation
+            // For now, provide a helpful message
+            println!();
+            println!("{} Package installation not yet fully implemented", "⚠".yellow());
+            println!("  Until then, use: spn add {}", package);
+            Ok(())
+        }
+
+        PkgAction::Remove { package, yes: _ } => {
+            println!("{} Removing package: {}", "🗑".red(), package);
+
+            // Check if installed
+            let registry = load_registry()?;
+            if !registry.is_installed(&package) {
+                println!("{} Package '{}' is not installed", "ℹ".cyan(), package);
+                return Ok(());
+            }
+
+            // TODO: Implement full package removal
+            println!();
+            println!("{} Package removal not yet fully implemented", "⚠".yellow());
+            println!("  Until then, use: spn remove {}", package);
+            Ok(())
+        }
+
+        PkgAction::Install { frozen } => {
+            println!(
+                "{} Installing packages from spn.yaml{}",
+                "📦".cyan(),
+                if frozen { " (frozen)" } else { "" }
+            );
+
+            // TODO: Implement full package installation from spn.yaml
+            println!();
+            println!("{} Package installation not yet fully implemented", "⚠".yellow());
+            println!("  Until then, use: spn install{}", if frozen { " --frozen" } else { "" });
+            Ok(())
+        }
+
+        PkgAction::Update { package } => {
+            if let Some(ref pkg) = package {
+                println!("{} Updating package: {}", "🔄".cyan(), pkg.green());
+            } else {
+                println!("{} Updating all packages", "🔄".cyan());
+            }
+
+            // TODO: Implement package updates
+            println!();
+            println!("{} Package update not yet fully implemented", "⚠".yellow());
+            println!(
+                "  Until then, use: spn update{}",
+                package.as_deref().map(|p| format!(" {}", p)).unwrap_or_default()
+            );
+            Ok(())
+        }
+
+        PkgAction::Outdated => {
+            println!("{} Checking for outdated packages...", "📋".cyan());
+
+            // TODO: Implement outdated package detection
+            println!();
+            println!("{} Outdated detection not yet fully implemented", "⚠".yellow());
+            println!("  Until then, use: spn outdated");
+            Ok(())
+        }
+
+        PkgAction::Search { query, r#type, limit } => {
+            println!("{} Searching registry for '{}'...", "🔍".cyan(), query.green());
+
+            if let Some(ref t) = r#type {
+                println!("  Type filter: {}", t.dimmed());
+            }
+            println!("  Limit: {} results", limit);
+
+            // TODO: Implement registry search
+            println!();
+            println!("{} Registry search not yet fully implemented", "⚠".yellow());
+            println!(
+                "  Until then, use: spn search {}{}",
+                query,
+                r#type.as_deref().map(|t| format!(" -t {}", t)).unwrap_or_default()
+            );
+            Ok(())
+        }
+    }
+}
+
+/// Infer package type from scope prefix
+fn infer_package_type(package: &str) -> Option<&'static str> {
+    if package.starts_with("@workflows/") || package.starts_with("@nika/") {
+        Some("workflow")
+    } else if package.starts_with("@agents/") {
+        Some("agent")
+    } else if package.starts_with("@skills/") {
+        Some("skill")
+    } else if package.starts_with("@prompts/") {
+        Some("prompt")
+    } else if package.starts_with("@jobs/") {
+        Some("job")
+    } else if package.starts_with("@schemas/") || package.starts_with("@novanet/") {
+        Some("schema")
+    } else {
+        None
     }
 }
 
