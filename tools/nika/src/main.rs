@@ -287,6 +287,15 @@ enum Commands {
         action: Option<SetupAction>,
     },
 
+    /// Manage the spn daemon for keychain access (v0.27 spn fusion)
+    ///
+    /// The daemon provides unified keychain access, eliminating repeated popups.
+    /// Binary stays in spn-daemon; these commands proxy to it.
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
+
     /// Generate shell completions (v0.13.1)
     Completion {
         /// Shell to generate completions for
@@ -705,6 +714,42 @@ enum SetupAction {
 
     /// Set up Windsurf integration
     Windsurf,
+}
+
+/// Daemon management actions (v0.27 spn fusion)
+///
+/// The daemon binary (spn-daemon) is kept external. These commands proxy to it.
+#[derive(Subcommand)]
+enum DaemonAction {
+    /// Start the daemon (proxies to spn daemon start)
+    Start {
+        /// Run in foreground (don't daemonize)
+        #[arg(long)]
+        foreground: bool,
+
+        /// Skip preloading secrets at startup
+        #[arg(long)]
+        skip_preload: bool,
+    },
+
+    /// Stop the daemon (proxies to spn daemon stop)
+    Stop,
+
+    /// Show daemon status
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Restart the daemon
+    Restart,
+
+    /// Install daemon as a system service (auto-start at login)
+    Install,
+
+    /// Uninstall daemon system service
+    Uninstall,
 }
 
 /// Model management actions (v0.27 spn fusion)
@@ -1132,6 +1177,9 @@ async fn main() {
 
         // Setup wizard (v0.27 spn fusion)
         Some(Commands::Setup { action }) => handle_setup_command(action, quiet).await,
+
+        // Daemon management (v0.27 spn fusion)
+        Some(Commands::Daemon { action }) => handle_daemon_command(action, quiet).await,
 
         // Shell completion (v0.13.1)
         Some(Commands::Completion { shell }) => {
@@ -3558,6 +3606,202 @@ fn setup_ide_helper(ide_name: &str, dir_name: &str, quiet: bool) -> Result<(), N
     }
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAEMON COMMAND HANDLER (v0.27 spn fusion)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle daemon management commands.
+///
+/// The daemon binary (spn-daemon) is kept external. These commands proxy to `spn daemon`.
+async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    // Helper to run spn daemon commands
+    fn run_spn_daemon(args: &[&str]) -> Result<bool, std::io::Error> {
+        let status = std::process::Command::new("spn")
+            .args(args)
+            .status()?;
+        Ok(status.success())
+    }
+
+    // Helper to print spn not found error
+    fn spn_not_found_error() -> NikaError {
+        eprintln!();
+        eprintln!("Install spn CLI from:");
+        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+        NikaError::InvalidConfig {
+            message: "spn CLI not found".to_string(),
+        }
+    }
+
+    match action {
+        DaemonAction::Start { foreground, skip_preload } => {
+            if !quiet {
+                println!("{}", "🔧 Starting spn daemon...".cyan().bold());
+            }
+
+            let mut args = vec!["daemon", "start"];
+            if foreground {
+                args.push("--foreground");
+            }
+            if skip_preload {
+                args.push("--skip-preload");
+            }
+
+            match run_spn_daemon(&args) {
+                Ok(true) => {
+                    if !quiet {
+                        println!("  {} Daemon started", "✓".green());
+                    }
+                    Ok(())
+                }
+                Ok(false) => {
+                    eprintln!("{}", "Failed to start daemon".red());
+                    Err(NikaError::InvalidConfig {
+                        message: "Failed to start daemon".to_string(),
+                    })
+                }
+                Err(_) => {
+                    eprintln!("{} spn command not found", "✗".red());
+                    Err(spn_not_found_error())
+                }
+            }
+        }
+
+        DaemonAction::Stop => {
+            if !quiet {
+                println!("{}", "🛑 Stopping spn daemon...".cyan().bold());
+            }
+
+            match run_spn_daemon(&["daemon", "stop"]) {
+                Ok(true) => {
+                    if !quiet {
+                        println!("  {} Daemon stopped", "✓".green());
+                    }
+                    Ok(())
+                }
+                Ok(false) => {
+                    eprintln!("{}", "Failed to stop daemon".red());
+                    Err(NikaError::InvalidConfig {
+                        message: "Failed to stop daemon".to_string(),
+                    })
+                }
+                Err(_) => {
+                    eprintln!("{} spn command not found", "✗".red());
+                    Err(spn_not_found_error())
+                }
+            }
+        }
+
+        DaemonAction::Status { json } => {
+            // Check if daemon is running by checking socket
+            let socket_path = dirs::home_dir()
+                .map(|h| h.join(".spn/daemon.sock"))
+                .unwrap_or_default();
+
+            let is_running = socket_path.exists();
+
+            if json {
+                if is_running {
+                    println!("{{\"status\":\"running\",\"socket\":\"{}\"}}", socket_path.display());
+                } else {
+                    println!("{{\"status\":\"stopped\"}}");
+                }
+            } else {
+                println!("{}", "Daemon Status".cyan().bold());
+                println!("{}", "─".repeat(60));
+                println!();
+                if is_running {
+                    println!("  {} Daemon is running", "✓".green());
+                    println!("  Socket: {}", socket_path.display());
+                } else {
+                    println!("  {} Daemon is not running", "○".yellow());
+                    println!();
+                    println!("  Start with: nika daemon start");
+                }
+            }
+            Ok(())
+        }
+
+        DaemonAction::Restart => {
+            if !quiet {
+                println!("{}", "🔄 Restarting spn daemon...".cyan().bold());
+            }
+
+            match run_spn_daemon(&["daemon", "restart"]) {
+                Ok(true) => {
+                    if !quiet {
+                        println!("  {} Daemon restarted", "✓".green());
+                    }
+                    Ok(())
+                }
+                Ok(false) => {
+                    eprintln!("{}", "Failed to restart daemon".red());
+                    Err(NikaError::InvalidConfig {
+                        message: "Failed to restart daemon".to_string(),
+                    })
+                }
+                Err(_) => {
+                    eprintln!("{} spn command not found", "✗".red());
+                    Err(spn_not_found_error())
+                }
+            }
+        }
+
+        DaemonAction::Install => {
+            if !quiet {
+                println!("{}", "📦 Installing daemon as system service...".cyan().bold());
+            }
+
+            match run_spn_daemon(&["daemon", "install"]) {
+                Ok(true) => {
+                    if !quiet {
+                        println!("  {} Daemon service installed", "✓".green());
+                        println!();
+                        println!("  The daemon will auto-start at login.");
+                    }
+                    Ok(())
+                }
+                Ok(false) => {
+                    eprintln!("{}", "Failed to install daemon service".red());
+                    Err(NikaError::InvalidConfig {
+                        message: "Failed to install daemon service".to_string(),
+                    })
+                }
+                Err(_) => {
+                    eprintln!("{} spn command not found", "✗".red());
+                    Err(spn_not_found_error())
+                }
+            }
+        }
+
+        DaemonAction::Uninstall => {
+            if !quiet {
+                println!("{}", "🗑️  Uninstalling daemon service...".cyan().bold());
+            }
+
+            match run_spn_daemon(&["daemon", "uninstall"]) {
+                Ok(true) => {
+                    if !quiet {
+                        println!("  {} Daemon service uninstalled", "✓".green());
+                    }
+                    Ok(())
+                }
+                Ok(false) => {
+                    eprintln!("{}", "Failed to uninstall daemon service".red());
+                    Err(NikaError::InvalidConfig {
+                        message: "Failed to uninstall daemon service".to_string(),
+                    })
+                }
+                Err(_) => {
+                    eprintln!("{} spn command not found", "✗".red());
+                    Err(spn_not_found_error())
+                }
+            }
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
