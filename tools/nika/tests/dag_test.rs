@@ -36,7 +36,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -60,7 +60,7 @@ flows:
     target: a
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -93,7 +93,7 @@ flows:
     target: d
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 2);
@@ -131,7 +131,7 @@ flows:
     target: b
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     let result = graph.detect_cycles();
     assert!(result.is_err());
@@ -173,7 +173,7 @@ flows:
     target: e
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -210,7 +210,7 @@ flows:
     target: e
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 1);
@@ -237,7 +237,7 @@ tasks:
       prompt: "B"
 "#;
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(graph.get_final_tasks().len(), 2); // Both are final

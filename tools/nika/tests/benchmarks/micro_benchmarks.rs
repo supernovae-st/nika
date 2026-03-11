@@ -132,7 +132,7 @@ flows:
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
         let _ = graph.detect_cycles();
     }
 
@@ -187,7 +187,7 @@ tasks:
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
         let _ = graph.detect_cycles();
     }
 
@@ -245,7 +245,7 @@ tasks:
     }
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     let iterations = 10000;
     let start = Instant::now();
@@ -359,7 +359,7 @@ fn benchmark_parse_complex() {
 fn benchmark_dag_small() {
     let yaml = "schema: \"nika/workflow@0.5\"\nworkflow: b\ntasks:\n  - id: a\n    exec: \"e\"\n";
     let w: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let g = Dag::from_workflow(&w);
+    let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
 
@@ -369,7 +369,7 @@ fn benchmark_dag_large() {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"e\"\n", i));
     }
     let w: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let g = Dag::from_workflow(&w);
+    let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
 
@@ -383,6 +383,6 @@ fn benchmark_cycle_detect() {
         yaml.push_str(&format!("  - source: t{}\n    target: t{}\n", i - 1, i));
     }
     let w: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let g = Dag::from_workflow(&w);
+    let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }

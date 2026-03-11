@@ -28,7 +28,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     // Should detect cycle
     assert!(graph.detect_cycles().is_err());
@@ -56,7 +56,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -87,7 +87,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -128,7 +128,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -167,7 +167,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -203,7 +203,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_err());
 }
@@ -241,7 +241,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 }
@@ -286,7 +286,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 }

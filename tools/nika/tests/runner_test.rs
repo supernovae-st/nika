@@ -268,7 +268,7 @@ tasks:
       command: "echo 2"
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // No dependencies - both tasks should have empty deps
         let deps1 = graph.get_dependencies("task1");
@@ -299,7 +299,7 @@ flows:
     target: task3
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         assert!(graph.get_dependencies("task1").is_empty());
         assert_eq!(graph.get_dependencies("task2").len(), 1);
@@ -333,7 +333,7 @@ flows:
     target: branch3
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // Root has no dependencies
         assert!(graph.get_dependencies("root").is_empty());
@@ -368,7 +368,7 @@ flows:
     target: sink
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow);
+        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // Sink depends on both sources
         let deps = graph.get_dependencies("sink");

@@ -33,7 +33,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 
@@ -77,7 +77,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 
@@ -125,7 +125,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 
@@ -169,7 +169,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
 
@@ -239,7 +239,7 @@ flows:
 "#;
 
     let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
     assert_eq!(workflow.tasks.len(), 8);
@@ -291,7 +291,7 @@ tasks:
     }
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert_eq!(workflow.tasks.len(), 50);
     assert!(graph.detect_cycles().is_ok());
@@ -329,7 +329,7 @@ tasks:
     }
 
     let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow);
+    let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert_eq!(workflow.tasks.len(), 21);
     assert!(graph.detect_cycles().is_ok());
