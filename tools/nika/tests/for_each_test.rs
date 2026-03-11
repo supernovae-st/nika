@@ -317,3 +317,85 @@ tasks:
         result.err()
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// for_each with Nested Path Binding (v0.24.1 BUG FIX)
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_for_each_with_use_nested_path_binding() {
+    // BUG: for_each: "{{use.data.nested.items}}" silently fails when
+    // the binding is "data: producer" because the code tries to resolve
+    // "data.nested.items" as the alias instead of resolving "data" first
+    // and then traversing ".nested.items".
+    //
+    // This test verifies that nested path traversal through use: bindings
+    // works correctly with for_each.
+    let yaml = r#"
+schema: nika/workflow@0.3
+tasks:
+  - id: producer
+    exec:
+      command: "echo '{\"nested\": {\"items\": [\"alpha\", \"beta\", \"gamma\"]}}'"
+
+  - id: consumer
+    use:
+      data: producer
+    for_each: "{{use.data.nested.items}}"
+    as: item
+    flow:
+      - producer
+    exec:
+      command: "echo Processing: {{use.item}}"
+"#;
+
+    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let mut runner = Runner::new(workflow);
+    let result = runner.run().await;
+
+    assert!(
+        result.is_ok(),
+        "Workflow should complete: {:?}",
+        result.err()
+    );
+
+    // The workflow output should contain the consumer task results
+    // For for_each tasks, the output is a JSON array of results
+    let output = result.unwrap();
+
+    // Output should contain all 3 processed items (alpha, beta, gamma)
+    // The for_each should have expanded to 3 iterations
+    assert!(
+        output.contains("alpha") || output.contains("Processing: alpha"),
+        "Output should contain 'alpha': {}",
+        output
+    );
+    assert!(
+        output.contains("beta") || output.contains("Processing: beta"),
+        "Output should contain 'beta': {}",
+        output
+    );
+    assert!(
+        output.contains("gamma") || output.contains("Processing: gamma"),
+        "Output should contain 'gamma': {}",
+        output
+    );
+
+    // Additionally verify the output is a valid JSON array with 3 elements
+    // (indicating 3 for_each iterations ran)
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap_or_default();
+    if let serde_json::Value::Array(arr) = &parsed {
+        assert_eq!(
+            arr.len(),
+            3,
+            "Should have 3 results from for_each iterations, got: {}",
+            output
+        );
+    } else {
+        // If not a JSON array, the for_each likely didn't expand properly
+        panic!(
+            "Expected JSON array output from for_each task, got: {}",
+            output
+        );
+    }
+}
