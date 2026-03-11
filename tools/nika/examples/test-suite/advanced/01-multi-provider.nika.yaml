@@ -23,9 +23,9 @@ tasks:
       provider: openai
       model: gpt-4o
 
-  - id: ollama_task
-    description: "Task using Ollama provider"
+  - id: native_task
+    description: "Task using Native provider (v0.27: Ollama removed)"
     infer:
       prompt: "Generate a one-sentence summary about AI."
-      provider: ollama
+      provider: native
       model: llama3.2:1b

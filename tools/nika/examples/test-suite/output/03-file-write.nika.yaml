@@ -6,8 +6,9 @@ schema: "nika/workflow@0.10"
 workflow: test-output-file
 description: "Test artifact file writing (migrated from deprecated output.save)"
 
-provider: ollama
-model: llama3.2:1b
+# v0.27: Use native inference (Ollama removed)
+provider: native
+model: llama3.2:1b  # Model name resolved by nika model registry
 
 # v0.18 Artifact system replaces deprecated output.save
 artifacts:

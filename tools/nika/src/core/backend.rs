@@ -528,6 +528,13 @@ pub enum BackendError {
         /// Actual checksum.
         actual: String,
     },
+
+    /// Path traversal attack detected (v0.27 security).
+    #[error("Path traversal detected: '{path}' escapes storage directory")]
+    PathTraversal {
+        /// The invalid path.
+        path: String,
+    },
 }
 
 impl BackendError {

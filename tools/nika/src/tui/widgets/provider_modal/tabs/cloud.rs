@@ -55,7 +55,7 @@ pub struct ModelInfo {
 }
 
 impl ProviderInfo {
-    /// Create all 7 supported providers with default status
+    /// Create all 6 cloud providers with default status (v0.27: Ollama removed)
     pub fn all_providers() -> Vec<Self> {
         vec![
             ProviderInfo {
@@ -281,23 +281,23 @@ impl Widget for CloudTab<'_> {
             return;
         }
 
-        // 7 providers: 4 on row 1, 3 on row 2
+        // v0.27: 6 providers: 3 on row 0, 3 on row 1 (Ollama removed)
         let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
             .split(area);
 
         for (row_idx, row_area) in rows.iter().enumerate() {
-            // Row 0: 4 providers, Row 1: 3 providers
-            let num_cols = if row_idx == 0 { 4 } else { 3 };
+            // v0.27: 3 providers per row (2x3 grid)
+            let num_cols = 3;
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints(vec![Constraint::Ratio(1, num_cols as u32); num_cols])
                 .split(*row_area);
 
             for (col_idx, col_area) in cols.iter().enumerate() {
-                // Row 0 has 4 providers, row 1 starts at index 4
-                let provider_idx = if row_idx == 0 { col_idx } else { 4 + col_idx };
+                // v0.27: Row 0 has 3 providers (0-2), row 1 has 3 providers (3-5)
+                let provider_idx = row_idx * 3 + col_idx;
                 if provider_idx < self.providers.len() {
                     let p = &self.providers[provider_idx];
 

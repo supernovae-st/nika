@@ -237,7 +237,7 @@ pub struct ProviderModalState {
     pub key_input_buffer: String,
     /// Whether Native is available (running)
     pub native_available: bool,
-    /// Provider connection statuses (7 providers)
+    /// Provider connection statuses (6 cloud providers)
     pub provider_statuses: Vec<ConnectionStatus>,
     /// Native models loaded from server
     pub native_models: Vec<NativeModelInfo>,
@@ -249,7 +249,7 @@ pub struct ProviderModalState {
     pub animation_frame: u8,
     /// v0.8.9: Cached cloud tab label to avoid allocation per frame
     cached_cloud_label: Option<String>,
-    /// v0.8.9: Latency history per provider (7 providers × 10 samples)
+    /// v0.8.9: Latency history per provider (6 providers × 10 samples)
     latency_history: Vec<Vec<u64>>,
     /// v0.8.9: Matrix verification effect state
     pub verification_state: super::components::VerificationState,
@@ -271,7 +271,7 @@ impl Default for ProviderModalState {
             visible: false,
             active_tab: ProviderModalTab::Cloud,
             selected_idx: 0,
-            item_count: 7, // Cloud tab has 7 providers by default
+            item_count: 6, // Cloud tab has 6 providers by default (v0.27: Ollama removed)
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
@@ -282,7 +282,7 @@ impl Default for ProviderModalState {
             active_model: None,
             animation_frame: 0,
             cached_cloud_label: None,
-            latency_history: vec![Vec::new(); 7], // Pre-allocate for 7 providers
+            latency_history: vec![Vec::new(); 6], // Pre-allocate for 6 providers
             verification_state: super::components::VerificationState::new_providers(),
             verification_active: false,
             expanded_provider_idx: None,
@@ -354,22 +354,22 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 7, // 7 cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, native)
+            ProviderModalTab::Cloud => 6, // 6 cloud providers (v0.27: Ollama removed)
             ProviderModalTab::Native => self.native_models.len().max(1), // Dynamic
-            ProviderModalTab::Keys => 7,  // 7 API key entries
+            ProviderModalTab::Keys => 6,  // 6 API key entries (cloud providers only)
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
     }
 
     /// Navigate up in current list/grid (wraps around)
-    /// For Cloud tab (3x3 grid, 7 items): moves up one row (idx - 3), wraps to last valid row
+    /// For Cloud tab (2x3 grid, 6 items): moves up one row (idx - 3), wraps to last row
     /// For other tabs: moves up one item (idx - 1), wraps to last
     pub fn navigate_up(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 3-column grid (7 items): move up one row, wrap to last valid row
+            // 3-column grid (6 items): move up one row, wrap to last row
             if self.selected_idx >= 3 {
                 self.selected_idx -= 3;
             } else {
@@ -390,14 +390,14 @@ impl ProviderModalState {
     }
 
     /// Navigate down in current list/grid (wraps around)
-    /// For Cloud tab (3x3 grid, 7 items): moves down one row (idx + 3), wraps to top
+    /// For Cloud tab (2x3 grid, 6 items): moves down one row (idx + 3), wraps to top
     /// For other tabs: moves down one item (idx + 1), wraps to first
     pub fn navigate_down(&mut self) {
         if self.item_count == 0 {
             return;
         }
         if self.active_tab == ProviderModalTab::Cloud {
-            // 3-column grid (7 items): move down one row, wrap to top
+            // 3-column grid (6 items): move down one row, wrap to top
             if self.selected_idx + 3 < self.item_count {
                 self.selected_idx += 3;
             } else {
@@ -524,9 +524,9 @@ impl ProviderModalState {
     }
 
     /// v0.8.9: Sync all verification statuses from provider_statuses
-    /// v0.21.2: Updated to sync all 7 LLM providers (including Gemini)
+    /// v0.27: Updated to sync all 6 cloud providers (Ollama removed)
     pub fn sync_all_verification_statuses(&mut self) {
-        for i in 0..7 {
+        for i in 0..6 {
             self.sync_verification_status(i);
         }
     }
@@ -601,15 +601,15 @@ impl ProviderModalState {
 
     /// Update provider status by index
     ///
-    /// v0.8.9: Guard against invalid index (max 6 for 7 providers)
+    /// v0.27: Guard against invalid index (max 5 for 6 cloud providers)
     /// v0.8.9: Automatically pushes latency to history when Connected
     /// v0.8.9: Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
-        // Guard against unbounded growth (7 providers: 0-6)
-        if index >= 7 {
+        // Guard against unbounded growth (6 cloud providers: 0-5)
+        if index >= 6 {
             tracing::warn!(
                 index = %index,
-                "Invalid provider index (max 6), ignoring status update"
+                "Invalid provider index (max 5), ignoring status update"
             );
             return;
         }
@@ -629,7 +629,8 @@ impl ProviderModalState {
         self.sync_verification_status(index);
     }
 
-    /// Update provider status by name
+    /// Update provider status by name (6 cloud providers only)
+    /// v0.27: Native is handled separately via native_models
     pub fn set_provider_status_by_name(&mut self, name: &str, status: ConnectionStatus) {
         let index = match name.to_lowercase().as_str() {
             "anthropic" | "claude" => 0,
@@ -638,16 +639,16 @@ impl ProviderModalState {
             "groq" => 3,
             "deepseek" => 4,
             "gemini" => 5,
-            "native" => 6,
-            _ => return,
+            // v0.27: Native is not a cloud provider, handled separately
+            "native" | _ => return,
         };
         self.set_provider_status(index, status);
     }
 
-    /// Get provider statuses for CloudTab
+    /// Get provider statuses for CloudTab (6 cloud providers)
     pub fn get_provider_statuses(&self) -> Vec<ConnectionStatus> {
-        let mut statuses = Vec::with_capacity(7);
-        for i in 0..7 {
+        let mut statuses = Vec::with_capacity(6);
+        for i in 0..6 {
             statuses.push(
                 self.provider_statuses
                     .get(i)
@@ -667,9 +668,9 @@ impl ProviderModalState {
 
     /// v0.8.9: Push a latency sample to history for a provider
     /// Maintains a rolling window of LATENCY_HISTORY_MAX samples
-    /// v0.21.2: Updated guard to allow all 7 providers (0-6)
+    /// v0.27: Updated guard for 6 cloud providers (0-5)
     pub fn push_latency(&mut self, index: usize, latency_ms: u64) {
-        if index >= 7 {
+        if index >= 6 {
             return;
         }
         // Ensure vector has space for this provider
@@ -739,7 +740,7 @@ impl ProviderModalState {
 
         SessionStats {
             connected_providers,
-            total_providers: 7, // 7 LLM providers: anthropic, openai, mistral, groq, deepseek, gemini, native
+            total_providers: 6, // 6 cloud providers: anthropic, openai, mistral, groq, deepseek, gemini
             tokens_used: self.session_tokens,
             mcp_connections: self.mcp_connections,
             avg_latency_ms,
@@ -1063,14 +1064,13 @@ mod tests {
 
     #[test]
     fn test_modal_navigate_grid_mode_wrapping() {
-        // Cloud tab (default) uses 3-column grid navigation with wrapping (7 providers)
+        // Cloud tab (default) uses 3-column grid navigation with wrapping (6 providers)
         let mut state = ProviderModalState::default();
-        // Default is Cloud tab with item_count = 7
+        // Default is Cloud tab with item_count = 6
 
-        // Navigation uses 3-column grid layout:
+        // Navigation uses 3-column grid layout (v0.27: 2x3 grid, Ollama removed):
         //   0 1 2  (row 0: Claude, OpenAI, Mistral)
         //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
-        //   6      (row 2: Native, partial row)
 
         assert_eq!(state.selected_idx, 0);
         assert_eq!(state.active_tab, ProviderModalTab::Cloud);
@@ -1083,11 +1083,9 @@ mod tests {
         state.navigate_right();
         assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-        // Navigate down: 0 -> 3 -> 6 -> wraps to 0 (same column)
+        // Navigate down: 0 -> 3 -> wraps to 0 (v0.27: 2x3 grid, no row 2)
         state.navigate_down();
         assert_eq!(state.selected_idx, 3);
-        state.navigate_down();
-        assert_eq!(state.selected_idx, 6);
         state.navigate_down();
         assert_eq!(state.selected_idx, 0); // Wraps: col 0, row 0
 
@@ -1096,17 +1094,17 @@ mod tests {
         state.navigate_down();
         assert_eq!(state.selected_idx, 5);
         state.navigate_down();
-        assert_eq!(state.selected_idx, 2); // No item at row 2 col 2, wraps to row 0 col 2
+        assert_eq!(state.selected_idx, 2); // Wraps to row 0 col 2
 
         // Navigate left wrapping: 3 -> wraps to 5
         state.selected_idx = 3;
         state.navigate_left();
         assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-        // Navigate up wrapping: 0 -> wraps to 6 (last row with col 0)
+        // Navigate up wrapping: 0 -> wraps to 3 (v0.27: last row with col 0)
         state.selected_idx = 0;
         state.navigate_up();
-        assert_eq!(state.selected_idx, 6); // Wraps: col 0 has item at row 2
+        assert_eq!(state.selected_idx, 3); // Wraps: col 0 last is idx 3
 
         // Navigate up wrapping: 1 -> wraps to 4 (last row with col 1 is row 1)
         state.selected_idx = 1;
@@ -1204,16 +1202,16 @@ mod tests {
         state
             .set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
         state.set_provider_status_by_name("gemini", ConnectionStatus::Connected { latency_ms: 6 });
-        state.set_provider_status_by_name("native", ConnectionStatus::Connected { latency_ms: 7 });
+        // v0.27: Native is not a cloud provider, handled separately
 
-        assert_eq!(state.provider_statuses.len(), 7);
+        assert_eq!(state.provider_statuses.len(), 6);
     }
 
     #[test]
-    fn test_get_provider_statuses_returns_7() {
+    fn test_get_provider_statuses_returns_6() {
         let state = ProviderModalState::default();
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 7);
+        assert_eq!(statuses.len(), 6); // v0.27: 6 cloud providers
         // All should be Unknown by default
         assert!(statuses
             .iter()
@@ -1227,7 +1225,7 @@ mod tests {
         state.set_provider_status(2, ConnectionStatus::Checking);
 
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 7);
+        assert_eq!(statuses.len(), 6); // v0.27: 6 cloud providers
         assert!(matches!(statuses[0], ConnectionStatus::Connected { .. }));
         assert!(matches!(statuses[1], ConnectionStatus::Unknown));
         assert!(matches!(statuses[2], ConnectionStatus::Checking));
@@ -1443,7 +1441,7 @@ mod tests {
     #[test]
     fn test_latency_history_default_empty() {
         let state = ProviderModalState::default();
-        assert_eq!(state.latency_history.len(), 7);
+        assert_eq!(state.latency_history.len(), 6); // v0.27: 6 cloud providers
         for history in &state.latency_history {
             assert!(history.is_empty());
         }
@@ -1549,7 +1547,7 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 0);
-        assert_eq!(stats.total_providers, 7); // 7 LLM providers
+        assert_eq!(stats.total_providers, 6); // v0.27: 6 cloud providers
         assert_eq!(stats.tokens_used, 0);
         assert!(stats.avg_latency_ms.is_none());
     }
@@ -1564,7 +1562,7 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 2);
-        assert_eq!(stats.total_providers, 7); // 7 LLM providers
+        assert_eq!(stats.total_providers, 6); // v0.27: 6 cloud providers
                                               // Average of 100 and 200 is 150
         assert_eq!(stats.avg_latency_ms, Some(150));
     }
@@ -1642,8 +1640,8 @@ mod tests {
         state.start_verification();
         assert!(state.verification_active);
 
-        // Set all 7 to connected
-        for i in 0..7 {
+        // Set all 6 cloud providers to connected (v0.27)
+        for i in 0..6 {
             state
                 .verification_state
                 .set_status(i, VerifyStatus::Connected);

@@ -20,7 +20,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let storage = HuggingFaceStorage::new(default_model_dir());
+//!     let storage = HuggingFaceStorage::new(default_model_dir())?;
 //!     let model = find_model("qwen3:8b").unwrap();
 //!     let request = DownloadRequest::curated(model);
 //!
@@ -205,7 +205,15 @@ pub trait ModelStorage {
     fn delete(&self, model_id: &str) -> std::result::Result<(), BackendError>;
 
     /// Get the path to a model file.
-    fn model_path(&self, model_id: &str) -> PathBuf;
+    ///
+    /// # Security
+    ///
+    /// v0.27: Validates that model_id doesn't escape storage directory via path traversal.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BackendError::PathTraversal` if the path would escape the storage directory.
+    fn model_path(&self, model_id: &str) -> std::result::Result<PathBuf, BackendError>;
 }
 
 // ============================================================================
@@ -225,15 +233,21 @@ pub struct HuggingFaceStorage {
 
 impl HuggingFaceStorage {
     /// Create a new HuggingFace storage with the given directory.
-    #[must_use]
-    pub fn new(storage_dir: PathBuf) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::InvalidConfig` if the HTTP client cannot be built.
+    pub fn new(storage_dir: PathBuf) -> Result<Self> {
+        let user_agent = format!("nika/{}", env!("CARGO_PKG_VERSION"));
+        let client = Client::builder()
+            .user_agent(&user_agent)
+            .build()
+            .map_err(|e| StorageError::InvalidConfig(format!("Failed to create HTTP client: {e}")))?;
+
+        Ok(Self {
             storage_dir,
-            client: Client::builder()
-                .user_agent("nika/0.27.0")
-                .build()
-                .expect("Failed to create HTTP client"),
-        }
+            client,
+        })
     }
 
     /// Create storage with a custom HTTP client.
@@ -446,14 +460,18 @@ impl HuggingFaceStorage {
     }
 
     /// Check if a model exists locally.
+    ///
+    /// Returns `false` if the model_id contains path traversal patterns.
     #[must_use]
     pub fn exists(&self, model_id: &str) -> bool {
-        self.model_path(model_id).exists()
+        self.model_path(model_id)
+            .map(|p| p.exists())
+            .unwrap_or(false)
     }
 
     /// Get info about a local model.
     pub fn model_info(&self, model_id: &str) -> std::result::Result<ModelInfo, BackendError> {
-        let path = self.model_path(model_id);
+        let path = self.model_path(model_id)?;
         if !path.exists() {
             return Err(BackendError::ModelNotFound(model_id.to_string()));
         }
@@ -474,7 +492,7 @@ impl HuggingFaceStorage {
 
     /// Delete a local model.
     pub fn delete(&self, model_id: &str) -> std::result::Result<(), BackendError> {
-        let path = self.model_path(model_id);
+        let path = self.model_path(model_id)?;
         if !path.exists() {
             return Err(BackendError::ModelNotFound(model_id.to_string()));
         }
@@ -484,12 +502,40 @@ impl HuggingFaceStorage {
         Ok(())
     }
 
-    /// Get the path to a model file.
-    #[must_use]
-    pub fn model_path(&self, model_id: &str) -> PathBuf {
+    /// Get the path to a model file with path traversal validation.
+    ///
+    /// # Security
+    ///
+    /// v0.27: Validates that model_id doesn't escape storage directory via `..` or absolute paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BackendError::PathTraversal` if the path would escape the storage directory.
+    pub fn model_path(&self, model_id: &str) -> std::result::Result<PathBuf, BackendError> {
         // model_id format: "repo/filename" or just "filename"
         // Both cases join to storage_dir
-        self.storage_dir.join(model_id)
+
+        // Security: Reject absolute paths
+        let model_path = Path::new(model_id);
+        if model_path.is_absolute() {
+            return Err(BackendError::PathTraversal {
+                path: model_id.to_string(),
+            });
+        }
+
+        // Security: Check for path traversal patterns
+        // We normalize the path to handle ".." components
+        let joined = self.storage_dir.join(model_id);
+        let normalized = normalize_path(&joined);
+        let normalized_base = normalize_path(&self.storage_dir);
+
+        if !normalized.starts_with(&normalized_base) {
+            return Err(BackendError::PathTraversal {
+                path: model_id.to_string(),
+            });
+        }
+
+        Ok(joined)
     }
 }
 
@@ -525,7 +571,7 @@ impl ModelStorage for HuggingFaceStorage {
         HuggingFaceStorage::delete(self, model_id)
     }
 
-    fn model_path(&self, model_id: &str) -> PathBuf {
+    fn model_path(&self, model_id: &str) -> std::result::Result<PathBuf, BackendError> {
         HuggingFaceStorage::model_path(self, model_id)
     }
 }
@@ -533,6 +579,30 @@ impl ModelStorage for HuggingFaceStorage {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/// Normalize a path by resolving `.` and `..` components without filesystem access.
+///
+/// This is used for path traversal validation before the path exists.
+/// Adapted from `io/security.rs` for use in storage module.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::CurDir => {
+                // Skip current directory references
+            }
+            _ => {
+                normalized.push(component);
+            }
+        }
+    }
+
+    normalized
+}
 
 /// Extract quantization level from GGUF filename.
 ///
@@ -594,26 +664,46 @@ mod tests {
     #[test]
     fn test_storage_new() {
         let dir = tempdir().unwrap();
-        let storage = HuggingFaceStorage::new(dir.path().to_path_buf());
+        let storage = HuggingFaceStorage::new(dir.path().to_path_buf()).unwrap();
         assert_eq!(storage.storage_dir(), dir.path());
     }
 
     #[test]
     fn test_model_path() {
         let dir = tempdir().unwrap();
-        let storage = HuggingFaceStorage::new(dir.path().to_path_buf());
+        let storage = HuggingFaceStorage::new(dir.path().to_path_buf()).unwrap();
 
-        let path = storage.model_path("repo/model.gguf");
+        let path = storage.model_path("repo/model.gguf").unwrap();
         assert!(path.ends_with("repo/model.gguf"));
 
-        let path = storage.model_path("model.gguf");
+        let path = storage.model_path("model.gguf").unwrap();
         assert!(path.ends_with("model.gguf"));
+    }
+
+    #[test]
+    fn test_model_path_traversal_rejected() {
+        let dir = tempdir().unwrap();
+        let storage = HuggingFaceStorage::new(dir.path().to_path_buf()).unwrap();
+
+        // Test path traversal with ..
+        let result = storage.model_path("../../../etc/passwd");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), BackendError::PathTraversal { .. }));
+
+        // Test absolute path rejection
+        let result = storage.model_path("/etc/passwd");
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), BackendError::PathTraversal { .. }));
+
+        // Test valid nested path is accepted
+        let result = storage.model_path("Qwen/Qwen3-8B-Q4_K_M.gguf");
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_list_models_empty() {
         let dir = tempdir().unwrap();
-        let storage = HuggingFaceStorage::new(dir.path().to_path_buf());
+        let storage = HuggingFaceStorage::new(dir.path().to_path_buf()).unwrap();
         let models = storage.list_models().unwrap();
         assert!(models.is_empty());
     }
@@ -621,7 +711,7 @@ mod tests {
     #[test]
     fn test_exists_false() {
         let dir = tempdir().unwrap();
-        let storage = HuggingFaceStorage::new(dir.path().to_path_buf());
+        let storage = HuggingFaceStorage::new(dir.path().to_path_buf()).unwrap();
         assert!(!storage.exists("nonexistent/model.gguf"));
     }
 

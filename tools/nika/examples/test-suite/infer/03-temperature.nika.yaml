@@ -6,8 +6,9 @@ schema: "nika/workflow@0.10"
 workflow: test-infer-temperature
 description: "Test infer verb with temperature control"
 
-provider: ollama
-model: llama3.2:1b
+# v0.27: Use native inference (Ollama removed)
+provider: native
+model: llama3.2:1b  # Model name resolved by nika model registry
 
 tasks:
   - id: low_temp

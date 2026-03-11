@@ -11,6 +11,64 @@
 //! the full path to a downloaded model file.
 
 use std::fmt;
+use std::path::PathBuf;
+use thiserror::Error;
+
+/// Error type for model resolution operations (v0.27 security).
+#[derive(Error, Debug)]
+pub enum ModelResolveError {
+    /// Unknown model ID.
+    #[error("Unknown model: {id}")]
+    UnknownModel {
+        /// The model ID that was not found.
+        id: String,
+    },
+
+    /// Requested quantization is not available for this model.
+    #[error("Quantization {quantization} not available for {model_id}")]
+    QuantizationNotAvailable {
+        /// The quantization level requested.
+        quantization: Quantization,
+        /// The model ID.
+        model_id: String,
+    },
+
+    /// Cannot determine home directory.
+    #[error("Cannot determine home directory")]
+    HomeDirectoryNotFound,
+
+    /// Model is not downloaded locally.
+    #[error("Model not downloaded. Run: nika model pull {model_id}")]
+    ModelNotDownloaded {
+        /// The model ID.
+        model_id: String,
+    },
+
+    /// Cannot read snapshots directory.
+    #[error("Cannot read snapshots directory {path}: {source}")]
+    SnapshotsDirReadError {
+        /// The path that could not be read.
+        path: PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
+
+    /// No snapshots found for model.
+    #[error("No snapshots found for {model_id}")]
+    NoSnapshotsFound {
+        /// The model ID.
+        model_id: String,
+    },
+
+    /// Model file not found at expected path.
+    #[error("Model file not found: {path}. Run: nika model pull {model_id}")]
+    ModelFileNotFound {
+        /// The expected path.
+        path: PathBuf,
+        /// The model ID.
+        model_id: String,
+    },
+}
 
 /// Type of model capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -502,6 +560,7 @@ pub struct ResolvedModel {
 /// let model = find_model("qwen3:8b").unwrap();
 /// assert_eq!(model.param_billions, 8.0);
 /// ```
+#[must_use]
 pub fn find_model(id: &str) -> Option<&'static KnownModel> {
     KNOWN_MODELS.iter().find(|m| m.id == id)
 }
@@ -516,6 +575,7 @@ pub fn find_model(id: &str) -> Option<&'static KnownModel> {
 /// let text_models = models_by_type(ModelType::Text);
 /// assert!(text_models.len() > 5);
 /// ```
+#[must_use]
 pub fn models_by_type(model_type: ModelType) -> Vec<&'static KnownModel> {
     KNOWN_MODELS
         .iter()
@@ -527,6 +587,7 @@ pub fn models_by_type(model_type: ModelType) -> Vec<&'static KnownModel> {
 ///
 /// Uses the `sys-info` crate if available, otherwise returns a conservative default (8GB).
 /// This is used for auto-selecting quantization levels.
+#[must_use]
 pub fn detect_available_ram_gb() -> u32 {
     // Try to detect via sys-info (already a dependency via mistral.rs)
     #[cfg(target_os = "macos")]
@@ -577,6 +638,7 @@ pub fn detect_available_ram_gb() -> u32 {
 /// let quant = auto_select_quantization(model, 16);
 /// // With 16GB RAM, should select Q4_K_M or better
 /// ```
+#[must_use]
 pub fn auto_select_quantization(model: &KnownModel, available_ram_gb: u32) -> Quantization {
     // Estimate memory needed for each quantization
     for (quant, _filename) in model.quantizations.iter() {
@@ -606,12 +668,15 @@ pub fn auto_select_quantization(model: &KnownModel, available_ram_gb: u32) -> Qu
 /// # Returns
 ///
 /// * `Ok(ResolvedModel)` if model is found and downloaded
-/// * `Err(String)` if model not found or not downloaded
+/// * `Err(ModelResolveError)` if model not found or not downloaded
+#[must_use]
 pub fn resolve_model(
     id: &str,
     quantization: Option<Quantization>,
-) -> Result<ResolvedModel, String> {
-    let model = find_model(id).ok_or_else(|| format!("Unknown model: {}", id))?;
+) -> Result<ResolvedModel, ModelResolveError> {
+    let model = find_model(id).ok_or_else(|| ModelResolveError::UnknownModel {
+        id: id.to_string(),
+    })?;
 
     let quant =
         quantization.unwrap_or_else(|| auto_select_quantization(model, detect_available_ram_gb()));
@@ -622,11 +687,14 @@ pub fn resolve_model(
         .iter()
         .find(|(q, _)| *q == quant)
         .map(|(_, f)| *f)
-        .ok_or_else(|| format!("Quantization {:?} not available for {}", quant, id))?;
+        .ok_or_else(|| ModelResolveError::QuantizationNotAvailable {
+            quantization: quant,
+            model_id: id.to_string(),
+        })?;
 
     // Check HuggingFace cache
     let cache_dir = dirs::home_dir()
-        .ok_or("Cannot determine home directory")?
+        .ok_or(ModelResolveError::HomeDirectoryNotFound)?
         .join(".cache/huggingface/hub");
 
     // HF cache uses repo name with -- separator
@@ -635,25 +703,31 @@ pub fn resolve_model(
 
     // Find the latest snapshot
     if !snapshots_dir.exists() {
-        return Err(format!("Model not downloaded. Run: nika model pull {}", id));
+        return Err(ModelResolveError::ModelNotDownloaded {
+            model_id: id.to_string(),
+        });
     }
 
     // Get the most recent snapshot directory
     let snapshot = std::fs::read_dir(&snapshots_dir)
-        .map_err(|e| format!("Cannot read snapshots dir: {}", e))?
+        .map_err(|e| ModelResolveError::SnapshotsDirReadError {
+            path: snapshots_dir.clone(),
+            source: e,
+        })?
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
 
-    let snapshot_dir = snapshot.ok_or_else(|| format!("No snapshots found for {}", id))?;
+    let snapshot_dir = snapshot.ok_or_else(|| ModelResolveError::NoSnapshotsFound {
+        model_id: id.to_string(),
+    })?;
     let model_path = snapshot_dir.path().join(filename);
 
     if !model_path.exists() {
-        return Err(format!(
-            "Model file not found: {}. Run: nika model pull {}",
-            model_path.display(),
-            id
-        ));
+        return Err(ModelResolveError::ModelFileNotFound {
+            path: model_path,
+            model_id: id.to_string(),
+        });
     }
 
     Ok(ResolvedModel {

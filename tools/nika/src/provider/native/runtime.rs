@@ -15,6 +15,8 @@ use futures::Stream;
 use std::path::PathBuf;
 
 #[cfg(feature = "native-inference")]
+use crate::util::constants::INFER_TIMEOUT;
+#[cfg(feature = "native-inference")]
 use std::path::Path;
 #[cfg(feature = "native-inference")]
 use std::sync::Arc;
@@ -255,10 +257,12 @@ impl InferenceBackend for NativeRuntime {
             request = request.set_sampler_max_len(max_tokens as usize);
         }
 
-        // Send request with sampling parameters
-        let response = model
-            .send_chat_request(request)
+        // Send request with sampling parameters and timeout (v0.27 security)
+        let response = tokio::time::timeout(INFER_TIMEOUT, model.send_chat_request(request))
             .await
+            .map_err(|_| NativeError::InferenceTimeout {
+                timeout_secs: INFER_TIMEOUT.as_secs(),
+            })?
             .map_err(|e| NativeError::InferenceFailed(format!("Inference failed: {e}")))?;
 
         // Extract response content - fail if no content returned
@@ -298,6 +302,7 @@ impl InferenceBackend for NativeRuntime {
         prompt: &str,
         options: ChatOptions,
     ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+        use crate::util::constants::STREAM_CHUNK_TIMEOUT;
         use async_stream::stream;
         use mistralrs::Response;
         use tokio::sync::mpsc;
@@ -310,6 +315,7 @@ impl InferenceBackend for NativeRuntime {
         let (tx, mut rx) = mpsc::channel::<Result<String, NativeError>>(32);
 
         // Spawn streaming task that holds the model lock
+        // Note: Task is implicitly cancelled when channel receiver is dropped (stream dropped)
         tokio::spawn(async move {
             let model = model_arc.read().await;
 
@@ -327,10 +333,28 @@ impl InferenceBackend for NativeRuntime {
                 request = request.set_sampler_max_len(max_tokens as usize);
             }
 
-            // Stream chat request
+            // Stream chat request with per-chunk timeout (v0.27 security)
             match model.stream_chat_request(request).await {
                 Ok(mut stream) => {
-                    while let Some(chunk) = stream.next().await {
+                    loop {
+                        // Apply timeout to each chunk to prevent stuck streams
+                        let chunk_result =
+                            tokio::time::timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await;
+
+                        let chunk = match chunk_result {
+                            Ok(Some(c)) => c,
+                            Ok(None) => break, // Stream ended normally
+                            Err(_) => {
+                                // Chunk timeout - send error and stop
+                                let _ = tx
+                                    .send(Err(NativeError::InferenceTimeout {
+                                        timeout_secs: STREAM_CHUNK_TIMEOUT.as_secs(),
+                                    }))
+                                    .await;
+                                break;
+                            }
+                        };
+
                         match chunk {
                             Response::Chunk(chunk_response) => {
                                 if let Some(choice) = chunk_response.choices.first() {

@@ -93,7 +93,8 @@ Nika integrates with the `spn daemon` for secure credential management via Unix 
 │  3. Environment vars  ─┘                                                        │
 │                                                                                 │
 │  Providers:                                                                     │
-│  ├── LLM: anthropic, openai, mistral, groq, deepseek, gemini, ollama           │
+│  ├── LLM: anthropic, openai, mistral, groq, deepseek, gemini (v0.27: -Ollama)  │
+│  ├── Native: local GGUF inference via mistral.rs (v0.27)                       │
 │  └── MCP: neo4j, github, slack, perplexity, firecrawl, supadata                │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -450,8 +451,8 @@ tasks:
 3. MISTRAL_API_KEY → Mistral
 4. GROQ_API_KEY → Groq
 5. DEEPSEEK_API_KEY → DeepSeek
-6. **GEMINI_API_KEY → Gemini** (NEW)
-7. OLLAMA_API_BASE_URL → Ollama
+6. **GEMINI_API_KEY → Gemini**
+7. ~~OLLAMA_API_BASE_URL → Ollama~~ (v0.27: removed, use `provider: native` instead)
 
 **Methods added:**
 - `RigProvider::gemini()` constructor
@@ -733,7 +734,7 @@ All 6 providers now support **real-time streaming** in the TUI:
 | Mistral | ✅ Full streaming (v0.7) | ✅ |
 | Groq | ✅ Full streaming (v0.7) | ✅ |
 | DeepSeek | ✅ Full streaming (v0.7) | ✅ |
-| Ollama | ✅ Full streaming (v0.7) | ✅ |
+| Native | ✅ Full streaming (v0.27) | ✅ |
 
 **Technical:** All providers use rig-core's `CompletionModel::stream()` API with `StreamedAssistantContent` for real-time token delivery.
 
@@ -743,19 +744,19 @@ All 6 providers now support **real-time streaming** in the TUI:
 
 ## v0.6.0 Changes (Multi-Provider + Chat History)
 
-### 7 LLM Providers via rig-core (v0.15.0: +Gemini)
+### 6 LLM Providers via rig-core + Native (v0.27: Ollama removed)
 
-Nika now supports 7 providers natively via rig-core:
+Nika supports 6 cloud providers via rig-core + native local inference:
 
 | Provider | Constructor | Env Var | Default Model |
 |----------|-------------|---------|---------------|
 | Claude | `RigProvider::claude()` | `ANTHROPIC_API_KEY` | claude-sonnet-4-6 |
 | OpenAI | `RigProvider::openai()` | `OPENAI_API_KEY` | gpt-4o |
 | Mistral | `RigProvider::mistral()` | `MISTRAL_API_KEY` | mistral-large-latest |
-| Ollama | `RigProvider::ollama()` | `OLLAMA_API_BASE_URL` | llama3.2 |
 | Groq | `RigProvider::groq()` | `GROQ_API_KEY` | llama-3.3-70b-versatile |
 | DeepSeek | `RigProvider::deepseek()` | `DEEPSEEK_API_KEY` | deepseek-chat |
-| **Gemini** | `RigProvider::gemini()` | `GEMINI_API_KEY` | gemini-2.0-flash |
+| Gemini | `RigProvider::gemini()` | `GEMINI_API_KEY` | gemini-2.0-flash |
+| **Native** | `NativeRuntime::new()` | _(local GGUF)_ | llama3.2:1b |
 
 **Auto-detection** (priority order):
 ```rust
@@ -765,8 +766,8 @@ Nika now supports 7 providers natively via rig-core:
 // 3. MISTRAL_API_KEY → Mistral
 // 4. GROQ_API_KEY → Groq
 // 5. DEEPSEEK_API_KEY → DeepSeek
-// 6. GEMINI_API_KEY → Gemini (v0.15.0)
-// 7. OLLAMA_API_BASE_URL → Ollama (no key needed)
+// 6. GEMINI_API_KEY → Gemini
+// v0.27: Ollama removed, use provider: native instead
 
 let provider = RigProvider::auto(); // Returns Option<RigProvider>
 ```
@@ -778,12 +779,12 @@ let mut agent = RigAgentLoop::new(task_id, params, log, mcp_clients)?;
 // Auto-detect provider (recommended)
 let result = agent.run_auto().await?;
 
-// Or explicitly choose
+// Or explicitly choose (6 cloud providers + native)
 let result = agent.run_mistral().await?;
-let result = agent.run_ollama().await?;
 let result = agent.run_groq().await?;
 let result = agent.run_deepseek().await?;
-let result = agent.run_gemini().await?;  // v0.15.0
+let result = agent.run_gemini().await?;
+// v0.27: run_ollama() removed, use provider: native in workflow
 ```
 
 ### Chat History Support
@@ -1058,7 +1059,7 @@ Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) v0.31 for all LLM pro
 | `infer:` verb | ✅ Done | `RigProvider.infer()` (6 providers) |
 | MCP tools | ✅ Done | `NikaMcpTool` implements rig's `ToolDyn` |
 | Chat history | ✅ v0.6 | `agent.chat(prompt, history)` via `Chat` trait |
-| Multi-provider | ✅ v0.6 | Claude, OpenAI, Mistral, Ollama, Groq, DeepSeek |
+| Multi-provider | ✅ v0.6 | Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini + Native |
 
 ### Using RigProvider (v0.6+)
 
@@ -1068,13 +1069,14 @@ use nika::provider::rig::RigProvider;
 // Auto-detect provider from environment (recommended)
 let provider = RigProvider::auto().expect("No API key found");
 
-// Or explicitly choose
+// Or explicitly choose (6 cloud providers)
 let provider = RigProvider::claude();    // ANTHROPIC_API_KEY
 let provider = RigProvider::openai();    // OPENAI_API_KEY
 let provider = RigProvider::mistral();   // MISTRAL_API_KEY
-let provider = RigProvider::ollama();    // OLLAMA_API_BASE_URL
 let provider = RigProvider::groq();      // GROQ_API_KEY
 let provider = RigProvider::deepseek();  // DEEPSEEK_API_KEY
+let provider = RigProvider::gemini();    // GEMINI_API_KEY
+// v0.27: ollama() removed, use NativeRuntime for local inference
 
 // Simple text completion via rig-core
 let result = provider.infer("Summarize this text", None).await?;
@@ -1099,15 +1101,15 @@ let mut agent = RigAgentLoop::new("task-1".into(), params, EventLog::new(), mcp_
 // Production - auto-detects provider from env vars (checks 6 providers)
 let result = agent.run_auto().await?;
 
-// Or explicitly choose provider (6 available)
+// Or explicitly choose provider (6 cloud providers)
 let result = agent.run_claude().await?;     // requires ANTHROPIC_API_KEY
 let result = agent.run_openai().await?;     // requires OPENAI_API_KEY
 let result = agent.run_mistral().await?;    // requires MISTRAL_API_KEY
-let result = agent.run_ollama().await?;     // requires OLLAMA_API_BASE_URL
 let result = agent.run_groq().await?;       // requires GROQ_API_KEY
 let result = agent.run_deepseek().await?;   // requires DEEPSEEK_API_KEY
-let result = agent.run_gemini().await?;     // requires GEMINI_API_KEY (v0.15.0)
+let result = agent.run_gemini().await?;     // requires GEMINI_API_KEY
 let result = agent.run_mock().await?;       // for testing (no API key needed)
+// v0.27: run_ollama() removed, use provider: native in workflow
 
 // Multi-turn with chat history (v0.6)
 agent.add_to_history("First question", &result.final_response);
@@ -1422,7 +1424,8 @@ nika provider migrate
 | Mistral | `MISTRAL_API_KEY` | mistral-large-latest |
 | Groq | `GROQ_API_KEY` | llama-3.3-70b-versatile |
 | DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
-| Ollama | `OLLAMA_API_BASE_URL` | llama3.2 |
+| Gemini | `GEMINI_API_KEY` | gemini-2.0-flash |
+| Native | _(local GGUF)_ | llama3.2:1b |
 
 ### MCP Server Management (v0.12.1)
 

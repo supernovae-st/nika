@@ -93,7 +93,8 @@ pub use mcp_config::{
 };
 pub use models::{
     auto_select_quantization, detect_available_ram_gb, find_model, models_by_type, resolve_model,
-    KnownModel, ModelArchitecture, ModelType, Quantization, ResolvedModel, KNOWN_MODELS,
+    KnownModel, ModelArchitecture, ModelResolveError, ModelType, Quantization, ResolvedModel,
+    KNOWN_MODELS,
 };
 pub use providers::{
     find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,

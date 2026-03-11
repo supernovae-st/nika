@@ -47,6 +47,13 @@ pub enum NativeError {
     /// Inference failed.
     #[error("Inference failed: {0}")]
     InferenceFailed(String),
+
+    /// Inference timed out (v0.27 security).
+    #[error("Inference timed out after {timeout_secs} seconds")]
+    InferenceTimeout {
+        /// Timeout in seconds.
+        timeout_secs: u64,
+    },
 }
 
 /// Result type for native inference operations.

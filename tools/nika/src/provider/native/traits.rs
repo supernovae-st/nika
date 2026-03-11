@@ -79,7 +79,17 @@ pub trait InferenceBackend: Send + Sync {
 ///
 /// Use this when you need runtime polymorphism (e.g., `Box<dyn DynInferenceBackend>`).
 ///
-/// Note: This trait takes owned `String` instead of `&str` for prompts
+/// # Limitations
+///
+/// **Streaming is NOT supported via this trait.** The `infer_stream_dyn` method
+/// always returns an error because Rust's type system cannot express a boxed
+/// stream that borrows from `self` (required for object safety).
+///
+/// For streaming inference, use the concrete [`InferenceBackend`] trait directly.
+///
+/// # Notes
+///
+/// This trait takes owned `String` instead of `&str` for prompts
 /// to enable object-safe async methods.
 #[allow(clippy::type_complexity)]
 pub trait DynInferenceBackend: Send + Sync {
@@ -94,6 +104,7 @@ pub trait DynInferenceBackend: Send + Sync {
     fn unload_dyn(&mut self) -> Pin<Box<dyn Future<Output = Result<(), NativeError>> + Send + '_>>;
 
     /// Check if a model is currently loaded.
+    #[must_use]
     fn is_loaded_dyn(&self) -> bool;
 
     /// Get metadata about the loaded model (cloned for object safety).
@@ -109,6 +120,31 @@ pub trait DynInferenceBackend: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<ChatResponse, NativeError>> + Send + '_>>;
 
     /// Generate a streaming response (boxed stream for object safety).
+    ///
+    /// # Important: Streaming Not Supported via Dynamic Dispatch
+    ///
+    /// **This method always returns `Err(NativeError::InvalidConfig(...))`.**
+    ///
+    /// The streaming API cannot be made object-safe because the stream type
+    /// returned by `InferenceBackend::infer_stream()` borrows from `self`,
+    /// which cannot be expressed in a `Pin<Box<dyn Stream + 'static>>` return type.
+    ///
+    /// ## Workaround
+    ///
+    /// Use `InferenceBackend` directly instead of `dyn DynInferenceBackend`:
+    ///
+    /// ```ignore
+    /// // Instead of:
+    /// let backend: Box<dyn DynInferenceBackend> = Box::new(NativeRuntime::new());
+    /// let stream = backend.infer_stream_dyn("prompt".into(), opts).await?;  // Always fails!
+    ///
+    /// // Use concrete type:
+    /// let mut backend = NativeRuntime::new();
+    /// backend.load(path, config).await?;
+    /// let stream = backend.infer_stream("prompt", opts).await?;
+    /// ```
+    ///
+    /// Or collect streaming results to a Vec before using dynamic dispatch.
     ///
     /// Takes owned `String` instead of `&str` for object safety.
     fn infer_stream_dyn(

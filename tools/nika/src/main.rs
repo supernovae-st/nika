@@ -4166,7 +4166,11 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
     use nika::core::{find_model, KNOWN_MODELS};
     use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
 
-    let storage = HuggingFaceStorage::new(default_model_dir());
+    let storage = HuggingFaceStorage::new(default_model_dir()).map_err(|e| {
+        NikaError::ConfigError {
+            reason: format!("Failed to initialize storage: {}", e),
+        }
+    })?;
 
     match action {
         ModelAction::List { json } => {
