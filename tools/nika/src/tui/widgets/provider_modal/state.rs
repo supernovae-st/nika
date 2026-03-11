@@ -370,13 +370,13 @@ impl ProviderModalState {
         }
         if self.active_tab == ProviderModalTab::Cloud {
             // 3-column grid (6 items): move up one row, wrap to last row
+            // v0.27: 2x3 grid (2 rows, 6 items), Ollama removed
             if self.selected_idx >= 3 {
                 self.selected_idx -= 3;
             } else {
-                // Wrap to last row with this column
+                // Wrap to last row with this column (2x3 grid: idx 0-2 wraps to 3-5)
                 let col = self.selected_idx;
-                // Row 2 has only idx 6 (col 0), rows 0-1 have idx 0-5 (cols 0-2)
-                let last_row_idx = if col == 0 { 6 } else { col + 3 };
+                let last_row_idx = col + 3;
                 self.selected_idx = last_row_idx.min(self.item_count - 1);
             }
         } else {
@@ -640,7 +640,7 @@ impl ProviderModalState {
             "deepseek" => 4,
             "gemini" => 5,
             // v0.27: Native is not a cloud provider, handled separately
-            "native" | _ => return,
+            _ => return,
         };
         self.set_provider_status(index, status);
     }

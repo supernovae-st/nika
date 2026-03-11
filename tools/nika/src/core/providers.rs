@@ -218,7 +218,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         description: "Persistent memory MCP server",
     },
     // ═══════════════════════════════════════════════════════════════════════════
-    // LOCAL PROVIDERS (2)
+    // LOCAL PROVIDERS (1)
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "native",
