@@ -28,13 +28,13 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 
 // Import InferenceBackend trait for native inference methods (v0.26)
+#[cfg(feature = "native-inference")]
+use crate::provider::native::InferenceBackend;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, deepseek, gemini, groq, mistral, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
-#[cfg(feature = "native-inference")]
-use spn_native::InferenceBackend;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

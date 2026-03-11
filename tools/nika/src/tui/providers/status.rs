@@ -136,7 +136,7 @@ impl ProviderStatusCache {
     }
 
     /// Count configured LLM providers (includes "Local" category for native)
-    /// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+    /// v0.27: Ollama removed
     pub fn llm_configured_count(&self) -> usize {
         self.providers
             .iter()
@@ -159,7 +159,7 @@ impl ProviderStatusCache {
     }
 
     /// Get summary string (e.g., "LLM: 4/7 | MCP: 2/6")
-    /// Note: v0.27 — 6 LLM + 1 Native (Ollama removed)
+    /// v0.27: Ollama removed
     pub fn summary(&self) -> String {
         format!(
             "LLM: {}/7 | MCP: {}/6",
@@ -206,6 +206,7 @@ mod tests {
     #[test]
     fn test_cache_summary() {
         let cache = ProviderStatusCache::new();
+        // v0.27: Ollama removed
         assert_eq!(cache.summary(), "LLM: 0/7 | MCP: 0/6");
     }
 }

@@ -318,11 +318,9 @@ pub struct VerificationState {
 
 impl VerificationState {
     /// Create new verification state for 6 providers
-    /// v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
+    /// v0.27: Ollama removed
     pub fn new_providers() -> Self {
-        let providers = [
-            "Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini",
-        ];
+        let providers = ["Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini"];
         Self {
             entries: providers.iter().map(|&p| VerifyEntry::new(p)).collect(),
             frame: 0,
@@ -444,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_verification_state_new_providers() {
-        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
+        // v0.27: Ollama removed
         let state = VerificationState::new_providers();
         assert_eq!(state.entries.len(), 6);
         assert_eq!(state.entries[0].name, "Claude");
@@ -474,7 +472,7 @@ mod tests {
         assert_eq!(state.index_of("Claude"), Some(0));
         assert_eq!(state.index_of("claude"), Some(0)); // Case insensitive
         assert_eq!(state.index_of("Gemini"), Some(5));
-        // v0.27: Ollama removed - use Native tab with mistral.rs instead
+        // v0.27: Ollama removed
         assert_eq!(state.index_of("Unknown"), None);
     }
 

@@ -322,7 +322,8 @@ impl ChatAgent {
                     #[cfg(not(feature = "native-inference"))]
                     {
                         return Err(NikaError::InvalidConfig {
-                            message: "Native inference requires --features native-inference".to_string(),
+                            message: "Native inference requires --features native-inference"
+                                .to_string(),
                         });
                     }
                 }
@@ -437,7 +438,8 @@ impl ChatAgent {
                 #[cfg(not(feature = "native-inference"))]
                 {
                     return Err(NikaError::InvalidConfig {
-                        message: "Native inference requires --features native-inference".to_string(),
+                        message: "Native inference requires --features native-inference"
+                            .to_string(),
                     });
                 }
             }

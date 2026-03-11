@@ -561,7 +561,7 @@ impl ProviderModalState {
 
     /// Get Native tab label with model count
     /// v0.8.9: Shows number of available models
-    /// v0.27: Renamed from ollama_tab_label() to native_tab_label()
+    /// v0.27: Ollama removed
     pub fn native_tab_label(&self) -> String {
         let count = self.native_models.len();
         if count > 0 {
@@ -1572,7 +1572,7 @@ mod tests {
     // v0.8.9: Verification state tests
     #[test]
     fn test_verification_state_default() {
-        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
+        // v0.27: Ollama removed
         let state = ProviderModalState::default();
         assert!(!state.verification_active);
         assert_eq!(state.verification_state.entries.len(), 6);

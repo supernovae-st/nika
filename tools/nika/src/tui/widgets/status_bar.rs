@@ -104,7 +104,10 @@ impl Provider {
             Self::OpenAI
         } else if model_lower.contains("mistral") || model_lower.contains("mixtral") {
             Self::Mistral
-        } else if model_lower.contains("gguf") || model_lower.contains("native") || model_lower.contains("local") {
+        } else if model_lower.contains("gguf")
+            || model_lower.contains("native")
+            || model_lower.contains("local")
+        {
             Self::Native
         } else if model_lower.contains("groq") {
             Self::Groq

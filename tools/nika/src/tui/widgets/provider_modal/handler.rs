@@ -58,11 +58,11 @@ pub enum ModalAction {
     SaveApiKey { provider: &'static str, key: String },
     /// Save API key and then test it (recommended flow)
     SaveAndTestApiKey { provider: &'static str, key: String },
-    /// Pull native model (v0.27 - was Ollama)
+    /// Pull native model (v0.27: Ollama removed)
     PullModel { model: String },
-    /// Delete native model (v0.27 - was Ollama)
+    /// Delete native model (v0.27: Ollama removed)
     DeleteModel { model: String },
-    /// Refresh native models list (v0.27 - was Ollama)
+    /// Refresh native models list (v0.27: Ollama removed)
     RefreshNativeModels,
     /// Refresh all provider statuses
     RefreshProviders,
@@ -330,7 +330,7 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
-    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
+    /// v0.27: Ollama removed
     fn selected_provider(state: &ProviderModalState) -> &'static str {
         match state.selected_idx {
             0 => "anthropic",
@@ -350,7 +350,7 @@ impl ModalEventHandler {
     }
 
     /// Get cloud provider name by index
-    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
+    /// v0.27: Ollama removed
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
         match idx {
             0 => "anthropic",
@@ -364,7 +364,7 @@ impl ModalEventHandler {
     }
 
     /// Get default model for provider index
-    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
+    /// v0.27: Ollama removed
     fn default_model_for_provider(idx: usize) -> &'static str {
         match idx {
             0 => "claude-sonnet-4",

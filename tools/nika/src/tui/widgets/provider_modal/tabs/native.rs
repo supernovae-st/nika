@@ -1,6 +1,6 @@
 //! Native inference tab - Local model management via mistral.rs
 //!
-//! v0.27: Replaces OllamaTab with native inference support
+//! v0.27: Ollama removed
 
 use ratatui::{
     buffer::Buffer,
@@ -72,7 +72,10 @@ impl<'a> NativeTab<'a> {
     /// Render the status header
     fn render_status_header(&self, area: Rect, buf: &mut Buffer) {
         let status_text = if self.available {
-            Span::styled("● Native inference available (mistral.rs)", Style::default().fg(COLOR_SUCCESS))
+            Span::styled(
+                "● Native inference available (mistral.rs)",
+                Style::default().fg(COLOR_SUCCESS),
+            )
         } else {
             Span::styled(
                 "○ Native inference not available (compile with --features native-inference)",
@@ -94,7 +97,10 @@ impl<'a> NativeTab<'a> {
             // Show empty state
             let empty_msg = if self.available {
                 vec![
-                    Line::from(Span::styled("No models loaded", Style::default().fg(COLOR_MUTED))),
+                    Line::from(Span::styled(
+                        "No models loaded",
+                        Style::default().fg(COLOR_MUTED),
+                    )),
                     Line::from(""),
                     Line::from(Span::styled(
                         "Download models with: spn model pull llama3.2:1b",
@@ -115,13 +121,12 @@ impl<'a> NativeTab<'a> {
                 ]
             };
 
-            let paragraph = Paragraph::new(empty_msg)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title(" Models ")
-                        .style(Style::default().bg(COLOR_BG_DARK)),
-                );
+            let paragraph = Paragraph::new(empty_msg).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Models ")
+                    .style(Style::default().bg(COLOR_BG_DARK)),
+            );
             paragraph.render(area, buf);
             return;
         }
@@ -134,7 +139,9 @@ impl<'a> NativeTab<'a> {
             .map(|(idx, model)| {
                 let is_selected = idx == self.selected_idx;
                 let style = if is_selected {
-                    Style::default().fg(COLOR_SELECTED).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(COLOR_SELECTED)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(COLOR_TEXT)
                 };
@@ -148,7 +155,10 @@ impl<'a> NativeTab<'a> {
                     Span::styled(if is_selected { "► " } else { "  " }, style),
                     Span::styled(&model.name, style),
                     Span::styled(format!(" ({}) ", family), Style::default().fg(COLOR_MUTED)),
-                    Span::styled(format!("{} {} ", params, quant), Style::default().fg(COLOR_MUTED)),
+                    Span::styled(
+                        format!("{} {} ", params, quant),
+                        Style::default().fg(COLOR_MUTED),
+                    ),
                     Span::styled(size_str, Style::default().fg(COLOR_MUTED)),
                 ]);
 
@@ -191,7 +201,12 @@ impl<'a> NativeTab<'a> {
                     Style::default().fg(COLOR_SUCCESS),
                 ),
                 Span::styled(
-                    "░".repeat((area.width.saturating_sub(30).saturating_sub(progress_bar_width)) as usize),
+                    "░".repeat(
+                        (area
+                            .width
+                            .saturating_sub(30)
+                            .saturating_sub(progress_bar_width)) as usize,
+                    ),
                     Style::default().fg(COLOR_MUTED),
                 ),
                 Span::styled("]", Style::default().fg(COLOR_MUTED)),

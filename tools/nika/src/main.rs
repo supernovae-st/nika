@@ -2099,7 +2099,8 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                     #[cfg(not(feature = "native-inference"))]
                     {
                         return Err(NikaError::ValidationError {
-                            reason: "Native inference requires --features native-inference".to_string(),
+                            reason: "Native inference requires --features native-inference"
+                                .to_string(),
                         });
                     }
                 }
@@ -4163,9 +4164,7 @@ fn find_filename_for_quant(
 async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika::core::{find_model, KNOWN_MODELS};
-    use nika::provider::{
-        default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
-    };
+    use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
 
     let storage = HuggingFaceStorage::new(default_model_dir());
 

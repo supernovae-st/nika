@@ -3,7 +3,7 @@
 //! Orchestrates loading of provider statuses and native models
 //! in the background, communicating results via channels.
 //!
-//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+//! v0.27: Ollama removed
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -21,9 +21,9 @@ pub enum LoaderEvent {
     },
     /// All providers checked
     ProvidersComplete,
-    /// Native inference availability check (v0.27 - replaces OllamaAvailable)
+    /// Native inference availability check (v0.27: Ollama removed)
     NativeAvailable(bool),
-    /// Native models loaded (v0.27 - replaces OllamaModels)
+    /// Native models loaded (v0.27: Ollama removed)
     NativeModels(Vec<NativeModelInfo>),
     /// Loading error
     Error { source: String, message: String },
@@ -34,9 +34,9 @@ pub enum LoaderEvent {
 pub enum LoaderCommand {
     /// Check all provider statuses
     CheckProviders,
-    /// Load native models (v0.27 - replaces LoadOllamaModels)
+    /// Load native models (v0.27: Ollama removed)
     LoadNativeModels,
-    /// Check native inference availability (v0.27 - replaces CheckOllama)
+    /// Check native inference availability (v0.27: Ollama removed)
     CheckNative,
     /// Stop the loader
     Stop,
@@ -188,13 +188,13 @@ impl Drop for ModalLoader {
 pub struct LoadingState {
     /// Providers are being checked
     pub checking_providers: bool,
-    /// Native models are being loaded (v0.27 - replaces loading_models for Ollama)
+    /// Native models are being loaded (v0.27: Ollama removed)
     pub loading_models: bool,
     /// Provider statuses by name
     pub provider_statuses: Vec<(&'static str, ConnectionStatus)>,
-    /// Native inference availability (v0.27 - replaces ollama_available)
+    /// Native inference availability (v0.27: Ollama removed)
     pub native_available: Option<bool>,
-    /// Loaded native models (v0.27 - replaces ollama_models)
+    /// Loaded native models (v0.27: Ollama removed)
     pub native_models: Vec<NativeModelInfo>,
 }
 

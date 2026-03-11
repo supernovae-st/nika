@@ -234,7 +234,7 @@ impl ProviderInfo {
                     },
                 ],
             },
-            // Note: Ollama removed in v0.27 — use Native tab with mistral.rs instead
+            // v0.27: Ollama removed
         ]
     }
 
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_provider_info_all_providers_returns_6() {
-        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
+        // v0.27: Ollama removed
         let providers = ProviderInfo::all_providers();
         assert_eq!(providers.len(), 6);
     }
@@ -458,7 +458,7 @@ mod tests {
         assert_eq!(providers[3].name, "Groq");
         assert_eq!(providers[4].name, "DeepSeek");
         assert_eq!(providers[5].name, "Gemini");
-        // v0.27: Ollama removed - use Native tab with mistral.rs instead
+        // v0.27: Ollama removed
     }
 
     #[test]
@@ -467,12 +467,12 @@ mod tests {
         assert_eq!(providers[0].env_var, "ANTHROPIC_API_KEY");
         assert_eq!(providers[1].env_var, "OPENAI_API_KEY");
         assert_eq!(providers[5].env_var, "GEMINI_API_KEY");
-        // v0.27: Ollama (OLLAMA_HOST) removed - use Native tab instead
+        // v0.27: Ollama removed
     }
 
     #[test]
     fn test_cloud_tab_provider_count() {
-        // v0.27: Reduced from 7 to 6 (Ollama removed)
+        // v0.27: Ollama removed
         let state = ProviderModalState::default();
         let tab = CloudTab::new(&state);
         assert_eq!(tab.provider_count(), 6);
@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_cloud_tab_renders_6_providers() {
-        // v0.27: Reduced from 7 to 6 (Ollama removed)
+        // v0.27: Ollama removed
         let mut state = ProviderModalState::default();
         state.item_count = 6;
         let tab = CloudTab::new(&state);
@@ -503,7 +503,7 @@ mod tests {
         assert!(content.contains("Groq"));
         assert!(content.contains("DeepSeek"));
         assert!(content.contains("Gemini"));
-        // v0.27: Ollama removed - use Native tab with mistral.rs instead
+        // v0.27: Ollama removed
     }
 
     #[test]

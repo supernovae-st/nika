@@ -1371,9 +1371,8 @@ fn test_chat_view_has_current_provider_id() {
     // Provider ID should be set based on available API keys
     assert!(!view.current_provider_id.is_empty());
     // Should be one of the known providers, or "none" if no API keys available
-    let valid_providers = [
-        "claude", "openai", "mistral", "groq", "deepseek", "ollama", "none",
-    ];
+    // v0.27: Ollama removed — use native instead
+    let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "none"];
     assert!(
         valid_providers.contains(&view.current_provider_id.as_str()),
         "Provider ID '{}' should be a valid provider or 'none'",
@@ -1393,7 +1392,7 @@ fn test_provider_id_matches_model() {
             assert!(view.current_model.contains("llama") || view.current_model.contains("mixtral"))
         }
         "deepseek" => assert!(view.current_model.starts_with("deepseek")),
-        "ollama" => assert!(view.current_model.contains("llama")),
+        // v0.27: Ollama removed — use native instead
         "none" => assert!(view.current_model == "No API Key"), // CI without keys
         _ => panic!("Unknown provider: {}", view.current_provider_id),
     }

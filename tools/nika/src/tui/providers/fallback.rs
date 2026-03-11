@@ -3,9 +3,10 @@
 //! This module provides minimal provider definitions that mirror spn-core
 //! for builds without the spn-daemon dependency.
 //!
-//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+//! v0.27: Ollama removed
 
-/// LLM provider IDs (6 total — Ollama removed in v0.27)
+/// LLM provider IDs (6 total)
+/// v0.27: Ollama removed
 pub static LLM_PROVIDER_IDS: &[&str] = &[
     "anthropic",
     "openai",
@@ -30,10 +31,10 @@ pub static MCP_PROVIDER_IDS: &[&str] = &[
 /// Get environment variable name for a provider
 ///
 /// This is the fallback when spn-core is not available.
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+/// v0.27: Ollama removed
 pub fn provider_env_var(provider: &str) -> &'static str {
     match provider {
-        // LLM providers (6 — Ollama removed in v0.27)
+        // LLM providers (6)
         "anthropic" => "ANTHROPIC_API_KEY",
         "openai" => "OPENAI_API_KEY",
         "mistral" => "MISTRAL_API_KEY",
@@ -81,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_llm_provider_count() {
-        // v0.27: Ollama removed — use provider: native instead
+        // v0.27: Ollama removed
         assert_eq!(LLM_PROVIDER_IDS.len(), 6);
     }
 

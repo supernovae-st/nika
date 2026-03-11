@@ -3,7 +3,7 @@
 //! Single source of truth: Uses `KNOWN_PROVIDERS` from nika::core (v0.27 spn fusion).
 //! All provider operations should go through this module to avoid duplication.
 //!
-//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+//! v0.27: Ollama removed
 //!
 //! # Architecture
 //!
@@ -45,14 +45,14 @@ mod mask {
 #[cfg(not(feature = "spn-daemon"))]
 mod fallback;
 
-/// Get all LLM providers (5: anthropic, openai, mistral, groq, deepseek)
+/// Get all LLM providers (6: anthropic, openai, mistral, groq, deepseek, gemini)
 /// v0.27: Ollama removed
 pub fn llm_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Llm)
 }
 
 /// Get all Local providers (1: native)
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+/// v0.27: Ollama removed
 pub fn local_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Local)
 }
@@ -73,7 +73,7 @@ pub fn all_provider_ids() -> impl Iterator<Item = &'static str> {
 }
 
 /// Get LLM provider IDs only (6)
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+/// v0.27: Ollama removed
 pub fn llm_provider_ids() -> impl Iterator<Item = &'static str> {
     llm_providers().into_iter().map(|p| p.id)
 }
@@ -96,19 +96,16 @@ mod tests {
         let count = llm_providers().len();
         // v0.27: Ollama removed
         assert_eq!(
-            count, 5,
-            "Expected 5 LLM providers (anthropic, openai, mistral, groq, deepseek)"
+            count, 6,
+            "Expected 6 LLM providers (anthropic, openai, mistral, groq, deepseek, gemini)"
         );
     }
 
     #[test]
     fn test_local_providers_count() {
         let count = local_providers().len();
-        // Ollama removed in v0.27 — use provider: native instead
-        assert_eq!(
-            count, 1,
-            "Expected 1 Local provider (native)"
-        );
+        // v0.27: Ollama removed
+        assert_eq!(count, 1, "Expected 1 Local provider (native)");
     }
 
     #[test]
@@ -123,7 +120,7 @@ mod tests {
     #[test]
     fn test_all_providers_count() {
         let count = KNOWN_PROVIDERS.len();
-        // Ollama removed in v0.27 — use provider: native instead
+        // v0.27: Ollama removed
         assert_eq!(
             count, 18,
             "Expected 18 total providers (6 LLM + 11 MCP + 1 Local)"
@@ -135,8 +132,12 @@ mod tests {
         let ids: Vec<_> = llm_provider_ids().collect();
         assert!(ids.contains(&"anthropic"));
         assert!(ids.contains(&"openai"));
+        assert!(ids.contains(&"gemini"));
         // v0.27: Ollama removed
-        assert!(!ids.contains(&"ollama"), "Ollama should not be in LLM providers");
+        assert!(
+            !ids.contains(&"ollama"),
+            "Ollama should not be in LLM providers"
+        );
     }
 
     #[test]
@@ -150,6 +151,11 @@ mod tests {
     #[test]
     fn test_env_var_anthropic() {
         assert_eq!(env_var("anthropic"), "ANTHROPIC_API_KEY");
+    }
+
+    #[test]
+    fn test_env_var_gemini() {
+        assert_eq!(env_var("gemini"), "GEMINI_API_KEY");
     }
 
     #[test]

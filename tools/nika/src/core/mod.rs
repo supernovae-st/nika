@@ -4,6 +4,8 @@
 //! - **Providers**: LLM providers (Anthropic, OpenAI, etc.) and MCP providers (Neo4j, GitHub, etc.)
 //! - **Models**: Curated local models for native inference (mistral.rs)
 //! - **MCP Aliases**: Short names → npm package mappings for MCP servers
+//! - **Backend**: Backend types for model management (progress, info, config)
+//! - **Storage**: HuggingFace model storage with download and checksum verification
 //!
 //! ## Architecture
 //!
@@ -29,14 +31,24 @@
 //! │  ├── MCP_ALIASES: &[(&str, &str)] (48 aliases)                              │
 //! │  └── Helper functions (resolve_alias, list_aliases)                         │
 //! │                                                                             │
+//! │  backend.rs                                                                 │
+//! │  ├── PullProgress, ModelInfo, DownloadRequest, DownloadResult               │
+//! │  ├── LoadConfig, ChatRole, ChatMessage, ChatOptions, ChatResponse           │
+//! │  └── BackendError enum for error handling                                   │
+//! │                                                                             │
+//! │  storage.rs                                                                 │
+//! │  ├── HuggingFaceStorage for model downloads                                 │
+//! │  ├── default_model_dir(), detect_system_ram_gb()                            │
+//! │  └── StorageError, extract_quantization()                                   │
+//! │                                                                             │
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! ## Migration from spn-core
+//! ## Migration from spn-core/spn-native
 //!
-//! This module is part of the spn→nika feature fusion (ADR-TBD). Previously,
-//! these types were in the `spn-core` crate and imported via `spn_client::KNOWN_PROVIDERS`.
-//! Now they live directly in nika, removing the spn dependency for core types.
+//! This module is part of the spn→nika feature fusion (v0.27.0). Previously,
+//! these types were in `spn-core` and `spn-native` crates. Now they live directly
+//! in nika, removing the spn dependency entirely.
 //!
 //! ## Usage
 //!
@@ -58,12 +70,18 @@
 //! assert_eq!(pkg, "@neo4j/mcp-server-neo4j");
 //! ```
 
+pub mod backend;
 pub mod mcp_aliases;
 pub mod mcp_config;
 pub mod models;
 pub mod providers;
+pub mod storage;
 
 // Re-export main types for convenient access
+pub use backend::{
+    BackendError, ChatMessage, ChatOptions, ChatResponse, ChatRole, DownloadRequest,
+    DownloadResult, LoadConfig, ModelInfo, PullProgress,
+};
 pub use mcp_aliases::{
     aliases_by_category, list_aliases, resolve_alias, resolve_name, MCP_ALIASES,
 };
@@ -80,4 +98,7 @@ pub use models::{
 pub use providers::{
     find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,
     ProviderCategory, KNOWN_PROVIDERS,
+};
+pub use storage::{
+    default_model_dir, detect_system_ram_gb, extract_quantization, HuggingFaceStorage, StorageError,
 };

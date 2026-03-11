@@ -2,7 +2,7 @@
 //!
 //! Rich tabbed modal for provider management:
 //! - Cloud providers with cards and sparklines
-//! - Native local models via mistral.rs (Ollama removed in v0.27)
+//! - Native local models via mistral.rs (v0.27: Ollama removed)
 //! - API key management via system keychain
 //! - Configuration preferences
 

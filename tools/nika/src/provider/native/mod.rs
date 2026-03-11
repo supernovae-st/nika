@@ -1,22 +1,22 @@
-//! Native LLM inference module (v0.26)
+//! Native LLM inference module (v0.27)
 //!
-//! This module re-exports `NativeRuntime` from `spn_native` and provides
-//! the interface for local GGUF model inference via mistral.rs.
+//! This module provides local GGUF model inference via mistral.rs.
+//! v0.27.0: Migrated from spn-native to nika directly.
 //!
 //! # Architecture
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │  Nika Native Inference (v0.26)                                              │
+//! │  Nika Native Inference (v0.27)                                              │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
-//! │  spn_native::NativeRuntime (re-exported)                                    │
+//! │  NativeRuntime (local implementation)                                       │
 //! │  ├── load(path, config)        Load GGUF model into memory                  │
 //! │  ├── unload()                  Unload model from memory                     │
 //! │  ├── is_loaded()               Check if model is loaded                     │
 //! │  ├── model_info()              Get metadata about loaded model              │
 //! │  ├── infer(prompt, opts)       Generate response (non-streaming)            │
-//! │  └── infer_stream(...)         Generate response (streaming, v0.26)         │
+//! │  └── infer_stream(...)         Generate response (streaming)                │
 //! │                                                                             │
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
@@ -25,38 +25,49 @@
 //!
 //! ```ignore
 //! use nika::provider::native::NativeRuntime;
+//! use nika::core::backend::LoadConfig;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
 //!     let mut runtime = NativeRuntime::new();
 //!
 //!     // Load a GGUF model
-//!     runtime.load("~/.spn/models/qwen3-8b-q4_k_m.gguf".into(), None).await?;
+//!     runtime.load("~/.cache/huggingface/models/qwen3-8b-q4_k_m.gguf".into(), LoadConfig::default()).await?;
 //!
 //!     // Non-streaming inference
-//!     let response = runtime.infer("What is 2+2?", None).await?;
+//!     let response = runtime.infer("What is 2+2?", Default::default()).await?;
 //!     println!("{}", response.message.content);
 //!
-//!     // Streaming inference (v0.26)
-//!     let mut stream = runtime.infer_stream("Explain Rust", None).await?;
-//!     while let Some(chunk) = stream.recv().await {
-//!         print!("{}", chunk);
+//!     // Streaming inference
+//!     use futures::StreamExt;
+//!     let mut stream = runtime.infer_stream("Explain Rust", Default::default()).await?;
+//!     while let Some(chunk) = stream.next().await {
+//!         print!("{}", chunk?);
 //!     }
 //!
 //!     Ok(())
 //! }
 //! ```
 
-// Re-export NativeRuntime from spn_native
-pub use spn_native::NativeRuntime;
+// Local modules (v0.27 - migrated from spn-native)
+pub mod error;
+pub mod runtime;
+pub mod traits;
 
-// Re-export commonly used types from spn_native (via spn_core)
-pub use spn_native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeError};
+// Re-export main types
+pub use error::NativeError;
+pub use runtime::NativeRuntime;
+pub use traits::{DynInferenceBackend, InferenceBackend};
 
-// Re-export storage types for model management (v0.27)
-// These come from spn_native which re-exports them from spn_core
-pub use spn_native::{
-    default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
+// Re-export backend types from core
+pub use crate::core::backend::{
+    ChatMessage, ChatOptions, ChatResponse, ChatRole, DownloadRequest, DownloadResult, LoadConfig,
+    ModelInfo, PullProgress,
+};
+
+// Re-export storage types from core (v0.27)
+pub use crate::core::storage::{
+    default_model_dir, extract_quantization, HuggingFaceStorage, ModelStorage, StorageError,
 };
 
 // Backwards compatibility alias (deprecated in v0.26)
@@ -65,18 +76,6 @@ pub use spn_native::{
     note = "Use NativeRuntime directly instead of NativeClient"
 )]
 pub type NativeClient = NativeRuntime;
-
-/// Extract quantization level from model filename.
-///
-/// Parses common GGUF naming patterns:
-/// - `model-q4_k_m.gguf` -> "Q4_K_M"
-/// - `model-q8_0.gguf` -> "Q8_0"
-/// - `model-f16.gguf` -> "F16"
-#[must_use]
-pub fn extract_quantization(filename: &str) -> Option<String> {
-    // Delegate to spn_native's implementation
-    spn_native::extract_quantization(filename)
-}
 
 #[cfg(test)]
 mod tests {

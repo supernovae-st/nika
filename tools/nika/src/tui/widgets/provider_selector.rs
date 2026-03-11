@@ -128,7 +128,7 @@ pub struct ProviderInfo {
     pub default_model: &'static str,
     /// Available models
     pub models: Vec<ModelInfo>,
-    /// Whether API key is configured (or server is running for Ollama)
+    /// Whether API key is configured
     pub available: bool,
     /// Environment variable name
     pub env_var: &'static str,
@@ -160,9 +160,8 @@ pub struct ModelInfo {
 impl ProviderInfo {
     /// Create provider info for all supported providers
     ///
-    /// v0.8.2: Now includes real availability checks:
-    /// - API providers: Check for non-empty API key
-    /// - Ollama: Ping localhost:11434 to verify server is running
+    /// v0.27: 5 API providers (Ollama removed - use `provider: native`)
+    /// All providers require non-empty API key in environment.
     pub fn all_providers() -> Vec<ProviderInfo> {
         // Helper to check API key availability with reason
         let check_api_key = |key: &str| -> (bool, Option<String>) {

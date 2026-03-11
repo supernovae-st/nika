@@ -362,10 +362,11 @@ mod tests {
     fn test_cache_failed_entry() {
         let mut cache = VerificationCache::new(Duration::from_secs(30));
 
+        // v0.27: Ollama removed — use provider: native instead
         let entry = VerificationEntry::failed("Connection refused".to_string());
-        cache.set_provider("ollama".to_string(), entry);
+        cache.set_provider("native".to_string(), entry);
 
-        let retrieved = cache.get_provider("ollama").unwrap();
+        let retrieved = cache.get_provider("native").unwrap();
         assert_eq!(retrieved.status, VerifyStatus::Failed);
         assert_eq!(retrieved.error, Some("Connection refused".to_string()));
         assert!(retrieved.latency.is_none());
@@ -391,8 +392,9 @@ mod tests {
             "openai".to_string(),
             VerificationEntry::verified(Duration::from_millis(200), None),
         );
+        // v0.27: Ollama removed — use provider: native instead
         cache.set_provider(
-            "ollama".to_string(),
+            "native".to_string(),
             VerificationEntry::failed("Offline".to_string()),
         );
 

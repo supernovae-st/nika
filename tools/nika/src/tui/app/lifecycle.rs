@@ -54,13 +54,13 @@ impl App {
     pub(crate) fn spawn_provider_verification(&self) {
         let tx = self.stream_chunk_tx.clone();
         // v0.8.8: Static list of provider IDs (no longer from ProviderSelectorState)
+        // v0.27: Ollama removed — use native instead
         let provider_ids = [
             ("claude", "claude-sonnet-4-6"),
             ("openai", "gpt-4o"),
             ("mistral", "mistral-large-latest"),
             ("groq", "llama-3.3-70b-versatile"),
             ("deepseek", "deepseek-chat"),
-            ("ollama", "llama3.2"),
         ];
         let cache = Arc::clone(&self.verification_cache);
 

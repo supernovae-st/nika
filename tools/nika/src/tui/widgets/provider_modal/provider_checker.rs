@@ -3,7 +3,7 @@
 //! Validates provider connectivity by pinging their APIs.
 //! Uses reqwest with timeouts to prevent hanging.
 //!
-//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+//! v0.27: Ollama removed
 
 use std::time::{Duration, Instant};
 
@@ -188,7 +188,7 @@ impl ProviderChecker {
         Ok(())
     }
 
-    /// Check native inference availability (v0.27 - replaces check_ollama)
+    /// Check native inference availability (v0.27: Ollama removed)
     async fn check_native(&self) -> Result<(), String> {
         // v0.27: Native inference via mistral.rs
         // Check if the native-inference feature is enabled
@@ -200,7 +200,10 @@ impl ProviderChecker {
         }
         #[cfg(not(feature = "native-inference"))]
         {
-            Err("Native inference not enabled (compile with --features native-inference)".to_string())
+            Err(
+                "Native inference not enabled (compile with --features native-inference)"
+                    .to_string(),
+            )
         }
     }
 }
@@ -307,7 +310,7 @@ mod tests {
         let checker = ProviderChecker::new();
         let results = checker.check_all().await;
         // Should return results for all LLM providers (6 cloud + 1 native = 7)
-        // Note: Ollama removed in v0.27, replaced by native
+        // v0.27: Ollama removed
         assert!(!results.is_empty());
     }
 

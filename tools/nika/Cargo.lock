@@ -3909,6 +3909,7 @@ name = "nika"
 version = "0.27.0"
 dependencies = [
  "arboard",
+ "async-stream",
  "async-trait",
  "backon",
  "bytes",
@@ -3935,6 +3936,7 @@ dependencies = [
  "keyring",
  "marked-yaml",
  "miette",
+ "mistralrs",
  "nika",
  "notify",
  "nucleo",
@@ -3959,11 +3961,11 @@ dependencies = [
  "serde-saphyr 0.0.20",
  "serde_json",
  "serial_test",
+ "sha2",
  "shellexpand",
  "shlex",
  "smallvec 1.15.1",
  "spn-client",
- "spn-native",
  "streaming-iterator",
  "strsim 0.11.1",
  "syntect",
@@ -6441,27 +6443,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d182a847ea945a9e3f6c47887a062215d0d6daa7ba385746f46c064114b9582"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "spn-native"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "512341ef7a0bae1c3a99d50ca4153ec0a7d1f4fec3baeb585045d87a7df648d3"
-dependencies = [
- "anyhow",
- "async-stream",
- "dirs 6.0.0",
- "futures-util",
- "mistralrs",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "spn-core",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
 ]
 
 [[package]]

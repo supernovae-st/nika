@@ -24,7 +24,7 @@ lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Prot
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
 spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-native-inference = ["dep:spn-native"]  # Native LLM inference via mistral.rs (local GGUF models)
+native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
 integration = []  # Enable integration tests with real MCP servers
 test-fixtures = []  # Export test_fixtures module for external test crates
 docker = ["tui"]  # Docker build: TUI enabled, no keychain (uses env vars for secrets)
@@ -69,6 +69,9 @@ miette = { version = "7.6", features = ["fancy"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 url = "2"  # URL parsing and validation
 
+# Cryptographic hashing (v0.27 - HuggingFace checksum verification)
+sha2 = "0.10"
+
 # Secure credential storage
 # keyring is optional - only needed when NOT using spn-daemon
 # Docker builds don't include keyring (no OS keychain in containers)
@@ -82,10 +85,11 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # v0.3.4: Re-exports spn-core types (providers, validation, backend)
 spn-client = { version = "0.3.4", optional = true }
 
-# Native inference via mistral.rs (v0.26)
-# Enables local GGUF model inference without Ollama
-# Now with streaming support via infer_stream()
-spn-native = { version = "0.2.0", features = ["inference"], optional = true }
+# Native inference via mistral.rs (v0.27 - migrated from spn-native)
+# Enables local GGUF model inference without external dependencies
+# Features: PagedAttention for efficient memory, streaming support
+mistralrs = { version = "0.7", optional = true }
+async-stream = { version = "0.3", optional = true }
 
 # Text editing (v0.21.2 - VS Code quality)
 ropey = "1.6"  # Efficient rope data structure for text editing
