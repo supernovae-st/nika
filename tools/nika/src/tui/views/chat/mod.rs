@@ -20,7 +20,6 @@
 // Allow dead code for types that will be used when agent integration is complete
 #![allow(dead_code)]
 
-use std::sync::Arc;
 use std::time::Instant;
 
 use chrono::Local;
@@ -93,7 +92,6 @@ use crate::tui::widgets::{
     MentionType,
     MissionControlPanel,
     NikaIntroState,
-    OllamaClient,
     ParsedInput,
     ProStatusBar,
     Provider,
@@ -173,9 +171,8 @@ pub struct ChatView {
     pub command_palette: CommandPaletteState,
     /// Provider modal state (⌘P - v0.8.8 full management)
     pub provider_modal: ProviderModalState,
-    /// Shared Ollama client for model management (v0.11.0)
-    /// Reused across pull/delete/list operations to avoid repeated allocations
-    pub ollama_client: Arc<OllamaClient>,
+    // NOTE: Ollama client removed in v0.27 — use `provider: native` with mistral.rs instead
+    // Native model management is handled via nika commands (nika model list/pull/info)
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
     /// Animation frame counter (for spinners)
@@ -454,8 +451,7 @@ impl ChatView {
                 }
                 modal
             },
-            // v0.11.0: Shared Ollama client (reused for pull/delete/list)
-            ollama_client: Arc::new(OllamaClient::new()),
+            // NOTE: Ollama client removed in v0.27 — use `provider: native` with mistral.rs instead
             inline_content: vec![],
             frame: 0,
 

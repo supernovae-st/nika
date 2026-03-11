@@ -196,9 +196,16 @@ impl App {
                             None
                         }
                     }
-                    "ollama" => {
-                        // Ollama is always available (local, no API key needed)
-                        Some(RigProvider::ollama())
+                    "native" => {
+                        // v0.27: Native inference via mistral.rs (no API key needed)
+                        #[cfg(feature = "native-inference")]
+                        {
+                            Some(RigProvider::native())
+                        }
+                        #[cfg(not(feature = "native-inference"))]
+                        {
+                            None
+                        }
                     }
                     _ => None,
                 };

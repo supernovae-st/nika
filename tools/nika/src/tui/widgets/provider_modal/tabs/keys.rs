@@ -56,9 +56,10 @@ pub struct ProviderKeyEntry {
 }
 
 impl ProviderKeyEntry {
-    /// Create default entries for all 7 LLM providers
+    /// Create default entries for all 6 LLM providers
     ///
     /// Uses centralized `llm_provider_ids()` from providers module.
+    /// v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
     pub fn all_providers() -> Vec<Self> {
         llm_provider_ids()
             .map(|provider| Self {
@@ -95,6 +96,7 @@ impl ProviderKeyEntry {
     }
 
     /// Get display name (title case)
+    /// v0.27: Ollama removed - use Native tab with mistral.rs instead
     pub fn display_name(&self) -> &'static str {
         match self.provider {
             "anthropic" => "Anthropic",
@@ -103,7 +105,6 @@ impl ProviderKeyEntry {
             "groq" => "Groq",
             "deepseek" => "DeepSeek",
             "gemini" => "Gemini",
-            "ollama" => "Ollama",
             _ => "Unknown",
         }
     }
@@ -309,9 +310,10 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_key_entry_all_providers_returns_7() {
+    fn test_provider_key_entry_all_providers_returns_6() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
         let entries = ProviderKeyEntry::all_providers();
-        assert_eq!(entries.len(), 7);
+        assert_eq!(entries.len(), 6);
     }
 
     #[test]
@@ -323,7 +325,7 @@ mod tests {
         assert_eq!(entries[3].provider, "groq");
         assert_eq!(entries[4].provider, "deepseek");
         assert_eq!(entries[5].provider, "gemini");
-        assert_eq!(entries[6].provider, "ollama");
+        // v0.27: Ollama removed - use Native tab with mistral.rs instead
     }
 
     #[test]
@@ -336,8 +338,9 @@ mod tests {
 
     #[test]
     fn test_keys_tab_entry_count() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed)
         let tab = KeysTab::new(0, false, "");
-        assert_eq!(tab.entry_count(), 7);
+        assert_eq!(tab.entry_count(), 6);
     }
 
     #[test]

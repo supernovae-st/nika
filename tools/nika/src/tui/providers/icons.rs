@@ -1,22 +1,25 @@
 //! Provider icons for TUI display
 //!
-//! Consistent icon mapping for all 13 providers (7 LLM + 6 MCP).
+//! Consistent icon mapping for all 13 providers (6 LLM + 1 Local + 6 MCP).
+//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 
 use ratatui::style::Color;
 
 use crate::tui::tokens::compat;
 
 /// Get icon for a provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_icon(provider: &str) -> &'static str {
     match provider {
-        // LLM providers
+        // LLM providers (6)
         "anthropic" => "🧠",
         "openai" => "🤖",
         "mistral" => "🌀",
         "groq" => "⚡",
         "deepseek" => "🔬",
         "gemini" => "💎",
-        "ollama" => "🦙",
+        // Local providers (1)
+        "native" => "🦋",
         // MCP providers
         "neo4j" => "🔷",
         "github" => "🐙",
@@ -30,16 +33,18 @@ pub fn provider_icon(provider: &str) -> &'static str {
 }
 
 /// Get terminal-safe icon (no emoji) for a provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_icon_ascii(provider: &str) -> &'static str {
     match provider {
-        // LLM providers
+        // LLM providers (6)
         "anthropic" => "[A]",
         "openai" => "[O]",
         "mistral" => "[M]",
         "groq" => "[G]",
         "deepseek" => "[D]",
         "gemini" => "[Gm]",
-        "ollama" => "[Ol]",
+        // Local providers (1)
+        "native" => "[N]",
         // MCP providers
         "neo4j" => "[N4]",
         "github" => "[GH]",
@@ -53,16 +58,18 @@ pub fn provider_icon_ascii(provider: &str) -> &'static str {
 }
 
 /// Get color for a provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_color(provider: &str) -> Color {
     match provider {
-        // LLM providers - distinct colors
+        // LLM providers - distinct colors (6)
         "anthropic" => compat::AMBER_500, // Amber for Claude
         "openai" => compat::EMERALD_500,  // Green for OpenAI
         "mistral" => compat::CYAN_500,    // Cyan for Mistral
         "groq" => compat::YELLOW_500,     // Yellow for Groq (fast)
         "deepseek" => compat::BLUE_500,   // Blue for DeepSeek
         "gemini" => compat::VIOLET_500,   // Violet for Gemini
-        "ollama" => compat::LIME_500,     // Lime for Ollama (local)
+        // Local providers (1)
+        "native" => compat::LIME_500,     // Lime for native (local)
         // MCP providers - muted colors
         "neo4j" => compat::SKY_500,
         "github" => compat::SLATE_400,
@@ -76,6 +83,7 @@ pub fn provider_color(provider: &str) -> Color {
 }
 
 /// Get display name for a provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_display_name(provider: &str) -> &'static str {
     match provider {
         "anthropic" => "Claude (Anthropic)",
@@ -84,7 +92,7 @@ pub fn provider_display_name(provider: &str) -> &'static str {
         "groq" => "Groq",
         "deepseek" => "DeepSeek",
         "gemini" => "Google Gemini",
-        "ollama" => "Ollama (Local)",
+        "native" => "Native (Local)",
         "neo4j" => "Neo4j",
         "github" => "GitHub",
         "slack" => "Slack",
@@ -96,10 +104,11 @@ pub fn provider_display_name(provider: &str) -> &'static str {
 }
 
 /// Get category label for a provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_category(provider: &str) -> &'static str {
     match provider {
         "anthropic" | "openai" | "mistral" | "groq" | "deepseek" | "gemini" => "LLM",
-        "ollama" => "Local",
+        "native" => "Local",
         "neo4j" | "github" | "slack" | "perplexity" | "firecrawl" | "supadata" => "MCP",
         _ => "Unknown",
     }
@@ -111,6 +120,7 @@ mod tests {
 
     #[test]
     fn test_all_llm_providers_have_icons() {
+        // v0.27: Ollama removed — use provider: native instead
         let providers = [
             "anthropic",
             "openai",
@@ -118,7 +128,6 @@ mod tests {
             "groq",
             "deepseek",
             "gemini",
-            "ollama",
         ];
         for provider in providers {
             assert_ne!(
@@ -128,6 +137,17 @@ mod tests {
                 provider
             );
         }
+    }
+
+    #[test]
+    fn test_native_provider_has_icon() {
+        // v0.27: Native replaces Ollama
+        assert_ne!(
+            provider_icon("native"),
+            "🔑",
+            "native should have a specific icon"
+        );
+        assert_eq!(provider_icon("native"), "🦋");
     }
 
     #[test]
@@ -163,7 +183,8 @@ mod tests {
     #[test]
     fn test_provider_category() {
         assert_eq!(provider_category("anthropic"), "LLM");
-        assert_eq!(provider_category("ollama"), "Local");
+        // v0.27: native replaces ollama
+        assert_eq!(provider_category("native"), "Local");
         assert_eq!(provider_category("neo4j"), "MCP");
     }
 }

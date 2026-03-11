@@ -109,7 +109,7 @@ mod tests {
         // Test that provider_env_var returns expected values for known providers
         assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
         assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
-        assert_eq!(provider_env_var("ollama"), "OLLAMA_API_BASE_URL");
+        assert_eq!(provider_env_var("native"), "NIKA_NATIVE_MODEL_PATH");
         assert_eq!(provider_env_var("neo4j"), "NEO4J_PASSWORD");
         assert_eq!(provider_env_var("github"), "GITHUB_TOKEN");
     }

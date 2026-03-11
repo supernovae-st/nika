@@ -2,8 +2,10 @@
 //!
 //! This module provides minimal provider definitions that mirror spn-core
 //! for builds without the spn-daemon dependency.
+//!
+//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 
-/// LLM provider IDs (7 total)
+/// LLM provider IDs (6 total — Ollama removed in v0.27)
 pub static LLM_PROVIDER_IDS: &[&str] = &[
     "anthropic",
     "openai",
@@ -11,7 +13,6 @@ pub static LLM_PROVIDER_IDS: &[&str] = &[
     "groq",
     "deepseek",
     "gemini",
-    "ollama",
 ];
 
 /// MCP service provider IDs (8 total)
@@ -29,16 +30,18 @@ pub static MCP_PROVIDER_IDS: &[&str] = &[
 /// Get environment variable name for a provider
 ///
 /// This is the fallback when spn-core is not available.
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub fn provider_env_var(provider: &str) -> &'static str {
     match provider {
-        // LLM providers
+        // LLM providers (6 — Ollama removed in v0.27)
         "anthropic" => "ANTHROPIC_API_KEY",
         "openai" => "OPENAI_API_KEY",
         "mistral" => "MISTRAL_API_KEY",
         "groq" => "GROQ_API_KEY",
         "deepseek" => "DEEPSEEK_API_KEY",
         "gemini" => "GEMINI_API_KEY",
-        "ollama" => "OLLAMA_API_BASE_URL",
+        // Local providers (1)
+        "native" => "NIKA_NATIVE_MODEL_PATH",
         // MCP providers
         "neo4j" => "NEO4J_PASSWORD",
         "github" => "GITHUB_TOKEN",
@@ -78,7 +81,8 @@ mod tests {
 
     #[test]
     fn test_llm_provider_count() {
-        assert_eq!(LLM_PROVIDER_IDS.len(), 7);
+        // v0.27: Ollama removed — use provider: native instead
+        assert_eq!(LLM_PROVIDER_IDS.len(), 6);
     }
 
     #[test]

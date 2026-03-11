@@ -562,7 +562,6 @@ impl TaskExecutor {
                         }
                         RigProvider::mistral()
                     }
-                    "ollama" => RigProvider::ollama(),
                     "groq" => {
                         if std::env::var("GROQ_API_KEY").is_err() {
                             return Err(NikaError::MissingApiKey {

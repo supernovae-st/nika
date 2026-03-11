@@ -166,9 +166,9 @@ impl Action {
             | ViewAction::VerifyProviders
             | ViewAction::RefreshVerification
             | ViewAction::ProviderSelectorConfirm { .. }
-            | ViewAction::PullOllamaModel(_)
-            | ViewAction::DeleteOllamaModel(_)
-            | ViewAction::RefreshOllamaModels
+            | ViewAction::PullNativeModel(_)
+            | ViewAction::DeleteNativeModel(_)
+            | ViewAction::RefreshNativeModels
             | ViewAction::Error(_) => Action::ViewSpecific(view_action),
             // Note: No catch-all - we explicitly handle all variants
         }

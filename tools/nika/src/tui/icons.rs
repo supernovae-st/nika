@@ -88,6 +88,7 @@ pub mod verb {
 /// LLM Provider icons
 ///
 /// Each provider has a unique icon (no conflicts with verbs).
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub mod provider {
     /// Claude (Anthropic) - Brain 🧠
     pub const CLAUDE: &str = "🧠";
@@ -101,9 +102,13 @@ pub mod provider {
     pub const MISTRAL: &str = "💨";
     pub const MISTRAL_ASCII: &str = "[M]";
 
-    /// Ollama - Llama 🦙
-    pub const OLLAMA: &str = "🦙";
-    pub const OLLAMA_ASCII: &str = "[L]";
+    /// Gemini - Gem 💎
+    pub const GEMINI: &str = "💎";
+    pub const GEMINI_ASCII: &str = "[Gm]";
+
+    /// Native (Local) - Butterfly 🦋
+    pub const NATIVE: &str = "🦋";
+    pub const NATIVE_ASCII: &str = "[N]";
 
     /// Groq - Timer ⏱️ (Changed from ⚡ to avoid conflict with infer:)
     pub const GROQ: &str = "⏱️";
@@ -123,7 +128,8 @@ pub mod provider {
             "claude" | "anthropic" => CLAUDE,
             "openai" | "gpt" => OPENAI,
             "mistral" => MISTRAL,
-            "ollama" | "llama" => OLLAMA,
+            "gemini" => GEMINI,
+            "native" => NATIVE,
             "groq" => GROQ,
             "deepseek" => DEEPSEEK,
             "mock" | "test" => MOCK,
@@ -137,7 +143,8 @@ pub mod provider {
             "claude" | "anthropic" => CLAUDE_ASCII,
             "openai" | "gpt" => OPENAI_ASCII,
             "mistral" => MISTRAL_ASCII,
-            "ollama" | "llama" => OLLAMA_ASCII,
+            "gemini" => GEMINI_ASCII,
+            "native" => NATIVE_ASCII,
             "groq" => GROQ_ASCII,
             "deepseek" => DEEPSEEK_ASCII,
             "mock" | "test" => MOCK_ASCII,
@@ -441,11 +448,13 @@ mod tests {
             verb::INVOKE,
             verb::AGENT,
         ];
+        // v0.27: Ollama removed — use provider: native instead
         let provider_icons = [
             provider::CLAUDE,
             provider::OPENAI,
             provider::MISTRAL,
-            provider::OLLAMA,
+            provider::GEMINI,
+            provider::NATIVE,
             provider::GROQ,
             provider::DEEPSEEK,
         ];

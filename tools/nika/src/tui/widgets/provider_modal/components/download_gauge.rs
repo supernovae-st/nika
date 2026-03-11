@@ -1,4 +1,6 @@
-//! Download progress gauge for Ollama model pulls
+//! Download progress gauge for model pulls
+//!
+//! v0.27: Now used for native model downloads via mistral.rs (Ollama removed)
 
 use ratatui::{
     buffer::Buffer,

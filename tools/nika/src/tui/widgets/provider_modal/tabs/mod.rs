@@ -3,9 +3,9 @@
 mod cloud;
 mod config;
 mod keys;
-mod ollama;
+mod native;
 
 pub use cloud::*;
 pub use config::*;
 pub use keys::*;
-pub use ollama::*;
+pub use native::*;

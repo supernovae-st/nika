@@ -29,7 +29,8 @@ pub enum ProviderKind {
     Groq,
     DeepSeek,
     Gemini,
-    Ollama,
+    /// Native local provider (v0.26) - GGUF models via mistral.rs
+    Native,
 }
 
 impl ProviderKind {
@@ -42,7 +43,7 @@ impl ProviderKind {
             "groq" => Some(Self::Groq),
             "deepseek" => Some(Self::DeepSeek),
             "gemini" | "google" => Some(Self::Gemini),
-            "ollama" => Some(Self::Ollama),
+            "native" => Some(Self::Native),
             _ => None,
         }
     }
@@ -56,13 +57,13 @@ impl ProviderKind {
             Self::Groq => "Groq",
             Self::DeepSeek => "DeepSeek",
             Self::Gemini => "Gemini",
-            Self::Ollama => "Ollama",
+            Self::Native => "Native",
         }
     }
 
     /// Check if provider is free (local or free tier)
     pub fn is_free(&self) -> bool {
-        matches!(self, Self::Ollama)
+        matches!(self, Self::Native)
     }
 }
 
@@ -252,7 +253,7 @@ pub fn get_model_pricing(provider: ProviderKind, model: &str) -> ModelPricing {
         ProviderKind::Groq => GROQ_PRICING.get(model),
         ProviderKind::DeepSeek => DEEPSEEK_PRICING.get(model),
         ProviderKind::Gemini => GEMINI_PRICING.get(model),
-        ProviderKind::Ollama => return FREE_PRICING,
+        ProviderKind::Native => return FREE_PRICING,
     };
 
     pricing.copied().unwrap_or(DEFAULT_PRICING)
@@ -345,7 +346,7 @@ mod tests {
         assert!(ProviderKind::parse("groq").is_some());
         assert!(ProviderKind::parse("deepseek").is_some());
         assert!(ProviderKind::parse("gemini").is_some());
-        assert!(ProviderKind::parse("ollama").is_some());
+        assert!(ProviderKind::parse("native").is_some());
     }
 
     #[test]
@@ -356,7 +357,7 @@ mod tests {
 
     #[test]
     fn provider_is_free() {
-        assert!(ProviderKind::Ollama.is_free());
+        assert!(ProviderKind::Native.is_free());
         assert!(!ProviderKind::Claude.is_free());
         assert!(!ProviderKind::OpenAI.is_free());
     }
@@ -406,8 +407,8 @@ mod tests {
     }
 
     #[test]
-    fn calculate_cost_ollama_free() {
-        let cost = calculate_cost(ProviderKind::Ollama, "llama3.2", 1_000_000, 1_000_000);
+    fn calculate_cost_native_free() {
+        let cost = calculate_cost(ProviderKind::Native, "llama3.2-q4", 1_000_000, 1_000_000);
         assert!((cost - 0.0).abs() < 0.0001);
     }
 

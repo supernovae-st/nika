@@ -267,15 +267,15 @@ impl App {
                 tracing::debug!("ProviderSelectorConfirm: {} / {}", provider_id, model);
             }
 
-            // Ollama actions - TODO: implement Ollama management
-            ViewAction::PullOllamaModel(model) => {
+            // Native model actions - TODO: implement native model management
+            ViewAction::PullNativeModel(model) => {
                 self.set_status(&format!("Pulling: {}", model));
             }
-            ViewAction::DeleteOllamaModel(model) => {
+            ViewAction::DeleteNativeModel(model) => {
                 self.set_status(&format!("Deleting: {}", model));
             }
-            ViewAction::RefreshOllamaModels => {
-                self.set_status("Refreshing Ollama models...");
+            ViewAction::RefreshNativeModels => {
+                self.set_status("Refreshing native models...");
             }
 
             // Chat overlay

@@ -1,9 +1,11 @@
 //! Provider definitions for LLM and MCP services.
 //!
-//! This module defines the 20 known providers that nika supports, categorized as:
-//! - **LLM providers**: Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, Ollama
-//! - **MCP providers**: Neo4j, GitHub, Slack, Perplexity, Firecrawl, Supadata, etc.
-//! - **Local providers**: Native inference (mistral.rs), Ollama (local)
+//! This module defines the 18 known providers that nika supports, categorized as:
+//! - **LLM providers** (6): Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini
+//! - **MCP providers** (11): Neo4j, GitHub, Slack, Perplexity, Firecrawl, Supadata, etc.
+//! - **Local providers** (1): Native inference (mistral.rs)
+//!
+//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 
 use std::fmt;
 
@@ -14,7 +16,7 @@ pub enum ProviderCategory {
     Llm,
     /// MCP server providers (Neo4j, GitHub, etc.)
     Mcp,
-    /// Local inference providers (native, ollama-local)
+    /// Local inference providers (native)
     Local,
 }
 
@@ -47,16 +49,16 @@ pub struct Provider {
     pub description: &'static str,
 }
 
-/// All known providers (20 total).
+/// All known providers (18 total — Ollama removed in v0.27).
 ///
 /// ## Categories
 ///
-/// - **LLM (7)**: anthropic, openai, mistral, groq, deepseek, gemini, ollama
+/// - **LLM (6)**: anthropic, openai, mistral, groq, deepseek, gemini
 /// - **MCP (11)**: neo4j, github, slack, perplexity, firecrawl, supadata, dataforseo, ahrefs, postgres, filesystem, memory
-/// - **Local (2)**: native, ollama-local
+/// - **Local (1)**: native (mistral.rs)
 pub static KNOWN_PROVIDERS: &[Provider] = &[
     // ═══════════════════════════════════════════════════════════════════════════
-    // LLM PROVIDERS (7)
+    // LLM PROVIDERS (6) — Ollama removed v0.27, use provider: native instead
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "anthropic",
@@ -112,17 +114,9 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         requires_key: true,
         description: "Gemini Pro, Flash, and Ultra models",
     },
-    Provider {
-        id: "ollama",
-        name: "Ollama",
-        env_var: "OLLAMA_API_BASE_URL",
-        key_prefix: None,
-        category: ProviderCategory::Llm,
-        requires_key: false,
-        description: "Local models via Ollama server",
-    },
     // ═══════════════════════════════════════════════════════════════════════════
     // MCP PROVIDERS (11)
+    // NOTE: Ollama removed in v0.27 — use provider: native (mistral.rs) instead
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "neo4j",
@@ -235,15 +229,6 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         requires_key: false,
         description: "Local GGUF models via mistral.rs",
     },
-    Provider {
-        id: "ollama-local",
-        name: "Ollama Local",
-        env_var: "OLLAMA_MODELS_PATH",
-        key_prefix: None,
-        category: ProviderCategory::Local,
-        requires_key: false,
-        description: "Ollama models from local storage",
-    },
 ];
 
 /// Find a provider by ID.
@@ -325,8 +310,8 @@ mod tests {
 
     #[test]
     fn test_known_providers_count() {
-        // 7 LLM + 11 MCP + 2 Local = 20 total
-        assert_eq!(KNOWN_PROVIDERS.len(), 20);
+        // 6 LLM + 11 MCP + 1 Local = 18 total (Ollama removed in v0.27)
+        assert_eq!(KNOWN_PROVIDERS.len(), 18);
     }
 
     #[test]
@@ -335,9 +320,10 @@ mod tests {
         let mcp = providers_by_category(ProviderCategory::Mcp);
         let local = providers_by_category(ProviderCategory::Local);
 
-        assert_eq!(llm.len(), 7);
+        // Ollama removed in v0.27 — use provider: native instead
+        assert_eq!(llm.len(), 6);
         assert_eq!(mcp.len(), 11);
-        assert_eq!(local.len(), 2);
+        assert_eq!(local.len(), 1);
     }
 
     #[test]
@@ -348,8 +334,12 @@ mod tests {
         assert_eq!(anthropic.key_prefix, Some("sk-ant-"));
         assert!(anthropic.requires_key);
 
-        let ollama = find_provider("ollama").unwrap();
-        assert!(!ollama.requires_key);
+        // Native provider doesn't require key (local inference)
+        let native = find_provider("native").unwrap();
+        assert!(!native.requires_key);
+
+        // Ollama was removed in v0.27 — use native instead
+        assert!(find_provider("ollama").is_none());
 
         assert!(find_provider("nonexistent").is_none());
     }

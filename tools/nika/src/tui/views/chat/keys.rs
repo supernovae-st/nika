@@ -180,9 +180,9 @@ impl ChatView {
                 ModalAction::RefreshProviders => {
                     return ViewAction::VerifyProviders;
                 }
-                ModalAction::RefreshOllamaModels => {
-                    self.add_system_message("🔄 Refreshing Ollama models...".to_string());
-                    return ViewAction::RefreshOllamaModels;
+                ModalAction::RefreshNativeModels => {
+                    self.add_system_message("🔄 Refreshing native models...".to_string());
+                    return ViewAction::RefreshNativeModels;
                 }
                 ModalAction::TestApiKey { provider } => {
                     self.add_system_message(format!("🔑 Testing {} API key...", provider));
@@ -190,11 +190,11 @@ impl ChatView {
                 }
                 ModalAction::PullModel { model } => {
                     self.add_system_message(format!("📥 Pulling model: {}...", model));
-                    return ViewAction::PullOllamaModel(model.clone());
+                    return ViewAction::PullNativeModel(model.clone());
                 }
                 ModalAction::DeleteModel { model } => {
                     self.add_system_message(format!("🗑️ Deleting model: {}...", model));
-                    return ViewAction::DeleteOllamaModel(model.clone());
+                    return ViewAction::DeleteNativeModel(model.clone());
                 }
                 ModalAction::SaveAndTestApiKey { provider, key } => {
                     use crate::tui::widgets::provider_modal::{validate_key_format, SpnKeyring};
@@ -251,7 +251,7 @@ impl ChatView {
                         return ViewAction::ChatModelSwitch(model_provider);
                     } else {
                         self.add_system_message(format!(
-                            "❌ Unknown provider: {} - available: claude, openai, mistral, groq, deepseek, ollama",
+                            "❌ Unknown provider: {} - available: claude, openai, mistral, groq, deepseek, native",
                             provider
                         ));
                     }
@@ -744,7 +744,7 @@ impl ChatView {
                             ModelProvider::Mistral,
                             ModelProvider::Groq,
                             ModelProvider::DeepSeek,
-                            ModelProvider::Ollama,
+                            ModelProvider::Native,
                         ];
                         let mut list_text =
                             String::from("Available providers (use /model <name>):\n");

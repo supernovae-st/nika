@@ -104,8 +104,9 @@ pub enum ModelProvider {
     Groq,
     /// DeepSeek (deepseek-chat, etc.)
     DeepSeek,
-    /// Ollama (local models)
-    Ollama,
+    /// Native inference via mistral.rs (local GGUF models)
+    /// Note: Ollama removed in v0.27 — use Native instead
+    Native,
     /// List available providers
     List,
 }
@@ -324,8 +325,8 @@ impl Command {
             "deepseek" => Command::Model {
                 provider: ModelProvider::DeepSeek,
             },
-            "ollama" | "local" => Command::Model {
-                provider: ModelProvider::Ollama,
+            "native" | "local" | "ollama" => Command::Model { // "ollama" kept for backwards compat
+                provider: ModelProvider::Native,
             },
             "list" | "" => Command::Model {
                 provider: ModelProvider::List,
@@ -551,7 +552,7 @@ impl ModelProvider {
             ModelProvider::Mistral => "Mistral AI (mistral-large)",
             ModelProvider::Groq => "Groq (llama-3.3-70b)",
             ModelProvider::DeepSeek => "DeepSeek (deepseek-chat)",
-            ModelProvider::Ollama => "Ollama (local)",
+            ModelProvider::Native => "Native (mistral.rs)",
             ModelProvider::List => "list",
         }
     }
@@ -564,7 +565,7 @@ impl ModelProvider {
             ModelProvider::Mistral => "mistral",
             ModelProvider::Groq => "groq",
             ModelProvider::DeepSeek => "deepseek",
-            ModelProvider::Ollama => "ollama",
+            ModelProvider::Native => "native",
             ModelProvider::List => "list",
         }
     }
@@ -577,7 +578,7 @@ impl ModelProvider {
             ModelProvider::Mistral => "MISTRAL_API_KEY",
             ModelProvider::Groq => "GROQ_API_KEY",
             ModelProvider::DeepSeek => "DEEPSEEK_API_KEY",
-            ModelProvider::Ollama => "OLLAMA_API_BASE_URL",
+            ModelProvider::Native => "", // Native inference uses local GGUF models, no env var required
             ModelProvider::List => "",
         }
     }
@@ -586,7 +587,7 @@ impl ModelProvider {
     pub fn is_available(&self) -> bool {
         match self {
             ModelProvider::List => true,
-            ModelProvider::Ollama => true, // Ollama is always "available" (localhost fallback)
+            ModelProvider::Native => true, // Native inference is always available when feature enabled
             _ => std::env::var(self.env_var()).is_ok_and(|v| !v.is_empty()),
         }
     }
@@ -602,7 +603,7 @@ impl ModelProvider {
             "mistral" => Some(ModelProvider::Mistral),
             "groq" => Some(ModelProvider::Groq),
             "deepseek" => Some(ModelProvider::DeepSeek),
-            "ollama" => Some(ModelProvider::Ollama),
+            "native" | "local" | "ollama" => Some(ModelProvider::Native), // "ollama" kept for backwards compat
             _ => None,
         }
     }
@@ -618,7 +619,7 @@ Nika Chat Commands:
   /invoke [server:]tool     MCP tool call (params as JSON)
   /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
   /mcp [list|select|toggle] MCP server management (v0.5.2)
-  /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, ollama)
+  /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, native)
   /export [path]            Export chat to JSON file (v0.9)
   /clear                    Clear chat history
   /help or /?               Show this help
@@ -1055,7 +1056,7 @@ mod tests {
         assert_eq!(ModelProvider::Mistral.name(), "Mistral AI (mistral-large)");
         assert_eq!(ModelProvider::Groq.name(), "Groq (llama-3.3-70b)");
         assert_eq!(ModelProvider::DeepSeek.name(), "DeepSeek (deepseek-chat)");
-        assert_eq!(ModelProvider::Ollama.name(), "Ollama (local)");
+        assert_eq!(ModelProvider::Native.name(), "Native (mistral.rs)");
     }
 
     #[test]
@@ -1065,7 +1066,7 @@ mod tests {
         assert_eq!(ModelProvider::Mistral.env_var(), "MISTRAL_API_KEY");
         assert_eq!(ModelProvider::Groq.env_var(), "GROQ_API_KEY");
         assert_eq!(ModelProvider::DeepSeek.env_var(), "DEEPSEEK_API_KEY");
-        assert_eq!(ModelProvider::Ollama.env_var(), "OLLAMA_API_BASE_URL");
+        assert_eq!(ModelProvider::Native.env_var(), ""); // Native inference uses local GGUF models
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1109,13 +1110,26 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_model_ollama() {
+    fn test_parse_model_native() {
+        let input = "/model native";
+        let cmd = Command::parse(input);
+        assert!(matches!(
+            cmd,
+            Command::Model {
+                provider: ModelProvider::Native
+            }
+        ));
+    }
+
+    #[test]
+    fn test_parse_model_ollama_backwards_compat() {
+        // "ollama" still works for backwards compatibility (v0.27)
         let input = "/model ollama";
         let cmd = Command::parse(input);
         assert!(matches!(
             cmd,
             Command::Model {
-                provider: ModelProvider::Ollama
+                provider: ModelProvider::Native
             }
         ));
     }
@@ -1135,21 +1149,21 @@ mod tests {
 
     #[test]
     fn test_parse_model_local_alias() {
-        // local maps to Ollama
+        // "local" maps to Native
         let input = "/model local";
         let cmd = Command::parse(input);
         assert!(matches!(
             cmd,
             Command::Model {
-                provider: ModelProvider::Ollama
+                provider: ModelProvider::Native
             }
         ));
     }
 
     #[test]
-    fn test_ollama_always_available() {
-        // Ollama should always be available (localhost fallback)
-        assert!(ModelProvider::Ollama.is_available());
+    fn test_native_always_available() {
+        // Native inference is always available when feature is enabled
+        assert!(ModelProvider::Native.is_available());
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1427,9 +1441,20 @@ mod tests {
             ModelProvider::from_name("deepseek"),
             Some(ModelProvider::DeepSeek)
         );
+        // Native inference (new in v0.27)
+        assert_eq!(
+            ModelProvider::from_name("native"),
+            Some(ModelProvider::Native)
+        );
+        // "ollama" kept for backwards compatibility
         assert_eq!(
             ModelProvider::from_name("ollama"),
-            Some(ModelProvider::Ollama)
+            Some(ModelProvider::Native)
+        );
+        // "local" alias also maps to Native
+        assert_eq!(
+            ModelProvider::from_name("local"),
+            Some(ModelProvider::Native)
         );
     }
 

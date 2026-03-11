@@ -28,9 +28,9 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 
 // Import InferenceBackend trait for native inference methods (v0.26)
-use rig::client::{CompletionClient, Nothing, ProviderClient};
+use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
-use rig::providers::{anthropic, deepseek, gemini, groq, mistral, ollama, openai};
+use rig::providers::{anthropic, deepseek, gemini, groq, mistral, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
 #[cfg(feature = "native-inference")]
@@ -142,8 +142,6 @@ pub enum RigProvider {
     OpenAI(openai::Client),
     /// Mistral provider (v0.6) - MISTRAL_API_KEY
     Mistral(mistral::Client),
-    /// Ollama local provider (v0.6) - OLLAMA_API_BASE_URL (default: http://localhost:11434)
-    Ollama(ollama::Client),
     /// Groq provider (v0.6) - GROQ_API_KEY
     Groq(groq::Client),
     /// DeepSeek provider (v0.6) - DEEPSEEK_API_KEY
@@ -174,14 +172,6 @@ impl RigProvider {
     pub fn mistral() -> Self {
         let client = mistral::Client::from_env();
         RigProvider::Mistral(client)
-    }
-
-    /// Create an Ollama provider for local models (v0.6)
-    ///
-    /// Uses OLLAMA_API_BASE_URL env var (default: http://localhost:11434)
-    pub fn ollama() -> Self {
-        let client = ollama::Client::new(Nothing).expect("Ollama client creation should not fail");
-        RigProvider::Ollama(client)
     }
 
     /// Create a Groq provider from environment variable GROQ_API_KEY (v0.6)
@@ -254,7 +244,6 @@ impl RigProvider {
             RigProvider::Claude(_) => "claude",
             RigProvider::OpenAI(_) => "openai",
             RigProvider::Mistral(_) => "mistral",
-            RigProvider::Ollama(_) => "ollama",
             RigProvider::Groq(_) => "groq",
             RigProvider::DeepSeek(_) => "deepseek",
             RigProvider::Gemini(_) => "gemini",
@@ -270,7 +259,6 @@ impl RigProvider {
     /// | Claude | claude-sonnet-4-6 | Latest stable (Feb 2026) |
     /// | OpenAI | gpt-4o | Latest stable |
     /// | Mistral | mistral-large-latest | Best for complex tasks |
-    /// | Ollama | llama3.2 | Good balance of quality/speed |
     /// | Groq | llama-3.3-70b-versatile | Fast inference |
     /// | DeepSeek | deepseek-chat | Cost-effective |
     /// | Gemini | gemini-2.0-flash | Latest stable (v0.15.0) |
@@ -282,7 +270,6 @@ impl RigProvider {
             RigProvider::Claude(_) => "claude-sonnet-4-6",
             RigProvider::OpenAI(_) => openai::GPT_4O,
             RigProvider::Mistral(_) => mistral::MISTRAL_LARGE,
-            RigProvider::Ollama(_) => "llama3.2",
             RigProvider::Groq(_) => "llama-3.3-70b-versatile",
             RigProvider::DeepSeek(_) => "deepseek-chat",
             RigProvider::Gemini(_) => "gemini-2.0-flash",
@@ -320,13 +307,6 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Mistral(client) => {
-                let agent = client.agent(model_id).max_tokens(8192).build();
-                agent
-                    .prompt(prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
-            RigProvider::Ollama(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
@@ -440,17 +420,6 @@ impl RigProvider {
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
-            RigProvider::Ollama(client) => {
-                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
-                if let Some(temp) = options.temperature {
-                    builder = builder.temperature(temp);
-                }
-                let agent = builder.build();
-                agent
-                    .prompt(&full_prompt)
-                    .await
-                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
-            }
             RigProvider::Groq(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
                 if let Some(temp) = options.temperature {
@@ -512,7 +481,7 @@ impl RigProvider {
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
     /// 6. GEMINI_API_KEY → Gemini (v0.15.0)
-    /// 7. OLLAMA_API_BASE_URL → Ollama (opt-in, no key required)
+    /// 7. NIKA_NATIVE_MODEL → Native (v0.26, opt-in)
     ///
     /// Returns None if no provider is available.
     /// Empty env vars are treated as unset.
@@ -539,11 +508,7 @@ impl RigProvider {
         if has_key("GEMINI_API_KEY") {
             return Some(Self::gemini());
         }
-        // Ollama is opt-in: requires OLLAMA_API_BASE_URL to be explicitly set
-        if has_key("OLLAMA_API_BASE_URL") {
-            return Some(Self::ollama());
-        }
-        // v0.24: Native is opt-in: requires NIKA_NATIVE_MODEL to be set
+        // v0.26: Native is opt-in: requires NIKA_NATIVE_MODEL to be set
         // Note: Model must still be loaded via load_native_model() before inference
         #[cfg(feature = "native-inference")]
         if has_key("NIKA_NATIVE_MODEL") {
@@ -638,11 +603,6 @@ impl RigProvider {
             RigProvider::Groq(_) => has_key("GROQ_API_KEY"),
             RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
             RigProvider::Gemini(_) => has_key("GEMINI_API_KEY"),
-            RigProvider::Ollama(_) => {
-                // Ollama doesn't need API key, so is always "configured"
-                // Actual server availability checked separately via check_ollama_available()
-                true
-            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native doesn't need API key, but requires model to be loaded
@@ -1112,54 +1072,6 @@ impl RigProvider {
                     }
                 }
             }
-            RigProvider::Ollama(client) => {
-                let model = client.completion_model(model_id);
-                let request = model.completion_request(prompt).max_tokens(8192).build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
-            }
             // v0.15.0: Gemini provider streaming
             RigProvider::Gemini(client) => {
                 let model = client.completion_model(model_id);
@@ -1405,61 +1317,6 @@ impl RigProvider {
                 }
             }
             RigProvider::Mistral(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
-            }
-            RigProvider::Ollama(client) => {
                 let model = client.completion_model(model_id);
                 let mut request_builder = model
                     .completion_request(&full_prompt)
@@ -1967,15 +1824,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rig_provider_ollama_returns_ollama_variant() {
-        // Ollama doesn't require an API key
-        let provider = RigProvider::ollama();
-
-        assert_eq!(provider.name(), "ollama");
-        assert!(matches!(provider, RigProvider::Ollama(_)));
-    }
-
-    #[test]
     #[serial]
     fn test_rig_provider_groq_returns_groq_variant() {
         std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
@@ -2007,7 +1855,6 @@ mod tests {
             RigProvider::mistral().default_model(),
             mistral::MISTRAL_LARGE
         );
-        assert_eq!(RigProvider::ollama().default_model(), "llama3.2");
         assert_eq!(
             RigProvider::groq().default_model(),
             "llama-3.3-70b-versatile"
@@ -2023,7 +1870,6 @@ mod tests {
         std::env::remove_var("MISTRAL_API_KEY");
         std::env::remove_var("GROQ_API_KEY");
         std::env::remove_var("DEEPSEEK_API_KEY");
-        std::env::remove_var("OLLAMA_API_BASE_URL");
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
 
         let provider = RigProvider::auto();
@@ -2053,7 +1899,6 @@ mod tests {
         std::env::remove_var("GROQ_API_KEY");
         std::env::remove_var("DEEPSEEK_API_KEY");
         std::env::remove_var("GEMINI_API_KEY");
-        std::env::remove_var("OLLAMA_API_BASE_URL");
     }
 
     #[test]
@@ -2129,21 +1974,6 @@ mod tests {
         // Then: Should fall back to Gemini (v0.15.0)
         assert!(provider.is_some());
         assert_eq!(provider.unwrap().name(), "gemini");
-    }
-
-    #[test]
-    #[serial]
-    fn test_auto_fallback_to_ollama() {
-        // Given: Only OLLAMA_API_BASE_URL is set
-        clear_all_provider_env_vars();
-        std::env::set_var("OLLAMA_API_BASE_URL", "http://localhost:11434");
-
-        // When: auto() is called
-        let provider = RigProvider::auto();
-
-        // Then: Should fall back to Ollama
-        assert!(provider.is_some());
-        assert_eq!(provider.unwrap().name(), "ollama");
     }
 
     #[test]
@@ -2807,7 +2637,7 @@ mod tests {
         assert!(network.to_string().contains("Network error"));
 
         let provider_err = ProviderVerifyError::ProviderError {
-            provider: "ollama".to_string(),
+            provider: "deepseek".to_string(),
             details: "server down".to_string(),
         };
         assert!(provider_err.to_string().contains("server down"));
@@ -2835,13 +2665,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_configured_ollama_always_true() {
-        // Ollama doesn't need API key, so is_configured should always be true
-        let provider = RigProvider::ollama();
-        assert!(provider.is_configured());
-    }
-
-    #[test]
     #[serial]
     fn test_is_configured_returns_true_for_all_providers_with_keys() {
         // Set up all API keys
@@ -2856,7 +2679,6 @@ mod tests {
         assert!(RigProvider::mistral().is_configured());
         assert!(RigProvider::groq().is_configured());
         assert!(RigProvider::deepseek().is_configured());
-        assert!(RigProvider::ollama().is_configured());
     }
 
     // =========================================================================

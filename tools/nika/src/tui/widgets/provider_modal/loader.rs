@@ -1,14 +1,15 @@
 //! Async loader for provider modal data
 //!
-//! Orchestrates loading of provider statuses and Ollama models
+//! Orchestrates loading of provider statuses and native models
 //! in the background, communicating results via channels.
+//!
+//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-use super::ollama_client::{OllamaClient, OllamaModelInfo};
 use super::provider_checker::ProviderChecker;
-use super::state::ConnectionStatus;
+use super::state::{ConnectionStatus, NativeModelInfo};
 
 /// Events sent from loader to UI
 #[derive(Debug, Clone)]
@@ -20,10 +21,10 @@ pub enum LoaderEvent {
     },
     /// All providers checked
     ProvidersComplete,
-    /// Ollama availability check
-    OllamaAvailable(bool),
-    /// Ollama models loaded
-    OllamaModels(Vec<OllamaModelInfo>),
+    /// Native inference availability check (v0.27 - replaces OllamaAvailable)
+    NativeAvailable(bool),
+    /// Native models loaded (v0.27 - replaces OllamaModels)
+    NativeModels(Vec<NativeModelInfo>),
     /// Loading error
     Error { source: String, message: String },
 }
@@ -33,10 +34,10 @@ pub enum LoaderEvent {
 pub enum LoaderCommand {
     /// Check all provider statuses
     CheckProviders,
-    /// Load Ollama models
-    LoadOllamaModels,
-    /// Check Ollama availability
-    CheckOllama,
+    /// Load native models (v0.27 - replaces LoadOllamaModels)
+    LoadNativeModels,
+    /// Check native inference availability (v0.27 - replaces CheckOllama)
+    CheckNative,
     /// Stop the loader
     Stop,
 }
@@ -106,7 +107,6 @@ impl ModalLoader {
         event_tx: mpsc::Sender<LoaderEvent>,
     ) {
         let checker = Arc::new(ProviderChecker::new());
-        let ollama = Arc::new(OllamaClient::new());
 
         while let Some(cmd) = cmd_rx.recv().await {
             match cmd {
@@ -125,33 +125,29 @@ impl ModalLoader {
                         let _ = tx.send(LoaderEvent::ProvidersComplete).await;
                     });
                 }
-                LoaderCommand::CheckOllama => {
-                    let ollama = Arc::clone(&ollama);
+                LoaderCommand::CheckNative => {
                     let tx = event_tx.clone();
 
+                    // v0.27: Native inference via mistral.rs
+                    // Check if native-inference feature is enabled
                     tokio::spawn(async move {
-                        let available = ollama.is_available().await;
-                        let _ = tx.send(LoaderEvent::OllamaAvailable(available)).await;
+                        #[cfg(feature = "native-inference")]
+                        let available = true;
+                        #[cfg(not(feature = "native-inference"))]
+                        let available = false;
+
+                        let _ = tx.send(LoaderEvent::NativeAvailable(available)).await;
                     });
                 }
-                LoaderCommand::LoadOllamaModels => {
-                    let ollama = Arc::clone(&ollama);
+                LoaderCommand::LoadNativeModels => {
                     let tx = event_tx.clone();
 
+                    // v0.27: Native models are loaded from HuggingFace cache
+                    // For now, return empty list - actual model discovery happens via spn model list
                     tokio::spawn(async move {
-                        match ollama.list_models().await {
-                            Ok(models) => {
-                                let _ = tx.send(LoaderEvent::OllamaModels(models)).await;
-                            }
-                            Err(e) => {
-                                let _ = tx
-                                    .send(LoaderEvent::Error {
-                                        source: "ollama".to_string(),
-                                        message: e.to_string(),
-                                    })
-                                    .await;
-                            }
-                        }
+                        // TODO: Implement native model discovery from HuggingFace cache
+                        let models: Vec<NativeModelInfo> = Vec::new();
+                        let _ = tx.send(LoaderEvent::NativeModels(models)).await;
                     });
                 }
                 LoaderCommand::Stop => {
@@ -192,14 +188,14 @@ impl Drop for ModalLoader {
 pub struct LoadingState {
     /// Providers are being checked
     pub checking_providers: bool,
-    /// Ollama models are being loaded
+    /// Native models are being loaded (v0.27 - replaces loading_models for Ollama)
     pub loading_models: bool,
     /// Provider statuses by name
     pub provider_statuses: Vec<(&'static str, ConnectionStatus)>,
-    /// Ollama availability
-    pub ollama_available: Option<bool>,
-    /// Loaded Ollama models
-    pub ollama_models: Vec<OllamaModelInfo>,
+    /// Native inference availability (v0.27 - replaces ollama_available)
+    pub native_available: Option<bool>,
+    /// Loaded native models (v0.27 - replaces ollama_models)
+    pub native_models: Vec<NativeModelInfo>,
 }
 
 impl LoadingState {
@@ -226,11 +222,11 @@ impl LoadingState {
             LoaderEvent::ProvidersComplete => {
                 self.checking_providers = false;
             }
-            LoaderEvent::OllamaAvailable(available) => {
-                self.ollama_available = Some(available);
+            LoaderEvent::NativeAvailable(available) => {
+                self.native_available = Some(available);
             }
-            LoaderEvent::OllamaModels(models) => {
-                self.ollama_models = models;
+            LoaderEvent::NativeModels(models) => {
+                self.native_models = models;
                 self.loading_models = false;
             }
             LoaderEvent::Error { .. } => {
@@ -264,7 +260,7 @@ mod tests {
         assert!(!state.checking_providers);
         assert!(!state.loading_models);
         assert!(state.provider_statuses.is_empty());
-        assert!(state.ollama_available.is_none());
+        assert!(state.native_available.is_none());
     }
 
     #[test]
@@ -304,32 +300,34 @@ mod tests {
     }
 
     #[test]
-    fn test_loading_state_process_ollama_available() {
+    fn test_loading_state_process_native_available() {
         let mut state = LoadingState::new();
-        state.process_event(LoaderEvent::OllamaAvailable(true));
-        assert_eq!(state.ollama_available, Some(true));
+        state.process_event(LoaderEvent::NativeAvailable(true));
+        assert_eq!(state.native_available, Some(true));
     }
 
     #[test]
-    fn test_loading_state_process_ollama_models() {
+    fn test_loading_state_process_native_models() {
+        use super::super::state::NativeModelDetails;
+
         let mut state = LoadingState::new();
         state.loading_models = true;
 
-        let models = vec![OllamaModelInfo {
+        let models = vec![NativeModelInfo {
             name: "llama3.2".to_string(),
             size: 4_700_000_000,
             digest: "sha256:abc".to_string(),
             modified_at: "2026-02-24".to_string(),
-            details: super::super::ollama_client::OllamaModelDetails {
+            details: NativeModelDetails {
                 parameter_size: "8B".to_string(),
                 quantization_level: "Q4_0".to_string(),
                 family: Some("llama".to_string()),
             },
         }];
 
-        state.process_event(LoaderEvent::OllamaModels(models));
+        state.process_event(LoaderEvent::NativeModels(models));
         assert!(!state.loading_models);
-        assert_eq!(state.ollama_models.len(), 1);
+        assert_eq!(state.native_models.len(), 1);
     }
 
     #[test]

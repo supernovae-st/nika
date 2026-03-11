@@ -58,12 +58,12 @@ pub enum ModalAction {
     SaveApiKey { provider: &'static str, key: String },
     /// Save API key and then test it (recommended flow)
     SaveAndTestApiKey { provider: &'static str, key: String },
-    /// Pull Ollama model
+    /// Pull native model (v0.27 - was Ollama)
     PullModel { model: String },
-    /// Delete Ollama model
+    /// Delete native model (v0.27 - was Ollama)
     DeleteModel { model: String },
-    /// Refresh Ollama models list
-    RefreshOllamaModels,
+    /// Refresh native models list (v0.27 - was Ollama)
+    RefreshNativeModels,
     /// Refresh all provider statuses
     RefreshProviders,
     /// Close the modal
@@ -152,13 +152,13 @@ impl ModalEventHandler {
             }
 
             // Tab-specific actions
-            KeyCode::Char('p') if state.active_tab == ProviderModalTab::Ollama => {
+            KeyCode::Char('p') if state.active_tab == ProviderModalTab::Native => {
                 // Would get actual model from selection
                 HandleResult::consumed_with_action(ModalAction::PullModel {
                     model: "llama3.2".to_string(),
                 })
             }
-            KeyCode::Char('d') if state.active_tab == ProviderModalTab::Ollama => {
+            KeyCode::Char('d') if state.active_tab == ProviderModalTab::Native => {
                 HandleResult::consumed_with_action(ModalAction::DeleteModel {
                     model: "selected".to_string(),
                 })
@@ -172,8 +172,8 @@ impl ModalEventHandler {
                 ProviderModalTab::Cloud => {
                     HandleResult::consumed_with_action(ModalAction::RefreshProviders)
                 }
-                ProviderModalTab::Ollama => {
-                    HandleResult::consumed_with_action(ModalAction::RefreshOllamaModels)
+                ProviderModalTab::Native => {
+                    HandleResult::consumed_with_action(ModalAction::RefreshNativeModels)
                 }
                 _ => HandleResult::consumed(),
             },
@@ -318,7 +318,7 @@ impl ModalEventHandler {
                 state.expand_selected_provider();
                 HandleResult::consumed()
             }
-            ProviderModalTab::Ollama => {
+            ProviderModalTab::Native => {
                 // Would show model details or pull dialog
                 HandleResult::consumed()
             }
@@ -330,7 +330,7 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
-    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
+    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
     fn selected_provider(state: &ProviderModalState) -> &'static str {
         match state.selected_idx {
             0 => "anthropic",
@@ -339,7 +339,6 @@ impl ModalEventHandler {
             3 => "groq",
             4 => "deepseek",
             5 => "gemini",
-            6 => "ollama",
             _ => "anthropic",
         }
     }
@@ -351,7 +350,7 @@ impl ModalEventHandler {
     }
 
     /// Get cloud provider name by index
-    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
+    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
         match idx {
             0 => "anthropic",
@@ -360,13 +359,12 @@ impl ModalEventHandler {
             3 => "groq",
             4 => "deepseek",
             5 => "gemini",
-            6 => "ollama",
             _ => "anthropic",
         }
     }
 
     /// Get default model for provider index
-    /// v0.21.2: Fixed 7 providers - added Gemini at index 5, Ollama at index 6
+    /// v0.27: 6 cloud providers (Ollama removed - use native inference instead)
     fn default_model_for_provider(idx: usize) -> &'static str {
         match idx {
             0 => "claude-sonnet-4",
@@ -375,7 +373,6 @@ impl ModalEventHandler {
             3 => "llama-3.3-70b",
             4 => "deepseek-chat",
             5 => "gemini-2.0-flash",
-            6 => "llama3.2",
             _ => "claude-sonnet-4",
         }
     }
@@ -413,14 +410,14 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Tab));
 
         assert!(result.consumed);
-        assert_eq!(state.active_tab, ProviderModalTab::Ollama);
+        assert_eq!(state.active_tab, ProviderModalTab::Native);
     }
 
     #[test]
     fn test_handle_shift_tab_switches_tab_backwards() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.active_tab = ProviderModalTab::Ollama;
+        state.active_tab = ProviderModalTab::Native;
 
         let result = ModalEventHandler::handle(
             &mut state,
@@ -440,7 +437,7 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::BackTab));
 
         assert!(result.consumed);
-        assert_eq!(state.active_tab, ProviderModalTab::Ollama);
+        assert_eq!(state.active_tab, ProviderModalTab::Native);
     }
 
     #[test]
@@ -449,7 +446,7 @@ mod tests {
         state.visible = true;
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('2')));
-        assert_eq!(state.active_tab, ProviderModalTab::Ollama);
+        assert_eq!(state.active_tab, ProviderModalTab::Native);
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('3')));
         assert_eq!(state.active_tab, ProviderModalTab::Keys);
@@ -489,7 +486,7 @@ mod tests {
     // Up/Down move by rows (±3), Left/Right move by columns (±1)
     // Grid layout:
     //   0 1 2  (row 0: Claude, OpenAI, Mistral)
-    //   3 4 5  (row 1: Groq, DeepSeek, Ollama)
+    //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
 
     #[test]
     fn test_handle_up_navigates_grid() {
@@ -507,7 +504,7 @@ mod tests {
     fn test_handle_k_navigates_up_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.selected_idx = 5; // Row 1, col 2 (Ollama)
+        state.selected_idx = 5; // Row 1, col 2 (Gemini)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('k')));
 
@@ -523,7 +520,7 @@ mod tests {
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Down));
 
-        // Should move down one row: 2 -> 5 (Ollama)
+        // Should move down one row: 2 -> 5 (Gemini)
         assert_eq!(state.selected_idx, 5);
     }
 
@@ -555,7 +552,7 @@ mod tests {
     fn test_handle_h_navigates_left_grid() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.selected_idx = 5; // Row 1, col 2 (Ollama)
+        state.selected_idx = 5; // Row 1, col 2 (Gemini)
 
         ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('h')));
 
@@ -734,10 +731,10 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_p_in_ollama_tab_pulls_model() {
+    fn test_handle_p_in_native_tab_pulls_model() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.active_tab = ProviderModalTab::Ollama;
+        state.active_tab = ProviderModalTab::Native;
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('p')));
 
@@ -746,10 +743,10 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_d_in_ollama_tab_deletes_model() {
+    fn test_handle_d_in_native_tab_deletes_model() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.active_tab = ProviderModalTab::Ollama;
+        state.active_tab = ProviderModalTab::Native;
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('d')));
 
@@ -788,15 +785,15 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_r_in_ollama_tab_refreshes_models() {
+    fn test_handle_r_in_native_tab_refreshes_models() {
         let mut state = ProviderModalState::default();
         state.visible = true;
-        state.active_tab = ProviderModalTab::Ollama;
+        state.active_tab = ProviderModalTab::Native;
 
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Char('r')));
 
         assert!(result.consumed);
-        assert_eq!(result.action, Some(ModalAction::RefreshOllamaModels));
+        assert_eq!(result.action, Some(ModalAction::RefreshNativeModels));
     }
 
     #[test]

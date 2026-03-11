@@ -340,12 +340,12 @@ pub enum ViewAction {
     /// Provider selector confirmed a change (v0.8.3 - BUG #2 fix)
     /// Signals app.rs to invalidate/recreate chat_agent with new provider
     ProviderSelectorConfirm { provider_id: String, model: String },
-    /// Pull Ollama model (v0.12.3)
-    PullOllamaModel(String),
-    /// Delete Ollama model (v0.12.3)
-    DeleteOllamaModel(String),
-    /// Refresh Ollama model list (v0.12.3)
-    RefreshOllamaModels,
+    /// Pull native model (v0.27 — was PullOllamaModel)
+    PullNativeModel(String),
+    /// Delete native model (v0.27 — was DeleteOllamaModel)
+    DeleteNativeModel(String),
+    /// Refresh native model list (v0.27 — was RefreshOllamaModels)
+    RefreshNativeModels,
     /// Validate workflow in Home view (v0.11.0)
     ValidateWorkflow(std::path::PathBuf),
 }

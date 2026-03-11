@@ -317,10 +317,11 @@ pub struct VerificationState {
 }
 
 impl VerificationState {
-    /// Create new verification state for 7 providers
+    /// Create new verification state for 6 providers
+    /// v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
     pub fn new_providers() -> Self {
         let providers = [
-            "Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini", "Ollama",
+            "Claude", "OpenAI", "Mistral", "Groq", "DeepSeek", "Gemini",
         ];
         Self {
             entries: providers.iter().map(|&p| VerifyEntry::new(p)).collect(),
@@ -443,11 +444,11 @@ mod tests {
 
     #[test]
     fn test_verification_state_new_providers() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
         let state = VerificationState::new_providers();
-        assert_eq!(state.entries.len(), 7);
+        assert_eq!(state.entries.len(), 6);
         assert_eq!(state.entries[0].name, "Claude");
         assert_eq!(state.entries[5].name, "Gemini");
-        assert_eq!(state.entries[6].name, "Ollama");
     }
 
     #[test]
@@ -473,7 +474,7 @@ mod tests {
         assert_eq!(state.index_of("Claude"), Some(0));
         assert_eq!(state.index_of("claude"), Some(0)); // Case insensitive
         assert_eq!(state.index_of("Gemini"), Some(5));
-        assert_eq!(state.index_of("Ollama"), Some(6));
+        // v0.27: Ollama removed - use Native tab with mistral.rs instead
         assert_eq!(state.index_of("Unknown"), None);
     }
 
@@ -494,8 +495,8 @@ mod tests {
     fn test_verification_state_all_complete() {
         let mut state = VerificationState::new_providers();
 
-        // Set all 7 to connected
-        for i in 0..7 {
+        // Set all 6 to connected (v0.27: reduced from 7)
+        for i in 0..6 {
             state.set_status(i, VerifyStatus::Connected);
         }
 

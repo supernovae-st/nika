@@ -313,19 +313,23 @@ impl ChatAgent {
                     }
                     agent.provider = RigProvider::deepseek();
                 }
-                "ollama" => {
-                    // v0.8.2: Verify Ollama is running before allowing selection
-                    if !crate::tui::widgets::check_ollama_available() {
+                "native" => {
+                    // v0.27: Native inference via mistral.rs (no API key needed)
+                    #[cfg(feature = "native-inference")]
+                    {
+                        agent.provider = RigProvider::native();
+                    }
+                    #[cfg(not(feature = "native-inference"))]
+                    {
                         return Err(NikaError::InvalidConfig {
-                            message: "Ollama server is not running. Start with 'ollama serve' or set OLLAMA_API_BASE_URL".to_string(),
+                            message: "Native inference requires --features native-inference".to_string(),
                         });
                     }
-                    agent.provider = RigProvider::ollama();
                 }
                 _ => {
                     return Err(NikaError::InvalidConfig {
                         message: format!(
-                            "Unknown provider: '{}'. Use claude, openai, mistral, groq, deepseek, or ollama",
+                            "Unknown provider: '{}'. Use claude, openai, mistral, groq, deepseek, gemini, or native",
                             p
                         ),
                     });
@@ -424,15 +428,18 @@ impl ChatAgent {
                 }
                 self.provider = RigProvider::deepseek();
             }
-            ModelProvider::Ollama => {
-                // v0.8.3: Verify Ollama is running before allowing switch (FIX BUG #1)
-                // Previously succeeded even when Ollama server wasn't running
-                if !crate::tui::widgets::check_ollama_available() {
+            ModelProvider::Native => {
+                // v0.27: Native inference via mistral.rs (no API key needed)
+                #[cfg(feature = "native-inference")]
+                {
+                    self.provider = RigProvider::native();
+                }
+                #[cfg(not(feature = "native-inference"))]
+                {
                     return Err(NikaError::InvalidConfig {
-                        message: "Ollama server is not running. Start with 'ollama serve' or set OLLAMA_API_BASE_URL".to_string(),
+                        message: "Native inference requires --features native-inference".to_string(),
                     });
                 }
-                self.provider = RigProvider::ollama();
             }
             ModelProvider::List => {
                 // List doesn't change the provider, just returns info

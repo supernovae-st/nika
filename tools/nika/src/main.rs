@@ -28,7 +28,7 @@ use nika::Event;
 const LONG_ABOUT: &str = r#"Nika - DAG workflow runner for AI tasks with MCP integration
 
 Execute YAML-defined workflows using 5 semantic verbs:
-  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama)
+  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Native)
   exec:    Shell command execution
   fetch:   HTTP requests
   invoke:  MCP tool calls
@@ -93,7 +93,7 @@ ENVIRONMENT VARIABLES:
     MISTRAL_API_KEY               Mistral
     GROQ_API_KEY                  Groq
     DEEPSEEK_API_KEY              DeepSeek
-    OLLAMA_API_BASE_URL           Ollama (no key needed)
+    NIKA_MODEL_PATH               Native inference model path (v0.27)
 
 TUI VIEWS (in nika ui):
     [e] Explorer   File browser + DAG preview
@@ -165,7 +165,7 @@ enum Commands {
     #[cfg(feature = "tui")]
     #[command(visible_alias = "c")]
     Chat {
-        /// LLM provider: claude, openai, mistral, groq, deepseek, ollama
+        /// LLM provider: claude, openai, mistral, groq, deepseek, native
         #[arg(short, long, value_name = "NAME")]
         provider: Option<String>,
 
@@ -370,7 +370,7 @@ enum Commands {
         #[arg(long, value_name = "VERB")]
         verb: Option<String>,
 
-        /// LLM provider (claude, openai, mistral, groq, deepseek, ollama)
+        /// LLM provider (claude, openai, mistral, groq, deepseek, native)
         #[arg(short, long, value_name = "PROVIDER")]
         provider: Option<String>,
 
@@ -2071,7 +2071,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             let has_key = SpnKeyring::exists(&provider)
                 || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
 
-            if !has_key && provider != "ollama" {
+            if !has_key && provider != "native" {
                 println!(
                     "{} No API key configured for {}",
                     "✗".red(),
@@ -2091,7 +2091,18 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                 "groq" => RigProvider::groq(),
                 "deepseek" => RigProvider::deepseek(),
                 "gemini" => RigProvider::gemini(), // v0.15.0
-                "ollama" => RigProvider::ollama(),
+                "native" => {
+                    #[cfg(feature = "native-inference")]
+                    {
+                        RigProvider::native()
+                    }
+                    #[cfg(not(feature = "native-inference"))]
+                    {
+                        return Err(NikaError::ValidationError {
+                            reason: "Native inference requires --features native-inference".to_string(),
+                        });
+                    }
+                }
                 _ => {
                     return Err(NikaError::ValidationError {
                         reason: format!("Unknown provider: {}", provider),
@@ -2179,7 +2190,7 @@ permission = "{}"
 # working_dir = "."
 
 [provider]
-# Default LLM provider (claude, openai, mistral, groq, deepseek, ollama)
+# Default LLM provider (claude, openai, mistral, groq, deepseek, native)
 # Provider auto-detection checks env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.
 # Can also override with: nika chat --provider <name>
 default = "claude"
@@ -6670,7 +6681,7 @@ fn handle_new_command(
         .map(|p| {
             Provider::from_name(&p).ok_or_else(|| NikaError::ValidationError {
                 reason: format!(
-                    "Unknown provider: '{}'. Valid: claude, openai, mistral, groq, deepseek, ollama",
+                    "Unknown provider: '{}'. Valid: claude, openai, mistral, groq, deepseek, native",
                     p
                 ),
             })

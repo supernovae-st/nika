@@ -234,37 +234,7 @@ impl ProviderInfo {
                     },
                 ],
             },
-            ProviderInfo {
-                name: "Ollama",
-                icon: "🦙",
-                model: "llama3.2",
-                env_var: "OLLAMA_HOST",
-                features: vec!["🏠", "🔒"],
-                context_window: 128_000,
-                status: ConnectionStatus::Unknown,
-                models: vec![
-                    ModelInfo {
-                        id: "llama3.2",
-                        name: "Llama 3.2",
-                        context_k: 128,
-                    },
-                    ModelInfo {
-                        id: "llama3.1",
-                        name: "Llama 3.1",
-                        context_k: 128,
-                    },
-                    ModelInfo {
-                        id: "codellama",
-                        name: "Code Llama",
-                        context_k: 16,
-                    },
-                    ModelInfo {
-                        id: "mistral",
-                        name: "Mistral",
-                        context_k: 32,
-                    },
-                ],
-            },
+            // Note: Ollama removed in v0.27 — use Native tab with mistral.rs instead
         ]
     }
 
@@ -473,9 +443,10 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_info_all_providers_returns_7() {
+    fn test_provider_info_all_providers_returns_6() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
         let providers = ProviderInfo::all_providers();
-        assert_eq!(providers.len(), 7);
+        assert_eq!(providers.len(), 6);
     }
 
     #[test]
@@ -487,7 +458,7 @@ mod tests {
         assert_eq!(providers[3].name, "Groq");
         assert_eq!(providers[4].name, "DeepSeek");
         assert_eq!(providers[5].name, "Gemini");
-        assert_eq!(providers[6].name, "Ollama");
+        // v0.27: Ollama removed - use Native tab with mistral.rs instead
     }
 
     #[test]
@@ -496,20 +467,22 @@ mod tests {
         assert_eq!(providers[0].env_var, "ANTHROPIC_API_KEY");
         assert_eq!(providers[1].env_var, "OPENAI_API_KEY");
         assert_eq!(providers[5].env_var, "GEMINI_API_KEY");
-        assert_eq!(providers[6].env_var, "OLLAMA_HOST");
+        // v0.27: Ollama (OLLAMA_HOST) removed - use Native tab instead
     }
 
     #[test]
     fn test_cloud_tab_provider_count() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed)
         let state = ProviderModalState::default();
         let tab = CloudTab::new(&state);
-        assert_eq!(tab.provider_count(), 7);
+        assert_eq!(tab.provider_count(), 6);
     }
 
     #[test]
-    fn test_cloud_tab_renders_7_providers() {
+    fn test_cloud_tab_renders_6_providers() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed)
         let mut state = ProviderModalState::default();
-        state.item_count = 7;
+        state.item_count = 6;
         let tab = CloudTab::new(&state);
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 20));
         tab.render(Rect::new(0, 0, 80, 20), &mut buf);
@@ -522,7 +495,7 @@ mod tests {
     #[test]
     fn test_cloud_tab_renders_second_row() {
         let mut state = ProviderModalState::default();
-        state.item_count = 7;
+        state.item_count = 6;
         let tab = CloudTab::new(&state);
         let mut buf = Buffer::empty(Rect::new(0, 0, 100, 25));
         tab.render(Rect::new(0, 0, 100, 25), &mut buf);
@@ -530,7 +503,7 @@ mod tests {
         assert!(content.contains("Groq"));
         assert!(content.contains("DeepSeek"));
         assert!(content.contains("Gemini"));
-        assert!(content.contains("Ollama"));
+        // v0.27: Ollama removed - use Native tab with mistral.rs instead
     }
 
     #[test]
@@ -546,7 +519,7 @@ mod tests {
     #[test]
     fn test_cloud_tab_selection_at_index_5() {
         let mut state = ProviderModalState::default();
-        state.selected_idx = 5; // Ollama (last)
+        state.selected_idx = 5; // Gemini (last)
         let tab = CloudTab::new(&state);
         let mut buf = Buffer::empty(Rect::new(0, 0, 80, 20));
         tab.render(Rect::new(0, 0, 80, 20), &mut buf);

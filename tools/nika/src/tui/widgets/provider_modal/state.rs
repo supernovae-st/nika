@@ -1,11 +1,40 @@
 //! Provider modal state types
+//!
+//! v0.27: Native tab replaced with Native tab (mistral.rs)
+
+/// Native model info for local inference (v0.27 - replaces NativeModelInfo)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeModelInfo {
+    /// Model name (e.g., "llama3.2:1b")
+    pub name: String,
+    /// Model size in bytes
+    pub size: u64,
+    /// Model path or digest
+    pub digest: String,
+    /// Last modified date
+    pub modified_at: String,
+    /// Model details
+    pub details: NativeModelDetails,
+}
+
+/// Native model details (v0.27 - replaces NativeModelDetails)
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct NativeModelDetails {
+    /// Parameter size (e.g., "1B", "8B")
+    pub parameter_size: String,
+    /// Quantization level (e.g., "Q4_0", "Q8_0")
+    pub quantization_level: String,
+    /// Model family (e.g., "llama", "qwen")
+    pub family: Option<String>,
+}
 
 /// Active tab in the provider modal
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ProviderModalTab {
     #[default]
     Cloud,
-    Ollama,
+    /// v0.27: Native local inference (was Native)
+    Native,
     Keys,
     Config,
 }
@@ -14,8 +43,8 @@ impl ProviderModalTab {
     /// Get next tab (cycles)
     pub fn next(self) -> Self {
         match self {
-            Self::Cloud => Self::Ollama,
-            Self::Ollama => Self::Keys,
+            Self::Cloud => Self::Native,
+            Self::Native => Self::Keys,
             Self::Keys => Self::Config,
             Self::Config => Self::Cloud,
         }
@@ -25,8 +54,8 @@ impl ProviderModalTab {
     pub fn prev(self) -> Self {
         match self {
             Self::Cloud => Self::Config,
-            Self::Ollama => Self::Cloud,
-            Self::Keys => Self::Ollama,
+            Self::Native => Self::Cloud,
+            Self::Keys => Self::Native,
             Self::Config => Self::Keys,
         }
     }
@@ -35,7 +64,7 @@ impl ProviderModalTab {
     pub fn from_key(c: char) -> Option<Self> {
         match c {
             '1' => Some(Self::Cloud),
-            '2' => Some(Self::Ollama),
+            '2' => Some(Self::Native),
             '3' => Some(Self::Keys),
             '4' => Some(Self::Config),
             _ => None,
@@ -46,7 +75,7 @@ impl ProviderModalTab {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Cloud => "☁️  CLOUD",
-            Self::Ollama => "🦙 OLLAMA",
+            Self::Native => "🦙 NATIVE",
             Self::Keys => "🔐 KEYS",
             Self::Config => "⚙️  CONFIG",
         }
@@ -137,7 +166,7 @@ impl ApiKeyState {
     }
 }
 
-/// Download state for Ollama model pulls
+/// Download state for Native model pulls
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum DownloadState {
     /// No download in progress
@@ -200,18 +229,18 @@ pub struct ProviderModalState {
     pub selected_idx: usize,
     /// Total items in current tab (for navigation bounds)
     pub item_count: usize,
-    /// Download state for Ollama
+    /// Download state for Native
     pub download_state: DownloadState,
     /// Key input mode active
     pub key_input_mode: bool,
     /// Key input buffer (may contain sensitive API keys)
     pub key_input_buffer: String,
-    /// Whether Ollama is available (running)
-    pub ollama_available: bool,
+    /// Whether Native is available (running)
+    pub native_available: bool,
     /// Provider connection statuses (7 providers)
     pub provider_statuses: Vec<ConnectionStatus>,
-    /// Ollama models loaded from server
-    pub ollama_models: Vec<super::ollama_client::OllamaModelInfo>,
+    /// Native models loaded from server
+    pub native_models: Vec<NativeModelInfo>,
     /// Currently active provider index (the one being used for inference)
     pub active_provider_idx: Option<usize>,
     /// Currently active model name for display
@@ -246,9 +275,9 @@ impl Default for ProviderModalState {
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
-            ollama_available: false,
+            native_available: false,
             provider_statuses: Vec::new(),
-            ollama_models: Vec::new(),
+            native_models: Vec::new(),
             active_provider_idx: None,
             active_model: None,
             animation_frame: 0,
@@ -275,11 +304,11 @@ impl std::fmt::Debug for ProviderModalState {
             .field("download_state", &self.download_state)
             .field("key_input_mode", &self.key_input_mode)
             .field("key_input_buffer", &"[REDACTED]")
-            .field("ollama_available", &self.ollama_available)
+            .field("native_available", &self.native_available)
             .field("provider_statuses", &self.provider_statuses)
             .field(
-                "ollama_models",
-                &format!("[{} models]", self.ollama_models.len()),
+                "native_models",
+                &format!("[{} models]", self.native_models.len()),
             )
             .field("active_provider_idx", &self.active_provider_idx)
             .field("active_model", &self.active_model)
@@ -325,8 +354,8 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 7, // 7 cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, ollama)
-            ProviderModalTab::Ollama => self.ollama_models.len().max(1), // Dynamic
+            ProviderModalTab::Cloud => 7, // 7 cloud providers (anthropic, openai, mistral, groq, deepseek, gemini, native)
+            ProviderModalTab::Native => self.native_models.len().max(1), // Dynamic
             ProviderModalTab::Keys => 7,  // 7 API key entries
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
         };
@@ -431,7 +460,7 @@ impl ProviderModalState {
             "groq" => Some(3),
             "deepseek" => Some(4),
             "gemini" => Some(5),
-            "ollama" => Some(6),
+            "native" => Some(6),
             _ => None,
         };
     }
@@ -445,7 +474,7 @@ impl ProviderModalState {
             Some(3) => Some("Groq"),
             Some(4) => Some("DeepSeek"),
             Some(5) => Some("Gemini"),
-            Some(6) => Some("Ollama"),
+            Some(6) => Some("Native"),
             _ => None,
         }
     }
@@ -530,14 +559,15 @@ impl ProviderModalState {
         self.cached_cloud_label.as_ref().unwrap().clone()
     }
 
-    /// Get Ollama tab label with model count
+    /// Get Native tab label with model count
     /// v0.8.9: Shows number of available models
-    pub fn ollama_tab_label(&self) -> String {
-        let count = self.ollama_models.len();
+    /// v0.27: Renamed from ollama_tab_label() to native_tab_label()
+    pub fn native_tab_label(&self) -> String {
+        let count = self.native_models.len();
         if count > 0 {
-            format!("🦙 OLLAMA ({})", count)
+            format!("🦙 NATIVE ({})", count)
         } else {
-            "🦙 OLLAMA".to_string()
+            "🦙 NATIVE".to_string()
         }
     }
 
@@ -608,7 +638,7 @@ impl ProviderModalState {
             "groq" => 3,
             "deepseek" => 4,
             "gemini" => 5,
-            "ollama" => 6,
+            "native" => 6,
             _ => return,
         };
         self.set_provider_status(index, status);
@@ -655,7 +685,7 @@ impl ProviderModalState {
     }
 
     /// v0.8.9: Push latency by provider name
-    /// v0.21.2: Fixed Gemini (index 5) + Ollama (index 6) mapping
+    /// v0.21.2: Fixed Gemini (index 5) + Native (index 6) mapping
     pub fn push_latency_by_name(&mut self, name: &str, latency_ms: u64) {
         let index = match name.to_lowercase().as_str() {
             "anthropic" | "claude" => 0,
@@ -664,7 +694,7 @@ impl ProviderModalState {
             "groq" => 3,
             "deepseek" => 4,
             "gemini" => 5,
-            "ollama" => 6,
+            "native" => 6,
             _ => return,
         };
         self.push_latency(index, latency_ms);
@@ -709,16 +739,16 @@ impl ProviderModalState {
 
         SessionStats {
             connected_providers,
-            total_providers: 7, // 7 LLM providers: anthropic, openai, mistral, groq, deepseek, gemini, ollama
+            total_providers: 7, // 7 LLM providers: anthropic, openai, mistral, groq, deepseek, gemini, native
             tokens_used: self.session_tokens,
             mcp_connections: self.mcp_connections,
             avg_latency_ms,
         }
     }
 
-    /// Set Ollama models
-    pub fn set_ollama_models(&mut self, models: Vec<super::ollama_client::OllamaModelInfo>) {
-        self.ollama_models = models;
+    /// Set Native models
+    pub fn set_native_models(&mut self, models: Vec<NativeModelInfo>) {
+        self.native_models = models;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -805,11 +835,11 @@ impl ProviderModalState {
             LoaderEvent::ProvidersComplete => {
                 // All providers checked, could update UI state if needed
             }
-            LoaderEvent::OllamaAvailable(available) => {
-                self.ollama_available = available;
+            LoaderEvent::NativeAvailable(available) => {
+                self.native_available = available;
             }
-            LoaderEvent::OllamaModels(models) => {
-                self.ollama_models = models;
+            LoaderEvent::NativeModels(models) => {
+                self.native_models = models;
             }
             LoaderEvent::Error { source, message } => {
                 // Handle errors - could show in status bar or notification
@@ -823,7 +853,6 @@ impl ProviderModalState {
 #[allow(clippy::field_reassign_with_default)]
 mod tests {
     use super::*;
-    use crate::tui::widgets::provider_modal::OllamaModelInfo;
 
     #[test]
     fn test_tab_default_is_cloud() {
@@ -832,8 +861,8 @@ mod tests {
 
     #[test]
     fn test_tab_next_cycles() {
-        assert_eq!(ProviderModalTab::Cloud.next(), ProviderModalTab::Ollama);
-        assert_eq!(ProviderModalTab::Ollama.next(), ProviderModalTab::Keys);
+        assert_eq!(ProviderModalTab::Cloud.next(), ProviderModalTab::Native);
+        assert_eq!(ProviderModalTab::Native.next(), ProviderModalTab::Keys);
         assert_eq!(ProviderModalTab::Keys.next(), ProviderModalTab::Config);
         assert_eq!(ProviderModalTab::Config.next(), ProviderModalTab::Cloud);
     }
@@ -852,7 +881,7 @@ mod tests {
         );
         assert_eq!(
             ProviderModalTab::from_key('2'),
-            Some(ProviderModalTab::Ollama)
+            Some(ProviderModalTab::Native)
         );
         assert_eq!(
             ProviderModalTab::from_key('3'),
@@ -868,7 +897,7 @@ mod tests {
     #[test]
     fn test_tab_label() {
         assert_eq!(ProviderModalTab::Cloud.label(), "☁️  CLOUD");
-        assert_eq!(ProviderModalTab::Ollama.label(), "🦙 OLLAMA");
+        assert_eq!(ProviderModalTab::Native.label(), "🦙 NATIVE");
     }
 
     #[test]
@@ -997,9 +1026,9 @@ mod tests {
     fn test_modal_tab_switch() {
         let mut state = ProviderModalState::default();
         state.selected_idx = 3;
-        state.switch_tab(ProviderModalTab::Ollama);
+        state.switch_tab(ProviderModalTab::Native);
 
-        assert_eq!(state.active_tab, ProviderModalTab::Ollama);
+        assert_eq!(state.active_tab, ProviderModalTab::Native);
         assert_eq!(state.selected_idx, 0); // Reset on tab switch
     }
 
@@ -1041,7 +1070,7 @@ mod tests {
         // Navigation uses 3-column grid layout:
         //   0 1 2  (row 0: Claude, OpenAI, Mistral)
         //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
-        //   6      (row 2: Ollama, partial row)
+        //   6      (row 2: Native, partial row)
 
         assert_eq!(state.selected_idx, 0);
         assert_eq!(state.active_tab, ProviderModalTab::Cloud);
@@ -1175,7 +1204,7 @@ mod tests {
         state
             .set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
         state.set_provider_status_by_name("gemini", ConnectionStatus::Connected { latency_ms: 6 });
-        state.set_provider_status_by_name("ollama", ConnectionStatus::Connected { latency_ms: 7 });
+        state.set_provider_status_by_name("native", ConnectionStatus::Connected { latency_ms: 7 });
 
         assert_eq!(state.provider_statuses.len(), 7);
     }
@@ -1205,32 +1234,32 @@ mod tests {
     }
 
     #[test]
-    fn test_set_ollama_models() {
-        use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
+    fn test_set_native_models() {
+        // NativeModelDetails and NativeModelInfo are defined in this file
 
         let mut state = ProviderModalState::default();
-        let models = vec![OllamaModelInfo {
+        let models = vec![NativeModelInfo {
             name: "llama3.2".to_string(),
             size: 4_700_000_000,
             digest: "sha256:abc".to_string(),
             modified_at: "2026-02-24".to_string(),
-            details: OllamaModelDetails {
+            details: NativeModelDetails {
                 parameter_size: "8B".to_string(),
                 quantization_level: "Q4_0".to_string(),
                 family: Some("llama".to_string()),
             },
         }];
 
-        state.set_ollama_models(models);
-        assert_eq!(state.ollama_models.len(), 1);
-        assert_eq!(state.ollama_models[0].name, "llama3.2");
+        state.set_native_models(models);
+        assert_eq!(state.native_models.len(), 1);
+        assert_eq!(state.native_models[0].name, "llama3.2");
     }
 
     #[test]
     fn test_modal_state_default_has_empty_statuses() {
         let state = ProviderModalState::default();
         assert!(state.provider_statuses.is_empty());
-        assert!(state.ollama_models.is_empty());
+        assert!(state.native_models.is_empty());
     }
 
     #[test]
@@ -1251,39 +1280,39 @@ mod tests {
     }
 
     #[test]
-    fn test_process_loader_event_ollama_available() {
+    fn test_process_loader_event_native_available() {
         use super::super::loader::LoaderEvent;
 
         let mut state = ProviderModalState::default();
-        assert!(!state.ollama_available);
+        assert!(!state.native_available);
 
-        state.process_loader_event(LoaderEvent::OllamaAvailable(true));
-        assert!(state.ollama_available);
+        state.process_loader_event(LoaderEvent::NativeAvailable(true));
+        assert!(state.native_available);
 
-        state.process_loader_event(LoaderEvent::OllamaAvailable(false));
-        assert!(!state.ollama_available);
+        state.process_loader_event(LoaderEvent::NativeAvailable(false));
+        assert!(!state.native_available);
     }
 
     #[test]
-    fn test_process_loader_event_ollama_models() {
+    fn test_process_loader_event_native_models() {
         use super::super::loader::LoaderEvent;
-        use super::super::ollama_client::{OllamaModelDetails, OllamaModelInfo};
+        // NativeModelDetails and NativeModelInfo are defined in this file
 
         let mut state = ProviderModalState::default();
-        let models = vec![OllamaModelInfo {
+        let models = vec![NativeModelInfo {
             name: "llama3.2".to_string(),
             size: 4_700_000_000,
             digest: "sha256:abc".to_string(),
             modified_at: "2026-02-24".to_string(),
-            details: OllamaModelDetails {
+            details: NativeModelDetails {
                 parameter_size: "8B".to_string(),
                 quantization_level: "Q4_0".to_string(),
                 family: Some("llama".to_string()),
             },
         }];
 
-        state.process_loader_event(LoaderEvent::OllamaModels(models));
-        assert_eq!(state.ollama_models.len(), 1);
+        state.process_loader_event(LoaderEvent::NativeModels(models));
+        assert_eq!(state.native_models.len(), 1);
     }
 
     #[test]
@@ -1302,7 +1331,7 @@ mod tests {
         let mut state = ProviderModalState::default();
         // Should not panic, just log
         state.process_loader_event(LoaderEvent::Error {
-            source: "ollama".to_string(),
+            source: "native".to_string(),
             message: "Connection refused".to_string(),
         });
     }
@@ -1358,30 +1387,30 @@ mod tests {
     }
 
     #[test]
-    fn test_ollama_tab_label_empty() {
+    fn test_native_tab_label_empty() {
         let state = ProviderModalState::default();
-        assert_eq!(state.ollama_tab_label(), "🦙 OLLAMA");
+        assert_eq!(state.native_tab_label(), "🦙 NATIVE");
     }
 
     #[test]
-    fn test_ollama_tab_label_with_models() {
-        use crate::tui::widgets::provider_modal::OllamaModelDetails;
+    fn test_native_tab_label_with_models() {
+        use super::NativeModelDetails;
 
         let mut state = ProviderModalState::default();
-        let details = OllamaModelDetails {
+        let details = NativeModelDetails {
             parameter_size: "7B".to_string(),
             quantization_level: "Q4_0".to_string(),
             family: Some("llama".to_string()),
         };
-        state.ollama_models = vec![
-            OllamaModelInfo {
+        state.native_models = vec![
+            NativeModelInfo {
                 name: "llama3.2".to_string(),
                 size: 4_200_000_000,
                 digest: "sha256:abc123".to_string(),
                 modified_at: "2024-01-01".to_string(),
                 details: details.clone(),
             },
-            OllamaModelInfo {
+            NativeModelInfo {
                 name: "codellama".to_string(),
                 size: 3_800_000_000,
                 digest: "sha256:def456".to_string(),
@@ -1389,7 +1418,7 @@ mod tests {
                 details,
             },
         ];
-        assert_eq!(state.ollama_tab_label(), "🦙 OLLAMA (2)");
+        assert_eq!(state.native_tab_label(), "🦙 NATIVE (2)");
     }
 
     #[test]
@@ -1543,9 +1572,10 @@ mod tests {
     // v0.8.9: Verification state tests
     #[test]
     fn test_verification_state_default() {
+        // v0.27: Reduced from 7 to 6 (Ollama removed - use Native tab instead)
         let state = ProviderModalState::default();
         assert!(!state.verification_active);
-        assert_eq!(state.verification_state.entries.len(), 7);
+        assert_eq!(state.verification_state.entries.len(), 6);
     }
 
     #[test]

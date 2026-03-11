@@ -664,12 +664,8 @@ impl RigAgentLoop {
         if has_key("DEEPSEEK_API_KEY") {
             return self.chat_continue_deepseek(prompt).await;
         }
-        if has_key("OLLAMA_API_BASE_URL") {
-            return self.chat_continue_ollama(prompt).await;
-        }
-
         Err(NikaError::AgentValidationError {
-            reason: "chat_continue requires one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL".to_string(),
+            reason: "chat_continue requires one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY".to_string(),
         })
     }
 
@@ -1021,67 +1017,6 @@ impl RigAgentLoop {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
             kind: "chat_continue_deepseek".to_string(),
-            metadata: Some(metadata),
-        });
-
-        // Check guardrails (v0.23, updated v0.25)
-        let guardrail_result = self.check_guardrails(&response);
-        let guardrails_passed = guardrail_result.is_passed();
-
-        Ok(RigAgentLoopResult {
-            status: status.clone(),
-            turns: turn_index as usize,
-            final_output: serde_json::json!({ "response": response }),
-            total_tokens: 0,
-            confidence: status.confidence(),
-            retry_count: 0,
-            guardrails_passed,
-            cost_usd: 0.0,
-            partial_result: None,
-        })
-    }
-
-    /// Continue conversation with Ollama (v0.6)
-    ///
-    /// **Note:** Token tracking is not available for chat methods.
-    /// Use `run_ollama()` for single-turn requests with full token tracking.
-    async fn chat_continue_ollama(
-        &mut self,
-        prompt: &str,
-    ) -> Result<RigAgentLoopResult, NikaError> {
-        use rig::completion::Chat;
-
-        let client = rig::providers::ollama::Client::from_env();
-        let model_name = self.params.model.as_deref().unwrap_or("llama3.2");
-        let agent = client.agent(model_name).max_tokens(8192).build();
-
-        let turn_index = (self.history.len() / 2 + 1) as u32;
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "chat_continue_ollama".to_string(),
-            metadata: None,
-        });
-
-        let response = agent
-            .chat(prompt, self.history.clone())
-            .await
-            .map_err(|e| NikaError::AgentExecutionError {
-                task_id: self.task_id.clone(),
-                reason: format!("ollama chat error: {}", e),
-            })?;
-
-        self.history.push(Message::user(prompt));
-        self.history.push(Message::assistant(&response));
-
-        let status = RigAgentStatus::NaturalCompletion;
-        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
-
-        self.event_log.emit(EventKind::AgentTurn {
-            task_id: Arc::from(self.task_id.as_str()),
-            turn_index,
-            kind: "chat_continue_ollama".to_string(),
             metadata: Some(metadata),
         });
 
@@ -2290,8 +2225,7 @@ impl RigAgentLoop {
     /// 4. Check MISTRAL_API_KEY env var → use Mistral
     /// 5. Check GROQ_API_KEY env var → use Groq
     /// 6. Check DEEPSEEK_API_KEY env var → use DeepSeek
-    /// 7. Check OLLAMA_API_BASE_URL env var → use Ollama
-    /// 8. Error if no provider available
+    /// 7. Error if no provider available
     ///
     /// # Note
     /// This is the recommended method for production use.
@@ -2302,14 +2236,20 @@ impl RigAgentLoop {
                 "claude" | "anthropic" => return self.run_claude().await,
                 "openai" | "gpt" => return self.run_openai().await,
                 "mistral" => return self.run_mistral().await,
-                "ollama" | "local" => return self.run_ollama().await,
                 "groq" => return self.run_groq().await,
                 "deepseek" => return self.run_deepseek().await,
-                "gemini" | "google" => return self.run_gemini().await, // v0.15.0
+                "gemini" | "google" => return self.run_gemini().await,
+                "native" | "local" => {
+                    // Native inference (mistral.rs) is only available for infer: tasks, not agent: tasks
+                    // Agent tasks require tool calling which local GGUF models don't support
+                    return Err(NikaError::AgentValidationError {
+                        reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini) for agent tasks.".to_string(),
+                    });
+                }
                 other => {
                     return Err(NikaError::AgentValidationError {
                         reason: format!(
-                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'ollama', 'groq', 'deepseek', or 'gemini'.",
+                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', or 'gemini'.",
                             other
                         ),
                     });
@@ -2346,12 +2286,8 @@ impl RigAgentLoop {
             return self.run_gemini().await;
         }
 
-        if has_key("OLLAMA_API_BASE_URL") {
-            return self.run_ollama().await;
-        }
-
         Err(NikaError::AgentValidationError {
-            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or OLLAMA_API_BASE_URL.".to_string(),
+            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY.".to_string(),
         })
     }
 
@@ -2367,18 +2303,6 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| rig::providers::mistral::MISTRAL_LARGE.to_string());
         let client = rig::providers::mistral::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name).await
-    }
-
-    /// Run with Ollama local provider (requires OLLAMA_API_BASE_URL or uses localhost:11434)
-    pub async fn run_ollama(&mut self) -> Result<RigAgentLoopResult, NikaError> {
-        let model_name = self
-            .params
-            .model
-            .clone()
-            .unwrap_or_else(|| "llama3.2".to_string());
-        // Ollama uses from_env() which reads OLLAMA_API_BASE_URL (default: http://localhost:11434)
-        let client = rig::providers::ollama::Client::from_env();
         self.run_generic_provider_impl(client, &model_name).await
     }
 

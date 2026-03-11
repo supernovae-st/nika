@@ -2,7 +2,7 @@
 //!
 //! Rich tabbed modal for provider management:
 //! - Cloud providers with cards and sparklines
-//! - Ollama local models with install/pull
+//! - Native local models via mistral.rs (Ollama removed in v0.27)
 //! - API key management via system keychain
 //! - Configuration preferences
 
@@ -10,7 +10,6 @@ mod components;
 mod handler;
 mod keyring;
 mod loader;
-mod ollama_client;
 mod provider_checker;
 mod state;
 mod tabs;
@@ -25,7 +24,6 @@ pub use loader::*;
 
 // Re-export provider_env_var from unified providers module
 pub use crate::tui::providers::env_var as provider_env_var;
-pub use ollama_client::*;
 pub use provider_checker::*;
 pub use state::*;
 pub use tabs::*;
@@ -54,12 +52,12 @@ impl<'a> ProviderModal<'a> {
     fn render_tabs(&mut self, area: Rect, buf: &mut Buffer) {
         // v0.8.9: All tabs now have dynamic labels with live info
         let cloud_label = self.state.cloud_tab_label();
-        let ollama_label = self.state.ollama_tab_label();
+        let native_label = self.state.native_tab_label();
         let keys_label = self.state.keys_tab_label();
 
         let tab_titles: Vec<Span> = vec![
             Span::raw(cloud_label),
-            Span::raw(ollama_label),
+            Span::raw(native_label),
             Span::raw(keys_label),
             Span::raw(ProviderModalTab::Config.label()),
         ];
@@ -82,7 +80,7 @@ impl<'a> ProviderModal<'a> {
             ProviderModalTab::Cloud => {
                 "[hjkl] Navigate │ [Enter] Select │ [Tab] Next │ [Esc] Close"
             }
-            ProviderModalTab::Ollama => "[jk] Navigate │ [p] Pull │ [d] Delete │ [Esc] Close",
+            ProviderModalTab::Native => "[jk] Navigate │ [Esc] Close",
             ProviderModalTab::Keys => "[jk] Navigate │ [Enter] Edit │ [t] Test │ [Esc] Close",
             ProviderModalTab::Config => "[jk] Navigate │ [Enter] Toggle │ [Esc] Close",
         };
@@ -155,14 +153,14 @@ impl Widget for ProviderModal<'_> {
                 let statuses = self.state.get_provider_statuses();
                 CloudTab::with_statuses(self.state, statuses).render(chunks[2], buf);
             }
-            ProviderModalTab::Ollama => {
-                // Use live Ollama models from state
-                OllamaTab::new(
-                    &self.state.ollama_models,
+            ProviderModalTab::Native => {
+                // Use live native models from state
+                NativeTab::new(
+                    &self.state.native_models,
                     self.state.selected_idx,
                     &self.state.download_state,
                 )
-                .available(self.state.ollama_available)
+                .available(self.state.native_available)
                 .render(chunks[2], buf);
             }
             ProviderModalTab::Keys => {

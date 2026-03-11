@@ -246,6 +246,7 @@ impl Verb {
 }
 
 /// LLM provider
+/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Provider {
     #[default]
@@ -254,7 +255,8 @@ pub enum Provider {
     Mistral,
     Groq,
     DeepSeek,
-    Ollama,
+    Gemini,
+    Native,
 }
 
 impl Provider {
@@ -265,7 +267,8 @@ impl Provider {
             Self::Mistral => "mistral",
             Self::Groq => "groq",
             Self::DeepSeek => "deepseek",
-            Self::Ollama => "ollama",
+            Self::Gemini => "gemini",
+            Self::Native => "native",
         }
     }
 
@@ -276,7 +279,8 @@ impl Provider {
             Self::Mistral => "mistral-large-latest",
             Self::Groq => "llama-3.3-70b-versatile",
             Self::DeepSeek => "deepseek-chat",
-            Self::Ollama => "llama3.2",
+            Self::Gemini => "gemini-2.0-flash",
+            Self::Native => "llama3.2-1b-q4",
         }
     }
 
@@ -287,7 +291,8 @@ impl Provider {
             Self::Mistral => "MISTRAL_API_KEY",
             Self::Groq => "GROQ_API_KEY",
             Self::DeepSeek => "DEEPSEEK_API_KEY",
-            Self::Ollama => "OLLAMA_API_BASE_URL",
+            Self::Gemini => "GEMINI_API_KEY",
+            Self::Native => "NIKA_NATIVE_MODEL_PATH",
         }
     }
 
@@ -298,7 +303,8 @@ impl Provider {
             "mistral" => Some(Self::Mistral),
             "groq" => Some(Self::Groq),
             "deepseek" => Some(Self::DeepSeek),
-            "ollama" => Some(Self::Ollama),
+            "gemini" => Some(Self::Gemini),
+            "native" => Some(Self::Native),
             _ => None,
         }
     }
