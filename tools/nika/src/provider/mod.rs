@@ -53,6 +53,10 @@ pub use rig::{NikaMcpTool, RigProvider, StreamResult};
 #[cfg(feature = "native-inference")]
 pub use native::{NativeRuntime, ChatOptions, ChatResponse, LoadConfig, ModelInfo};
 
+// Re-export storage types for model management (v0.27)
+#[cfg(feature = "native-inference")]
+pub use native::{default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress};
+
 // Backwards compatibility alias (deprecated in v0.26)
 #[cfg(feature = "native-inference")]
 #[allow(deprecated)]

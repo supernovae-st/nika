@@ -55,6 +55,12 @@ pub use spn_native::{
     ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeError,
 };
 
+// Re-export storage types for model management (v0.27)
+// These come from spn_native which re-exports them from spn_core
+pub use spn_native::{
+    default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
+};
+
 // Backwards compatibility alias (deprecated in v0.26)
 #[deprecated(since = "0.26.0", note = "Use NativeRuntime directly instead of NativeClient")]
 pub type NativeClient = NativeRuntime;
