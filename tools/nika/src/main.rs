@@ -296,6 +296,15 @@ enum Commands {
         action: DaemonAction,
     },
 
+    /// Backup and restore SuperNovae data (v0.27 spn fusion)
+    ///
+    /// Creates unified backups of NovaNet schema/seeds, Nika workflows/sessions,
+    /// and spn configuration. Backups are stored in ~/.spn/backups/ as tar.gz archives.
+    Backup {
+        #[command(subcommand)]
+        action: BackupAction,
+    },
+
     /// Generate shell completions (v0.13.1)
     Completion {
         /// Shell to generate completions for
@@ -750,6 +759,61 @@ enum DaemonAction {
 
     /// Uninstall daemon system service
     Uninstall,
+}
+
+/// Backup management actions (v0.27 spn fusion)
+///
+/// Proxies to `spn backup` commands for unified backup/restore.
+#[derive(Subcommand)]
+enum BackupAction {
+    /// Create a new backup of all SuperNovae data
+    Create {
+        /// Optional label for the backup (e.g., "before-refactor")
+        #[arg(short, long)]
+        label: Option<String>,
+
+        /// Include only specific subsystems (novanet, nika, spn)
+        #[arg(long, value_delimiter = ',')]
+        only: Option<Vec<String>>,
+    },
+
+    /// Restore from a backup
+    Restore {
+        /// Backup file path, or "latest" for most recent
+        #[arg(default_value = "latest")]
+        backup: String,
+
+        /// Force restore without confirmation
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// List available backups
+    #[command(visible_alias = "ls")]
+    List {
+        /// Show detailed information (manifest contents)
+        #[arg(short, long)]
+        detailed: bool,
+
+        /// Maximum number of backups to show
+        #[arg(short = 'n', long, default_value = "10")]
+        limit: usize,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Delete old backups
+    Prune {
+        /// Keep only the N most recent backups
+        #[arg(short, long, default_value = "5")]
+        keep: usize,
+
+        /// Actually delete (dry-run by default)
+        #[arg(long)]
+        execute: bool,
+    },
 }
 
 /// Model management actions (v0.27 spn fusion)
@@ -1226,6 +1290,9 @@ async fn main() {
 
         // Daemon management (v0.27 spn fusion)
         Some(Commands::Daemon { action }) => handle_daemon_command(action, quiet).await,
+
+        // Backup management (v0.27 spn fusion)
+        Some(Commands::Backup { action }) => handle_backup_command(action, quiet).await,
 
         // Shell completion (v0.13.1)
         Some(Commands::Completion { shell }) => {
@@ -3845,6 +3912,143 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     eprintln!("{} spn command not found", "✗".red());
                     Err(spn_not_found_error())
                 }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BACKUP COMMAND HANDLER (v0.27 spn fusion)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle backup commands by proxying to spn backup.
+async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    fn run_spn_backup(args: &[&str]) -> Result<bool, std::io::Error> {
+        let status = std::process::Command::new("spn")
+            .arg("backup")
+            .args(args)
+            .status()?;
+        Ok(status.success())
+    }
+
+    fn spn_not_found_error() -> NikaError {
+        eprintln!();
+        eprintln!("Install spn CLI from:");
+        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+        NikaError::InvalidConfig {
+            message: "spn CLI not found".to_string(),
+        }
+    }
+
+    match action {
+        BackupAction::Create { label, only } => {
+            // Proxy to: spn backup create [--label LABEL] [--only novanet,nika,spn]
+            let mut cmd_args = vec!["create"];
+
+            let label_str;
+            if let Some(l) = &label {
+                cmd_args.push("--label");
+                label_str = l.clone();
+                cmd_args.push(&label_str);
+            }
+
+            let only_str;
+            if let Some(subsystems) = &only {
+                cmd_args.push("--only");
+                only_str = subsystems.join(",");
+                cmd_args.push(&only_str);
+            }
+
+            if !quiet {
+                println!("{} Creating backup...", "📦".bold());
+            }
+
+            match run_spn_backup(&cmd_args) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(NikaError::RuntimeError {
+                    reason: "Backup creation failed".to_string(),
+                }),
+                Err(_) => Err(spn_not_found_error()),
+            }
+        }
+
+        BackupAction::Restore { backup, force } => {
+            // Proxy to: spn backup restore <backup> [--force]
+            let mut cmd_args = vec!["restore", &backup];
+            if force {
+                cmd_args.push("--force");
+            }
+
+            if !quiet {
+                println!("{} Restoring from backup...", "📥".bold());
+            }
+
+            match run_spn_backup(&cmd_args) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(NikaError::RuntimeError {
+                    reason: "Backup restore failed".to_string(),
+                }),
+                Err(_) => Err(spn_not_found_error()),
+            }
+        }
+
+        BackupAction::List {
+            detailed,
+            limit,
+            json,
+        } => {
+            // Proxy to: spn backup list [--detailed] [-n LIMIT] [--json]
+            let mut cmd_args = vec!["list"];
+
+            if detailed {
+                cmd_args.push("--detailed");
+            }
+
+            let limit_str = limit.to_string();
+            cmd_args.push("-n");
+            cmd_args.push(&limit_str);
+
+            if json {
+                cmd_args.push("--json");
+            }
+
+            match run_spn_backup(&cmd_args) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(NikaError::RuntimeError {
+                    reason: "Failed to list backups".to_string(),
+                }),
+                Err(_) => Err(spn_not_found_error()),
+            }
+        }
+
+        BackupAction::Prune { keep, execute } => {
+            // Proxy to: spn backup prune [--keep N] [--execute]
+            let mut cmd_args = vec!["prune"];
+
+            let keep_str = keep.to_string();
+            cmd_args.push("--keep");
+            cmd_args.push(&keep_str);
+
+            if execute {
+                cmd_args.push("--execute");
+            }
+
+            if !quiet {
+                if execute {
+                    println!("{} Pruning old backups...", "🧹".bold());
+                } else {
+                    println!("{} Dry run - showing what would be pruned...", "🔍".bold());
+                }
+            }
+
+            match run_spn_backup(&cmd_args) {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(NikaError::RuntimeError {
+                    reason: "Failed to prune backups".to_string(),
+                }),
+                Err(_) => Err(spn_not_found_error()),
             }
         }
     }
