@@ -6420,15 +6420,15 @@ dependencies = [
 
 [[package]]
 name = "spn-client"
-version = "0.2.4"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "119e42fb465e40bd3b5fb4c3a069ba45eb327cbcf25b83a9408b68bd63afde4a"
+checksum = "89352bb0668603169f74b14d5b3dd598b78efa56da84794fa9d75ccb18b0aed6"
 dependencies = [
  "dirs 6.0.0",
  "secrecy",
  "serde",
  "serde_json",
- "spn-core 0.1.2",
+ "spn-core",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -6436,20 +6436,18 @@ dependencies = [
 
 [[package]]
 name = "spn-core"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f33642501f20829156f3e9469401d2934b27050bdc20b2da76a09f18fa2c16e4"
+checksum = "8d182a847ea945a9e3f6c47887a062215d0d6daa7ba385746f46c064114b9582"
 dependencies = [
  "serde",
 ]
 
 [[package]]
-name = "spn-core"
-version = "0.2.0"
-
-[[package]]
 name = "spn-native"
-version = "0.1.0"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "512341ef7a0bae1c3a99d50ca4153ec0a7d1f4fec3baeb585045d87a7df648d3"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6460,7 +6458,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "spn-core 0.2.0",
+ "spn-core",
  "thiserror 1.0.69",
  "tokio",
  "tracing",

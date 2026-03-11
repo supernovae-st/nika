@@ -79,14 +79,13 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # spn daemon client for unified secret management (v0.20)
 # Solves macOS Keychain popup issue - daemon is sole keychain accessor
 # Enable with: cargo build --features spn-daemon
-# v0.2.4: Re-exports spn-core types (providers, validation, backend)
-spn-client = { version = "0.2.4", optional = true }
+# v0.3.4: Re-exports spn-core types (providers, validation, backend)
+spn-client = { version = "0.3.4", optional = true }
 
 # Native inference via mistral.rs (v0.26)
 # Enables local GGUF model inference without Ollama
 # Now with streaming support via infer_stream()
-# TODO: Update to version = "0.2.0" after publishing
-spn-native = { path = "../../../supernovae-cli/crates/spn-native", features = ["inference"], optional = true }
+spn-native = { version = "0.2.0", features = ["inference"], optional = true }
 
 # Text editing (v0.21.2 - VS Code quality)
 ropey = "1.6"  # Efficient rope data structure for text editing
