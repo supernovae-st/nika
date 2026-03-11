@@ -119,6 +119,7 @@ impl From<&ChatMessage> for SerializableMessage {
 
 /// Inline content that can appear in a message
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)] // TaskBox (352 bytes) is the common case; boxing would complicate pattern matching
 pub enum InlineContent {
     /// MCP tool call with params and result
     McpCall(McpCallData),

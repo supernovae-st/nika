@@ -2887,8 +2887,8 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             }
 
             // Show global and/or project configs
-            let show_global = global || (!global && !project);
-            let show_project = project || (!global && !project);
+            let show_global = global || !project;
+            let show_project = project || !global;
 
             if json {
                 // JSON output
@@ -3209,20 +3209,17 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 println!("  Installed: {}", installed.installed_at.dimmed());
 
                 // Try to load manifest for more details
-                match load_manifest(&package, &installed.version) {
-                    Ok(manifest) => {
-                        if let Some(ref desc) = manifest.description {
-                            println!("  Description: {}", desc);
-                        }
-                        if !manifest.skills.is_empty() {
-                            println!();
-                            println!("  Skills:");
-                            for (name, skill) in &manifest.skills {
-                                println!("    • {} ({})", name.cyan(), skill.path.dimmed());
-                            }
+                if let Ok(manifest) = load_manifest(&package, &installed.version) {
+                    if let Some(ref desc) = manifest.description {
+                        println!("  Description: {}", desc);
+                    }
+                    if !manifest.skills.is_empty() {
+                        println!();
+                        println!("  Skills:");
+                        for (name, skill) in &manifest.skills {
+                            println!("    • {} ({})", name.cyan(), skill.path.dimmed());
                         }
                     }
-                    Err(_) => {}
                 }
             } else {
                 println!("{} Package '{}' not installed", "ℹ".cyan(), package);
@@ -3483,7 +3480,7 @@ async fn handle_sync_command(
         "  {} MCP servers in config:",
         mcp_config.servers.len().to_string().cyan()
     );
-    for (name, _server) in &mcp_config.servers {
+    for name in mcp_config.servers.keys() {
         println!("    • {}", name);
     }
     println!();
@@ -4205,11 +4202,7 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
                 println!("{}", "─".repeat(70));
                 for model in &models {
                     let size_mb = model.size / (1024 * 1024);
-                    let quant = model
-                        .quantization
-                        .as_ref()
-                        .map(String::as_str)
-                        .unwrap_or("?");
+                    let quant = model.quantization.as_deref().unwrap_or("?");
                     println!(
                         "  {:30} {:>8} MB  {}",
                         model.name.cyan(),
