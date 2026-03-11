@@ -68,11 +68,11 @@ pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
 pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use provider_modal::*;
-// Ollama health check (v0.8.2) + Verification status + MCP display
+// Provider selector types (v0.8.2) + Verification status + MCP display
+// v0.27: Ollama health check functions removed (native inference via mistral.rs)
 // Note: ProviderSelector/ProviderSelectorState removed in v0.8.8 (replaced by Provider Modal)
 pub use provider_selector::{
-    check_ollama_available, check_ollama_available_async, McpServerDisplay, ModelInfo,
-    ProviderInfo, SelectorSection, VerifyStatus,
+    McpServerDisplay, ModelInfo, ProviderInfo, SelectorSection, VerifyStatus,
 };
 
 // === Chat UX Enrichment Widgets ===

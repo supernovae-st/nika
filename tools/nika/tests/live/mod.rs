@@ -6,7 +6,9 @@
 //! - MISTRAL_API_KEY for Mistral tests
 //! - GROQ_API_KEY for Groq tests
 //! - DEEPSEEK_API_KEY for DeepSeek tests
-//! - OLLAMA_API_BASE_URL for Ollama tests
+//! - GEMINI_API_KEY for Gemini tests
+//!
+//! NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 //!
 //! Run with: cargo test --test live_provider_tests -- --ignored
 //! Or set NIKA_LIVE_TESTS=1 to run automatically

@@ -45,8 +45,8 @@ mod mask {
 #[cfg(not(feature = "spn-daemon"))]
 mod fallback;
 
-/// Get all LLM providers (6: anthropic, openai, mistral, groq, deepseek, gemini)
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
+/// Get all LLM providers (5: anthropic, openai, mistral, groq, deepseek)
+/// v0.27: Ollama removed
 pub fn llm_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Llm)
 }
@@ -94,10 +94,10 @@ mod tests {
     #[test]
     fn test_llm_providers_count() {
         let count = llm_providers().len();
-        // Ollama removed in v0.27 — use provider: native instead
+        // v0.27: Ollama removed
         assert_eq!(
-            count, 6,
-            "Expected 6 LLM providers (anthropic, openai, mistral, groq, deepseek, gemini)"
+            count, 5,
+            "Expected 5 LLM providers (anthropic, openai, mistral, groq, deepseek)"
         );
     }
 
@@ -135,8 +135,7 @@ mod tests {
         let ids: Vec<_> = llm_provider_ids().collect();
         assert!(ids.contains(&"anthropic"));
         assert!(ids.contains(&"openai"));
-        assert!(ids.contains(&"gemini"), "Gemini must be present");
-        // Ollama removed in v0.27 — use provider: native instead
+        // v0.27: Ollama removed
         assert!(!ids.contains(&"ollama"), "Ollama should not be in LLM providers");
     }
 
@@ -151,11 +150,6 @@ mod tests {
     #[test]
     fn test_env_var_anthropic() {
         assert_eq!(env_var("anthropic"), "ANTHROPIC_API_KEY");
-    }
-
-    #[test]
-    fn test_env_var_gemini() {
-        assert_eq!(env_var("gemini"), "GEMINI_API_KEY");
     }
 
     #[test]

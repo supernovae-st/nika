@@ -226,12 +226,12 @@ impl ChatAgent {
     /// 3. MISTRAL_API_KEY → Mistral
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
-    /// 6. OLLAMA_API_BASE_URL → Ollama
+    /// 6. GEMINI_API_KEY → Gemini (v0.27: Ollama removed, use native instead)
     pub fn new() -> Result<Self, NikaError> {
         // Use RigProvider::auto() for consistent detection (v0.6)
         // Return error if no API keys are set (instead of panicking on fallback)
         let provider = RigProvider::auto().ok_or_else(|| NikaError::MissingApiKey {
-            provider: "any (ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or OLLAMA_API_BASE_URL)".to_string(),
+            provider: "any (ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY)".to_string(),
         })?;
 
         Ok(Self {
@@ -251,7 +251,7 @@ impl ChatAgent {
     ///
     /// # Arguments
     ///
-    /// * `provider` - Optional provider name (claude, openai, mistral, groq, deepseek, ollama)
+    /// * `provider` - Optional provider name (claude, openai, mistral, groq, deepseek, gemini)
     /// * `model` - Optional model name override
     ///
     /// # Example
@@ -824,7 +824,7 @@ mod tests {
         match agent {
             Ok(a) => {
                 // Verify the agent has a valid provider
-                let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+                let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini"];
                 assert!(
                     valid_providers.contains(&a.provider_name()),
                     "Expected valid provider, got: {}",
@@ -852,9 +852,9 @@ mod tests {
         assert!(agent.history().is_empty());
         assert!(!agent.is_streaming());
         // RigProvider::auto() picks first available provider in priority order:
-        // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Ollama
+        // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Gemini
         // Due to parallel tests and user env, any provider may be selected
-        let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+        let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini"];
         assert!(
             valid_providers.contains(&agent.provider_name()),
             "Expected valid provider, got: {}",

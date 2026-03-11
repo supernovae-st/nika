@@ -5864,20 +5864,13 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
         }
     }
 
-    // Check Ollama (URL-based, no key)
-    if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
-        checks.push(DiagnosticCheck::pass(
-            "API Key",
-            "Ollama configured (OLLAMA_API_BASE_URL)",
-        ));
-        any_found = true;
-    }
+    // Note: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 
     if !any_found {
         checks.push(DiagnosticCheck::warn(
             "API Key",
             "No LLM API keys found",
-            "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or configure Ollama",
+            "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or use provider: native",
         ));
     }
 

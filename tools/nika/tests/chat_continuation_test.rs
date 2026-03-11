@@ -241,7 +241,8 @@ async fn test_chat_continue_without_api_key_returns_error() {
     let saved_mistral = std::env::var("MISTRAL_API_KEY").ok();
     let saved_groq = std::env::var("GROQ_API_KEY").ok();
     let saved_deepseek = std::env::var("DEEPSEEK_API_KEY").ok();
-    let saved_ollama = std::env::var("OLLAMA_API_BASE_URL").ok();
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+    let saved_gemini = std::env::var("GEMINI_API_KEY").ok();
 
     // Remove all provider API keys
     std::env::remove_var("ANTHROPIC_API_KEY");
@@ -249,7 +250,7 @@ async fn test_chat_continue_without_api_key_returns_error() {
     std::env::remove_var("MISTRAL_API_KEY");
     std::env::remove_var("GROQ_API_KEY");
     std::env::remove_var("DEEPSEEK_API_KEY");
-    std::env::remove_var("OLLAMA_API_BASE_URL");
+    std::env::remove_var("GEMINI_API_KEY");
 
     let mut agent_loop = create_agent_loop("Initial prompt");
 
@@ -271,8 +272,8 @@ async fn test_chat_continue_without_api_key_returns_error() {
     if let Some(key) = saved_deepseek {
         std::env::set_var("DEEPSEEK_API_KEY", key);
     }
-    if let Some(key) = saved_ollama {
-        std::env::set_var("OLLAMA_API_BASE_URL", key);
+    if let Some(key) = saved_gemini {
+        std::env::set_var("GEMINI_API_KEY", key);
     }
 
     assert!(result.is_err(), "Should fail without any API key");

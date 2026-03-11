@@ -3,11 +3,15 @@
 //! Popup for selecting LLM provider and model with streaming indicators.
 //! Inspired by VS Code command palette style.
 //!
-//! ## v0.8.2: Real Availability Checks
+//! ## v0.27: Provider Changes
 //!
-//! Providers now perform actual availability checks:
-//! - API-based providers: Check for non-empty API key
-//! - Ollama: Ping localhost:11434/api/tags to verify server is running
+//! - **5 API providers**: Claude, OpenAI, Mistral, Groq, DeepSeek
+//! - **Ollama REMOVED**: Use `provider: native` with mistral.rs instead
+//! - **Gemini pending**: Will be added in v0.28
+//!
+//! ## Availability Checks
+//!
+//! All providers check for non-empty API key in environment variables.
 
 use ratatui::{
     buffer::Buffer,
@@ -32,75 +36,8 @@ const UNAVAILABLE_COLOR: Color = Color::Rgb(239, 68, 68); // red
 const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
 
 // ═══════════════════════════════════════════════════════════════════════════
-// OLLAMA HEALTH CHECK (v0.8.2)
+// v0.27: Ollama removed - use provider: native (mistral.rs) for local inference
 // ═══════════════════════════════════════════════════════════════════════════
-
-/// Check if Ollama server is running by pinging localhost:11434
-///
-/// Returns true if the server responds within 500ms, false otherwise.
-///
-/// # Safety
-///
-/// This function spawns a separate thread to perform the HTTP request,
-/// avoiding the "Cannot drop a runtime in a context where blocking is not allowed"
-/// panic that occurs when `reqwest::blocking::Client` is used inside an async context.
-pub fn check_ollama_available() -> bool {
-    use std::sync::mpsc;
-
-    // Spawn a separate thread to avoid nested tokio runtime issues
-    // reqwest::blocking::Client creates its own runtime internally,
-    // which panics if dropped inside an existing tokio runtime
-    let (tx, rx) = mpsc::channel();
-
-    std::thread::spawn(move || {
-        let result = check_ollama_in_thread();
-        let _ = tx.send(result);
-    });
-
-    // Wait for result with timeout (600ms = 500ms request + 100ms overhead)
-    rx.recv_timeout(Duration::from_millis(600)).unwrap_or(false)
-}
-
-/// Internal helper that performs the actual Ollama health check
-/// Must be called from a non-tokio thread
-fn check_ollama_in_thread() -> bool {
-    // Use a short timeout to avoid blocking the UI
-    let client = match reqwest::blocking::Client::builder()
-        .timeout(Duration::from_millis(500))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-
-    let base_url =
-        std::env::var("OLLAMA_API_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".into());
-
-    // Try to get the list of models - if this works, Ollama is running
-    match client.get(format!("{}/api/tags", base_url)).send() {
-        Ok(resp) => resp.status().is_success(),
-        Err(_) => false,
-    }
-}
-
-/// Async version of Ollama health check for non-blocking contexts
-pub async fn check_ollama_available_async() -> bool {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_millis(500))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-
-    let base_url =
-        std::env::var("OLLAMA_API_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".into());
-
-    match client.get(format!("{}/api/tags", base_url)).send().await {
-        Ok(resp) => resp.status().is_success(),
-        Err(_) => false,
-    }
-}
 
 /// Connection verification status (v0.8.2)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -236,13 +173,8 @@ impl ProviderInfo {
             }
         };
 
-        // Check Ollama availability (v0.8.2: real health check)
-        let ollama_available = check_ollama_available();
-        let ollama_reason = if ollama_available {
-            None
-        } else {
-            Some("Server not running (start with 'ollama serve')".to_string())
-        };
+        // v0.27: Ollama REMOVED - use provider: native (mistral.rs) for local inference
+        // 6 API providers remaining: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
 
         let (claude_available, claude_reason) = check_api_key("ANTHROPIC_API_KEY");
         let (openai_available, openai_reason) = check_api_key("OPENAI_API_KEY");
@@ -405,41 +337,8 @@ impl ProviderInfo {
                     },
                 ],
             },
-            ProviderInfo {
-                id: "ollama".to_string(),
-                name: "Ollama (Local)".to_string(),
-                icon: "🦙",
-                default_model: "llama3.2",
-                env_var: "OLLAMA_API_BASE_URL",
-                available: ollama_available,
-                unavailable_reason: ollama_reason,
-                verify_status: VerifyStatus::Unknown,
-                latency: None,
-                verify_error: None,
-                models: vec![
-                    ModelInfo {
-                        id: "llama3.2".to_string(),
-                        name: "Llama 3.2".to_string(),
-                        streaming: true,
-                        thinking: false,
-                        context_window: 128_000,
-                    },
-                    ModelInfo {
-                        id: "mistral".to_string(),
-                        name: "Mistral 7B".to_string(),
-                        streaming: true,
-                        thinking: false,
-                        context_window: 32_000,
-                    },
-                    ModelInfo {
-                        id: "codellama".to_string(),
-                        name: "Code Llama".to_string(),
-                        streaming: true,
-                        thinking: false,
-                        context_window: 16_000,
-                    },
-                ],
-            },
+            // v0.27: Ollama removed - 6 providers total (was 7)
+            // For local inference, use `provider: native` with mistral.rs
         ]
     }
 }
@@ -871,16 +770,11 @@ impl<'a> ProviderSelector<'a> {
                     buf.set_string(status_x, y, "○ Ready", Style::default().fg(AVAILABLE_COLOR));
                 }
                 (VerifyStatus::Unknown, false) => {
-                    // Show specific reason for unavailability
-                    let status_text = if provider.id == "ollama" {
-                        "✗ Offline"
-                    } else {
-                        "✗ No Key"
-                    };
+                    // v0.27: All providers need API key (Ollama removed)
                     buf.set_string(
                         status_x,
                         y,
-                        status_text,
+                        "✗ No Key",
                         Style::default().fg(UNAVAILABLE_COLOR),
                     );
                 }
@@ -967,14 +861,15 @@ mod tests {
 
     #[test]
     fn test_provider_info_all_providers() {
+        // v0.27: 5 API providers (Ollama removed, Gemini pending integration)
         let providers = ProviderInfo::all_providers();
-        assert_eq!(providers.len(), 6);
+        assert_eq!(providers.len(), 5);
         assert_eq!(providers[0].id, "claude");
         assert_eq!(providers[1].id, "openai");
         assert_eq!(providers[2].id, "mistral");
         assert_eq!(providers[3].id, "groq");
         assert_eq!(providers[4].id, "deepseek");
-        assert_eq!(providers[5].id, "ollama");
+        // TODO(v0.28): Add Gemini provider
     }
 
     #[test]
@@ -1039,23 +934,8 @@ mod tests {
         assert!(!state.visible);
     }
 
-    #[test]
-    fn test_provider_ollama_availability_depends_on_server() {
-        // v0.8.2: Ollama availability now depends on actual server status
-        let providers = ProviderInfo::all_providers();
-        let ollama = providers.iter().find(|p| p.id == "ollama").unwrap();
-        // In CI/test environment, Ollama is typically not running
-        // so it should show as unavailable with a reason
-        if !ollama.available {
-            assert!(ollama.unavailable_reason.is_some());
-            assert!(ollama
-                .unavailable_reason
-                .as_ref()
-                .unwrap()
-                .contains("ollama serve"));
-        }
-        // If Ollama IS running, it should be available
-    }
+    // v0.27: test_provider_ollama_availability_depends_on_server REMOVED
+    // Ollama provider removed in favor of native inference (mistral.rs)
 
     #[test]
     fn test_all_models_have_streaming() {

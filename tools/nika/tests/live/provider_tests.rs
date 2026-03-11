@@ -21,7 +21,8 @@ fn has_provider(provider: &str) -> bool {
         "mistral" => env::var("MISTRAL_API_KEY").is_ok(),
         "groq" => env::var("GROQ_API_KEY").is_ok(),
         "deepseek" => env::var("DEEPSEEK_API_KEY").is_ok(),
-        "ollama" => env::var("OLLAMA_API_BASE_URL").is_ok(),
+        "gemini" => env::var("GEMINI_API_KEY").is_ok(),
+        // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
         _ => false,
     }
 }
@@ -238,24 +239,8 @@ async fn test_deepseek_simple_infer() {
     assert!(result.unwrap().contains("15"));
 }
 
-// ============================================================================
-// OLLAMA PROVIDER TESTS
-// ============================================================================
-
-#[tokio::test]
-#[ignore = "Requires OLLAMA_API_BASE_URL"]
-async fn test_ollama_simple_infer() {
-    if !has_provider("ollama") {
-        eprintln!("Skipping: OLLAMA_API_BASE_URL not set");
-        return;
-    }
-
-    let provider = RigProvider::ollama();
-
-    let result = provider.infer("Say 'test' and nothing else.", None).await;
-
-    assert!(result.is_ok(), "Ollama infer failed: {:?}", result.err());
-}
+// NOTE: Ollama test removed in v0.27 — use provider: native with mistral.rs instead
+// Native inference streaming is tested via tests/native_inference_test.rs
 
 // ============================================================================
 // AUTO-DETECTION TESTS
@@ -285,8 +270,9 @@ async fn test_auto_provider_detection() {
 #[ignore = "Requires at least one API key"]
 async fn test_provider_fallback_chain() {
     // Test that auto() returns providers in priority order
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
     let providers_available: Vec<&str> =
-        vec!["claude", "openai", "mistral", "groq", "deepseek", "ollama"]
+        vec!["claude", "openai", "mistral", "groq", "deepseek", "gemini"]
             .into_iter()
             .filter(|p| has_provider(p))
             .collect();

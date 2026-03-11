@@ -34,7 +34,8 @@ async fn test_chat_agent_creation_succeeds() {
     match result {
         Ok(agent) => {
             // Verify the agent has a valid provider
-            let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+            // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+            let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini"];
             assert!(
                 valid_providers.contains(&agent.provider_name()),
                 "Expected valid provider, got: {}",
@@ -61,9 +62,10 @@ async fn test_chat_agent_auto_detection() {
     let agent = ChatAgent::new().expect("Should create agent");
 
     // RigProvider::auto() picks first available provider in priority order:
-    // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Ollama
+    // 1. Claude, 2. OpenAI, 3. Mistral, 4. Groq, 5. DeepSeek, 6. Gemini
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
     // Due to parallel tests and user env, any provider may be selected
-    let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "ollama"];
+    let valid_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini"];
     assert!(
         valid_providers.contains(&agent.provider_name()),
         "Expected valid provider, got: {}",

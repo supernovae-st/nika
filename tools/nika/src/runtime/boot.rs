@@ -587,9 +587,10 @@ impl BootSequence {
         if std::env::var("DEEPSEEK_API_KEY").is_ok() {
             providers.push("deepseek".to_string());
         }
-        if std::env::var("OLLAMA_API_BASE_URL").is_ok() {
-            providers.push("ollama".to_string());
+        if std::env::var("GEMINI_API_KEY").is_ok() {
+            providers.push("gemini".to_string());
         }
+        // Note: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 
         if providers.is_empty() {
             warnings.push("No API keys found".into());

@@ -673,8 +673,9 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         "## `provider:` - Default LLM Provider\n\n\
         Set the default LLM provider for the workflow.\n\n\
         ```yaml\n\
-        provider: claude  # claude, openai, mistral, ollama, groq, deepseek, gemini\n\
-        ```",
+        provider: claude  # claude, openai, mistral, groq, deepseek, gemini, native\n\
+        ```\n\n\
+        Note: Ollama removed in v0.27 \u{2014} use `provider: native` with mistral.rs instead.",
     ),
 ];
 

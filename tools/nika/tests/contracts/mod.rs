@@ -81,6 +81,7 @@ pub mod common {
     }
 
     /// Known providers from spn-core (must match KNOWN_PROVIDERS)
+    /// NOTE: Ollama removed from LLM providers in v0.27 — use provider: native instead
     pub const KNOWN_PROVIDERS: &[&str] = &[
         "anthropic",
         "openai",
@@ -88,7 +89,7 @@ pub mod common {
         "groq",
         "deepseek",
         "gemini",
-        "ollama",
+        // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
         "neo4j",
         "github",
         "slack",

@@ -335,26 +335,5 @@ async fn test_deepseek_streaming() {
     }
 }
 
-#[tokio::test]
-#[ignore] // Run with: cargo test --test streaming_test test_ollama -- --ignored
-async fn test_ollama_streaming() {
-    if std::env::var("OLLAMA_API_BASE_URL").is_err() {
-        eprintln!("Skipping: OLLAMA_API_BASE_URL not set");
-        return;
-    }
-
-    let provider = RigProvider::ollama();
-    match run_streaming_test(provider, "Ollama").await {
-        Ok((tokens, got_done, got_metrics)) => {
-            assert!(!tokens.is_empty(), "Should receive tokens");
-            assert!(got_done, "Should receive Done chunk");
-            // Ollama may not always return metrics
-            eprintln!(
-                "✅ Ollama streaming test passed! {} tokens (metrics: {})",
-                tokens.len(),
-                got_metrics
-            );
-        }
-        Err(e) => panic!("{}", e),
-    }
-}
+// NOTE: Ollama test removed in v0.27 — use provider: native with mistral.rs instead
+// Native inference streaming is tested via tests/native_inference_test.rs

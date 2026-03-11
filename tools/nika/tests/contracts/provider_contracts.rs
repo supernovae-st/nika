@@ -5,7 +5,7 @@
 //!
 //! # Tests (15 total)
 //!
-//! 1. provider list returns all 13 providers
+//! 1. provider list returns all 12 providers (Ollama removed in v0.27)
 //! 2. provider list shows status for each
 //! 3. provider set stores in keychain
 //! 4. provider get retrieves masked
@@ -23,7 +23,7 @@
 
 use super::common::{run_spn, KNOWN_PROVIDERS};
 
-/// Contract: `spn provider list` returns all 13 known providers
+/// Contract: `spn provider list` returns all 12 known providers (Ollama removed in v0.27)
 #[test]
 fn contract_provider_list_returns_all_providers() {
     let output = run_spn(&["provider", "list"]);
@@ -32,7 +32,7 @@ fn contract_provider_list_returns_all_providers() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // All 13 providers should be listed
+    // All 12 providers should be listed (Ollama removed in v0.27)
     for provider in KNOWN_PROVIDERS {
         assert!(
             stdout.contains(provider),
@@ -76,7 +76,8 @@ fn contract_provider_list_shows_categories() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Should show provider categories or types
-    // LLM providers: anthropic, openai, mistral, groq, deepseek, gemini, ollama
+    // LLM providers: anthropic, openai, mistral, groq, deepseek, gemini
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
     // MCP providers: neo4j, github, slack, perplexity, firecrawl, supadata
     let has_category_info = stdout.contains("LLM")
         || stdout.contains("MCP")
@@ -263,7 +264,7 @@ fn contract_env_var_fallback_for_all_providers() {
         ("groq", "GROQ_API_KEY"),
         ("deepseek", "DEEPSEEK_API_KEY"),
         ("gemini", "GEMINI_API_KEY"),
-        ("ollama", "OLLAMA_API_BASE_URL"),
+        // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
         ("neo4j", "NEO4J_PASSWORD"),
         ("github", "GITHUB_TOKEN"),
         ("slack", "SLACK_TOKEN"),
@@ -272,7 +273,7 @@ fn contract_env_var_fallback_for_all_providers() {
         ("supadata", "SUPADATA_API_KEY"),
     ];
 
-    // Verify the mapping is complete (13 providers)
+    // Verify the mapping is complete (12 providers after Ollama removal in v0.27)
     assert_eq!(
         env_var_mapping.len(),
         KNOWN_PROVIDERS.len(),

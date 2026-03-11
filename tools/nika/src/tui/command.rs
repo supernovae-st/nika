@@ -325,7 +325,7 @@ impl Command {
             "deepseek" => Command::Model {
                 provider: ModelProvider::DeepSeek,
             },
-            "native" | "local" | "ollama" => Command::Model { // "ollama" kept for backwards compat
+            "native" | "local" => Command::Model {
                 provider: ModelProvider::Native,
             },
             "list" | "" => Command::Model {
@@ -603,7 +603,7 @@ impl ModelProvider {
             "mistral" => Some(ModelProvider::Mistral),
             "groq" => Some(ModelProvider::Groq),
             "deepseek" => Some(ModelProvider::DeepSeek),
-            "native" | "local" | "ollama" => Some(ModelProvider::Native), // "ollama" kept for backwards compat
+            "native" | "local" => Some(ModelProvider::Native),
             _ => None,
         }
     }
@@ -1122,19 +1122,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_model_ollama_backwards_compat() {
-        // "ollama" still works for backwards compatibility (v0.27)
-        let input = "/model ollama";
-        let cmd = Command::parse(input);
-        assert!(matches!(
-            cmd,
-            Command::Model {
-                provider: ModelProvider::Native
-            }
-        ));
-    }
-
-    #[test]
     fn test_parse_model_llama_alias() {
         // llama maps to Groq
         let input = "/model llama";
@@ -1441,14 +1428,9 @@ mod tests {
             ModelProvider::from_name("deepseek"),
             Some(ModelProvider::DeepSeek)
         );
-        // Native inference (new in v0.27)
+        // Native inference (v0.27: Ollama removed, use native instead)
         assert_eq!(
             ModelProvider::from_name("native"),
-            Some(ModelProvider::Native)
-        );
-        // "ollama" kept for backwards compatibility
-        assert_eq!(
-            ModelProvider::from_name("ollama"),
             Some(ModelProvider::Native)
         );
         // "local" alias also maps to Native
@@ -1456,6 +1438,8 @@ mod tests {
             ModelProvider::from_name("local"),
             Some(ModelProvider::Native)
         );
+        // Ollama was removed in v0.27 — use native instead
+        assert_eq!(ModelProvider::from_name("ollama"), None);
     }
 
     #[test]

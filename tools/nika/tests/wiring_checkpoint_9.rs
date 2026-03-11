@@ -4,7 +4,8 @@
 //! Run after: v0.12.0 (Providers Wiring)
 //!
 //! Tests validate:
-//! - RigProvider enum has 6 variants (Claude, OpenAI, Mistral, Ollama, Groq, DeepSeek)
+//! - RigProvider enum has 6 variants (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini)
+//!   NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 //! - Provider name() method
 //! - Provider default_model() method
 //! - auto() detection returns Option
@@ -44,12 +45,13 @@ fn wiring_9_openai_provider_constructs() {
     }
 }
 
-#[test]
-fn wiring_9_ollama_provider_constructs() {
-    // Ollama doesn't require an API key
-    let provider = RigProvider::ollama();
-    assert_eq!(provider.name(), "ollama");
-}
+// NOTE: Ollama test removed in v0.27 — use provider: native with mistral.rs instead
+// #[test]
+// fn wiring_9_ollama_provider_constructs() {
+//     // Ollama doesn't require an API key
+//     let provider = RigProvider::ollama();
+//     assert_eq!(provider.name(), "ollama");
+// }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 2: Conditional provider tests (only run if env var is set)
@@ -118,12 +120,13 @@ fn wiring_9_openai_default_model() {
     }
 }
 
-#[test]
-fn wiring_9_ollama_default_model() {
-    let provider = RigProvider::ollama();
-    let model = provider.default_model();
-    assert!(!model.is_empty(), "Ollama should have a default model");
-}
+// NOTE: Ollama test removed in v0.27 — use provider: native with mistral.rs instead
+// #[test]
+// fn wiring_9_ollama_default_model() {
+//     let provider = RigProvider::ollama();
+//     let model = provider.default_model();
+//     assert!(!model.is_empty(), "Ollama should have a default model");
+// }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 4: Auto-detection behavior
@@ -141,7 +144,8 @@ fn wiring_9_auto_returns_option() {
             // If we get a provider, it should have a valid name
             let name = provider.name();
             assert!(
-                ["claude", "openai", "mistral", "ollama", "groq", "deepseek"].contains(&name),
+                // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+                ["claude", "openai", "mistral", "groq", "deepseek", "gemini"].contains(&name),
                 "Auto-detected provider should be one of the 6 known providers"
             );
         }
@@ -157,8 +161,8 @@ fn wiring_9_auto_returns_option() {
 
 #[test]
 fn wiring_9_safe_providers_name_matches_constructor() {
-    // Ollama doesn't require API key
-    assert_eq!(RigProvider::ollama().name(), "ollama");
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+    // assert_eq!(RigProvider::ollama().name(), "ollama");
 
     // Claude/OpenAI require API keys - test conditionally
     if has_env("ANTHROPIC_API_KEY") {
@@ -176,7 +180,8 @@ fn wiring_9_safe_providers_name_matches_constructor() {
 #[test]
 fn wiring_9_six_provider_variants_exist() {
     // We can verify there are 6 providers by testing the known names
-    let known_providers = ["claude", "openai", "mistral", "ollama", "groq", "deepseek"];
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+    let known_providers = ["claude", "openai", "mistral", "groq", "deepseek", "gemini"];
     assert_eq!(
         known_providers.len(),
         6,

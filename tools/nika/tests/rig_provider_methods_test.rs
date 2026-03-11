@@ -1,6 +1,7 @@
-//! Tests for RigAgentLoop provider methods (Mistral, Groq, DeepSeek, Ollama)
+//! Tests for RigAgentLoop provider methods (Mistral, Groq, DeepSeek)
 //!
-//! These tests verify the 4 provider methods added in v0.6 work correctly.
+//! These tests verify the 3 provider methods added in v0.6 work correctly.
+//! NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 //!
 //! NOTE: rig-core's `from_env()` methods PANIC when API keys are missing.
 //! This is a rig-core design decision. Tests that require API keys are marked
@@ -59,8 +60,9 @@ fn create_agent_loop_with_model(prompt: &str, model: &str) -> RigAgentLoop {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Method existence is verified at compile time via the integration tests.
-// If run_mistral/run_groq/run_deepseek/run_ollama methods don't exist,
+// If run_mistral/run_groq/run_deepseek methods don't exist,
 // the integration tests below won't compile.
+// NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 //
 // We don't need separate "method exists" tests as Rust's type system
 // guarantees this at compile time.
@@ -121,22 +123,8 @@ fn test_agent_loop_creation_for_deepseek_valid() {
     assert!(result.is_ok(), "Should create agent loop for DeepSeek");
 }
 
-#[test]
-fn test_agent_loop_creation_for_ollama_valid() {
-    let params = AgentParams {
-        prompt: "Generate text with Ollama".to_string(),
-        model: Some("llama3.2".to_string()),
-        mcp: vec![],
-        max_turns: Some(5),
-        ..Default::default()
-    };
-
-    let event_log = EventLog::new();
-    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-
-    let result = RigAgentLoop::new("ollama_task".to_string(), params, event_log, mcp_clients);
-    assert!(result.is_ok(), "Should create agent loop for Ollama");
-}
+// NOTE: Ollama test removed in v0.27 — use provider: native with mistral.rs instead
+// Native inference is tested via tests/native_inference_test.rs
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Integration Tests - Mistral (require MISTRAL_API_KEY)
@@ -327,67 +315,8 @@ async fn test_run_deepseek_emits_events() {
     assert!(!events.is_empty(), "Should emit events");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Integration Tests - Ollama (require local Ollama server)
-// ═══════════════════════════════════════════════════════════════════════════
-
-#[tokio::test]
-#[ignore = "Requires Ollama server running locally"]
-async fn test_run_ollama_completes_successfully() {
-    let mut agent_loop = create_agent_loop("Say 'hello' and nothing else.");
-
-    let result = agent_loop.run_ollama().await;
-
-    assert!(
-        result.is_ok(),
-        "Should succeed with Ollama running: {:?}",
-        result
-    );
-    let result = result.unwrap();
-    assert!(result.turns >= 1, "Should complete at least 1 turn");
-    assert_eq!(result.status, RigAgentStatus::NaturalCompletion);
-}
-
-#[tokio::test]
-#[ignore = "Requires Ollama server running locally"]
-async fn test_run_ollama_with_custom_model() {
-    let mut agent_loop = create_agent_loop_with_model("Say 'hello' and nothing else.", "codellama");
-
-    let result = agent_loop.run_ollama().await;
-
-    assert!(
-        result.is_ok(),
-        "Should succeed with custom model: {:?}",
-        result
-    );
-}
-
-#[tokio::test]
-#[ignore = "Requires Ollama server running locally"]
-async fn test_run_ollama_emits_events() {
-    let params = AgentParams {
-        prompt: "Say 'hello'.".to_string(),
-        mcp: vec![],
-        max_turns: Some(3),
-        ..Default::default()
-    };
-
-    let event_log = EventLog::new();
-    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-
-    let mut agent_loop = RigAgentLoop::new(
-        "ollama_events".to_string(),
-        params,
-        event_log.clone(),
-        mcp_clients,
-    )
-    .unwrap();
-
-    let _ = agent_loop.run_ollama().await;
-
-    let events = event_log.events();
-    assert!(!events.is_empty(), "Should emit events");
-}
+// NOTE: Ollama tests removed in v0.27 — use provider: native with mistral.rs instead
+// Native inference is tested via tests/native_inference_test.rs
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Default Model Verification (document expected defaults)
@@ -400,7 +329,7 @@ fn test_default_models_documented() {
     // Mistral default: mistral-large (rig::providers::mistral::MISTRAL_LARGE)
     // Groq default: llama-3.3-70b-versatile
     // DeepSeek default: deepseek-chat
-    // Ollama default: llama3.2
+    // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 
     // These values are hardcoded in src/runtime/rig_agent_loop.rs
     // If they change, update this documentation and CLAUDE.md
@@ -408,6 +337,5 @@ fn test_default_models_documented() {
         ("mistral", "mistral-large"),
         ("groq", "llama-3.3-70b-versatile"),
         ("deepseek", "deepseek-chat"),
-        ("ollama", "llama3.2"),
     ];
 }
