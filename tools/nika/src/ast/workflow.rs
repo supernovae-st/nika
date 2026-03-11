@@ -12,7 +12,7 @@
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::binding::WiringSpec;
 use crate::error::NikaError;
@@ -66,7 +66,7 @@ pub const SCHEMA_V10: &str = "nika/workflow@0.10";
 ///     env:
 ///       NEO4J_URI: bolt://localhost:7687
 /// ```
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpConfigInline {
     /// Command to spawn the MCP server
     pub command: String,
