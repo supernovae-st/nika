@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.24.0 | Comprehensive Bug Fix Release | 4,391 tests | Zero clippy warnings
+**Current version:** v0.26.0 | Native Inference & Streaming | 4,391 tests | Zero clippy warnings
 
 ## Architecture
 
@@ -51,8 +51,9 @@ tools/nika/src/
 ├── binding/          # Data flow ({{use.alias}}) + lazy bindings
 │   ├── entry.rs      # UseEntry with lazy flag (v0.5)
 │   └── resolve.rs    # LazyBinding enum (v0.5)
-├── provider/         # LLM providers (rig-core only)
-│   └── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.31)
+├── provider/         # LLM providers (rig-core + native)
+│   ├── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.32)
+│   └── native/       # ✅ NativeRuntime (mistral.rs, v0.26.0)
 └── store/            # DataStore
 ```
 
@@ -157,6 +158,7 @@ yamllint -c .yamllint.yaml **/*.nika.yaml
 - `nika/workflow@0.8`: +Studio DX (edit history, sessions, themes, config)
 - `nika/workflow@0.9`: +context: file loading, +include: DAG fusion (v0.14.3)
 - `nika/workflow@0.10`: +two-phase AST, +analyzer validation (v0.20)
+- `nika/workflow@0.11`: +native inference (provider: native, mistral.rs, v0.26.0)
 
 ## Two-Phase AST Architecture (v0.20)
 

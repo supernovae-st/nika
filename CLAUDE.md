@@ -77,9 +77,30 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.24.0 — Comprehensive Bug Fix Release
+**Current Version**: v0.26.0 — Native Inference & Streaming
 **Tests**: 4,391 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
+
+**v0.26.0 Changes (ADR-008: Inference Architecture Refactor):**
+- **Native Inference** — mistral.rs runtime for local GGUF models
+  - `provider: native` in workflows for local LLM inference
+  - `NativeRuntime` replaces deprecated `NativeClient`
+  - Streaming support via `infer_stream()` with async channels
+  - Metal (macOS) and CUDA (Linux) acceleration
+- **Inference Moved from spn** — All inference now in Nika (spn is storage-only)
+- **InferenceBackend Trait** — Unified interface for local models
+- **Download Models** — `spn model pull llama3.2:1b` then use in workflows
+
+```yaml
+# Native inference example (no API key required)
+tasks:
+  - id: local_llm
+    infer:
+      provider: native
+      model: ~/.cache/huggingface/models/llama3.2-1b-q4.gguf
+      prompt: "Explain quantum computing"
+      temperature: 0.7
+```
 
 **v0.24.0 Changes:**
 - **StructuredOutput Layers 3 & 4** — Now actually call LLM for retry/repair
@@ -200,9 +221,9 @@ nika-dev/
 │   │   ├── event/       # NDJSON trace writer
 │   │   ├── tui/         # Terminal UI (ratatui)
 │   │   ├── binding/     # Data flow + lazy bindings
-│   │   └── provider/    # rig-core v0.31 wrapper
+│   │   └── provider/    # rig-core v0.32 + native inference (mistral.rs)
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.20.1
+│   └── Cargo.toml       # v0.26.0
 └── docs/                # Plans + research
 ```
 
