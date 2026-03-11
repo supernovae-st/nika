@@ -26,6 +26,10 @@
 use crate::mcp::McpClient;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
+
+// Import InferenceBackend trait for native inference methods (v0.26)
+#[cfg(feature = "native-inference")]
+use spn_native::InferenceBackend;
 use rig::client::{CompletionClient, Nothing, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, deepseek, gemini, groq, mistral, ollama, openai};
@@ -146,10 +150,11 @@ pub enum RigProvider {
     DeepSeek(deepseek::Client),
     /// Gemini (Google) provider (v0.15.0) - GEMINI_API_KEY
     Gemini(gemini::Client),
-    /// Native local provider (v0.24) - GGUF models via mistral.rs
+    /// Native local provider (v0.26) - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
+    /// Now uses NativeRuntime directly with full streaming support.
     #[cfg(feature = "native-inference")]
-    Native(super::native::NativeClient),
+    Native(super::native::NativeRuntime),
 }
 
 impl RigProvider {
@@ -197,18 +202,20 @@ impl RigProvider {
         RigProvider::Gemini(client)
     }
 
-    /// Create a Native provider for local GGUF inference (v0.24)
+    /// Create a Native provider for local GGUF inference (v0.26)
     ///
     /// The provider is created without a model loaded. Call `load_native_model()`
     /// before running inference.
     ///
+    /// Now uses NativeRuntime directly with full streaming support.
+    ///
     /// Requires the `native-inference` feature.
     #[cfg(feature = "native-inference")]
     pub fn native() -> Self {
-        RigProvider::Native(super::native::NativeClient::new())
+        RigProvider::Native(super::native::NativeRuntime::new())
     }
 
-    /// Load a model for native inference.
+    /// Load a model for native inference (v0.26).
     ///
     /// Only valid for `RigProvider::Native`. Returns an error for other providers.
     ///
@@ -217,15 +224,15 @@ impl RigProvider {
     /// * `config` - Optional load configuration (context size, GPU layers, etc.)
     #[cfg(feature = "native-inference")]
     pub async fn load_native_model(
-        &self,
+        &mut self,
         model_path: impl Into<std::path::PathBuf>,
-        config: Option<spn_native::LoadConfig>,
+        config: Option<super::native::LoadConfig>,
     ) -> Result<(), RigInferError> {
         match self {
-            RigProvider::Native(client) => client
-                .load(model_path, config)
+            RigProvider::Native(runtime) => runtime
+                .load(model_path.into(), config.unwrap_or_default())
                 .await
-                .map_err(|e| RigInferError::PromptError(e.to_string())),
+                .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string())),
             _ => Err(RigInferError::PromptError(
                 "load_native_model only valid for Native provider".to_string(),
             )),
@@ -234,9 +241,9 @@ impl RigProvider {
 
     /// Check if native model is loaded.
     #[cfg(feature = "native-inference")]
-    pub async fn is_native_loaded(&self) -> bool {
+    pub fn is_native_loaded(&self) -> bool {
         match self {
-            RigProvider::Native(client) => client.is_loaded().await,
+            RigProvider::Native(runtime) => runtime.is_loaded(),
             _ => false,
         }
     }
@@ -348,14 +355,14 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(client) => {
+            RigProvider::Native(runtime) => {
                 // Native inference uses direct API, not rig-core agent
                 // Model must be pre-loaded via load_native_model()
-                client
-                    .infer(prompt, None)
+                runtime
+                    .infer(prompt, super::native::ChatOptions::default())
                     .await
                     .map(|r| r.message.content)
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))
+                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
             }
         }
     }
@@ -476,18 +483,18 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(client) => {
-                // Native inference uses spn-native ChatOptions
-                let chat_options = spn_native::ChatOptions {
+            RigProvider::Native(runtime) => {
+                // Native inference uses ChatOptions from native module (v0.26)
+                let chat_options = super::native::ChatOptions {
                     temperature: options.temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
-                client
-                    .infer(&full_prompt, Some(chat_options))
+                runtime
+                    .infer(&full_prompt, chat_options)
                     .await
                     .map(|r| r.message.content)
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))
+                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
             }
         }
     }
@@ -1197,27 +1204,37 @@ impl RigProvider {
                     }
                 }
             }
-            // v0.24: Native provider - fallback to non-streaming (streaming not yet implemented)
+            // v0.26: Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(client) => {
-                // Native inference doesn't support streaming yet.
-                // Fall back to non-streaming and send complete response as single chunk.
-                let response = client
-                    .infer(prompt, None)
+            RigProvider::Native(runtime) => {
+                use futures::StreamExt;
+                use std::pin::pin;
+
+                // Native inference now supports streaming via mistral.rs (v0.26)
+                let stream = runtime
+                    .infer_stream(prompt, super::native::ChatOptions::default())
                     .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
 
-                let content = response.message.content;
-                response_parts.push(content.clone());
-                let _ = tx.try_send(StreamChunk::Token(content));
+                // Pin the stream for iteration (async_stream produces !Unpin streams)
+                let mut stream = pin!(stream);
 
-                // Update token counts if available (cast u32 to u64)
-                if let Some(input) = response.prompt_eval_count {
-                    result.input_tokens = u64::from(input);
+                // Collect tokens as they arrive (Stream yields Result<String, NativeError>)
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(token) => {
+                            response_parts.push(token.clone());
+                            let _ = tx.try_send(StreamChunk::Token(token));
+                        }
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
                 }
-                if let Some(output) = response.eval_count {
-                    result.output_tokens = u64::from(output);
-                }
+
+                // Note: Token counts not available in streaming mode
+                // They would require post-hoc tokenization
             }
         }
 
@@ -1657,32 +1674,42 @@ impl RigProvider {
                     }
                 }
             }
-            // v0.24: Native provider - fallback to non-streaming with options
+            // v0.26: Native provider - uses infer_stream() with options for true streaming
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(client) => {
-                // Native inference doesn't support streaming yet.
-                // Fall back to non-streaming with options and send complete response as single chunk.
-                let chat_options = spn_native::ChatOptions {
+            RigProvider::Native(runtime) => {
+                use futures::StreamExt;
+                use std::pin::pin;
+
+                // Native inference now supports streaming via mistral.rs (v0.26)
+                let chat_options = super::native::ChatOptions {
                     temperature: options.temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
-                let response = client
-                    .infer(&full_prompt, Some(chat_options))
+                let stream = runtime
+                    .infer_stream(&full_prompt, chat_options)
                     .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
 
-                let content = response.message.content;
-                response_parts.push(content.clone());
-                let _ = tx.try_send(StreamChunk::Token(content));
+                // Pin the stream for iteration (async_stream produces !Unpin streams)
+                let mut stream = pin!(stream);
 
-                // Update token counts if available (cast u32 to u64)
-                if let Some(input) = response.prompt_eval_count {
-                    result.input_tokens = u64::from(input);
+                // Collect tokens as they arrive (Stream yields Result<String, NativeError>)
+                while let Some(result) = stream.next().await {
+                    match result {
+                        Ok(token) => {
+                            response_parts.push(token.clone());
+                            let _ = tx.try_send(StreamChunk::Token(token));
+                        }
+                        Err(e) => {
+                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                            return Err(RigInferError::PromptError(e.to_string()));
+                        }
+                    }
                 }
-                if let Some(output) = response.eval_count {
-                    result.output_tokens = u64::from(output);
-                }
+
+                // Note: Token counts not available in streaming mode
+                // They would require post-hoc tokenization
             }
         }
 

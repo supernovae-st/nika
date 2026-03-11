@@ -82,10 +82,11 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # v0.2.4: Re-exports spn-core types (providers, validation, backend)
 spn-client = { version = "0.2.4", optional = true }
 
-# Native inference via mistral.rs (v0.24)
+# Native inference via mistral.rs (v0.26)
 # Enables local GGUF model inference without Ollama
-# Now enabled by default in v0.24+
-spn-native = { version = "0.1.0", features = ["inference"], optional = true }
+# Now with streaming support via infer_stream()
+# TODO: Update to version = "0.2.0" after publishing
+spn-native = { path = "../../../supernovae-cli/crates/spn-native", features = ["inference"], optional = true }
 
 # Text editing (v0.21.2 - VS Code quality)
 ropey = "1.6"  # Efficient rope data structure for text editing
