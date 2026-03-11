@@ -982,29 +982,7 @@ mod tests {
         }
     }
 
-    #[test]
-    #[ignore = "Requires Ollama server running at localhost:11434"]
-    fn test_set_provider_ollama() {
-        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
-
-        let mut agent = ChatAgent::new().expect("Should create agent");
-        // v0.8.3: Ollama now requires server to be running (BUG #1 fix)
-        let result = agent.set_provider(ModelProvider::Ollama);
-
-        if crate::tui::widgets::check_ollama_available() {
-            // If Ollama IS running, switch should succeed
-            assert!(result.is_ok());
-            assert_eq!(agent.provider_name(), "ollama");
-        } else {
-            // If Ollama is NOT running, switch should fail with InvalidConfig
-            assert!(result.is_err());
-            if let Err(NikaError::InvalidConfig { message }) = result {
-                assert!(message.contains("Ollama server is not running"));
-            } else {
-                panic!("Expected InvalidConfig error");
-            }
-        }
-    }
+    // NOTE: Ollama tests removed - native inference via mistral.rs (ADR-008)
 
     #[test]
     fn test_with_overrides_mistral() {
@@ -1014,24 +992,6 @@ mod tests {
         if std::env::var("MISTRAL_API_KEY").is_ok_and(|v| !v.is_empty()) {
             assert!(agent.is_ok());
             assert_eq!(agent.unwrap().provider_name(), "mistral");
-        }
-    }
-
-    #[test]
-    #[ignore = "Requires Ollama server running at localhost:11434"]
-    fn test_with_overrides_ollama() {
-        // v0.8.2: Ollama now requires server to be running
-        let agent = ChatAgent::with_overrides(Some("ollama"), None);
-        // In CI/test environment, Ollama is typically not running
-        // If Ollama IS running, agent should be Ok; otherwise InvalidConfig
-        if crate::tui::widgets::check_ollama_available() {
-            assert!(agent.is_ok());
-            assert_eq!(agent.unwrap().provider_name(), "ollama");
-        } else {
-            assert!(agent.is_err());
-            if let Err(NikaError::InvalidConfig { message }) = agent {
-                assert!(message.contains("Ollama server is not running"));
-            }
         }
     }
 
