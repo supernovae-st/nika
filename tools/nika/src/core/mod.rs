@@ -69,6 +69,6 @@ pub use models::{
     KnownModel, ModelArchitecture, ModelType, Quantization, ResolvedModel, KNOWN_MODELS,
 };
 pub use providers::{
-    find_provider, provider_to_env_var, providers_by_category, Provider, ProviderCategory,
-    KNOWN_PROVIDERS,
+    find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,
+    ProviderCategory, KNOWN_PROVIDERS,
 };

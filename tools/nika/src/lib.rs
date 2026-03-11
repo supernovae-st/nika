@@ -177,7 +177,8 @@ pub use mcp::{
 
 // Core types (v0.27 spn fusion) - Providers, Models, MCP Aliases
 pub use core::{
-    find_model, find_provider, list_aliases, resolve_alias, resolve_model, KnownModel,
-    ModelArchitecture, ModelType, Provider, ProviderCategory, Quantization, ResolvedModel,
-    KNOWN_MODELS, KNOWN_PROVIDERS, MCP_ALIASES,
+    find_model, find_provider, list_aliases, provider_to_env_var, providers_by_category,
+    resolve_alias, resolve_model, validate_key_format, KnownModel, ModelArchitecture, ModelType,
+    Provider, ProviderCategory, Quantization, ResolvedModel, KNOWN_MODELS, KNOWN_PROVIDERS,
+    MCP_ALIASES,
 };

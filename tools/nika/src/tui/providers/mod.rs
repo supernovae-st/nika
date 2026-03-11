@@ -1,14 +1,12 @@
 //! Unified provider access for Nika TUI
 //!
-//! Single source of truth: Uses `KNOWN_PROVIDERS` from spn-core (via spn-client).
+//! Single source of truth: Uses `KNOWN_PROVIDERS` from nika::core (v0.27 spn fusion).
 //! All provider operations should go through this module to avoid duplication.
 //!
 //! # Architecture
 //!
 //! ```text
-//! spn-core::KNOWN_PROVIDERS (13 providers)
-//!         ↓
-//! spn-client re-exports
+//! nika::core::KNOWN_PROVIDERS (20 providers: 7 LLM + 11 MCP + 2 Local)
 //!         ↓
 //! nika::tui::providers (this module)
 //!         ↓
@@ -21,84 +19,63 @@
 pub mod icons;
 pub mod status;
 
-// Re-export spn-client types when feature enabled
-#[cfg(feature = "spn-daemon")]
-pub use spn_client::{
-    find_provider, mask_key, provider_to_env_var, providers_by_category, validate_key_format,
-    Provider, ProviderCategory, KNOWN_PROVIDERS,
+// Re-export nika::core types (v0.27: migrated from spn-client)
+pub use crate::core::{
+    find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,
+    ProviderCategory, KNOWN_PROVIDERS,
 };
 
-// Fallback types when spn-daemon feature disabled
+// mask_key moved to local implementation
+pub use self::mask::mask_key;
+
+mod mask {
+    /// Mask an API key for display (shows first 8 chars + ...)
+    pub fn mask_key(key: &str) -> String {
+        if key.len() > 8 {
+            format!("{}...", &key[..8])
+        } else {
+            "***".to_string()
+        }
+    }
+}
+
+// Fallback types when spn-daemon feature disabled (still needed for SpnKeyring)
 #[cfg(not(feature = "spn-daemon"))]
 mod fallback;
 
-#[cfg(not(feature = "spn-daemon"))]
-pub use fallback::*;
-
 /// Get all LLM providers (7: anthropic, openai, mistral, groq, deepseek, gemini, ollama)
-#[cfg(feature = "spn-daemon")]
-pub fn llm_providers() -> impl Iterator<Item = &'static Provider> {
+pub fn llm_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Llm)
-        .chain(providers_by_category(ProviderCategory::Local))
 }
 
-/// Get all MCP service providers (6: neo4j, github, slack, perplexity, firecrawl, supadata)
-#[cfg(feature = "spn-daemon")]
-pub fn mcp_providers() -> impl Iterator<Item = &'static Provider> {
+/// Get all Local providers (2: native, ollama-local)
+pub fn local_providers() -> Vec<&'static Provider> {
+    providers_by_category(ProviderCategory::Local)
+}
+
+/// Get all MCP service providers (11: neo4j, github, slack, perplexity, firecrawl, supadata, ...)
+pub fn mcp_providers() -> Vec<&'static Provider> {
     providers_by_category(ProviderCategory::Mcp)
 }
 
 /// Get environment variable name for a provider
-///
-/// Delegates to spn-core when spn-daemon feature enabled.
-#[cfg(feature = "spn-daemon")]
 pub fn env_var(provider: &str) -> &'static str {
     provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
 }
 
-/// Get all provider IDs as static strings (for iteration without spn-core types)
-#[cfg(feature = "spn-daemon")]
+/// Get all provider IDs as static strings (for iteration)
 pub fn all_provider_ids() -> impl Iterator<Item = &'static str> {
     KNOWN_PROVIDERS.iter().map(|p| p.id)
 }
 
-/// Get LLM provider IDs only
-#[cfg(feature = "spn-daemon")]
+/// Get LLM provider IDs only (7)
 pub fn llm_provider_ids() -> impl Iterator<Item = &'static str> {
-    llm_providers().map(|p| p.id)
+    llm_providers().into_iter().map(|p| p.id)
 }
 
-/// Get MCP provider IDs only
-#[cfg(feature = "spn-daemon")]
+/// Get MCP provider IDs only (11)
 pub fn mcp_provider_ids() -> impl Iterator<Item = &'static str> {
-    mcp_providers().map(|p| p.id)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Fallback implementations (no spn-daemon)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn env_var(provider: &str) -> &'static str {
-    fallback::provider_env_var(provider)
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn llm_provider_ids() -> impl Iterator<Item = &'static str> {
-    fallback::LLM_PROVIDER_IDS.iter().copied()
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn mcp_provider_ids() -> impl Iterator<Item = &'static str> {
-    fallback::MCP_PROVIDER_IDS.iter().copied()
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn all_provider_ids() -> impl Iterator<Item = &'static str> {
-    fallback::LLM_PROVIDER_IDS
-        .iter()
-        .chain(fallback::MCP_PROVIDER_IDS.iter())
-        .copied()
+    mcp_providers().into_iter().map(|p| p.id)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -110,9 +87,8 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "spn-daemon")]
     fn test_llm_providers_count() {
-        let count = llm_providers().count();
+        let count = llm_providers().len();
         assert_eq!(
             count, 7,
             "Expected 7 LLM providers (anthropic, openai, mistral, groq, deepseek, gemini, ollama)"
@@ -120,13 +96,24 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "spn-daemon")]
+    fn test_local_providers_count() {
+        let count = local_providers().len();
+        assert_eq!(count, 2, "Expected 2 Local providers (native, ollama-local)");
+    }
+
+    #[test]
     fn test_mcp_providers_count() {
-        let count = mcp_providers().count();
+        let count = mcp_providers().len();
         assert_eq!(
-            count, 6,
-            "Expected 6 MCP providers (neo4j, github, slack, perplexity, firecrawl, supadata)"
+            count, 11,
+            "Expected 11 MCP providers (neo4j, github, slack, perplexity, firecrawl, supadata, ...)"
         );
+    }
+
+    #[test]
+    fn test_all_providers_count() {
+        let count = KNOWN_PROVIDERS.len();
+        assert_eq!(count, 20, "Expected 20 total providers (7 LLM + 11 MCP + 2 Local)");
     }
 
     #[test]
@@ -143,6 +130,7 @@ mod tests {
         let ids: Vec<_> = mcp_provider_ids().collect();
         assert!(ids.contains(&"neo4j"));
         assert!(ids.contains(&"perplexity"));
+        assert!(ids.contains(&"firecrawl"));
     }
 
     #[test]
@@ -156,8 +144,20 @@ mod tests {
     }
 
     #[test]
+    fn test_env_var_neo4j() {
+        assert_eq!(env_var("neo4j"), "NEO4J_PASSWORD");
+    }
+
+    #[test]
     fn test_env_var_unknown() {
         // Unknown providers return UNKNOWN_API_KEY
         assert_eq!(env_var("unknown_provider"), "UNKNOWN_API_KEY");
+    }
+
+    #[test]
+    fn test_mask_key() {
+        assert_eq!(mask_key("sk-ant-api03-verylongkey"), "sk-ant-a...");
+        assert_eq!(mask_key("short"), "***");
+        assert_eq!(mask_key("12345678901"), "12345678...");
     }
 }
