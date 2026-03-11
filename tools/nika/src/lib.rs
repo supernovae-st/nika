@@ -56,6 +56,13 @@ pub use serde_saphyr as serde_yaml;
 pub mod source;
 
 // ═══════════════════════════════════════════════════════════════
+// CORE TYPES - Providers, Models, MCP Aliases (v0.27 spn fusion)
+// Zero-dependency definitions for provider/model/MCP management
+// Migrated from spn-core to enable standalone nika operation
+// ═══════════════════════════════════════════════════════════════
+pub mod core;
+
+// ═══════════════════════════════════════════════════════════════
 // DOMAIN MODEL - YAML → Rust types
 // ═══════════════════════════════════════════════════════════════
 pub mod ast;
@@ -166,4 +173,11 @@ pub use store::{DataStore, TaskResult, TaskStatus};
 pub use mcp::{
     ContentBlock, McpClient, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult,
     ToolDefinition,
+};
+
+// Core types (v0.27 spn fusion) - Providers, Models, MCP Aliases
+pub use core::{
+    find_model, find_provider, list_aliases, resolve_alias, resolve_model, KnownModel,
+    ModelArchitecture, ModelType, Provider, ProviderCategory, Quantization, ResolvedModel,
+    KNOWN_MODELS, KNOWN_PROVIDERS, MCP_ALIASES,
 };
