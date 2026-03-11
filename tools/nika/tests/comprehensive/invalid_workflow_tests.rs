@@ -535,9 +535,11 @@ tasks:
 
     if let Ok(workflow) = result {
         // If parsing succeeds, DAG building should detect duplicate
-        let result = Dag::from_workflow(&workflow).unwrap();
-        // Implementation-dependent behavior for duplicates
-        let _ = result;
+        let result = Dag::from_workflow(&workflow);
+        assert!(
+            result.is_err(),
+            "Expected DuplicateTaskId error for duplicate task IDs"
+        );
     }
 }
 
