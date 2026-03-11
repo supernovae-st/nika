@@ -150,6 +150,38 @@ spn provider set deepseek        # DeepSeek
 spn provider set gemini          # Google Gemini
 ```
 
+## Local Models (Native Inference)
+
+Run LLMs locally without API keys using Nika's native mistral.rs runtime:
+
+```bash
+# Download a GGUF model (e.g., from HuggingFace)
+spn model pull llama3.2:1b           # Small, fast
+spn model pull mistral:7b-instruct   # Good balance
+spn model pull qwen2.5:7b            # Multilingual
+
+# List installed models
+spn model list
+```
+
+Use in workflows with `provider: native`:
+
+```yaml
+tasks:
+  - id: local_infer
+    infer:
+      provider: native
+      model: ~/.cache/huggingface/models/llama3.2-1b-q4.gguf
+      prompt: "Explain quantum computing in simple terms"
+      temperature: 0.7
+```
+
+**Benefits:**
+- 🔒 Complete privacy (no data leaves your machine)
+- 💰 No API costs
+- 🔌 Works offline
+- ⚡ Fast inference with Metal (macOS) or CUDA (Linux)
+
 ## MCP Setup (Tier 4+)
 
 ```bash

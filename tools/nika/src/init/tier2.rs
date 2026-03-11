@@ -23,13 +23,16 @@ pub const WORKFLOW_04_INFER_BASICS: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ║  PREREQUISITES:                                                               ║
 # ║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
-# ║  │  # Set up your LLM provider (pick one)                                 │  ║
+# ║  │  # Cloud providers (pick one)                                          │  ║
 # ║  │  spn provider set anthropic   # Claude (recommended)                   │  ║
 # ║  │  spn provider set openai      # GPT-4                                  │  ║
 # ║  │  spn provider set mistral     # Mistral Large                          │  ║
 # ║  │  spn provider set groq        # Groq (fast, free tier)                 │  ║
 # ║  │  spn provider set deepseek    # DeepSeek                               │  ║
 # ║  │  spn provider set gemini      # Google Gemini                          │  ║
+# ║  │                                                                         │  ║
+# ║  │  # Or local models (no API key needed!)                                │  ║
+# ║  │  spn model pull llama3.2:1b   # Then use provider: native              │  ║
 # ║  └─────────────────────────────────────────────────────────────────────────┘  ║
 # ║                                                                               ║
 # ║  DAG FLOW:                                                                    ║
@@ -180,6 +183,18 @@ flows:
 # SHORTHAND SYNTAX:
 # Full form:    infer: { prompt: "Hello", temperature: 0.7 }
 # Shorthand:    infer: "Hello"  (uses default model and temperature)
+#
+# LOCAL MODELS (No API key needed!):
+# Use provider: native with a local GGUF model:
+#
+#   - id: local_inference
+#     infer:
+#       provider: native
+#       model: ~/.cache/huggingface/models/llama3.2-1b-q4.gguf
+#       prompt: "Your prompt here"
+#       temperature: 0.7
+#
+# Download models with: spn model pull llama3.2:1b
 #
 # RUN THIS WORKFLOW:
 # nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
