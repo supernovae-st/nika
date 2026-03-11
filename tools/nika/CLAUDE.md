@@ -4,7 +4,13 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.26.0 | Native Inference & Streaming | 4,391 tests | Zero clippy warnings
+**Current version:** v0.27.0 | spn→nika Feature Fusion | 4,433 tests | Zero clippy warnings
+
+**v0.27.0 Changes (spn→nika Fusion):**
+- **Unified CLI** — All spn features now available via `nika` commands
+- **New commands:** provider, model, mcp, sync, setup, daemon, jobs, backup
+- **Core module** — `src/core/` with zero-dep provider/model/MCP definitions
+- **spn deprecation** — `spn` CLI now shows deprecation warnings
 
 ## Architecture
 
@@ -13,6 +19,15 @@ tools/nika/src/
 ├── main.rs           # CLI entry point
 ├── lib.rs            # Public API
 ├── error.rs          # NikaError with codes
+├── core/             # ✅ Zero-dep provider/model/MCP definitions (v0.27)
+│   ├── mod.rs        # Re-exports for KNOWN_PROVIDERS, KNOWN_MODELS, MCP_ALIASES
+│   ├── providers.rs  # KNOWN_PROVIDERS (7 LLM + 6 MCP providers)
+│   ├── models.rs     # KNOWN_MODELS (16+ curated models for native inference)
+│   ├── mcp_aliases.rs # MCP_ALIASES (48 server aliases)
+│   └── mcp_config.rs # McpConfig, McpServer, global/project config loading
+├── secrets/          # ✅ Unified secrets management (v0.27)
+│   ├── mod.rs        # KeychainResolver, DaemonClient integration
+│   └── resolve.rs    # Resolution chain: daemon → keychain → env
 ├── ast/              # Two-phase YAML parsing (v0.20)
 │   ├── raw/          # Phase 1: YAML → Raw AST (with spans)
 │   │   ├── parser.rs     # marked_yaml parser

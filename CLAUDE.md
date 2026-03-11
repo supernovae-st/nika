@@ -77,9 +77,25 @@ Cargo workspace for Nika — semantic YAML workflow engine for AI tasks.
 
 Nika is the "body" of the SuperNovae AGI architecture, executing workflows that leverage NovaNet's "brain".
 
-**Current Version**: v0.26.0 — Native Inference & Streaming
-**Tests**: 4,391 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
+**Current Version**: v0.27.0 — spn→nika Feature Fusion
+**Tests**: 4,433 passing | **Roadmap**: `ROADMAP.md` | **Changelog**: `CHANGELOG.md`
 **Target Application**: QR Code AI (https://qrcode-ai.com)
+
+**v0.27.0 Changes (spn→nika Feature Fusion):**
+- **Unified CLI** — spn features merged into nika for a single tool experience
+  - `nika provider` — API key management (list, set, get, test, migrate)
+  - `nika model` — Local model management (list, pull, info, search)
+  - `nika mcp` — MCP server management (add, remove, list, test, tools)
+  - `nika sync` — Editor synchronization (enable, disable, status)
+  - `nika setup` — Interactive onboarding wizard (nika, novanet, claude-code)
+  - `nika daemon` — Background service management (start, stop, status)
+  - `nika jobs` — Background job execution (submit, cancel, output, list)
+  - `nika backup` — SuperNovae data backup (create, restore, list, prune)
+- **Core Module** — New `src/core/` with zero-dependency provider/model/MCP definitions
+  - `KNOWN_PROVIDERS` — 7 LLM + 6 MCP providers with validation
+  - `KNOWN_MODELS` — 16+ curated models for native inference
+  - `MCP_ALIASES` — 48 MCP server aliases for auto-configuration
+- **spn Deprecation** — Running `spn <cmd>` now shows deprecation warning directing to `nika`
 
 **v0.26.0 Changes (ADR-008: Inference Architecture Refactor):**
 - **Native Inference** — mistral.rs runtime for local GGUF models
@@ -215,15 +231,17 @@ nika-dev/
 ├── tools/nika/          # Rust binary (main source)
 │   ├── src/
 │   │   ├── ast/         # YAML → Rust structs
+│   │   ├── core/        # Zero-dep provider/model/MCP definitions (v0.27)
 │   │   ├── dag/         # DAG validation
 │   │   ├── runtime/     # Execution engine
 │   │   ├── mcp/         # MCP client (rmcp v0.16)
 │   │   ├── event/       # NDJSON trace writer
 │   │   ├── tui/         # Terminal UI (ratatui)
 │   │   ├── binding/     # Data flow + lazy bindings
+│   │   ├── secrets/     # Keychain + daemon IPC (v0.27)
 │   │   └── provider/    # rig-core v0.32 + native inference (mistral.rs)
 │   ├── CLAUDE.md        # Tool-level detailed context
-│   └── Cargo.toml       # v0.26.0
+│   └── Cargo.toml       # v0.27.0
 └── docs/                # Plans + research
 ```
 
@@ -246,9 +264,52 @@ nika trace list               # List traces
 nika trace show <id>          # Display events
 nika trace export <id>        # Export JSON/YAML
 
+# Provider Management (v0.27 spn fusion)
+nika provider list            # Show all providers with status
+nika provider set anthropic   # Store API key in OS keychain
+nika provider test claude     # Validate key with provider
+nika provider migrate         # Migrate env vars to keychain
+
+# Model Management (v0.27 spn fusion)
+nika model list               # List available local models
+nika model pull llama3.2:1b   # Download model from HuggingFace
+nika model info qwen3:8b      # Show model details
+
+# MCP Server Management (v0.27 spn fusion)
+nika mcp add neo4j            # Add MCP server (48 aliases)
+nika mcp list                 # List configured servers
+nika mcp test neo4j           # Test server connection
+nika mcp tools neo4j          # List available tools
+
+# Editor Sync (v0.27 spn fusion)
+nika sync                     # Sync to enabled editors
+nika sync --status            # Show sync status
+nika sync --enable claude-code
+
+# Background Jobs (v0.27 spn fusion)
+nika jobs submit workflow.yaml    # Run workflow in background
+nika jobs list                    # List background jobs
+nika jobs output <id> --follow    # Stream job output
+nika jobs cancel <id>             # Cancel running job
+
+# Backup & Restore (v0.27 spn fusion)
+nika backup create            # Create unified backup
+nika backup list              # List available backups
+nika backup restore           # Restore from latest backup
+
+# Setup (v0.27 spn fusion)
+nika setup                    # Interactive onboarding wizard
+nika setup nika               # Install Nika + LSP + Daemon
+nika setup novanet            # Configure NovaNet + Neo4j
+
+# Daemon (v0.27 spn fusion)
+nika daemon start             # Start background daemon
+nika daemon status            # Show daemon status
+nika daemon stop              # Stop daemon
+
 # Development
 cd tools/nika
-cargo test                    # Run 4,481 tests
+cargo test                    # Run 4,433 tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
 cargo install --path . --locked # Install binary
@@ -270,9 +331,14 @@ nk tl               → nika trace list
 | `tools/nika/src/ast/action.rs` | 5 verbs definition |
 | `tools/nika/src/ast/context.rs` | context: file loading (v0.14.3) |
 | `tools/nika/src/ast/include.rs` | include: DAG fusion (v0.14.3) |
+| `tools/nika/src/core/mod.rs` | Core types: providers, models, MCP aliases (v0.27) |
+| `tools/nika/src/core/providers.rs` | KNOWN_PROVIDERS (7 LLM + 6 MCP) (v0.27) |
+| `tools/nika/src/core/models.rs` | KNOWN_MODELS (16+ curated models) (v0.27) |
+| `tools/nika/src/core/mcp_aliases.rs` | MCP_ALIASES (48 aliases) (v0.27) |
+| `tools/nika/src/core/mcp_config.rs` | MCP server configuration (v0.27) |
+| `tools/nika/src/secrets/mod.rs` | Unified secrets management (v0.27) |
 | `tools/nika/src/runtime/executor.rs` | Task dispatch |
 | `tools/nika/src/runtime/rig_agent_loop.rs` | Agent execution (rig-core) |
-| `tools/nika/src/core/security.rs` | Path traversal security (v0.14.3) |
 | `tools/nika/schemas/nika-workflow.schema.json` | JSON Schema @0.9 for YAML validation |
 | `docs/plans/` | MVP plans |
 | `docs/research/` | Research documents |
