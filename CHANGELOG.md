@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-03-11
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.26.0 — NATIVE INFERENCE (ADR-008)                                 ║
+║  Inference moved from spn to Nika via mistral.rs                              ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ✨ NEW FEATURES:                                                              ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  • Native inference via mistral.rs (NativeRuntime)                            ║
+║  • Streaming support with infer_stream() and async channels                   ║
+║  • InferenceBackend trait for unified provider interface                      ║
+║  • provider: native support in workflows                                      ║
+║                                                                               ║
+║  🐛 BUG FIXES:                                                                 ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  • for_each nested path binding: "{{use.data.nested.items}}" now works        ║
+║  • Ignored tests cleaned up: 5 → 1 (Ollama removed, 2 fixed)                  ║
+║                                                                               ║
+║  Tests: 4,396 passing | Zero clippy warnings | ARMADA CI green               ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Added
+
+#### Native Inference via mistral.rs (ADR-008)
+
+Inference capabilities moved from spn to Nika for clean architecture:
+
+- **NativeRuntime**: Direct mistral.rs integration for local GGUF models
+- **infer_stream()**: Async streaming with `mpsc` channels for real-time output
+- **InferenceBackend trait**: Unified interface for all inference providers
+- **provider: native**: Use local models in workflows
+
+```yaml
+# Use local GGUF model
+tasks:
+  - id: generate
+    infer: "Summarize this document"
+    provider: native
+    model: "llama3.2:7b"
+```
+
+### Fixed
+
+#### for_each Nested Path Binding
+
+**Problem:** `for_each: "{{use.data.nested.items}}"` silently failed when binding
+was `data: producer` because code resolved "data.nested.items" as alias instead of
+resolving "data" first then traversing ".nested.items".
+
+**Solution:**
+- Split path: first segment is alias, rest is nested path
+- Parse JSON strings from exec: tasks that output JSON
+- Traverse nested path segments with array index support
+- Add tracing::warn for missing path segments
+
+```yaml
+# Now works correctly
+tasks:
+  - id: producer
+    exec: "echo '{\"nested\": {\"items\": [\"a\", \"b\", \"c\"]}}'"
+
+  - id: consumer
+    use:
+      data: producer
+    for_each: "{{use.data.nested.items}}"  # ✅ Resolves correctly
+    as: item
+    exec: "echo {{use.item}}"
+```
+
+### Changed
+
+- **NativeClient deprecated**: Use NativeRuntime directly
+- **Ollama tests removed**: Native inference via mistral.rs replaces Ollama
+
 ## [0.24.0] - 2026-03-10
 
 ```
