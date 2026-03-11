@@ -51,11 +51,13 @@ pub use rig::{NikaMcpTool, RigProvider, StreamResult};
 
 // Re-export native runtime when feature is enabled (v0.26: NativeRuntime replaces NativeClient)
 #[cfg(feature = "native-inference")]
-pub use native::{NativeRuntime, ChatOptions, ChatResponse, LoadConfig, ModelInfo};
+pub use native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeRuntime};
 
 // Re-export storage types for model management (v0.27)
 #[cfg(feature = "native-inference")]
-pub use native::{default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress};
+pub use native::{
+    default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
+};
 
 // Backwards compatibility alias (deprecated in v0.26)
 #[cfg(feature = "native-inference")]

@@ -28,13 +28,13 @@ use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 
 // Import InferenceBackend trait for native inference methods (v0.26)
-#[cfg(feature = "native-inference")]
-use spn_native::InferenceBackend;
 use rig::client::{CompletionClient, Nothing, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
 use rig::providers::{anthropic, deepseek, gemini, groq, mistral, ollama, openai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
+#[cfg(feature = "native-inference")]
+use spn_native::InferenceBackend;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -362,7 +362,9 @@ impl RigProvider {
                     .infer(prompt, super::native::ChatOptions::default())
                     .await
                     .map(|r| r.message.content)
-                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })
             }
         }
     }
@@ -494,7 +496,9 @@ impl RigProvider {
                     .infer(&full_prompt, chat_options)
                     .await
                     .map(|r| r.message.content)
-                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })
             }
         }
     }
@@ -1214,7 +1218,9 @@ impl RigProvider {
                 let stream = runtime
                     .infer_stream(prompt, super::native::ChatOptions::default())
                     .await
-                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
 
                 // Pin the stream for iteration (async_stream produces !Unpin streams)
                 let mut stream = pin!(stream);
@@ -1689,7 +1695,9 @@ impl RigProvider {
                 let stream = runtime
                     .infer_stream(&full_prompt, chat_options)
                     .await
-                    .map_err(|e: super::native::NativeError| RigInferError::PromptError(e.to_string()))?;
+                    .map_err(|e: super::native::NativeError| {
+                        RigInferError::PromptError(e.to_string())
+                    })?;
 
                 // Pin the stream for iteration (async_stream produces !Unpin streams)
                 let mut stream = pin!(stream);

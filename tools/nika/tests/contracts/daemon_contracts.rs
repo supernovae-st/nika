@@ -68,9 +68,7 @@ fn contract_daemon_stop_graceful() {
 
     // Help should describe stop
     assert!(
-        combined.contains("stop")
-            || combined.contains("shutdown")
-            || combined.contains("daemon"),
+        combined.contains("stop") || combined.contains("shutdown") || combined.contains("daemon"),
         "daemon stop help should describe shutdown. Got: {}",
         combined
     );

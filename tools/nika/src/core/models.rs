@@ -412,7 +412,10 @@ pub static KNOWN_MODELS: &[KnownModel] = &[
         hf_repo: "TheBloke/deepseek-coder-6.7B-instruct-GGUF",
         default_file: "deepseek-coder-6.7b-instruct.Q4_K_M.gguf",
         quantizations: &[
-            (Quantization::Q4_K_M, "deepseek-coder-6.7b-instruct.Q4_K_M.gguf"),
+            (
+                Quantization::Q4_K_M,
+                "deepseek-coder-6.7b-instruct.Q4_K_M.gguf",
+            ),
             (Quantization::Q8_0, "deepseek-coder-6.7b-instruct.Q8_0.gguf"),
         ],
         param_billions: 6.7,
@@ -610,7 +613,8 @@ pub fn resolve_model(
 ) -> Result<ResolvedModel, String> {
     let model = find_model(id).ok_or_else(|| format!("Unknown model: {}", id))?;
 
-    let quant = quantization.unwrap_or_else(|| auto_select_quantization(model, detect_available_ram_gb()));
+    let quant =
+        quantization.unwrap_or_else(|| auto_select_quantization(model, detect_available_ram_gb()));
 
     // Find the filename for this quantization
     let filename = model
@@ -631,10 +635,7 @@ pub fn resolve_model(
 
     // Find the latest snapshot
     if !snapshots_dir.exists() {
-        return Err(format!(
-            "Model not downloaded. Run: nika model pull {}",
-            id
-        ));
+        return Err(format!("Model not downloaded. Run: nika model pull {}", id));
     }
 
     // Get the most recent snapshot directory

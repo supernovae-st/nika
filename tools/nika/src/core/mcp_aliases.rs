@@ -91,7 +91,10 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     // ═══════════════════════════════════════════════════════════════════════════
     ("langchain", "langchain-mcp"),
     ("e2b", "@e2b/mcp-server"),
-    ("sequential-thinking", "@modelcontextprotocol/server-sequential-thinking"),
+    (
+        "sequential-thinking",
+        "@modelcontextprotocol/server-sequential-thinking",
+    ),
     ("context7", "context7-mcp"),
     ("21st", "21st-mcp"),
     ("supadata", "supadata-mcp"),
@@ -203,7 +206,10 @@ mod tests {
     #[test]
     fn test_resolve_alias() {
         assert_eq!(resolve_alias("neo4j"), Some("@neo4j/mcp-neo4j"));
-        assert_eq!(resolve_alias("github"), Some("@modelcontextprotocol/server-github"));
+        assert_eq!(
+            resolve_alias("github"),
+            Some("@modelcontextprotocol/server-github")
+        );
         assert_eq!(resolve_alias("perplexity"), Some("perplexity-mcp"));
         assert_eq!(resolve_alias("slack"), Some("@anthropic/mcp-server-slack"));
         assert_eq!(resolve_alias("nonexistent"), None);

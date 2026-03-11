@@ -208,11 +208,10 @@ pub fn load_config_from_path(path: Option<PathBuf>) -> Result<Option<McpConfig>,
         source: e,
     })?;
 
-    let config: McpConfig =
-        serde_yaml::from_str(&content).map_err(|e| McpConfigError::Parse {
-            path: path.clone(),
-            message: e.to_string(),
-        })?;
+    let config: McpConfig = serde_yaml::from_str(&content).map_err(|e| McpConfigError::Parse {
+        path: path.clone(),
+        message: e.to_string(),
+    })?;
 
     Ok(Some(config))
 }
@@ -243,7 +242,8 @@ pub fn save_config_to_path(config: &McpConfig, path: &Path) -> Result<(), McpCon
         })?;
     }
 
-    let content = serde_yaml::to_string(config).map_err(|e| McpConfigError::Serialize(e.to_string()))?;
+    let content =
+        serde_yaml::to_string(config).map_err(|e| McpConfigError::Serialize(e.to_string()))?;
     std::fs::write(path, content).map_err(|e| McpConfigError::Io {
         path: path.to_path_buf(),
         source: e,
@@ -384,10 +384,7 @@ pub enum McpConfigError {
         source: std::io::Error,
     },
     /// YAML parse error
-    Parse {
-        path: PathBuf,
-        message: String,
-    },
+    Parse { path: PathBuf, message: String },
     /// YAML serialize error
     Serialize(String),
     /// Home directory not found
@@ -504,7 +501,10 @@ mod tests {
             },
         };
 
-        let merged = merge_configs(vec![(global, McpSource::Global), (project, McpSource::Project)]);
+        let merged = merge_configs(vec![
+            (global, McpSource::Global),
+            (project, McpSource::Project),
+        ]);
 
         // Project neo4j should override global neo4j
         assert_eq!(merged.servers.len(), 2);

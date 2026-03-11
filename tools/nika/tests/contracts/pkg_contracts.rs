@@ -42,9 +42,7 @@ fn contract_pkg_add_updates_manifest() {
 
     // Help should describe adding packages
     assert!(
-        combined.contains("package")
-            || combined.contains("add")
-            || combined.contains("dependency"),
+        combined.contains("package") || combined.contains("add") || combined.contains("dependency"),
         "add help should describe package adding. Got: {}",
         combined
     );
@@ -415,9 +413,7 @@ fn contract_pkg_type_option() {
 
     // spn uses --type for package type specification (workflow, schema, job)
     assert!(
-        combined.contains("--type")
-            || combined.contains("-t")
-            || combined.contains("type"),
+        combined.contains("--type") || combined.contains("-t") || combined.contains("type"),
         "add should support --type option. Got: {}",
         combined
     );

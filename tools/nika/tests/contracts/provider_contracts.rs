@@ -375,7 +375,9 @@ fn contract_provider_no_subcommand_shows_help() {
         combined.contains("list")
             && combined.contains("set")
             && combined.contains("get")
-            && (combined.contains("Usage") || combined.contains("USAGE") || combined.contains("help")),
+            && (combined.contains("Usage")
+                || combined.contains("USAGE")
+                || combined.contains("help")),
         "Provider without subcommand should show help. Got: {}",
         combined
     );

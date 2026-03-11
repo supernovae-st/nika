@@ -1034,7 +1034,6 @@ enum JobsAction {
 
     // === Background Job Commands (v0.27 spn fusion) ===
     // These proxy to `spn jobs` for background workflow execution
-
     /// Submit a workflow for background execution (v0.27 spn fusion)
     ///
     /// Returns a job ID that can be used to track status and output.
@@ -1281,9 +1280,11 @@ async fn main() {
         Some(Commands::Pkg { action }) => handle_pkg_command(action).await,
 
         // Sync command (v0.27 spn fusion)
-        Some(Commands::Sync { action, target, dry_run }) => {
-            handle_sync_command(action, target, dry_run, quiet).await
-        }
+        Some(Commands::Sync {
+            action,
+            target,
+            dry_run,
+        }) => handle_sync_command(action, target, dry_run, quiet).await,
 
         // Setup wizard (v0.27 spn fusion)
         Some(Commands::Setup { action }) => handle_setup_command(action, quiet).await,
@@ -2694,13 +2695,13 @@ network:
 
 /// Handle MCP server management commands
 async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
+    use colored::Colorize;
     use nika::core::{
         add_server_to_global, add_server_to_project, aliases_by_category, global_config_path,
         load_global_config, load_merged_config, load_project_config, project_config_path,
-        remove_server_from_global, remove_server_from_project, resolve_name, server_from_npm_package,
-        McpServer as CoreMcpServer,
+        remove_server_from_global, remove_server_from_project, resolve_name,
+        server_from_npm_package, McpServer as CoreMcpServer,
     };
-    use colored::Colorize;
 
     match action {
         McpAction::Add {
@@ -2757,7 +2758,12 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             };
 
             if added {
-                println!("{} Added '{}' to {} config", "✓".green(), name.bold(), scope);
+                println!(
+                    "{} Added '{}' to {} config",
+                    "✓".green(),
+                    name.bold(),
+                    scope
+                );
                 if let Some(ref p) = path {
                     let path_str = p.display().to_string();
                     println!("  {}", path_str.dimmed());
@@ -2788,11 +2794,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             // Confirmation (unless --yes)
             if !yes {
                 let scope = if use_global { "global" } else { "project" };
-                print!(
-                    "Remove '{}' from {} config? [y/N] ",
-                    name.bold(),
-                    scope
-                );
+                print!("Remove '{}' from {} config? [y/N] ", name.bold(), scope);
                 use std::io::Write;
                 std::io::stdout().flush().unwrap();
 
@@ -2806,18 +2808,16 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 
             // Remove from appropriate config
             let (removed, scope) = if use_global {
-                let removed = remove_server_from_global(&name).map_err(|e| {
-                    NikaError::ValidationError {
+                let removed =
+                    remove_server_from_global(&name).map_err(|e| NikaError::ValidationError {
                         reason: format!("Failed to remove from global config: {}", e),
-                    }
-                })?;
+                    })?;
                 (removed, "global")
             } else {
-                let removed = remove_server_from_project(&name).map_err(|e| {
-                    NikaError::ValidationError {
+                let removed =
+                    remove_server_from_project(&name).map_err(|e| NikaError::ValidationError {
                         reason: format!("Failed to remove from project config: {}", e),
-                    }
-                })?;
+                    })?;
                 (removed, "project")
             };
 
@@ -3206,10 +3206,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 println!("{}", "─".repeat(60));
                 println!("  Version:   {}", installed.version.green());
                 println!("  Path:      {}", installed.manifest_path.dimmed());
-                println!(
-                    "  Installed: {}",
-                    installed.installed_at.dimmed()
-                );
+                println!("  Installed: {}", installed.installed_at.dimmed());
 
                 // Try to load manifest for more details
                 match load_manifest(&package, &installed.version) {
@@ -3254,7 +3251,10 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             // TODO: Implement full package resolution and installation
             // For now, provide a helpful message
             println!();
-            println!("{} Package installation not yet fully implemented", "⚠".yellow());
+            println!(
+                "{} Package installation not yet fully implemented",
+                "⚠".yellow()
+            );
             println!("  Until then, use: spn add {}", package);
             Ok(())
         }
@@ -3285,8 +3285,14 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             // TODO: Implement full package installation from spn.yaml
             println!();
-            println!("{} Package installation not yet fully implemented", "⚠".yellow());
-            println!("  Until then, use: spn install{}", if frozen { " --frozen" } else { "" });
+            println!(
+                "{} Package installation not yet fully implemented",
+                "⚠".yellow()
+            );
+            println!(
+                "  Until then, use: spn install{}",
+                if frozen { " --frozen" } else { "" }
+            );
             Ok(())
         }
 
@@ -3302,7 +3308,10 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             println!("{} Package update not yet fully implemented", "⚠".yellow());
             println!(
                 "  Until then, use: spn update{}",
-                package.as_deref().map(|p| format!(" {}", p)).unwrap_or_default()
+                package
+                    .as_deref()
+                    .map(|p| format!(" {}", p))
+                    .unwrap_or_default()
             );
             Ok(())
         }
@@ -3312,13 +3321,24 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             // TODO: Implement outdated package detection
             println!();
-            println!("{} Outdated detection not yet fully implemented", "⚠".yellow());
+            println!(
+                "{} Outdated detection not yet fully implemented",
+                "⚠".yellow()
+            );
             println!("  Until then, use: spn outdated");
             Ok(())
         }
 
-        PkgAction::Search { query, r#type, limit } => {
-            println!("{} Searching registry for '{}'...", "🔍".cyan(), query.green());
+        PkgAction::Search {
+            query,
+            r#type,
+            limit,
+        } => {
+            println!(
+                "{} Searching registry for '{}'...",
+                "🔍".cyan(),
+                query.green()
+            );
 
             if let Some(ref t) = r#type {
                 println!("  Type filter: {}", t.dimmed());
@@ -3331,7 +3351,10 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             println!(
                 "  Until then, use: spn search {}{}",
                 query,
-                r#type.as_deref().map(|t| format!(" -t {}", t)).unwrap_or_default()
+                r#type
+                    .as_deref()
+                    .map(|t| format!(" -t {}", t))
+                    .unwrap_or_default()
             );
             Ok(())
         }
@@ -3438,7 +3461,7 @@ async fn handle_sync_command(
     println!();
 
     // Load MCP config
-    use nika::core::{load_merged_config, global_config_path};
+    use nika::core::{global_config_path, load_merged_config};
 
     let mcp_config = load_merged_config().map_err(|e| NikaError::ConfigError {
         reason: format!("Failed to load MCP config: {}", e),
@@ -3456,7 +3479,10 @@ async fn handle_sync_command(
         return Ok(());
     }
 
-    println!("  {} MCP servers in config:", mcp_config.servers.len().to_string().cyan());
+    println!(
+        "  {} MCP servers in config:",
+        mcp_config.servers.len().to_string().cyan()
+    );
     for (name, _server) in &mcp_config.servers {
         println!("    • {}", name);
     }
@@ -3485,7 +3511,10 @@ async fn handle_sync_command(
     };
 
     if targets.is_empty() {
-        println!("{}", "⚠️  No IDE configurations found in current directory.".yellow());
+        println!(
+            "{}",
+            "⚠️  No IDE configurations found in current directory.".yellow()
+        );
         println!("   Create .claude/, .cursor/, .vscode/, or .windsurf/ to enable sync.");
         return Ok(());
     }
@@ -3493,10 +3522,19 @@ async fn handle_sync_command(
     // Sync to each target
     for ide in &targets {
         if dry_run {
-            println!("  Would sync to: {} ({} servers)", ide.cyan(), mcp_config.servers.len());
+            println!(
+                "  Would sync to: {} ({} servers)",
+                ide.cyan(),
+                mcp_config.servers.len()
+            );
         } else {
             // TODO: Implement actual sync
-            println!("  {} {} → {} servers", "✓".green(), ide.cyan(), mcp_config.servers.len());
+            println!(
+                "  {} {} → {} servers",
+                "✓".green(),
+                ide.cyan(),
+                mcp_config.servers.len()
+            );
         }
     }
 
@@ -3506,7 +3544,10 @@ async fn handle_sync_command(
     } else {
         println!("{} Sync complete!", "✓".green());
         println!();
-        println!("{} Full sync with interactive mode available via:", "ℹ".cyan());
+        println!(
+            "{} Full sync with interactive mode available via:",
+            "ℹ".cyan()
+        );
         println!("  spn sync --interactive");
     }
 
@@ -3523,23 +3564,41 @@ async fn handle_sync_command(
 /// - Provider configuration (API keys)
 /// - Tool installation (nika, novanet)
 /// - IDE integrations (Claude Code, Cursor, etc.)
-async fn handle_setup_command(
-    action: Option<SetupAction>,
-    quiet: bool,
-) -> Result<(), NikaError> {
+async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
 
     let setup_action = action.unwrap_or(SetupAction::Wizard);
 
     match setup_action {
         SetupAction::Wizard => {
-            println!("{}", "╔═══════════════════════════════════════════════════════════════╗".cyan());
-            println!("{}", "║                                                               ║".cyan());
-            println!("{}", "║    🦋  S U P E R N O V A E   S E T U P                        ║".cyan());
-            println!("{}", "║                                                               ║".cyan());
-            println!("{}", "║    Interactive Setup Wizard for the AI Workflow Ecosystem     ║".cyan());
-            println!("{}", "║                                                               ║".cyan());
-            println!("{}", "╚═══════════════════════════════════════════════════════════════╝".cyan());
+            println!(
+                "{}",
+                "╔═══════════════════════════════════════════════════════════════╗".cyan()
+            );
+            println!(
+                "{}",
+                "║                                                               ║".cyan()
+            );
+            println!(
+                "{}",
+                "║    🦋  S U P E R N O V A E   S E T U P                        ║".cyan()
+            );
+            println!(
+                "{}",
+                "║                                                               ║".cyan()
+            );
+            println!(
+                "{}",
+                "║    Interactive Setup Wizard for the AI Workflow Ecosystem     ║".cyan()
+            );
+            println!(
+                "{}",
+                "║                                                               ║".cyan()
+            );
+            println!(
+                "{}",
+                "╚═══════════════════════════════════════════════════════════════╝".cyan()
+            );
             println!();
 
             // Check current environment
@@ -3583,9 +3642,7 @@ async fn handle_setup_command(
             println!();
 
             // Check if nika is in PATH by trying to run it
-            let nika_check = std::process::Command::new("nika")
-                .arg("--version")
-                .output();
+            let nika_check = std::process::Command::new("nika").arg("--version").output();
 
             if let Ok(output) = nika_check {
                 if output.status.success() {
@@ -3667,7 +3724,10 @@ async fn handle_setup_command(
                     println!("  {} settings.json not found", "○".yellow());
                 }
             } else {
-                println!("  {} .claude/ not found - run 'nika init' first", "○".yellow());
+                println!(
+                    "  {} .claude/ not found - run 'nika init' first",
+                    "○".yellow()
+                );
             }
 
             println!();
@@ -3733,9 +3793,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 
     // Helper to run spn daemon commands
     fn run_spn_daemon(args: &[&str]) -> Result<bool, std::io::Error> {
-        let status = std::process::Command::new("spn")
-            .args(args)
-            .status()?;
+        let status = std::process::Command::new("spn").args(args).status()?;
         Ok(status.success())
     }
 
@@ -3750,7 +3808,10 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
     }
 
     match action {
-        DaemonAction::Start { foreground, skip_preload } => {
+        DaemonAction::Start {
+            foreground,
+            skip_preload,
+        } => {
             if !quiet {
                 println!("{}", "🔧 Starting spn daemon...".cyan().bold());
             }
@@ -3818,7 +3879,10 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 
             if json {
                 if is_running {
-                    println!("{{\"status\":\"running\",\"socket\":\"{}\"}}", socket_path.display());
+                    println!(
+                        "{{\"status\":\"running\",\"socket\":\"{}\"}}",
+                        socket_path.display()
+                    );
                 } else {
                     println!("{{\"status\":\"stopped\"}}");
                 }
@@ -3865,7 +3929,10 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 
         DaemonAction::Install => {
             if !quiet {
-                println!("{}", "📦 Installing daemon as system service...".cyan().bold());
+                println!(
+                    "{}",
+                    "📦 Installing daemon as system service...".cyan().bold()
+                );
             }
 
             match run_spn_daemon(&["daemon", "install"]) {
@@ -4061,7 +4128,10 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
 /// Find filename for a given quantization string in a known model.
 /// Returns None if quant string is invalid or not available for this model.
 #[cfg(feature = "native-inference")]
-fn find_filename_for_quant(model: &nika::core::KnownModel, quant_str: &str) -> Option<&'static str> {
+fn find_filename_for_quant(
+    model: &nika::core::KnownModel,
+    quant_str: &str,
+) -> Option<&'static str> {
     use nika::core::Quantization;
     let target = match quant_str.to_uppercase().as_str() {
         "Q4_K_S" => Quantization::Q4_K_S,
@@ -4073,7 +4143,9 @@ fn find_filename_for_quant(model: &nika::core::KnownModel, quant_str: &str) -> O
         "F16" => Quantization::F16,
         _ => return None,
     };
-    model.quantizations.iter()
+    model
+        .quantizations
+        .iter()
         .find(|(q, _)| *q == target)
         .map(|(_, f)| *f)
 }
@@ -4081,9 +4153,11 @@ fn find_filename_for_quant(model: &nika::core::KnownModel, quant_str: &str) -> O
 /// Handle model management commands (migrated from spn CLI)
 #[cfg(feature = "native-inference")]
 async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
-    use nika::core::{find_model, KNOWN_MODELS};
-    use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress};
     use colored::Colorize;
+    use nika::core::{find_model, KNOWN_MODELS};
+    use nika::provider::{
+        default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
+    };
 
     let storage = HuggingFaceStorage::new(default_model_dir());
 
@@ -4165,12 +4239,13 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
             let (hf_repo, hf_file) = match (&name, &repo, &file) {
                 // Named model from KNOWN_MODELS - extract repo/file
                 (Some(model_name), None, None) => {
-                    let model = find_model(model_name).ok_or_else(|| NikaError::ValidationError {
-                        reason: format!(
+                    let model =
+                        find_model(model_name).ok_or_else(|| NikaError::ValidationError {
+                            reason: format!(
                             "Unknown model: '{}'. Use 'nika model list' to see available models.",
                             model_name
                         ),
-                    })?;
+                        })?;
 
                     // Determine filename based on quantization or default
                     let filename = if let Some(q) = &quant {
@@ -4179,7 +4254,11 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
                                 reason: format!(
                                     "Invalid or unavailable quantization: {}. Available: {:?}",
                                     q,
-                                    model.quantizations.iter().map(|(q, _)| format!("{:?}", q)).collect::<Vec<_>>()
+                                    model
+                                        .quantizations
+                                        .iter()
+                                        .map(|(q, _)| format!("{:?}", q))
+                                        .collect::<Vec<_>>()
                                 ),
                             }
                         })?
@@ -4190,9 +4269,7 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
                     (model.hf_repo.to_string(), filename.to_string())
                 }
                 // Custom HF repo (passthrough)
-                (None, Some(hf_repo), Some(hf_file)) => {
-                    (hf_repo.clone(), hf_file.clone())
-                }
+                (None, Some(hf_repo), Some(hf_file)) => (hf_repo.clone(), hf_file.clone()),
                 // Invalid combination
                 _ => {
                     return Err(NikaError::ValidationError {
@@ -4226,10 +4303,10 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
 
             // Create download request using passthrough mode
             let request = DownloadRequest {
-                model: None,  // Don't use model field - types are incompatible
+                model: None, // Don't use model field - types are incompatible
                 hf_repo: Some(hf_repo),
                 filename: Some(hf_file.clone()),
-                quantization: None,  // Quantization already resolved to filename
+                quantization: None, // Quantization already resolved to filename
                 force,
             };
 
@@ -4330,7 +4407,11 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
             if models.is_empty() {
                 println!("{} No models available for inference.", "ℹ".cyan());
             } else {
-                println!("{} {} models available for inference:", "✓".green(), models.len());
+                println!(
+                    "{} {} models available for inference:",
+                    "✓".green(),
+                    models.len()
+                );
                 for model in models.iter().take(5) {
                     println!("  • {}", model.name.cyan());
                 }
@@ -4362,11 +4443,7 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
 
             // Confirm deletion
             if !force && !quiet {
-                println!(
-                    "{} Delete model: {}?",
-                    "⚠".yellow(),
-                    path.display()
-                );
+                println!("{} Delete model: {}?", "⚠".yellow(), path.display());
                 print!("  Type 'yes' to confirm: ");
                 std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
@@ -6326,7 +6403,6 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 
         // === Background Job Commands (v0.27 spn fusion) ===
         // These proxy to `spn jobs` for background workflow execution
-
         JobsAction::Submit {
             workflow,
             args,

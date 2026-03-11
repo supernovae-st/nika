@@ -51,9 +51,7 @@
 pub use spn_native::NativeRuntime;
 
 // Re-export commonly used types from spn_native (via spn_core)
-pub use spn_native::{
-    ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeError,
-};
+pub use spn_native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeError};
 
 // Re-export storage types for model management (v0.27)
 // These come from spn_native which re-exports them from spn_core
@@ -62,7 +60,10 @@ pub use spn_native::{
 };
 
 // Backwards compatibility alias (deprecated in v0.26)
-#[deprecated(since = "0.26.0", note = "Use NativeRuntime directly instead of NativeClient")]
+#[deprecated(
+    since = "0.26.0",
+    note = "Use NativeRuntime directly instead of NativeClient"
+)]
 pub type NativeClient = NativeRuntime;
 
 /// Extract quantization level from model filename.
@@ -83,9 +84,18 @@ mod tests {
 
     #[test]
     fn test_extract_quantization() {
-        assert_eq!(extract_quantization("model-q4_k_m.gguf"), Some("Q4_K_M".to_string()));
-        assert_eq!(extract_quantization("qwen-q8_0.gguf"), Some("Q8_0".to_string()));
-        assert_eq!(extract_quantization("mistral-f16.gguf"), Some("F16".to_string()));
+        assert_eq!(
+            extract_quantization("model-q4_k_m.gguf"),
+            Some("Q4_K_M".to_string())
+        );
+        assert_eq!(
+            extract_quantization("qwen-q8_0.gguf"),
+            Some("Q8_0".to_string())
+        );
+        assert_eq!(
+            extract_quantization("mistral-f16.gguf"),
+            Some("F16".to_string())
+        );
         assert_eq!(extract_quantization("model.gguf"), None);
     }
 }

@@ -265,9 +265,7 @@ fn contract_mcp_no_subcommand_shows_help() {
 
     // Should show help/usage information
     assert!(
-        combined.contains("add")
-            && combined.contains("remove")
-            && combined.contains("list"),
+        combined.contains("add") && combined.contains("remove") && combined.contains("list"),
         "mcp without subcommand should show help. Got: {}",
         combined
     );
@@ -281,10 +279,7 @@ fn contract_mcp_config_default_location() {
     let default_path = format!("{}/.spn/mcp.yaml", home);
 
     // Config may or may not exist, but path should be deterministic
-    assert!(
-        !home.is_empty(),
-        "HOME should be set for config resolution"
-    );
+    assert!(!home.is_empty(), "HOME should be set for config resolution");
 
     // Document the expected location
     let _ = default_path;
