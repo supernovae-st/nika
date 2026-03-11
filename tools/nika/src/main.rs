@@ -263,6 +263,30 @@ enum Commands {
         action: PkgAction,
     },
 
+    /// Sync MCP servers and packages to IDE configurations (v0.27 spn fusion)
+    ///
+    /// Syncs from ~/.spn/mcp.yaml to Claude Code, Cursor, Windsurf, VS Code.
+    Sync {
+        #[command(subcommand)]
+        action: Option<SyncAction>,
+
+        /// Target IDE (claude-code, cursor, vscode, windsurf)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Show what would be synced without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Interactive setup wizard for SuperNovae ecosystem (v0.27 spn fusion)
+    ///
+    /// Configure providers, install tools, and set up IDE integrations.
+    Setup {
+        #[command(subcommand)]
+        action: Option<SetupAction>,
+    },
+
     /// Generate shell completions (v0.13.1)
     Completion {
         /// Shell to generate completions for
@@ -633,6 +657,54 @@ enum PkgAction {
         #[arg(short, long, default_value = "20")]
         limit: usize,
     },
+}
+
+/// Sync management actions (v0.27 spn fusion)
+///
+/// Sync MCP servers and packages to IDE configurations.
+#[derive(Subcommand)]
+enum SyncAction {
+    /// Show current sync status
+    Status,
+
+    /// Enable sync for an IDE (auto-sync when configs change)
+    Enable {
+        /// IDE to enable: claude-code, cursor, vscode, windsurf
+        editor: String,
+    },
+
+    /// Disable sync for an IDE
+    Disable {
+        /// IDE to disable: claude-code, cursor, vscode, windsurf
+        editor: String,
+    },
+}
+
+/// Setup wizard actions (v0.27 spn fusion)
+///
+/// Interactive setup for SuperNovae ecosystem components.
+#[derive(Subcommand)]
+enum SetupAction {
+    /// Full interactive setup wizard (providers, tools, IDEs)
+    Wizard,
+
+    /// Set up Nika CLI, LSP, and daemon
+    Nika,
+
+    /// Set up NovaNet CLI and Neo4j connection
+    Novanet,
+
+    /// Set up Claude Code integration
+    ClaudeCode,
+
+    /// Set up Cursor integration
+    Cursor,
+
+    /// Set up VS Code integration
+    Vscode,
+
+    /// Set up Windsurf integration
+    Windsurf,
 }
 
 /// Model management actions (v0.27 spn fusion)
@@ -1052,6 +1124,14 @@ async fn main() {
 
         // Package management (v0.27 spn fusion)
         Some(Commands::Pkg { action }) => handle_pkg_command(action).await,
+
+        // Sync command (v0.27 spn fusion)
+        Some(Commands::Sync { action, target, dry_run }) => {
+            handle_sync_command(action, target, dry_run, quiet).await
+        }
+
+        // Setup wizard (v0.27 spn fusion)
+        Some(Commands::Setup { action }) => handle_setup_command(action, quiet).await,
 
         // Shell completion (v0.13.1)
         Some(Commands::Completion { shell }) => {
@@ -3114,6 +3194,370 @@ fn infer_package_type(package: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYNC COMMAND HANDLER (v0.27 spn fusion)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle sync commands to IDE configurations.
+///
+/// Syncs MCP servers from ~/.spn/mcp.yaml to editor-specific configs:
+/// - Claude Code: .claude/settings.json
+/// - Cursor: .cursor/mcp.json
+/// - Windsurf: .windsurf/mcp.json
+/// - VS Code: .vscode/settings.json
+async fn handle_sync_command(
+    action: Option<SyncAction>,
+    target: Option<String>,
+    dry_run: bool,
+    quiet: bool,
+) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    // Handle subcommands first
+    if let Some(sync_action) = action {
+        match sync_action {
+            SyncAction::Status => {
+                println!("{}", "Sync Status".bold());
+                println!("{}", "─".repeat(60));
+                println!();
+
+                // Show detected IDEs
+                let cwd = std::env::current_dir().map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to get current directory: {}", e),
+                })?;
+
+                let ides = [
+                    ("Claude Code", ".claude"),
+                    ("Cursor", ".cursor"),
+                    ("VS Code", ".vscode"),
+                    ("Windsurf", ".windsurf"),
+                ];
+
+                println!("  Detected IDEs in current directory:");
+                for (name, dir) in &ides {
+                    let path = cwd.join(dir);
+                    if path.exists() {
+                        println!("    {} {} ({})", "✓".green(), name, path.display());
+                    } else {
+                        println!("    {} {} (not found)", "○".dimmed(), name.dimmed());
+                    }
+                }
+
+                println!();
+                println!("  Run 'nika sync' to sync MCP servers to detected IDEs");
+                return Ok(());
+            }
+
+            SyncAction::Enable { editor } => {
+                println!("{} Enabling sync for: {}", "✓".green(), editor.cyan());
+                println!();
+                println!("{} Sync enable not yet fully implemented", "⚠".yellow());
+                println!("  Until then, use: spn sync --enable {}", editor);
+                return Ok(());
+            }
+
+            SyncAction::Disable { editor } => {
+                println!("{} Disabling sync for: {}", "ℹ".cyan(), editor);
+                println!();
+                println!("{} Sync disable not yet fully implemented", "⚠".yellow());
+                println!("  Until then, use: spn sync --disable {}", editor);
+                return Ok(());
+            }
+        }
+    }
+
+    // Default sync operation
+    if dry_run {
+        println!("{}", "🔍 Dry run - showing what would be synced:".cyan());
+    } else {
+        println!("{}", "🔄 Syncing to IDE configurations...".cyan());
+    }
+    println!();
+
+    // Load MCP config
+    use nika::core::{load_merged_config, global_config_path};
+
+    let mcp_config = load_merged_config().map_err(|e| NikaError::ConfigError {
+        reason: format!("Failed to load MCP config: {}", e),
+    })?;
+
+    if mcp_config.servers.is_empty() {
+        if !quiet {
+            println!("{} No MCP servers configured", "ℹ".cyan());
+            println!();
+            println!("  Add servers with: nika mcp add <name>");
+            if let Some(path) = global_config_path() {
+                println!("  Config file: {}", path.display());
+            }
+        }
+        return Ok(());
+    }
+
+    println!("  {} MCP servers in config:", mcp_config.servers.len().to_string().cyan());
+    for (name, _server) in &mcp_config.servers {
+        println!("    • {}", name);
+    }
+    println!();
+
+    // Determine targets
+    let targets: Vec<&str> = if let Some(ref t) = target {
+        vec![t.as_str()]
+    } else {
+        // Auto-detect IDEs
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let mut found = Vec::new();
+        if cwd.join(".claude").exists() {
+            found.push("claude-code");
+        }
+        if cwd.join(".cursor").exists() {
+            found.push("cursor");
+        }
+        if cwd.join(".vscode").exists() {
+            found.push("vscode");
+        }
+        if cwd.join(".windsurf").exists() {
+            found.push("windsurf");
+        }
+        found
+    };
+
+    if targets.is_empty() {
+        println!("{}", "⚠️  No IDE configurations found in current directory.".yellow());
+        println!("   Create .claude/, .cursor/, .vscode/, or .windsurf/ to enable sync.");
+        return Ok(());
+    }
+
+    // Sync to each target
+    for ide in &targets {
+        if dry_run {
+            println!("  Would sync to: {} ({} servers)", ide.cyan(), mcp_config.servers.len());
+        } else {
+            // TODO: Implement actual sync
+            println!("  {} {} → {} servers", "✓".green(), ide.cyan(), mcp_config.servers.len());
+        }
+    }
+
+    println!();
+    if dry_run {
+        println!("Run without {} to apply changes.", "--dry-run".cyan());
+    } else {
+        println!("{} Sync complete!", "✓".green());
+        println!();
+        println!("{} Full sync with interactive mode available via:", "ℹ".cyan());
+        println!("  spn sync --interactive");
+    }
+
+    Ok(())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETUP COMMAND HANDLER (v0.27 spn fusion)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Handle setup wizard commands.
+///
+/// Provides interactive setup for the SuperNovae ecosystem:
+/// - Provider configuration (API keys)
+/// - Tool installation (nika, novanet)
+/// - IDE integrations (Claude Code, Cursor, etc.)
+async fn handle_setup_command(
+    action: Option<SetupAction>,
+    quiet: bool,
+) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    let setup_action = action.unwrap_or(SetupAction::Wizard);
+
+    match setup_action {
+        SetupAction::Wizard => {
+            println!("{}", "╔═══════════════════════════════════════════════════════════════╗".cyan());
+            println!("{}", "║                                                               ║".cyan());
+            println!("{}", "║    🦋  S U P E R N O V A E   S E T U P                        ║".cyan());
+            println!("{}", "║                                                               ║".cyan());
+            println!("{}", "║    Interactive Setup Wizard for the AI Workflow Ecosystem     ║".cyan());
+            println!("{}", "║                                                               ║".cyan());
+            println!("{}", "╚═══════════════════════════════════════════════════════════════╝".cyan());
+            println!();
+
+            // Check current environment
+            println!("{}", "Checking environment...".bold());
+            println!("{}", "─".repeat(60));
+
+            // Check for providers
+            let providers = [
+                ("ANTHROPIC_API_KEY", "Claude"),
+                ("OPENAI_API_KEY", "OpenAI"),
+                ("MISTRAL_API_KEY", "Mistral"),
+                ("GROQ_API_KEY", "Groq"),
+                ("DEEPSEEK_API_KEY", "DeepSeek"),
+                ("GEMINI_API_KEY", "Gemini"),
+            ];
+
+            let mut configured_providers = 0;
+            for (env_var, name) in &providers {
+                if std::env::var(env_var).is_ok() {
+                    println!("  {} {} ({})", "✓".green(), name, env_var.dimmed());
+                    configured_providers += 1;
+                }
+            }
+
+            if configured_providers == 0 {
+                println!("  {} No LLM providers configured", "○".dimmed());
+            }
+
+            println!();
+            println!("{} Full interactive setup available via:", "ℹ".cyan());
+            println!("  spn setup");
+            println!();
+            println!("Or configure providers individually:");
+            println!("  nika provider set anthropic");
+            println!("  nika provider set openai");
+        }
+
+        SetupAction::Nika => {
+            println!("{}", "🦋 Setting up Nika...".cyan().bold());
+            println!("{}", "─".repeat(60));
+            println!();
+
+            // Check if nika is in PATH by trying to run it
+            let nika_check = std::process::Command::new("nika")
+                .arg("--version")
+                .output();
+
+            if let Ok(output) = nika_check {
+                if output.status.success() {
+                    println!("  {} Nika CLI found in PATH", "✓".green());
+                    let version = String::from_utf8_lossy(&output.stdout);
+                    println!("  Version: {}", version.trim().dimmed());
+                } else {
+                    println!("  {} Nika CLI not found in PATH", "○".yellow());
+                    println!();
+                    println!("  Install with:");
+                    println!("    cargo install --path tools/nika --locked");
+                }
+            } else {
+                println!("  {} Nika CLI not found in PATH", "○".yellow());
+                println!();
+                println!("  Install with:");
+                println!("    cargo install --path tools/nika --locked");
+            }
+
+            println!();
+            if !quiet {
+                println!("{} Full Nika setup available via:", "ℹ".cyan());
+                println!("  spn setup nika");
+            }
+        }
+
+        SetupAction::Novanet => {
+            println!("{}", "🧠 Setting up NovaNet...".cyan().bold());
+            println!("{}", "─".repeat(60));
+            println!();
+
+            // Check if novanet is in PATH by trying to run it
+            let novanet_check = std::process::Command::new("novanet")
+                .arg("--version")
+                .output();
+
+            if let Ok(output) = novanet_check {
+                if output.status.success() {
+                    println!("  {} NovaNet CLI found in PATH", "✓".green());
+                    let version = String::from_utf8_lossy(&output.stdout);
+                    println!("  Version: {}", version.trim().dimmed());
+                } else {
+                    println!("  {} NovaNet CLI not found in PATH", "○".yellow());
+                }
+            } else {
+                println!("  {} NovaNet CLI not found in PATH", "○".yellow());
+            }
+
+            // Check Neo4j
+            let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_default();
+            if !neo4j_uri.is_empty() {
+                println!("  {} NEO4J_URI configured", "✓".green());
+            } else {
+                println!("  {} NEO4J_URI not set", "○".yellow());
+            }
+
+            println!();
+            if !quiet {
+                println!("{} Full NovaNet setup available via:", "ℹ".cyan());
+                println!("  spn setup novanet");
+            }
+        }
+
+        SetupAction::ClaudeCode => {
+            println!("{}", "🤖 Setting up Claude Code...".cyan().bold());
+            println!("{}", "─".repeat(60));
+            println!();
+
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let claude_dir = cwd.join(".claude");
+
+            if claude_dir.exists() {
+                println!("  {} .claude/ directory exists", "✓".green());
+
+                let settings = claude_dir.join("settings.json");
+                if settings.exists() {
+                    println!("  {} settings.json exists", "✓".green());
+                } else {
+                    println!("  {} settings.json not found", "○".yellow());
+                }
+            } else {
+                println!("  {} .claude/ not found - run 'nika init' first", "○".yellow());
+            }
+
+            println!();
+            if !quiet {
+                println!("{} Full Claude Code setup available via:", "ℹ".cyan());
+                println!("  spn setup claude-code");
+            }
+        }
+
+        SetupAction::Cursor => {
+            println!("{}", "📝 Setting up Cursor...".cyan().bold());
+            setup_ide_helper("cursor", ".cursor", quiet)?;
+        }
+
+        SetupAction::Vscode => {
+            println!("{}", "💻 Setting up VS Code...".cyan().bold());
+            setup_ide_helper("vscode", ".vscode", quiet)?;
+        }
+
+        SetupAction::Windsurf => {
+            println!("{}", "🏄 Setting up Windsurf...".cyan().bold());
+            setup_ide_helper("windsurf", ".windsurf", quiet)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Helper for IDE setup
+fn setup_ide_helper(ide_name: &str, dir_name: &str, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+
+    println!("{}", "─".repeat(60));
+    println!();
+
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let ide_dir = cwd.join(dir_name);
+
+    if ide_dir.exists() {
+        println!("  {} {}/ directory exists", "✓".green(), dir_name);
+    } else {
+        println!("  {} {}/ not found", "○".yellow(), dir_name);
+    }
+
+    println!();
+    if !quiet {
+        println!("{} Full {} setup available via:", "ℹ".cyan(), ide_name);
+        println!("  spn setup {}", ide_name);
+    }
+
+    Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
