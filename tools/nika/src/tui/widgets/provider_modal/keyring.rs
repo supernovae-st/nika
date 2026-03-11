@@ -31,9 +31,8 @@ use colored::Colorize;
 #[cfg(feature = "native-keychain")]
 use crate::tui::providers::env_var as provider_env_var;
 
-// Import spn-core types via spn-client re-exports (when spn-daemon feature enabled)
-#[cfg(feature = "spn-daemon")]
-use spn_client::{mask_key as spn_mask_key, validate_key_format as spn_validate_key_format};
+// v0.27: Use nika::core for validation (no more spn-client re-exports for provider types)
+// spn-client is now ONLY used for daemon IPC, not provider definitions
 
 /// Service name for keyring entries.
 /// Uses "spn" for unified keyring with supernovae-cli.
@@ -183,74 +182,44 @@ pub use stub::SpnKeyring;
 // UTILITY FUNCTIONS (always available)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Mask API key for display.
+/// Mask API key for display (v0.27: unified implementation, no more spn-daemon feature split).
 ///
-/// With spn-daemon feature: uses spn_core::mask_key (shows 7 chars + ••••••••)
-/// Without: shows first 6 + ... + last 1 char
-#[cfg(feature = "spn-daemon")]
+/// Shows first 8 chars + "..." for keys longer than 8 chars.
 pub fn mask_api_key(key: &str) -> String {
-    spn_mask_key(key)
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn mask_api_key(key: &str) -> String {
-    if key.len() <= 10 {
-        return "****".to_string();
+    if key.len() > 8 {
+        format!("{}...", &key[..8])
+    } else {
+        "***".to_string()
     }
-    let prefix = &key[..6.min(key.len())];
-    let suffix = &key[key.len().saturating_sub(1)..];
-    format!("{}...{}", prefix, suffix)
 }
 
-/// Validate API key format (basic checks).
+/// Validate API key format (v0.27: uses nika::core::validate_key_format).
 ///
-/// With spn-daemon feature: delegates to spn_core::validate_key_format
-/// Without: uses local validation rules
-#[cfg(feature = "spn-daemon")]
+/// Returns Ok(()) if valid, Err(reason) if invalid.
 pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
-    let result = spn_validate_key_format(provider, key);
-    if result.is_valid() {
+    use crate::core::{find_provider, validate_key_format as core_validate};
+
+    // Empty key is always invalid
+    if key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+
+    // Look up the provider
+    let Some(prov) = find_provider(provider) else {
+        // Unknown provider - accept any key format
+        return Ok(());
+    };
+
+    // Validate key format against provider's prefix requirement
+    if core_validate(prov, key) {
         Ok(())
     } else {
-        Err(result.to_string())
+        Err(format!(
+            "Invalid API key format for {}. Expected prefix: {}",
+            provider,
+            prov.key_prefix.unwrap_or("(any)")
+        ))
     }
-}
-
-#[cfg(not(feature = "spn-daemon"))]
-pub fn validate_key_format(provider: &str, key: &str) -> Result<(), String> {
-    if key.trim().is_empty() {
-        return Err("API key cannot be empty".into());
-    }
-
-    match provider {
-        "anthropic" => {
-            if !key.starts_with("sk-ant-") {
-                return Err("Anthropic keys start with 'sk-ant-'".into());
-            }
-            if key.len() < 40 {
-                return Err("Key seems too short".into());
-            }
-        }
-        "openai" => {
-            if !key.starts_with("sk-") {
-                return Err("OpenAI keys start with 'sk-'".into());
-            }
-        }
-        "mistral" | "groq" | "deepseek" => {
-            if key.len() < 32 {
-                return Err("Key seems too short".into());
-            }
-        }
-        "ollama" => {
-            // Ollama doesn't use API keys, but may use base URL
-        }
-        _ => {
-            if key.len() < 10 {
-                return Err("Key seems too short".into());
-            }
-        }
-    }
-    Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -354,35 +323,27 @@ mod tests {
 
     #[test]
     fn test_mask_api_key_standard() {
+        // v0.27: unified implementation - 8 chars + "..."
         let key = "sk-ant-api03-abc123xyz789def456ghi";
-        // spn-daemon uses spn_core::mask_key (7 chars + ••••••••)
-        // without feature uses local format (6 chars + ... + 1)
-        #[cfg(feature = "spn-daemon")]
-        assert_eq!(mask_api_key(key), "sk-ant-••••••••");
-        #[cfg(not(feature = "spn-daemon"))]
-        assert_eq!(mask_api_key(key), "sk-ant...i");
+        assert_eq!(mask_api_key(key), "sk-ant-a...");
     }
 
     #[test]
     fn test_mask_api_key_short() {
-        #[cfg(feature = "spn-daemon")]
-        {
-            assert_eq!(mask_api_key("short"), "short••••••••");
-            assert_eq!(mask_api_key("1234567890"), "1234567••••••••");
-        }
-        #[cfg(not(feature = "spn-daemon"))]
-        {
-            assert_eq!(mask_api_key("short"), "****");
-            assert_eq!(mask_api_key("1234567890"), "****");
-        }
+        // v0.27: keys <= 8 chars show "***"
+        assert_eq!(mask_api_key("short"), "***");
+        assert_eq!(mask_api_key("12345678"), "***");
+    }
+
+    #[test]
+    fn test_mask_api_key_boundary() {
+        // v0.27: exactly 9 chars shows first 8 + "..."
+        assert_eq!(mask_api_key("123456789"), "12345678...");
     }
 
     #[test]
     fn test_mask_api_key_empty() {
-        #[cfg(feature = "spn-daemon")]
-        assert_eq!(mask_api_key(""), "••••••••");
-        #[cfg(not(feature = "spn-daemon"))]
-        assert_eq!(mask_api_key(""), "****");
+        assert_eq!(mask_api_key(""), "***");
     }
 
     #[test]

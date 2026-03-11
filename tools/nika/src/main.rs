@@ -1411,33 +1411,38 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 // PROVIDER COMMAND (v0.12.1)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// All supported providers
+/// Get all LLM provider IDs (from nika::core::KNOWN_PROVIDERS).
+/// Replaces hardcoded ALL_PROVIDERS list (v0.27 spn fusion).
 #[cfg(feature = "tui")]
-const ALL_PROVIDERS: &[&str] = &[
-    "anthropic",
-    "openai",
-    "mistral",
-    "groq",
-    "deepseek",
-    "ollama",
-];
+fn llm_provider_ids() -> Vec<&'static str> {
+    use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
+    KNOWN_PROVIDERS
+        .iter()
+        .filter(|p| p.category == ProviderCategory::Llm)
+        .map(|p| p.id)
+        .collect()
+}
 
 /// Handle provider management commands
 #[cfg(feature = "tui")]
 async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
     use colored::Colorize;
+    use nika::core::provider_to_env_var; // v0.27: from nika::core instead of TUI module
     use nika::tui::widgets::provider_modal::{
-        mask_api_key, migrate_env_to_keyring, provider_env_var, validate_key_format, SpnKeyring,
+        mask_api_key, migrate_env_to_keyring, validate_key_format, SpnKeyring,
     };
     use std::io::{self, Write};
+
+    // Get LLM provider IDs from nika::core (v0.27 spn fusion)
+    let all_providers = llm_provider_ids();
 
     match action {
         ProviderAction::List => {
             println!("{}", "LLM Providers".bold());
             println!("{}", "─".repeat(60));
 
-            for provider in ALL_PROVIDERS {
-                let env_var = provider_env_var(provider);
+            for provider in &all_providers {
+                let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
                 let has_keychain = SpnKeyring::exists(provider);
                 let has_env = std::env::var(env_var).is_ok();
 
@@ -1484,13 +1489,13 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             key,
             prompt,
         } => {
-            // Validate provider name
-            if !ALL_PROVIDERS.contains(&provider.as_str()) {
+            // Validate provider name using nika::core (v0.27 spn fusion)
+            if !all_providers.contains(&provider.as_str()) {
                 return Err(NikaError::ValidationError {
                     reason: format!(
                         "Unknown provider '{}'. Valid: {}",
                         provider,
-                        ALL_PROVIDERS.join(", ")
+                        all_providers.join(", ")
                     ),
                 });
             }
@@ -1537,7 +1542,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                     println!("{}: {}", provider, masked);
                 }
                 None => {
-                    let env_var = provider_env_var(&provider);
+                    let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
                     match std::env::var(env_var) {
                         Ok(key) => {
                             println!("{}: {} (from env)", provider, mask_api_key(&key));
@@ -1582,7 +1587,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             println!("Testing connection to {}...", provider.bold());
 
             // First check if API key is configured
-            let env_var = provider_env_var(&provider);
+            let env_var = provider_to_env_var(&provider).unwrap_or("UNKNOWN_API_KEY");
             let has_key = SpnKeyring::exists(&provider)
                 || std::env::var(env_var).is_ok_and(|v| !v.is_empty());
 
@@ -1605,6 +1610,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                 "mistral" => RigProvider::mistral(),
                 "groq" => RigProvider::groq(),
                 "deepseek" => RigProvider::deepseek(),
+                "gemini" => RigProvider::gemini(), // v0.15.0
                 "ollama" => RigProvider::ollama(),
                 _ => {
                     return Err(NikaError::ValidationError {
