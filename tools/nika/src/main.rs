@@ -967,6 +967,52 @@ enum JobsAction {
 
     /// Reload daemon configuration
     Reload,
+
+    // === Background Job Commands (v0.27 spn fusion) ===
+    // These proxy to `spn jobs` for background workflow execution
+
+    /// Submit a workflow for background execution (v0.27 spn fusion)
+    ///
+    /// Returns a job ID that can be used to track status and output.
+    Submit {
+        /// Path to workflow file
+        workflow: PathBuf,
+
+        /// Additional workflow arguments
+        #[arg(trailing_var_arg = true)]
+        args: Vec<String>,
+
+        /// Optional job name (defaults to workflow filename)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Job priority (-10 to 10, higher = more priority)
+        #[arg(short, long, default_value = "0")]
+        priority: i32,
+    },
+
+    /// Cancel a running background job (v0.27 spn fusion)
+    Cancel {
+        /// Job ID to cancel
+        id: String,
+    },
+
+    /// Show output from a background job (v0.27 spn fusion)
+    Output {
+        /// Job ID
+        id: String,
+
+        /// Follow output in real-time (like tail -f)
+        #[arg(short, long)]
+        follow: bool,
+    },
+
+    /// Clear completed/failed background jobs (v0.27 spn fusion)
+    Clear {
+        /// Clear all jobs including running ones (use with caution)
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 /// Workflow management actions (v0.22+)
@@ -6071,6 +6117,159 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 
             if !quiet {
                 println!("{} Configuration reload signal sent", "✅".green());
+            }
+        }
+
+        // === Background Job Commands (v0.27 spn fusion) ===
+        // These proxy to `spn jobs` for background workflow execution
+
+        JobsAction::Submit {
+            workflow,
+            args,
+            name,
+            priority,
+        } => {
+            // Proxy to: spn jobs submit <workflow> [args...] [--name NAME] [--priority N]
+            let mut cmd_args = vec!["jobs", "submit"];
+            let workflow_str = workflow.to_string_lossy();
+            cmd_args.push(&workflow_str);
+
+            // Add workflow arguments
+            let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            cmd_args.extend(args_refs.iter());
+
+            let name_flag;
+            if let Some(n) = &name {
+                cmd_args.push("--name");
+                name_flag = n.clone();
+                cmd_args.push(&name_flag);
+            }
+
+            let priority_str = priority.to_string();
+            cmd_args.push("--priority");
+            cmd_args.push(&priority_str);
+
+            if !quiet {
+                println!(
+                    "{} Submitting workflow for background execution...",
+                    "📤".bold()
+                );
+            }
+
+            let status = std::process::Command::new("spn")
+                .args(&cmd_args)
+                .status()
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        eprintln!();
+                        eprintln!("Install spn CLI from:");
+                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                    }
+                    NikaError::InvalidConfig {
+                        message: format!("Failed to run spn jobs submit: {}", e),
+                    }
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::RuntimeError {
+                    reason: "spn jobs submit failed".to_string(),
+                });
+            }
+        }
+
+        JobsAction::Cancel { id } => {
+            // Proxy to: spn jobs cancel <id>
+            if !quiet {
+                println!("{} Cancelling job {}...", "🛑".bold(), id);
+            }
+
+            let status = std::process::Command::new("spn")
+                .args(["jobs", "cancel", &id])
+                .status()
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        eprintln!();
+                        eprintln!("Install spn CLI from:");
+                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                    }
+                    NikaError::InvalidConfig {
+                        message: format!("Failed to run spn jobs cancel: {}", e),
+                    }
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::RuntimeError {
+                    reason: format!("Failed to cancel job {}", id),
+                });
+            }
+        }
+
+        JobsAction::Output { id, follow } => {
+            // Proxy to: spn jobs output <id> [--follow]
+            let mut cmd_args = vec!["jobs", "output", &id];
+            if follow {
+                cmd_args.push("--follow");
+            }
+
+            // For output, we want to stream stdout/stderr directly
+            let status = std::process::Command::new("spn")
+                .args(&cmd_args)
+                .status()
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        eprintln!();
+                        eprintln!("Install spn CLI from:");
+                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                    }
+                    NikaError::InvalidConfig {
+                        message: format!("Failed to run spn jobs output: {}", e),
+                    }
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::RuntimeError {
+                    reason: format!("Failed to get output for job {}", id),
+                });
+            }
+        }
+
+        JobsAction::Clear { all } => {
+            // Proxy to: spn jobs clear [--all]
+            let mut cmd_args = vec!["jobs", "clear"];
+            if all {
+                cmd_args.push("--all");
+            }
+
+            if !quiet {
+                if all {
+                    println!("{} Clearing all jobs...", "🧹".bold());
+                } else {
+                    println!("{} Clearing completed/failed jobs...", "🧹".bold());
+                }
+            }
+
+            let status = std::process::Command::new("spn")
+                .args(&cmd_args)
+                .status()
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        eprintln!();
+                        eprintln!("Install spn CLI from:");
+                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                    }
+                    NikaError::InvalidConfig {
+                        message: format!("Failed to run spn jobs clear: {}", e),
+                    }
+                })?;
+
+            if !status.success() {
+                return Err(NikaError::RuntimeError {
+                    reason: "Failed to clear jobs".to_string(),
+                });
+            }
+
+            if !quiet {
+                println!("{} Jobs cleared successfully", "✅".green());
             }
         }
     }
