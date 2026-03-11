@@ -1124,14 +1124,78 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 None
                             }
                         } else if binding_str.contains("{{use.") {
-                            // Template format (e.g., "{{use.locales}}")
-                            // Extract alias from template pattern
+                            // Template format (e.g., "{{use.locales}}" or "{{use.data.nested.items}}")
+                            // Extract path from template pattern
                             if let Some(start) = binding_str.find("{{use.") {
                                 let after = &binding_str[start + 6..];
                                 if let Some(end) = after.find("}}") {
-                                    let alias = &after[..end];
+                                    let path = &after[..end];
+
+                                    // Split: first segment is alias, rest is nested path (v0.24.1 fix)
+                                    let mut parts = path.split('.');
+                                    let alias = parts.next().unwrap();
+
                                     match bindings.get_resolved(alias, &self.datastore) {
-                                        Ok(value) => value_to_array(&value),
+                                        Ok(base_value) => {
+                                            // v0.24.1: If base_value is a JSON string, parse it first
+                                            // This handles exec: tasks that output JSON as strings
+                                            let parsed_value: Value;
+                                            let working_value: &Value =
+                                                if let Some(s) = base_value.as_str() {
+                                                    let trimmed = s.trim();
+                                                    if (trimmed.starts_with('{')
+                                                        && trimmed.ends_with('}'))
+                                                        || (trimmed.starts_with('[')
+                                                            && trimmed.ends_with(']'))
+                                                    {
+                                                        if let Ok(parsed) =
+                                                            serde_json::from_str::<Value>(trimmed)
+                                                        {
+                                                            parsed_value = parsed;
+                                                            &parsed_value
+                                                        } else {
+                                                            &base_value
+                                                        }
+                                                    } else {
+                                                        &base_value
+                                                    }
+                                                } else {
+                                                    &base_value
+                                                };
+
+                                            // Traverse nested path if present
+                                            let mut value_ref: &Value = working_value;
+                                            let mut traversal_failed = false;
+
+                                            for segment in parts {
+                                                let next = if let Ok(idx) = segment.parse::<usize>()
+                                                {
+                                                    value_ref.get(idx)
+                                                } else {
+                                                    value_ref.get(segment)
+                                                };
+
+                                                match next {
+                                                    Some(v) => value_ref = v,
+                                                    None => {
+                                                        tracing::warn!(
+                                                            task_id = %task.id,
+                                                            path = %path,
+                                                            segment = %segment,
+                                                            "for_each nested path segment not found"
+                                                        );
+                                                        traversal_failed = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if traversal_failed {
+                                                None
+                                            } else {
+                                                value_to_array(value_ref)
+                                            }
+                                        }
                                         Err(e) => {
                                             self.datastore.insert(
                                                 intern(&task.id),
