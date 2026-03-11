@@ -2024,17 +2024,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Env var tests unreliable in parallel execution; run with --ignored"]
+    #[serial]
     fn test_rig_provider_auto_returns_none_when_no_keys() {
-        // Clear all API keys
-        // NOTE: This test requires isolation from parallel tests and user environment.
-        // Run with: cargo test --ignored test_rig_provider_auto_returns_none
-        std::env::remove_var("ANTHROPIC_API_KEY");
-        std::env::remove_var("OPENAI_API_KEY");
-        std::env::remove_var("MISTRAL_API_KEY");
-        std::env::remove_var("GROQ_API_KEY");
-        std::env::remove_var("DEEPSEEK_API_KEY");
-        std::env::remove_var("OLLAMA_API_BASE_URL");
+        // Clear all API keys - uses #[serial] for test isolation
+        clear_all_provider_env_vars();
 
         let provider = RigProvider::auto();
         assert!(provider.is_none());
