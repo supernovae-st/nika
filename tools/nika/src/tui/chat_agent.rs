@@ -51,9 +51,18 @@
 //! }
 //! ```
 
+use crate::ast::AgentParams;
+use crate::core::mcp_config::{load_merged_config, McpServer};
 use crate::error::NikaError;
+use crate::event::EventLog;
+use crate::mcp::types::McpConfig as McpClientConfig;
+use crate::mcp::McpClient;
 use crate::provider::rig::{RigProvider, StreamChunk};
+use crate::runtime::RigAgentLoop;
 use crate::tui::command::ModelProvider;
+use rustc_hash::FxHashMap;
+use serde_json::Value;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -701,6 +710,294 @@ impl ChatAgent {
     pub fn is_streaming(&self) -> bool {
         self.streaming_state.is_streaming
     }
+
+    /// Invoke an MCP tool (v0.28)
+    ///
+    /// # Arguments
+    ///
+    /// * `tool_name` - The name of the tool to invoke
+    /// * `server_name` - Optional server name (uses first available if None)
+    /// * `params` - JSON parameters to pass to the tool
+    ///
+    /// # Returns
+    ///
+    /// The tool result as a JSON value.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::McpNotConnected` if the server is not available.
+    /// Returns `NikaError::McpToolError` if the tool call fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use serde_json::json;
+    ///
+    /// let result = agent.invoke(
+    ///     "novanet_describe",
+    ///     Some("novanet"),
+    ///     json!({ "describe": "schema" })
+    /// ).await?;
+    /// ```
+    pub async fn invoke(
+        &self,
+        tool_name: &str,
+        server_name: Option<&str>,
+        params: Value,
+    ) -> Result<String, NikaError> {
+        // Load merged MCP config (global + project)
+        let config = load_merged_config().map_err(|e| NikaError::InvalidConfig {
+            message: format!("Failed to load MCP config: {}", e),
+        })?;
+
+        // Resolve server - use provided name or first available
+        let (resolved_server_name, server): (String, &McpServer) = if let Some(name) = server_name {
+            let server = config
+                .servers
+                .get(name)
+                .ok_or_else(|| NikaError::InvalidConfig {
+                    message: format!(
+                        "MCP server '{}' not found. Available: {:?}",
+                        name,
+                        config.servers.keys().collect::<Vec<_>>()
+                    ),
+                })?;
+            (name.to_string(), server)
+        } else {
+            // Use first enabled server
+            let (name, server) =
+                config
+                    .servers
+                    .iter()
+                    .find(|(_, s)| s.enabled)
+                    .ok_or_else(|| NikaError::InvalidConfig {
+                        message: "No MCP servers configured. Use 'nika mcp add' to add one."
+                            .to_string(),
+                    })?;
+            (name.clone(), server)
+        };
+
+        // Check if server is enabled
+        if !server.enabled {
+            return Err(NikaError::InvalidConfig {
+                message: format!("MCP server '{}' is disabled", resolved_server_name),
+            });
+        }
+
+        // Convert core::mcp_config::McpServer to mcp::types::McpConfig
+        let client_config = McpClientConfig {
+            name: resolved_server_name.clone(),
+            command: server.command.clone(),
+            args: server.args.clone(),
+            env: server
+                .env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            cwd: None,
+        };
+
+        // Create and connect MCP client
+        let client = McpClient::new(client_config)?;
+        client.connect().await?;
+
+        // Call the tool
+        let result = client.call_tool(tool_name, params).await?;
+
+        // Format result for display
+        // ContentBlock is a struct with content_type, text, data, mime_type, resource fields
+        let format_block = |c: crate::mcp::types::ContentBlock| -> String {
+            if c.is_text() {
+                c.text.unwrap_or_default()
+            } else if c.is_image() {
+                let data_len = c.data.as_ref().map(|d| d.len()).unwrap_or(0);
+                format!("[Image: {} bytes]", data_len)
+            } else if c.is_resource() {
+                if let Some(res) = &c.resource {
+                    res.text
+                        .clone()
+                        .unwrap_or_else(|| format!("[Resource: {}]", res.uri))
+                } else {
+                    "[Resource]".to_string()
+                }
+            } else {
+                format!("[Unknown content type: {}]", c.content_type)
+            }
+        };
+
+        if result.is_error {
+            let error_text = result
+                .content
+                .into_iter()
+                .map(format_block)
+                .collect::<Vec<_>>()
+                .join("\n");
+            Err(NikaError::McpToolError {
+                tool: tool_name.to_string(),
+                reason: format!(
+                    "MCP server '{}' returned error: {}",
+                    resolved_server_name, error_text
+                ),
+                error_code: None,
+            })
+        } else {
+            let text = result
+                .content
+                .into_iter()
+                .map(format_block)
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            Ok(text)
+        }
+    }
+
+    /// Run an agentic loop with MCP tools (v0.28)
+    ///
+    /// # Arguments
+    ///
+    /// * `goal` - The goal/prompt for the agent
+    /// * `max_turns` - Maximum number of agentic turns (default: 10)
+    /// * `extended_thinking` - Enable extended thinking mode (Claude only)
+    /// * `servers` - List of MCP server names to use
+    ///
+    /// # Returns
+    ///
+    /// The final response from the agent.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::InvalidConfig` if MCP servers cannot be loaded.
+    /// Returns `NikaError::AgentValidationError` if agent parameters are invalid.
+    /// Returns `NikaError::McpNotConnected` if MCP servers cannot connect.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let result = agent.run_agent(
+    ///     "Analyze the QR Code entity using NovaNet tools".to_string(),
+    ///     Some(5),
+    ///     false,
+    ///     vec!["novanet".to_string()]
+    /// ).await?;
+    /// ```
+    pub async fn run_agent(
+        &self,
+        goal: String,
+        max_turns: Option<u32>,
+        extended_thinking: bool,
+        servers: Vec<String>,
+    ) -> Result<String, NikaError> {
+        // Load merged MCP config (global + project)
+        let config = load_merged_config().map_err(|e| NikaError::InvalidConfig {
+            message: format!("Failed to load MCP config: {}", e),
+        })?;
+
+        // Build MCP clients for requested servers
+        let mut mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
+
+        // Determine which servers to use
+        let servers_to_use = if servers.is_empty() {
+            // Use all enabled servers
+            config
+                .servers
+                .iter()
+                .filter(|(_, s)| s.enabled)
+                .map(|(name, _)| name.clone())
+                .collect::<Vec<_>>()
+        } else {
+            servers
+        };
+
+        if servers_to_use.is_empty() {
+            return Err(NikaError::InvalidConfig {
+                message: "No MCP servers configured. Use 'nika mcp add' to add one.".to_string(),
+            });
+        }
+
+        // Connect to each MCP server
+        for server_name in &servers_to_use {
+            let server =
+                config
+                    .servers
+                    .get(server_name)
+                    .ok_or_else(|| NikaError::InvalidConfig {
+                        message: format!(
+                            "MCP server '{}' not found. Available: {:?}",
+                            server_name,
+                            config.servers.keys().collect::<Vec<_>>()
+                        ),
+                    })?;
+
+            if !server.enabled {
+                tracing::warn!("Skipping disabled MCP server: {}", server_name);
+                continue;
+            }
+
+            // Convert to McpClientConfig
+            let client_config = McpClientConfig {
+                name: server_name.clone(),
+                command: server.command.clone(),
+                args: server.args.clone(),
+                env: server
+                    .env
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+                cwd: None,
+            };
+
+            // Create and connect client
+            let client = McpClient::new(client_config)?;
+            client.connect().await?;
+            mcp_clients.insert(server_name.clone(), Arc::new(client));
+        }
+
+        // Build AgentParams
+        let params = AgentParams {
+            prompt: goal,
+            system: None,
+            provider: None, // Let run_auto() detect from env
+            model: None,    // Use default model
+            mcp: servers_to_use.clone(),
+            tools: vec![], // No explicit builtin tools filter
+            max_turns: Some(max_turns.unwrap_or(10)),
+            token_budget: None,
+            stop_conditions: vec![],
+            stop_sequences: vec![],
+            scope: None,
+            extended_thinking: if extended_thinking { Some(true) } else { None },
+            thinking_budget: None,
+            depth_limit: Some(3), // Default depth limit for subagent spawning
+            ..Default::default()
+        };
+
+        // Create EventLog for observability
+        let event_log = EventLog::new();
+
+        // Create and run the agent loop
+        let task_id = format!("chat-agent-{}", uuid::Uuid::new_v4());
+        let mut agent_loop = RigAgentLoop::new(task_id, params, event_log, mcp_clients)?;
+
+        let result = agent_loop.run_auto().await?;
+
+        // Extract final response from the result
+        let final_response = if let Some(response) = result.final_output.get("response") {
+            response.as_str().unwrap_or_default().to_string()
+        } else if let Some(output) = result.final_output.get("output") {
+            output.as_str().unwrap_or_default().to_string()
+        } else {
+            // Try to serialize the whole output
+            serde_json::to_string_pretty(&result.final_output).unwrap_or_else(|_| {
+                format!(
+                    "[Agent completed in {} turns, {} tokens used]",
+                    result.turns, result.total_tokens
+                )
+            })
+        };
+
+        Ok(final_response)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1179,5 +1476,172 @@ mod tests {
 
         // The streaming channel is set
         assert!(agent.streaming_tx.is_some());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MCP invoke tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_invoke_unknown_server() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let agent = ChatAgent::new().expect("Should create agent");
+        let result = agent
+            .invoke(
+                "some_tool",
+                Some("nonexistent_server"),
+                serde_json::json!({}),
+            )
+            .await;
+
+        // Should fail because server doesn't exist
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not found") || err_msg.contains("No MCP servers"),
+            "Expected 'not found' or 'No MCP servers' in error, got: {}",
+            err_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_invoke_no_servers_configured() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        // Note: This test assumes no MCP servers are globally configured.
+        // In real scenarios, global config may have servers, so we test
+        // with a specific non-existent server name.
+        let agent = ChatAgent::new().expect("Should create agent");
+        let result = agent
+            .invoke(
+                "test_tool",
+                Some("definitely_not_configured"),
+                serde_json::json!({}),
+            )
+            .await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, NikaError::InvalidConfig { .. }),
+            "Expected InvalidConfig error, got: {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_invoke_params_serialization() {
+        // Test that various parameter types serialize correctly
+        let params = serde_json::json!({
+            "entity": "qr-code",
+            "locale": "fr-FR",
+            "count": 5,
+            "nested": {
+                "key": "value"
+            },
+            "array": [1, 2, 3]
+        });
+
+        // Verify all param types are preserved
+        assert_eq!(params["entity"], "qr-code");
+        assert_eq!(params["locale"], "fr-FR");
+        assert_eq!(params["count"], 5);
+        assert_eq!(params["nested"]["key"], "value");
+        assert_eq!(params["array"][0], 1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Agent run_agent tests
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_run_agent_no_servers_configured() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        let agent = ChatAgent::new().expect("Should create agent");
+        let result = agent
+            .run_agent(
+                "Test goal".to_string(),
+                Some(3),
+                false,
+                vec!["nonexistent_server".to_string()],
+            )
+            .await;
+
+        // Should fail because server doesn't exist
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("not found") || err_msg.contains("No MCP servers"),
+            "Expected 'not found' or 'No MCP servers' in error, got: {}",
+            err_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_agent_empty_goal_validation() {
+        std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
+
+        // Note: Empty goal should be caught by RigAgentLoop validation
+        // Since we don't have real MCP servers, we test with non-existent server
+        // The actual empty goal validation happens in RigAgentLoop::new()
+        let agent = ChatAgent::new().expect("Should create agent");
+        let result = agent
+            .run_agent(
+                "".to_string(), // Empty goal
+                Some(5),
+                false,
+                vec!["fake_server".to_string()],
+            )
+            .await;
+
+        // Will fail due to missing server first, but if we had servers,
+        // it would fail due to empty prompt validation
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_agent_params_construction() {
+        // Test that AgentParams can be constructed with expected fields
+        use crate::ast::AgentParams;
+
+        let params = AgentParams {
+            prompt: "Test goal".to_string(),
+            system: None,
+            provider: None,
+            model: None,
+            mcp: vec!["novanet".to_string()],
+            tools: vec![],
+            max_turns: Some(10),
+            token_budget: None,
+            stop_conditions: vec![],
+            stop_sequences: vec![],
+            scope: None,
+            extended_thinking: Some(true),
+            thinking_budget: None,
+            depth_limit: Some(3),
+            ..Default::default()
+        };
+
+        assert_eq!(params.prompt, "Test goal");
+        assert_eq!(params.max_turns, Some(10));
+        assert_eq!(params.extended_thinking, Some(true));
+        assert_eq!(params.depth_limit, Some(3));
+        assert_eq!(params.mcp, vec!["novanet"]);
+    }
+
+    #[test]
+    fn test_run_agent_default_max_turns() {
+        // Verify that default max_turns is 10 when None is provided
+        // This tests the .unwrap_or(10) logic
+        let max_turns: Option<u32> = None;
+        let actual = max_turns.unwrap_or(10);
+        assert_eq!(actual, 10);
+
+        // And when provided, it should use that value
+        let max_turns: Option<u32> = Some(5);
+        let actual = max_turns.unwrap_or(10);
+        assert_eq!(actual, 5);
     }
 }

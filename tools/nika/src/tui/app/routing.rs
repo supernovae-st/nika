@@ -336,23 +336,87 @@ impl App {
                     }
                 });
             }
-            // TODO(v0.28): ChatInvoke requires MCP client integration
-            // Need to: 1) resolve server config, 2) connect McpClient, 3) call tool
-            ViewAction::ChatInvoke(tool, server, _params) => {
-                self.chat_view
-                    .add_user_message(format!("/invoke {} {:?}", tool, server));
-                self.set_status("Invoke requires MCP integration (not yet implemented)");
+            ViewAction::ChatInvoke(tool, server, params) => {
+                self.chat_view.add_user_message(format!(
+                    "/invoke {} {}",
+                    tool,
+                    server.as_deref().unwrap_or("(auto)")
+                ));
+                self.set_status("Invoking MCP tool...");
                 tracing::debug!("ChatInvoke: {} {:?}", tool, server);
+
+                let tx = self.stream_chunk_tx.clone();
+                let tool_clone = tool.clone();
+                let server_clone = server.clone();
+                let params_clone = params.clone();
+
+                self.spawn_tracked(async move {
+                    match ChatAgent::new() {
+                        Ok(agent) => {
+                            match agent
+                                .invoke(&tool_clone, server_clone.as_deref(), params_clone)
+                                .await
+                            {
+                                Ok(result) => {
+                                    let _ = tx.send(StreamChunk::Done(result)).await;
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx
+                                .send(StreamChunk::Error(format!(
+                                    "Failed to create ChatAgent: {}",
+                                    e
+                                )))
+                                .await;
+                        }
+                    }
+                });
             }
-            // TODO(v0.28): ChatAgent requires RigAgentLoop integration with MCP tools
-            // Need to: 1) build agent with tools, 2) run multi-turn loop
+            // ChatAgent: Run agentic loop with MCP tools (v0.28)
             ViewAction::ChatAgent(goal, max_turns, extended, servers) => {
                 self.chat_view.add_user_message(format!("/agent {}", goal));
-                self.set_status(&format!(
-                    "Agent mode requires RigAgentLoop (turns={:?}, ext={}, servers={:?})",
-                    max_turns, extended, servers
-                ));
-                tracing::debug!("ChatAgent: {}", goal);
+                self.set_status("Running agent...");
+                tracing::debug!(
+                    "ChatAgent: {} (turns={:?}, ext={}, servers={:?})",
+                    goal,
+                    max_turns,
+                    extended,
+                    servers
+                );
+
+                let tx = self.stream_chunk_tx.clone();
+                let goal_clone = goal.clone();
+                let servers_clone = servers.clone();
+
+                self.spawn_tracked(async move {
+                    match ChatAgent::new() {
+                        Ok(agent) => {
+                            match agent
+                                .run_agent(goal_clone, max_turns, extended, servers_clone)
+                                .await
+                            {
+                                Ok(result) => {
+                                    let _ = tx.send(StreamChunk::Done(result)).await;
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx
+                                .send(StreamChunk::Error(format!(
+                                    "Failed to create ChatAgent: {}",
+                                    e
+                                )))
+                                .await;
+                        }
+                    }
+                });
             }
             ViewAction::ChatClear => {
                 self.chat_view.messages.clear();
@@ -375,18 +439,16 @@ impl App {
             ViewAction::RunWorkflow(path) => {
                 self.run_workflow(path);
             }
-            ViewAction::OpenInStudio(path) => {
-                match self.studio_view.load_file(path.clone()) {
-                    Ok(()) => {
-                        self.switch_to_view(TuiView::Studio);
-                        self.set_status(&format!("Opened: {}", path.display()));
-                    }
-                    Err(e) => {
-                        self.set_status(&format!("Failed to open: {}", e));
-                        tracing::error!("OpenInStudio failed: {}", e);
-                    }
+            ViewAction::OpenInStudio(path) => match self.studio_view.load_file(path.clone()) {
+                Ok(()) => {
+                    self.switch_to_view(TuiView::Studio);
+                    self.set_status(&format!("Opened: {}", path.display()));
                 }
-            }
+                Err(e) => {
+                    self.set_status(&format!("Failed to open: {}", e));
+                    tracing::error!("OpenInStudio failed: {}", e);
+                }
+            },
             ViewAction::ValidateWorkflow(path) => {
                 self.set_status(&format!("Validating: {}", path.display()));
                 tracing::debug!("ValidateWorkflow: {}", path.display());
