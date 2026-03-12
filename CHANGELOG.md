@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-03-12
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.27.0 — spn→nika FEATURE FUSION                                    ║
+║  Unified CLI + Ollama removal + Security hardening                            ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ✨ NEW FEATURES:                                                              ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  • Unified CLI — all spn commands now available via `nika`                    ║
+║  • Core module — zero-dep provider/model/MCP definitions                      ║
+║  • WizardView — interactive setup in TUI (nika setup)                         ║
+║  • YAML bomb protection — SEC-001 via serde-saphyr Budget                     ║
+║                                                                               ║
+║  🔧 BREAKING CHANGES:                                                          ║
+║  ─────────────────────────────────────────────────────────────────────────    ║
+║  • Ollama provider REMOVED — use `provider: native` with mistral.rs           ║
+║  • spn CLI deprecated — shows warning directing to nika                       ║
+║                                                                               ║
+║  Tests: 6,157 passing | Zero clippy warnings | ARMADA CI green                ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Added
+
+#### Unified CLI (spn→nika Fusion)
+
+All spn features now available directly via nika commands:
+
+```bash
+# Provider management
+nika provider list        # Show all providers with status
+nika provider set claude  # Store API key in keychain
+nika provider test claude # Validate key with provider
+
+# Model management
+nika model list           # List available local models
+nika model pull llama3.2  # Download model from HuggingFace
+
+# MCP server management
+nika mcp add neo4j        # Add MCP server (48 aliases)
+nika mcp list             # List configured servers
+nika mcp test neo4j       # Test server connection
+
+# Editor sync
+nika sync                 # Sync to enabled editors
+nika sync --enable cursor # Enable editor
+
+# Interactive setup
+nika setup                # Interactive onboarding wizard
+nika setup nika           # Install Nika + LSP + Daemon
+```
+
+#### Core Module (`src/core/`)
+
+New zero-dependency module with provider/model/MCP definitions:
+
+- **KNOWN_PROVIDERS**: 6 LLM + 11 MCP providers with validation
+- **KNOWN_MODELS**: 16+ curated models for native inference
+- **MCP_ALIASES**: 48 MCP server aliases for auto-configuration
+
+#### WizardView for Interactive Setup
+
+New TUI wizard for first-time setup with step-by-step guidance.
+
+#### YAML Bomb Protection (SEC-001)
+
+Protection against malicious YAML payloads:
+- serde-saphyr with Budget limits
+- Prevents billion-laughs and zip-bomb attacks
+- Error code NIKA-054 for recursion limit exceeded
+
+### Changed
+
+#### Ollama Provider Removed
+
+**BREAKING:** Ollama is no longer supported. Use native inference instead:
+
+```yaml
+# Before (v0.26 and earlier)
+provider: ollama
+model: llama3.2
+
+# After (v0.27+)
+provider: native
+model: llama3.2:7b
+```
+
+Native inference provides:
+- Better performance via mistral.rs
+- Metal/CUDA acceleration
+- No external Ollama process needed
+
+### Fixed
+
+- TUI routing.rs TODOs resolved
+- Provider StreamChunk variants for native model operations
+- Dead code removal across DX audit
+- Clippy warnings in core and sync modules
+- Contract test cleanup
+
+### Deprecated
+
+- `spn` CLI — Use `nika` instead. Running `spn` shows deprecation warning.
+
 ## [0.26.0] - 2026-03-11
 
 ```
