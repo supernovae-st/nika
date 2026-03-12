@@ -1,6 +1,6 @@
 //! Lockfile parsing for exact package versions (v0.17+)
 //!
-//! Reads `spn.lock` to resolve exact package versions instead of using "latest".
+//! Reads `nika.lock` to resolve exact package versions instead of using "latest".
 //! This ensures reproducible builds and avoids version drift.
 //!
 //! # Format
@@ -68,7 +68,7 @@ impl Lockfile {
 
     /// Load lockfile from the current directory or a specified path.
     ///
-    /// Returns an empty lockfile if `spn.lock` doesn't exist.
+    /// Returns an empty lockfile if `nika.lock` doesn't exist.
     ///
     /// # Examples
     ///
@@ -84,7 +84,7 @@ impl Lockfile {
         let lockfile_path = if let Some(p) = path {
             p.to_path_buf()
         } else {
-            PathBuf::from("spn.lock")
+            PathBuf::from("nika.lock")
         };
 
         if !lockfile_path.exists() {
@@ -152,7 +152,7 @@ impl Lockfile {
         let lockfile_path = if let Some(p) = path {
             p.to_path_buf()
         } else {
-            PathBuf::from("spn.lock")
+            PathBuf::from("nika.lock")
         };
 
         let content = crate::serde_yaml::to_string(&self)
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn test_load_missing_file() {
         // Loading a non-existent file should return an empty lockfile
-        let result = Lockfile::load(Some(Path::new("/tmp/nonexistent-spn.lock")));
+        let result = Lockfile::load(Some(Path::new("/tmp/nonexistent-nika.lock")));
         assert!(result.is_ok());
         assert!(result.unwrap().packages.is_empty());
     }

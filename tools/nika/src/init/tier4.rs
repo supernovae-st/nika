@@ -2,7 +2,7 @@
 //!
 //! Prerequisites:
 //! - LLM provider configured
-//! - `spn mcp add novanet` (or other MCP server)
+//! - `nika mcp add novanet` (or other MCP server)
 //!
 //! Features covered:
 //! - mcp: Server configuration
@@ -24,16 +24,16 @@ pub const WORKFLOW_10_MCP_NOVANET: &str = r##"# ╔═════════�
 # ║  PREREQUISITES:                                                               ║
 # ║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
 # ║  │  # Add MCP server (NovaNet is our knowledge graph)                     │  ║
-# ║  │  spn mcp add novanet                                                   │  ║
+# ║  │  nika mcp add novanet                                                   │  ║
 # ║  │                                                                        │  ║
 # ║  │  # Or add other MCP servers                                            │  ║
-# ║  │  spn mcp add perplexity    # Web search                                │  ║
-# ║  │  spn mcp add filesystem    # File system access                        │  ║
-# ║  │  spn mcp add github        # GitHub integration                        │  ║
-# ║  │  spn mcp add slack         # Slack integration                         │  ║
+# ║  │  nika mcp add perplexity    # Web search                                │  ║
+# ║  │  nika mcp add filesystem    # File system access                        │  ║
+# ║  │  nika mcp add github        # GitHub integration                        │  ║
+# ║  │  nika mcp add slack         # Slack integration                         │  ║
 # ║  │                                                                        │  ║
 # ║  │  # Test MCP connection                                                 │  ║
-# ║  │  spn mcp test novanet                                                  │  ║
+# ║  │  nika mcp test novanet                                                  │  ║
 # ║  └─────────────────────────────────────────────────────────────────────────┘  ║
 # ║                                                                               ║
 # ║  MCP ARCHITECTURE:                                                            ║
@@ -98,7 +98,7 @@ workflow: mcp-novanet-demo
 # MCP SERVER CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 # Define the MCP servers this workflow uses.
-# Secrets like NEO4J_PASSWORD are resolved via `spn` daemon.
+# Secrets like NEO4J_PASSWORD are resolved via `nika` daemon.
 
 mcp:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ mcp:
       env:
         NEO4J_URI: bolt://localhost:7687
         NEO4J_USERNAME: neo4j
-        NEO4J_PASSWORD: "${spn:neo4j}"   # 🔐 Resolved by spn daemon
+        NEO4J_PASSWORD: "${nika:neo4j}"   # 🔐 Resolved by nika daemon
 
     # ─────────────────────────────────────────────────────────────────────────────
     # 🔍 Perplexity - Web Search (optional)
@@ -125,7 +125,7 @@ mcp:
     #   command: npx
     #   args: ["-y", "@anthropic/mcp-server-perplexity"]
     #   env:
-    #     PERPLEXITY_API_KEY: "${spn:perplexity}"
+    #     PERPLEXITY_API_KEY: "${nika:perplexity}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TASKS
@@ -344,7 +344,7 @@ flows:
 # │     command: npx                  # Executable                            │
 # │     args: ["-y", "@scope/pkg"]    # Arguments                             │
 # │     env:                          # Environment variables                 │
-# │       API_KEY: "${spn:key}"       # Resolved by spn daemon                │
+# │       API_KEY: "${nika:key}"       # Resolved by nika daemon               │
 # │       STATIC_VAR: "value"         # Static value                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
@@ -373,8 +373,8 @@ flows:
 # └────────────────────────┴───────────────────────────────────────────────────┘
 #
 # SETUP:
-# 1. spn mcp add novanet              # Add NovaNet server
-# 2. spn mcp test novanet             # Verify connection
+# 1. nika mcp add novanet              # Add NovaNet server
+# 2. nika mcp test novanet             # Verify connection
 # 3. Ensure Neo4j is running          # docker-compose up -d neo4j
 #
 # RUN THIS WORKFLOW:

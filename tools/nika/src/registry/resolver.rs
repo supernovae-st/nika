@@ -184,7 +184,7 @@ pub fn clear_cache() {
 /// ```
 /// use nika::registry::resolver;
 ///
-/// // After `spn add @workflows/seo-audit`, invalidate just that package
+/// // After `nika add @workflows/seo-audit`, invalidate just that package
 /// resolver::invalidate_package("@workflows/seo-audit");
 /// ```
 pub fn invalidate_package(name: &str) {

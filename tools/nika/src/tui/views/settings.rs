@@ -1,6 +1,6 @@
 //! Settings View - Provider configuration, theme, preferences (v0.21.2)
 //!
-//! 5-section layout for SPN integration:
+//! 5-section layout:
 //!
 //! ```text
 //! ╭───────────────────────────────────────────────────────────────────────────────╮
@@ -16,11 +16,11 @@
 //! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
 //! │  ┌─ 3. SECRETS ──────────────────────────────────────────────────────────┐    │
-//! │  │  Source: spn-daemon  |  Keychain: 5 entries                           │    │
+//! │  │  Source: daemon  |  Keychain: 5 entries                               │    │
 //! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
 //! │  ┌─ 4. PACKAGES ─────────────────────────────────────────────────────────┐    │
-//! │  │  Installed: @spn/core@1.0                                             │    │
+//! │  │  Installed: @nika/core@1.0                                            │    │
 //! │  └───────────────────────────────────────────────────────────────────────┘    │
 //! │                                                                               │
 //! │  ┌─ 5. PREFERENCES ──────────────────────────────────────────────────────┐    │
@@ -51,7 +51,7 @@ pub enum SettingsSection {
     Providers, // LLM + MCP status summary
     McpServers,  // Active MCP servers
     Secrets,     // Daemon status + keychain info
-    Packages,    // Installed via spn (future)
+    Packages,    // Installed packages (future)
     Preferences, // Theme + shortcuts merged
 }
 

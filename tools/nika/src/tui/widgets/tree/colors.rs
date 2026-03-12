@@ -134,15 +134,6 @@ impl TreeColors {
             | NodeKind::AgentsFolder
             | NodeKind::SkillsFolder => self.ecosystem,
 
-            // SPN CLI (orange)
-            NodeKind::SpnFolder
-            | NodeKind::SpnManifest
-            | NodeKind::SpnMcpConfig
-            | NodeKind::SpnPackages
-            | NodeKind::SpnRegistry
-            | NodeKind::SpnEnv
-            | NodeKind::SpnState => solarized::ORANGE,
-
             // NOVANET (magenta)
             NodeKind::NovanetFolder
             | NodeKind::BrainFolder
@@ -190,7 +181,6 @@ impl TreeColors {
             NodeKind::NikaWorkflow
             | NodeKind::SonAgent
             | NodeKind::SkillFile
-            | NodeKind::SpnManifest
             | NodeKind::ClaudeMd => self.ecosystem_glow,
 
             // Everything else uses node color
@@ -206,8 +196,6 @@ impl TreeColors {
                 | NodeKind::NikaFolder
                 | NodeKind::SonAgent
                 | NodeKind::SkillFile
-                | NodeKind::SpnFolder
-                | NodeKind::SpnManifest
                 | NodeKind::NovanetFolder
                 | NodeKind::ClaudeFolder
                 | NodeKind::ClaudeMd
@@ -257,19 +245,6 @@ mod tests {
     }
 
     #[test]
-    fn test_spn_node_color() {
-        let colors = TreeColors::solarized_dark();
-        assert_eq!(
-            colors.node_color(NodeKind::SpnFolder, false),
-            solarized::ORANGE
-        );
-        assert_eq!(
-            colors.node_color(NodeKind::SpnManifest, false),
-            solarized::ORANGE
-        );
-    }
-
-    #[test]
     fn test_novanet_node_color() {
         let colors = TreeColors::solarized_dark();
         assert_eq!(
@@ -299,7 +274,7 @@ mod tests {
     fn test_has_glow() {
         let colors = TreeColors::solarized_dark();
         assert!(colors.has_glow(NodeKind::NikaWorkflow));
-        assert!(colors.has_glow(NodeKind::SpnFolder));
+        assert!(colors.has_glow(NodeKind::NovanetFolder));
         assert!(colors.has_glow(NodeKind::ClaudeMd));
         assert!(!colors.has_glow(NodeKind::File));
         assert!(!colors.has_glow(NodeKind::Directory));

@@ -60,7 +60,7 @@ mod native {
     use super::*;
     use keyring::Entry;
 
-    /// Keyring wrapper for spn API keys (unified with supernovae-cli).
+    /// Keyring wrapper for Nika API keys.
     pub struct SpnKeyring;
 
     impl SpnKeyring {

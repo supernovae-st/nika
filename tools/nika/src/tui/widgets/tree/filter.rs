@@ -233,7 +233,7 @@ mod tests {
         assert!(filter.matches(&NodeKind::SonAgent));
         assert!(filter.matches(&NodeKind::SkillFile));
         assert!(filter.matches(&NodeKind::NikaFolder));
-        assert!(filter.matches(&NodeKind::SpnFolder));
+        assert!(filter.matches(&NodeKind::NovanetFolder));
         assert!(!filter.matches(&NodeKind::Rust));
         assert!(!filter.matches(&NodeKind::File));
     }

@@ -4,7 +4,7 @@
 //! 1. Config discovery (find .nika/)
 //! 2. Config validation (parse config.toml)
 //! 3. Memory loading (load memory files)
-//! 4. Secrets loading (load from spn daemon or fallback)
+//! 4. Secrets loading (load from nika daemon or fallback)
 //! 5. MCP server startup (launch configured servers)
 //! 6. Provider validation (check API keys)
 //! 7. Ready state
@@ -24,7 +24,7 @@ pub enum BootPhase {
     ConfigValidation,
     /// Phase 3: Loading memory files
     MemoryLoading,
-    /// Phase 4: Loading secrets from spn daemon (v0.20)
+    /// Phase 4: Loading secrets from nika daemon (v0.20)
     SecretsLoading,
     /// Phase 5: Starting MCP servers
     McpStartup,
@@ -343,7 +343,7 @@ impl BootSequence {
         let phase_result = self.phase_memory_loading(&mut ctx).await;
         ctx.phases.push(phase_result);
 
-        // Phase 4: Secrets Loading (v0.20 - spn daemon integration)
+        // Phase 4: Secrets Loading (v0.20 - daemon integration)
         let phase_result = self.phase_secrets_loading(&mut ctx).await;
         ctx.phases.push(phase_result);
 
@@ -516,7 +516,7 @@ impl BootSequence {
         }
     }
 
-    /// Phase 4: Load secrets from spn daemon or fallback (v0.20)
+    /// Phase 4: Load secrets from nika daemon or fallback (v0.20)
     async fn phase_secrets_loading(&self, ctx: &mut BootContext) -> PhaseResult {
         let start = Instant::now();
         let mut warnings = vec![];
@@ -525,7 +525,7 @@ impl BootSequence {
         let result = crate::secrets::load_from_daemon_or_fallback().await;
 
         if !result.daemon_available {
-            warnings.push("spn daemon not running, using fallback".into());
+            warnings.push("nika daemon not running, using fallback".into());
         }
 
         let message = if result.daemon_available {

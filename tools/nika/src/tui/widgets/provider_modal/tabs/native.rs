@@ -103,7 +103,7 @@ impl<'a> NativeTab<'a> {
                     )),
                     Line::from(""),
                     Line::from(Span::styled(
-                        "Download models with: spn model pull llama3.2:1b",
+                        "Download models with: nika model pull llama3.2:1b",
                         Style::default().fg(COLOR_TEXT),
                     )),
                 ]

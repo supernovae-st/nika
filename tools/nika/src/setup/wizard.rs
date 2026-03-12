@@ -331,13 +331,13 @@ servers: {}
 #     env:
 #       NEO4J_URI: bolt://localhost:7687
 #       NEO4J_USERNAME: neo4j
-#       NEO4J_PASSWORD: ${spn:neo4j}
+#       NEO4J_PASSWORD: ${nika:neo4j}
 #
 #   perplexity:
 #     command: npx
 #     args: ["-y", "@anthropic/mcp-server-perplexity"]
 #     env:
-#       PERPLEXITY_API_KEY: ${spn:perplexity}
+#       PERPLEXITY_API_KEY: ${nika:perplexity}
 "#;
 
     std::fs::write(path, content).map_err(|e| NikaError::IoPathError {

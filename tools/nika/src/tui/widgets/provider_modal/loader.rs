@@ -143,7 +143,7 @@ impl ModalLoader {
                     let tx = event_tx.clone();
 
                     // v0.27: Native models are loaded from HuggingFace cache
-                    // For now, return empty list - actual model discovery happens via spn model list
+                    // For now, return empty list - actual model discovery happens via nika model list
                     tokio::spawn(async move {
                         // TODO: Implement native model discovery from HuggingFace cache
                         let models: Vec<NativeModelInfo> = Vec::new();

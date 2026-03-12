@@ -5,7 +5,7 @@
 //! simplify everyday tasks - from morning briefings to meal planning.
 //!
 //! Prerequisites:
-//! - spn provider set anthropic (or openai/mistral/groq)
+//! - nika provider set anthropic (or openai/mistral/groq)
 //! - Optional: Various API keys for external services
 
 use super::WorkflowTemplate;

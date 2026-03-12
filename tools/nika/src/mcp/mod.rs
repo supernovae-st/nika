@@ -94,7 +94,7 @@ pub use validation::{
     CacheStats, CachedSchema, ErrorEnhancer, McpValidator, ToolSchemaCache, ValidationConfig,
     ValidationError, ValidationErrorKind, ValidationResult,
 };
-// spn CLI integration
+// MCP config loading
 pub use spn_config::{
     list_spn_mcp_servers, load_spn_mcp_servers, load_spn_mcp_servers_by_name,
     load_spn_mcp_servers_with_manager, spn_mcp_config_exists, SpnMcpConfig, SpnMcpConfigManager,

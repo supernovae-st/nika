@@ -7,9 +7,9 @@
 //! Workflows are organized into 6 tiers of increasing complexity:
 //!
 //! - **Tier 1 (01-03)**: Zero dependencies - works immediately
-//! - **Tier 2 (04-07)**: Requires LLM provider (`spn provider set anthropic`)
+//! - **Tier 2 (04-07)**: Requires LLM provider (`nika provider set anthropic`)
 //! - **Tier 3 (08-09)**: Agent with file tools
-//! - **Tier 4 (10)**: MCP integration (`spn mcp add novanet`)
+//! - **Tier 4 (10)**: MCP integration (`nika mcp add novanet`)
 //! - **Tier 5 (11-20)**: Developer use cases (complex DAGs)
 //! - **Tier 6 (21-30)**: Everyday magic (non-tech use cases)
 //!
@@ -109,14 +109,14 @@ pub const WORKFLOWS_README: &str = r#"# Nika Example Workflows
 nika run workflows/tier-1-no-deps/01-exec-basics.nika.yaml
 
 # Tier 2: Setup LLM provider first
-spn provider set anthropic       # or: openai, mistral, groq, deepseek, gemini
+nika provider set anthropic       # or: openai, mistral, groq, deepseek, gemini
 nika run workflows/tier-2-llm/04-infer-basics.nika.yaml
 
 # Tier 3: Agent with file tools
 nika run workflows/tier-3-agent/08-agent-basic.nika.yaml
 
 # Tier 4: MCP integration (requires NovaNet)
-spn mcp add novanet
+nika mcp add novanet
 nika run workflows/tier-4-mcp/10-mcp-novanet.nika.yaml
 
 # Tier 5-6: Complex use cases
@@ -129,9 +129,9 @@ nika run workflows/tier-6-magic/21-morning-briefing.nika.yaml
 | Tier | Folder | Workflows | Prerequisites | Features |
 |------|--------|-----------|---------------|----------|
 | 1 | `tier-1-no-deps/` | 01-03 | None | exec, fetch, builtins |
-| 2 | `tier-2-llm/` | 04-07 | `spn provider set <name>` | infer, DAG, for_each, context |
+| 2 | `tier-2-llm/` | 04-07 | `nika provider set <name>` | infer, DAG, for_each, context |
 | 3 | `tier-3-agent/` | 08-09 | LLM provider | agent, file tools, artifacts |
-| 4 | `tier-4-mcp/` | 10 | `spn mcp add novanet` | MCP, NovaNet, invoke |
+| 4 | `tier-4-mcp/` | 10 | `nika mcp add novanet` | MCP, NovaNet, invoke |
 | 5 | `tier-5-dev/` | 11-20 | LLM + optional MCP | Complex DAGs, real dev workflows |
 | 6 | `tier-6-magic/` | 21-30 | LLM | Everyday automation, marketing, fun |
 
@@ -139,15 +139,15 @@ nika run workflows/tier-6-magic/21-morning-briefing.nika.yaml
 
 ```bash
 # Check available providers
-spn provider list
+nika provider list
 
 # Set your preferred provider (pick one)
-spn provider set anthropic       # Claude (recommended)
-spn provider set openai          # GPT-4
-spn provider set mistral         # Mistral Large
-spn provider set groq            # Groq (fast, free tier)
-spn provider set deepseek        # DeepSeek
-spn provider set gemini          # Google Gemini
+nika provider set anthropic       # Claude (recommended)
+nika provider set openai          # GPT-4
+nika provider set mistral         # Mistral Large
+nika provider set groq            # Groq (fast, free tier)
+nika provider set deepseek        # DeepSeek
+nika provider set gemini          # Google Gemini
 ```
 
 ## Local Models (Native Inference)
@@ -156,12 +156,12 @@ Run LLMs locally without API keys using Nika's native mistral.rs runtime:
 
 ```bash
 # Download a GGUF model (e.g., from HuggingFace)
-spn model pull llama3.2:1b           # Small, fast
-spn model pull mistral:7b-instruct   # Good balance
-spn model pull qwen2.5:7b            # Multilingual
+nika model pull llama3.2:1b           # Small, fast
+nika model pull mistral:7b-instruct   # Good balance
+nika model pull qwen2.5:7b            # Multilingual
 
 # List installed models
-spn model list
+nika model list
 ```
 
 Use in workflows with `provider: native`:
@@ -186,10 +186,10 @@ tasks:
 
 ```bash
 # Add NovaNet MCP server
-spn mcp add novanet
+nika mcp add novanet
 
 # Verify MCP connection
-spn mcp test novanet
+nika mcp test novanet
 ```
 
 ## Workflow Index
@@ -239,7 +239,7 @@ spn mcp test novanet
 ## Learn More
 
 - [Nika Documentation](https://github.com/supernovae-studio/nika)
-- [spn CLI](https://github.com/supernovae-studio/spn)
+- [Nika CLI](https://github.com/supernovae-studio/nika)
 - [NovaNet](https://github.com/supernovae-studio/novanet)
 "#;
 

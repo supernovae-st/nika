@@ -33,10 +33,6 @@
 //! └── nika.lock            # Lockfile (exact versions)
 //! ```
 //!
-//! ## Migration from ~/.spn
-//!
-//! This module replaces the previous `~/.spn/` directory structure.
-//! See `migration.rs` for the automatic migration logic.
 
 use std::path::PathBuf;
 
@@ -265,54 +261,6 @@ pub fn ensure_project_nika_dir(project_root: &std::path::Path) -> std::io::Resul
     std::fs::create_dir_all(&nika_dir)?;
     std::fs::create_dir_all(nika_dir.join("sessions"))?;
     Ok(())
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LEGACY PATH DETECTION (for migration)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Legacy spn home environment variable (for migration detection).
-pub const LEGACY_SPN_HOME_ENV: &str = "SPN_HOME";
-
-/// Legacy spn directory name.
-pub const LEGACY_SPN_DIR_NAME: &str = ".spn";
-
-/// Returns the legacy spn home directory path, if it exists.
-///
-/// Used by the migration module to detect existing `~/.spn/` installations.
-pub fn legacy_spn_home() -> Option<PathBuf> {
-    // Check for environment override first
-    // If explicitly set, don't fall back to default (even if path doesn't exist)
-    // This ensures tests can isolate themselves from the real ~/.spn
-    if let Ok(custom_home) = std::env::var(LEGACY_SPN_HOME_ENV) {
-        let path = PathBuf::from(custom_home);
-        return if path.exists() { Some(path) } else { None };
-    }
-
-    // Check default location
-    dirs::home_dir()
-        .map(|h| h.join(LEGACY_SPN_DIR_NAME))
-        .filter(|p| p.exists())
-}
-
-/// Returns the legacy spn lockfile path (`spn.lock`), if it exists.
-pub fn legacy_spn_lockfile(project_root: &std::path::Path) -> Option<PathBuf> {
-    let path = project_root.join("spn.lock");
-    if path.exists() {
-        Some(path)
-    } else {
-        None
-    }
-}
-
-/// Returns the legacy spn manifest path (`spn.yaml`), if it exists.
-pub fn legacy_spn_manifest(project_root: &std::path::Path) -> Option<PathBuf> {
-    let path = project_root.join("spn.yaml");
-    if path.exists() {
-        Some(path)
-    } else {
-        None
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -552,57 +500,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_legacy_spn_home_not_exists() {
-        // When ~/.spn doesn't exist, should return None
-        let old_val = env::var(LEGACY_SPN_HOME_ENV).ok();
-        env::remove_var(LEGACY_SPN_HOME_ENV);
-
-        let legacy = legacy_spn_home();
-        // This might return Some if ~/.spn actually exists on the system
-        // So we just verify it returns an Option
-        let _ = legacy;
-
-        if let Some(val) = old_val {
-            env::set_var(LEGACY_SPN_HOME_ENV, val);
-        }
-    }
-
-    #[test]
-    fn test_legacy_spn_lockfile_not_exists() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let lockfile = legacy_spn_lockfile(temp_dir.path());
-        assert!(lockfile.is_none());
-    }
-
-    #[test]
-    fn test_legacy_spn_lockfile_exists() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::fs::write(temp_dir.path().join("spn.lock"), "# lockfile").unwrap();
-
-        let lockfile = legacy_spn_lockfile(temp_dir.path());
-        assert!(lockfile.is_some());
-        assert!(lockfile.unwrap().ends_with("spn.lock"));
-    }
-
-    #[test]
-    fn test_legacy_spn_manifest_not_exists() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let manifest = legacy_spn_manifest(temp_dir.path());
-        assert!(manifest.is_none());
-    }
-
-    #[test]
-    fn test_legacy_spn_manifest_exists() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::fs::write(temp_dir.path().join("spn.yaml"), "# manifest").unwrap();
-
-        let manifest = legacy_spn_manifest(temp_dir.path());
-        assert!(manifest.is_some());
-        assert!(manifest.unwrap().ends_with("spn.yaml"));
-    }
-
-    #[test]
     fn test_constants() {
         assert_eq!(NIKA_HOME_ENV, "NIKA_HOME");
         assert_eq!(NIKA_DIR_NAME, ".nika");
@@ -614,7 +511,5 @@ mod tests {
         assert_eq!(REGISTRY_INDEX, "registry.yaml");
         assert_eq!(DAEMON_SOCKET, "nika.sock");
         assert_eq!(DAEMON_PID, "nika.pid");
-        assert_eq!(LEGACY_SPN_HOME_ENV, "SPN_HOME");
-        assert_eq!(LEGACY_SPN_DIR_NAME, ".spn");
     }
 }

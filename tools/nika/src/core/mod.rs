@@ -44,11 +44,10 @@
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! ## Migration from spn-core/spn-native
+//! ## Architecture
 //!
-//! This module is part of the spn→nika feature fusion (v0.27.0). Previously,
-//! these types were in `spn-core` and `spn-native` crates. Now they live directly
-//! in nika, removing the spn dependency entirely.
+//! This is the core module for Nika (v0.27+). All provider, model, and MCP
+//! definitions are defined directly in this module with zero external dependencies.
 //!
 //! ## Usage
 //!
@@ -73,7 +72,6 @@
 pub mod backend;
 pub mod mcp_aliases;
 pub mod mcp_config;
-pub mod migration;
 pub mod models;
 pub mod paths;
 pub mod providers;
@@ -106,7 +104,7 @@ pub use storage::{
     default_model_dir, detect_system_ram_gb, extract_quantization, HuggingFaceStorage, StorageError,
 };
 
-// Path utilities (v0.28 - ~/.nika branding)
+// Path utilities
 pub use paths::{
     // Directory paths
     backups_dir,
@@ -119,10 +117,6 @@ pub use paths::{
     ensure_nika_home,
     ensure_project_nika_dir,
     global_mcp_config_path,
-    // Legacy detection
-    legacy_spn_home,
-    legacy_spn_lockfile,
-    legacy_spn_manifest,
     models_dir,
     // Home directory
     nika_home,
@@ -142,8 +136,6 @@ pub use paths::{
     DAEMON_PID,
     DAEMON_SOCKET,
     GLOBAL_CONFIG,
-    LEGACY_SPN_DIR_NAME,
-    LEGACY_SPN_HOME_ENV,
     MCP_CONFIG,
     NIKA_DIR_NAME,
     NIKA_HOME_ENV,
@@ -154,9 +146,3 @@ pub use paths::{
 };
 // Note: global_config_path is exported from paths module but accessed via paths::global_config_path
 // to avoid conflict with mcp_config::global_config_path
-
-// Migration utilities (v0.28 - ~/.spn → ~/.nika)
-pub use migration::{
-    check_migration_status, check_project_migration, migrate_global_home, migrate_project,
-    print_migration_prompt, MigrationResult, MigrationStatus, ProjectMigrationStatus,
-};

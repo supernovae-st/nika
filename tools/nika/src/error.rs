@@ -602,7 +602,7 @@ pub enum NikaError {
     #[error("[NIKA-261] Package '{name}@{version}' not found in registry")]
     #[diagnostic(
         code(nika::package_not_found),
-        help("Install the package with: spn pkg install {name}@{version}")
+        help("Install the package with: nika pkg install {name}@{version}")
     )]
     PackageNotFound { name: String, version: String },
 
@@ -1107,7 +1107,7 @@ impl FixSuggestion for NikaError {
             ),
             // Package errors (v0.16.0)
             NikaError::PackageNotFound { .. } => Some(
-                "Check package name and version. Run 'spn pkg list' to see installed packages.",
+                "Check package name and version. Run 'nika pkg list' to see installed packages.",
             ),
             // Policy errors (v0.13.1)
             NikaError::PolicyViolation { .. } => Some(

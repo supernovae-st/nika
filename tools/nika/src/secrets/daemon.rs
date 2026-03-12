@@ -1,6 +1,6 @@
 //! Daemon integration for secrets management.
 //!
-//! Uses spn-client for IPC communication with the spn daemon.
+//! Uses spn-client for IPC communication with the nika daemon.
 //! The daemon is the SOLE keychain accessor to prevent macOS popups.
 
 use crate::core::KNOWN_PROVIDERS;
@@ -23,13 +23,13 @@ async fn get_or_init_client() -> Option<&'static Mutex<Option<SpnClient>>> {
                 let is_fallback = client.is_fallback_mode();
                 let _ = CLIENT.set(Mutex::new(Some(client)));
                 if is_fallback {
-                    warn!("spn daemon not running, using env var fallback");
+                    warn!("nika daemon not running, using env var fallback");
                 } else {
-                    debug!("Connected to spn daemon");
+                    debug!("Connected to nika daemon");
                 }
             }
             Err(e) => {
-                warn!("Failed to connect to spn daemon: {}", e);
+                warn!("Failed to connect to nika daemon: {}", e);
                 let _ = CLIENT.set(Mutex::new(None));
             }
         }

@@ -3,7 +3,7 @@
 //! Loads MCP server configurations from `~/.nika/mcp.yaml` - the single source
 //! of truth for MCP servers in the SuperNovae ecosystem.
 //!
-//! This module bridges the spn CLI's MCP configuration with Nika's MCP client,
+//! This module bridges the global MCP configuration with Nika's MCP client,
 //! allowing workflows to use globally configured MCP servers without duplication.
 //!
 //! ## Usage
@@ -44,14 +44,14 @@
 //!
 //! ## Integration with Nika Workflows
 //!
-//! Workflows can use spn-configured servers by name:
+//! Workflows can use globally-configured servers by name:
 //!
 //! ```yaml
 //! schema: nika/workflow@0.9
 //! workflow: example
 //!
-//! # Optional: explicitly list which spn servers to use
-//! # If omitted, all enabled spn servers are available
+//! # Optional: explicitly list which servers to use
+//! # If omitted, all enabled servers are available
 //! spn_servers:
 //!   - neo4j
 //!   - novanet
@@ -81,7 +81,7 @@ use crate::serde_yaml;
 
 /// Root configuration for MCP servers from `~/.nika/mcp.yaml`.
 ///
-/// This mirrors the structure used by the `spn` CLI.
+/// This mirrors the structure used by the Nika CLI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpnMcpConfig {
     /// Configuration version for migrations.
@@ -97,7 +97,7 @@ fn default_version() -> u32 {
     1
 }
 
-/// Individual MCP server configuration from spn.
+/// Individual MCP server configuration.
 ///
 /// This is the format used in `~/.nika/mcp.yaml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,7 +156,7 @@ impl SpnMcpServer {
             command: self.command.clone(),
             args: self.args.clone(),
             env,
-            cwd: None, // spn doesn't have cwd, default to None
+            cwd: None, // mcp.yaml doesn't have cwd, default to None
         }
     }
 }
@@ -165,7 +165,7 @@ impl SpnMcpServer {
 // Configuration Manager
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Manager for loading MCP configurations from spn files.
+/// Manager for loading MCP configurations from config files.
 ///
 /// Handles reading from:
 /// - Global: `~/.nika/mcp.yaml`
@@ -261,15 +261,11 @@ impl SpnMcpConfigManager {
         }
 
         let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
-            reason: format!(
-                "Failed to read spn MCP config at '{}': {}",
-                path.display(),
-                e
-            ),
+            reason: format!("Failed to read MCP config at '{}': {}", path.display(), e),
         })?;
 
         serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
-            details: format!("Invalid spn MCP config YAML at '{}': {}", path.display(), e),
+            details: format!("Invalid MCP config YAML at '{}': {}", path.display(), e),
         })
     }
 }
@@ -369,7 +365,7 @@ pub fn load_spn_mcp_servers_by_name(
             .collect();
         return Err(NikaError::ConfigError {
             reason: format!(
-                "MCP server(s) not found in spn config: [{}]. Available: [{}]",
+                "MCP server(s) not found in config: [{}]. Available: [{}]",
                 missing.join(", "),
                 available.join(", ")
             ),
@@ -379,7 +375,7 @@ pub fn load_spn_mcp_servers_by_name(
     Ok(servers)
 }
 
-/// Check if the spn MCP config file exists.
+/// Check if the MCP config file exists.
 ///
 /// Returns true if ~/.nika/mcp.yaml exists.
 pub fn spn_mcp_config_exists() -> bool {
@@ -661,12 +657,12 @@ servers:
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Tests for spn ↔ Nika secrets sharing
+    // Tests for secrets sharing
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_secrets_env_var_references_preserved() {
-        // Verify that ${VAR} references from spn are preserved when loading into Nika
+        // Verify that ${VAR} references are preserved when loading
         let yaml = r#"
 version: 1
 servers:

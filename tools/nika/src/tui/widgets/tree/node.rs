@@ -1,7 +1,7 @@
 //! Tree Node Types
 //!
 //! Defines `TreeNode` and `NodeKind` for the enhanced tree view.
-//! Includes SuperNovae ecosystem detection for .nika.yaml, .son, .spn/, .novanet/ files.
+//! Includes SuperNovae ecosystem detection for .nika.yaml, .son, .nika/, .novanet/ files.
 //!
 //! ## Features
 //! - Recursive tree building with `build_tree()`
@@ -406,22 +406,6 @@ pub enum NodeKind {
     /// skills/ - Skills folder
     SkillsFolder,
 
-    // SPN CLI (Legacy, migrating to .nika/) ⚡
-    /// ~/.spn/ - Legacy SPN config (Violet glow, deprecating)
-    SpnFolder,
-    /// manifest.toml - System manifest
-    SpnManifest,
-    /// mcp.yaml - MCP servers config
-    SpnMcpConfig,
-    /// packages/ - Installed packages
-    SpnPackages,
-    /// registry.yaml - Package registry
-    SpnRegistry,
-    /// env - Environment vars (secrets)
-    SpnEnv,
-    /// state.json - CLI state
-    SpnState,
-
     // NOVANET (Brain - Knowledge Graph) 🧠
     /// .novanet/ - NovaNet config (Sky glow)
     NovanetFolder,
@@ -519,25 +503,6 @@ impl NodeKind {
             return Self::NikaFolder;
         }
 
-        // SPN CLI ⚡
-        if name == ".spn" && is_dir {
-            return Self::SpnFolder;
-        }
-        if name == "manifest.toml" {
-            // Check if parent is .spn
-            if let Some(parent) = path.parent() {
-                if parent.file_name() == Some(".spn") {
-                    return Self::SpnManifest;
-                }
-            }
-        }
-        if name == "mcp.yaml" {
-            return Self::SpnMcpConfig;
-        }
-        if name == "registry.yaml" {
-            return Self::SpnRegistry;
-        }
-
         // NOVANET (Brain) 🧠
         if name == ".novanet" && is_dir {
             return Self::NovanetFolder;
@@ -563,7 +528,7 @@ impl NodeKind {
                 "workflows" => Self::WorkflowsFolder,
                 "agents" => Self::AgentsFolder,
                 "skills" => Self::SkillsFolder,
-                "packages" => Self::SpnPackages,
+                "packages" => Self::Directory, // Generic packages folder
                 "models" => Self::ModelsFolder,
                 "seed" => Self::SeedFolder,
 
@@ -592,8 +557,6 @@ impl NodeKind {
             "ROADMAP.md" => Self::Roadmap,
             "Cargo.toml" => Self::CargoToml,
             "package.json" => Self::PackageJson,
-            "env" => Self::SpnEnv,
-            "state.json" => Self::SpnState,
             _ => {
                 // By extension
                 let ext = path.extension().unwrap_or("");
@@ -626,15 +589,6 @@ impl NodeKind {
             Self::WorkflowsFolder => "⚡", // Workflows
             Self::AgentsFolder => "🐔",    // Agents
             Self::SkillsFolder => "📚",    // Skills
-
-            // SPN CLI ⚡
-            Self::SpnFolder => "⚡",    // SPN
-            Self::SpnManifest => "📋",  // Manifest
-            Self::SpnMcpConfig => "🔌", // MCP
-            Self::SpnPackages => "📦",  // Packages
-            Self::SpnRegistry => "📦",  // Registry
-            Self::SpnEnv => "🔐",       // Secrets
-            Self::SpnState => "📊",     // State
 
             // NOVANET 🧠
             Self::NovanetFolder => "🧠", // Brain
@@ -694,15 +648,6 @@ impl NodeKind {
             Self::AgentsFolder => "󰚩",
             Self::SkillsFolder => "󰛨",
 
-            // SPN
-            Self::SpnFolder => "󰒓",
-            Self::SpnManifest => "󰒓",
-            Self::SpnMcpConfig => "󱐋",
-            Self::SpnPackages => "󰏖",
-            Self::SpnRegistry => "󰏖",
-            Self::SpnEnv => "󰌆",
-            Self::SpnState => "󰘦",
-
             // NOVANET
             Self::NovanetFolder => "󰠗",
             Self::BrainFolder => "󰠗",
@@ -752,8 +697,6 @@ impl NodeKind {
                 | Self::NikaFolder
                 | Self::SonAgent
                 | Self::SkillFile
-                // SPN
-                | Self::SpnFolder
                 // NOVANET
                 | Self::NovanetFolder
                 // CLAUDE
@@ -774,7 +717,6 @@ impl NodeKind {
         matches!(
             self,
             Self::NikaFolder
-                | Self::SpnFolder
                 | Self::NovanetFolder
                 | Self::ClaudeFolder
                 | Self::Directory
@@ -786,7 +728,6 @@ impl NodeKind {
                 | Self::WorkflowsFolder
                 | Self::AgentsFolder
                 | Self::SkillsFolder
-                | Self::SpnPackages
                 | Self::BrainFolder
                 | Self::ModelsFolder
                 | Self::SeedFolder
@@ -842,7 +783,6 @@ mod tests {
         assert!(NodeKind::NikaWorkflow.is_ecosystem());
         assert!(NodeKind::SonAgent.is_ecosystem());
         assert!(NodeKind::NikaFolder.is_ecosystem());
-        assert!(NodeKind::SpnFolder.is_ecosystem());
         assert!(NodeKind::NovanetFolder.is_ecosystem());
         assert!(!NodeKind::Rust.is_ecosystem());
         assert!(!NodeKind::Directory.is_ecosystem());

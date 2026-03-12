@@ -3,7 +3,7 @@
 /// Result of loading secrets.
 #[derive(Debug, Clone, Default)]
 pub struct SecretsLoadResult {
-    /// Providers loaded from spn daemon.
+    /// Providers loaded from nika daemon.
     pub from_daemon: Vec<String>,
     /// Providers loaded from fallback (keyring/env).
     pub from_fallback: Vec<String>,

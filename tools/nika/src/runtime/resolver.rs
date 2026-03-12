@@ -160,7 +160,7 @@ async fn resolve_agent(
                     NikaError::ContextLoadError {
                         alias: name.to_string(),
                         path: from.clone(),
-                        reason: format!("Package not found: {}. Try: spn add {}", e, from),
+                        reason: format!("Package not found: {}. Try: nika add {}", e, from),
                     }
                 })?;
 
@@ -282,7 +282,7 @@ async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<Str
             resolver::resolve_package_path(path).map_err(|e| NikaError::ContextLoadError {
                 alias: name.to_string(),
                 path: path.to_string(),
-                reason: format!("Package not found: {}. Try: spn add {}", e, path),
+                reason: format!("Package not found: {}. Try: nika add {}", e, path),
             })?;
 
         // Skill/Prompt packages should contain skill.md or prompt.md

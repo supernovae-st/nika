@@ -125,7 +125,7 @@ fn expand_includes_recursive(
             let resolved =
                 resolver::resolve_package_path(pkg).map_err(|e| NikaError::WorkflowNotFound {
                     path: format!(
-                        "Package not found: {}. Error: {}. Try: spn add {}",
+                        "Package not found: {}. Error: {}. Try: nika add {}",
                         pkg, e, pkg
                     ),
                 })?;

@@ -7,17 +7,17 @@
 //! │  SECRETS MODULE                                                             │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
-//! │  With spn-daemon feature (RECOMMENDED):                                     │
+//! │  With nika-daemon feature (RECOMMENDED):                                    │
 //! │                                                                             │
 //! │  Nika Process                                                               │
 //! │      │                                                                      │
 //! │      └── spn-client (Unix socket IPC)                                       │
 //! │          │                                                                  │
-//! │          └── nika daemon (~/.nika/daemon.sock)                              │
+//! │          └── daemon (~/.nika/daemon.sock)                                   │
 //! │              │                                                              │
 //! │              └── OS Keychain (SOLE accessor, no popups)                     │
 //! │                                                                             │
-//! │  Without spn-daemon feature (fallback):                                     │
+//! │  Without nika-daemon feature (fallback):                                    │
 //! │                                                                             │
 //! │  Nika Process                                                               │
 //! │      │                                                                      │
@@ -35,7 +35,7 @@
 //!
 //! ## v0.22 Behavior
 //!
-//! When `spn-daemon` feature is enabled, Nika will NEVER access the keychain directly.
+//! When daemon feature is enabled, Nika will NEVER access the keychain directly.
 //! The daemon is the SOLE keychain accessor. If the daemon doesn't have a secret,
 //! it's marked as "not found" instead of falling back to direct keyring access.
 //!

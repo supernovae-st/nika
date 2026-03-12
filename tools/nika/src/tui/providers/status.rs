@@ -7,7 +7,7 @@ use std::time::Instant;
 /// Source of an API key/secret
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeySource {
-    /// Retrieved from spn-daemon IPC
+    /// Retrieved from nika daemon IPC
     SpnDaemon,
     /// Retrieved from OS keychain directly
     OsKeychain,
@@ -21,7 +21,7 @@ impl KeySource {
     /// Get display label for the key source
     pub fn label(&self) -> &'static str {
         match self {
-            KeySource::SpnDaemon => "spn-daemon",
+            KeySource::SpnDaemon => "daemon",
             KeySource::OsKeychain => "keychain",
             KeySource::EnvVar => "env",
             KeySource::NotConfigured => "none",

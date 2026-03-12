@@ -242,7 +242,7 @@ enum Commands {
         action: McpAction,
     },
 
-    /// Manage local LLM models (v0.27 spn fusion)
+    /// Manage local LLM models (v0.27)
     ///
     /// Download, list, and manage GGUF models for native inference.
     /// Models are stored in ~/.nika/models/
@@ -253,7 +253,7 @@ enum Commands {
         action: ModelAction,
     },
 
-    /// Manage installed packages (workflows, skills, schemas) (v0.27 spn fusion)
+    /// Manage installed packages (workflows, skills, schemas) (v0.27)
     ///
     /// List, add, remove, and install packages from the SuperNovae registry.
     /// Packages are stored in ~/.nika/packages/
@@ -263,7 +263,7 @@ enum Commands {
         action: PkgAction,
     },
 
-    /// Sync MCP servers and packages to IDE configurations (v0.27 spn fusion)
+    /// Sync MCP servers and packages to IDE configurations (v0.27)
     ///
     /// Syncs from ~/.nika/mcp.yaml to Claude Code, Cursor, Windsurf, VS Code.
     Sync {
@@ -279,7 +279,7 @@ enum Commands {
         dry_run: bool,
     },
 
-    /// Interactive setup wizard for SuperNovae ecosystem (v0.27 spn fusion)
+    /// Interactive setup wizard for SuperNovae ecosystem (v0.27)
     ///
     /// Configure providers, install tools, and set up IDE integrations.
     Setup {
@@ -287,19 +287,19 @@ enum Commands {
         action: Option<SetupAction>,
     },
 
-    /// Manage the spn daemon for keychain access (v0.27 spn fusion)
+    /// Manage the nika daemon for keychain access (v0.27)
     ///
     /// The daemon provides unified keychain access, eliminating repeated popups.
-    /// Binary stays in spn-daemon; these commands proxy to it.
+    /// Binary stays in nika-daemon; these commands proxy to it.
     Daemon {
         #[command(subcommand)]
         action: DaemonAction,
     },
 
-    /// Backup and restore SuperNovae data (v0.27 spn fusion)
+    /// Backup and restore SuperNovae data (v0.27)
     ///
     /// Creates unified backups of NovaNet schema/seeds, Nika workflows/sessions,
-    /// and spn configuration. Backups are stored in ~/.nika/backups/ as tar.gz archives.
+    /// and configuration. Backups are stored in ~/.nika/backups/ as tar.gz archives.
     Backup {
         #[command(subcommand)]
         action: BackupAction,
@@ -501,7 +501,7 @@ enum ProviderAction {
     },
 }
 
-/// MCP server management actions (v0.27 spn fusion)
+/// MCP server management actions (v0.27)
 ///
 /// Manage MCP servers at global (~/.nika/mcp.yaml), project (.nika/mcp.yaml),
 /// or workflow levels. Supports 48 aliases for common MCP servers.
@@ -597,7 +597,7 @@ enum McpAction {
     },
 }
 
-/// Package management actions (v0.27 spn fusion)
+/// Package management actions (v0.27)
 ///
 /// Manage SuperNovae packages (workflows, skills, schemas) stored in ~/.nika/packages/
 #[derive(Subcommand)]
@@ -618,7 +618,7 @@ enum PkgAction {
     /// Add a package to the project
     ///
     /// Downloads and installs the package and its dependencies.
-    /// Updates spn.yaml and spn.lock in the project directory.
+    /// Updates nika.yaml and nika.lock in the project directory.
     Add {
         /// Package name (e.g., @nika/seo-audit, @workflows/code-review)
         package: String,
@@ -646,9 +646,9 @@ enum PkgAction {
         yes: bool,
     },
 
-    /// Install packages from spn.yaml
+    /// Install packages from nika.yaml
     Install {
-        /// Use exact versions from spn.lock
+        /// Use exact versions from nika.lock
         #[arg(long)]
         frozen: bool,
     },
@@ -677,7 +677,7 @@ enum PkgAction {
     },
 }
 
-/// Sync management actions (v0.27 spn fusion)
+/// Sync management actions (v0.27)
 ///
 /// Sync MCP servers and packages to IDE configurations.
 #[derive(Subcommand)]
@@ -698,7 +698,7 @@ enum SyncAction {
     },
 }
 
-/// Setup wizard actions (v0.27 spn fusion)
+/// Setup wizard actions (v0.27)
 ///
 /// Interactive setup for SuperNovae ecosystem components.
 #[derive(Subcommand)]
@@ -725,12 +725,12 @@ enum SetupAction {
     Windsurf,
 }
 
-/// Daemon management actions (v0.27 spn fusion)
+/// Daemon management actions (v0.27)
 ///
-/// The daemon binary (spn-daemon) is kept external. These commands proxy to it.
+/// The daemon binary (nika-daemon) is kept external. These commands proxy to it.
 #[derive(Subcommand)]
 enum DaemonAction {
-    /// Start the daemon (proxies to spn daemon start)
+    /// Start the daemon (proxies to nika-daemon start)
     Start {
         /// Run in foreground (don't daemonize)
         #[arg(long)]
@@ -741,7 +741,7 @@ enum DaemonAction {
         skip_preload: bool,
     },
 
-    /// Stop the daemon (proxies to spn daemon stop)
+    /// Stop the daemon (proxies to nika-daemon stop)
     Stop,
 
     /// Show daemon status
@@ -761,9 +761,9 @@ enum DaemonAction {
     Uninstall,
 }
 
-/// Backup management actions (v0.27 spn fusion)
+/// Backup management actions (v0.27)
 ///
-/// Proxies to `spn backup` commands for unified backup/restore.
+/// Proxies to `nika-daemon backup` commands for unified backup/restore.
 #[derive(Subcommand)]
 enum BackupAction {
     /// Create a new backup of all SuperNovae data
@@ -772,7 +772,7 @@ enum BackupAction {
         #[arg(short, long)]
         label: Option<String>,
 
-        /// Include only specific subsystems (novanet, nika, spn)
+        /// Include only specific subsystems (novanet, nika)
         #[arg(long, value_delimiter = ',')]
         only: Option<Vec<String>>,
     },
@@ -816,9 +816,9 @@ enum BackupAction {
     },
 }
 
-/// Model management actions (v0.27 spn fusion)
+/// Model management actions (v0.27)
 ///
-/// Migrated from spn CLI for unified model management.
+/// Model management for local GGUF models.
 #[cfg(feature = "native-inference")]
 #[derive(Subcommand)]
 enum ModelAction {
@@ -1032,9 +1032,9 @@ enum JobsAction {
     /// Reload daemon configuration
     Reload,
 
-    // === Background Job Commands (v0.27 spn fusion) ===
-    // These proxy to `spn jobs` for background workflow execution
-    /// Submit a workflow for background execution (v0.27 spn fusion)
+    // === Background Job Commands (v0.27) ===
+    // These proxy to `nika-daemon jobs` for background workflow execution
+    /// Submit a workflow for background execution (v0.27)
     ///
     /// Returns a job ID that can be used to track status and output.
     Submit {
@@ -1054,13 +1054,13 @@ enum JobsAction {
         priority: i32,
     },
 
-    /// Cancel a running background job (v0.27 spn fusion)
+    /// Cancel a running background job (v0.27)
     Cancel {
         /// Job ID to cancel
         id: String,
     },
 
-    /// Show output from a background job (v0.27 spn fusion)
+    /// Show output from a background job (v0.27)
     Output {
         /// Job ID
         id: String,
@@ -1070,7 +1070,7 @@ enum JobsAction {
         follow: bool,
     },
 
-    /// Clear completed/failed background jobs (v0.27 spn fusion)
+    /// Clear completed/failed background jobs (v0.27)
     Clear {
         /// Clear all jobs including running ones (use with caution)
         #[arg(long)]
@@ -1272,27 +1272,27 @@ async fn main() {
         // MCP server management (v0.12.1)
         Some(Commands::Mcp { action }) => handle_mcp_command(action).await,
 
-        // Model management (v0.27 spn fusion)
+        // Model management (v0.27)
         #[cfg(feature = "native-inference")]
         Some(Commands::Model { action }) => handle_model_command(action, quiet).await,
 
-        // Package management (v0.27 spn fusion)
+        // Package management (v0.27)
         Some(Commands::Pkg { action }) => handle_pkg_command(action).await,
 
-        // Sync command (v0.27 spn fusion)
+        // Sync command (v0.27)
         Some(Commands::Sync {
             action,
             target,
             dry_run,
         }) => handle_sync_command(action, target, dry_run, quiet).await,
 
-        // Setup wizard (v0.27 spn fusion)
+        // Setup wizard (v0.27)
         Some(Commands::Setup { action }) => handle_setup_command(action, quiet).await,
 
-        // Daemon management (v0.27 spn fusion)
+        // Daemon management (v0.27)
         Some(Commands::Daemon { action }) => handle_daemon_command(action, quiet).await,
 
-        // Backup management (v0.27 spn fusion)
+        // Backup management (v0.27)
         Some(Commands::Backup { action }) => handle_backup_command(action, quiet).await,
 
         // Shell completion (v0.13.1)
@@ -1450,7 +1450,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
         let resolved =
             resolver::resolve_package_path(reference).map_err(|e| NikaError::WorkflowNotFound {
                 path: format!(
-                    "Package not found: {}. Error: {}. Try: spn add {}",
+                    "Package not found: {}. Error: {}. Try: nika pkg add {}",
                     reference, e, reference
                 ),
             })?;
@@ -1486,7 +1486,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
         // If not found locally and not an absolute path, suggest package search
         if !PathBuf::from(reference).exists() {
             return Err(NikaError::WorkflowNotFound {
-                path: format!("Workflow '{}' not found in .nika/workflows/ or current directory. Try: spn search {}", reference, reference)
+                path: format!("Workflow '{}' not found in .nika/workflows/ or current directory. Try: nika pkg search {}", reference, reference)
             });
         }
     }
@@ -1496,7 +1496,7 @@ async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
     if !path.exists() {
         return Err(NikaError::WorkflowNotFound {
             path: format!(
-                "File not found: {}. Check the path or try: spn search {}",
+                "File not found: {}. Check the path or try: nika pkg search {}",
                 reference, reference
             ),
         });
@@ -1892,7 +1892,7 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Get all LLM provider IDs (from nika::core::KNOWN_PROVIDERS).
-/// Replaces hardcoded ALL_PROVIDERS list (v0.27 spn fusion).
+/// Replaces hardcoded ALL_PROVIDERS list (v0.27).
 #[cfg(feature = "tui")]
 fn llm_provider_ids() -> Vec<&'static str> {
     use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
@@ -1913,7 +1913,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
     };
     use std::io::{self, Write};
 
-    // Get LLM provider IDs from nika::core (v0.27 spn fusion)
+    // Get LLM provider IDs from nika::core (v0.27)
     let all_providers = llm_provider_ids();
 
     match action {
@@ -1969,7 +1969,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             key,
             prompt,
         } => {
-            // Validate provider name using nika::core (v0.27 spn fusion)
+            // Validate provider name using nika::core (v0.27)
             if !all_providers.contains(&provider.as_str()) {
                 return Err(NikaError::ValidationError {
                     reason: format!(
@@ -2140,62 +2140,9 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 /// - `workflows/partials/` with reusable workflow fragments (for include:)
 /// - `schemas/` with JSON schemas for output validation
 /// - `output/` for generated workflow outputs
-/// - Migrate env vars to keychain (if --migrate-keys)
 fn init_project(permission: &str, no_example: bool, migrate_keys: bool) -> Result<(), NikaError> {
-    use nika::core::{
-        check_migration_status, check_project_migration, migrate_global_home, migrate_project,
-        MigrationStatus,
-    };
-
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
-
-    // Check for global home migration (~/.spn → ~/.nika)
-    let global_status = check_migration_status();
-    if global_status == MigrationStatus::Needed {
-        println!(
-            "{} Found ~/.spn directory. Migrating to ~/.nika...",
-            "→".cyan()
-        );
-        let result = migrate_global_home();
-        if result.success {
-            if !result.migrated_dirs.is_empty() || !result.migrated_files.is_empty() {
-                println!(
-                    "{} Migrated global home ({} dirs, {} files)",
-                    "✓".green(),
-                    result.migrated_dirs.len(),
-                    result.migrated_files.len()
-                );
-            }
-        } else if let Some(err) = result.error {
-            println!(
-                "{} Global migration failed: {} (continuing anyway)",
-                "⚠".yellow(),
-                err
-            );
-        }
-    }
-
-    // Check for project-level migration (spn.yaml → nika.yaml)
-    let project_status = check_project_migration(&cwd);
-    if project_status.needs_migration() {
-        println!(
-            "{} Found legacy spn files. Migrating to nika format...",
-            "→".cyan()
-        );
-        let result = migrate_project(&cwd);
-        if result.success && !result.migrated_files.is_empty() {
-            for file in &result.migrated_files {
-                println!("{} Migrated {}", "✓".green(), file);
-            }
-        } else if let Some(err) = result.error {
-            println!(
-                "{} Project migration failed: {} (continuing anyway)",
-                "⚠".yellow(),
-                err
-            );
-        }
-    }
 
     // Check if already initialized
     if nika_dir.exists() {
@@ -2706,7 +2653,7 @@ network:
         println!("    nika run workflows/tier-1-no-deps/01-exec-basics.nika.yaml");
         println!();
         println!("    # Tier 2: Setup provider first");
-        println!("    spn provider set anthropic");
+        println!("    nika provider set anthropic");
         println!("    nika run workflows/tier-2-llm/04-infer-basics.nika.yaml");
         println!();
         println!("  {} Learn more:", "📖".cyan());
@@ -2754,7 +2701,7 @@ network:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MCP COMMAND (v0.27 spn fusion)
+// MCP COMMAND (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle MCP server management commands
@@ -3224,7 +3171,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PACKAGE COMMAND HANDLER (v0.27 spn fusion)
+// PACKAGE COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle package management commands.
@@ -3246,7 +3193,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 println!();
                 println!("Install packages with:");
                 println!("  nika pkg add @nika/seo-audit");
-                println!("  nika pkg install  # Install from spn.yaml");
+                println!("  nika pkg install  # Install from nika.yaml");
             } else {
                 println!("{}", "Installed Packages".bold());
                 println!("{}", "─".repeat(60));
@@ -3300,7 +3247,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             dev: _dev,
         } => {
             use nika::registry::{
-                ensure_spn_home, is_version_installed, package_dir, save_registry,
+                ensure_nika_home, is_version_installed, package_dir, save_registry,
                 InstalledPackage, RegistryClient,
             };
 
@@ -3315,7 +3262,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             println!("  Type: {}", pkg_type.dimmed());
 
             // Ensure ~/.nika/ exists
-            ensure_spn_home()?;
+            ensure_nika_home()?;
 
             // Create registry client
             let client = RegistryClient::new();
@@ -3451,7 +3398,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
         PkgAction::Install { frozen } => {
             use nika::registry::{
-                ensure_spn_home, is_version_installed, package_dir, save_registry,
+                ensure_nika_home, is_version_installed, package_dir, save_registry,
                 InstalledPackage, Lockfile, RegistryClient,
             };
 
@@ -3462,18 +3409,13 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             );
 
             // Ensure ~/.nika/ exists
-            ensure_spn_home()?;
+            ensure_nika_home()?;
 
-            // Try to find project manifest (spn.yaml or nika.yaml)
-            let manifest_path = if Path::new("spn.yaml").exists() {
-                PathBuf::from("spn.yaml")
-            } else if Path::new("nika.yaml").exists() {
+            // Find project manifest
+            let manifest_path = if Path::new("nika.yaml").exists() {
                 PathBuf::from("nika.yaml")
             } else {
-                println!(
-                    "{} No project manifest found (spn.yaml or nika.yaml)",
-                    "⚠".yellow()
-                );
+                println!("{} No project manifest found (nika.yaml)", "⚠".yellow());
                 println!();
                 println!("Create one with:");
                 println!("  nika init");
@@ -3507,10 +3449,10 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             // Load lockfile for frozen installs
             let lockfile = if frozen {
-                println!("  {} Reading spn.lock", "→".dimmed());
+                println!("  {} Reading nika.lock", "→".dimmed());
                 Lockfile::load(None).unwrap_or_else(|_| {
                     println!(
-                        "{} No spn.lock found, will use latest versions",
+                        "{} No nika.lock found, will use latest versions",
                         "⚠".yellow()
                     );
                     Lockfile::new()
@@ -3627,7 +3569,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             println!();
             println!("{} Package update not yet fully implemented", "⚠".yellow());
             println!(
-                "  Until then, use: spn update{}",
+                "  Until then, use: nika pkg update{}",
                 package
                     .as_deref()
                     .map(|p| format!(" {}", p))
@@ -3645,7 +3587,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 "{} Outdated detection not yet fully implemented",
                 "⚠".yellow()
             );
-            println!("  Until then, use: spn outdated");
+            println!("  Until then, use: nika pkg outdated");
             Ok(())
         }
 
@@ -3739,7 +3681,7 @@ fn infer_package_type(package: &str) -> Option<&'static str> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SYNC COMMAND HANDLER (v0.27 spn fusion)
+// SYNC COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle sync commands to IDE configurations.
@@ -3796,7 +3738,7 @@ async fn handle_sync_command(
                 println!("{} Enabling sync for: {}", "✓".green(), editor.cyan());
                 println!();
                 println!("{} Sync enable not yet fully implemented", "⚠".yellow());
-                println!("  Until then, use: spn sync --enable {}", editor);
+                println!("  Until then, use: nika sync --enable {}", editor);
                 return Ok(());
             }
 
@@ -3804,7 +3746,7 @@ async fn handle_sync_command(
                 println!("{} Disabling sync for: {}", "ℹ".cyan(), editor);
                 println!();
                 println!("{} Sync disable not yet fully implemented", "⚠".yellow());
-                println!("  Until then, use: spn sync --disable {}", editor);
+                println!("  Until then, use: nika sync --disable {}", editor);
                 return Ok(());
             }
         }
@@ -3906,14 +3848,14 @@ async fn handle_sync_command(
             "{} Full sync with interactive mode available via:",
             "ℹ".cyan()
         );
-        println!("  spn sync --interactive");
+        println!("  nika sync --interactive");
     }
 
     Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SETUP COMMAND HANDLER (v0.27 spn fusion)
+// SETUP COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle setup wizard commands.
@@ -3968,7 +3910,7 @@ async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Resul
             println!();
             if !quiet {
                 println!("{} Full Nika setup available via:", "ℹ".cyan());
-                println!("  spn setup nika");
+                println!("  nika setup nika");
             }
         }
 
@@ -4005,7 +3947,7 @@ async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Resul
             println!();
             if !quiet {
                 println!("{} Full NovaNet setup available via:", "ℹ".cyan());
-                println!("  spn setup novanet");
+                println!("  nika setup novanet");
             }
         }
 
@@ -4036,7 +3978,7 @@ async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Resul
             println!();
             if !quiet {
                 println!("{} Full Claude Code setup available via:", "ℹ".cyan());
-                println!("  spn setup claude-code");
+                println!("  nika setup claude-code");
             }
         }
 
@@ -4078,35 +4020,37 @@ fn setup_ide_helper(ide_name: &str, dir_name: &str, quiet: bool) -> Result<(), N
     println!();
     if !quiet {
         println!("{} Full {} setup available via:", "ℹ".cyan(), ide_name);
-        println!("  spn setup {}", ide_name);
+        println!("  nika setup {}", ide_name);
     }
 
     Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DAEMON COMMAND HANDLER (v0.27 spn fusion)
+// DAEMON COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle daemon management commands.
 ///
-/// The daemon binary (spn-daemon) is kept external. These commands proxy to `spn daemon`.
+/// The daemon binary (nika-daemon) is kept external. These commands proxy to `nika-daemon`.
 async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
 
-    // Helper to run spn daemon commands
-    fn run_spn_daemon(args: &[&str]) -> Result<bool, std::io::Error> {
-        let status = std::process::Command::new("spn").args(args).status()?;
+    // Helper to run nika-daemon commands
+    fn run_nika_daemon(args: &[&str]) -> Result<bool, std::io::Error> {
+        let status = std::process::Command::new("nika-daemon")
+            .args(args)
+            .status()?;
         Ok(status.success())
     }
 
-    // Helper to print spn not found error
-    fn spn_not_found_error() -> NikaError {
+    // Helper to print nika-daemon not found error
+    fn daemon_not_found_error() -> NikaError {
         eprintln!();
-        eprintln!("Install spn CLI from:");
-        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+        eprintln!("nika-daemon not found. Install from:");
+        eprintln!("  cargo install nika-daemon");
         NikaError::InvalidConfig {
-            message: "spn CLI not found".to_string(),
+            message: "nika-daemon not found".to_string(),
         }
     }
 
@@ -4116,7 +4060,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
             skip_preload,
         } => {
             if !quiet {
-                println!("{}", "🔧 Starting spn daemon...".cyan().bold());
+                println!("{}", "🔧 Starting nika daemon...".cyan().bold());
             }
 
             let mut args = vec!["daemon", "start"];
@@ -4127,7 +4071,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                 args.push("--skip-preload");
             }
 
-            match run_spn_daemon(&args) {
+            match run_nika_daemon(&args) {
                 Ok(true) => {
                     if !quiet {
                         println!("  {} Daemon started", "✓".green());
@@ -4141,18 +4085,18 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     })
                 }
                 Err(_) => {
-                    eprintln!("{} spn command not found", "✗".red());
-                    Err(spn_not_found_error())
+                    eprintln!("{} nika-daemon not found", "✗".red());
+                    Err(daemon_not_found_error())
                 }
             }
         }
 
         DaemonAction::Stop => {
             if !quiet {
-                println!("{}", "🛑 Stopping spn daemon...".cyan().bold());
+                println!("{}", "🛑 Stopping nika daemon...".cyan().bold());
             }
 
-            match run_spn_daemon(&["daemon", "stop"]) {
+            match run_nika_daemon(&["stop"]) {
                 Ok(true) => {
                     if !quiet {
                         println!("  {} Daemon stopped", "✓".green());
@@ -4166,8 +4110,8 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     })
                 }
                 Err(_) => {
-                    eprintln!("{} spn command not found", "✗".red());
-                    Err(spn_not_found_error())
+                    eprintln!("{} nika-daemon not found", "✗".red());
+                    Err(daemon_not_found_error())
                 }
             }
         }
@@ -4207,10 +4151,10 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 
         DaemonAction::Restart => {
             if !quiet {
-                println!("{}", "🔄 Restarting spn daemon...".cyan().bold());
+                println!("{}", "🔄 Restarting nika daemon...".cyan().bold());
             }
 
-            match run_spn_daemon(&["daemon", "restart"]) {
+            match run_nika_daemon(&["restart"]) {
                 Ok(true) => {
                     if !quiet {
                         println!("  {} Daemon restarted", "✓".green());
@@ -4224,8 +4168,8 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     })
                 }
                 Err(_) => {
-                    eprintln!("{} spn command not found", "✗".red());
-                    Err(spn_not_found_error())
+                    eprintln!("{} nika-daemon not found", "✗".red());
+                    Err(daemon_not_found_error())
                 }
             }
         }
@@ -4238,7 +4182,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                 );
             }
 
-            match run_spn_daemon(&["daemon", "install"]) {
+            match run_nika_daemon(&["install"]) {
                 Ok(true) => {
                     if !quiet {
                         println!("  {} Daemon service installed", "✓".green());
@@ -4254,8 +4198,8 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     })
                 }
                 Err(_) => {
-                    eprintln!("{} spn command not found", "✗".red());
-                    Err(spn_not_found_error())
+                    eprintln!("{} nika-daemon not found", "✗".red());
+                    Err(daemon_not_found_error())
                 }
             }
         }
@@ -4265,7 +4209,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                 println!("{}", "🗑️  Uninstalling daemon service...".cyan().bold());
             }
 
-            match run_spn_daemon(&["daemon", "uninstall"]) {
+            match run_nika_daemon(&["uninstall"]) {
                 Ok(true) => {
                     if !quiet {
                         println!("  {} Daemon service uninstalled", "✓".green());
@@ -4279,8 +4223,8 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
                     })
                 }
                 Err(_) => {
-                    eprintln!("{} spn command not found", "✗".red());
-                    Err(spn_not_found_error())
+                    eprintln!("{} nika-daemon not found", "✗".red());
+                    Err(daemon_not_found_error())
                 }
             }
         }
@@ -4288,33 +4232,33 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BACKUP COMMAND HANDLER (v0.27 spn fusion)
+// BACKUP COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Handle backup commands by proxying to spn backup.
+/// Handle backup commands by proxying to nika-daemon backup.
 async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
 
-    fn run_spn_backup(args: &[&str]) -> Result<bool, std::io::Error> {
-        let status = std::process::Command::new("spn")
+    fn run_nika_backup(args: &[&str]) -> Result<bool, std::io::Error> {
+        let status = std::process::Command::new("nika-daemon")
             .arg("backup")
             .args(args)
             .status()?;
         Ok(status.success())
     }
 
-    fn spn_not_found_error() -> NikaError {
+    fn daemon_not_found_error() -> NikaError {
         eprintln!();
-        eprintln!("Install spn CLI from:");
-        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+        eprintln!("nika-daemon not found. Install from:");
+        eprintln!("  cargo install nika-daemon");
         NikaError::InvalidConfig {
-            message: "spn CLI not found".to_string(),
+            message: "nika-daemon not found".to_string(),
         }
     }
 
     match action {
         BackupAction::Create { label, only } => {
-            // Proxy to: spn backup create [--label LABEL] [--only novanet,nika,spn]
+            // Proxy to: nika-daemon backup create [--label LABEL] [--only novanet,nika]
             let mut cmd_args = vec!["create"];
 
             let label_str;
@@ -4335,17 +4279,17 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
                 println!("{} Creating backup...", "📦".bold());
             }
 
-            match run_spn_backup(&cmd_args) {
+            match run_nika_backup(&cmd_args) {
                 Ok(true) => Ok(()),
                 Ok(false) => Err(NikaError::RuntimeError {
                     reason: "Backup creation failed".to_string(),
                 }),
-                Err(_) => Err(spn_not_found_error()),
+                Err(_) => Err(daemon_not_found_error()),
             }
         }
 
         BackupAction::Restore { backup, force } => {
-            // Proxy to: spn backup restore <backup> [--force]
+            // Proxy to: nika-daemon backup restore <backup> [--force]
             let mut cmd_args = vec!["restore", &backup];
             if force {
                 cmd_args.push("--force");
@@ -4355,12 +4299,12 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
                 println!("{} Restoring from backup...", "📥".bold());
             }
 
-            match run_spn_backup(&cmd_args) {
+            match run_nika_backup(&cmd_args) {
                 Ok(true) => Ok(()),
                 Ok(false) => Err(NikaError::RuntimeError {
                     reason: "Backup restore failed".to_string(),
                 }),
-                Err(_) => Err(spn_not_found_error()),
+                Err(_) => Err(daemon_not_found_error()),
             }
         }
 
@@ -4369,7 +4313,7 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
             limit,
             json,
         } => {
-            // Proxy to: spn backup list [--detailed] [-n LIMIT] [--json]
+            // Proxy to: nika-daemon backup list [--detailed] [-n LIMIT] [--json]
             let mut cmd_args = vec!["list"];
 
             if detailed {
@@ -4384,17 +4328,17 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
                 cmd_args.push("--json");
             }
 
-            match run_spn_backup(&cmd_args) {
+            match run_nika_backup(&cmd_args) {
                 Ok(true) => Ok(()),
                 Ok(false) => Err(NikaError::RuntimeError {
                     reason: "Failed to list backups".to_string(),
                 }),
-                Err(_) => Err(spn_not_found_error()),
+                Err(_) => Err(daemon_not_found_error()),
             }
         }
 
         BackupAction::Prune { keep, execute } => {
-            // Proxy to: spn backup prune [--keep N] [--execute]
+            // Proxy to: nika-daemon backup prune [--keep N] [--execute]
             let mut cmd_args = vec!["prune"];
 
             let keep_str = keep.to_string();
@@ -4413,19 +4357,19 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
                 }
             }
 
-            match run_spn_backup(&cmd_args) {
+            match run_nika_backup(&cmd_args) {
                 Ok(true) => Ok(()),
                 Ok(false) => Err(NikaError::RuntimeError {
                     reason: "Failed to prune backups".to_string(),
                 }),
-                Err(_) => Err(spn_not_found_error()),
+                Err(_) => Err(daemon_not_found_error()),
             }
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MODEL COMMAND HANDLER (v0.27 spn fusion)
+// MODEL COMMAND HANDLER (v0.27)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Find filename for a given quantization string in a known model.
@@ -4453,7 +4397,7 @@ fn find_filename_for_quant(
         .map(|(_, f)| *f)
 }
 
-/// Handle model management commands (migrated from spn CLI)
+/// Handle model management commands
 #[cfg(feature = "native-inference")]
 async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
     use colored::Colorize;
@@ -4535,7 +4479,6 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
             force,
         } => {
             // Determine download target - always use passthrough mode (hf_repo + filename)
-            // because nika::core::KnownModel is incompatible with spn_core::KnownModel
             let (hf_repo, hf_file) = match (&name, &repo, &file) {
                 // Named model from KNOWN_MODELS - extract repo/file
                 (Some(model_name), None, None) => {
@@ -6694,15 +6637,15 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
             }
         }
 
-        // === Background Job Commands (v0.27 spn fusion) ===
-        // These proxy to `spn jobs` for background workflow execution
+        // === Background Job Commands (v0.27) ===
+        // These proxy to `nika-daemon jobs` for background workflow execution
         JobsAction::Submit {
             workflow,
             args,
             name,
             priority,
         } => {
-            // Proxy to: spn jobs submit <workflow> [args...] [--name NAME] [--priority N]
+            // Proxy to: nika-daemon jobs submit <workflow> [args...] [--name NAME] [--priority N]
             let mut cmd_args = vec!["jobs", "submit"];
             let workflow_str = workflow.to_string_lossy();
             cmd_args.push(&workflow_str);
@@ -6729,44 +6672,44 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 );
             }
 
-            let status = std::process::Command::new("spn")
+            let status = std::process::Command::new("nika-daemon")
                 .args(&cmd_args)
                 .status()
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::NotFound {
                         eprintln!();
-                        eprintln!("Install spn CLI from:");
-                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                        eprintln!("nika-daemon not found. Install from:");
+                        eprintln!("  cargo install nika-daemon");
                     }
                     NikaError::InvalidConfig {
-                        message: format!("Failed to run spn jobs submit: {}", e),
+                        message: format!("Failed to run nika-daemon jobs submit: {}", e),
                     }
                 })?;
 
             if !status.success() {
                 return Err(NikaError::RuntimeError {
-                    reason: "spn jobs submit failed".to_string(),
+                    reason: "nika-daemon jobs submit failed".to_string(),
                 });
             }
         }
 
         JobsAction::Cancel { id } => {
-            // Proxy to: spn jobs cancel <id>
+            // Proxy to: nika-daemon jobs cancel <id>
             if !quiet {
                 println!("{} Cancelling job {}...", "🛑".bold(), id);
             }
 
-            let status = std::process::Command::new("spn")
+            let status = std::process::Command::new("nika-daemon")
                 .args(["jobs", "cancel", &id])
                 .status()
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::NotFound {
                         eprintln!();
-                        eprintln!("Install spn CLI from:");
-                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                        eprintln!("nika-daemon not found. Install from:");
+                        eprintln!("  cargo install nika-daemon");
                     }
                     NikaError::InvalidConfig {
-                        message: format!("Failed to run spn jobs cancel: {}", e),
+                        message: format!("Failed to run nika-daemon jobs cancel: {}", e),
                     }
                 })?;
 
@@ -6778,24 +6721,24 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
         }
 
         JobsAction::Output { id, follow } => {
-            // Proxy to: spn jobs output <id> [--follow]
+            // Proxy to: nika-daemon jobs output <id> [--follow]
             let mut cmd_args = vec!["jobs", "output", &id];
             if follow {
                 cmd_args.push("--follow");
             }
 
             // For output, we want to stream stdout/stderr directly
-            let status = std::process::Command::new("spn")
+            let status = std::process::Command::new("nika-daemon")
                 .args(&cmd_args)
                 .status()
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::NotFound {
                         eprintln!();
-                        eprintln!("Install spn CLI from:");
-                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                        eprintln!("nika-daemon not found. Install from:");
+                        eprintln!("  cargo install nika-daemon");
                     }
                     NikaError::InvalidConfig {
-                        message: format!("Failed to run spn jobs output: {}", e),
+                        message: format!("Failed to run nika-daemon jobs output: {}", e),
                     }
                 })?;
 
@@ -6807,7 +6750,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
         }
 
         JobsAction::Clear { all } => {
-            // Proxy to: spn jobs clear [--all]
+            // Proxy to: nika-daemon jobs clear [--all]
             let mut cmd_args = vec!["jobs", "clear"];
             if all {
                 cmd_args.push("--all");
@@ -6821,17 +6764,17 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
                 }
             }
 
-            let status = std::process::Command::new("spn")
+            let status = std::process::Command::new("nika-daemon")
                 .args(&cmd_args)
                 .status()
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::NotFound {
                         eprintln!();
-                        eprintln!("Install spn CLI from:");
-                        eprintln!("  https://github.com/SuperNovae-studio/supernovae-cli");
+                        eprintln!("nika-daemon not found. Install from:");
+                        eprintln!("  cargo install nika-daemon");
                     }
                     NikaError::InvalidConfig {
-                        message: format!("Failed to run spn jobs clear: {}", e),
+                        message: format!("Failed to run nika-daemon jobs clear: {}", e),
                     }
                 })?;
 

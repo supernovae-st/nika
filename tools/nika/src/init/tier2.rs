@@ -1,6 +1,6 @@
 //! Tier 2: LLM Required Workflows (04-07)
 //!
-//! Prerequisites: `spn provider set anthropic` (or openai, mistral, groq, deepseek, gemini)
+//! Prerequisites: `nika provider set anthropic` (or openai, mistral, groq, deepseek, gemini)
 //!
 //! Features covered:
 //! - infer: basic LLM prompts with temperature, system, max_tokens
@@ -24,15 +24,15 @@ pub const WORKFLOW_04_INFER_BASICS: &str = r##"# ╔═════════�
 # ║  PREREQUISITES:                                                               ║
 # ║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
 # ║  │  # Cloud providers (pick one)                                          │  ║
-# ║  │  spn provider set anthropic   # Claude (recommended)                   │  ║
-# ║  │  spn provider set openai      # GPT-4                                  │  ║
-# ║  │  spn provider set mistral     # Mistral Large                          │  ║
-# ║  │  spn provider set groq        # Groq (fast, free tier)                 │  ║
-# ║  │  spn provider set deepseek    # DeepSeek                               │  ║
-# ║  │  spn provider set gemini      # Google Gemini                          │  ║
+# ║  │  nika provider set anthropic   # Claude (recommended)                   │  ║
+# ║  │  nika provider set openai      # GPT-4                                  │  ║
+# ║  │  nika provider set mistral     # Mistral Large                          │  ║
+# ║  │  nika provider set groq        # Groq (fast, free tier)                 │  ║
+# ║  │  nika provider set deepseek    # DeepSeek                               │  ║
+# ║  │  nika provider set gemini      # Google Gemini                          │  ║
 # ║  │                                                                         │  ║
 # ║  │  # Or local models (no API key needed!)                                │  ║
-# ║  │  spn model pull llama3.2:1b   # Then use provider: native              │  ║
+# ║  │  nika model pull llama3.2:1b   # Then use provider: native              │  ║
 # ║  └─────────────────────────────────────────────────────────────────────────┘  ║
 # ║                                                                               ║
 # ║  DAG FLOW:                                                                    ║
@@ -194,7 +194,7 @@ flows:
 #       prompt: "Your prompt here"
 #       temperature: 0.7
 #
-# Download models with: spn model pull llama3.2:1b
+# Download models with: nika model pull llama3.2:1b
 #
 # RUN THIS WORKFLOW:
 # nika run workflows/tier-2-llm/04-infer-basics.nika.yaml

@@ -55,15 +55,15 @@ pub const MANIFEST_FILE: &str = "manifest.yaml";
 /// # Examples
 ///
 /// ```no_run
-/// use nika::registry::operations::spn_home;
+/// use nika::registry::operations::nika_home;
 ///
-/// let home = spn_home()?;
+/// let home = nika_home()?;
 /// // Returns PathBuf like "/home/user/.nika" or value of $NIKA_HOME
 /// # Ok::<(), nika::NikaError>(())
 /// ```
 ///
 /// @deprecated Use `nika_home()` from `core::paths` instead.
-pub fn spn_home() -> Result<PathBuf, NikaError> {
+pub fn nika_home() -> Result<PathBuf, NikaError> {
     // Delegate to the unified paths module
     Ok(crate::core::paths::nika_home())
 }
@@ -72,14 +72,14 @@ pub fn spn_home() -> Result<PathBuf, NikaError> {
 ///
 /// Returns `~/.nika/packages/` (or `$NIKA_HOME/packages/`).
 pub fn packages_dir() -> Result<PathBuf, NikaError> {
-    Ok(spn_home()?.join(PACKAGES_DIR_NAME))
+    Ok(nika_home()?.join(PACKAGES_DIR_NAME))
 }
 
 /// Get the registry index file path.
 ///
 /// Returns `~/.nika/registry.yaml` (or `$NIKA_HOME/registry.yaml`).
 pub fn registry_index_path() -> Result<PathBuf, NikaError> {
-    Ok(spn_home()?.join(REGISTRY_INDEX_FILE))
+    Ok(nika_home()?.join(REGISTRY_INDEX_FILE))
 }
 
 /// Get the directory path for a specific package version.
@@ -127,8 +127,8 @@ pub fn manifest_path(name: &str, version: &str) -> Result<PathBuf, NikaError> {
 /// Creates `~/.nika/` and `~/.nika/packages/` if they don't exist.
 ///
 /// @deprecated Use `ensure_nika_home()` from `core::paths` instead.
-pub fn ensure_spn_home() -> Result<PathBuf, NikaError> {
-    let home = spn_home()?;
+pub fn ensure_nika_home() -> Result<PathBuf, NikaError> {
+    let home = nika_home()?;
 
     if !home.exists() {
         fs::create_dir_all(&home).map_err(|e| NikaError::ValidationError {
@@ -362,7 +362,7 @@ mod tests {
     use std::path::Path;
     use tempfile::TempDir;
 
-    fn with_temp_spn_home<F, T>(f: F) -> T
+    fn with_temp_nika_home<F, T>(f: F) -> T
     where
         F: FnOnce(&Path) -> T,
     {
@@ -382,9 +382,9 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_spn_home_uses_env_var() {
-        with_temp_spn_home(|temp_path| {
-            let home = spn_home().unwrap();
+    fn test_nika_home_uses_env_var() {
+        with_temp_nika_home(|temp_path| {
+            let home = nika_home().unwrap();
             assert_eq!(home, temp_path);
         });
     }
@@ -392,7 +392,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_packages_dir() {
-        with_temp_spn_home(|temp_path| {
+        with_temp_nika_home(|temp_path| {
             let dir = packages_dir().unwrap();
             assert_eq!(dir, temp_path.join("packages"));
         });
@@ -401,7 +401,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_registry_index_path() {
-        with_temp_spn_home(|temp_path| {
+        with_temp_nika_home(|temp_path| {
             let path = registry_index_path().unwrap();
             assert_eq!(path, temp_path.join("registry.yaml"));
         });
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_package_dir_scoped() {
-        with_temp_spn_home(|temp_path| {
+        with_temp_nika_home(|temp_path| {
             let dir = package_dir("@supernovae/workflows", "1.0.0").unwrap();
             assert_eq!(
                 dir,
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_package_dir_unscoped() {
-        with_temp_spn_home(|temp_path| {
+        with_temp_nika_home(|temp_path| {
             let dir = package_dir("my-package", "2.0.0").unwrap();
             assert_eq!(
                 dir,
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_manifest_path() {
-        with_temp_spn_home(|temp_path| {
+        with_temp_nika_home(|temp_path| {
             let path = manifest_path("@test/pkg", "1.0.0").unwrap();
             assert_eq!(
                 path,
@@ -452,12 +452,12 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_ensure_spn_home() {
-        with_temp_spn_home(|temp_path| {
+    fn test_ensure_nika_home() {
+        with_temp_nika_home(|temp_path| {
             // Remove any existing directories
             let _ = fs::remove_dir_all(temp_path);
 
-            let home = ensure_spn_home().unwrap();
+            let home = ensure_nika_home().unwrap();
             assert!(home.exists());
             assert!(home.join("packages").exists());
         });
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_registry_empty() {
-        with_temp_spn_home(|_| {
+        with_temp_nika_home(|_| {
             let index = load_registry().unwrap();
             assert!(index.is_empty());
         });
@@ -475,8 +475,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_save_and_load_registry() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             let mut index = RegistryIndex::new();
             index.insert(
@@ -500,8 +500,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_is_installed() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             // Initially not installed
             assert!(!is_installed("@test/pkg").unwrap());
@@ -522,8 +522,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_is_version_installed() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             let mut index = RegistryIndex::new();
             index.insert(
@@ -541,8 +541,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_installed_version() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             // Not installed
             assert_eq!(installed_version("@test/pkg").unwrap(), None);
@@ -565,8 +565,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_list_installed() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             let mut index = RegistryIndex::new();
             index.insert(
@@ -591,8 +591,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_manifest_not_found() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             let result = load_manifest("@nonexistent/pkg", "1.0.0");
             assert!(result.is_err());
@@ -602,8 +602,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_load_manifest_success() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             // Create package directory with manifest
             let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
@@ -622,8 +622,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_resolve_skill_path() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             // Create package directory with skill file
             let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
@@ -640,8 +640,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_resolve_skill_path_not_found() {
-        with_temp_spn_home(|_| {
-            ensure_spn_home().unwrap();
+        with_temp_nika_home(|_| {
+            ensure_nika_home().unwrap();
 
             let pkg_dir = package_dir("@test/pkg", "1.0.0").unwrap();
             fs::create_dir_all(&pkg_dir).unwrap();
