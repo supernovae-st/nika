@@ -175,3 +175,106 @@ impl Action {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_action_equality() {
+        assert_eq!(Action::Quit, Action::Quit);
+        assert_eq!(Action::Continue, Action::Continue);
+        assert_ne!(Action::Quit, Action::Continue);
+    }
+
+    #[test]
+    fn test_action_clone() {
+        let action = Action::FilterInput('a');
+        let cloned = action.clone();
+        assert_eq!(action, cloned);
+    }
+
+    #[test]
+    fn test_from_view_action_none() {
+        let result = Action::from_view_action(ViewAction::None);
+        assert_eq!(result, Action::Continue);
+    }
+
+    #[test]
+    fn test_from_view_action_quit() {
+        let result = Action::from_view_action(ViewAction::Quit);
+        assert_eq!(result, Action::Quit);
+    }
+
+    #[test]
+    fn test_from_view_action_toggle_theme() {
+        let result = Action::from_view_action(ViewAction::ToggleTheme);
+        assert_eq!(result, Action::ToggleTheme);
+    }
+
+    #[test]
+    fn test_from_view_action_open_settings() {
+        let result = Action::from_view_action(ViewAction::OpenSettings);
+        assert_eq!(result, Action::SwitchView(TuiView::Settings));
+    }
+
+    #[test]
+    fn test_from_view_action_switch_view() {
+        let result = Action::from_view_action(ViewAction::SwitchView(TuiView::Chat));
+        assert_eq!(result, Action::SwitchView(TuiView::Chat));
+    }
+
+    #[test]
+    fn test_from_view_action_chat_infer() {
+        let prompt = "test prompt".to_string();
+        let result = Action::from_view_action(ViewAction::ChatInfer(prompt.clone()));
+        match result {
+            Action::ViewSpecific(ViewAction::ChatInfer(p)) => assert_eq!(p, prompt),
+            _ => panic!("Expected ViewSpecific(ChatInfer)"),
+        }
+    }
+
+    #[test]
+    fn test_from_view_action_launch_wizard() {
+        let result = Action::from_view_action(ViewAction::LaunchWizard);
+        match result {
+            Action::ViewSpecific(ViewAction::LaunchWizard) => {}
+            _ => panic!("Expected ViewSpecific(LaunchWizard)"),
+        }
+    }
+
+    #[test]
+    fn test_action_debug_format() {
+        let action = Action::Quit;
+        let debug_str = format!("{:?}", action);
+        assert!(debug_str.contains("Quit"));
+    }
+
+    #[test]
+    fn test_filter_actions() {
+        // Test that FilterInput captures characters correctly
+        let action = Action::FilterInput('x');
+        match action {
+            Action::FilterInput(c) => assert_eq!(c, 'x'),
+            _ => panic!("Expected FilterInput"),
+        }
+    }
+
+    #[test]
+    fn test_focus_panel_action() {
+        let action = Action::FocusPanel(2);
+        match action {
+            Action::FocusPanel(n) => assert_eq!(n, 2),
+            _ => panic!("Expected FocusPanel"),
+        }
+    }
+
+    #[test]
+    fn test_mouse_click_panel() {
+        let action = Action::MouseClickPanel(PanelId::Dag);
+        match action {
+            Action::MouseClickPanel(panel) => assert_eq!(panel, PanelId::Dag),
+            _ => panic!("Expected MouseClickPanel"),
+        }
+    }
+}
