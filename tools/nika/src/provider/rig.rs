@@ -768,6 +768,32 @@ pub enum StreamChunk {
     },
     /// v0.8.4: All provider verifications timed out (no providers available)
     ProviderVerificationTimeout,
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Native Model Events (v0.27 - local GGUF model management)
+    // ═══════════════════════════════════════════════════════════════════════════
+    /// Native model pull started
+    NativeModelPullStarted { model: String },
+    /// Native model pull progress update
+    NativeModelPullProgress {
+        model: String,
+        status: String,
+        completed: u64,
+        total: u64,
+    },
+    /// Native model pull completed successfully
+    NativeModelPulled {
+        model: String,
+        path: String,
+        size: u64,
+    },
+    /// Native model pull failed
+    NativeModelPullFailed { model: String, error: String },
+    /// Native model deleted
+    NativeModelDeleted { model: String },
+    /// Native model delete failed
+    NativeModelDeleteFailed { model: String, error: String },
+    /// Native models list refreshed
+    NativeModelsRefreshed { count: usize },
 }
 
 // =============================================================================

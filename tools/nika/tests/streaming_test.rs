@@ -144,6 +144,39 @@ async fn test_claude_streaming() {
                 StreamChunk::ProviderNotConfigured { provider } => {
                     eprintln!("PROVIDER NOT CONFIGURED: {}", provider);
                 }
+                // v0.27: Native model events (not expected in streaming tests)
+                StreamChunk::NativeModelPullStarted { model } => {
+                    eprintln!("NATIVE MODEL PULL STARTED: {}", model);
+                }
+                StreamChunk::NativeModelPullProgress {
+                    model,
+                    status,
+                    completed,
+                    total,
+                } => {
+                    eprintln!(
+                        "NATIVE MODEL PULL PROGRESS: {} - {} ({}/{})",
+                        model, status, completed, total
+                    );
+                }
+                StreamChunk::NativeModelPulled { model, path, size } => {
+                    eprintln!(
+                        "NATIVE MODEL PULLED: {} -> {} ({} bytes)",
+                        model, path, size
+                    );
+                }
+                StreamChunk::NativeModelPullFailed { model, error } => {
+                    eprintln!("NATIVE MODEL PULL FAILED: {} - {}", model, error);
+                }
+                StreamChunk::NativeModelDeleted { model } => {
+                    eprintln!("NATIVE MODEL DELETED: {}", model);
+                }
+                StreamChunk::NativeModelDeleteFailed { model, error } => {
+                    eprintln!("NATIVE MODEL DELETE FAILED: {} - {}", model, error);
+                }
+                StreamChunk::NativeModelsRefreshed { count } => {
+                    eprintln!("NATIVE MODELS REFRESHED: {} models", count);
+                }
             }
         }
         (tokens, done)
