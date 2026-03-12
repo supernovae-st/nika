@@ -91,9 +91,13 @@ pub mod util;
 // ═══════════════════════════════════════════════════════════════
 // CROSS-CUTTING - Error handling, configuration, secrets
 // ═══════════════════════════════════════════════════════════════
+pub mod backup;
 pub mod config;
+pub mod daemon;
 pub mod error;
 pub mod secrets;
+pub mod setup;
+pub mod sync;
 
 // ═══════════════════════════════════════════════════════════════
 // WORKFLOW SCAFFOLDING - nika new command (v0.19.3)

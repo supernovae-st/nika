@@ -73,7 +73,9 @@
 pub mod backend;
 pub mod mcp_aliases;
 pub mod mcp_config;
+pub mod migration;
 pub mod models;
+pub mod paths;
 pub mod providers;
 pub mod storage;
 
@@ -102,4 +104,59 @@ pub use providers::{
 };
 pub use storage::{
     default_model_dir, detect_system_ram_gb, extract_quantization, HuggingFaceStorage, StorageError,
+};
+
+// Path utilities (v0.28 - ~/.nika branding)
+pub use paths::{
+    // Directory paths
+    backups_dir,
+    cache_dir,
+    daemon_dir,
+    // File paths (prefixed to avoid conflicts with mcp_config)
+    daemon_pid_path,
+    daemon_socket_path,
+    // Directory creation
+    ensure_nika_home,
+    ensure_project_nika_dir,
+    global_mcp_config_path,
+    // Legacy detection
+    legacy_spn_home,
+    legacy_spn_lockfile,
+    legacy_spn_manifest,
+    models_dir,
+    // Home directory
+    nika_home,
+    nika_home_opt,
+    // Package paths
+    package_dir,
+    package_manifest_path,
+    packages_dir,
+    // Project paths
+    project_lockfile_path,
+    project_manifest_path,
+    project_mcp_config_path,
+    project_nika_dir,
+    project_sessions_dir,
+    registry_index_path,
+    // Constants
+    DAEMON_PID,
+    DAEMON_SOCKET,
+    GLOBAL_CONFIG,
+    LEGACY_SPN_DIR_NAME,
+    LEGACY_SPN_HOME_ENV,
+    MCP_CONFIG,
+    NIKA_DIR_NAME,
+    NIKA_HOME_ENV,
+    NIKA_LOCKFILE,
+    NIKA_MANIFEST,
+    NIKA_PROJECT_DIR,
+    REGISTRY_INDEX,
+};
+// Note: global_config_path is exported from paths module but accessed via paths::global_config_path
+// to avoid conflict with mcp_config::global_config_path
+
+// Migration utilities (v0.28 - ~/.spn → ~/.nika)
+pub use migration::{
+    check_migration_status, check_project_migration, migrate_global_home, migrate_project,
+    print_migration_prompt, MigrationResult, MigrationStatus, ProjectMigrationStatus,
 };

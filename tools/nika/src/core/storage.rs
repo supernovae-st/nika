@@ -242,7 +242,9 @@ impl HuggingFaceStorage {
         let client = Client::builder()
             .user_agent(&user_agent)
             .build()
-            .map_err(|e| StorageError::InvalidConfig(format!("Failed to create HTTP client: {e}")))?;
+            .map_err(|e| {
+                StorageError::InvalidConfig(format!("Failed to create HTTP client: {e}"))
+            })?;
 
         Ok(Self {
             storage_dir,
@@ -688,12 +690,18 @@ mod tests {
         // Test path traversal with ..
         let result = storage.model_path("../../../etc/passwd");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), BackendError::PathTraversal { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            BackendError::PathTraversal { .. }
+        ));
 
         // Test absolute path rejection
         let result = storage.model_path("/etc/passwd");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), BackendError::PathTraversal { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            BackendError::PathTraversal { .. }
+        ));
 
         // Test valid nested path is accepted
         let result = storage.model_path("Qwen/Qwen3-8B-Q4_K_M.gguf");

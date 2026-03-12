@@ -1,7 +1,7 @@
 //! MCP server configuration management — global and project-level configs.
 //!
 //! This module provides types and functions for managing MCP server configurations
-//! at both global (~/.spn/mcp.yaml) and project (.spn/mcp.yaml) levels.
+//! at both global (~/.nika/mcp.yaml) and project (.nika/mcp.yaml) levels.
 //!
 //! ## Architecture
 //!
@@ -10,9 +10,9 @@
 //! │  MCP CONFIG HIERARCHY (lowest wins)                                         │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
-//! │  Global:   ~/.spn/mcp.yaml         ← User's personal MCP servers            │
+//! │  Global:   ~/.nika/mcp.yaml        ← User's personal MCP servers            │
 //! │              ↑                                                              │
-//! │  Project:  ./.spn/mcp.yaml         ← Project-specific servers               │
+//! │  Project:  ./.nika/mcp.yaml        ← Project-specific servers               │
 //! │              ↑                                                              │
 //! │  Workflow: (inline in .nika.yaml)  ← Workflow-specific servers              │
 //! │                                                                             │
@@ -105,9 +105,9 @@ fn default_enabled() -> bool {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum McpSource {
-    /// Global config (~/.spn/mcp.yaml)
+    /// Global config (~/.nika/mcp.yaml)
     Global,
-    /// Project config (.spn/mcp.yaml)
+    /// Project config (.nika/mcp.yaml)
     Project,
     /// Workflow config (inline in .nika.yaml)
     Workflow,
@@ -127,46 +127,46 @@ impl std::fmt::Display for McpSource {
 // PATH HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Get the global MCP config directory (~/.spn/).
+/// Get the global MCP config directory (~/.nika/).
 ///
 /// Creates the directory if it doesn't exist.
 pub fn global_config_dir() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".spn"))
+    dirs::home_dir().map(|h| h.join(".nika"))
 }
 
-/// Get the global MCP config file path (~/.spn/mcp.yaml).
+/// Get the global MCP config file path (~/.nika/mcp.yaml).
 pub fn global_config_path() -> Option<PathBuf> {
     global_config_dir().map(|d| d.join("mcp.yaml"))
 }
 
-/// Get the project MCP config file path (.spn/mcp.yaml).
+/// Get the project MCP config file path (.nika/mcp.yaml).
 ///
-/// Searches upward from current directory for a .spn directory.
+/// Searches upward from current directory for a .nika directory.
 pub fn project_config_path() -> Option<PathBuf> {
-    find_project_root().map(|r| r.join(".spn").join("mcp.yaml"))
+    find_project_root().map(|r| r.join(".nika").join("mcp.yaml"))
 }
 
 /// Get the project config path relative to a specific directory.
 pub fn project_config_path_from(dir: &Path) -> PathBuf {
-    dir.join(".spn").join("mcp.yaml")
+    dir.join(".nika").join("mcp.yaml")
 }
 
-/// Find the project root by searching for .spn, .git, or spn.yaml.
+/// Find the project root by searching for .nika, .git, or nika.yaml.
 fn find_project_root() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
     let mut current = cwd.as_path();
 
     loop {
-        // Check for .spn directory
-        if current.join(".spn").is_dir() {
+        // Check for .nika directory
+        if current.join(".nika").is_dir() {
             return Some(current.to_path_buf());
         }
         // Check for .git directory (common project root indicator)
         if current.join(".git").exists() {
             return Some(current.to_path_buf());
         }
-        // Check for spn.yaml (project manifest)
-        if current.join("spn.yaml").exists() {
+        // Check for nika.yaml (project manifest)
+        if current.join("nika.yaml").exists() {
             return Some(current.to_path_buf());
         }
 
@@ -178,14 +178,14 @@ fn find_project_root() -> Option<PathBuf> {
 // LOAD / SAVE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Load the global MCP config (~/.spn/mcp.yaml).
+/// Load the global MCP config (~/.nika/mcp.yaml).
 ///
 /// Returns `None` if the file doesn't exist, `Err` on parse errors.
 pub fn load_global_config() -> Result<Option<McpConfig>, McpConfigError> {
     load_config_from_path(global_config_path())
 }
 
-/// Load the project MCP config (.spn/mcp.yaml).
+/// Load the project MCP config (.nika/mcp.yaml).
 ///
 /// Returns `None` if the file doesn't exist, `Err` on parse errors.
 pub fn load_project_config() -> Result<Option<McpConfig>, McpConfigError> {
@@ -216,7 +216,7 @@ pub fn load_config_from_path(path: Option<PathBuf>) -> Result<Option<McpConfig>,
     Ok(Some(config))
 }
 
-/// Save the global MCP config (~/.spn/mcp.yaml).
+/// Save the global MCP config (~/.nika/mcp.yaml).
 ///
 /// Creates the directory if it doesn't exist.
 pub fn save_global_config(config: &McpConfig) -> Result<(), McpConfigError> {
@@ -224,7 +224,7 @@ pub fn save_global_config(config: &McpConfig) -> Result<(), McpConfigError> {
     save_config_to_path(config, &path)
 }
 
-/// Save the project MCP config (.spn/mcp.yaml).
+/// Save the project MCP config (.nika/mcp.yaml).
 ///
 /// Creates the directory if it doesn't exist.
 pub fn save_project_config(config: &McpConfig) -> Result<(), McpConfigError> {
@@ -559,7 +559,7 @@ mod tests {
         let path = global_config_path();
         // Should be Some on most systems
         if let Some(p) = path {
-            assert!(p.ends_with(".spn/mcp.yaml") || p.ends_with(".spn\\mcp.yaml"));
+            assert!(p.ends_with(".nika/mcp.yaml") || p.ends_with(".nika\\mcp.yaml"));
         }
     }
 
