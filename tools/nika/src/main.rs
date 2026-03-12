@@ -2142,8 +2142,60 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 /// - `output/` for generated workflow outputs
 /// - Migrate env vars to keychain (if --migrate-keys)
 fn init_project(permission: &str, no_example: bool, migrate_keys: bool) -> Result<(), NikaError> {
+    use nika::core::{
+        check_migration_status, check_project_migration, migrate_global_home, migrate_project,
+        MigrationStatus,
+    };
+
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
+
+    // Check for global home migration (~/.spn → ~/.nika)
+    let global_status = check_migration_status();
+    if global_status == MigrationStatus::Needed {
+        println!(
+            "{} Found ~/.spn directory. Migrating to ~/.nika...",
+            "→".cyan()
+        );
+        let result = migrate_global_home();
+        if result.success {
+            if !result.migrated_dirs.is_empty() || !result.migrated_files.is_empty() {
+                println!(
+                    "{} Migrated global home ({} dirs, {} files)",
+                    "✓".green(),
+                    result.migrated_dirs.len(),
+                    result.migrated_files.len()
+                );
+            }
+        } else if let Some(err) = result.error {
+            println!(
+                "{} Global migration failed: {} (continuing anyway)",
+                "⚠".yellow(),
+                err
+            );
+        }
+    }
+
+    // Check for project-level migration (spn.yaml → nika.yaml)
+    let project_status = check_project_migration(&cwd);
+    if project_status.needs_migration() {
+        println!(
+            "{} Found legacy spn files. Migrating to nika format...",
+            "→".cyan()
+        );
+        let result = migrate_project(&cwd);
+        if result.success && !result.migrated_files.is_empty() {
+            for file in &result.migrated_files {
+                println!("{} Migrated {}", "✓".green(), file);
+            }
+        } else if let Some(err) = result.error {
+            println!(
+                "{} Project migration failed: {} (continuing anyway)",
+                "⚠".yellow(),
+                err
+            );
+        }
+    }
 
     // Check if already initialized
     if nika_dir.exists() {

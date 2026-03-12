@@ -41,9 +41,7 @@ mod mask {
     }
 }
 
-// Fallback types when spn-daemon feature disabled (still needed for SpnKeyring)
-#[cfg(not(feature = "spn-daemon"))]
-mod fallback;
+// Note: Fallback module removed in v0.27 - all providers come from nika::core
 
 /// Get all LLM providers (6: anthropic, openai, mistral, groq, deepseek, gemini)
 /// v0.27: Ollama removed

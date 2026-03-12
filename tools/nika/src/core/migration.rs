@@ -375,7 +375,7 @@ pub fn print_migration_prompt() {
                 "║                                                                           ║"
             );
             eprintln!(
-                "║  Run 'nika migrate' to migrate your data:                                 ║"
+                "║  Run 'nika init' to migrate your data:                                    ║"
             );
             eprintln!(
                 "║  • Packages and models                                                    ║"
