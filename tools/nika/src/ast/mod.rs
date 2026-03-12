@@ -36,6 +36,9 @@ pub mod analyzed;
 pub mod analyzer;
 pub mod raw;
 
+// Security - YAML bomb protection (v0.27.1)
+pub mod budget;
+
 // Legacy modules (being migrated)
 mod action;
 mod agent;
