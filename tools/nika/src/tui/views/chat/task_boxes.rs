@@ -36,7 +36,7 @@ impl ChatView {
         self.add_task_to_queue(&task_id, chat_verb);
         self.update_task_state(&task_id, ChatTaskState::Running, None);
 
-        self.inline_content.push(InlineContent::Task(task_box));
+        self.inline_content.push(InlineContent::Task(Box::new(task_box)));
         self.auto_scroll_to_bottom();
     }
 

@@ -126,7 +126,8 @@ pub enum InlineContent {
     /// Streaming inference with token counter
     InferStream(InferStreamData),
     /// Task box for any verb (v0.8.1 - unified rendering)
-    Task(TaskBox),
+    /// Boxed to reduce enum size (TaskBox is 352 bytes)
+    Task(Box<TaskBox>),
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
