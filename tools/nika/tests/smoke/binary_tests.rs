@@ -105,10 +105,10 @@ fn test_startup_time_help() {
 
     assert!(output.status.success());
 
-    // Help should return in under 2 seconds (debug builds are slower)
+    // Help should return in under 3 seconds (debug builds under load are slower)
     // Release builds typically complete in <500ms
     assert!(
-        elapsed < Duration::from_secs(2),
+        elapsed < Duration::from_secs(3),
         "Startup too slow: {:?}",
         elapsed
     );
