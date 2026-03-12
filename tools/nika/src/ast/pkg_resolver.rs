@@ -13,7 +13,7 @@
 //!
 //! # Resolution
 //!
-//! URIs resolve to: `~/.spn/packages/@scope/name/version/path`
+//! URIs resolve to: `~/.nika/packages/@scope/name/version/path`
 //!
 //! # Examples
 //!
@@ -41,7 +41,7 @@ const DEFAULT_SCOPE: &str = "default";
 const LATEST_VERSION: &str = "latest";
 
 /// Base directory for packages (relative to home)
-const PACKAGES_DIR: &str = ".spn/packages";
+const PACKAGES_DIR: &str = ".nika/packages";
 
 /// Parsed package URI components
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,7 +173,7 @@ impl PkgUri {
 
     /// Resolve the URI to a filesystem path
     ///
-    /// Uses `~/.spn/packages/@scope/name/version/path`
+    /// Uses `~/.nika/packages/@scope/name/version/path`
     pub fn resolve(&self) -> Result<PathBuf, NikaError> {
         let home = dirs::home_dir().ok_or_else(|| NikaError::InvalidPkgUri {
             uri: self.to_string(),
@@ -469,7 +469,7 @@ mod tests {
         let resolved = uri.resolve().unwrap();
 
         let home = dirs::home_dir().unwrap();
-        let expected = home.join(".spn/packages/@supernovae/skills/1.0.0/rust.md");
+        let expected = home.join(".nika/packages/@supernovae/skills/1.0.0/rust.md");
         assert_eq!(resolved, expected);
     }
 
@@ -479,7 +479,7 @@ mod tests {
         let resolved = uri.resolve().unwrap();
 
         let home = dirs::home_dir().unwrap();
-        let expected = home.join(".spn/packages/@default/my-skills/latest/file.md");
+        let expected = home.join(".nika/packages/@default/my-skills/latest/file.md");
         assert_eq!(resolved, expected);
     }
 
@@ -489,7 +489,7 @@ mod tests {
         let resolved = uri.resolve().unwrap();
 
         let home = dirs::home_dir().unwrap();
-        let expected = home.join(".spn/packages/@spn/writing/1.0.0/skills/mermaid/SKILL.md");
+        let expected = home.join(".nika/packages/@spn/writing/1.0.0/skills/mermaid/SKILL.md");
         assert_eq!(resolved, expected);
     }
 

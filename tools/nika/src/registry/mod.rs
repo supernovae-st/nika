@@ -1,13 +1,13 @@
 //! SuperNovae Package Registry
 //!
 //! This module provides the registry system for managing installed skill packages.
-//! Packages are stored in `~/.spn/packages/@scope/name/version/` following the
+//! Packages are stored in `~/.nika/packages/@scope/name/version/` following the
 //! SuperNovae Skill Ecosystem design.
 //!
 //! # Architecture
 //!
 //! ```text
-//! ~/.spn/
+//! ~/.nika/
 //! ├── registry.yaml           # Index of installed packages
 //! └── packages/               # Package storage
 //!     ├── @scope/             # Scoped packages
@@ -33,6 +33,7 @@
 //! }
 //! ```
 
+pub mod api;
 pub mod lockfile;
 pub mod operations;
 pub mod resolver;
@@ -56,6 +57,12 @@ pub use resolver::{
 
 // Re-export lockfile
 pub use lockfile::{LockEntry, Lockfile, LockfileError};
+
+// Re-export API client (v0.28)
+pub use api::{
+    PackageInfo, RegistryApiError, RegistryClient, SearchResponse, SearchResult, SkillInfo,
+    VersionInfo,
+};
 
 #[cfg(test)]
 mod tests {

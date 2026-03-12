@@ -1,7 +1,7 @@
 //! Package path resolution for local SuperNovae packages.
 //!
 //! Resolves package references like `@workflows/seo-audit` or `@workflows/seo-audit@1.2.0`
-//! to actual filesystem paths in `~/.spn/packages/`.
+//! to actual filesystem paths in `~/.nika/packages/`.
 //!
 //! # Performance
 //!
@@ -203,7 +203,7 @@ pub fn cache_stats() -> (usize, usize) {
 /// This function:
 /// 1. Checks the cache first (v0.17+)
 /// 2. Parses the package reference
-/// 3. Looks up the package in `~/.spn/packages/`
+/// 3. Looks up the package in `~/.nika/packages/`
 /// 4. If no version specified, finds the latest installed version
 /// 5. Loads and validates the package manifest
 /// 6. Caches the result (v0.17+)
@@ -238,7 +238,7 @@ pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, Resolver
 fn resolve_package_path_uncached(reference: &str) -> Result<ResolvedPackage, ResolverError> {
     let pkg_ref = parse_package_ref(reference)?;
 
-    // Get base packages directory (~/.spn/packages/)
+    // Get base packages directory (~/.nika/packages/)
     let packages_dir = get_packages_dir()?;
 
     // Construct package base path (@workflows/seo-audit)
@@ -305,7 +305,7 @@ fn resolve_package_path_uncached(reference: &str) -> Result<ResolvedPackage, Res
     })
 }
 
-/// Get the packages directory (~/.spn/packages/)
+/// Get the packages directory (~/.nika/packages/)
 fn get_packages_dir() -> Result<PathBuf, ResolverError> {
     let home = dirs::home_dir().ok_or_else(|| {
         ResolverError::IoError(std::io::Error::new(
@@ -314,7 +314,7 @@ fn get_packages_dir() -> Result<PathBuf, ResolverError> {
         ))
     })?;
 
-    Ok(home.join(".spn").join("packages"))
+    Ok(home.join(".nika").join("packages"))
 }
 
 /// Find the latest installed version in a package directory.

@@ -1,6 +1,6 @@
 //! Registry type definitions for the SuperNovae package system.
 //!
-//! This module defines the core types for the `~/.spn/packages/` registry:
+//! This module defines the core types for the `~/.nika/packages/` registry:
 //! - `Manifest` - Package metadata from manifest.yaml
 //! - `SkillEntry` - Individual skill definition within a package
 //! - `RegistryIndex` - Installed packages index (registry.yaml)
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 /// Package manifest loaded from `manifest.yaml`.
 ///
-/// Located at: `~/.spn/packages/@scope/name/version/manifest.yaml`
+/// Located at: `~/.nika/packages/@scope/name/version/manifest.yaml`
 ///
 /// # Example
 ///
@@ -128,7 +128,7 @@ impl SkillEntry {
 
 /// Registry index tracking all installed packages.
 ///
-/// Located at: `~/.spn/registry.yaml`
+/// Located at: `~/.nika/registry.yaml`
 ///
 /// # Example
 ///
@@ -201,7 +201,7 @@ pub struct InstalledPackage {
     /// ISO 8601 timestamp of installation
     pub installed_at: String,
 
-    /// Relative path to manifest.yaml from ~/.spn/
+    /// Relative path to manifest.yaml from ~/.nika/
     pub manifest_path: String,
 }
 

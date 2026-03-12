@@ -1,10 +1,15 @@
 //! Registry operations for the SuperNovae package system.
 //!
-//! This module provides file system operations for the `~/.spn/` registry:
+//! This module provides file system operations for the `~/.nika/` registry:
 //! - Package directory management
 //! - Registry index loading/saving
 //! - Manifest loading
 //! - Installation status checking
+//!
+//! ## v0.28 Migration
+//!
+//! This module now uses the unified `core::paths` module for all path operations.
+//! The legacy `~/.nika/` paths are deprecated in favor of `~/.nika/`.
 
 use std::fs;
 use std::path::PathBuf;
@@ -15,11 +20,16 @@ use crate::registry::types::{Manifest, RegistryIndex};
 use crate::serde_yaml;
 use crate::NikaError;
 
-/// Environment variable to override the default SPN directory.
-pub const SPN_HOME_ENV: &str = "SPN_HOME";
+// Re-export from core::paths for backward compatibility
+pub use crate::core::paths::{NIKA_DIR_NAME, NIKA_HOME_ENV};
 
-/// Default SPN directory name under user home.
-pub const SPN_DIR_NAME: &str = ".spn";
+/// Environment variable to override the default home directory.
+/// @deprecated Use `NIKA_HOME_ENV` from `core::paths` instead.
+pub const SPN_HOME_ENV: &str = "NIKA_HOME";
+
+/// Default directory name under user home.
+/// @deprecated Use `NIKA_DIR_NAME` from `core::paths` instead.
+pub const SPN_DIR_NAME: &str = ".nika";
 
 /// Registry index filename.
 pub const REGISTRY_INDEX_FILE: &str = "registry.yaml";
@@ -30,15 +40,15 @@ pub const PACKAGES_DIR_NAME: &str = "packages";
 /// Manifest filename within a package.
 pub const MANIFEST_FILE: &str = "manifest.yaml";
 
-/// Get the SPN home directory.
+/// Get the Nika home directory.
 ///
 /// Priority:
-/// 1. `$SPN_HOME` environment variable (validated)
-/// 2. `~/.spn/`
+/// 1. `$NIKA_HOME` environment variable (validated)
+/// 2. `~/.nika/`
 ///
 /// # Security
 ///
-/// The `$SPN_HOME` environment variable is validated to ensure:
+/// The `$NIKA_HOME` environment variable is validated to ensure:
 /// - Path is absolute
 /// - Path does not contain traversal sequences (`..`)
 ///
@@ -48,62 +58,33 @@ pub const MANIFEST_FILE: &str = "manifest.yaml";
 /// use nika::registry::operations::spn_home;
 ///
 /// let home = spn_home()?;
-/// // Returns PathBuf like "/home/user/.spn" or value of $SPN_HOME
+/// // Returns PathBuf like "/home/user/.nika" or value of $NIKA_HOME
 /// # Ok::<(), nika::NikaError>(())
 /// ```
+///
+/// @deprecated Use `nika_home()` from `core::paths` instead.
 pub fn spn_home() -> Result<PathBuf, NikaError> {
-    // Check environment variable first
-    if let Ok(custom_home) = std::env::var(SPN_HOME_ENV) {
-        let path = PathBuf::from(&custom_home);
-
-        // Validate: must be absolute path
-        if !path.is_absolute() {
-            return Err(NikaError::ConfigError {
-                reason: format!(
-                    "${} must be an absolute path, got: {}",
-                    SPN_HOME_ENV, custom_home
-                ),
-            });
-        }
-
-        // Validate: no path traversal sequences
-        if custom_home.contains("..") {
-            return Err(NikaError::ConfigError {
-                reason: format!(
-                    "${} contains path traversal sequence (..): {}",
-                    SPN_HOME_ENV, custom_home
-                ),
-            });
-        }
-
-        return Ok(path);
-    }
-
-    // Fall back to ~/.spn/
-    let home = dirs::home_dir().ok_or_else(|| NikaError::ConfigError {
-        reason: "Could not determine home directory".into(),
-    })?;
-
-    Ok(home.join(SPN_DIR_NAME))
+    // Delegate to the unified paths module
+    Ok(crate::core::paths::nika_home())
 }
 
 /// Get the packages directory.
 ///
-/// Returns `~/.spn/packages/` (or `$SPN_HOME/packages/`).
+/// Returns `~/.nika/packages/` (or `$NIKA_HOME/packages/`).
 pub fn packages_dir() -> Result<PathBuf, NikaError> {
     Ok(spn_home()?.join(PACKAGES_DIR_NAME))
 }
 
 /// Get the registry index file path.
 ///
-/// Returns `~/.spn/registry.yaml` (or `$SPN_HOME/registry.yaml`).
+/// Returns `~/.nika/registry.yaml` (or `$NIKA_HOME/registry.yaml`).
 pub fn registry_index_path() -> Result<PathBuf, NikaError> {
     Ok(spn_home()?.join(REGISTRY_INDEX_FILE))
 }
 
 /// Get the directory path for a specific package version.
 ///
-/// Returns `~/.spn/packages/@scope/name/version/`.
+/// Returns `~/.nika/packages/@scope/name/version/`.
 ///
 /// # Arguments
 ///
@@ -116,7 +97,7 @@ pub fn registry_index_path() -> Result<PathBuf, NikaError> {
 /// use nika::registry::operations::package_dir;
 ///
 /// let dir = package_dir("@supernovae/workflows", "1.0.0")?;
-/// // Returns PathBuf like "~/.spn/packages/@supernovae/workflows/1.0.0/"
+/// // Returns PathBuf like "~/.nika/packages/@supernovae/workflows/1.0.0/"
 /// # Ok::<(), nika::NikaError>(())
 /// ```
 pub fn package_dir(name: &str, version: &str) -> Result<PathBuf, NikaError> {
@@ -136,14 +117,16 @@ pub fn package_dir(name: &str, version: &str) -> Result<PathBuf, NikaError> {
 
 /// Get the manifest file path for a specific package version.
 ///
-/// Returns `~/.spn/packages/@scope/name/version/manifest.yaml`.
+/// Returns `~/.nika/packages/@scope/name/version/manifest.yaml`.
 pub fn manifest_path(name: &str, version: &str) -> Result<PathBuf, NikaError> {
     Ok(package_dir(name, version)?.join(MANIFEST_FILE))
 }
 
-/// Ensure the SPN home directory exists.
+/// Ensure the Nika home directory exists.
 ///
-/// Creates `~/.spn/` and `~/.spn/packages/` if they don't exist.
+/// Creates `~/.nika/` and `~/.nika/packages/` if they don't exist.
+///
+/// @deprecated Use `ensure_nika_home()` from `core::paths` instead.
 pub fn ensure_spn_home() -> Result<PathBuf, NikaError> {
     let home = spn_home()?;
 

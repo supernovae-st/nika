@@ -61,7 +61,7 @@ use crate::error::NikaError;
 ///
 /// // pkg: URI
 /// let path = resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", Path::new("/project"))?;
-/// // Returns ~/.spn/packages/@supernovae/skills/1.0.0/rust.md
+/// // Returns ~/.nika/packages/@supernovae/skills/1.0.0/rust.md
 /// # Ok(())
 /// # }
 /// ```
@@ -267,7 +267,7 @@ skills: [seo, brand]
         let result = resolve_skill_path("pkg:@supernovae/skills@1.0.0/rust.md", base_dir).unwrap();
         let expected = dirs::home_dir()
             .unwrap()
-            .join(".spn/packages/@supernovae/skills/1.0.0/rust.md");
+            .join(".nika/packages/@supernovae/skills/1.0.0/rust.md");
         assert_eq!(result, expected);
     }
 
@@ -277,7 +277,7 @@ skills: [seo, brand]
         let result = resolve_skill_path("pkg:@supernovae/skills/rust.md", base_dir).unwrap();
         let expected = dirs::home_dir()
             .unwrap()
-            .join(".spn/packages/@supernovae/skills/latest/rust.md");
+            .join(".nika/packages/@supernovae/skills/latest/rust.md");
         assert_eq!(result, expected);
     }
 
@@ -287,7 +287,7 @@ skills: [seo, brand]
         let result = resolve_skill_path("pkg:skills/seo.md", base_dir).unwrap();
         let expected = dirs::home_dir()
             .unwrap()
-            .join(".spn/packages/@default/skills/latest/seo.md");
+            .join(".nika/packages/@default/skills/latest/seo.md");
         assert_eq!(result, expected);
     }
 
