@@ -1,6 +1,6 @@
 //! SuperNovae CLI MCP Configuration Loader
 //!
-//! Loads MCP server configurations from `~/.spn/mcp.yaml` - the single source
+//! Loads MCP server configurations from `~/.nika/mcp.yaml` - the single source
 //! of truth for MCP servers in the SuperNovae ecosystem.
 //!
 //! This module bridges the spn CLI's MCP configuration with Nika's MCP client,
@@ -11,7 +11,7 @@
 //! ```rust,ignore
 //! use nika::mcp::spn_config::{load_spn_mcp_servers, SpnMcpConfigManager};
 //!
-//! // Load all enabled servers from ~/.spn/mcp.yaml
+//! // Load all enabled servers from ~/.nika/mcp.yaml
 //! let servers = load_spn_mcp_servers()?;
 //! for (name, config) in &servers {
 //!     println!("Server: {} -> {}", name, config.command);
@@ -25,7 +25,7 @@
 //!
 //! ## File Format
 //!
-//! The `~/.spn/mcp.yaml` file follows this format:
+//! The `~/.nika/mcp.yaml` file follows this format:
 //!
 //! ```yaml
 //! version: 1
@@ -59,7 +59,7 @@
 //! tasks:
 //!   - id: query
 //!     invoke:
-//!       mcp: neo4j  # Uses server from ~/.spn/mcp.yaml
+//!       mcp: neo4j  # Uses server from ~/.nika/mcp.yaml
 //!       tool: query
 //!       params:
 //!         cypher: "MATCH (n) RETURN n LIMIT 10"
@@ -79,7 +79,7 @@ use crate::serde_yaml;
 // SPN MCP Configuration Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Root configuration for MCP servers from `~/.spn/mcp.yaml`.
+/// Root configuration for MCP servers from `~/.nika/mcp.yaml`.
 ///
 /// This mirrors the structure used by the `spn` CLI.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -99,7 +99,7 @@ fn default_version() -> u32 {
 
 /// Individual MCP server configuration from spn.
 ///
-/// This is the format used in `~/.spn/mcp.yaml`.
+/// This is the format used in `~/.nika/mcp.yaml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpnMcpServer {
     /// Command to execute (e.g., "npx", "node", "novanet-mcp").
@@ -134,10 +134,10 @@ fn default_enabled() -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SpnMcpSource {
-    /// Global configuration (~/.spn/mcp.yaml).
+    /// Global configuration (~/.nika/mcp.yaml).
     #[default]
     Global,
-    /// Project configuration (.spn/mcp.yaml).
+    /// Project configuration (.nika/mcp.yaml).
     Project,
     /// Workflow-level configuration (inline in workflow.nika.yaml).
     Workflow,
@@ -168,8 +168,8 @@ impl SpnMcpServer {
 /// Manager for loading MCP configurations from spn files.
 ///
 /// Handles reading from:
-/// - Global: `~/.spn/mcp.yaml`
-/// - Project: `.spn/mcp.yaml` (relative to project root)
+/// - Global: `~/.nika/mcp.yaml`
+/// - Project: `.nika/mcp.yaml` (relative to project root)
 #[derive(Debug, Clone)]
 pub struct SpnMcpConfigManager {
     global_path: PathBuf,
@@ -201,19 +201,19 @@ impl SpnMcpConfigManager {
         }
     }
 
-    /// Get the default global config path (~/.spn/mcp.yaml).
+    /// Get the default global config path (~/.nika/mcp.yaml).
     pub fn default_global_path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".spn")
+            .join(".nika")
             .join("mcp.yaml")
     }
 
-    /// Get the project config path (.spn/mcp.yaml relative to project root).
+    /// Get the project config path (.nika/mcp.yaml relative to project root).
     pub fn project_path(&self) -> Option<PathBuf> {
         self.project_root
             .as_ref()
-            .map(|root| root.join(".spn").join("mcp.yaml"))
+            .map(|root| root.join(".nika").join("mcp.yaml"))
     }
 
     /// Check if the global config file exists.
@@ -221,12 +221,12 @@ impl SpnMcpConfigManager {
         self.global_path.exists()
     }
 
-    /// Load global MCP configuration from ~/.spn/mcp.yaml.
+    /// Load global MCP configuration from ~/.nika/mcp.yaml.
     pub fn load_global(&self) -> Result<SpnMcpConfig, NikaError> {
         Self::load_from_path(&self.global_path)
     }
 
-    /// Load project MCP configuration from .spn/mcp.yaml.
+    /// Load project MCP configuration from .nika/mcp.yaml.
     pub fn load_project(&self) -> Result<Option<SpnMcpConfig>, NikaError> {
         let Some(path) = self.project_path() else {
             return Ok(None);
@@ -284,7 +284,7 @@ impl Default for SpnMcpConfigManager {
 // Convenience Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Load all enabled MCP servers from ~/.spn/mcp.yaml.
+/// Load all enabled MCP servers from ~/.nika/mcp.yaml.
 ///
 /// Returns a HashMap of server name -> McpConfig, ready for use with Nika's
 /// MCP client.
@@ -325,7 +325,7 @@ pub fn load_spn_mcp_servers_with_manager(
     Ok(servers)
 }
 
-/// Load specific MCP servers by name from ~/.spn/mcp.yaml.
+/// Load specific MCP servers by name from ~/.nika/mcp.yaml.
 ///
 /// Returns only the requested servers that are enabled. Returns an error
 /// if any requested server is not found.
@@ -381,12 +381,12 @@ pub fn load_spn_mcp_servers_by_name(
 
 /// Check if the spn MCP config file exists.
 ///
-/// Returns true if ~/.spn/mcp.yaml exists.
+/// Returns true if ~/.nika/mcp.yaml exists.
 pub fn spn_mcp_config_exists() -> bool {
     SpnMcpConfigManager::new().global_exists()
 }
 
-/// List available MCP server names from ~/.spn/mcp.yaml.
+/// List available MCP server names from ~/.nika/mcp.yaml.
 ///
 /// Returns only enabled servers.
 pub fn list_spn_mcp_servers() -> Result<Vec<String>, NikaError> {
@@ -643,7 +643,7 @@ servers:
     fn test_config_manager_paths() {
         let manager = SpnMcpConfigManager::new();
 
-        let expected_global = dirs::home_dir().unwrap().join(".spn").join("mcp.yaml");
+        let expected_global = dirs::home_dir().unwrap().join(".nika").join("mcp.yaml");
         assert_eq!(manager.global_path, expected_global);
         assert!(manager.project_root.is_none());
     }
@@ -656,7 +656,7 @@ servers:
         assert_eq!(manager.project_root, Some(project_root));
         assert_eq!(
             manager.project_path(),
-            Some(PathBuf::from("/my/project/.spn/mcp.yaml"))
+            Some(PathBuf::from("/my/project/.nika/mcp.yaml"))
         );
     }
 
@@ -864,8 +864,8 @@ servers:
 
         // Create project config with additional server
         let project_root = temp.path().join("project");
-        std::fs::create_dir_all(project_root.join(".spn")).unwrap();
-        let project_path = project_root.join(".spn/mcp.yaml");
+        std::fs::create_dir_all(project_root.join(".nika")).unwrap();
+        let project_path = project_root.join(".nika/mcp.yaml");
         std::fs::write(
             &project_path,
             r#"

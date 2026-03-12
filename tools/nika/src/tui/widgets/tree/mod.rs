@@ -4,7 +4,7 @@
 //!
 //! # Features
 //!
-//! - **Ecosystem Detection**: Premium visual treatment for .nika.yaml, .son, .spn/, etc.
+//! - **Ecosystem Detection**: Premium visual treatment for .nika.yaml, .son, .nika/, .spn/ (legacy), etc.
 //! - **Solarized Theme**: Consistent colors across light/dark modes
 //! - **Glow Animations**: Pulse effects for ecosystem files (60fps ticker)
 //! - **Keyboard Navigation**: Vim-style (hjkl) and arrow key support

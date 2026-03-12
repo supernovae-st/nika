@@ -34,6 +34,11 @@
 //! v0.21 ranges:
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
 //!
+//! v0.27 ranges:
+//! - NIKA-400-409: Daemon errors (IPC, PID file, connection)
+//! - NIKA-410-419: IO errors (enhanced with path context)
+//! - NIKA-420-429: Sync errors (editor synchronization)
+//!
 //! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
@@ -688,6 +693,66 @@ pub enum NikaError {
         attempts: u32,
         final_errors: Vec<String>,
     },
+
+    // ═══════════════════════════════════════════
+    // DAEMON ERRORS (400-409) - v0.27 (spn→nika fusion)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-400] Daemon is already running (PID file: {pid_file:?})")]
+    #[diagnostic(
+        code(nika::daemon_already_running),
+        help("Stop the existing daemon with 'nika daemon stop' or remove the stale PID file")
+    )]
+    DaemonAlreadyRunning { pid_file: std::path::PathBuf },
+
+    #[error("[NIKA-401] Daemon error: {message}")]
+    #[diagnostic(
+        code(nika::daemon_error),
+        help("Check daemon logs or restart with 'nika daemon start'")
+    )]
+    DaemonError { message: String },
+
+    #[error("[NIKA-402] Daemon not running")]
+    #[diagnostic(
+        code(nika::daemon_not_running),
+        help("Start the daemon with 'nika daemon start'")
+    )]
+    DaemonNotRunning,
+
+    #[error("[NIKA-403] Daemon connection failed: {message}")]
+    #[diagnostic(
+        code(nika::daemon_connection_failed),
+        help("Ensure the daemon is running and the socket path is correct")
+    )]
+    DaemonConnectionFailed { message: String },
+
+    #[error("[NIKA-404] Daemon protocol error: {message}")]
+    #[diagnostic(
+        code(nika::daemon_protocol_error),
+        help("This may indicate a version mismatch between client and daemon")
+    )]
+    DaemonProtocolError { message: String },
+
+    // ═══════════════════════════════════════════
+    // IO ERRORS (410-419) - v0.27 (enhanced with path context)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-410] IO error for '{path}' during {operation}: {source}")]
+    #[diagnostic(code(nika::io_path_error), help("Check file path and permissions"))]
+    IoPathError {
+        path: std::path::PathBuf,
+        operation: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    // ═══════════════════════════════════════════
+    // SYNC ERRORS (420-429) - v0.27 (editor sync)
+    // ═══════════════════════════════════════════
+    #[error("[NIKA-420] Sync error: {message}")]
+    #[diagnostic(
+        code(nika::sync_error),
+        help("Check editor configuration paths and MCP config")
+    )]
+    SyncError { message: String },
 }
 
 #[allow(deprecated)] // code() handles deprecated variants
@@ -812,6 +877,16 @@ impl NikaError {
             Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
             Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
             Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
+            // Daemon errors (v0.27)
+            Self::DaemonAlreadyRunning { .. } => "NIKA-400",
+            Self::DaemonError { .. } => "NIKA-401",
+            Self::DaemonNotRunning => "NIKA-402",
+            Self::DaemonConnectionFailed { .. } => "NIKA-403",
+            Self::DaemonProtocolError { .. } => "NIKA-404",
+            // IO errors (v0.27)
+            Self::IoPathError { .. } => "NIKA-410",
+            // Sync errors
+            Self::SyncError { .. } => "NIKA-420",
             // Policy errors (v0.13.1)
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
@@ -1100,6 +1175,30 @@ impl FixSuggestion for NikaError {
             // Duplicate task ID (v0.25)
             NikaError::DuplicateTaskId { .. } => {
                 Some("Each task must have a unique ID. Rename one of the duplicate tasks.")
+            }
+            // Daemon errors (v0.27)
+            NikaError::DaemonAlreadyRunning { .. } => {
+                Some("Stop the existing daemon with 'nika daemon stop' or remove the stale PID file")
+            }
+            NikaError::DaemonError { .. } => {
+                Some("Check daemon logs or restart with 'nika daemon start'")
+            }
+            NikaError::DaemonNotRunning => {
+                Some("Start the daemon with 'nika daemon start'")
+            }
+            NikaError::DaemonConnectionFailed { .. } => {
+                Some("Ensure the daemon is running and the socket path is correct")
+            }
+            NikaError::DaemonProtocolError { .. } => {
+                Some("This may indicate a version mismatch between client and daemon")
+            }
+            // IO errors (v0.27)
+            NikaError::IoPathError { .. } => {
+                Some("Check file path exists and you have proper permissions")
+            }
+            // Sync errors (v0.27)
+            NikaError::SyncError { .. } => {
+                Some("Check editor configuration paths and MCP config file")
             }
         }
     }

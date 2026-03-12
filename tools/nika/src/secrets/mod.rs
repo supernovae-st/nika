@@ -13,7 +13,7 @@
 //! │      │                                                                      │
 //! │      └── spn-client (Unix socket IPC)                                       │
 //! │          │                                                                  │
-//! │          └── spn daemon (~/.spn/daemon.sock)                                │
+//! │          └── nika daemon (~/.nika/daemon.sock)                              │
 //! │              │                                                              │
 //! │              └── OS Keychain (SOLE accessor, no popups)                     │
 //! │                                                                             │

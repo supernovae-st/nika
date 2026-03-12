@@ -669,14 +669,12 @@ pub fn auto_select_quantization(model: &KnownModel, available_ram_gb: u32) -> Qu
 ///
 /// * `Ok(ResolvedModel)` if model is found and downloaded
 /// * `Err(ModelResolveError)` if model not found or not downloaded
-#[must_use]
 pub fn resolve_model(
     id: &str,
     quantization: Option<Quantization>,
 ) -> Result<ResolvedModel, ModelResolveError> {
-    let model = find_model(id).ok_or_else(|| ModelResolveError::UnknownModel {
-        id: id.to_string(),
-    })?;
+    let model =
+        find_model(id).ok_or_else(|| ModelResolveError::UnknownModel { id: id.to_string() })?;
 
     let quant =
         quantization.unwrap_or_else(|| auto_select_quantization(model, detect_available_ram_gb()));

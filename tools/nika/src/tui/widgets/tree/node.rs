@@ -406,8 +406,8 @@ pub enum NodeKind {
     /// skills/ - Skills folder
     SkillsFolder,
 
-    // SPN CLI (System Tool) ⚡
-    /// ~/.spn/ - Global SPN config (Violet glow)
+    // SPN CLI (Legacy, migrating to .nika/) ⚡
+    /// ~/.spn/ - Legacy SPN config (Violet glow, deprecating)
     SpnFolder,
     /// manifest.toml - System manifest
     SpnManifest,

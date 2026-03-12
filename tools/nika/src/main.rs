@@ -245,7 +245,7 @@ enum Commands {
     /// Manage local LLM models (v0.27 spn fusion)
     ///
     /// Download, list, and manage GGUF models for native inference.
-    /// Models are stored in ~/.spn/models/
+    /// Models are stored in ~/.nika/models/
     #[cfg(feature = "native-inference")]
     #[command(visible_alias = "m")]
     Model {
@@ -256,7 +256,7 @@ enum Commands {
     /// Manage installed packages (workflows, skills, schemas) (v0.27 spn fusion)
     ///
     /// List, add, remove, and install packages from the SuperNovae registry.
-    /// Packages are stored in ~/.spn/packages/
+    /// Packages are stored in ~/.nika/packages/
     #[command(visible_alias = "p")]
     Pkg {
         #[command(subcommand)]
@@ -265,7 +265,7 @@ enum Commands {
 
     /// Sync MCP servers and packages to IDE configurations (v0.27 spn fusion)
     ///
-    /// Syncs from ~/.spn/mcp.yaml to Claude Code, Cursor, Windsurf, VS Code.
+    /// Syncs from ~/.nika/mcp.yaml to Claude Code, Cursor, Windsurf, VS Code.
     Sync {
         #[command(subcommand)]
         action: Option<SyncAction>,
@@ -299,7 +299,7 @@ enum Commands {
     /// Backup and restore SuperNovae data (v0.27 spn fusion)
     ///
     /// Creates unified backups of NovaNet schema/seeds, Nika workflows/sessions,
-    /// and spn configuration. Backups are stored in ~/.spn/backups/ as tar.gz archives.
+    /// and spn configuration. Backups are stored in ~/.nika/backups/ as tar.gz archives.
     Backup {
         #[command(subcommand)]
         action: BackupAction,
@@ -503,7 +503,7 @@ enum ProviderAction {
 
 /// MCP server management actions (v0.27 spn fusion)
 ///
-/// Manage MCP servers at global (~/.spn/mcp.yaml), project (.spn/mcp.yaml),
+/// Manage MCP servers at global (~/.nika/mcp.yaml), project (.nika/mcp.yaml),
 /// or workflow levels. Supports 48 aliases for common MCP servers.
 #[derive(Subcommand)]
 enum McpAction {
@@ -515,11 +515,11 @@ enum McpAction {
         /// Server name (alias like 'neo4j' or package like '@neo4j/mcp-neo4j')
         name: String,
 
-        /// Add to global config (~/.spn/mcp.yaml) instead of project
+        /// Add to global config (~/.nika/mcp.yaml) instead of project
         #[arg(long)]
         global: bool,
 
-        /// Add to project config (.spn/mcp.yaml) - default
+        /// Add to project config (.nika/mcp.yaml) - default
         #[arg(long)]
         project: bool,
 
@@ -541,11 +541,11 @@ enum McpAction {
         /// Server name to remove
         name: String,
 
-        /// Remove from global config (~/.spn/mcp.yaml)
+        /// Remove from global config (~/.nika/mcp.yaml)
         #[arg(long)]
         global: bool,
 
-        /// Remove from project config (.spn/mcp.yaml) - default
+        /// Remove from project config (.nika/mcp.yaml) - default
         #[arg(long)]
         project: bool,
 
@@ -560,11 +560,11 @@ enum McpAction {
         #[arg(short, long)]
         workflow: Option<String>,
 
-        /// Show only global config (~/.spn/mcp.yaml)
+        /// Show only global config (~/.nika/mcp.yaml)
         #[arg(long)]
         global: bool,
 
-        /// Show only project config (.spn/mcp.yaml)
+        /// Show only project config (.nika/mcp.yaml)
         #[arg(long)]
         project: bool,
 
@@ -599,7 +599,7 @@ enum McpAction {
 
 /// Package management actions (v0.27 spn fusion)
 ///
-/// Manage SuperNovae packages (workflows, skills, schemas) stored in ~/.spn/packages/
+/// Manage SuperNovae packages (workflows, skills, schemas) stored in ~/.nika/packages/
 #[derive(Subcommand)]
 enum PkgAction {
     /// List installed packages
@@ -822,7 +822,7 @@ enum BackupAction {
 #[cfg(feature = "native-inference")]
 #[derive(Subcommand)]
 enum ModelAction {
-    /// List downloaded models in ~/.spn/models/
+    /// List downloaded models in ~/.nika/models/
     List {
         /// Output as JSON
         #[arg(long)]
@@ -868,7 +868,7 @@ enum ModelAction {
 
     /// Delete a downloaded model
     Delete {
-        /// Model name or path (relative to ~/.spn/models/)
+        /// Model name or path (relative to ~/.nika/models/)
         name: String,
 
         /// Skip confirmation
@@ -1435,13 +1435,13 @@ fn handle_result(result: Result<(), NikaError>) {
 /// Resolve a workflow reference to an actual file path.
 ///
 /// Resolution order:
-/// 1. If starts with '@' (e.g., @workflows/seo-audit) → Package resolution from ~/.spn/packages/
+/// 1. If starts with '@' (e.g., @workflows/seo-audit) → Package resolution from ~/.nika/packages/
 /// 2. If simple name without path/extension → Search in .nika/workflows/{name}.nika.yaml
 /// 3. Otherwise → Use as-is (filesystem path)
 ///
 /// # Examples
 ///
-/// - `@workflows/seo-audit` → `~/.spn/packages/workflows/seo-audit/1.0.0/workflow.nika.yaml`
+/// - `@workflows/seo-audit` → `~/.nika/packages/workflows/seo-audit/1.0.0/workflow.nika.yaml`
 /// - `custom` → `.nika/workflows/custom.nika.yaml` (if exists) or error
 /// - `./local.nika.yaml` → `./local.nika.yaml` (direct path)
 async fn resolve_workflow_path(reference: &str) -> Result<PathBuf, NikaError> {
@@ -3177,7 +3177,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 
 /// Handle package management commands.
 ///
-/// Manages packages (workflows, skills, schemas) stored in ~/.spn/packages/
+/// Manages packages (workflows, skills, schemas) stored in ~/.nika/packages/
 async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika::registry::{list_installed, load_manifest, load_registry};
@@ -3244,9 +3244,14 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
         PkgAction::Add {
             package,
             r#type,
-            version: _version,
+            version,
             dev: _dev,
         } => {
+            use nika::registry::{
+                ensure_spn_home, is_version_installed, package_dir, save_registry,
+                InstalledPackage, RegistryClient,
+            };
+
             println!("{} Adding package: {}", "📦".cyan(), package.green());
 
             // Infer type from scope if not provided
@@ -3257,51 +3262,305 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
 
             println!("  Type: {}", pkg_type.dimmed());
 
-            // TODO: Implement full package resolution and installation
-            // For now, provide a helpful message
+            // Ensure ~/.nika/ exists
+            ensure_spn_home()?;
+
+            // Create registry client
+            let client = RegistryClient::new();
+
+            // Fetch package info from registry
+            println!("  {} Fetching package info...", "→".dimmed());
+            let pkg_info =
+                client
+                    .get_package(&package)
+                    .await
+                    .map_err(|_e| NikaError::PackageNotFound {
+                        name: package.clone(),
+                        version: "latest".to_string(),
+                    })?;
+
+            // Determine version to install
+            let target_version = version.as_deref().unwrap_or(&pkg_info.latest_version);
+            println!("  {} Version: {}", "→".dimmed(), target_version.green());
+
+            // Check if already installed
+            if is_version_installed(&package, target_version)? {
+                println!(
+                    "{} {}@{} is already installed",
+                    "✓".green(),
+                    package.cyan(),
+                    target_version.green()
+                );
+                return Ok(());
+            }
+
+            // Get target directory
+            let target_dir = package_dir(&package, target_version)?;
+            println!(
+                "  {} Installing to: {}",
+                "→".dimmed(),
+                target_dir.display().to_string().dimmed()
+            );
+
+            // Download and extract package
+            println!("  {} Downloading...", "→".dimmed());
+            client
+                .download_and_extract(&package, target_version, &target_dir)
+                .await
+                .map_err(|e| NikaError::ValidationError {
+                    reason: format!("Failed to download package: {}", e),
+                })?;
+
+            // Update registry index
+            let mut registry = load_registry()?;
+            let manifest_path = format!("packages/{}/{}/manifest.yaml", package, target_version);
+            registry.insert(
+                package.clone(),
+                InstalledPackage::now(target_version.to_string(), manifest_path),
+            );
+            save_registry(&registry)?;
+
             println!();
             println!(
-                "{} Package installation not yet fully implemented",
-                "⚠".yellow()
+                "{} Successfully installed {}@{}",
+                "✓".green(),
+                package.cyan(),
+                target_version.green()
             );
-            println!("  Until then, use: spn add {}", package);
+
+            // Show installed skills if any
+            if let Ok(manifest) = load_manifest(&package, target_version) {
+                if !manifest.skills.is_empty() {
+                    println!();
+                    println!("  {} Skills:", "📚".cyan());
+                    for (name, skill) in &manifest.skills {
+                        println!("    • {} ({})", name.cyan(), skill.path.dimmed());
+                    }
+                }
+            }
+
             Ok(())
         }
 
         PkgAction::Remove { package, yes: _ } => {
+            use nika::registry::{package_dir, save_registry};
+
             println!("{} Removing package: {}", "🗑".red(), package);
 
             // Check if installed
-            let registry = load_registry()?;
-            if !registry.is_installed(&package) {
-                println!("{} Package '{}' is not installed", "ℹ".cyan(), package);
-                return Ok(());
+            let mut registry = load_registry()?;
+            let installed = match registry.get(&package) {
+                Some(pkg) => pkg.clone(),
+                None => {
+                    println!("{} Package '{}' is not installed", "ℹ".cyan(), package);
+                    return Ok(());
+                }
+            };
+
+            // Get package directory
+            let pkg_dir = package_dir(&package, &installed.version)?;
+
+            // Remove package directory
+            if pkg_dir.exists() {
+                println!(
+                    "  {} Removing {}",
+                    "→".dimmed(),
+                    pkg_dir.display().to_string().dimmed()
+                );
+                std::fs::remove_dir_all(&pkg_dir).map_err(|e| NikaError::ValidationError {
+                    reason: format!("Failed to remove package directory: {}", e),
+                })?;
+
+                // Clean up empty parent directories
+                if let Some(parent) = pkg_dir.parent() {
+                    if parent
+                        .read_dir()
+                        .map(|mut d| d.next().is_none())
+                        .unwrap_or(false)
+                    {
+                        let _ = std::fs::remove_dir(parent);
+                    }
+                }
             }
 
-            // TODO: Implement full package removal
+            // Update registry
+            registry.remove(&package);
+            save_registry(&registry)?;
+
             println!();
-            println!("{} Package removal not yet fully implemented", "⚠".yellow());
-            println!("  Until then, use: spn remove {}", package);
+            println!(
+                "{} Successfully removed {}@{}",
+                "✓".green(),
+                package.cyan(),
+                installed.version.green()
+            );
             Ok(())
         }
 
         PkgAction::Install { frozen } => {
+            use nika::registry::{
+                ensure_spn_home, is_version_installed, package_dir, save_registry,
+                InstalledPackage, Lockfile, RegistryClient,
+            };
+
             println!(
-                "{} Installing packages from spn.yaml{}",
+                "{} Installing packages from project manifest{}",
                 "📦".cyan(),
                 if frozen { " (frozen)" } else { "" }
             );
 
-            // TODO: Implement full package installation from spn.yaml
+            // Ensure ~/.nika/ exists
+            ensure_spn_home()?;
+
+            // Try to find project manifest (spn.yaml or nika.yaml)
+            let manifest_path = if Path::new("spn.yaml").exists() {
+                PathBuf::from("spn.yaml")
+            } else if Path::new("nika.yaml").exists() {
+                PathBuf::from("nika.yaml")
+            } else {
+                println!(
+                    "{} No project manifest found (spn.yaml or nika.yaml)",
+                    "⚠".yellow()
+                );
+                println!();
+                println!("Create one with:");
+                println!("  nika init");
+                return Ok(());
+            };
+
+            println!("  {} Reading {}", "→".dimmed(), manifest_path.display());
+
+            // Read manifest
+            let content =
+                fs::read_to_string(&manifest_path).map_err(|e| NikaError::ValidationError {
+                    reason: format!("Failed to read {}: {}", manifest_path.display(), e),
+                })?;
+
+            // Parse manifest to get dependencies
+            #[derive(serde::Deserialize)]
+            struct ProjectManifest {
+                #[serde(default)]
+                dependencies: std::collections::HashMap<String, String>,
+            }
+
+            let manifest: ProjectManifest =
+                serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+                    details: format!("Failed to parse manifest: {}", e),
+                })?;
+
+            if manifest.dependencies.is_empty() {
+                println!("{} No dependencies to install", "ℹ".cyan());
+                return Ok(());
+            }
+
+            // Load lockfile for frozen installs
+            let lockfile = if frozen {
+                println!("  {} Reading spn.lock", "→".dimmed());
+                Lockfile::load(None).unwrap_or_else(|_| {
+                    println!(
+                        "{} No spn.lock found, will use latest versions",
+                        "⚠".yellow()
+                    );
+                    Lockfile::new()
+                })
+            } else {
+                Lockfile::new()
+            };
+
+            // Create registry client
+            let client = RegistryClient::new();
+            let mut registry = load_registry()?;
+            let mut installed_count = 0;
+            let mut skipped_count = 0;
+
             println!();
             println!(
-                "{} Package installation not yet fully implemented",
-                "⚠".yellow()
+                "{} Installing {} dependencies...",
+                "📦".cyan(),
+                manifest.dependencies.len()
             );
-            println!(
-                "  Until then, use: spn install{}",
-                if frozen { " --frozen" } else { "" }
-            );
+
+            for (name, version_spec) in &manifest.dependencies {
+                // Determine version to install
+                let target_version = if frozen {
+                    // Use locked version if available
+                    lockfile
+                        .find_version(name)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| version_spec.clone())
+                } else {
+                    // Use version spec or fetch latest
+                    if version_spec == "*" || version_spec == "latest" {
+                        match client.get_package(name).await {
+                            Ok(info) => info.latest_version.clone(),
+                            Err(_) => {
+                                println!("  {} {} - not found", "✗".red(), name.cyan());
+                                continue;
+                            }
+                        }
+                    } else {
+                        version_spec.trim_start_matches('^').to_string()
+                    }
+                };
+
+                // Check if already installed
+                if is_version_installed(name, &target_version)? {
+                    println!(
+                        "  {} {}@{} (already installed)",
+                        "✓".green(),
+                        name.cyan(),
+                        target_version.dimmed()
+                    );
+                    skipped_count += 1;
+                    continue;
+                }
+
+                // Install package
+                let target_dir = package_dir(name, &target_version)?;
+                match client
+                    .download_and_extract(name, &target_version, &target_dir)
+                    .await
+                {
+                    Ok(_) => {
+                        // Update registry
+                        let manifest_path =
+                            format!("packages/{}/{}/manifest.yaml", name, target_version);
+                        registry.insert(
+                            name.clone(),
+                            InstalledPackage::now(target_version.clone(), manifest_path),
+                        );
+                        println!(
+                            "  {} {}@{}",
+                            "✓".green(),
+                            name.cyan(),
+                            target_version.green()
+                        );
+                        installed_count += 1;
+                    }
+                    Err(e) => {
+                        println!(
+                            "  {} {} - {}",
+                            "✗".red(),
+                            name.cyan(),
+                            e.to_string().dimmed()
+                        );
+                    }
+                }
+            }
+
+            // Save registry
+            save_registry(&registry)?;
+
+            println!();
+            if installed_count > 0 || skipped_count > 0 {
+                println!(
+                    "{} {} package(s) installed, {} already up to date",
+                    "✓".green(),
+                    installed_count,
+                    skipped_count
+                );
+            }
+
             Ok(())
         }
 
@@ -3343,6 +3602,15 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             r#type,
             limit,
         } => {
+            use nika::registry::RegistryClient;
+
+            // Build search query - append type filter if provided
+            let search_query = if let Some(ref t) = r#type {
+                format!("{} type:{}", query, t)
+            } else {
+                query.clone()
+            };
+
             println!(
                 "{} Searching registry for '{}'...",
                 "🔍".cyan(),
@@ -3352,19 +3620,48 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             if let Some(ref t) = r#type {
                 println!("  Type filter: {}", t.dimmed());
             }
-            println!("  Limit: {} results", limit);
 
-            // TODO: Implement registry search
+            // Create registry client
+            let client = RegistryClient::new();
+
+            // Search registry (page=1, per_page=limit)
+            let response = client.search(&search_query, 1, limit).await.map_err(|e| {
+                NikaError::ValidationError {
+                    reason: format!("Search failed: {}", e),
+                }
+            })?;
+
             println!();
-            println!("{} Registry search not yet fully implemented", "⚠".yellow());
-            println!(
-                "  Until then, use: spn search {}{}",
-                query,
-                r#type
-                    .as_deref()
-                    .map(|t| format!(" -t {}", t))
-                    .unwrap_or_default()
-            );
+            if response.results.is_empty() {
+                println!("{} No packages found matching '{}'", "ℹ".cyan(), query);
+            } else {
+                println!(
+                    "{} Found {} package(s):",
+                    "📦".cyan(),
+                    response.results.len()
+                );
+                println!("{}", "─".repeat(60));
+
+                for result in &response.results {
+                    println!(
+                        "  {} {}",
+                        result.name.cyan(),
+                        format!("v{}", result.version).green()
+                    );
+                    if let Some(ref desc) = result.description {
+                        println!("    {}", desc.dimmed());
+                    }
+                    if let Some(ref keywords) = result.keywords {
+                        if !keywords.is_empty() {
+                            println!("    Keywords: {}", keywords.join(", ").dimmed());
+                        }
+                    }
+                }
+
+                println!("{}", "─".repeat(60));
+                println!();
+                println!("Install with: nika pkg add <package-name>");
+            }
             Ok(())
         }
     }
@@ -3395,7 +3692,7 @@ fn infer_package_type(package: &str) -> Option<&'static str> {
 
 /// Handle sync commands to IDE configurations.
 ///
-/// Syncs MCP servers from ~/.spn/mcp.yaml to editor-specific configs:
+/// Syncs MCP servers from ~/.nika/mcp.yaml to editor-specific configs:
 /// - Claude Code: .claude/settings.json
 /// - Cursor: .cursor/mcp.json
 /// - Windsurf: .windsurf/mcp.json
@@ -3881,7 +4178,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
         DaemonAction::Status { json } => {
             // Check if daemon is running by checking socket
             let socket_path = dirs::home_dir()
-                .map(|h| h.join(".spn/daemon.sock"))
+                .map(|h| h.join(".nika/daemon.sock"))
                 .unwrap_or_default();
 
             let is_running = socket_path.exists();
@@ -4166,11 +4463,10 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
     use nika::core::{find_model, KNOWN_MODELS};
     use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
 
-    let storage = HuggingFaceStorage::new(default_model_dir()).map_err(|e| {
-        NikaError::ConfigError {
+    let storage =
+        HuggingFaceStorage::new(default_model_dir()).map_err(|e| NikaError::ConfigError {
             reason: format!("Failed to initialize storage: {}", e),
-        }
-    })?;
+        })?;
 
     match action {
         ModelAction::List { json } => {

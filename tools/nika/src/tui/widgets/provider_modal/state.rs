@@ -1212,7 +1212,7 @@ mod tests {
         let state = ProviderModalState::default();
         let statuses = state.get_provider_statuses();
         assert_eq!(statuses.len(), 6); // v0.27: 6 cloud providers
-        // All should be Unknown by default
+                                       // All should be Unknown by default
         assert!(statuses
             .iter()
             .all(|s| matches!(s, ConnectionStatus::Unknown)));
