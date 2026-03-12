@@ -10,6 +10,7 @@ homepage = "https://supernovae.studio"
 documentation = "https://github.com/supernovae-st/nika#readme"
 keywords = ["ai", "workflows", "dag", "mcp", "llm"]
 categories = ["command-line-utilities", "development-tools"]
+publish = true
 readme = "README.md"
 rust-version = "1.86"
 

@@ -1,11 +1,11 @@
 [package]
 name = "nika-lsp"
-version = "0.22.2"
+version = "0.27.0"
 edition = "2021"
 description = "Language Server Protocol implementation for Nika workflows"
 license = "MIT"
 authors = ["Thibaut Melen <thibaut@supernovae.studio>"]
-repository = "https://github.com/SuperNovae-studio/nika"
+repository = "https://github.com/supernovae-st/nika"
 homepage = "https://nika.sh"
 documentation = "https://docs.rs/nika-lsp"
 readme = "README.md"
@@ -40,7 +40,7 @@ serde_json = "1"
 
 # Nika validation (workspace dependency)
 # Path used for local dev, version used for crates.io publishing
-nika = { path = "../nika", version = "0.22.2" }
+nika = { path = "../nika", version = "0.27.0" }
 
 # Text manipulation (rope for efficient edits)
 ropey = "1.6"
