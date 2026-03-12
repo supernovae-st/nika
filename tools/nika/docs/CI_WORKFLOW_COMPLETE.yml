@@ -1,0 +1,676 @@
+# Nika Workspace CI Pipeline (v0.28+)
+# ==============================================================================
+# Runs on: push to main, pull requests
+#
+# Job Graph:
+#   format-check ─┐
+#   clippy-check ─┤
+#                 ├─→ test-core ─→ test-runtime ─→ test-tui ─┐
+#                 │                                             │
+#                 └────────────────────────────────────────────┤
+#                                                              │
+#   ┌────────────────────────────────────────────────────────┤
+#   │                                                          │
+#   ├─→ integration-tests ─┬─→ coverage                       │
+#   │                      ├─→ security                       │
+#   │                      ├─→ docs                           │
+#   │                      └─→ msrv                           │
+#   │                                                          │
+#   └─→ build-verification ─────────────────────────────────→ summary
+#
+# Nika v0.28.0 — 3-Crate Workspace Architecture
+# ==============================================================================
+
+name: CI (Workspace)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_full_matrix:
+        description: 'Run full test matrix (stable + beta)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Cancel outdated runs for same PR/branch
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  NIKA_VERSION: v0.28.0
+  RUST_VERSION: stable
+  RUST_MSRV: "1.86"
+  COVERAGE_THRESHOLD: 70
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 1: Quick Checks (Parallel - 2 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  format-check:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+  clippy-check:
+    name: Clippy (${{ matrix.crate }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        crate: [nika-core, nika-runtime, nika-tui]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy-${{ matrix.crate }}
+
+      - name: Run clippy (default features)
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets -- -D warnings
+
+      - name: Run clippy (all features)
+        if: matrix.crate != 'nika-core'
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets --all-features -- -D warnings
+
+      - name: Run clippy (no default features)
+        if: matrix.crate != 'nika-core'
+        run: cargo clippy -p ${{ matrix.crate }} --all-targets --no-default-features -- -D warnings
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 2: Core Crate Tests (10 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  test-core:
+    name: Test nika-core (${{ matrix.os }}, ${{ matrix.rust }})
+    runs-on: ${{ matrix.os }}
+    needs: [format-check, clippy-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: [stable]
+        include:
+          # Add beta only for ubuntu (reduce matrix)
+          - os: ubuntu-latest
+            rust: beta
+            optional: true
+    continue-on-error: ${{ matrix.optional || false }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@${{ matrix.rust }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-core-${{ matrix.os }}-${{ matrix.rust }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run unit tests
+        run: cargo nextest run -p nika-core --all-targets
+
+      - name: Run doc tests
+        run: cargo test -p nika-core --doc
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 3: Runtime Crate Tests (15 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  test-runtime:
+    name: Test nika-runtime (${{ matrix.os }}, ${{ matrix.features }})
+    runs-on: ${{ matrix.os }}
+    needs: test-core
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        features:
+          - name: "default"
+            flags: ""
+          - name: "no-default"
+            flags: "--no-default-features"
+          - name: "spn-daemon"
+            flags: "--no-default-features --features spn-daemon"
+          - name: "native-inference"
+            flags: "--no-default-features --features native-inference"
+          - name: "native-keychain"
+            flags: "--no-default-features --features native-keychain"
+          - name: "all"
+            flags: "--all-features"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-runtime-${{ matrix.os }}-${{ matrix.features.name }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run unit tests
+        run: cargo nextest run -p nika-runtime --all-targets ${{ matrix.features.flags }}
+
+      - name: Run doc tests
+        run: cargo test -p nika-runtime --doc ${{ matrix.features.flags }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 4: TUI Crate Tests (15 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  test-tui:
+    name: Test nika-tui (${{ matrix.os }}, ${{ matrix.features }})
+    runs-on: ${{ matrix.os }}
+    needs: test-runtime
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        features:
+          - name: "default"
+            flags: ""
+          - name: "lsp"
+            flags: "--features lsp"
+          - name: "jobs"
+            flags: "--features jobs"
+          - name: "docker"
+            flags: "--no-default-features --features docker"
+          - name: "all"
+            flags: "--all-features"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-tui-${{ matrix.os }}-${{ matrix.features.name }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run unit tests
+        run: cargo nextest run -p nika-tui --all-targets ${{ matrix.features.flags }}
+
+      - name: Run doc tests
+        run: cargo test -p nika-tui --doc ${{ matrix.features.flags }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 5: Integration Tests (15 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  integration-tests:
+    name: Integration Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [test-core, test-runtime, test-tui]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: integration-${{ matrix.os }}
+
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run workspace integration tests
+        run: cargo nextest run --workspace --test '*' --features integration
+
+      - name: Build release binary
+        run: cargo build --release -p nika-tui
+
+      - name: Validate example workflows
+        run: |
+          NIKA="./target/release/nika"
+          echo "=== Validating example workflows ==="
+          for file in examples/v*.nika.yaml; do
+            echo "Checking: $file"
+            $NIKA check "$file" || exit 1
+          done
+          echo "All examples validated!"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 6: Coverage (20 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: coverage
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate coverage report
+        run: |
+          cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --all-features --summary-only | tee coverage-summary.txt
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          COVERAGE=$(grep -E "^TOTAL" coverage-summary.txt | awk '{print $NF}' | tr -d '%' || echo "0")
+          echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Coverage: $COVERAGE%"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          flags: nika-workspace
+          name: nika-workspace-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: |
+            lcov.info
+            coverage-summary.txt
+          retention-days: 30
+
+      - name: Check coverage threshold
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.percentage }}
+          THRESHOLD: ${{ env.COVERAGE_THRESHOLD }}
+        run: |
+          if [ -n "$COVERAGE" ] && [ "$COVERAGE" != "0" ]; then
+            COVERAGE_INT=${COVERAGE%.*}
+            if [ "$COVERAGE_INT" -lt "$THRESHOLD" ]; then
+              echo "::warning::Coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
+            else
+              echo "✓ Coverage ($COVERAGE%) meets threshold ($THRESHOLD%)"
+            fi
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 6: Security Audit (5 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: security
+
+      - name: Install security tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+
+      - name: Run cargo-deny
+        run: cargo deny check 2>&1 | tee deny-output.txt || true
+
+      - name: Run cargo-audit
+        run: |
+          rm -rf ~/.cargo/advisory-db || true
+          cargo audit --json 2>&1 | tee audit-output.json || true
+          cargo audit 2>&1 | tee audit-output.txt || true
+
+      - name: Check for secrets (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: security-reports
+          path: |
+            deny-output.txt
+            audit-output.txt
+            audit-output.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 6: Documentation Build (5 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  docs:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: docs
+
+      - name: Build documentation
+        run: cargo doc --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      - name: Check README files exist
+        run: |
+          test -f nika-core/README.md || { echo "Missing nika-core/README.md"; exit 1; }
+          test -f nika-runtime/README.md || { echo "Missing nika-runtime/README.md"; exit 1; }
+          test -f nika-tui/README.md || { echo "Missing nika-tui/README.md"; exit 1; }
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: documentation
+          path: target/doc
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 6: MSRV Check (5 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  msrv:
+    name: MSRV Check (Rust ${{ env.RUST_MSRV }})
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain (MSRV)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_MSRV }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv-${{ env.RUST_MSRV }}
+
+      - name: Check nika-core
+        run: cargo check -p nika-core
+
+      - name: Check nika-runtime
+        run: cargo check -p nika-runtime
+
+      - name: Check nika-tui
+        run: cargo check -p nika-tui
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 7: Build Verification (10 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  build-verification:
+    name: Build Verification (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    needs: [test-core, test-runtime, test-tui, integration-tests]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: nika-linux-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: nika-macos-arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: build-${{ matrix.target }}
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }} -p nika-tui
+
+      - name: Verify binary
+        run: |
+          BINARY="target/${{ matrix.target }}/release/nika"
+          if [ -f "$BINARY" ]; then
+            echo "✓ Binary size: $(du -h "$BINARY" | cut -f1)"
+            file "$BINARY"
+            # Quick smoke test
+            "$BINARY" --version
+          else
+            echo "::error::Binary not found at $BINARY"
+            exit 1
+          fi
+
+      - name: Upload binary artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/nika
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Phase 8: Summary (1 min)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs:
+      - format-check
+      - clippy-check
+      - test-core
+      - test-runtime
+      - test-tui
+      - integration-tests
+      - coverage
+      - security
+      - docs
+      - msrv
+      - build-verification
+    if: always()
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Generate summary comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        env:
+          FORMAT_RESULT: ${{ needs.format-check.result }}
+          CLIPPY_RESULT: ${{ needs.clippy-check.result }}
+          TEST_CORE_RESULT: ${{ needs.test-core.result }}
+          TEST_RUNTIME_RESULT: ${{ needs.test-runtime.result }}
+          TEST_TUI_RESULT: ${{ needs.test-tui.result }}
+          INTEGRATION_RESULT: ${{ needs.integration-tests.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          MSRV_RESULT: ${{ needs.msrv.result }}
+          BUILD_RESULT: ${{ needs.build-verification.result }}
+        with:
+          script: |
+            const statusEmoji = (result) => {
+              switch(result) {
+                case 'success': return ':white_check_mark:';
+                case 'failure': return ':x:';
+                case 'cancelled': return ':stop_sign:';
+                case 'skipped': return ':fast_forward:';
+                default: return ':question:';
+              }
+            };
+
+            const body = `## Nika Workspace CI Results
+
+            | Job | Status |
+            |-----|--------|
+            | Format Check | ${statusEmoji(process.env.FORMAT_RESULT)} ${process.env.FORMAT_RESULT} |
+            | Clippy Check | ${statusEmoji(process.env.CLIPPY_RESULT)} ${process.env.CLIPPY_RESULT} |
+            | Test nika-core | ${statusEmoji(process.env.TEST_CORE_RESULT)} ${process.env.TEST_CORE_RESULT} |
+            | Test nika-runtime | ${statusEmoji(process.env.TEST_RUNTIME_RESULT)} ${process.env.TEST_RUNTIME_RESULT} |
+            | Test nika-tui | ${statusEmoji(process.env.TEST_TUI_RESULT)} ${process.env.TEST_TUI_RESULT} |
+            | Integration Tests | ${statusEmoji(process.env.INTEGRATION_RESULT)} ${process.env.INTEGRATION_RESULT} |
+            | Coverage | ${statusEmoji(process.env.COVERAGE_RESULT)} ${process.env.COVERAGE_RESULT} |
+            | Security Audit | ${statusEmoji(process.env.SECURITY_RESULT)} ${process.env.SECURITY_RESULT} |
+            | Documentation | ${statusEmoji(process.env.DOCS_RESULT)} ${process.env.DOCS_RESULT} |
+            | MSRV Check | ${statusEmoji(process.env.MSRV_RESULT)} ${process.env.MSRV_RESULT} |
+            | Build Verification | ${statusEmoji(process.env.BUILD_RESULT)} ${process.env.BUILD_RESULT} |
+
+            ### Workspace Structure
+            - **nika-core** — Zero-dep core types (AST, DAG, error)
+            - **nika-runtime** — Execution engine (MCP, providers, runtime)
+            - **nika-tui** — Terminal interface (TUI, LSP, jobs)
+
+            ---
+            *Generated by Nika Workspace CI v0.28.0*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const existingComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## Nika Workspace CI Results')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Generate job summary
+        run: |
+          echo "# Nika Workspace CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Format Check: ${{ needs.format-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Clippy Check: ${{ needs.clippy-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- nika-core Tests: ${{ needs.test-core.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- nika-runtime Tests: ${{ needs.test-runtime.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- nika-tui Tests: ${{ needs.test-tui.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Quality Gates" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage: ${{ needs.coverage.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Documentation: ${{ needs.docs.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- MSRV: ${{ needs.msrv.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ needs.build-verification.result }}" >> $GITHUB_STEP_SUMMARY
