@@ -10,7 +10,7 @@
 # - model: field for specific models
 # - Auto-detection fallback
 #
-# Supported providers: claude, openai, mistral, groq, deepseek, ollama
+# Supported providers: claude, openai, mistral, groq, deepseek, gemini
 #
 # Run with: cargo run -- check examples/v06-multi-provider.nika.yaml
 # ============================================================================

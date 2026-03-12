@@ -1,5 +1,6 @@
-# Test: All 7 LLM providers
-# Tests: Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini
+# Test: All 6 LLM providers
+# Tests: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
+# NOTE: Ollama removed in v0.27 - use provider: native instead
 # NOTE: Requires respective API keys to be set
 schema: nika/workflow@0.10
 workflow: test-all-providers
@@ -40,14 +41,7 @@ tasks:
   #     provider: deepseek
   #     model: deepseek-chat
 
-  # Test 6: Ollama (local)
-  # - id: test_ollama
-  #   infer:
-  #     prompt: "Say 'Hello from Ollama' exactly"
-  #     provider: ollama
-  #     model: llama3.2
-
-  # Test 7: Gemini (v0.15.0)
+  # Test 6: Gemini (v0.15.0)
   # - id: test_gemini
   #   infer:
   #     prompt: "Say 'Hello from Gemini' exactly"

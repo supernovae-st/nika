@@ -86,19 +86,22 @@ impl SyncConfig {
 
     /// Load sync config from a specific path.
     pub fn load_from(path: &Path) -> Result<Self> {
-        if !path.exists() {
-            return Ok(Self::default());
+        // TOCTOU-safe: Attempt to read file directly instead of exists() check.
+        // If file doesn't exist, return default config.
+        // This avoids race where file is created/deleted between exists() and read.
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                serde_yaml::from_str(&content).map_err(|e| NikaError::SyncError {
+                    message: format!("Failed to parse sync config: {}", e),
+                })
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(e) => Err(NikaError::IoPathError {
+                path: path.to_path_buf(),
+                operation: "read sync config".to_string(),
+                source: e,
+            }),
         }
-
-        let content = std::fs::read_to_string(path).map_err(|e| NikaError::IoPathError {
-            path: path.to_path_buf(),
-            operation: "read sync config".to_string(),
-            source: e,
-        })?;
-
-        serde_yaml::from_str(&content).map_err(|e| NikaError::SyncError {
-            message: format!("Failed to parse sync config: {}", e),
-        })
     }
 
     /// Save sync config to disk.

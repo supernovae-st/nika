@@ -15,7 +15,10 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// Error type for model resolution operations (v0.27 security).
-#[derive(Error, Debug)]
+///
+/// v0.27.1: This error implements Clone by storing error messages as String
+/// instead of non-Clone types like std::io::Error.
+#[derive(Error, Debug, Clone)]
 pub enum ModelResolveError {
     /// Unknown model ID.
     #[error("Unknown model: {id}")]
@@ -45,12 +48,15 @@ pub enum ModelResolveError {
     },
 
     /// Cannot read snapshots directory.
-    #[error("Cannot read snapshots directory {path}: {source}")]
+    ///
+    /// v0.27.1: Stores error message as String instead of std::io::Error
+    /// to allow Clone implementation.
+    #[error("Cannot read snapshots directory {path}: {message}")]
     SnapshotsDirReadError {
         /// The path that could not be read.
         path: PathBuf,
-        /// The underlying I/O error.
-        source: std::io::Error,
+        /// The error message (stringified from std::io::Error).
+        message: String,
     },
 
     /// No snapshots found for model.
@@ -583,48 +589,16 @@ pub fn models_by_type(model_type: ModelType) -> Vec<&'static KnownModel> {
         .collect()
 }
 
-/// Detect available system RAM in gigabytes.
+/// Detect available system RAM in gigabytes with headroom.
 ///
-/// Uses the `sys-info` crate if available, otherwise returns a conservative default (8GB).
+/// Returns 80% of total RAM to leave headroom for the OS and other processes.
 /// This is used for auto-selecting quantization levels.
+///
+/// This is a re-export of [`crate::util::system::get_available_ram_gb`] for backward
+/// compatibility. New code should use `crate::util::system` directly.
 #[must_use]
 pub fn detect_available_ram_gb() -> u32 {
-    // Try to detect via sys-info (already a dependency via mistral.rs)
-    #[cfg(target_os = "macos")]
-    {
-        // On macOS, use sysctl to get total memory
-        use std::process::Command;
-        if let Ok(output) = Command::new("sysctl").args(["-n", "hw.memsize"]).output() {
-            if let Ok(bytes_str) = String::from_utf8(output.stdout) {
-                if let Ok(bytes) = bytes_str.trim().parse::<u64>() {
-                    // Convert bytes to GB, leave 20% headroom
-                    return ((bytes as f64 / 1024.0 / 1024.0 / 1024.0) * 0.8) as u32;
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // On Linux, read from /proc/meminfo
-        if let Ok(content) = std::fs::read_to_string("/proc/meminfo") {
-            for line in content.lines() {
-                if line.starts_with("MemTotal:") {
-                    // Format: "MemTotal:       16384000 kB"
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if let Some(kb_str) = parts.get(1) {
-                        if let Ok(kb) = kb_str.parse::<u64>() {
-                            // Convert kB to GB, leave 20% headroom
-                            return ((kb as f64 / 1024.0 / 1024.0) * 0.8) as u32;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Conservative default for unknown systems
-    8
+    crate::util::system::get_available_ram_gb()
 }
 
 /// Auto-select the best quantization for available RAM.
@@ -710,7 +684,7 @@ pub fn resolve_model(
     let snapshot = std::fs::read_dir(&snapshots_dir)
         .map_err(|e| ModelResolveError::SnapshotsDirReadError {
             path: snapshots_dir.clone(),
-            source: e,
+            message: e.to_string(),
         })?
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))

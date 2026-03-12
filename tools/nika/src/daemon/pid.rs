@@ -10,7 +10,7 @@
 //! 4. On drop, lock is released and file removed
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::error::NikaError;
@@ -134,12 +134,19 @@ pub fn release_pid_lock(lock: PidLock) {
 /// Read the PID from a PID file
 ///
 /// Returns `None` if the file doesn't exist or can't be read.
+///
+/// # TOCTOU Note
+///
+/// This function uses atomic file reading (read_to_string) instead of
+/// separate open/read operations to minimize race window.
 #[allow(dead_code)] // Used by daemon status command
 pub fn read_pid(pid_path: &Path) -> Option<u32> {
-    let mut file = File::open(pid_path).ok()?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).ok()?;
-    contents.trim().parse().ok()
+    // TOCTOU-safe: Use read_to_string directly instead of open+read.
+    // This minimizes the race window by performing a single syscall.
+    match std::fs::read_to_string(pid_path) {
+        Ok(contents) => contents.trim().parse().ok(),
+        Err(_) => None,
+    }
 }
 
 /// Check if a process with the given PID is still running
@@ -161,8 +168,23 @@ pub fn is_process_running(_pid: u32) -> bool {
 }
 
 /// Check if the daemon is running by examining the PID file
+///
+/// # TOCTOU Note
+///
+/// This function has an inherent TOCTOU race: the daemon could exit between
+/// reading the PID file and checking if the process is running. This is
+/// acceptable for status checks because:
+///
+/// 1. The result is informational, not used for security decisions
+/// 2. The `acquire_pid_lock` function uses flock() for actual mutual exclusion
+/// 3. There is no atomic "read PID and check process" syscall available
+///
+/// For daemon startup, always use `acquire_pid_lock` which provides true
+/// mutual exclusion via file locking.
 #[allow(dead_code)] // Used by daemon status command
 pub fn is_daemon_running(pid_path: &Path) -> bool {
+    // Note: Inherent TOCTOU between read_pid and is_process_running.
+    // This is acceptable for status checks; use acquire_pid_lock for exclusion.
     if let Some(pid) = read_pid(pid_path) {
         is_process_running(pid)
     } else {

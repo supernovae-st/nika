@@ -44,7 +44,10 @@ mod operations;
 
 pub use config::{SyncConfig, SyncState};
 pub use editor::{Editor, EditorKind};
-pub use operations::{sync_all, sync_editor, SyncResult};
+pub use operations::{
+    get_editor_config_path, is_editor_installed, sync_all, sync_editor, sync_enabled,
+    sync_to_editor, SyncResult,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TESTS

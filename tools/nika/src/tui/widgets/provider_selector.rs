@@ -5,9 +5,8 @@
 //!
 //! ## v0.27: Provider Changes
 //!
-//! - **5 API providers**: Claude, OpenAI, Mistral, Groq, DeepSeek
+//! - **6 API providers**: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
 //! - **Ollama REMOVED**: Use `provider: native` with mistral.rs instead
-//! - **Gemini pending**: Will be added in v0.28
 //!
 //! ## Availability Checks
 //!
@@ -173,13 +172,14 @@ impl ProviderInfo {
         };
 
         // v0.27: Ollama REMOVED - use provider: native (mistral.rs) for local inference
-        // 6 API providers remaining: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
+        // 6 API providers: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
 
         let (claude_available, claude_reason) = check_api_key("ANTHROPIC_API_KEY");
         let (openai_available, openai_reason) = check_api_key("OPENAI_API_KEY");
         let (mistral_available, mistral_reason) = check_api_key("MISTRAL_API_KEY");
         let (groq_available, groq_reason) = check_api_key("GROQ_API_KEY");
         let (deepseek_available, deepseek_reason) = check_api_key("DEEPSEEK_API_KEY");
+        let (gemini_available, gemini_reason) = check_api_key("GEMINI_API_KEY");
 
         vec![
             ProviderInfo {
@@ -336,7 +336,42 @@ impl ProviderInfo {
                     },
                 ],
             },
-            // v0.27: Ollama removed - 6 providers total (was 7)
+            ProviderInfo {
+                id: "gemini".to_string(),
+                name: "Google Gemini".to_string(),
+                icon: "💎",
+                default_model: "gemini-2.0-flash",
+                env_var: "GEMINI_API_KEY",
+                available: gemini_available,
+                unavailable_reason: gemini_reason,
+                verify_status: VerifyStatus::Unknown,
+                latency: None,
+                verify_error: None,
+                models: vec![
+                    ModelInfo {
+                        id: "gemini-2.0-flash".to_string(),
+                        name: "Gemini 2.0 Flash".to_string(),
+                        streaming: true,
+                        thinking: false,
+                        context_window: 1_000_000,
+                    },
+                    ModelInfo {
+                        id: "gemini-1.5-pro".to_string(),
+                        name: "Gemini 1.5 Pro".to_string(),
+                        streaming: true,
+                        thinking: false,
+                        context_window: 2_000_000,
+                    },
+                    ModelInfo {
+                        id: "gemini-1.5-flash".to_string(),
+                        name: "Gemini 1.5 Flash".to_string(),
+                        streaming: true,
+                        thinking: false,
+                        context_window: 1_000_000,
+                    },
+                ],
+            },
+            // v0.27: Ollama removed - 6 providers total
             // For local inference, use `provider: native` with mistral.rs
         ]
     }
@@ -860,15 +895,15 @@ mod tests {
 
     #[test]
     fn test_provider_info_all_providers() {
-        // v0.27: 5 API providers (Ollama removed, Gemini pending integration)
+        // v0.27: 6 API providers (Ollama removed)
         let providers = ProviderInfo::all_providers();
-        assert_eq!(providers.len(), 5);
+        assert_eq!(providers.len(), 6);
         assert_eq!(providers[0].id, "claude");
         assert_eq!(providers[1].id, "openai");
         assert_eq!(providers[2].id, "mistral");
         assert_eq!(providers[3].id, "groq");
         assert_eq!(providers[4].id, "deepseek");
-        // TODO(v0.28): Add Gemini provider
+        assert_eq!(providers[5].id, "gemini");
     }
 
     #[test]

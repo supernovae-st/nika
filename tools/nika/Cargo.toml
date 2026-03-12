@@ -123,6 +123,7 @@ rand = "0.8"
 humantime = "2.1"  # Duration parsing for nika:sleep (v0.9.3)
 shlex = "1.3"  # Shell-free command parsing (v0.15.0 Security)
 shellexpand = "3.1"  # Env var expansion for MCP commands ($VAR, ${VAR}, ~)
+unicode-normalization = "0.1"  # NFKC normalization for blocklist bypass prevention (v0.27.1 Security)
 
 # Package registry (v0.28 - native pkg commands)
 urlencoding = "2.1"  # URL encoding for package names

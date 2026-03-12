@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.24.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.27.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,12 +22,12 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-4,391_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-4,560_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
-[![Providers](https://img.shields.io/badge/🤖_LLM_providers-7-ec4899?style=flat-square)](#-providers)
-[![Views](https://img.shields.io/badge/🖥️_TUI_views-5-f59e0b?style=flat-square)](#-studio-tui)
+[![Providers](https://img.shields.io/badge/🤖_LLM_providers-6-ec4899?style=flat-square)](#-providers)
+[![Views](https://img.shields.io/badge/🖥️_TUI_views-4-f59e0b?style=flat-square)](#-studio-tui)
 [![Widgets](https://img.shields.io/badge/🧩_widgets-39-06b6d4?style=flat-square)](#-chat-dag-widgets)
 [![MCP](https://img.shields.io/badge/🔌_MCP-native-8b5cf6?style=flat-square)](#-mcp-integration)
 
@@ -56,7 +56,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
     ║                                                                       ║
     ║       • Zero dependencies          • Full observability               ║
     ║       • Single Rust binary         • Native MCP client                ║
-    ║       • 5 semantic verbs           • 7 LLM providers                  ║
+    ║       • 5 semantic verbs           • 6 LLM providers                  ║
     ║                                                                       ║
     ╚═══════════════════════════════════════════════════════════════════════╝
 ```
@@ -97,26 +97,29 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.21.1
+## ✨ What's New in v0.27.0
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.21.1 — WORKFLOW RECIPES + STRUCTURED OUTPUT + TUI CONSOLIDATION        ║
+║  🦋 v0.27.0 — UNIFIED CLI: spn→nika FEATURE FUSION                            ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  5 NEW WORKFLOW RECIPE TEMPLATES:                                             ║
-║  ├── 📊 data-pipeline        — ETL pattern (fetch → transform → load)        ║
-║  ├── ☀️ morning-briefing     — Daily digest (news, weather, tasks)           ║
-║  ├── 📝 git-changelog        — Commit analysis + changelog generation        ║
-║  ├── 🌍 parallel-translation — Multi-language with for_each parallelism      ║
-║  └── 🧪 agent-qa-tester      — QA testing agent with test generation         ║
+║  🎯 UNIFIED CLI — All spn features now available via nika:                    ║
+║  ├── nika provider   — API key management (list, set, get, test, migrate)    ║
+║  ├── nika model      — Local model management (list, pull, info, search)     ║
+║  ├── nika mcp        — MCP server management (add, remove, list, test)       ║
+║  ├── nika sync       — Editor synchronization (enable, disable, status)      ║
+║  ├── nika setup      — Interactive onboarding (nika, novanet, claude-code)   ║
+║  ├── nika daemon     — Background service (start, stop, status)              ║
+║  ├── nika jobs       — Background jobs (submit, cancel, output, list)        ║
+║  └── nika backup     — Data backup (create, restore, list, prune)            ║
 ║                                                                               ║
-║  STRUCTURED OUTPUT ENGINE (v0.21.0):                                          ║
-║  ├── 4-layer defense         — ~99.99% JSON Schema compliance                ║
-║  ├── structured: field       — Per-task schema validation                    ║
-║  └── Implicit $task syntax   — Shorthand for use: blocks                     ║
+║  🔧 CORE MODULE — Zero-dep provider/model/MCP definitions:                   ║
+║  ├── KNOWN_PROVIDERS — 6 LLM + 11 MCP + 1 Native (18 total)                  ║
+║  ├── KNOWN_MODELS    — 16+ curated models for native inference               ║
+║  └── MCP_ALIASES     — 48 server aliases for auto-configuration              ║
 ║                                                                               ║
-║  STATS: 4,152 tests | 15 templates | Zero clippy warnings                    ║
+║  📊 STATS: 4,560 tests | 6 providers | Zero clippy warnings | 0.x.x forever   ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -1663,17 +1666,19 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.21.1 STATS                                 ║
+║                           🦋 NIKA v0.27.0 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  4,152 passing                                        ║
+║   📊 Tests              │  4,560 passing                                        ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
-║   🔮 LLM Providers      │  7 (Claude, OpenAI, Mistral, Groq, DeepSeek, Ollama, Gemini) ║
+║   🔮 LLM Providers      │  6 (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini) ║
+║   🦙 Native Inference   │  1 (mistral.rs with GGUF models)                      ║
 ║   ⚡ Semantic Verbs     │  5 (infer, exec, fetch, invoke, agent)               ║
 ║   🔧 Builtin Tools      │  11 (6 core + 5 file tools)                          ║
-║   🖥️ TUI Views          │  8 (Chat, Home, Studio, Monitor, Split, Workspace, Settings, Help) ║
+║   🔌 MCP Servers        │  48 aliases (Neo4j, GitHub, Slack, etc.)             ║
+║   🖥️ TUI Views          │  4 (Chat, Home, Studio, Monitor)                     ║
 ║   🧩 TUI Widgets        │  39 widgets                                           ║
 ║   📋 Event Types        │  24 variants (+2 artifact events)                     ║
 ║   🦀 Rust Edition       │  2021                                                 ║
@@ -1688,35 +1693,36 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (4,152 tests)
-    "🖥️ TUI" : 1704
-    "📁 IO" : 68
-    "🔗 Binding" : 198
-    "🔍 AST" : 171
-    "⚡ Runtime" : 124
-    "🔌 MCP" : 111
-    "🔀 DAG" : 60
-    "📊 Event" : 46
-    "🔧 Util" : 30
-    "🔮 Provider" : 24
-    "💾 Store" : 19
-    "🛠️ Tools" : 13
+pie title 📊 Test Distribution (4,560 tests)
+    "🖥️ TUI" : 1800
+    "📁 IO" : 150
+    "🔗 Binding" : 250
+    "🔍 AST" : 200
+    "⚡ Runtime" : 200
+    "🔌 MCP" : 150
+    "🔀 DAG" : 120
+    "📊 Event" : 100
+    "🔧 Util" : 350
+    "🔮 Provider" : 100
+    "💾 Store" : 50
+    "🛠️ Tools" : 90
 ```
 
 ### 🏗️ Code Distribution
 
 | Module | LOC | Tests | Description |
 |:-------|----:|------:|:------------|
-| 🖥️ `tui/` | 73,466 | 1,704 | Terminal UI (6 views, 39 widgets) |
-| ⚡ `runtime/` | 10,282 | 124 | Execution engine, agent loop |
-| 🔌 `mcp/` | 5,182 | 111 | MCP client, validation |
-| 🔍 `ast/` | 3,969 | 171 | YAML parsing, task actions |
-| 🔗 `binding/` | 3,325 | 198 | Data flow, templates |
-| 🔧 `tools/` | 3,281 | 13 | Claude Code tools |
-| 🔮 `provider/` | 1,912 | 24 | rig-core wrapper |
-| 🔀 `dag/` | 1,914 | 60 | StableGraph, validation |
-| 📊 `event/` | 1,732 | 46 | Event log, traces |
-| **Total** | **106,000+** | **3,449** | |
+| 🖥️ `tui/` | 73,466 | 1,800 | Terminal UI (4 views, 39 widgets) |
+| ⚡ `runtime/` | 10,282 | 200 | Execution engine, agent loop |
+| 🔌 `mcp/` | 5,182 | 150 | MCP client, validation |
+| 🔍 `ast/` | 3,969 | 200 | YAML parsing, task actions |
+| 🔗 `binding/` | 3,325 | 250 | Data flow, templates |
+| 🔧 `core/` | 2,500 | 350 | Provider/model/MCP definitions (v0.27) |
+| 🔮 `provider/` | 1,912 | 100 | rig-core + native wrapper |
+| 🔀 `dag/` | 1,914 | 120 | StableGraph, validation |
+| 📊 `event/` | 1,732 | 100 | Event log, traces |
+| 🛠️ `util/` | 1,200 | 350 | Utilities, constants, validation |
+| **Total** | **106,000+** | **4,560** | |
 
 <br>
 
@@ -2021,7 +2027,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (4,152 tests)
+# 🧪 Test (4,560 tests)
 cargo test
 
 # 🔍 Lint

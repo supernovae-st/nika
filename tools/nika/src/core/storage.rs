@@ -134,44 +134,13 @@ pub fn default_model_dir() -> PathBuf {
 // Platform Detection
 // ============================================================================
 
-/// Detect available system RAM in gigabytes.
+/// Detect total system RAM in gigabytes.
+///
+/// This is a re-export of [`crate::util::system::get_total_ram_gb`] for backward
+/// compatibility. New code should use `crate::util::system` directly.
 #[must_use]
 pub fn detect_system_ram_gb() -> f64 {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        Command::new("sysctl")
-            .args(["-n", "hw.memsize"])
-            .output()
-            .ok()
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .and_then(|s| s.trim().parse::<u64>().ok())
-            .map(|bytes| bytes as f64 / 1_000_000_000.0)
-            .unwrap_or(8.0)
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::fs::read_to_string("/proc/meminfo")
-            .ok()
-            .and_then(|content| {
-                content
-                    .lines()
-                    .find(|line| line.starts_with("MemTotal:"))
-                    .and_then(|line| {
-                        line.split_whitespace()
-                            .nth(1)
-                            .and_then(|kb| kb.parse::<u64>().ok())
-                    })
-            })
-            .map(|kb| kb as f64 / 1_000_000.0)
-            .unwrap_or(8.0)
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
-        8.0 // Default fallback
-    }
+    crate::util::system::get_total_ram_gb()
 }
 
 // ============================================================================
@@ -298,16 +267,25 @@ impl HuggingFaceStorage {
 
         let file_path = model_dir.join(&filename);
 
-        // Check if already downloaded
-        if !request.force && file_path.exists() {
-            progress(PullProgress::new("cached", 1, 1));
-            let metadata = fs::metadata(&file_path).await?;
-            return Ok(DownloadResult {
-                path: file_path,
-                size: metadata.len(),
-                checksum: None,
-                cached: true,
-            });
+        // TOCTOU-safe: Attempt to read metadata directly instead of exists() check.
+        // If the file exists and we're not forcing, return cached result.
+        // If it doesn't exist, continue to download.
+        if !request.force {
+            match fs::metadata(&file_path).await {
+                Ok(metadata) => {
+                    progress(PullProgress::new("cached", 1, 1));
+                    return Ok(DownloadResult {
+                        path: file_path,
+                        size: metadata.len(),
+                        checksum: None,
+                        cached: true,
+                    });
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // File doesn't exist, proceed to download
+                }
+                Err(e) => return Err(StorageError::Io(e)),
+            }
         }
 
         // Get file info from HuggingFace API
@@ -423,13 +401,15 @@ impl HuggingFaceStorage {
     pub fn list_models(&self) -> std::result::Result<Vec<ModelInfo>, BackendError> {
         let mut models = Vec::new();
 
-        if !self.storage_dir.exists() {
-            return Ok(models);
-        }
-
-        // Walk the storage directory
-        let entries = std::fs::read_dir(&self.storage_dir)
-            .map_err(|e| BackendError::StorageError(e.to_string()))?;
+        // TOCTOU-safe: Attempt to read directory directly instead of exists() check.
+        // If directory doesn't exist, return empty list.
+        let entries = match std::fs::read_dir(&self.storage_dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(models);
+            }
+            Err(e) => return Err(BackendError::StorageError(e.to_string())),
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -474,12 +454,16 @@ impl HuggingFaceStorage {
     /// Get info about a local model.
     pub fn model_info(&self, model_id: &str) -> std::result::Result<ModelInfo, BackendError> {
         let path = self.model_path(model_id)?;
-        if !path.exists() {
-            return Err(BackendError::ModelNotFound(model_id.to_string()));
-        }
 
-        let metadata =
-            std::fs::metadata(&path).map_err(|e| BackendError::StorageError(e.to_string()))?;
+        // TOCTOU-safe: Attempt to read metadata directly instead of exists() check.
+        // This avoids race where file is deleted between exists() and metadata().
+        let metadata = match std::fs::metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(BackendError::ModelNotFound(model_id.to_string()));
+            }
+            Err(e) => return Err(BackendError::StorageError(e.to_string())),
+        };
 
         let filename = path.file_name().unwrap_or_default().to_string_lossy();
 
@@ -495,13 +479,16 @@ impl HuggingFaceStorage {
     /// Delete a local model.
     pub fn delete(&self, model_id: &str) -> std::result::Result<(), BackendError> {
         let path = self.model_path(model_id)?;
-        if !path.exists() {
-            return Err(BackendError::ModelNotFound(model_id.to_string()));
+
+        // TOCTOU-safe: Attempt to remove directly instead of exists() check.
+        // This avoids race where file is deleted between exists() and remove_file().
+        match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Err(BackendError::ModelNotFound(model_id.to_string()))
+            }
+            Err(e) => Err(BackendError::StorageError(e.to_string())),
         }
-
-        std::fs::remove_file(&path).map_err(|e| BackendError::StorageError(e.to_string()))?;
-
-        Ok(())
     }
 
     /// Get the path to a model file with path traversal validation.

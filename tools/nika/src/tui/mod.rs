@@ -93,6 +93,8 @@ mod verification;
 mod views;
 #[cfg(feature = "tui")]
 pub mod widgets;
+#[cfg(feature = "tui")]
+pub mod wizard;
 
 #[cfg(feature = "tui")]
 pub use app::App;
@@ -163,6 +165,8 @@ pub use views::{
     ChatView, DagTab, HelpView, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
     SettingsView, StudioView, TuiView, View, ViewAction, YamlEditorPanel,
 };
+#[cfg(feature = "tui")]
+pub use wizard::{WizardConfig, WizardState, WizardStep};
 
 /// Install panic hook to restore terminal state on crashes.
 ///

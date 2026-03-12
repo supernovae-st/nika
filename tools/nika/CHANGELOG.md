@@ -7,6 +7,556 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.27.0](https://github.com/supernovae-st/nika/releases/tag/v0.27.0) - 2026-03-12
+
+```
++=============================================================================+
+|                                                                             |
+|    ███╗   ██╗██╗██╗  ██╗ █████╗     ██╗   ██╗ ██████╗    ██████╗ ███████╗   |
+|    ████╗  ██║██║██║ ██╔╝██╔══██╗    ██║   ██║██╔═████╗   ╚════██╗╚════██║   |
+|    ██╔██╗ ██║██║█████╔╝ ███████║    ██║   ██║██║██╔██║    █████╔╝    ██╔╝   |
+|    ██║╚██╗██║██║██╔═██╗ ██╔══██║    ╚██╗ ██╔╝████╔╝██║   ██╔═══╝    ██╔╝    |
+|    ██║ ╚████║██║██║  ██╗██║  ██║     ╚████╔╝ ╚██████╔╝██╗███████╗   ██║     |
+|    ╚═╝  ╚═══╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝      ╚═══╝   ╚═════╝ ╚═╝╚══════╝   ╚═╝     |
+|                                                                             |
+|              spn→nika FEATURE FUSION — ONE CLI TO RULE THEM ALL             |
+|                                                                             |
++=============================================================================+
+|                                                                             |
+|    📊 STATS                                                                 |
+|    ─────────────────────────────────────────────────────────────────────    |
+|    Tests: ~5,700 passing  │  Clippy: Zero warnings  │  Providers: 6+Native  |
+|    New commands: 8        │  MCP aliases: 48        │  Models: 16+ curated  |
+|                                                                             |
+|    🎯 HIGHLIGHTS                                                            |
+|    ─────────────────────────────────────────────────────────────────────    |
+|    ├── ✨ Unified CLI — All spn features now in nika                        |
+|    ├── ✨ 8 new command groups (provider, model, mcp, sync, setup...)       |
+|    ├── ✨ Core module — Zero-dep provider/model/MCP definitions             |
+|    ├── 🔧 spn deprecated — Shows warning directing to nika                  |
+|    └── 🐛 Ollama removed — Use native inference instead                     |
+|                                                                             |
++=============================================================================+
+```
+
+### The Big Picture
+
+Remember when you had to juggle **two CLIs** to manage your AI workflows? `nika` for
+running workflows, `spn` for everything else — providers, models, MCP servers, editor
+sync...
+
+**Those days are over.**
+
+v0.27.0 merges ALL `spn` functionality into `nika`. One CLI. One config directory.
+One workflow. This isn't just a refactor — it's a **unification** that makes Nika the
+single entry point for your entire AI workflow stack.
+
+```
++=====================================================================================+
+|  THE GREAT UNIFICATION                                                              |
++=====================================================================================+
+|                                                                                     |
+|  BEFORE (v0.26 and earlier):           AFTER (v0.27):                               |
+|  ─────────────────────────────         ──────────────────────────────────           |
+|                                                                                     |
+|  nika run workflow.yaml                nika run workflow.yaml                       |
+|  nika chat                             nika chat                                    |
+|  nika studio                           nika studio                                  |
+|  spn provider list        ─────────►   nika provider list                           |
+|  spn model pull llama                  nika model pull llama                        |
+|  spn mcp add neo4j                     nika mcp add neo4j                           |
+|  spn sync                              nika sync                                    |
+|  spn setup                             nika setup                                   |
+|  spn daemon start                      nika daemon start                            |
+|                                                                                     |
+|  2 CLIs to remember                    1 CLI to rule them all                       |
+|  ~/.spn/ config directory              ~/.nika/ config directory                    |
+|  spn-daemon process                    nika-daemon process                          |
+|                                                                                     |
++=====================================================================================+
+```
+
+---
+
+### ✨ New Command Groups (8 Total)
+
+v0.27.0 adds **8 new command groups** to nika, each with multiple subcommands:
+
+#### 1. `nika provider` — API Key Management
+
+Manage your LLM provider API keys securely via OS keychain:
+
+```bash
+nika provider list              # Show all providers with status
+nika provider set anthropic     # Store API key in OS keychain
+nika provider get openai        # Retrieve (masked) key
+nika provider test claude       # Validate key with provider
+nika provider migrate           # Migrate env vars to keychain
+```
+
+```
++-----------------------------------------------------------------------------------+
+|  nika provider list                                                               |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  PROVIDER       STATUS      ENV VAR                DEFAULT MODEL                  |
+|  ─────────────────────────────────────────────────────────────────────────────── |
+|  anthropic      ✅ Set      ANTHROPIC_API_KEY      claude-sonnet-4-6              |
+|  openai         ✅ Set      OPENAI_API_KEY         gpt-4o                         |
+|  mistral        ⚠️  Env     MISTRAL_API_KEY        mistral-large-latest           |
+|  groq           ❌ Missing  GROQ_API_KEY           llama-3.3-70b-versatile        |
+|  deepseek       ❌ Missing  DEEPSEEK_API_KEY       deepseek-chat                  |
+|  gemini         ❌ Missing  GEMINI_API_KEY         gemini-2.0-flash               |
+|  native         ✅ Ready    (no key needed)        llama3.2:1b                    |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+#### 2. `nika model` — Local Model Management
+
+Manage local GGUF models for native inference:
+
+```bash
+nika model list                 # List available local models
+nika model pull llama3.2:1b     # Download model from HuggingFace
+nika model info qwen3:8b        # Show model details
+nika model search "code"        # Search for models by keyword
+```
+
+```
++-----------------------------------------------------------------------------------+
+|  nika model list                                                                  |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  MODEL              SIZE     QUANTIZATION   CONTEXT    DOWNLOADED                 |
+|  ─────────────────────────────────────────────────────────────────────────────── |
+|  llama3.2:1b        830MB    Q4_K_M         8192       ✅ ~/.cache/huggingface/   |
+|  qwen3:8b           5.2GB    Q4_K_M         32768      ✅ ~/.cache/huggingface/   |
+|  mistral:7b         4.1GB    Q4_K_M         8192       ❌ Not downloaded          |
+|  phi-4:14b          8.9GB    Q5_K_M         16384      ❌ Not downloaded          |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+#### 3. `nika mcp` — MCP Server Management
+
+Add, configure, and test MCP servers with 48 built-in aliases:
+
+```bash
+nika mcp add neo4j              # Add server (auto-configures from alias)
+nika mcp add custom --command "node" --args "server.js"
+nika mcp remove neo4j           # Remove server
+nika mcp list                   # List configured servers
+nika mcp test neo4j             # Test server connection
+nika mcp tools neo4j            # List available tools
+```
+
+```
++-----------------------------------------------------------------------------------+
+|  48 MCP ALIASES AVAILABLE                                                         |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  CATEGORY        ALIASES                                                          |
+|  ─────────────────────────────────────────────────────────────────────────────── |
+|  Databases       neo4j, postgres, sqlite, mongodb, redis, supabase                |
+|  AI/Search       perplexity, firecrawl, supadata, exa, tavily                     |
+|  Developer       github, gitlab, jira, linear, notion, slack                      |
+|  Cloud           aws, gcp, azure, vercel, cloudflare                              |
+|  Filesystem      filesystem, docker, kubernetes                                   |
+|  + 25 more...                                                                     |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+#### 4. `nika sync` — Editor Synchronization
+
+Sync your Nika configuration to Claude Code, Cursor, Windsurf, and VS Code:
+
+```bash
+nika sync                       # Sync to all enabled editors
+nika sync --status              # Show sync status
+nika sync --enable claude-code  # Enable editor
+nika sync --disable cursor      # Disable editor
+```
+
+#### 5. `nika setup` — Interactive Onboarding
+
+Guided setup wizards for new users:
+
+```bash
+nika setup                      # Interactive wizard (choose target)
+nika setup nika                 # Install Nika + LSP + Daemon + Editors
+nika setup novanet              # Configure NovaNet + Neo4j
+nika setup claude-code          # Configure Claude Code integration
+```
+
+```
++-----------------------------------------------------------------------------------+
+|  nika setup nika — 5-STEP WIZARD                                                  |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  Step 1: ✅ Install nika binary                                                   |
+|  Step 2: ✅ Configure default provider (anthropic)                                |
+|  Step 3: ✅ Start nika-daemon (background service)                                |
+|  Step 4: ✅ Enable editor sync (claude-code, cursor)                              |
+|  Step 5: ✅ Create example workflow                                               |
+|                                                                                   |
+|  🎉 Setup complete! Run 'nika chat' to start.                                     |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+#### 6. `nika daemon` — Background Service
+
+Manage the background daemon that handles keychain access and socket IPC:
+
+```bash
+nika daemon start               # Start background daemon
+nika daemon status              # Show daemon status
+nika daemon stop                # Stop daemon gracefully
+nika daemon logs                # View recent logs
+```
+
+```
++-----------------------------------------------------------------------------------+
+|  WHY THE DAEMON?                                                                  |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  Without daemon:               With daemon:                                       |
+|  ─────────────────────────     ──────────────────────────────────                 |
+|  nika → Keychain (popup!)      nika → ~/.nika/daemon.sock                         |
+|  MCP1 → Keychain (popup!)                    ↓                                    |
+|  MCP2 → Keychain (popup!)              OS Keychain                                |
+|                                     (one accessor, no popups)                     |
+|                                                                                   |
+|  macOS Keychain prompts you for EVERY process that wants access.                  |
+|  The daemon is the SOLE accessor — one prompt at startup, then silence.           |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+#### 7. `nika jobs` — Background Job Execution
+
+Submit and manage long-running workflow jobs:
+
+```bash
+nika jobs submit workflow.yaml  # Run workflow in background
+nika jobs list                  # List all jobs (running + completed)
+nika jobs output <id>           # View job output
+nika jobs output <id> --follow  # Stream job output (like tail -f)
+nika jobs cancel <id>           # Cancel running job
+```
+
+#### 8. `nika backup` — Data Backup & Restore
+
+Backup and restore your Nika configuration:
+
+```bash
+nika backup create              # Create unified backup
+nika backup list                # List available backups
+nika backup restore             # Restore from latest backup
+nika backup restore <id>        # Restore specific backup
+nika backup prune               # Delete old backups
+```
+
+---
+
+### ✨ Core Module — Zero-Dependency Definitions
+
+The new `src/core/` module provides canonical definitions for providers, models, and
+MCP aliases with **zero external dependencies**:
+
+```rust
+// src/core/providers.rs
+pub const KNOWN_PROVIDERS: &[ProviderDef] = &[
+    // LLM Providers (6)
+    ProviderDef { name: "anthropic", env_var: "ANTHROPIC_API_KEY", ... },
+    ProviderDef { name: "openai", env_var: "OPENAI_API_KEY", ... },
+    ProviderDef { name: "mistral", env_var: "MISTRAL_API_KEY", ... },
+    ProviderDef { name: "groq", env_var: "GROQ_API_KEY", ... },
+    ProviderDef { name: "deepseek", env_var: "DEEPSEEK_API_KEY", ... },
+    ProviderDef { name: "gemini", env_var: "GEMINI_API_KEY", ... },
+
+    // MCP Providers (6)
+    ProviderDef { name: "neo4j", env_var: "NEO4J_PASSWORD", ... },
+    ProviderDef { name: "github", env_var: "GITHUB_TOKEN", ... },
+    // ...
+];
+
+// src/core/models.rs
+pub const KNOWN_MODELS: &[ModelDef] = &[
+    ModelDef { name: "llama3.2:1b", repo: "bartowski/Llama-3.2-1B-Instruct-GGUF", ... },
+    ModelDef { name: "qwen3:8b", repo: "Qwen/Qwen2.5-7B-Instruct-GGUF", ... },
+    // 16+ curated models
+];
+
+// src/core/mcp_aliases.rs
+pub const MCP_ALIASES: &[McpAlias] = &[
+    McpAlias { name: "neo4j", command: "npx", args: &["-y", "@neo4j/mcp-neo4j"], ... },
+    McpAlias { name: "perplexity", command: "npx", args: &["-y", "mcp-perplexity"], ... },
+    // 48 aliases total
+];
+```
+
+> 💡 **Why zero-dep?** The core module can be extracted into a separate crate and used
+> by other tools without pulling in Nika's full dependency tree.
+
+---
+
+### 🔧 spn CLI Deprecated
+
+Running any `spn` command now shows a deprecation warning:
+
+```
++-----------------------------------------------------------------------------------+
+|  ⚠️  DEPRECATION WARNING                                                          |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  The 'spn' CLI is deprecated and will be removed in v0.30.0.                      |
+|                                                                                   |
+|  All functionality has been moved to 'nika':                                      |
+|                                                                                   |
+|    spn provider list  →  nika provider list                                       |
+|    spn model pull     →  nika model pull                                          |
+|    spn mcp add        →  nika mcp add                                             |
+|    spn setup          →  nika setup                                               |
+|    spn daemon start   →  nika daemon start                                        |
+|                                                                                   |
+|  For migration help: nika help migrate                                            |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+---
+
+### 🐛 Ollama Provider Removed
+
+Ollama is **no longer supported** as a cloud provider. Use native inference instead:
+
+```
++-----------------------------------------------------------------------------------+
+|  BEFORE (v0.26):                      AFTER (v0.27):                              |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  # Using Ollama (required running server)                                         |
+|  provider: ollama                     provider: native                            |
+|  model: llama3.2:1b                   model: llama3.2:1b                          |
+|                                                                                   |
+|  # Ollama server must be running:     # No external server needed:                |
+|  $ ollama serve                       # mistral.rs loads model directly           |
+|  $ OLLAMA_API_BASE_URL=...                                                        |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+**Why?** Native inference via mistral.rs is:
+- **Faster** — No HTTP overhead
+- **Simpler** — No server to manage
+- **Unified** — Same model format (GGUF) works everywhere
+- **Integrated** — `nika model pull` downloads directly to cache
+
+---
+
+### ⚠️ Breaking Changes
+
+#### 1. Ollama Provider Removed
+
+**Impact:** Workflows using `provider: ollama` will fail.
+
+**Migration:**
+```yaml
+# Before (v0.26)
+provider: ollama
+model: llama3.2:1b
+
+# After (v0.27)
+provider: native
+model: llama3.2:1b
+```
+
+Make sure to pull the model first:
+```bash
+nika model pull llama3.2:1b
+```
+
+#### 2. spn CLI Deprecated
+
+**Impact:** `spn` commands show deprecation warning.
+
+**Migration:** Replace `spn` with `nika`:
+
+| Old Command | New Command |
+|-------------|-------------|
+| `spn provider list` | `nika provider list` |
+| `spn provider set <name>` | `nika provider set <name>` |
+| `spn model list` | `nika model list` |
+| `spn model pull <model>` | `nika model pull <model>` |
+| `spn mcp add <alias>` | `nika mcp add <alias>` |
+| `spn sync` | `nika sync` |
+| `spn setup` | `nika setup` |
+| `spn daemon start` | `nika daemon start` |
+
+#### 3. Config Directory Migration
+
+**Impact:** Config files move from `~/.spn/` to `~/.nika/`.
+
+**Migration:** Run the automated migration:
+```bash
+nika setup --migrate-from-spn
+```
+
+Or manually:
+```bash
+mv ~/.spn/config.toml ~/.nika/config.toml
+mv ~/.spn/mcp.yaml ~/.nika/mcp.yaml
+mv ~/.spn/sessions/ ~/.nika/sessions/
+```
+
+---
+
+### 📋 Migration Guide: spn → nika
+
+#### Step 1: Update Your Workflows
+
+Replace `provider: ollama` with `provider: native`:
+
+```bash
+# Find all workflows using Ollama
+grep -r "provider: ollama" **/*.nika.yaml
+
+# Update each one
+sed -i 's/provider: ollama/provider: native/g' **/*.nika.yaml
+```
+
+#### Step 2: Pull Required Models
+
+If you were using Ollama models, pull them for native inference:
+
+```bash
+nika model pull llama3.2:1b
+nika model pull qwen3:8b
+# etc.
+```
+
+#### Step 3: Migrate Config
+
+Run the migration command:
+
+```bash
+nika setup --migrate-from-spn
+```
+
+This will:
+- Copy `~/.spn/config.toml` → `~/.nika/config.toml`
+- Copy `~/.spn/mcp.yaml` → `~/.nika/mcp.yaml`
+- Copy `~/.spn/sessions/` → `~/.nika/sessions/`
+- Update socket path in daemon config
+- Preserve all keychain entries (no re-entry needed)
+
+#### Step 4: Update Shell Aliases
+
+If you have shell aliases for `spn`, update them:
+
+```bash
+# In ~/.zshrc or ~/.bashrc
+# Old
+alias sp="spn"
+
+# New
+alias nk="nika"
+```
+
+#### Step 5: Restart Daemon
+
+Stop the old daemon and start the new one:
+
+```bash
+spn daemon stop    # Stop old daemon (if running)
+nika daemon start  # Start new daemon
+```
+
+---
+
+### 🧪 Test Coverage
+
+| Category | New Tests |
+|----------|-----------|
+| Provider commands | 42 |
+| Model commands | 38 |
+| MCP commands | 56 |
+| Sync commands | 24 |
+| Setup wizard | 18 |
+| Daemon management | 32 |
+| Jobs commands | 28 |
+| Backup commands | 22 |
+| Core module | 45 |
+| Ollama removal | 8 |
+| Migration | 12 |
+| **Total New** | **325** |
+| **Grand Total** | **~5,700** |
+
+---
+
+### Files Changed
+
+```
++-----------------------------------------------------------------------------------+
+|  NEW FILES (Core Module)                                                          |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  src/core/mod.rs             Re-exports for KNOWN_PROVIDERS, KNOWN_MODELS, etc.   |
+|  src/core/providers.rs       7 LLM + 6 MCP provider definitions                   |
+|  src/core/models.rs          16+ curated model definitions                        |
+|  src/core/mcp_aliases.rs     48 MCP server aliases                                |
+|  src/core/mcp_config.rs      McpConfig, McpServer, config loading                 |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+|  NEW FILES (Commands)                                                             |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  src/commands/provider.rs    nika provider list/set/get/test/migrate              |
+|  src/commands/model.rs       nika model list/pull/info/search                     |
+|  src/commands/mcp.rs         nika mcp add/remove/list/test/tools                  |
+|  src/commands/sync.rs        nika sync enable/disable/status                      |
+|  src/commands/setup.rs       nika setup wizard                                    |
+|  src/commands/daemon.rs      nika daemon start/stop/status                        |
+|  src/commands/jobs.rs        nika jobs submit/list/output/cancel                  |
+|  src/commands/backup.rs      nika backup create/restore/list/prune                |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+|  MODIFIED FILES                                                                   |
++-----------------------------------------------------------------------------------+
+|                                                                                   |
+|  src/main.rs                 Added 8 new command groups to CLI                    |
+|  src/provider/rig.rs         Removed Ollama constructor                           |
+|  src/tui/providers/*.rs      Updated for Ollama removal                           |
+|  Cargo.toml                  Added core module, removed ollama deps               |
+|                                                                                   |
++-----------------------------------------------------------------------------------+
+```
+
+---
+
+### What's Next?
+
+With the spn→nika fusion complete, v0.28.0 will focus on:
+
+- **LSP Server** — Language server protocol for IDE integration
+- **DAG Visualization** — Interactive workflow graph in TUI
+- **Plugin System** — Custom verbs via dynamic loading
+
+---
+
+### Acknowledgments
+
+This release was a massive undertaking. Special thanks to:
+
+- **Claude Opus 4.5** — For executing the merger plan with precision
+- **Thibaut** — For designing the unified architecture
+- **Nika** — For being a good butterfly 🦋
+
+---
+
 ## [0.24.0](https://github.com/supernovae-st/nika/releases/tag/v0.24.0) - 2026-03-10
 
 ```

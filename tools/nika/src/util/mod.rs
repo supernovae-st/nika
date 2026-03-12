@@ -5,11 +5,13 @@
 //! - `fs`: Atomic file write operations
 //! - `interner`: String interning for recurring task IDs (`Arc<str>` deduplication)
 //! - `jsonpath`: Minimal JSONPath parser for path resolution
+//! - `system`: Platform-specific system information (RAM detection, etc.)
 
 pub mod constants;
 pub mod fs;
 mod interner;
 pub mod jsonpath;
+pub mod system;
 
 // Re-export public types
 pub use constants::{
@@ -19,3 +21,7 @@ pub use constants::{
 };
 pub use fs::{atomic_write, atomic_write_async, check_preview_size, format_size};
 pub use interner::{intern, Interner};
+pub use system::{
+    get_available_ram_gb, get_total_ram_bytes, get_total_ram_gb, has_enough_ram_bytes,
+    has_enough_ram_gb,
+};

@@ -59,6 +59,9 @@ mod which_key;
 // v0.22: Shared panel components for view composition
 pub mod panels;
 
+// v0.27: Progress widgets for M5 UX Polish
+pub mod progress;
+
 pub use agent_turns::{AgentTurns, TurnEntry};
 // Animation utilities (v0.10.4)
 pub use animation::{AnimationState, AnimationTicker, Easing};
@@ -152,4 +155,9 @@ pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
 // Panel components (v0.22 - shared between views)
 pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
+};
+// Progress widgets (v0.27 - M5 UX Polish)
+pub use progress::{
+    DownloadProgress, DownloadStatus, EditorSyncState, SyncProgress, SyncStatus, TaskProgress,
+    TaskProgressStatus,
 };

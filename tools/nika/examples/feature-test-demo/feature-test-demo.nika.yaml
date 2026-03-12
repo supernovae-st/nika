@@ -6,7 +6,7 @@
 # v0.15.0 Features tested:
 # - shell: true (explicit shell mode for heredocs - REQUIRED since v0.15 defaults to shell-free)
 # - infer: temperature, system, max_tokens
-# - 7 LLM providers: claude, openai, mistral, groq, deepseek, gemini, ollama
+# - 6 LLM providers: claude, openai, mistral, groq, deepseek, gemini
 # - 11 builtin tools: sleep, log, emit, assert, prompt, run, read, write, edit, glob, grep
 #
 # Builtins used in this workflow:

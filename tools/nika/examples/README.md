@@ -76,7 +76,7 @@ All workflows use schema `nika/workflow@0.10` (or earlier versions for compatibi
 
 ```yaml
 schema: "nika/workflow@0.10"
-provider: claude  # or openai, mistral, groq, deepseek, gemini, ollama
+provider: claude  # or openai, mistral, groq, deepseek, gemini
 
 mcp:
   novanet:
