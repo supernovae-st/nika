@@ -1014,7 +1014,7 @@ mod tests {
 
             // Path should end with a json file
             assert!(
-                path.extension().map_or(false, |ext| ext == "json"),
+                path.extension().is_some_and(|ext| ext == "json"),
                 "Path should end with .json for {:?}: {:?}",
                 editor,
                 path

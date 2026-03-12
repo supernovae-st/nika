@@ -74,7 +74,7 @@ pub struct McpServer {
     /// Command to run (e.g., "npx", "node", "python")
     pub command: String,
 
-    /// Command arguments (e.g., ["-y", "@neo4j/mcp-neo4j"])
+    /// Command arguments (e.g., `["-y", "@neo4j/mcp-neo4j"]`)
     #[serde(default)]
     pub args: Vec<String>,
 

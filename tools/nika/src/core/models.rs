@@ -736,7 +736,7 @@ mod tests {
         assert!(text_models.iter().all(|m| m.model_type == ModelType::Text));
 
         let vision_models = models_by_type(ModelType::Vision);
-        assert!(vision_models.len() >= 1);
+        assert!(!vision_models.is_empty());
 
         let embedding_models = models_by_type(ModelType::Embedding);
         assert!(embedding_models.len() >= 2);
