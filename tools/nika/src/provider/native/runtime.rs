@@ -760,7 +760,9 @@ mod tests {
             let runtime = NativeRuntime::new();
             runtime.cancel_all();
 
-            let result = runtime.infer_stream("test prompt", ChatOptions::default()).await;
+            let result = runtime
+                .infer_stream("test prompt", ChatOptions::default())
+                .await;
 
             // Use match instead of unwrap_err() because Stream doesn't impl Debug
             match result {
@@ -776,7 +778,9 @@ mod tests {
             assert!(!runtime.is_cancelled());
 
             // Shutdown should cancel the token
-            let result = runtime.shutdown(std::time::Duration::from_millis(100)).await;
+            let result = runtime
+                .shutdown(std::time::Duration::from_millis(100))
+                .await;
             assert!(result.is_ok());
             assert!(runtime.is_cancelled());
         }

@@ -114,18 +114,14 @@ pub fn get_editor_config_path(editor: EditorKind) -> Option<PathBuf> {
     {
         let app_support = home.join("Library/Application Support");
         Some(match editor {
-            EditorKind::ClaudeCode => {
-                app_support.join("Claude/claude_desktop_config.json")
-            }
+            EditorKind::ClaudeCode => app_support.join("Claude/claude_desktop_config.json"),
             EditorKind::Cursor => {
                 app_support.join("Cursor/User/globalStorage/cursor.mcp/config.json")
             }
             EditorKind::Windsurf => {
                 app_support.join("Windsurf/User/globalStorage/windsurf.mcp/config.json")
             }
-            EditorKind::VsCode => {
-                app_support.join("Code/User/settings.json")
-            }
+            EditorKind::VsCode => app_support.join("Code/User/settings.json"),
         })
     }
 
@@ -133,18 +129,10 @@ pub fn get_editor_config_path(editor: EditorKind) -> Option<PathBuf> {
     {
         let config_dir = home.join(".config");
         Some(match editor {
-            EditorKind::ClaudeCode => {
-                config_dir.join("claude/claude_desktop_config.json")
-            }
-            EditorKind::Cursor => {
-                config_dir.join("cursor/mcp_servers.json")
-            }
-            EditorKind::Windsurf => {
-                config_dir.join("windsurf/mcp_servers.json")
-            }
-            EditorKind::VsCode => {
-                config_dir.join("Code/User/settings.json")
-            }
+            EditorKind::ClaudeCode => config_dir.join("claude/claude_desktop_config.json"),
+            EditorKind::Cursor => config_dir.join("cursor/mcp_servers.json"),
+            EditorKind::Windsurf => config_dir.join("windsurf/mcp_servers.json"),
+            EditorKind::VsCode => config_dir.join("Code/User/settings.json"),
         })
     }
 
@@ -529,7 +517,9 @@ mod tests {
         let path = path.unwrap();
 
         #[cfg(target_os = "macos")]
-        assert!(path.to_string_lossy().contains("Library/Application Support/Claude"));
+        assert!(path
+            .to_string_lossy()
+            .contains("Library/Application Support/Claude"));
 
         #[cfg(target_os = "linux")]
         assert!(path.to_string_lossy().contains(".config/claude"));
@@ -543,7 +533,9 @@ mod tests {
         let path = path.unwrap();
 
         #[cfg(target_os = "macos")]
-        assert!(path.to_string_lossy().contains("Library/Application Support/Cursor"));
+        assert!(path
+            .to_string_lossy()
+            .contains("Library/Application Support/Cursor"));
 
         #[cfg(target_os = "linux")]
         assert!(path.to_string_lossy().contains(".config/cursor"));
@@ -557,7 +549,9 @@ mod tests {
         let path = path.unwrap();
 
         #[cfg(target_os = "macos")]
-        assert!(path.to_string_lossy().contains("Library/Application Support/Windsurf"));
+        assert!(path
+            .to_string_lossy()
+            .contains("Library/Application Support/Windsurf"));
 
         #[cfg(target_os = "linux")]
         assert!(path.to_string_lossy().contains(".config/windsurf"));
@@ -571,7 +565,9 @@ mod tests {
         let path = path.unwrap();
 
         #[cfg(target_os = "macos")]
-        assert!(path.to_string_lossy().contains("Library/Application Support/Code"));
+        assert!(path
+            .to_string_lossy()
+            .contains("Library/Application Support/Code"));
 
         #[cfg(target_os = "linux")]
         assert!(path.to_string_lossy().contains(".config/Code"));
@@ -581,7 +577,11 @@ mod tests {
     fn test_all_editors_have_config_paths() {
         for editor in EditorKind::all() {
             let path = get_editor_config_path(*editor);
-            assert!(path.is_some(), "Editor {:?} should have a config path", editor);
+            assert!(
+                path.is_some(),
+                "Editor {:?} should have a config path",
+                editor
+            );
         }
     }
 
@@ -841,11 +841,8 @@ mod tests {
 
     #[test]
     fn test_sync_result_success() {
-        let result = SyncResult::success(
-            EditorKind::ClaudeCode,
-            PathBuf::from("/tmp/config.json"),
-            3,
-        );
+        let result =
+            SyncResult::success(EditorKind::ClaudeCode, PathBuf::from("/tmp/config.json"), 3);
 
         assert!(result.success);
         assert!(result.error.is_none());

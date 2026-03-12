@@ -205,12 +205,10 @@ impl From<ModelResolveError> for NativeError {
                     message
                 ))
             }
-            ModelResolveError::NoSnapshotsFound { model_id } => {
-                NativeError::ModelNotFound {
-                    repo: "cache".to_string(),
-                    filename: model_id,
-                }
-            }
+            ModelResolveError::NoSnapshotsFound { model_id } => NativeError::ModelNotFound {
+                repo: "cache".to_string(),
+                filename: model_id,
+            },
             ModelResolveError::ModelFileNotFound { path, model_id } => NativeError::ModelNotFound {
                 repo: path.to_string_lossy().to_string(),
                 filename: model_id,

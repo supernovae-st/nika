@@ -169,6 +169,7 @@ impl Action {
             | ViewAction::PullNativeModel(_)
             | ViewAction::DeleteNativeModel(_)
             | ViewAction::RefreshNativeModels
+            | ViewAction::LaunchWizard
             | ViewAction::Error(_) => Action::ViewSpecific(view_action),
             // Note: No catch-all - we explicitly handle all variants
         }

@@ -30,6 +30,7 @@ mod settings;
 mod split;
 mod studio;
 mod trait_view;
+mod wizard;
 // Note: workspace.rs is deprecated, StudioView now provides 3-panel layout
 
 // Main view exports (v0.21 names)
@@ -63,6 +64,9 @@ pub use help::HelpView;
 
 // Trait export
 pub use trait_view::View;
+
+// Wizard view (v0.27 - standalone setup wizard via `nika setup`)
+pub use wizard::WizardView;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Panel Tab Enums (moved from monitor.rs during v0.5.2 cleanup)
@@ -348,6 +352,8 @@ pub enum ViewAction {
     RefreshNativeModels,
     /// Validate workflow in Home view (v0.11.0)
     ValidateWorkflow(std::path::PathBuf),
+    /// Launch setup wizard (v0.27 - from Settings or first-run)
+    LaunchWizard,
 }
 
 #[cfg(test)]

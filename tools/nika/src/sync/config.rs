@@ -90,11 +90,9 @@ impl SyncConfig {
         // If file doesn't exist, return default config.
         // This avoids race where file is created/deleted between exists() and read.
         match std::fs::read_to_string(path) {
-            Ok(content) => {
-                serde_yaml::from_str(&content).map_err(|e| NikaError::SyncError {
-                    message: format!("Failed to parse sync config: {}", e),
-                })
-            }
+            Ok(content) => serde_yaml::from_str(&content).map_err(|e| NikaError::SyncError {
+                message: format!("Failed to parse sync config: {}", e),
+            }),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(NikaError::IoPathError {
                 path: path.to_path_buf(),

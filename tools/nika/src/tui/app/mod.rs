@@ -95,6 +95,8 @@ pub struct App {
     pub(crate) status_message: Option<(String, std::time::Instant)>,
     /// Retry requested flag (TIER 1.2) - caller should re-run workflow
     pub(crate) retry_requested: bool,
+    /// Launch wizard flag (v0.27 - exits TUI and launches setup wizard)
+    pub(crate) should_launch_wizard: bool,
     // ═══ 4-View Architecture + Navigation 2.0 ═══
     /// Current active view
     pub(crate) current_view: TuiView,
@@ -217,6 +219,7 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
+            should_launch_wizard: false,
             // 4-view architecture - start in Monitor mode for workflow execution
             current_view: TuiView::Runner,
             input_mode: InputMode::Normal,
@@ -290,6 +293,7 @@ impl App {
             workflow_done: false,
             status_message: None,
             retry_requested: false,
+            should_launch_wizard: false,
             // 4-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
@@ -411,7 +415,9 @@ impl App {
     /// - Home (2/h): Workflow browser
     /// - Studio (3/s): YAML editor
     /// - Monitor (4/m): Execution monitoring (existing 4-panel view)
-    pub async fn run_unified(mut self) -> Result<()> {
+    ///
+    /// Returns `Ok(true)` if the wizard should be launched after TUI exit (v0.27)
+    pub async fn run_unified(mut self) -> Result<bool> {
         tracing::info!("TUI (unified) started");
 
         // v0.8.4: Startup verification - ensure directories, schema, config, project access
@@ -561,8 +567,12 @@ impl App {
         // Cancel all background tasks before cleanup
         self.cancel_background_tasks();
 
-        // Cleanup and return
-        self.cleanup()
+        // Save wizard flag before cleanup (v0.27)
+        let launch_wizard = self.should_launch_wizard;
+
+        // Cleanup and return wizard flag
+        self.cleanup()?;
+        Ok(launch_wizard)
     }
 
     /// Get current view

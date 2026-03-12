@@ -289,6 +289,13 @@ impl App {
                 self.set_status(&format!("Error: {}", msg));
             }
 
+            // Launch wizard (v0.27 - exits TUI and launches setup wizard)
+            ViewAction::LaunchWizard => {
+                self.should_launch_wizard = true;
+                self.should_quit = true;
+                self.set_status("Launching setup wizard...");
+            }
+
             // Navigation - already handled by from_view_action conversion
             ViewAction::None
             | ViewAction::Quit

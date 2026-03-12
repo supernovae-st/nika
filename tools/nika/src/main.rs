@@ -3877,69 +3877,14 @@ async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Resul
 
     match setup_action {
         SetupAction::Wizard => {
-            println!(
-                "{}",
-                "╔═══════════════════════════════════════════════════════════════╗".cyan()
-            );
-            println!(
-                "{}",
-                "║                                                               ║".cyan()
-            );
-            println!(
-                "{}",
-                "║    🦋  S U P E R N O V A E   S E T U P                        ║".cyan()
-            );
-            println!(
-                "{}",
-                "║                                                               ║".cyan()
-            );
-            println!(
-                "{}",
-                "║    Interactive Setup Wizard for the AI Workflow Ecosystem     ║".cyan()
-            );
-            println!(
-                "{}",
-                "║                                                               ║".cyan()
-            );
-            println!(
-                "{}",
-                "╚═══════════════════════════════════════════════════════════════╝".cyan()
-            );
-            println!();
-
-            // Check current environment
-            println!("{}", "Checking environment...".bold());
-            println!("{}", "─".repeat(60));
-
-            // Check for providers
-            let providers = [
-                ("ANTHROPIC_API_KEY", "Claude"),
-                ("OPENAI_API_KEY", "OpenAI"),
-                ("MISTRAL_API_KEY", "Mistral"),
-                ("GROQ_API_KEY", "Groq"),
-                ("DEEPSEEK_API_KEY", "DeepSeek"),
-                ("GEMINI_API_KEY", "Gemini"),
-            ];
-
-            let mut configured_providers = 0;
-            for (env_var, name) in &providers {
-                if std::env::var(env_var).is_ok() {
-                    println!("  {} {} ({})", "✓".green(), name, env_var.dimmed());
-                    configured_providers += 1;
-                }
+            // Launch the TUI Setup Wizard
+            if !quiet {
+                nika::tui::run_tui_wizard().await?;
+            } else {
+                // Quiet mode: show minimal CLI output instead
+                println!("{}", "Setup wizard skipped (quiet mode)".dimmed());
+                println!("Run 'nika setup' without --quiet for the full wizard.");
             }
-
-            if configured_providers == 0 {
-                println!("  {} No LLM providers configured", "○".dimmed());
-            }
-
-            println!();
-            println!("{} Full interactive setup available via:", "ℹ".cyan());
-            println!("  spn setup");
-            println!();
-            println!("Or configure providers individually:");
-            println!("  nika provider set anthropic");
-            println!("  nika provider set openai");
         }
 
         SetupAction::Nika => {

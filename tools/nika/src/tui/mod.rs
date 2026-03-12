@@ -312,7 +312,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     // 5. Create and run TUI with event receiver
     // Use run_unified() for the 4-view architecture (Studio/Runner/Chat/Settings)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
-    let tui_result = app.run_unified().await;
+    let tui_result = app.run_unified().await.map(|_| ());
 
     // 6. Abort runner if TUI exits early (user pressed q)
     runner_handle.abort();
@@ -328,6 +328,62 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
 /// 3. Allows user to select and run workflows
 #[cfg(feature = "tui")]
 pub async fn run_tui_standalone() -> crate::error::Result<()> {
+    use views::WizardView;
+
+    // First-run detection: if wizard hasn't been completed, offer to run it
+    if !WizardView::was_completed() {
+        // Check if we're in an interactive terminal
+        use std::io::IsTerminal;
+        if std::io::stdin().is_terminal() {
+            use colored::Colorize;
+            use std::io::{self, Write};
+
+            println!();
+            println!(
+                "{}",
+                "╔═══════════════════════════════════════════════════════════════╗".cyan()
+            );
+            println!(
+                "{}",
+                "║  🦋 Welcome to Nika!                                          ║".cyan()
+            );
+            println!(
+                "{}",
+                "║                                                               ║".cyan()
+            );
+            println!(
+                "{}",
+                "║  It looks like this is your first time running Nika.         ║".cyan()
+            );
+            println!(
+                "{}",
+                "║  Would you like to run the setup wizard?                      ║".cyan()
+            );
+            println!(
+                "{}",
+                "╚═══════════════════════════════════════════════════════════════╝".cyan()
+            );
+            println!();
+            print!("{}", "Run setup wizard? [Y/n]: ".bold());
+            io::stdout().flush().ok();
+
+            let mut input = String::new();
+            if io::stdin().read_line(&mut input).is_ok() {
+                let input = input.trim().to_lowercase();
+                if input.is_empty() || input == "y" || input == "yes" {
+                    println!();
+                    println!("{}", "Starting setup wizard...".dimmed());
+                    println!();
+                    // Run the wizard
+                    run_tui_wizard().await?;
+                    println!();
+                    println!("{}", "Setup complete! Starting Nika...".green());
+                    println!();
+                }
+            }
+        }
+    }
+
     // Install panic hook for terminal recovery
     install_panic_hook();
 
@@ -340,7 +396,15 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     // Create and run standalone app with unified 5-view architecture
     // Starts in Studio view (3-panel: Browser | Editor | DAG)
     let app = App::new_standalone(state)?;
-    app.run_unified().await
+    let launch_wizard = app.run_unified().await?;
+
+    // Check if wizard was requested from Settings view (v0.27)
+    if launch_wizard {
+        println!();
+        run_tui_wizard().await?;
+    }
+
+    Ok(())
 }
 
 /// Run the TUI in Chat mode (conversational agent)
@@ -373,7 +437,7 @@ pub async fn run_tui_chat(
         .with_initial_view(TuiView::Chat)
         .with_chat_overrides(provider, model);
 
-    app.run_unified().await
+    app.run_unified().await.map(|_| ())
 }
 
 /// Run the TUI in Studio mode (workflow editor)
@@ -406,7 +470,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
         app = app.with_studio_file(full_path);
     }
 
-    app.run_unified().await
+    app.run_unified().await.map(|_| ())
 }
 
 /// Run the TUI with customizable options (view and workflow)
@@ -451,7 +515,7 @@ pub async fn run_tui_with_options(
         app = app.with_studio_file(full_path);
     }
 
-    app.run_unified().await
+    app.run_unified().await.map(|_| ())
 }
 
 /// Find project root by looking for Cargo.toml or .git
@@ -505,6 +569,82 @@ pub async fn run_tui_with_options(
     _workflow: Option<std::path::PathBuf>,
     _initial_view: Option<views::TuiView>,
 ) -> crate::error::Result<()> {
+    Err(crate::error::NikaError::ValidationError {
+        reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
+    })
+}
+
+/// Run the TUI Setup Wizard (standalone)
+///
+/// This is the entry point for `nika setup` command.
+/// Runs a full-screen setup wizard separate from the 4-view TUI.
+#[cfg(feature = "tui")]
+pub async fn run_tui_wizard() -> crate::error::Result<()> {
+    use crossterm::{
+        event::{self, Event, KeyEventKind},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    };
+    use ratatui::{backend::CrosstermBackend, Terminal};
+    use std::io::stdout;
+
+    use crate::tui::state::TuiState;
+    use crate::tui::theme::Theme;
+    use crate::tui::views::{View, ViewAction, WizardView};
+
+    // Install panic hook for terminal recovery
+    install_panic_hook();
+
+    // Setup terminal
+    enable_raw_mode().map_err(crate::error::NikaError::IoError)?;
+    let mut stdout = stdout();
+    execute!(stdout, EnterAlternateScreen).map_err(crate::error::NikaError::IoError)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend).map_err(crate::error::NikaError::IoError)?;
+
+    // Create wizard view and state
+    let mut wizard = WizardView::new();
+    let mut tui_state = TuiState::new("wizard");
+    let theme = Theme::default();
+
+    // Main loop
+    let result = loop {
+        // Draw
+        terminal
+            .draw(|frame| {
+                wizard.render(frame, frame.area(), &tui_state, &theme);
+            })
+            .map_err(crate::error::NikaError::IoError)?;
+
+        // Handle events
+        if event::poll(std::time::Duration::from_millis(100))
+            .map_err(crate::error::NikaError::IoError)?
+        {
+            if let Event::Key(key) = event::read().map_err(crate::error::NikaError::IoError)? {
+                // Only handle key press events
+                if key.kind == KeyEventKind::Press {
+                    match wizard.handle_key(key, &mut tui_state) {
+                        ViewAction::Quit => break Ok(()),
+                        ViewAction::Error(msg) => {
+                            break Err(crate::error::NikaError::ValidationError { reason: msg })
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    };
+
+    // Restore terminal
+    disable_raw_mode().ok();
+    execute!(terminal.backend_mut(), LeaveAlternateScreen).ok();
+    terminal.show_cursor().ok();
+
+    result
+}
+
+#[cfg(not(feature = "tui"))]
+pub async fn run_tui_wizard() -> crate::error::Result<()> {
     Err(crate::error::NikaError::ValidationError {
         reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
     })

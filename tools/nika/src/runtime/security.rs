@@ -132,9 +132,7 @@ const ZERO_WIDTH_CHARS: &[char] = &[
 /// similar but technically different Unicode characters, or by inserting
 /// invisible characters to break up blocked patterns.
 fn normalize_for_blocklist(s: &str) -> String {
-    s.nfkc()
-        .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
-        .collect()
+    s.nfkc().filter(|c| !ZERO_WIDTH_CHARS.contains(c)).collect()
 }
 
 /// Check command against blocklist

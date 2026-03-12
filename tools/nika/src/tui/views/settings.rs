@@ -531,6 +531,9 @@ impl View for SettingsView {
                 ViewAction::OpenSettings // Reuse to trigger provider modal
             }
 
+            // 'w' launches the setup wizard (v0.27)
+            KeyCode::Char('w') => ViewAction::LaunchWizard,
+
             _ => ViewAction::None,
         }
     }
@@ -542,7 +545,10 @@ impl View for SettingsView {
     }
 
     fn status_line(&self, _state: &TuiState) -> String {
-        format!("Settings • {} selected", self.section.title())
+        format!(
+            "Settings • {} selected | [1-3] Theme • [w] Wizard",
+            self.section.title()
+        )
     }
 }
 
