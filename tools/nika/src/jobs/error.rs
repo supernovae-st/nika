@@ -1,6 +1,9 @@
 //! Jobs Daemon error types.
 //!
-//! Error codes: NIKA-200 to NIKA-299 (Jobs Daemon range)
+//! Error codes: NIKA-450 to NIKA-529 (Jobs Daemon range)
+//!
+//! Note: Previously used NIKA-200-299 which collided with ToolErrorCode.
+//! Migrated to NIKA-450+ in v0.27.0 to resolve collision.
 
 use std::path::PathBuf;
 use thiserror::Error;
@@ -8,136 +11,136 @@ use thiserror::Error;
 /// Jobs Daemon errors.
 #[derive(Debug, Error)]
 pub enum JobsError {
-    // === Daemon Lifecycle (200-209) ===
+    // === Daemon Lifecycle (450-459) ===
     /// Daemon is already running.
-    #[error("[NIKA-200] Daemon already running (pid: {pid})")]
+    #[error("[NIKA-450] Daemon already running (pid: {pid})")]
     DaemonAlreadyRunning { pid: u32 },
 
     /// Failed to start daemon.
-    #[error("[NIKA-201] Failed to start daemon: {reason}")]
+    #[error("[NIKA-451] Failed to start daemon: {reason}")]
     DaemonStartFailed { reason: String },
 
     /// Failed to stop daemon.
-    #[error("[NIKA-202] Failed to stop daemon: {reason}")]
+    #[error("[NIKA-452] Failed to stop daemon: {reason}")]
     DaemonStopFailed { reason: String },
 
     /// Daemon not running.
-    #[error("[NIKA-203] Daemon is not running")]
+    #[error("[NIKA-453] Daemon is not running")]
     DaemonNotRunning,
 
     /// PID file operation failed.
-    #[error("[NIKA-204] PID file error: {reason}")]
+    #[error("[NIKA-454] PID file error: {reason}")]
     PidFileError { reason: String },
 
     /// Internal channel closed.
-    #[error("[NIKA-205] Internal channel closed")]
+    #[error("[NIKA-455] Internal channel closed")]
     ChannelClosed,
 
-    // === Job Definition (210-219) ===
+    // === Job Definition (460-469) ===
     /// Job not found.
-    #[error("[NIKA-210] Job not found: {name}")]
+    #[error("[NIKA-460] Job not found: {name}")]
     JobNotFound { name: String },
 
     /// Invalid job definition.
-    #[error("[NIKA-211] Invalid job definition '{name}': {reason}")]
+    #[error("[NIKA-461] Invalid job definition '{name}': {reason}")]
     InvalidJobDefinition { name: String, reason: String },
 
     /// Duplicate job name.
-    #[error("[NIKA-212] Duplicate job name: {name}")]
+    #[error("[NIKA-462] Duplicate job name: {name}")]
     DuplicateJobName { name: String },
 
     /// Workflow file not found.
-    #[error("[NIKA-213] Workflow not found: {path:?}")]
+    #[error("[NIKA-463] Workflow not found: {path:?}")]
     WorkflowNotFound { path: PathBuf },
 
     /// Job is already running (exclusive).
-    #[error("[NIKA-214] Job '{name}' is already running")]
+    #[error("[NIKA-464] Job '{name}' is already running")]
     JobAlreadyRunning { name: String },
 
-    // === Trigger Errors (220-229) ===
+    // === Trigger Errors (470-479) ===
     /// Invalid cron expression.
-    #[error("[NIKA-220] Invalid cron expression: {expression}")]
+    #[error("[NIKA-470] Invalid cron expression: {expression}")]
     InvalidCronExpression { expression: String },
 
     /// Webhook server error.
-    #[error("[NIKA-221] Webhook server error: {reason}")]
+    #[error("[NIKA-471] Webhook server error: {reason}")]
     WebhookServerError { reason: String },
 
     /// Watch path error.
-    #[error("[NIKA-222] Watch path error: {path:?} - {reason}")]
+    #[error("[NIKA-472] Watch path error: {path:?} - {reason}")]
     WatchPathError { path: PathBuf, reason: String },
 
     /// Trigger configuration error.
-    #[error("[NIKA-223] Trigger configuration error: {reason}")]
+    #[error("[NIKA-473] Trigger configuration error: {reason}")]
     TriggerConfigError { reason: String },
 
-    // === Execution Errors (230-239) ===
+    // === Execution Errors (480-489) ===
     /// Job execution failed.
-    #[error("[NIKA-230] Job '{name}' execution failed: {reason}")]
+    #[error("[NIKA-480] Job '{name}' execution failed: {reason}")]
     ExecutionFailed { name: String, reason: String },
 
     /// Job timed out.
-    #[error("[NIKA-231] Job '{name}' timed out after {timeout_secs}s")]
+    #[error("[NIKA-481] Job '{name}' timed out after {timeout_secs}s")]
     ExecutionTimeout { name: String, timeout_secs: u64 },
 
     /// Cannot cancel running job.
-    #[error("[NIKA-232] Cannot cancel running execution: {execution_id}")]
+    #[error("[NIKA-482] Cannot cancel running execution: {execution_id}")]
     CannotCancelRunning { execution_id: String },
 
     /// Execution not found.
-    #[error("[NIKA-233] Execution not found: {execution_id}")]
+    #[error("[NIKA-483] Execution not found: {execution_id}")]
     ExecutionNotFound { execution_id: String },
 
     /// Max retries exceeded.
-    #[error("[NIKA-234] Job '{name}' exceeded max retries ({max_attempts})")]
+    #[error("[NIKA-484] Job '{name}' exceeded max retries ({max_attempts})")]
     MaxRetriesExceeded { name: String, max_attempts: u32 },
 
-    // === State Persistence (240-249) ===
+    // === State Persistence (490-499) ===
     /// SQLite database error.
-    #[error("[NIKA-240] Database error: {reason}")]
+    #[error("[NIKA-490] Database error: {reason}")]
     DatabaseError { reason: String },
 
     /// Failed to open database.
-    #[error("[NIKA-241] Failed to open database: {path:?}")]
+    #[error("[NIKA-491] Failed to open database: {path:?}")]
     DatabaseOpenFailed { path: PathBuf },
 
     /// State serialization error.
-    #[error("[NIKA-242] State serialization error: {reason}")]
+    #[error("[NIKA-492] State serialization error: {reason}")]
     SerializationError { reason: String },
 
     /// State migration error.
-    #[error("[NIKA-243] Database migration error: {reason}")]
+    #[error("[NIKA-493] Database migration error: {reason}")]
     MigrationError { reason: String },
 
-    // === Notification Errors (250-259) ===
+    // === Notification Errors (500-509) ===
     /// Notification failed.
-    #[error("[NIKA-250] Notification failed: {channel} - {reason}")]
+    #[error("[NIKA-500] Notification failed: {channel} - {reason}")]
     NotificationFailed { channel: String, reason: String },
 
     /// Invalid notification configuration.
-    #[error("[NIKA-251] Invalid notification config: {reason}")]
+    #[error("[NIKA-501] Invalid notification config: {reason}")]
     InvalidNotificationConfig { reason: String },
 
-    // === Configuration Errors (260-269) ===
+    // === Configuration Errors (510-519) ===
     /// Configuration parse error.
-    #[error("[NIKA-260] Configuration parse error: {reason}")]
+    #[error("[NIKA-510] Configuration parse error: {reason}")]
     ConfigParseError { reason: String },
 
     /// Configuration file not found.
-    #[error("[NIKA-261] Configuration file not found: {path:?}")]
+    #[error("[NIKA-511] Configuration file not found: {path:?}")]
     ConfigNotFound { path: PathBuf },
 
     /// Invalid configuration value.
-    #[error("[NIKA-262] Invalid configuration: {reason}")]
+    #[error("[NIKA-512] Invalid configuration: {reason}")]
     InvalidConfig { reason: String },
 
-    // === I/O Errors (270-279) ===
+    // === I/O Errors (520-529) ===
     /// I/O error.
-    #[error("[NIKA-270] I/O error: {reason}")]
+    #[error("[NIKA-520] I/O error: {reason}")]
     IoError { reason: String },
 
     /// File system error.
-    #[error("[NIKA-271] File system error: {path:?} - {reason}")]
+    #[error("[NIKA-521] File system error: {path:?} - {reason}")]
     FileSystemError { path: PathBuf, reason: String },
 }
 
@@ -174,7 +177,7 @@ mod tests {
     fn test_error_codes() {
         let err = JobsError::DaemonAlreadyRunning { pid: 1234 };
         let msg = err.to_string();
-        assert!(msg.contains("NIKA-200"));
+        assert!(msg.contains("NIKA-450"));
         assert!(msg.contains("1234"));
     }
 
@@ -184,7 +187,7 @@ mod tests {
             name: "test-job".to_string(),
         };
         let msg = err.to_string();
-        assert!(msg.contains("NIKA-210"));
+        assert!(msg.contains("NIKA-460"));
         assert!(msg.contains("test-job"));
     }
 
@@ -195,7 +198,7 @@ mod tests {
             reason: "workflow error".to_string(),
         };
         let msg = err.to_string();
-        assert!(msg.contains("NIKA-230"));
+        assert!(msg.contains("NIKA-480"));
         assert!(msg.contains("my-job"));
         assert!(msg.contains("workflow error"));
     }
@@ -204,7 +207,7 @@ mod tests {
     fn test_channel_closed() {
         let err = JobsError::ChannelClosed;
         let msg = err.to_string();
-        assert!(msg.contains("NIKA-205"));
+        assert!(msg.contains("NIKA-455"));
     }
 
     #[test]
@@ -213,7 +216,7 @@ mod tests {
             name: "exclusive-job".to_string(),
         };
         let msg = err.to_string();
-        assert!(msg.contains("NIKA-214"));
+        assert!(msg.contains("NIKA-464"));
         assert!(msg.contains("exclusive-job"));
     }
 }

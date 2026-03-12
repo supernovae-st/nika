@@ -21,7 +21,7 @@ tools/nika/src/
 ├── error.rs          # NikaError with codes
 ├── core/             # ✅ Zero-dep provider/model/MCP definitions (v0.27)
 │   ├── mod.rs        # Re-exports for KNOWN_PROVIDERS, KNOWN_MODELS, MCP_ALIASES
-│   ├── providers.rs  # KNOWN_PROVIDERS (7 LLM + 6 MCP providers)
+│   ├── providers.rs  # KNOWN_PROVIDERS (6 LLM + 11 MCP + 1 Local = 18)
 │   ├── models.rs     # KNOWN_MODELS (16+ curated models for native inference)
 │   ├── mcp_aliases.rs # MCP_ALIASES (48 server aliases)
 │   └── mcp_config.rs # McpConfig, McpServer, global/project config loading
@@ -429,9 +429,9 @@ include:
 - `InferOptions` struct in `provider/rig.rs` for passing to LLM
 - `infer_with_options()` method in `RigProvider`
 
-### Gemini Provider (7th provider)
+### Gemini Provider (6th LLM provider)
 
-Google's Gemini is now available via rig-core:
+Google's Gemini is available via rig-core (Ollama removed in v0.27):
 
 ```yaml
 # Set GEMINI_API_KEY environment variable

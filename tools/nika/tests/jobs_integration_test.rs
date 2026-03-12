@@ -490,7 +490,7 @@ async fn test_notification_dispatcher_creation() {
 
 #[test]
 fn test_jobs_error_codes_in_range() {
-    // Jobs errors should be in NIKA-200 to NIKA-279 range
+    // Jobs errors should be in NIKA-450 to NIKA-529 range (v0.27: migrated from NIKA-200-299)
     let errors = vec![
         JobsError::JobNotFound {
             name: "x".to_string(),
@@ -505,10 +505,10 @@ fn test_jobs_error_codes_in_range() {
 
     for err in errors {
         let msg = format!("{}", err);
-        // All Jobs errors should contain NIKA-2XX
+        // All Jobs errors should contain NIKA-4XX or NIKA-5XX (range 450-529)
         assert!(
-            msg.contains("[NIKA-2") || msg.contains("NIKA-2"),
-            "Error should have NIKA-2XX code: {}",
+            msg.contains("[NIKA-4") || msg.contains("[NIKA-5"),
+            "Error should have NIKA-450-529 code: {}",
             msg
         );
     }

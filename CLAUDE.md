@@ -92,7 +92,7 @@ Nika is the "body" of the SuperNovae AGI architecture, executing workflows that 
   - `nika jobs` — Background job execution (submit, cancel, output, list)
   - `nika backup` — SuperNovae data backup (create, restore, list, prune)
 - **Core Module** — New `src/core/` with zero-dependency provider/model/MCP definitions
-  - `KNOWN_PROVIDERS` — 7 LLM + 6 MCP providers with validation
+  - `KNOWN_PROVIDERS` — 6 LLM + 11 MCP + 1 Local = 18 providers (Ollama removed v0.27)
   - `KNOWN_MODELS` — 16+ curated models for native inference
   - `MCP_ALIASES` — 48 MCP server aliases for auto-configuration
 - **spn Deprecation** — Running `spn <cmd>` now shows deprecation warning directing to `nika`
@@ -215,7 +215,7 @@ tasks:
 ```
 CRITICAL: 5 Semantic Verbs Only
 
-infer:   → LLM generation (rig-core, 7 providers)
+infer:   → LLM generation (rig-core, 6 providers)
 exec:    → Shell command execution
 fetch:   → HTTP request
 invoke:  → MCP tool call
@@ -332,7 +332,7 @@ nk tl               → nika trace list
 | `tools/nika/src/ast/context.rs` | context: file loading (v0.14.3) |
 | `tools/nika/src/ast/include.rs` | include: DAG fusion (v0.14.3) |
 | `tools/nika/src/core/mod.rs` | Core types: providers, models, MCP aliases (v0.27) |
-| `tools/nika/src/core/providers.rs` | KNOWN_PROVIDERS (7 LLM + 6 MCP) (v0.27) |
+| `tools/nika/src/core/providers.rs` | KNOWN_PROVIDERS (6 LLM + 11 MCP + 1 Local = 18) (v0.27) |
 | `tools/nika/src/core/models.rs` | KNOWN_MODELS (16+ curated models) (v0.27) |
 | `tools/nika/src/core/mcp_aliases.rs` | MCP_ALIASES (48 aliases) (v0.27) |
 | `tools/nika/src/core/mcp_config.rs` | MCP server configuration (v0.27) |

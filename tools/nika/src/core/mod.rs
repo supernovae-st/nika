@@ -15,7 +15,7 @@
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
 //! │  providers.rs                                                               │
-//! │  ├── KNOWN_PROVIDERS: &[Provider] (20 providers)                            │
+//! │  ├── KNOWN_PROVIDERS: &[Provider] (18 providers)                            │
 //! │  ├── Provider struct (id, name, env_var, key_prefix, category)              │
 //! │  ├── ProviderCategory enum (Llm, Mcp, Local)                                │
 //! │  └── Helper functions (find_provider, providers_by_category)                │

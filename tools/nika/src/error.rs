@@ -21,12 +21,12 @@
 //! - NIKA-130-139: TUI errors (v0.2)
 //! - NIKA-140-149: AST analysis errors (v0.20 - Phase 2 analyzer)
 //!
-//! v0.9.x ranges (reserved):
-//! - NIKA-200-209: Chat/Mention errors (v0.9.1-v0.9.2)
+//! v0.9.x ranges:
+//! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)
 //! - NIKA-210-219: Builtin tool errors (v0.9.3)
-//! - NIKA-220-229: DAG Panel errors (v0.9.4)
-//! - NIKA-230-239: Session persistence errors (v0.9.5)
-//! - NIKA-240-249: Animation/Export errors (v0.9.5)
+//! - NIKA-220-229: Reserved (DAG Panel - not implemented)
+//! - NIKA-230-239: Reserved (Session persistence - not implemented)
+//! - NIKA-240-249: Reserved (Animation/Export - not implemented)
 //!
 //! v0.18 ranges:
 //! - NIKA-280-289: Artifact errors (path validation, write, size limits)

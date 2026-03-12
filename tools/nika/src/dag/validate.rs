@@ -10,7 +10,8 @@
 //! - NIKA-080: use.alias references unknown task
 //! - NIKA-081: use.alias references non-upstream task
 //! - NIKA-082: use.alias creates self-reference
-//! - NIKA-083: Template {{use.alias}} references undeclared alias
+//!
+//! Note: Template {{use.alias}} validation handled by binding/resolve.rs (NIKA-040-049)
 
 use rustc_hash::FxHashSet;
 

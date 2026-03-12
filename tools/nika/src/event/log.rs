@@ -1,8 +1,8 @@
-//! EventLog - Event sourcing implementation (v0.4, updated v0.24)
+//! EventLog - Event sourcing implementation (v0.4, updated v0.27)
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 28 variants across 8 levels (workflow/task/fine-grained/MCP/context/guardrails/structured-output/limits)
+//! - EventKind: 34 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/structured-output/limits)
 //! - EventLog: thread-safe, append-only log
 //!
 //! ## v0.4.1 Changes
