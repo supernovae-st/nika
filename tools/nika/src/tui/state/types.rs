@@ -262,6 +262,8 @@ pub struct WorkflowState {
     pub paused: bool,
     /// P2 Fix: Phase before pause (for proper restoration on resume)
     pub phase_before_pause: Option<MissionPhase>,
+    /// Request to execute one step while paused (single-step debugging)
+    pub step_requested: bool,
 }
 
 impl WorkflowState {
@@ -279,6 +281,7 @@ impl WorkflowState {
             error_message: None,
             paused: false,
             phase_before_pause: None,
+            step_requested: false,
         }
     }
 
@@ -622,6 +625,31 @@ mod tests {
         state.task_count = 10;
         state.tasks_completed = 5;
         assert_eq!(state.progress_pct(), 50.0);
+    }
+
+    #[test]
+    fn test_workflow_state_step_requested() {
+        let mut state = WorkflowState::new("test.nika.yaml".to_string());
+
+        // Initial state: not paused, no step requested
+        assert!(!state.paused);
+        assert!(!state.step_requested);
+
+        // Pause workflow
+        state.paused = true;
+
+        // Request a step while paused
+        state.step_requested = true;
+        assert!(state.step_requested);
+
+        // After step is consumed, reset the flag
+        state.step_requested = false;
+        assert!(!state.step_requested);
+
+        // Verify step_requested can be set independently of paused
+        state.paused = false;
+        state.step_requested = true;
+        assert!(state.step_requested);
     }
 
     #[test]
