@@ -4,7 +4,7 @@
 
 Nika is a DAG workflow runner for AI tasks with MCP integration. It's the "body" of the spn-agi architecture, executing workflows that leverage NovaNet's knowledge graph "brain".
 
-**Current version:** v0.27.0 | spn→nika Feature Fusion | 4,433 tests | Zero clippy warnings
+**Current version:** v0.27.0 | spn→nika Feature Fusion | 6,157 tests | Zero clippy warnings
 
 **v0.27.0 Changes (spn→nika Fusion):**
 - **Unified CLI** — All spn features now available via `nika` commands

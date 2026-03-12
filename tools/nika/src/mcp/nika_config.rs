@@ -9,16 +9,16 @@
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use nika::mcp::spn_config::{load_spn_mcp_servers, SpnMcpConfigManager};
+//! use nika::mcp::nika_config::{load_nika_mcp_servers, NikaMcpConfigManager};
 //!
 //! // Load all enabled servers from ~/.nika/mcp.yaml
-//! let servers = load_spn_mcp_servers()?;
+//! let servers = load_nika_mcp_servers()?;
 //! for (name, config) in &servers {
 //!     println!("Server: {} -> {}", name, config.command);
 //! }
 //!
 //! // Or use the manager for more control
-//! let manager = SpnMcpConfigManager::new();
+//! let manager = NikaMcpConfigManager::new();
 //! let config = manager.load_global()?;
 //! println!("Found {} servers", config.servers.len());
 //! ```
@@ -52,7 +52,7 @@
 //!
 //! # Optional: explicitly list which servers to use
 //! # If omitted, all enabled servers are available
-//! spn_servers:
+//! mcp_servers:
 //!   - neo4j
 //!   - novanet
 //!
@@ -76,21 +76,21 @@ use crate::error::NikaError;
 use crate::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SPN MCP Configuration Types
+// NIKA MCP Configuration Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Root configuration for MCP servers from `~/.nika/mcp.yaml`.
 ///
-/// This mirrors the structure used by the Nika CLI.
+/// This mirrors the structure used by the Nika MCP Config.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SpnMcpConfig {
+pub struct NikaMcpConfig {
     /// Configuration version for migrations.
     #[serde(default = "default_version")]
     pub version: u32,
 
     /// MCP server definitions.
     #[serde(default)]
-    pub servers: HashMap<String, SpnMcpServer>,
+    pub servers: HashMap<String, NikaMcpServer>,
 }
 
 fn default_version() -> u32 {
@@ -101,7 +101,7 @@ fn default_version() -> u32 {
 ///
 /// This is the format used in `~/.nika/mcp.yaml`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SpnMcpServer {
+pub struct NikaMcpServer {
     /// Command to execute (e.g., "npx", "node", "novanet-mcp").
     pub command: String,
 
@@ -123,7 +123,7 @@ pub struct SpnMcpServer {
 
     /// Source of this server (global, project, or workflow).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<SpnMcpSource>,
+    pub source: Option<NikaMcpSource>,
 }
 
 fn default_enabled() -> bool {
@@ -133,7 +133,7 @@ fn default_enabled() -> bool {
 /// Source of an MCP server configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum SpnMcpSource {
+pub enum NikaMcpSource {
     /// Global configuration (~/.nika/mcp.yaml).
     #[default]
     Global,
@@ -143,7 +143,7 @@ pub enum SpnMcpSource {
     Workflow,
 }
 
-impl SpnMcpServer {
+impl NikaMcpServer {
     /// Convert to Nika's McpConfig format.
     pub fn to_mcp_config(&self, name: &str) -> McpConfig {
         let mut env = FxHashMap::default();
@@ -171,12 +171,12 @@ impl SpnMcpServer {
 /// - Global: `~/.nika/mcp.yaml`
 /// - Project: `.nika/mcp.yaml` (relative to project root)
 #[derive(Debug, Clone)]
-pub struct SpnMcpConfigManager {
+pub struct NikaMcpConfigManager {
     global_path: PathBuf,
     project_root: Option<PathBuf>,
 }
 
-impl SpnMcpConfigManager {
+impl NikaMcpConfigManager {
     /// Create a new config manager with default paths.
     pub fn new() -> Self {
         Self {
@@ -222,12 +222,12 @@ impl SpnMcpConfigManager {
     }
 
     /// Load global MCP configuration from ~/.nika/mcp.yaml.
-    pub fn load_global(&self) -> Result<SpnMcpConfig, NikaError> {
+    pub fn load_global(&self) -> Result<NikaMcpConfig, NikaError> {
         Self::load_from_path(&self.global_path)
     }
 
     /// Load project MCP configuration from .nika/mcp.yaml.
-    pub fn load_project(&self) -> Result<Option<SpnMcpConfig>, NikaError> {
+    pub fn load_project(&self) -> Result<Option<NikaMcpConfig>, NikaError> {
         let Some(path) = self.project_path() else {
             return Ok(None);
         };
@@ -242,7 +242,7 @@ impl SpnMcpConfigManager {
     /// Load and merge configurations (global + project).
     ///
     /// Project servers override global servers with the same name.
-    pub fn load_merged(&self) -> Result<SpnMcpConfig, NikaError> {
+    pub fn load_merged(&self) -> Result<NikaMcpConfig, NikaError> {
         let mut merged = self.load_global()?;
 
         if let Some(project) = self.load_project()? {
@@ -255,9 +255,9 @@ impl SpnMcpConfigManager {
     }
 
     /// Load configuration from a specific path.
-    fn load_from_path(path: &Path) -> Result<SpnMcpConfig, NikaError> {
+    fn load_from_path(path: &Path) -> Result<NikaMcpConfig, NikaError> {
         if !path.exists() {
-            return Ok(SpnMcpConfig::default());
+            return Ok(NikaMcpConfig::default());
         }
 
         let content = std::fs::read_to_string(path).map_err(|e| NikaError::ConfigError {
@@ -270,7 +270,7 @@ impl SpnMcpConfigManager {
     }
 }
 
-impl Default for SpnMcpConfigManager {
+impl Default for NikaMcpConfigManager {
     fn default() -> Self {
         Self::new()
     }
@@ -288,23 +288,23 @@ impl Default for SpnMcpConfigManager {
 /// # Example
 ///
 /// ```rust,ignore
-/// use nika::mcp::spn_config::load_spn_mcp_servers;
+/// use nika::mcp::nika_config::load_nika_mcp_servers;
 ///
-/// let servers = load_spn_mcp_servers()?;
+/// let servers = load_nika_mcp_servers()?;
 /// for (name, config) in &servers {
 ///     println!("Found server: {} ({})", name, config.command);
 /// }
 /// ```
-pub fn load_spn_mcp_servers() -> Result<FxHashMap<String, McpConfig>, NikaError> {
-    let manager = SpnMcpConfigManager::new();
-    load_spn_mcp_servers_with_manager(&manager)
+pub fn load_nika_mcp_servers() -> Result<FxHashMap<String, McpConfig>, NikaError> {
+    let manager = NikaMcpConfigManager::new();
+    load_nika_mcp_servers_with_manager(&manager)
 }
 
 /// Load all enabled MCP servers using a specific manager.
 ///
 /// This allows customizing the config paths for testing.
-pub fn load_spn_mcp_servers_with_manager(
-    manager: &SpnMcpConfigManager,
+pub fn load_nika_mcp_servers_with_manager(
+    manager: &NikaMcpConfigManager,
 ) -> Result<FxHashMap<String, McpConfig>, NikaError> {
     let config = manager.load_merged()?;
     let mut servers = FxHashMap::default();
@@ -329,14 +329,14 @@ pub fn load_spn_mcp_servers_with_manager(
 /// # Example
 ///
 /// ```rust,ignore
-/// use nika::mcp::spn_config::load_spn_mcp_servers_by_name;
+/// use nika::mcp::nika_config::load_nika_mcp_servers_by_name;
 ///
-/// let servers = load_spn_mcp_servers_by_name(&["neo4j", "novanet"])?;
+/// let servers = load_nika_mcp_servers_by_name(&["neo4j", "novanet"])?;
 /// ```
-pub fn load_spn_mcp_servers_by_name(
+pub fn load_nika_mcp_servers_by_name(
     names: &[&str],
 ) -> Result<FxHashMap<String, McpConfig>, NikaError> {
-    let manager = SpnMcpConfigManager::new();
+    let manager = NikaMcpConfigManager::new();
     let config = manager.load_merged()?;
     let mut servers = FxHashMap::default();
     let mut missing = Vec::new();
@@ -378,15 +378,15 @@ pub fn load_spn_mcp_servers_by_name(
 /// Check if the MCP config file exists.
 ///
 /// Returns true if ~/.nika/mcp.yaml exists.
-pub fn spn_mcp_config_exists() -> bool {
-    SpnMcpConfigManager::new().global_exists()
+pub fn nika_mcp_config_exists() -> bool {
+    NikaMcpConfigManager::new().global_exists()
 }
 
 /// List available MCP server names from ~/.nika/mcp.yaml.
 ///
 /// Returns only enabled servers.
-pub fn list_spn_mcp_servers() -> Result<Vec<String>, NikaError> {
-    let manager = SpnMcpConfigManager::new();
+pub fn list_nika_mcp_servers() -> Result<Vec<String>, NikaError> {
+    let manager = NikaMcpConfigManager::new();
     let config = manager.load_merged()?;
 
     Ok(config
@@ -406,12 +406,12 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn create_test_config(content: &str) -> (TempDir, SpnMcpConfigManager) {
+    fn create_test_config(content: &str) -> (TempDir, NikaMcpConfigManager) {
         let temp = TempDir::new().unwrap();
         let config_path = temp.path().join("mcp.yaml");
         std::fs::write(&config_path, content).unwrap();
 
-        let manager = SpnMcpConfigManager::with_global_path(config_path);
+        let manager = NikaMcpConfigManager::with_global_path(config_path);
         (temp, manager)
     }
 
@@ -482,7 +482,7 @@ servers:
 
     #[test]
     fn test_convert_to_mcp_config() {
-        let server = SpnMcpServer {
+        let server = NikaMcpServer {
             command: "npx".to_string(),
             args: vec!["-y".to_string(), "@test/server".to_string()],
             env: {
@@ -492,7 +492,7 @@ servers:
             },
             description: Some("Test server".to_string()),
             enabled: true,
-            source: Some(SpnMcpSource::Global),
+            source: Some(NikaMcpSource::Global),
         };
 
         let config = server.to_mcp_config("test");
@@ -518,7 +518,7 @@ servers:
 "#;
 
         let (_temp, manager) = create_test_config(yaml);
-        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+        let servers = load_nika_mcp_servers_with_manager(&manager).unwrap();
 
         assert_eq!(servers.len(), 1);
         assert!(servers.contains_key("enabled_server"));
@@ -585,7 +585,7 @@ servers:
     fn test_missing_config_returns_empty() {
         let temp = TempDir::new().unwrap();
         let nonexistent = temp.path().join("nonexistent.yaml");
-        let manager = SpnMcpConfigManager::with_global_path(nonexistent);
+        let manager = NikaMcpConfigManager::with_global_path(nonexistent);
 
         let config = manager.load_global().unwrap();
         assert!(config.servers.is_empty());
@@ -606,7 +606,7 @@ servers:
         let config = manager.load_global().unwrap();
 
         let server = config.servers.get("test").unwrap();
-        assert_eq!(server.source, Some(SpnMcpSource::Global));
+        assert_eq!(server.source, Some(NikaMcpSource::Global));
     }
 
     #[test]
@@ -637,7 +637,7 @@ servers:
 
     #[test]
     fn test_config_manager_paths() {
-        let manager = SpnMcpConfigManager::new();
+        let manager = NikaMcpConfigManager::new();
 
         let expected_global = dirs::home_dir().unwrap().join(".nika").join("mcp.yaml");
         assert_eq!(manager.global_path, expected_global);
@@ -647,7 +647,7 @@ servers:
     #[test]
     fn test_config_manager_with_project() {
         let project_root = PathBuf::from("/my/project");
-        let manager = SpnMcpConfigManager::with_project(project_root.clone());
+        let manager = NikaMcpConfigManager::with_project(project_root.clone());
 
         assert_eq!(manager.project_root, Some(project_root));
         assert_eq!(
@@ -702,7 +702,7 @@ servers:
 "#;
 
         let (_temp, manager) = create_test_config(yaml);
-        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+        let servers = load_nika_mcp_servers_with_manager(&manager).unwrap();
 
         let mcp_config = servers.get("neo4j").unwrap();
         assert_eq!(
@@ -762,7 +762,7 @@ servers:
 "#;
 
         let (_temp, manager) = create_test_config(yaml);
-        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+        let servers = load_nika_mcp_servers_with_manager(&manager).unwrap();
 
         // Verify all 6 servers loaded
         assert_eq!(servers.len(), 6);
@@ -808,7 +808,7 @@ servers:
     #[test]
     fn test_mcp_config_conversion_preserves_secrets() {
         // Test that to_mcp_config() preserves secret references
-        let server = SpnMcpServer {
+        let server = NikaMcpServer {
             command: "npx".to_string(),
             args: vec!["-y".to_string(), "@test/server".to_string()],
             env: {
@@ -878,7 +878,7 @@ servers:
         .unwrap();
 
         // Create manager with both paths
-        let mut manager = SpnMcpConfigManager::with_global_path(global_path);
+        let mut manager = NikaMcpConfigManager::with_global_path(global_path);
         manager.project_root = Some(project_root);
 
         let merged = manager.load_merged().unwrap();
@@ -928,7 +928,7 @@ servers:
 "#;
 
         let (_temp, manager) = create_test_config(yaml);
-        let servers = load_spn_mcp_servers_with_manager(&manager).unwrap();
+        let servers = load_nika_mcp_servers_with_manager(&manager).unwrap();
 
         assert_eq!(servers.len(), 1);
         assert!(servers.contains_key("active"));

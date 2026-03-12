@@ -243,10 +243,11 @@ impl DaemonServer {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // KEYCHAIN OPERATIONS
+    // KEYCHAIN OPERATIONS (requires native-keychain feature)
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Get a secret from the OS keychain
+    #[cfg(feature = "native-keychain")]
     async fn get_secret_from_keychain(&self, provider: &str) -> Result<Option<String>> {
         // Use keyring crate for cross-platform keychain access
         let entry = keyring::Entry::new("nika", provider).map_err(|e| NikaError::DaemonError {
@@ -262,7 +263,16 @@ impl DaemonServer {
         }
     }
 
+    /// Get a secret - stub when native-keychain is disabled
+    #[cfg(not(feature = "native-keychain"))]
+    async fn get_secret_from_keychain(&self, _provider: &str) -> Result<Option<String>> {
+        Err(NikaError::DaemonError {
+            message: "Keychain support not compiled (native-keychain feature disabled)".to_string(),
+        })
+    }
+
     /// Set a secret in the OS keychain
+    #[cfg(feature = "native-keychain")]
     async fn set_secret_in_keychain(&self, provider: &str, value: &str) -> Result<()> {
         let entry = keyring::Entry::new("nika", provider).map_err(|e| NikaError::DaemonError {
             message: format!("Keychain entry creation failed: {}", e),
@@ -275,7 +285,16 @@ impl DaemonServer {
             })
     }
 
+    /// Set a secret - stub when native-keychain is disabled
+    #[cfg(not(feature = "native-keychain"))]
+    async fn set_secret_in_keychain(&self, _provider: &str, _value: &str) -> Result<()> {
+        Err(NikaError::DaemonError {
+            message: "Keychain support not compiled (native-keychain feature disabled)".to_string(),
+        })
+    }
+
     /// Delete a secret from the OS keychain
+    #[cfg(feature = "native-keychain")]
     async fn delete_secret_from_keychain(&self, provider: &str) -> Result<()> {
         let entry = keyring::Entry::new("nika", provider).map_err(|e| NikaError::DaemonError {
             message: format!("Keychain entry creation failed: {}", e),
@@ -290,10 +309,19 @@ impl DaemonServer {
         }
     }
 
+    /// Delete a secret - stub when native-keychain is disabled
+    #[cfg(not(feature = "native-keychain"))]
+    async fn delete_secret_from_keychain(&self, _provider: &str) -> Result<()> {
+        Err(NikaError::DaemonError {
+            message: "Keychain support not compiled (native-keychain feature disabled)".to_string(),
+        })
+    }
+
     /// List all providers with stored secrets
     ///
     /// Note: The keyring crate doesn't support listing all entries,
     /// so we check a known list of providers.
+    #[cfg(feature = "native-keychain")]
     async fn list_providers_from_keychain(&self) -> Result<Vec<String>> {
         use crate::core::KNOWN_PROVIDERS;
 
@@ -306,6 +334,14 @@ impl DaemonServer {
         }
 
         Ok(providers_with_secrets)
+    }
+
+    /// List providers - stub when native-keychain is disabled
+    #[cfg(not(feature = "native-keychain"))]
+    async fn list_providers_from_keychain(&self) -> Result<Vec<String>> {
+        Err(NikaError::DaemonError {
+            message: "Keychain support not compiled (native-keychain feature disabled)".to_string(),
+        })
     }
 }
 

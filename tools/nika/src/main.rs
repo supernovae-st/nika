@@ -3872,12 +3872,22 @@ async fn handle_setup_command(action: Option<SetupAction>, quiet: bool) -> Resul
     match setup_action {
         SetupAction::Wizard => {
             // Launch the TUI Setup Wizard
+            #[cfg(feature = "tui")]
             if !quiet {
                 nika::tui::run_tui_wizard().await?;
             } else {
                 // Quiet mode: show minimal CLI output instead
                 println!("{}", "Setup wizard skipped (quiet mode)".dimmed());
                 println!("Run 'nika setup' without --quiet for the full wizard.");
+            }
+            #[cfg(not(feature = "tui"))]
+            {
+                let _ = quiet; // suppress unused warning
+                println!(
+                    "{}",
+                    "TUI wizard not available (tui feature disabled)".dimmed()
+                );
+                println!("Compile with --features tui for the full wizard.");
             }
         }
 

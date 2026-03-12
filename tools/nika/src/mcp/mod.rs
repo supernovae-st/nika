@@ -74,10 +74,10 @@
 //! useful for testing or debugging MCP protocol interactions.
 
 pub mod client;
+pub mod nika_config;
 pub mod protocol;
 pub mod retry;
 pub mod rmcp_adapter;
-pub mod spn_config;
 pub mod types;
 pub mod validation;
 
@@ -95,8 +95,8 @@ pub use validation::{
     ValidationError, ValidationErrorKind, ValidationResult,
 };
 // MCP config loading
-pub use spn_config::{
-    list_spn_mcp_servers, load_spn_mcp_servers, load_spn_mcp_servers_by_name,
-    load_spn_mcp_servers_with_manager, spn_mcp_config_exists, SpnMcpConfig, SpnMcpConfigManager,
-    SpnMcpServer, SpnMcpSource,
+pub use nika_config::{
+    list_nika_mcp_servers, load_nika_mcp_servers, load_nika_mcp_servers_by_name,
+    load_nika_mcp_servers_with_manager, nika_mcp_config_exists, NikaMcpConfig,
+    NikaMcpConfigManager, NikaMcpServer, NikaMcpSource,
 };
