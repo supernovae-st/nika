@@ -376,9 +376,16 @@ impl App {
                 self.run_workflow(path);
             }
             ViewAction::OpenInStudio(path) => {
-                let _ = self.studio_view.load_file(path.clone());
-                self.switch_to_view(TuiView::Studio);
-                self.set_status(&format!("Opened: {}", path.display()));
+                match self.studio_view.load_file(path.clone()) {
+                    Ok(()) => {
+                        self.switch_to_view(TuiView::Studio);
+                        self.set_status(&format!("Opened: {}", path.display()));
+                    }
+                    Err(e) => {
+                        self.set_status(&format!("Failed to open: {}", e));
+                        tracing::error!("OpenInStudio failed: {}", e);
+                    }
+                }
             }
             ViewAction::ValidateWorkflow(path) => {
                 self.set_status(&format!("Validating: {}", path.display()));
