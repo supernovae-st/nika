@@ -94,7 +94,7 @@ fn contract_sync_status() {
 /// Contract: `spn sync --enable <editor>` enables editor sync
 #[test]
 fn contract_sync_enable_editor() {
-    let output = run_spn(&["sync", "--enable", "--help"]);
+    let _output = run_spn(&["sync", "--enable", "--help"]);
 
     // Check if --enable flag is documented
     let output2 = run_spn(&["sync", "--help"]);

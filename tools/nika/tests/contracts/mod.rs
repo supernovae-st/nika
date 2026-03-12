@@ -47,6 +47,7 @@ pub mod common {
     }
 
     /// Execute nika command and return output (for parity tests)
+    #[allow(dead_code)]
     pub fn run_nika(args: &[&str]) -> Output {
         Command::new("nika")
             .args(args)
@@ -61,6 +62,7 @@ pub mod common {
     }
 
     /// Parse provider list output into a vec of provider names
+    #[allow(dead_code)]
     pub fn parse_provider_names(output: &[u8]) -> Vec<String> {
         String::from_utf8_lossy(output)
             .lines()
@@ -71,6 +73,7 @@ pub mod common {
     }
 
     /// Parse MCP server list output
+    #[allow(dead_code)]
     pub fn parse_mcp_servers(output: &[u8]) -> Vec<String> {
         String::from_utf8_lossy(output)
             .lines()

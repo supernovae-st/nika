@@ -40,7 +40,7 @@ fn contract_job_list_shows_all() {
             || stdout.contains("ID")
             || stdout.contains("no jobs")
             || stdout.contains("empty")
-            || stdout.lines().count() >= 0,
+            || !stdout.is_empty(),
         "job list should show jobs. Got: {}",
         stdout
     );

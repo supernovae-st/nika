@@ -112,7 +112,7 @@ fn contract_pkg_install_reads_manifest() {
 /// Contract: `spn install --frozen` uses lockfile
 #[test]
 fn contract_pkg_install_frozen_mode() {
-    let output = run_spn(&["install", "--frozen", "--help"]);
+    let _output = run_spn(&["install", "--frozen", "--help"]);
 
     // Even if --frozen doesn't work with --help, check if it's recognized
     let output2 = run_spn(&["install", "--help"]);

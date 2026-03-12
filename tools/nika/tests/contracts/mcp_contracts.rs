@@ -37,7 +37,7 @@ fn contract_mcp_list_shows_servers() {
             || stdout.contains("Name")
             || stdout.contains("No servers")
             || stdout.contains("none")
-            || stdout.lines().count() >= 0,
+            || !stdout.is_empty(),
         "mcp list should show structured output. Got: {}",
         stdout
     );

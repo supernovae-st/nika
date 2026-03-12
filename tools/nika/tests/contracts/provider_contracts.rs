@@ -228,7 +228,7 @@ fn contract_provider_status_shows_detail() {
 
     // If command exists, it should show more detail than list
     assert!(
-        stdout.len() > 0,
+        !stdout.is_empty(),
         "Provider status should show information. Got: {}",
         stdout
     );

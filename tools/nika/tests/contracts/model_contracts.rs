@@ -34,7 +34,7 @@ fn contract_model_list_shows_all() {
             || stdout.contains("Name")
             || stdout.contains("local")
             || stdout.contains("remote")
-            || stdout.lines().count() >= 0,
+            || !stdout.is_empty(),
         "model list should show models. Got: {}",
         stdout
     );
@@ -121,8 +121,7 @@ fn contract_model_status_shows_loaded() {
             || stdout.contains("Model")
             || stdout.contains("none")
             || stdout.contains("status")
-            || stdout.is_empty()
-            || stdout.lines().count() >= 0,
+            || stdout.is_empty(),
         "model status should show info. Got: {}",
         stdout
     );
