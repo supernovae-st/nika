@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use dashmap::DashMap;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, instrument};
 use uuid::Uuid;
 
@@ -55,6 +56,11 @@ pub struct TaskExecutor {
     builtin_router: Arc<BuiltinToolRouter>,
     /// Policy enforcer for security checks (v0.13.1)
     policy_enforcer: Arc<parking_lot::RwLock<PolicyEnforcer>>,
+    /// Cancellation token for aborting in-flight operations (v0.28)
+    ///
+    /// When cancelled, MCP invoke operations race against this token
+    /// so they can abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
+    cancel_token: CancellationToken,
 }
 
 impl TaskExecutor {
@@ -111,7 +117,17 @@ impl TaskExecutor {
             event_log,
             builtin_router: Arc::new(BuiltinToolRouter::with_file_tools(tool_ctx)),
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
+            cancel_token: CancellationToken::new(),
         }
+    }
+
+    /// Set a cancellation token for aborting in-flight operations (v0.28).
+    ///
+    /// When the token is cancelled, MCP invoke operations will abort promptly
+    /// instead of waiting for the full INVOKE_TASK_DEADLINE timeout.
+    pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
+        self.cancel_token = token;
+        self
     }
 
     /// Inject a mock MCP client for testing
@@ -1251,9 +1267,10 @@ impl TaskExecutor {
                 reason: "MCP server name required for non-builtin tools".to_string(),
             })?;
 
-        // v0.24: Wrap MCP operations with task deadline to prevent unbounded execution
-        // This prevents N retries × MCP_CALL_TIMEOUT from causing runaway tasks
-        let mcp_result = tokio::time::timeout(INVOKE_TASK_DEADLINE, async {
+        // v0.28: Race MCP work against both deadline timeout AND cancellation token.
+        // This ensures MCP calls abort promptly on workflow cancellation instead of
+        // waiting up to INVOKE_TASK_DEADLINE (5 min).
+        let mcp_work = async {
             let client = self.get_mcp_client(mcp_name).await?;
 
             let is_error = false;
@@ -1302,13 +1319,23 @@ impl TaskExecutor {
             };
 
             Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))
-        })
-        .await
-        .map_err(|_| NikaError::McpTimeout {
-            name: mcp_name.clone(),
-            operation: format!("invoke task (deadline {}s)", INVOKE_TASK_DEADLINE.as_secs()),
-            timeout_secs: INVOKE_TASK_DEADLINE.as_secs(),
-        })??;
+        };
+
+        let mcp_result = tokio::select! {
+            result = tokio::time::timeout(INVOKE_TASK_DEADLINE, mcp_work) => {
+                result.map_err(|_| NikaError::McpTimeout {
+                    name: mcp_name.clone(),
+                    operation: format!("invoke task (deadline {}s)", INVOKE_TASK_DEADLINE.as_secs()),
+                    timeout_secs: INVOKE_TASK_DEADLINE.as_secs(),
+                })?
+            }
+            _ = self.cancel_token.cancelled() => {
+                Err(NikaError::TaskCancelled {
+                    task_id: task_id.to_string(),
+                    reason: "workflow cancelled during MCP invoke".to_string(),
+                })
+            }
+        }?;
 
         let (result, is_error, client) = mcp_result;
 

@@ -177,11 +177,14 @@ impl Runner {
         self
     }
 
-    /// Set a custom cancellation token (v0.5.2)
+    /// Set a custom cancellation token (v0.5.2, v0.28: propagates to executor)
     ///
     /// This allows external control of workflow cancellation.
     /// The TUI can hold a clone of the token and call `cancel()` on it.
+    /// v0.28: Also propagated to TaskExecutor so MCP invoke operations
+    /// abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
+        self.executor = self.executor.with_cancel_token(token.clone());
         self.cancel_token = token;
         self
     }
