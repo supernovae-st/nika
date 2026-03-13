@@ -318,8 +318,8 @@ fn prefix_binding_expr(expr: &str, prefix: &str) -> String {
     }
 
     // Strip optional leading '$' (syntactic sugar from v0.21)
-    let (dollar, rest) = if trimmed.starts_with('$') {
-        ("$", &trimmed[1..])
+    let (dollar, rest) = if let Some(stripped) = trimmed.strip_prefix('$') {
+        ("$", stripped)
     } else {
         ("", trimmed)
     };

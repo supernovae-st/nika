@@ -601,6 +601,7 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
 ///   - `temp: step1.data.temp ?? 20` — path + default
 ///   - `cfg: $env.API_KEY` — environment binding
 ///   - `val: step1.output | upper | trim` — with transforms
+#[allow(clippy::type_complexity)]
 fn parse_with_refs(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
@@ -1090,6 +1091,7 @@ fn parse_imports(
 ///   locale: "fr-FR"
 ///   max_items: 10
 /// ```
+#[allow(clippy::type_complexity)]
 fn parse_inputs(
     file_id: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
