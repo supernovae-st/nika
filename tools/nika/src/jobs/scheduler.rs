@@ -385,8 +385,9 @@ impl JobScheduler {
                         job.next_run = Self::next_cron_time(&cron.expression).ok();
                     }
                     JobTrigger::Interval(interval) => {
-                        job.next_run =
-                            Some(Utc::now() + chrono::Duration::from_std(interval.every).unwrap());
+                        job.next_run = chrono::Duration::from_std(interval.every)
+                            .ok()
+                            .map(|d| Utc::now() + d);
                     }
                     _ => {}
                 }
