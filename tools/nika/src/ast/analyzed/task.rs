@@ -458,8 +458,8 @@ mod tests {
 
     #[test]
     fn test_analyzed_task_with_spec() {
-        use crate::binding::{WithEntry, WithSpec};
         use crate::binding::types::{BindingPath, BindingSource, PathSegment};
+        use crate::binding::{WithEntry, WithSpec};
 
         let mut with_spec = WithSpec::default();
         with_spec.insert(

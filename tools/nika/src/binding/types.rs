@@ -144,17 +144,11 @@ impl BindingPath {
     /// Parse with loop variable hints for disambiguation.
     ///
     /// Any top-level identifier matching `loop_vars` becomes `BindingSource::LoopVar`.
-    pub fn parse_with_loop_vars(
-        input: &str,
-        loop_vars: &[&str],
-    ) -> Result<Self, BindingPathError> {
+    pub fn parse_with_loop_vars(input: &str, loop_vars: &[&str]) -> Result<Self, BindingPathError> {
         Self::parse_inner(input, Some(loop_vars))
     }
 
-    fn parse_inner(
-        input: &str,
-        loop_vars: Option<&[&str]>,
-    ) -> Result<Self, BindingPathError> {
+    fn parse_inner(input: &str, loop_vars: Option<&[&str]>) -> Result<Self, BindingPathError> {
         let trimmed = input.trim();
 
         // Must start with $
@@ -217,7 +211,8 @@ impl BindingPath {
                 if tokens.len() < 2 {
                     return Err(BindingPathError {
                         input: trimmed.to_string(),
-                        reason: "'$inputs' requires a sub-path (e.g., '$inputs.locale')".to_string(),
+                        reason: "'$inputs' requires a sub-path (e.g., '$inputs.locale')"
+                            .to_string(),
                     });
                 }
                 let sub_path = tokens_to_dotted_string(&tokens[1..]);
@@ -231,7 +226,8 @@ impl BindingPath {
                 if tokens.len() < 2 {
                     return Err(BindingPathError {
                         input: trimmed.to_string(),
-                        reason: "'$env' requires a variable name (e.g., '$env.API_URL')".to_string(),
+                        reason: "'$env' requires a variable name (e.g., '$env.API_URL')"
+                            .to_string(),
                     });
                 }
                 let var_name = tokens_to_dotted_string(&tokens[1..]);
@@ -242,9 +238,7 @@ impl BindingPath {
             }
             _ => {
                 // Check if this is a loop variable
-                let is_loop_var = loop_vars
-                    .map(|vars| vars.contains(&root))
-                    .unwrap_or(false);
+                let is_loop_var = loop_vars.map(|vars| vars.contains(&root)).unwrap_or(false);
 
                 let source = if is_loop_var {
                     BindingSource::LoopVar(Arc::from(root))
@@ -483,10 +477,7 @@ mod tests {
     #[test]
     fn parse_input_nested() {
         let bp = BindingPath::parse("$inputs.config.theme").unwrap();
-        assert_eq!(
-            bp.source,
-            BindingSource::Input(Arc::from("config.theme"))
-        );
+        assert_eq!(bp.source, BindingSource::Input(Arc::from("config.theme")));
         assert!(bp.segments.is_empty());
     }
 

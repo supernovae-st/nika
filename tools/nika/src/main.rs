@@ -1378,9 +1378,7 @@ fn is_tui_mode(cli: &Cli) -> bool {
     if let Some(ref cmd) = cli.command {
         return matches!(
             cmd,
-            Commands::Ui { .. }
-                | Commands::Chat { .. }
-                | Commands::Studio { .. }
+            Commands::Ui { .. } | Commands::Chat { .. } | Commands::Studio { .. }
         );
     }
 
@@ -3544,10 +3542,7 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
             }
 
             println!();
-            println!(
-                "{} Package update is not yet implemented",
-                "⚠".yellow()
-            );
+            println!("{} Package update is not yet implemented", "⚠".yellow());
             Ok(())
         }
 

@@ -68,7 +68,6 @@ impl WorkflowPurpose {
             WorkflowPurpose::Automation => "⚙️",
         }
     }
-
 }
 
 /// Workflow complexity level

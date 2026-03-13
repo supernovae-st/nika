@@ -96,7 +96,10 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
     // Never access real keychain during tests — prevents macOS popup storms
     if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
-        trace!("{}: keychain skipped (test mode or NIKA_SKIP_KEYCHAIN)", provider);
+        trace!(
+            "{}: keychain skipped (test mode or NIKA_SKIP_KEYCHAIN)",
+            provider
+        );
         return false;
     }
 

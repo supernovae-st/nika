@@ -44,9 +44,9 @@
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
+use super::jsonpath;
 use crate::error::NikaError;
 use crate::store::DataStore;
-use super::jsonpath;
 
 use super::entry::{UseEntry, WiringSpec, WithEntry, WithSpec};
 use super::transform::TransformExpr;
@@ -517,10 +517,7 @@ fn resolve_binding_path(
             // Loop variables should be pre-resolved by the executor before reaching here.
             // If we get here, it means the loop variable wasn't set.
             Err(NikaError::BindingNotFound {
-                alias: format!(
-                    "{} (loop variable '{}' not pre-resolved)",
-                    alias, name
-                ),
+                alias: format!("{} (loop variable '{}' not pre-resolved)", alias, name),
             })
         }
     }
@@ -529,10 +526,7 @@ fn resolve_binding_path(
 /// Navigate a sequence of PathSegments through a JSON value
 ///
 /// Returns `Ok(None)` if a segment doesn't match (missing field, out-of-bounds index).
-fn navigate_segments(
-    value: &Value,
-    segments: &[PathSegment],
-) -> Result<Option<Value>, NikaError> {
+fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Option<Value>, NikaError> {
     if segments.is_empty() {
         return Ok(Some(value.clone()));
     }
@@ -1788,9 +1782,7 @@ mod tests {
         );
         spec.insert(
             "deep".to_string(),
-            WithEntry::simple(
-                BindingPath::parse("$inputs.config.nested.deep").unwrap(),
-            ),
+            WithEntry::simple(BindingPath::parse("$inputs.config.nested.deep").unwrap()),
         );
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
@@ -1876,7 +1868,8 @@ mod tests {
         use crate::runtime::LoadedContext;
         let store = DataStore::new();
         let mut ctx = LoadedContext::new();
-        ctx.files.insert("brand".to_string(), json!("Brand Guidelines v2"));
+        ctx.files
+            .insert("brand".to_string(), json!("Brand Guidelines v2"));
         store.set_context(ctx);
 
         let mut spec = WithSpec::default();
@@ -1886,10 +1879,7 @@ mod tests {
         );
 
         let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
-        assert_eq!(
-            bindings.get("brand"),
-            Some(&json!("Brand Guidelines v2"))
-        );
+        assert_eq!(bindings.get("brand"), Some(&json!("Brand Guidelines v2")));
     }
 
     #[test]
@@ -2029,10 +2019,8 @@ mod tests {
         );
 
         let mut spec = WithSpec::default();
-        let mut entry = WithEntry::with_default(
-            BindingPath::parse("$step1.name").unwrap(),
-            json!("DEFAULT"),
-        );
+        let mut entry =
+            WithEntry::with_default(BindingPath::parse("$step1.name").unwrap(), json!("DEFAULT"));
         entry.transform = Some(TransformExpr::parse("upper").unwrap());
         spec.insert("name".to_string(), entry);
 
@@ -2047,10 +2035,7 @@ mod tests {
         let store = DataStore::new();
         store.insert(
             Arc::from("step1"),
-            TaskResult::success(
-                json!({"items": [3, 1, 4, 1, 5, 9]}),
-                Duration::from_secs(1),
-            ),
+            TaskResult::success(json!({"items": [3, 1, 4, 1, 5, 9]}), Duration::from_secs(1)),
         );
 
         let mut spec = WithSpec::default();

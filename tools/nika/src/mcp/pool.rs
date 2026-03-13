@@ -103,10 +103,7 @@ impl McpClientPool {
     }
 
     /// Create a pool with pre-loaded server configurations.
-    pub fn with_configs(
-        event_log: EventLog,
-        configs: FxHashMap<String, McpConfigInline>,
-    ) -> Self {
+    pub fn with_configs(event_log: EventLog, configs: FxHashMap<String, McpConfigInline>) -> Self {
         Self {
             inner: Arc::new(PoolInner {
                 clients: DashMap::new(),
@@ -404,11 +401,10 @@ impl std::fmt::Debug for McpClientPool {
 
 // Compile-time assertion: McpClientPool must be Send + Sync + Clone.
 // If a future change introduces a !Send or !Sync field, this fails at definition site.
-#[cfg(test)]
 const _: () = {
-    fn assert_send_sync_clone<T: Send + Sync + Clone>() {}
+    fn _assert_send_sync_clone<T: Send + Sync + Clone>() {}
     fn _check() {
-        assert_send_sync_clone::<McpClientPool>();
+        _assert_send_sync_clone::<McpClientPool>();
     }
 };
 

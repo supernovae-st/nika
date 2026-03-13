@@ -768,9 +768,9 @@ mod tests {
 
     /// Helper: add a `with:` binding to a raw task.
     fn add_with_ref(task: &mut RawTask, alias: &str, expr: &str) {
-        let with_refs = task.with_refs.get_or_insert_with(|| {
-            Spanned::new(IndexMap::new(), make_span(0, 50))
-        });
+        let with_refs = task
+            .with_refs
+            .get_or_insert_with(|| Spanned::new(IndexMap::new(), make_span(0, 50)));
         with_refs.value.insert(
             Spanned::new(alias.to_string(), make_span(0, alias.len() as u32)),
             Spanned::new(expr.to_string(), make_span(0, expr.len() as u32)),
@@ -843,10 +843,7 @@ mod tests {
         let mut task2 = make_raw_task("task2");
         add_with_ref(&mut task2, "data", "$task1");
 
-        let raw = make_raw_workflow(
-            "nika/workflow@0.12",
-            vec![make_raw_task("task1"), task2],
-        );
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
         assert!(result.is_ok());
 
@@ -904,10 +901,7 @@ mod tests {
         add_with_ref(&mut task2, "a", "$task1.field_a");
         add_with_ref(&mut task2, "b", "$task1.field_b");
 
-        let raw = make_raw_workflow(
-            "nika/workflow@0.12",
-            vec![make_raw_task("task1"), task2],
-        );
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
         assert!(result.is_ok());
 
@@ -922,10 +916,7 @@ mod tests {
         let mut task2 = make_raw_task("task2");
         add_with_ref(&mut task2, "result", "$task1.data | upper | trim");
 
-        let raw = make_raw_workflow(
-            "nika/workflow@0.12",
-            vec![make_raw_task("task1"), task2],
-        );
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
         assert!(result.is_ok());
 
@@ -941,10 +932,7 @@ mod tests {
         let mut task2 = make_raw_task("task2");
         add_with_ref(&mut task2, "val", "$task1.count ?? 0");
 
-        let raw = make_raw_workflow(
-            "nika/workflow@0.12",
-            vec![make_raw_task("task1"), task2],
-        );
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
         assert!(result.is_ok());
 
@@ -963,10 +951,7 @@ mod tests {
         let mut task2 = make_raw_task("task2");
         add_depends_on(&mut task2, &["task1"]);
 
-        let raw = make_raw_workflow(
-            "nika/workflow@0.12",
-            vec![make_raw_task("task1"), task2],
-        );
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = analyze(raw);
         assert!(result.is_ok());
 
@@ -1103,10 +1088,7 @@ mod tests {
         let workflow = result.value.unwrap();
         assert_eq!(workflow.imports.len(), 2);
         assert_eq!(workflow.imports[0].path, "./partials/setup.nika.yaml");
-        assert_eq!(
-            workflow.imports[0].prefix.as_deref(),
-            Some("setup_")
-        );
+        assert_eq!(workflow.imports[0].prefix.as_deref(), Some("setup_"));
         assert_eq!(workflow.imports[1].path, "./tools.nika.yaml");
         assert!(workflow.imports[1].prefix.is_none());
     }
@@ -1383,9 +1365,15 @@ mod tests {
     fn test_analyze_metadata() {
         let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
         raw.workflow = Some(Spanned::new("my-workflow".to_string(), make_span(0, 11)));
-        raw.description = Some(Spanned::new("A test workflow".to_string(), make_span(0, 15)));
+        raw.description = Some(Spanned::new(
+            "A test workflow".to_string(),
+            make_span(0, 15),
+        ));
         raw.provider = Some(Spanned::new("claude".to_string(), make_span(0, 6)));
-        raw.model = Some(Spanned::new("claude-sonnet-4-6".to_string(), make_span(0, 15)));
+        raw.model = Some(Spanned::new(
+            "claude-sonnet-4-6".to_string(),
+            make_span(0, 15),
+        ));
 
         let result = analyze(raw);
         assert!(result.is_ok());

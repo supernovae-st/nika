@@ -57,18 +57,28 @@ pub mod types;
 mod validate;
 
 // Re-export public types
-pub use entry::{parse_use_entry, parse_with_entry, UseEntry, WithEntry, WithEntryParseError, WithSpec, WiringSpec};
+pub use entry::{
+    parse_use_entry, parse_with_entry, UseEntry, WiringSpec, WithEntry, WithEntryParseError,
+    WithSpec,
+};
 pub use mention::{
     has_parallel_marker, mentions_to_wiring, parse_mentions, resolve_mention,
     strip_parallel_marker, text_to_wiring, Mention, MentionResolutionError, ResolvedMention,
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
-    detect_deprecated_dollar_syntax, escape_for_shell, extract_refs, resolve as template_resolve,
-    resolve_for_shell as template_resolve_for_shell, validate_refs,
+    detect_deprecated_dollar_syntax,
+    escape_for_shell,
+    extract_refs,
     // v0.28: New 2-pass template engine
-    extract_with_refs, parse_template_expr, resolve_with as template_resolve_with,
-    validate_with_refs, TemplateExpr,
+    extract_with_refs,
+    parse_template_expr,
+    resolve as template_resolve,
+    resolve_for_shell as template_resolve_for_shell,
+    resolve_with as template_resolve_with,
+    validate_refs,
+    validate_with_refs,
+    TemplateExpr,
 };
 pub use transform::{TransformError, TransformExpr, TransformOp, TransformParseError};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};

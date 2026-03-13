@@ -139,10 +139,7 @@ fn expand_imports_recursive(
             expand_imports_recursive(imported_workflow, import_base, depth + 1, visited)?;
 
         // Get prefix (if any)
-        let prefix = import_spec
-            .prefix
-            .as_ref()
-            .map(|s| s.value.as_str());
+        let prefix = import_spec.prefix.as_ref().map(|s| s.value.as_str());
 
         // Merge into main workflow
         merge_raw_workflow(&mut workflow, expanded, prefix)?;
@@ -243,19 +240,14 @@ fn prefix_raw_task(task: Spanned<RawTask>, prefix: Option<&str>) -> Spanned<RawT
     let mut new_task = task.value.clone();
 
     // 1. Prefix the task ID
-    new_task.id = Spanned::new(
-        format!("{}{}", prefix, new_task.id.value),
-        new_task.id.span,
-    );
+    new_task.id = Spanned::new(format!("{}{}", prefix, new_task.id.value), new_task.id.span);
 
     // 2. Prefix depends_on values
     if let Some(ref mut deps) = new_task.depends_on {
         deps.value = deps
             .value
             .iter()
-            .map(|dep| {
-                Spanned::new(format!("{}{}", prefix, dep.value), dep.span)
-            })
+            .map(|dep| Spanned::new(format!("{}{}", prefix, dep.value), dep.span))
             .collect();
     }
 
@@ -265,10 +257,8 @@ fn prefix_raw_task(task: Spanned<RawTask>, prefix: Option<&str>) -> Spanned<RawT
         let mut new_map = IndexMap::with_capacity(old_map.len());
 
         for (key, value) in old_map {
-            let prefixed_value = Spanned::new(
-                prefix_binding_expr(&value.value, prefix),
-                value.span,
-            );
+            let prefixed_value =
+                Spanned::new(prefix_binding_expr(&value.value, prefix), value.span);
             new_map.insert(key, prefixed_value);
         }
 
@@ -418,18 +408,12 @@ mod tests {
 
     #[test]
     fn test_prefix_binding_expr_reserved_inputs() {
-        assert_eq!(
-            prefix_binding_expr("inputs.name", "setup_"),
-            "inputs.name"
-        );
+        assert_eq!(prefix_binding_expr("inputs.name", "setup_"), "inputs.name");
     }
 
     #[test]
     fn test_prefix_binding_expr_reserved_env() {
-        assert_eq!(
-            prefix_binding_expr("env.API_KEY", "setup_"),
-            "env.API_KEY"
-        );
+        assert_eq!(prefix_binding_expr("env.API_KEY", "setup_"), "env.API_KEY");
     }
 
     #[test]
@@ -583,9 +567,7 @@ mod tests {
     #[test]
     fn test_merge_workflow_tasks() {
         let mut main = RawWorkflow::default();
-        main.tasks = Spanned::dummy(vec![
-            Spanned::dummy(RawTask::new("main_task")),
-        ]);
+        main.tasks = Spanned::dummy(vec![Spanned::dummy(RawTask::new("main_task"))]);
 
         let mut imported = RawWorkflow::default();
         imported.tasks = Spanned::dummy(vec![
@@ -607,9 +589,7 @@ mod tests {
         main.tasks = Spanned::dummy(vec![]);
 
         let mut imported = RawWorkflow::default();
-        imported.tasks = Spanned::dummy(vec![
-            Spanned::dummy(RawTask::new("task_a")),
-        ]);
+        imported.tasks = Spanned::dummy(vec![Spanned::dummy(RawTask::new("task_a"))]);
 
         merge_raw_workflow(&mut main, imported, None).unwrap();
 
@@ -651,10 +631,7 @@ mod tests {
         assert!(mcp.value.has_server("perplexity"));
         // novanet should keep main's command
         let novanet = mcp.value.get_server("novanet").unwrap();
-        assert_eq!(
-            novanet.value.command.as_ref().unwrap().value,
-            "cargo run"
-        );
+        assert_eq!(novanet.value.command.as_ref().unwrap().value, "cargo run");
     }
 
     #[test]
@@ -684,9 +661,7 @@ mod tests {
     fn test_expand_imports_no_imports() {
         let workflow = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            tasks: Spanned::dummy(vec![
-                Spanned::dummy(RawTask::new("step1")),
-            ]),
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("step1"))]),
             ..Default::default()
         };
 
@@ -715,16 +690,12 @@ tasks:
         // Create main workflow with import
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("setup.nika.yaml".to_string()),
-                    prefix: Some(Spanned::dummy("setup_".to_string())),
-                    span: Span::dummy(),
-                }),
-            ])),
-            tasks: Spanned::dummy(vec![
-                Spanned::dummy(RawTask::new("main_task")),
-            ]),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("setup.nika.yaml".to_string()),
+                prefix: Some(Spanned::dummy("setup_".to_string())),
+                span: Span::dummy(),
+            })])),
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("main_task"))]),
             ..Default::default()
         };
 
@@ -775,13 +746,11 @@ tasks:
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("helper.nika.yaml".to_string()),
-                    prefix: None,
-                    span: Span::dummy(),
-                }),
-            ])),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("helper.nika.yaml".to_string()),
+                prefix: None,
+                span: Span::dummy(),
+            })])),
             tasks: Spanned::dummy(vec![]),
             ..Default::default()
         };
@@ -819,16 +788,12 @@ tasks:
         // Level 0: main workflow
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("mid.nika.yaml".to_string()),
-                    prefix: Some(Spanned::dummy("m_".to_string())),
-                    span: Span::dummy(),
-                }),
-            ])),
-            tasks: Spanned::dummy(vec![
-                Spanned::dummy(RawTask::new("root")),
-            ]),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("mid.nika.yaml".to_string()),
+                prefix: Some(Spanned::dummy("m_".to_string())),
+                span: Span::dummy(),
+            })])),
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("root"))]),
             ..Default::default()
         };
 
@@ -942,13 +907,11 @@ tasks:
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("nonexistent.nika.yaml".to_string()),
-                    prefix: None,
-                    span: Span::dummy(),
-                }),
-            ])),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("nonexistent.nika.yaml".to_string()),
+                prefix: None,
+                span: Span::dummy(),
+            })])),
             tasks: Spanned::dummy(vec![]),
             ..Default::default()
         };
@@ -964,13 +927,11 @@ tasks:
         // Attempt to escape the base directory
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("../../../etc/passwd".to_string()),
-                    prefix: None,
-                    span: Span::dummy(),
-                }),
-            ])),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("../../../etc/passwd".to_string()),
+                prefix: None,
+                span: Span::dummy(),
+            })])),
             tasks: Spanned::dummy(vec![]),
             ..Default::default()
         };
@@ -1000,16 +961,12 @@ tasks:
 
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("lib.nika.yaml".to_string()),
-                    prefix: Some(Spanned::dummy("lib_".to_string())),
-                    span: Span::dummy(),
-                }),
-            ])),
-            tasks: Spanned::dummy(vec![
-                Spanned::dummy(RawTask::new("main_step")),
-            ]),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("lib.nika.yaml".to_string()),
+                prefix: Some(Spanned::dummy("lib_".to_string())),
+                span: Span::dummy(),
+            })])),
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("main_step"))]),
             ..Default::default()
         };
 
@@ -1026,7 +983,12 @@ tasks:
         let refs = consumer.value.with_refs.as_ref().unwrap();
 
         // Task ref should be prefixed
-        let data_val = refs.value.iter().find(|(k, _)| k.value == "data").unwrap().1;
+        let data_val = refs
+            .value
+            .iter()
+            .find(|(k, _)| k.value == "data")
+            .unwrap()
+            .1;
         assert_eq!(data_val.value, "lib_producer.output");
 
         // env should NOT be prefixed
@@ -1076,13 +1038,11 @@ tasks:
         let main = RawWorkflow {
             schema: Spanned::dummy("nika/workflow@0.12".to_string()),
             mcp: Some(Spanned::dummy(main_mcp)),
-            imports: Some(Spanned::dummy(vec![
-                Spanned::dummy(RawImportSpec {
-                    path: Spanned::dummy("search.nika.yaml".to_string()),
-                    prefix: Some(Spanned::dummy("s_".to_string())),
-                    span: Span::dummy(),
-                }),
-            ])),
+            imports: Some(Spanned::dummy(vec![Spanned::dummy(RawImportSpec {
+                path: Spanned::dummy("search.nika.yaml".to_string()),
+                prefix: Some(Spanned::dummy("s_".to_string())),
+                span: Span::dummy(),
+            })])),
             tasks: Spanned::dummy(vec![]),
             ..Default::default()
         };
@@ -1147,9 +1107,7 @@ tasks:
                     span: Span::dummy(),
                 }),
             ])),
-            tasks: Spanned::dummy(vec![
-                Spanned::dummy(RawTask::new("root")),
-            ]),
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("root"))]),
             ..Default::default()
         };
 

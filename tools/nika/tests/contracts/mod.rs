@@ -96,6 +96,7 @@ pub mod common {
     ];
 
     /// MCP providers (not shown in `nika provider list`, managed via `nika mcp`)
+    #[allow(dead_code)]
     pub const MCP_PROVIDERS: &[&str] = &[
         "neo4j",
         "github",

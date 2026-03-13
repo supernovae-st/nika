@@ -437,10 +437,12 @@ pub fn parse_with_entry(input: &str) -> Result<WithEntry, WithEntryParseError> {
                 reason: "empty transform after '|'".to_string(),
             });
         }
-        Some(TransformExpr::parse(t_str).map_err(|e| WithEntryParseError {
-            input: input.to_string(),
-            reason: e.reason,
-        })?)
+        Some(
+            TransformExpr::parse(t_str).map_err(|e| WithEntryParseError {
+                input: input.to_string(),
+                reason: e.reason,
+            })?,
+        )
     } else {
         None
     };
@@ -617,17 +619,15 @@ impl<'de> Visitor<'de> for WithEntryVisitor {
         let obj = WithEntryObject::deserialize(de::value::MapAccessDeserializer::new(map))?;
 
         // Parse `from:` as BindingPath
-        let source = BindingPath::parse(&obj.from).map_err(|e| {
-            de::Error::custom(format!("[NIKA-155] invalid 'from' path: {e}"))
-        })?;
+        let source = BindingPath::parse(&obj.from)
+            .map_err(|e| de::Error::custom(format!("[NIKA-155] invalid 'from' path: {e}")))?;
 
         // Parse `transform:` as TransformExpr (if present)
         let transform = match obj.transform {
-            Some(ref t_str) if !t_str.trim().is_empty() => {
-                Some(TransformExpr::parse(t_str.trim()).map_err(|e| {
-                    de::Error::custom(format!("[NIKA-155] invalid transform: {e}"))
-                })?)
-            }
+            Some(ref t_str) if !t_str.trim().is_empty() => Some(
+                TransformExpr::parse(t_str.trim())
+                    .map_err(|e| de::Error::custom(format!("[NIKA-155] invalid transform: {e}")))?,
+            ),
             _ => None,
         };
 
@@ -1419,8 +1419,7 @@ tags: 'meta.tags ?? ["default"]'
     #[test]
     fn with_parse_default_after_transform_with_inner_qq() {
         // default("a ?? b") ?? "fallback"
-        let entry =
-            parse_with_entry(r#"$step1 | default("a ?? b") ?? "fallback""#).unwrap();
+        let entry = parse_with_entry(r#"$step1 | default("a ?? b") ?? "fallback""#).unwrap();
         assert!(entry.transform.is_some());
         assert_eq!(entry.default, Some(json!("fallback")));
     }
@@ -1541,10 +1540,7 @@ tags: 'meta.tags ?? ["default"]'
             "#,
         )
         .unwrap();
-        assert_eq!(
-            entry.source,
-            BindingPath::parse("$step1.abstract").unwrap()
-        );
+        assert_eq!(entry.source, BindingPath::parse("$step1.abstract").unwrap());
         assert_eq!(entry.binding_type, BindingType::String);
         assert!(entry.transform.is_some());
         assert_eq!(entry.default, Some(json!("No abstract")));
@@ -1603,10 +1599,7 @@ summary:
 
         // String form: with transform
         let title = spec.get("title").unwrap();
-        assert_eq!(
-            title.source,
-            BindingPath::parse("$step1.title").unwrap()
-        );
+        assert_eq!(title.source, BindingPath::parse("$step1.title").unwrap());
         let t = title.transform.as_ref().unwrap();
         assert_eq!(t.ops[0], TransformOp::Upper);
 
@@ -1684,8 +1677,7 @@ summary:
 
     #[test]
     fn split_default_after_parens() {
-        let (path, def) =
-            split_default(r#"$step1 | default("inner") ?? "outer""#).unwrap();
+        let (path, def) = split_default(r#"$step1 | default("inner") ?? "outer""#).unwrap();
         assert_eq!(path, r#"$step1 | default("inner")"#);
         assert_eq!(def, Some(r#""outer""#));
     }

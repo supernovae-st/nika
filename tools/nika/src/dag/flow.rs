@@ -424,14 +424,8 @@ impl Dag {
             let targets = flow.target.as_vec();
             for src in &sources {
                 for tgt in &targets {
-                    let src_arc = task_set
-                        .get(*src)
-                        .cloned()
-                        .unwrap_or_else(|| intern(src));
-                    let tgt_arc = task_set
-                        .get(*tgt)
-                        .cloned()
-                        .unwrap_or_else(|| intern(tgt));
+                    let src_arc = task_set.get(*src).cloned().unwrap_or_else(|| intern(src));
+                    let tgt_arc = task_set.get(*tgt).cloned().unwrap_or_else(|| intern(tgt));
 
                     adjacency
                         .entry(Arc::clone(&src_arc))
@@ -545,9 +539,7 @@ mod tests {
     /// Helper: build an AnalyzedWorkflow from a list of task descriptors.
     ///
     /// Each descriptor is (name, depends_on_names, implicit_dep_names).
-    fn build_workflow(
-        descriptors: &[(&str, &[&str], &[&str])],
-    ) -> AnalyzedWorkflow {
+    fn build_workflow(descriptors: &[(&str, &[&str], &[&str])]) -> AnalyzedWorkflow {
         let mut task_table = TaskTable::new();
         let mut tasks = Vec::new();
 
@@ -599,10 +591,7 @@ mod tests {
     #[test]
     fn test_implicit_dep_creates_edge() {
         // with: { data: step1.result } → implicit_deps=[step1] → step1 -> step2 edge
-        let workflow = build_workflow(&[
-            ("step1", &[], &[]),
-            ("step2", &[], &["step1"]),
-        ]);
+        let workflow = build_workflow(&[("step1", &[], &[]), ("step2", &[], &["step1"])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step2");
@@ -615,10 +604,7 @@ mod tests {
     #[test]
     fn test_no_duplicate_edges() {
         // When both depends_on and implicit_deps reference same task, only 1 edge
-        let workflow = build_workflow(&[
-            ("step1", &[], &[]),
-            ("step2", &["step1"], &["step1"]),
-        ]);
+        let workflow = build_workflow(&[("step1", &[], &[]), ("step2", &["step1"], &["step1"])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step2");
@@ -632,23 +618,20 @@ mod tests {
     #[test]
     fn test_no_deps_for_context_only_tasks() {
         // Tasks with no depends_on and no implicit_deps should have no predecessors
-        let workflow = build_workflow(&[
-            ("step1", &[], &[]),
-        ]);
+        let workflow = build_workflow(&[("step1", &[], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step1");
-        assert!(deps.is_empty(), "Task with no deps should have no predecessors");
+        assert!(
+            deps.is_empty(),
+            "Task with no deps should have no predecessors"
+        );
     }
 
     #[test]
     fn test_multiple_implicit_deps() {
         // Multiple with: entries create multiple edges
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &[], &[]),
-            ("c", &[], &["a", "b"]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &[], &[]), ("c", &[], &["a", "b"])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("c");
@@ -665,11 +648,7 @@ mod tests {
     #[test]
     fn test_mixed_depends_on_and_implicit() {
         // depends_on=[a], implicit_deps=[b] → both edges present, no duplicates
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &[], &[]),
-            ("c", &["a"], &["b"]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &[], &[]), ("c", &["a"], &["b"])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("c");
@@ -685,11 +664,7 @@ mod tests {
     #[test]
     fn test_deepest_final_task_simple_chain() {
         // a -> b -> c (depths: 0, 1, 2) — c should be deepest terminal
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
@@ -718,11 +693,7 @@ mod tests {
         // a -> b (depth 1)
         // a -> c (depth 1)
         // Both terminals at same depth, pick last defined (c)
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["a"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["a"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
@@ -735,9 +706,7 @@ mod tests {
 
     #[test]
     fn test_deepest_final_task_single() {
-        let workflow = build_workflow(&[
-            ("only", &[], &[]),
-        ]);
+        let workflow = build_workflow(&[("only", &[], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
@@ -751,11 +720,8 @@ mod tests {
     #[test]
     fn test_detect_cycle_simple() {
         // A → B → C → A (cycle via depends_on)
-        let workflow = build_workflow(&[
-            ("a", &["c"], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow =
+            build_workflow(&[("a", &["c"], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
@@ -767,11 +733,7 @@ mod tests {
     #[test]
     fn test_no_cycle_linear() {
         // A → B → C (no cycle)
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(dag.detect_cycles().is_ok());
@@ -811,11 +773,8 @@ mod tests {
     #[test]
     fn test_cycle_path_includes_all_nodes() {
         // A → B → C → A: cycle path should show the cycle
-        let workflow = build_workflow(&[
-            ("a", &["c"], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow =
+            build_workflow(&[("a", &["c"], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
@@ -827,11 +786,8 @@ mod tests {
     #[test]
     fn test_cycle_via_implicit_deps() {
         // Cycle via implicit_deps: a has implicit dep on c, c depends on b, b depends on a
-        let workflow = build_workflow(&[
-            ("a", &[], &["c"]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow =
+            build_workflow(&[("a", &[], &["c"]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let result = dag.detect_cycles();
@@ -936,11 +892,7 @@ mod tests {
     #[test]
     fn test_get_final_tasks() {
         // a -> b, c (standalone) → final tasks = b, c
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &[], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &[], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let finals = dag.get_final_tasks();
@@ -953,11 +905,7 @@ mod tests {
     #[test]
     fn test_has_path() {
         // a -> b -> c
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(dag.has_path("a", "c"));
@@ -969,10 +917,7 @@ mod tests {
 
     #[test]
     fn test_contains() {
-        let workflow = build_workflow(&[
-            ("alpha", &[], &[]),
-            ("beta", &[], &[]),
-        ]);
+        let workflow = build_workflow(&[("alpha", &[], &[]), ("beta", &[], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(dag.contains("alpha"));
@@ -983,11 +928,7 @@ mod tests {
     #[test]
     fn test_get_successors() {
         // a -> b, a -> c
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["a"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["a"], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let succs = dag.get_successors("a");
@@ -1013,9 +954,7 @@ mod tests {
 
     #[test]
     fn test_single_task_no_deps() {
-        let workflow = build_workflow(&[
-            ("solo", &[], &[]),
-        ]);
+        let workflow = build_workflow(&[("solo", &[], &[])]);
         let dag = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(dag.get_dependencies("solo").is_empty());

@@ -124,8 +124,7 @@ static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
 
 /// Matches ANY {{...}} block. Content is parsed by parse_template_expr().
 /// Replaces the old USE_RE + CONTEXT_RE + INPUTS_RE 3-regex approach.
-static TEMPLATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
+static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
 
 /// Parsed template expression from inside `{{ ... }}`
 ///
@@ -244,14 +243,16 @@ fn resolve_alias_path<'a>(
     let mut segments = path.split('.');
     let alias = segments.next().unwrap();
 
-    let base = with_values.get(alias).ok_or_else(|| NikaError::TemplateError {
-        template: alias.to_string(),
-        reason: format!(
-            "Alias '{}' not found in 'with:' block. Available: [{}]",
-            alias,
-            with_values.keys().cloned().collect::<Vec<_>>().join(", ")
-        ),
-    })?;
+    let base = with_values
+        .get(alias)
+        .ok_or_else(|| NikaError::TemplateError {
+            template: alias.to_string(),
+            reason: format!(
+                "Alias '{}' not found in 'with:' block. Available: [{}]",
+                alias,
+                with_values.keys().cloned().collect::<Vec<_>>().join(", ")
+            ),
+        })?;
 
     let mut current = base;
     let mut traversed: SmallVec<[&str; 8]> = SmallVec::new();
@@ -337,7 +338,10 @@ pub fn resolve_with<'a>(
         result.push_str(&template_str[last_end..m.start()]);
 
         match parse_template_expr(content) {
-            Ok(TemplateExpr::Alias { ref path, ref transforms }) => {
+            Ok(TemplateExpr::Alias {
+                ref path,
+                ref transforms,
+            }) => {
                 match resolve_alias_path(path, with_values) {
                     Ok(value) => {
                         // Apply transform chain if any
@@ -349,12 +353,18 @@ pub fn resolve_with<'a>(
                             let expr = TransformExpr::parse(&transform_str).map_err(|e| {
                                 NikaError::TemplateParse {
                                     position: m.start(),
-                                    details: format!("Transform parse error in '{{{{{}}}}}': {}", content, e),
+                                    details: format!(
+                                        "Transform parse error in '{{{{{}}}}}': {}",
+                                        content, e
+                                    ),
                                 }
                             })?;
                             expr.apply(value).map_err(|e| NikaError::TemplateParse {
                                 position: m.start(),
-                                details: format!("Transform apply error in '{{{{{}}}}}': {}", content, e),
+                                details: format!(
+                                    "Transform apply error in '{{{{{}}}}}': {}",
+                                    content, e
+                                ),
                             })?
                         };
 
@@ -371,16 +381,21 @@ pub fn resolve_with<'a>(
                                 value.clone()
                             } else {
                                 let transform_str = non_shell.join(" | ");
-                                let expr =
-                                    TransformExpr::parse(&transform_str).map_err(|e| {
-                                        NikaError::TemplateParse {
-                                            position: m.start(),
-                                            details: format!("Transform parse error in '{{{{{}}}}}': {}", content, e),
-                                        }
-                                    })?;
+                                let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                                    NikaError::TemplateParse {
+                                        position: m.start(),
+                                        details: format!(
+                                            "Transform parse error in '{{{{{}}}}}': {}",
+                                            content, e
+                                        ),
+                                    }
+                                })?;
                                 expr.apply(value).map_err(|e| NikaError::TemplateParse {
                                     position: m.start(),
-                                    details: format!("Transform apply error in '{{{{{}}}}}': {}", content, e),
+                                    details: format!(
+                                        "Transform apply error in '{{{{{}}}}}': {}",
+                                        content, e
+                                    ),
                                 })?
                             };
                             escape_for_shell(&value_to_display(&pre_shell_value))
@@ -2383,7 +2398,10 @@ mod v028_template_tests {
     }
 
     fn make_with(entries: &[(&str, Value)]) -> FxHashMap<String, Value> {
-        entries.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        entries
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     // ─── parse_template_expr tests ───────────────────────────────────────────
@@ -2656,7 +2674,9 @@ mod v028_template_tests {
         let with = FxHashMap::default();
         let ds = empty_datastore();
         let mut context = LoadedContext::new();
-        context.files.insert("brand".to_string(), json!("SuperNovae AI"));
+        context
+            .files
+            .insert("brand".to_string(), json!("SuperNovae AI"));
         ds.set_context(context);
 
         let result = resolve_with("Brand: {{context.files.brand}}", &with, &ds).unwrap();
@@ -2707,7 +2727,9 @@ mod v028_template_tests {
         let with = make_with(&[("val", json!("{{context.files.secret}}"))]);
         let ds = empty_datastore();
         let mut context = LoadedContext::new();
-        context.files.insert("secret".to_string(), json!("TOP_SECRET"));
+        context
+            .files
+            .insert("secret".to_string(), json!("TOP_SECRET"));
         ds.set_context(context);
 
         let result = resolve_with("Got: {{val}}", &with, &ds).unwrap();
@@ -2728,10 +2750,7 @@ mod v028_template_tests {
     fn no_reevaluation_alias_to_alias() {
         // If an alias value contains {{other_alias}}, it should NOT cause
         // another pass 1 resolution (that's single-pass for aliases)
-        let with = make_with(&[
-            ("a", json!("{{b}}")),
-            ("b", json!("secret")),
-        ]);
+        let with = make_with(&[("a", json!("{{b}}")), ("b", json!("secret"))]);
         let ds = empty_datastore();
 
         let result = resolve_with("Got: {{a}}", &with, &ds).unwrap();
@@ -2822,7 +2841,9 @@ mod v028_template_tests {
         let with = make_with(&[("name", json!("Alice"))]);
         let ds = empty_datastore();
         let mut context = LoadedContext::new();
-        context.files.insert("brand".to_string(), json!("SuperNovae"));
+        context
+            .files
+            .insert("brand".to_string(), json!("SuperNovae"));
         ds.set_context(context);
 
         let result =
@@ -2875,8 +2896,7 @@ mod v028_template_tests {
 
     #[test]
     fn validate_refs_all_declared() {
-        let declared: FxHashSet<String> =
-            ["name", "title"].iter().map(|s| s.to_string()).collect();
+        let declared: FxHashSet<String> = ["name", "title"].iter().map(|s| s.to_string()).collect();
         let result = validate_with_refs("{{name}} and {{title}}", &declared, "task1");
         assert!(result.is_ok());
     }

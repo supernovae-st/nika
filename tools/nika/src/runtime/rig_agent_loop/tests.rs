@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use rustc_hash::FxHashMap;
 
     use crate::ast::AgentParams;

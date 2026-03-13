@@ -384,7 +384,6 @@ impl RigAgentLoop {
             .await
     }
 
-
     /// Build NikaMcpTool instances from MCP clients
     fn build_tools(
         mcp_names: &[String],

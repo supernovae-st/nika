@@ -867,7 +867,8 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         return Err(ParseError {
             kind: ParseErrorKind::InvalidType,
             span: node_to_span(file_id, node),
-            message: "'flows:' is removed in v0.28. Use 'depends_on:' on individual tasks instead.".to_string(),
+            message: "'flows:' is removed in v0.28. Use 'depends_on:' on individual tasks instead."
+                .to_string(),
         });
     }
 
@@ -1012,8 +1013,7 @@ fn parse_context_config(
     };
 
     let span = marked_span_to_span(file_id, ctx_map.span());
-    let files = parse_string_map(file_id, ctx_map, "files")?
-        .map(|s| s.value);
+    let files = parse_string_map(file_id, ctx_map, "files")?.map(|s| s.value);
 
     Ok(Some(Spanned::new(RawContextConfig { files }, span)))
 }
@@ -1605,10 +1605,19 @@ tasks:
         let imports = workflow.imports.as_ref().unwrap();
         assert_eq!(imports.value.len(), 2);
 
-        assert_eq!(imports.value[0].value.path.value, "./partials/setup.nika.yaml");
-        assert_eq!(imports.value[0].value.prefix.as_ref().unwrap().value, "setup_");
+        assert_eq!(
+            imports.value[0].value.path.value,
+            "./partials/setup.nika.yaml"
+        );
+        assert_eq!(
+            imports.value[0].value.prefix.as_ref().unwrap().value,
+            "setup_"
+        );
 
-        assert_eq!(imports.value[1].value.path.value, "pkg:@spn/core@1.0/seo.nika.yaml");
+        assert_eq!(
+            imports.value[1].value.path.value,
+            "pkg:@spn/core@1.0/seo.nika.yaml"
+        );
         assert!(imports.value[1].value.prefix.is_none());
     }
 
@@ -1632,7 +1641,10 @@ tasks:
         let keys: Vec<&str> = inputs.value.keys().map(|k| k.value.as_str()).collect();
         assert_eq!(keys, vec!["locale", "max_items", "debug"]);
 
-        assert_eq!(inputs.value.values().next().unwrap().value, serde_json::Value::String("fr-FR".to_string()));
+        assert_eq!(
+            inputs.value.values().next().unwrap().value,
+            serde_json::Value::String("fr-FR".to_string())
+        );
     }
 
     #[test]

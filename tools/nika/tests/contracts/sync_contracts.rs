@@ -35,7 +35,10 @@ fn contract_sync_detects_editors() {
         .any(|e| stdout.to_lowercase().contains(e));
 
     assert!(
-        has_editor_info || stdout.contains("Editor") || stdout.contains("Sync") || stdout.contains("Status"),
+        has_editor_info
+            || stdout.contains("Editor")
+            || stdout.contains("Sync")
+            || stdout.contains("Status"),
         "sync should show editor info. Got: {}",
         stdout
     );

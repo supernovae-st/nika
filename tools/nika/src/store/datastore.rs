@@ -15,8 +15,8 @@ use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
-use crate::runtime::context_loader::LoadedContext;
 use crate::binding::jsonpath;
+use crate::runtime::context_loader::LoadedContext;
 
 /// Task execution status
 #[derive(Debug, Clone)]

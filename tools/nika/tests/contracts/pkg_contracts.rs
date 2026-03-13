@@ -239,9 +239,7 @@ fn contract_pkg_publish_dry_run() {
 
     // Either shows publish help with dry-run, or falls back to top-level nika help
     assert!(
-        combined.contains("dry-run")
-            || combined.contains("--dry")
-            || combined.contains("Nika"),
+        combined.contains("dry-run") || combined.contains("--dry") || combined.contains("Nika"),
         "publish should show relevant help. Got: {}",
         combined
     );

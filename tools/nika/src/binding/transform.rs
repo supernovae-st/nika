@@ -360,17 +360,19 @@ impl TransformOp {
             },
             TransformOp::ToJson => match value {
                 Value::Null => Ok(Value::Null), // propagating
-                _ => Ok(Value::String(serde_json::to_string(value).unwrap_or_default())),
+                _ => Ok(Value::String(
+                    serde_json::to_string(value).unwrap_or_default(),
+                )),
             },
             TransformOp::ParseJson => match value {
                 Value::Null => Err(TransformError::NullInput { op: "parse_json" }),
-                Value::String(s) => serde_json::from_str(s).map_err(|_| {
-                    TransformError::TypeMismatch {
+                Value::String(s) => {
+                    serde_json::from_str(s).map_err(|_| TransformError::TypeMismatch {
                         op: "parse_json",
                         expected: "valid JSON string",
                         got: format!("\"{}\"", truncate(s, 50)),
-                    }
-                }),
+                    })
+                }
                 _ => Err(type_mismatch("parse_json", "string", value)),
             },
 
@@ -449,8 +451,10 @@ impl TransformOp {
             TransformOp::Split(sep) => match value {
                 Value::Null => Err(TransformError::NullInput { op: "split" }),
                 Value::String(s) => {
-                    let parts: Vec<Value> =
-                        s.split(sep.as_str()).map(|p| Value::String(p.to_string())).collect();
+                    let parts: Vec<Value> = s
+                        .split(sep.as_str())
+                        .map(|p| Value::String(p.to_string()))
+                        .collect();
                     Ok(Value::Array(parts))
                 }
                 _ => Err(type_mismatch("split", "string", value)),
@@ -644,8 +648,7 @@ fn parse_default_value(arg: &str) -> Result<Value, String> {
     if (trimmed.starts_with('{') && trimmed.ends_with('}'))
         || (trimmed.starts_with('[') && trimmed.ends_with(']'))
     {
-        return serde_json::from_str(trimmed)
-            .map_err(|e| format!("invalid JSON default: {}", e));
+        return serde_json::from_str(trimmed).map_err(|e| format!("invalid JSON default: {}", e));
     }
 
     // Bare string (unquoted) — treat as string
@@ -775,10 +778,7 @@ mod tests {
     #[test]
     fn parse_split() {
         let expr = TransformExpr::parse("split('/')").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Split("/".to_string())]
-        );
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Split("/".to_string())]);
     }
 
     #[test]
@@ -793,10 +793,7 @@ mod tests {
     #[test]
     fn parse_default_number() {
         let expr = TransformExpr::parse("default(42)").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Default(json!(42))]
-        );
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Default(json!(42))]);
     }
 
     #[test]
@@ -970,9 +967,7 @@ mod tests {
 
     #[test]
     fn apply_keys() {
-        let result = TransformOp::Keys
-            .apply(&json!({"a": 1, "b": 2}))
-            .unwrap();
+        let result = TransformOp::Keys.apply(&json!({"a": 1, "b": 2})).unwrap();
         // serde_json::Map preserves insertion order
         assert_eq!(result, json!(["a", "b"]));
     }
@@ -985,9 +980,7 @@ mod tests {
 
     #[test]
     fn apply_values() {
-        let result = TransformOp::Values
-            .apply(&json!({"a": 1, "b": 2}))
-            .unwrap();
+        let result = TransformOp::Values.apply(&json!({"a": 1, "b": 2})).unwrap();
         assert_eq!(result, json!([1, 2]));
     }
 
@@ -1013,9 +1006,7 @@ mod tests {
 
     #[test]
     fn apply_flatten() {
-        let result = TransformOp::Flatten
-            .apply(&json!([[1, 2], [3]]))
-            .unwrap();
+        let result = TransformOp::Flatten.apply(&json!([[1, 2], [3]])).unwrap();
         assert_eq!(result, json!([1, 2, 3]));
     }
 
@@ -1055,14 +1046,8 @@ mod tests {
 
     #[test]
     fn apply_to_bool_number() {
-        assert_eq!(
-            TransformOp::ToBool.apply(&json!(1)).unwrap(),
-            json!(true)
-        );
-        assert_eq!(
-            TransformOp::ToBool.apply(&json!(0)).unwrap(),
-            json!(false)
-        );
+        assert_eq!(TransformOp::ToBool.apply(&json!(1)).unwrap(), json!(true));
+        assert_eq!(TransformOp::ToBool.apply(&json!(0)).unwrap(), json!(false));
     }
 
     #[test]
@@ -1085,9 +1070,7 @@ mod tests {
 
     #[test]
     fn apply_parse_json() {
-        let result = TransformOp::ParseJson
-            .apply(&json!(r#"{"a":1}"#))
-            .unwrap();
+        let result = TransformOp::ParseJson.apply(&json!(r#"{"a":1}"#)).unwrap();
         assert_eq!(result, json!({"a": 1}));
     }
 
@@ -1254,7 +1237,10 @@ mod tests {
     fn display_ops() {
         assert_eq!(TransformOp::Upper.to_string(), "upper");
         assert_eq!(TransformOp::FirstN(3).to_string(), "first(3)");
-        assert_eq!(TransformOp::Join(", ".to_string()).to_string(), "join(', ')");
+        assert_eq!(
+            TransformOp::Join(", ".to_string()).to_string(),
+            "join(', ')"
+        );
         assert_eq!(TransformOp::Round(Some(2)).to_string(), "round(2)");
         assert_eq!(TransformOp::Round(None).to_string(), "round");
         assert_eq!(
@@ -1299,43 +1285,30 @@ mod tests {
     #[test]
     fn parse_default_bool() {
         let expr = TransformExpr::parse("default(true)").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Default(json!(true))]
-        );
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Default(json!(true))]);
     }
 
     #[test]
     fn parse_default_null() {
         let expr = TransformExpr::parse("default(null)").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Default(Value::Null)]
-        );
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Default(Value::Null)]);
     }
 
     #[test]
     fn parse_default_array() {
         let expr = TransformExpr::parse("default([])").unwrap();
-        assert_eq!(
-            expr.ops.as_slice(),
-            &[TransformOp::Default(json!([]))]
-        );
+        assert_eq!(expr.ops.as_slice(), &[TransformOp::Default(json!([]))]);
     }
 
     #[test]
     fn first_n_larger_than_array() {
-        let result = TransformOp::FirstN(10)
-            .apply(&json!([1, 2, 3]))
-            .unwrap();
+        let result = TransformOp::FirstN(10).apply(&json!([1, 2, 3])).unwrap();
         assert_eq!(result, json!([1, 2, 3])); // takes what's available
     }
 
     #[test]
     fn last_n_larger_than_array() {
-        let result = TransformOp::LastN(10)
-            .apply(&json!([1, 2, 3]))
-            .unwrap();
+        let result = TransformOp::LastN(10).apply(&json!([1, 2, 3])).unwrap();
         assert_eq!(result, json!([1, 2, 3]));
     }
 

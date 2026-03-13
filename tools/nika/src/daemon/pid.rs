@@ -111,10 +111,10 @@ pub fn acquire_pid_lock(pid_path: &Path) -> Result<PidLock> {
             source: e,
         })?;
 
-        return Ok(PidLock {
+        Ok(PidLock {
             path: pid_path.to_path_buf(),
             _flock: flock,
-        });
+        })
     }
 
     // Non-unix fallback (no file locking)

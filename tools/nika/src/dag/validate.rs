@@ -60,8 +60,7 @@ pub fn validate_with_bindings(
 
 /// Validate that `{{with.alias}}` references in task templates match declared aliases.
 fn validate_template_refs(task: &AnalyzedTask) -> Result<(), NikaError> {
-    let mut declared_aliases: FxHashSet<String> =
-        task.with_spec.keys().cloned().collect();
+    let mut declared_aliases: FxHashSet<String> = task.with_spec.keys().cloned().collect();
 
     // Add for_each loop variable to declared aliases
     if let Some(ref for_each) = task.for_each {
@@ -257,7 +256,10 @@ fn legacy_validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaErro
 
     // Add for_each loop variable
     if task.for_each.is_some() {
-        let as_var = task.for_each_as.clone().unwrap_or_else(|| "item".to_string());
+        let as_var = task
+            .for_each_as
+            .clone()
+            .unwrap_or_else(|| "item".to_string());
         declared_aliases.insert(as_var);
     }
 
@@ -279,7 +281,10 @@ fn legacy_validate_template_refs_with(task: &crate::ast::Task) -> Result<(), Nik
 
     // Add for_each loop variable
     if task.for_each.is_some() {
-        let as_var = task.for_each_as.clone().unwrap_or_else(|| "item".to_string());
+        let as_var = task
+            .for_each_as
+            .clone()
+            .unwrap_or_else(|| "item".to_string());
         declared_aliases.insert(as_var);
     }
 
@@ -329,8 +334,8 @@ fn legacy_extract_templates(action: &TaskAction) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::ast::analyzed::{
-        AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction,
-        AnalyzedInvokeAction, AnalyzedAgentAction, AnalyzedTaskAction, TaskId, TaskTable,
+        AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
+        AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedTaskAction, TaskId, TaskTable,
     };
     use crate::binding::types::{BindingPath, BindingSource, PathSegment};
     use crate::binding::WithEntry;
@@ -343,9 +348,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     /// Build an AnalyzedWorkflow from descriptors: (name, depends_on, implicit_deps)
-    fn build_workflow(
-        descriptors: &[(&str, &[&str], &[&str])],
-    ) -> AnalyzedWorkflow {
+    fn build_workflow(descriptors: &[(&str, &[&str], &[&str])]) -> AnalyzedWorkflow {
         let mut task_table = TaskTable::new();
         let mut tasks = Vec::new();
 
@@ -611,10 +614,7 @@ mod tests {
     #[test]
     fn cycle_detection_simple_cycle() {
         // task1 → task2 → task1 (mutual depends_on)
-        let workflow = build_workflow(&[
-            ("task1", &["task2"], &[]),
-            ("task2", &["task1"], &[]),
-        ]);
+        let workflow = build_workflow(&[("task1", &["task2"], &[]), ("task2", &["task1"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
@@ -625,11 +625,8 @@ mod tests {
     #[test]
     fn cycle_detection_three_node_cycle() {
         // a → b → c → a
-        let workflow = build_workflow(&[
-            ("a", &["c"], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow =
+            build_workflow(&[("a", &["c"], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
@@ -645,7 +642,10 @@ mod tests {
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
-        assert!(result.is_ok(), "Self-deps are filtered out, no cycle exists");
+        assert!(
+            result.is_ok(),
+            "Self-deps are filtered out, no cycle exists"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -654,10 +654,7 @@ mod tests {
 
     #[test]
     fn has_path_direct_edge() {
-        let workflow = build_workflow(&[
-            ("task1", &[], &[]),
-            ("task2", &["task1"], &[]),
-        ]);
+        let workflow = build_workflow(&[("task1", &[], &[]), ("task2", &["task1"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(graph.has_path("task1", "task2"));
@@ -666,11 +663,7 @@ mod tests {
 
     #[test]
     fn has_path_indirect_path() {
-        let workflow = build_workflow(&[
-            ("a", &[], &[]),
-            ("b", &["a"], &[]),
-            ("c", &["b"], &[]),
-        ]);
+        let workflow = build_workflow(&[("a", &[], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(graph.has_path("a", "c"));
@@ -691,7 +684,7 @@ mod tests {
         let workflow = build_workflow(&[
             ("task1", &[], &[]),
             ("task2", &["task1"], &[]),
-            ("task3", &[], &[]),  // Disconnected
+            ("task3", &[], &[]), // Disconnected
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
@@ -798,7 +791,10 @@ mod tests {
             "entity".to_string(),
             WithEntry::simple(BindingPath {
                 source: BindingSource::Task("task1".into()),
-                segments: vec![PathSegment::Field("data".into()), PathSegment::Field("id".into())],
+                segments: vec![
+                    PathSegment::Field("data".into()),
+                    PathSegment::Field("id".into()),
+                ],
             }),
         );
 
@@ -824,7 +820,10 @@ mod tests {
             "entity_key".to_string(),
             WithEntry::simple(BindingPath {
                 source: BindingSource::Task("task1".into()),
-                segments: vec![PathSegment::Field("entity".into()), PathSegment::Field("key".into())],
+                segments: vec![
+                    PathSegment::Field("entity".into()),
+                    PathSegment::Field("key".into()),
+                ],
             }),
         );
         with_spec.insert(
@@ -866,7 +865,10 @@ mod tests {
         );
 
         let workflow = build_workflow_with_action(
-            &[("research", &[], &[]), ("writer", &["research"], &["research"])],
+            &[
+                ("research", &[], &[]),
+                ("writer", &["research"], &["research"]),
+            ],
             "writer",
             AnalyzedTaskAction::Agent(AnalyzedAgentAction {
                 goal: "Write about {{with.topic}}".to_string(),
@@ -965,9 +967,8 @@ mod tests {
     #[test]
     fn validate_wiring_self_reference() {
         // task1 references itself via with:
-        let workflow = build_workflow_with_bindings(&[
-            ("task1", &[], &[], &[("self_ref", "task1")]),
-        ]);
+        let workflow =
+            build_workflow_with_bindings(&[("task1", &[], &[], &[("self_ref", "task1")])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_err());
@@ -996,7 +997,12 @@ mod tests {
         let workflow = build_workflow_with_bindings(&[
             ("task1", &[], &[], &[]),
             ("task2", &[], &[], &[]),
-            ("task3", &["task1", "task2"], &[], &[("a", "task1"), ("b", "task2")]),
+            (
+                "task3",
+                &["task1", "task2"],
+                &[],
+                &[("a", "task1"), ("b", "task2")],
+            ),
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
@@ -1042,13 +1048,19 @@ mod tests {
             "brand".to_string(),
             WithEntry::simple(BindingPath {
                 source: BindingSource::Context("files".into()),
-                segments: vec![PathSegment::Field("files".into()), PathSegment::Field("brand".into())],
+                segments: vec![
+                    PathSegment::Field("files".into()),
+                    PathSegment::Field("brand".into()),
+                ],
             }),
         );
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok(), "Context bindings should be silently skipped");
+        assert!(
+            result.is_ok(),
+            "Context bindings should be silently skipped"
+        );
     }
 
     #[test]
@@ -1087,10 +1099,8 @@ mod tests {
     fn validate_wiring_mixed_bindings() {
         // task2 has both task and non-task bindings
         // Only the task binding should be validated
-        let mut workflow = build_workflow(&[
-            ("task1", &[], &[]),
-            ("task2", &["task1"], &["task1"], ),
-        ]);
+        let mut workflow =
+            build_workflow(&[("task1", &[], &[]), ("task2", &["task1"], &["task1"])]);
         workflow.tasks[1].with_spec.insert(
             "data".to_string(),
             WithEntry::simple(BindingPath {
@@ -1115,7 +1125,10 @@ mod tests {
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_ok(), "Mixed bindings: only task binding should be validated");
+        assert!(
+            result.is_ok(),
+            "Mixed bindings: only task binding should be validated"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1191,10 +1204,7 @@ mod tests {
 
     #[test]
     fn validate_no_templates_passes() {
-        let workflow = build_workflow(&[
-            ("task1", &[], &[]),
-            ("task2", &["task1"], &[]),
-        ]);
+        let workflow = build_workflow(&[("task1", &[], &[]), ("task2", &["task1"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
         let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());

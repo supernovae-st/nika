@@ -1015,11 +1015,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     );
                     // Resolve bindings for decompose source (with: or use:)
                     let bindings = if task.with_spec.is_some() {
-                        ResolvedBindings::from_with_spec(
-                            task.with_spec.as_ref(),
-                            &self.datastore,
-                        )
-                        .unwrap_or_default()
+                        ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &self.datastore)
+                            .unwrap_or_default()
                     } else {
                         ResolvedBindings::from_wiring_spec(
                             task.use_wiring.as_ref(),

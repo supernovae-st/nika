@@ -166,7 +166,9 @@ impl RigAgentLoop {
     /// Get low confidence configuration (v0.22)
     ///
     /// Returns the OnLowConfidenceConfig if available, or None.
-    pub(super) fn get_low_confidence_config(&self) -> Option<crate::ast::completion::OnLowConfidenceConfig> {
+    pub(super) fn get_low_confidence_config(
+        &self,
+    ) -> Option<crate::ast::completion::OnLowConfidenceConfig> {
         self.params
             .effective_completion()
             .and_then(|c| c.confidence)
@@ -217,7 +219,9 @@ impl RigAgentLoop {
     /// Get confidence routing configuration (v0.22)
     ///
     /// Returns the ConfidenceRouting if available, or None.
-    pub(crate) fn get_confidence_routing(&self) -> Option<crate::ast::completion::ConfidenceRouting> {
+    pub(crate) fn get_confidence_routing(
+        &self,
+    ) -> Option<crate::ast::completion::ConfidenceRouting> {
         self.params
             .effective_completion()
             .and_then(|c| c.confidence)

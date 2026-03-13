@@ -45,8 +45,8 @@ pub use types::{InstalledPackage, Manifest, RegistryIndex, SkillEntry};
 // Re-export operations
 pub use operations::{
     ensure_nika_home, installed_version, is_installed, is_version_installed, list_installed,
-    load_manifest, load_registry, manifest_path, package_dir, packages_dir,
-    registry_index_path, resolve_skill_path, save_registry,
+    load_manifest, load_registry, manifest_path, package_dir, packages_dir, registry_index_path,
+    resolve_skill_path, save_registry,
 };
 
 // Re-export resolver
