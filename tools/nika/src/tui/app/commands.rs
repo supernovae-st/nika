@@ -38,7 +38,7 @@ impl App {
             // Update ChatView's session context with actual MCP servers
             self.chat_view.set_mcp_servers(server_names.iter().cloned());
 
-            self.mcp_configs = Some(mcp_configs);
+            self.mcp_pool.set_configs(mcp_configs);
         }
     }
 }

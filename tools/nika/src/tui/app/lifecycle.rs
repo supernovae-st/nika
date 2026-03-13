@@ -324,17 +324,20 @@ impl App {
     ///
     /// Uses TTL-based caching to avoid redundant MCP pings (30s default).
     pub(crate) fn spawn_mcp_verification(&self) {
-        let Some(mcp_configs) = &self.mcp_configs else {
+        let pool_configs = self.mcp_pool.configs();
+        if pool_configs.is_empty() {
             tracing::debug!("No MCP servers configured, skipping verification");
             return;
-        };
+        }
 
         let tx = self.stream_chunk_tx.clone();
         let cache = Arc::clone(&self.verification_cache);
-        let configs: Vec<_> = mcp_configs
+        let configs: Vec<_> = pool_configs
             .iter()
             .map(|(name, config)| (name.clone(), config.clone()))
             .collect();
+        // Drop the read guard before spawning async work
+        drop(pool_configs);
 
         // Check cache and send events for cached servers, mark uncached as pinging
         for (server_name, _config) in &configs {

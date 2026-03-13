@@ -70,14 +70,9 @@ impl App {
             let paused = self.state.is_paused();
             let input_mode = self.input_mode;
 
-            // Extract data for StatusBar metrics
-            let mcp_total = self.mcp_configs.as_ref().map(|c| c.len()).unwrap_or(0);
-            // Count actually connected MCP clients (OnceCell initialized = connected)
-            let mcp_connected = self
-                .mcp_client_cache
-                .iter()
-                .filter(|entry| entry.value().get().is_some())
-                .count();
+            // Extract data for StatusBar metrics from the centralized pool
+            let mcp_total = self.mcp_pool.config_count();
+            let mcp_connected = self.mcp_pool.connected_count();
 
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {

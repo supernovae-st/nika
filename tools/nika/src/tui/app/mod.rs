@@ -38,18 +38,15 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
 };
-use dashmap::DashMap;
 use ratatui::{backend::CrosstermBackend, layout::Rect, Terminal};
-use tokio::sync::{broadcast, mpsc, OnceCell};
+use tokio::sync::{broadcast, mpsc};
 use tokio::task::AbortHandle;
 
-use crate::ast::McpConfigInline;
 use crate::error::{NikaError, Result};
 use crate::event::Event as NikaEvent;
-use crate::mcp::McpClient;
+use crate::mcp::McpClientPool;
 use crate::provider::rig::StreamChunk;
 use crate::tui::chat_agent::ChatAgent;
-use rustc_hash::FxHashMap;
 
 use super::config::{ThemeName, TuiConfig};
 use super::cosmic_theme::CosmicTheme;
@@ -128,16 +125,10 @@ pub struct App {
     // ═══ ChatAgent for full AI interface (Task 5.1) ═══
     /// ChatAgent for handling 5 verb commands in ChatView
     pub(crate) chat_agent: Option<ChatAgent>,
-    // ═══ MCP Client Storage (v0.5.2) ═══
-    /// MCP server configurations from loaded workflow
-    pub(crate) mcp_configs: Option<FxHashMap<String, McpConfigInline>>,
-    /// Cached MCP clients (lazy-initialized with OnceCell for thread-safe async init)
-    #[allow(dead_code)]
-    pub(crate) mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
-    /// PERF: Cached MCP connected count (reserved for future optimization)
-    /// Note: Currently unused - DashMap iteration is fast enough.
-    #[allow(dead_code)]
-    pub(crate) cached_mcp_connected: usize,
+    // ═══ MCP Client Pool (v0.28) ═══
+    /// Centralized MCP client pool for lazy init, config management, and shutdown.
+    /// Replaces the previous mcp_client_cache + mcp_configs pair.
+    pub(crate) mcp_pool: McpClientPool,
     // ═══ Background Task Tracking (v0.7.0) ═══
     /// AbortHandles for tracked background tasks
     /// Enables proper cancellation on app exit via abort_all()
@@ -234,9 +225,7 @@ impl App {
             stream_chunk_rx,
             stream_chunk_tx,
             chat_agent,
-            mcp_configs: None, // Loaded in init_mcp_clients()
-            mcp_client_cache: Arc::new(DashMap::new()),
-            cached_mcp_connected: 0,
+            mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
             session_id: None, // v0.12: No session in workflow mode
             config,           // v0.12.0: TUI config from .nika/config.toml
@@ -308,9 +297,7 @@ impl App {
             stream_chunk_rx,
             stream_chunk_tx,
             chat_agent,
-            mcp_configs: None, // No workflow in standalone mode
-            mcp_client_cache: Arc::new(DashMap::new()),
-            cached_mcp_connected: 0,
+            mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
             session_id: None,                     // v0.12: Session loaded on demand
             config,                               // v0.12.0: TUI config from .nika/config.toml
