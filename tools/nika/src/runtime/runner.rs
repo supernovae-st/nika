@@ -231,7 +231,6 @@ impl Runner {
     }
 
     /// Get the event log for inspection/export
-    #[allow(dead_code)] // Used in tests and future export
     pub fn event_log(&self) -> &EventLog {
         &self.event_log
     }

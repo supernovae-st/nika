@@ -65,13 +65,11 @@ impl Interner {
     }
 
     /// Number of interned strings
-    #[allow(dead_code)] // Used in tests
     pub fn len(&self) -> usize {
         self.strings.len()
     }
 
     /// Check if empty
-    #[allow(dead_code)] // Used in tests
     pub fn is_empty(&self) -> bool {
         self.strings.is_empty()
     }

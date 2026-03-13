@@ -270,7 +270,6 @@ impl ResolvedBindings {
     }
 
     /// Check if context has any bindings
-    #[allow(dead_code)] // Used in tests
     pub fn is_empty(&self) -> bool {
         self.bindings.is_empty()
     }

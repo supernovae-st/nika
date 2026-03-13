@@ -525,7 +525,6 @@ pub enum EventKind {
 
 impl EventKind {
     /// Extract task_id if event is task-related
-    #[allow(dead_code)] // Used in tests and future replay
     pub fn task_id(&self) -> Option<&str> {
         match self {
             Self::TaskScheduled { task_id, .. }
@@ -569,7 +568,6 @@ impl EventKind {
     }
 
     /// Check if this is a workflow-level event
-    #[allow(dead_code)] // Used in tests and future replay
     pub fn is_workflow_event(&self) -> bool {
         matches!(
             self,
@@ -626,7 +624,6 @@ impl EventLog {
     /// Subscribe to event broadcasts (for additional TUI observers)
     ///
     /// Returns None if this EventLog was not created with `new_with_broadcast()`.
-    #[allow(dead_code)]
     pub fn subscribe(&self) -> Option<broadcast::Receiver<Event>> {
         self.broadcast_tx.as_ref().map(|tx| tx.subscribe())
     }
@@ -653,7 +650,6 @@ impl EventLog {
     }
 
     /// Get all events (cloned - use `with_events` for zero-copy access)
-    #[allow(dead_code)] // Used in tests and future export
     pub fn events(&self) -> Vec<Event> {
         self.events.read().clone()
     }
@@ -662,13 +658,11 @@ impl EventLog {
     ///
     /// Holds read lock for duration of callback - keep it short.
     /// Use this instead of `events()` when you don't need ownership.
-    #[allow(dead_code)] // Used in optimized filter methods
     pub fn with_events<T>(&self, f: impl FnOnce(&[Event]) -> T) -> T {
         f(&self.events.read())
     }
 
     /// Filter events by task ID (zero-copy filtering)
-    #[allow(dead_code)] // Used in tests and future debugging
     pub fn filter_task(&self, task_id: &str) -> Vec<Event> {
         self.with_events(|events| {
             events
@@ -680,7 +674,6 @@ impl EventLog {
     }
 
     /// Filter workflow-level events only (zero-copy filtering)
-    #[allow(dead_code)] // Used in tests and future export
     pub fn workflow_events(&self) -> Vec<Event> {
         self.with_events(|events| {
             events
@@ -692,7 +685,6 @@ impl EventLog {
     }
 
     /// Count events for a specific task (no allocation)
-    #[allow(dead_code)] // Used in tests and future metrics
     pub fn count_task(&self, task_id: &str) -> usize {
         self.with_events(|events| {
             events
@@ -703,19 +695,16 @@ impl EventLog {
     }
 
     /// Serialize to JSON for persistence/debugging
-    #[allow(dead_code)] // Used in tests and future export
     pub fn to_json(&self) -> Value {
         self.with_events(|events| serde_json::to_value(events).unwrap_or(Value::Null))
     }
 
     /// Number of events
-    #[allow(dead_code)] // Used in tests
     pub fn len(&self) -> usize {
         self.events.read().len()
     }
 
     /// Check if empty
-    #[allow(dead_code)] // Used in tests
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

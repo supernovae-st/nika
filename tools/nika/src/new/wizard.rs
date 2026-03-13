@@ -69,22 +69,6 @@ impl WorkflowPurpose {
         }
     }
 
-    /// Suggest templates based on purpose
-    #[allow(dead_code)] // Future: wire to TUI wizard
-    fn suggested_templates(&self) -> Vec<super::Template> {
-        use super::Template;
-        match self {
-            WorkflowPurpose::Research => {
-                vec![Template::AgentResearch, Template::McpIntegration]
-            }
-            WorkflowPurpose::Content => {
-                vec![Template::BlogGenerator, Template::SimpleInfer]
-            }
-            WorkflowPurpose::Code => vec![Template::CodeReview, Template::SimpleExec],
-            WorkflowPurpose::Data => vec![Template::ApiPipeline, Template::SimpleFetch],
-            WorkflowPurpose::Automation => vec![Template::MultiProvider, Template::ApiPipeline],
-        }
-    }
 }
 
 /// Workflow complexity level

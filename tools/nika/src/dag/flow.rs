@@ -170,7 +170,6 @@ impl Dag {
 
     /// Get successors of a task
     #[inline]
-    #[allow(dead_code)] // Used for future DAG traversal
     pub fn get_successors(&self, task_id: &str) -> &[Arc<str>] {
         static EMPTY: &[Arc<str>] = &[];
         self.adjacency
@@ -280,7 +279,6 @@ impl Dag {
 
     /// Check if task exists
     #[inline]
-    #[allow(dead_code)]
     pub fn contains(&self, task_id: &str) -> bool {
         self.task_set.contains(task_id)
     }
