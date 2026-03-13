@@ -75,6 +75,7 @@
 
 pub mod client;
 pub mod nika_config;
+pub mod pool;
 pub mod protocol;
 pub mod retry;
 pub mod rmcp_adapter;
@@ -83,6 +84,7 @@ pub mod validation;
 
 // Re-export core types for convenience
 pub use client::{CacheConfig, McpClient, McpPingError, McpPingResult, ResponseCacheStats};
+pub use pool::McpClientPool;
 pub use protocol::{JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 // Note: RmcpClientAdapter is pub(crate) - access MCP via McpClient
 pub use retry::{is_retryable_mcp_error, retry_mcp_call, McpRetryConfig};
