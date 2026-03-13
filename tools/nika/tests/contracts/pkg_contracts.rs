@@ -1,7 +1,7 @@
 //! Package Manager Contract Tests
 //!
-//! These tests define the expected behavior of `spn pkg *` (or `spn add/remove`) commands.
-//! After migration, `nika pkg *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika add/remove/install` commands.
+//! After migration, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (20 total)
 //!
@@ -26,13 +26,13 @@
 //! 19. Lockfile format
 //! 20. Manifest (spn.yaml) format
 
-use super::common::run_spn;
+use super::common::run_nika;
 
 /// Contract: `spn add` updates spn.yaml manifest
 #[test]
 fn contract_pkg_add_updates_manifest() {
     // Test with a hypothetical package (dry-run or help)
-    let output = run_spn(&["add", "--help"]);
+    let output = run_nika(&["add", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -51,7 +51,7 @@ fn contract_pkg_add_updates_manifest() {
 /// Contract: `spn add` supports version constraints
 #[test]
 fn contract_pkg_add_version_constraint() {
-    let output = run_spn(&["add", "--help"]);
+    let output = run_nika(&["add", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -71,7 +71,7 @@ fn contract_pkg_add_version_constraint() {
 /// Contract: `spn remove` updates manifest
 #[test]
 fn contract_pkg_remove_updates_manifest() {
-    let output = run_spn(&["remove", "--help"]);
+    let output = run_nika(&["remove", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -90,7 +90,7 @@ fn contract_pkg_remove_updates_manifest() {
 /// Contract: `spn install` reads spn.yaml
 #[test]
 fn contract_pkg_install_reads_manifest() {
-    let output = run_spn(&["install", "--help"]);
+    let output = run_nika(&["install", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -112,10 +112,10 @@ fn contract_pkg_install_reads_manifest() {
 /// Contract: `spn install --frozen` uses lockfile
 #[test]
 fn contract_pkg_install_frozen_mode() {
-    let _output = run_spn(&["install", "--frozen", "--help"]);
+    let _output = run_nika(&["install", "--frozen", "--help"]);
 
     // Even if --frozen doesn't work with --help, check if it's recognized
-    let output2 = run_spn(&["install", "--help"]);
+    let output2 = run_nika(&["install", "--help"]);
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output2.stdout),
@@ -136,7 +136,7 @@ fn contract_pkg_install_frozen_mode() {
 /// Contract: `spn search` queries registry
 #[test]
 fn contract_pkg_search_queries_registry() {
-    let output = run_spn(&["search", "--help"]);
+    let output = run_nika(&["search", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -158,7 +158,7 @@ fn contract_pkg_search_queries_registry() {
 /// Contract: `spn search` supports type filter
 #[test]
 fn contract_pkg_search_type_filter() {
-    let output = run_spn(&["search", "--help"]);
+    let output = run_nika(&["search", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -180,7 +180,7 @@ fn contract_pkg_search_type_filter() {
 /// Contract: `spn list` shows installed packages
 #[test]
 fn contract_pkg_list_shows_installed() {
-    let output = run_spn(&["list", "--help"]);
+    let output = run_nika(&["list", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -201,7 +201,7 @@ fn contract_pkg_list_shows_installed() {
 /// Contract: `spn publish` validates manifest
 #[test]
 fn contract_pkg_publish_validates() {
-    let output = run_spn(&["publish", "--help"]);
+    let output = run_nika(&["publish", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -222,7 +222,7 @@ fn contract_pkg_publish_validates() {
 /// Contract: `spn publish --dry-run` validates without publishing
 #[test]
 fn contract_pkg_publish_dry_run() {
-    let output = run_spn(&["publish", "--help"]);
+    let output = run_nika(&["publish", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -241,7 +241,7 @@ fn contract_pkg_publish_dry_run() {
 /// Contract: `spn init` creates spn.yaml
 #[test]
 fn contract_pkg_init_creates_manifest() {
-    let output = run_spn(&["init", "--help"]);
+    let output = run_nika(&["init", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -381,7 +381,7 @@ fn contract_pkg_no_subcommand_shows_help() {
     // spn (without arguments) should show top-level help
     // which includes package commands
 
-    let output = run_spn(&["--help"]);
+    let output = run_nika(&["--help"]);
 
     let combined = format!(
         "{}{}",
@@ -403,7 +403,7 @@ fn contract_pkg_no_subcommand_shows_help() {
 /// Contract: Package type option support
 #[test]
 fn contract_pkg_type_option() {
-    let output = run_spn(&["add", "--help"]);
+    let output = run_nika(&["add", "--help"]);
 
     let combined = format!(
         "{}{}",

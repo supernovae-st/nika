@@ -1,29 +1,29 @@
-//! Contract Tests for spn → Nika Fusion Migration
+//! Contract Tests for Nika CLI (v0.28: spn→nika fusion complete)
 //!
-//! These tests define the expected behavior of features being migrated from spn.
-//! They must ALL PASS before any code migration begins.
+//! These tests verify the behavior of features migrated from spn to nika.
+//! All commands now use `nika` as the primary CLI.
 //!
 //! # Test Categories
 //!
-//! - Provider contracts (15 tests): API key management
-//! - MCP contracts (12 tests): MCP server configuration
-//! - Package contracts (20 tests): Package manager operations
-//! - Model contracts (10 tests): Local model management
-//! - Sync contracts (8 tests): Editor sync
-//! - Setup contracts (10 tests): Setup wizard
-//! - Daemon contracts (15 tests): Daemon IPC protocol
-//! - Jobs contracts (10 tests): Job scheduler
+//! - Provider contracts (15 tests): API key management (`nika provider *`)
+//! - MCP contracts (12 tests): MCP server configuration (`nika mcp *`)
+//! - Package contracts (20 tests): Package manager operations (`nika add/remove`)
+//! - Model contracts (10 tests): Local model management (`nika model *`)
+//! - Sync contracts (8 tests): Editor sync (`nika sync *`)
+//! - Setup contracts (10 tests): Setup wizard (`nika setup *`)
+//! - Daemon contracts (15 tests): Daemon IPC protocol (`nika daemon *`)
+//! - Jobs contracts (10 tests): Job scheduler (`nika job *`)
 //!
 //! # Running Contract Tests
 //!
 //! ```bash
-//! cargo test --test contracts -- --test-threads=1
+//! cargo test --test contract_tests -- --test-threads=1
 //! ```
 //!
 //! # Philosophy
 //!
-//! Contract tests verify behavior, not implementation. They should pass
-//! regardless of whether the underlying code is in spn or nika.
+//! Contract tests verify behavior, not implementation. They ensure nika
+//! commands work correctly after the spn→nika fusion.
 
 mod daemon_contracts;
 mod jobs_contracts;
@@ -38,16 +38,7 @@ mod sync_contracts;
 pub mod common {
     use std::process::{Command, Output};
 
-    /// Execute spn command and return output
-    pub fn run_spn(args: &[&str]) -> Output {
-        Command::new("spn")
-            .args(args)
-            .output()
-            .expect("Failed to execute spn command")
-    }
-
-    /// Execute nika command and return output (for parity tests)
-    #[allow(dead_code)]
+    /// Execute nika command and return output (primary CLI since v0.28)
     pub fn run_nika(args: &[&str]) -> Output {
         Command::new("nika")
             .args(args)
@@ -55,9 +46,19 @@ pub mod common {
             .expect("Failed to execute nika command")
     }
 
-    /// Check if spn daemon is running
+    /// Execute spn command and return output (deprecated, forwards to nika)
+    #[deprecated(since = "0.28.0", note = "Use run_nika instead - spn is deprecated")]
+    #[allow(dead_code)]
+    pub fn run_spn(args: &[&str]) -> Output {
+        Command::new("spn")
+            .args(args)
+            .output()
+            .expect("Failed to execute spn command")
+    }
+
+    /// Check if nika daemon is running
     pub fn is_daemon_running() -> bool {
-        let output = run_spn(&["daemon", "status"]);
+        let output = run_nika(&["daemon", "status"]);
         output.status.success()
     }
 
@@ -83,7 +84,7 @@ pub mod common {
             .collect()
     }
 
-    /// Known providers from spn-core (must match KNOWN_PROVIDERS)
+    /// Known providers from nika::core (must match KNOWN_PROVIDERS)
     /// NOTE: Ollama removed from LLM providers in v0.27 — use provider: native instead
     pub const KNOWN_PROVIDERS: &[&str] = &[
         "anthropic",

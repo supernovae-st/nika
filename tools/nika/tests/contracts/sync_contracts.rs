@@ -1,7 +1,7 @@
 //! Editor Sync Contract Tests
 //!
-//! These tests define the expected behavior of `spn sync *` commands.
-//! After migration, `nika sync *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika sync *` commands.
+//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (8 total)
 //!
@@ -14,12 +14,12 @@
 //! 7. sync foreign MCP detection
 //! 8. sync is idempotent
 
-use super::common::run_spn;
+use super::common::run_nika;
 
 /// Contract: `spn sync` detects 4 supported editors
 #[test]
 fn contract_sync_detects_editors() {
-    let output = run_spn(&["sync", "--status"]);
+    let output = run_nika(&["sync", "--status"]);
 
     // Should succeed
     assert!(output.status.success(), "sync --status should succeed");
@@ -50,7 +50,7 @@ fn contract_sync_writes_config() {
     // - Windsurf: ~/.windsurf/mcp.json
     // - VS Code: ~/.vscode/mcp.json
 
-    let output = run_spn(&["sync", "--help"]);
+    let output = run_nika(&["sync", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -72,7 +72,7 @@ fn contract_sync_writes_config() {
 /// Contract: `spn sync --status` shows sync status
 #[test]
 fn contract_sync_status() {
-    let output = run_spn(&["sync", "--status"]);
+    let output = run_nika(&["sync", "--status"]);
 
     assert!(output.status.success(), "sync --status should succeed");
 
@@ -94,10 +94,10 @@ fn contract_sync_status() {
 /// Contract: `spn sync --enable <editor>` enables editor sync
 #[test]
 fn contract_sync_enable_editor() {
-    let _output = run_spn(&["sync", "--enable", "--help"]);
+    let _output = run_nika(&["sync", "--enable", "--help"]);
 
     // Check if --enable flag is documented
-    let output2 = run_spn(&["sync", "--help"]);
+    let output2 = run_nika(&["sync", "--help"]);
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output2.stdout),
@@ -115,7 +115,7 @@ fn contract_sync_enable_editor() {
 /// Contract: `spn sync --disable <editor>` disables editor sync
 #[test]
 fn contract_sync_disable_editor() {
-    let output = run_spn(&["sync", "--help"]);
+    let output = run_nika(&["sync", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -134,7 +134,7 @@ fn contract_sync_disable_editor() {
 /// Contract: `spn sync --diff <editor>` shows pending changes
 #[test]
 fn contract_sync_diff() {
-    let output = run_spn(&["sync", "--help"]);
+    let output = run_nika(&["sync", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -157,7 +157,7 @@ fn contract_sync_foreign_mcp_detection() {
     // - Shown in sync --status output
     // - Not overwritten by sync
 
-    let output = run_spn(&["sync", "--status"]);
+    let output = run_nika(&["sync", "--status"]);
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -176,8 +176,8 @@ fn contract_sync_foreign_mcp_detection() {
 #[test]
 fn contract_sync_idempotent() {
     // Running sync multiple times should produce same result
-    let output1 = run_spn(&["sync"]);
-    let output2 = run_spn(&["sync"]);
+    let output1 = run_nika(&["sync"]);
+    let output2 = run_nika(&["sync"]);
 
     // Both should have same exit status
     assert_eq!(

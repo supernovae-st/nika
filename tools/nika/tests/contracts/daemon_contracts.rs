@@ -1,7 +1,7 @@
 //! Daemon IPC Contract Tests
 //!
-//! These tests define the expected behavior of `spn daemon *` commands
-//! and the IPC protocol used by spn-client.
+//! These tests define the expected behavior of `nika daemon *` commands
+//! and the IPC protocol used by the daemon client.
 //!
 //! # Tests (15 total)
 //!
@@ -21,7 +21,7 @@
 //! 14. daemon auto-start behavior
 //! 15. daemon health endpoint
 
-use super::common::{is_daemon_running, run_spn};
+use super::common::{is_daemon_running, run_nika};
 
 /// Contract: `spn daemon start` creates Unix socket
 #[test]
@@ -58,7 +58,7 @@ fn contract_daemon_start_creates_pid() {
 /// Contract: `spn daemon stop` performs graceful shutdown
 #[test]
 fn contract_daemon_stop_graceful() {
-    let output = run_spn(&["daemon", "stop", "--help"]);
+    let output = run_nika(&["daemon", "stop", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -77,7 +77,7 @@ fn contract_daemon_stop_graceful() {
 /// Contract: `spn daemon status` shows running state
 #[test]
 fn contract_daemon_status_shows_state() {
-    let output = run_spn(&["daemon", "status"]);
+    let output = run_nika(&["daemon", "status"]);
 
     let combined = format!(
         "{}{}",
@@ -100,7 +100,7 @@ fn contract_daemon_status_shows_state() {
 /// Contract: `spn daemon logs` shows recent logs
 #[test]
 fn contract_daemon_logs() {
-    let output = run_spn(&["daemon", "logs", "--help"]);
+    let output = run_nika(&["daemon", "logs", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -119,7 +119,7 @@ fn contract_daemon_logs() {
 /// Contract: `spn daemon restart` restarts service
 #[test]
 fn contract_daemon_restart() {
-    let output = run_spn(&["daemon", "restart", "--help"]);
+    let output = run_nika(&["daemon", "restart", "--help"]);
 
     // restart may not be a separate command
     if !output.status.success() {

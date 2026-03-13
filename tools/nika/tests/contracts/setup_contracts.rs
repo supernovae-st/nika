@@ -1,7 +1,7 @@
 //! Setup Wizard Contract Tests
 //!
-//! These tests define the expected behavior of `spn setup *` commands.
-//! After migration, `nika setup *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika setup *` commands.
+//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (10 total)
 //!
@@ -16,12 +16,12 @@
 //! 9. setup creates required directories
 //! 10. setup validates completion
 
-use super::common::run_spn;
+use super::common::run_nika;
 
 /// Contract: `spn setup` runs full 4-step wizard
 #[test]
 fn contract_setup_full_wizard() {
-    let output = run_spn(&["setup", "--help"]);
+    let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -43,7 +43,7 @@ fn contract_setup_full_wizard() {
 /// Contract: `spn setup --quick` runs quick auto-detect setup
 #[test]
 fn contract_setup_quick_flag() {
-    let output = run_spn(&["setup", "--help"]);
+    let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -62,7 +62,7 @@ fn contract_setup_quick_flag() {
 /// Contract: `spn setup` has nika subcommand for Nika-specific setup
 #[test]
 fn contract_setup_has_subcommands() {
-    let output = run_spn(&["setup", "--help"]);
+    let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -81,7 +81,7 @@ fn contract_setup_has_subcommands() {
 /// Contract: `spn setup novanet` configures NovaNet
 #[test]
 fn contract_setup_novanet_subcommand() {
-    let output = run_spn(&["setup", "--help"]);
+    let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -100,7 +100,7 @@ fn contract_setup_novanet_subcommand() {
 /// Contract: `spn setup --models` only configures local models
 #[test]
 fn contract_setup_models_only() {
-    let output = run_spn(&["setup", "--help"]);
+    let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -118,11 +118,11 @@ fn contract_setup_models_only() {
 /// Contract: `spn setup nika` runs Nika-specific installer
 #[test]
 fn contract_setup_nika() {
-    let output = run_spn(&["setup", "nika", "--help"]);
+    let output = run_nika(&["setup", "nika", "--help"]);
 
     // nika subcommand may not exist
     if !output.status.success() {
-        let output2 = run_spn(&["setup", "--help"]);
+        let output2 = run_nika(&["setup", "--help"]);
         let combined = format!(
             "{}{}",
             String::from_utf8_lossy(&output2.stdout),
@@ -152,11 +152,11 @@ fn contract_setup_nika() {
 /// Contract: `spn setup novanet` runs NovaNet-specific installer
 #[test]
 fn contract_setup_novanet() {
-    let output = run_spn(&["setup", "novanet", "--help"]);
+    let output = run_nika(&["setup", "novanet", "--help"]);
 
     // novanet subcommand may not exist
     if !output.status.success() {
-        let output2 = run_spn(&["setup", "--help"]);
+        let output2 = run_nika(&["setup", "--help"]);
         let combined = format!(
             "{}{}",
             String::from_utf8_lossy(&output2.stdout),
@@ -221,7 +221,7 @@ fn contract_setup_validates_completion() {
     // 3. Daemon can start (if configured)
 
     // This is a behavioral contract tested via doctor command
-    let output = run_spn(&["doctor"]);
+    let output = run_nika(&["doctor"]);
 
     // doctor command may not exist
     if !output.status.success() {

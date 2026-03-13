@@ -1,7 +1,7 @@
 //! Model Management Contract Tests
 //!
-//! These tests define the expected behavior of `spn model *` commands.
-//! After migration, `nika model *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika model *` commands.
+//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (10 total)
 //!
@@ -16,12 +16,12 @@
 //! 9. Model path resolution
 //! 10. Model auto-quantization
 
-use super::common::{run_spn, KNOWN_MODEL_COUNT};
+use super::common::{run_nika, KNOWN_MODEL_COUNT};
 
 /// Contract: `spn model list` shows local and remote models
 #[test]
 fn contract_model_list_shows_all() {
-    let output = run_spn(&["model", "list"]);
+    let output = run_nika(&["model", "list"]);
 
     // Should succeed
     assert!(output.status.success(), "model list should succeed");
@@ -43,7 +43,7 @@ fn contract_model_list_shows_all() {
 /// Contract: `spn model list --local` shows only local models
 #[test]
 fn contract_model_list_local_filter() {
-    let output = run_spn(&["model", "list", "--local"]);
+    let output = run_nika(&["model", "list", "--local"]);
 
     // --local flag may not be supported
     if !output.status.success() {
@@ -64,7 +64,7 @@ fn contract_model_list_local_filter() {
 /// Contract: `spn model list --remote` shows available models
 #[test]
 fn contract_model_list_remote_filter() {
-    let output = run_spn(&["model", "list", "--remote"]);
+    let output = run_nika(&["model", "list", "--remote"]);
 
     // --remote flag may not be supported
     if !output.status.success() {
@@ -85,7 +85,7 @@ fn contract_model_list_remote_filter() {
 /// Contract: `spn model pull` downloads from HuggingFace
 #[test]
 fn contract_model_pull_from_hf() {
-    let output = run_spn(&["model", "pull", "--help"]);
+    let output = run_nika(&["model", "pull", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -107,7 +107,7 @@ fn contract_model_pull_from_hf() {
 /// Contract: `spn model status` shows loaded models
 #[test]
 fn contract_model_status_shows_loaded() {
-    let output = run_spn(&["model", "status"]);
+    let output = run_nika(&["model", "status"]);
 
     // Should succeed
     assert!(output.status.success(), "model status should succeed");
@@ -130,7 +130,7 @@ fn contract_model_status_shows_loaded() {
 /// Contract: `spn model info` displays model metadata
 #[test]
 fn contract_model_info_metadata() {
-    let output = run_spn(&["model", "info", "--help"]);
+    let output = run_nika(&["model", "info", "--help"]);
 
     let combined = format!(
         "{}{}",
@@ -153,7 +153,7 @@ fn contract_model_info_metadata() {
 #[test]
 fn contract_model_delete_removes_local() {
     // Try to delete non-existent model
-    let output = run_spn(&["model", "delete", "nonexistent_model_xyz"]);
+    let output = run_nika(&["model", "delete", "nonexistent_model_xyz"]);
 
     // Should fail gracefully
     let combined = format!(
@@ -240,7 +240,7 @@ fn contract_model_auto_quantization() {
 /// Contract: `spn model` with no subcommand shows help
 #[test]
 fn contract_model_no_subcommand_shows_help() {
-    let output = run_spn(&["model"]);
+    let output = run_nika(&["model"]);
 
     let combined = format!(
         "{}{}",

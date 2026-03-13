@@ -21,12 +21,12 @@
 //! 14. provider env var fallback works
 //! 15. provider priority: keychain > env
 
-use super::common::{run_spn, KNOWN_PROVIDERS};
+use super::common::{run_nika, KNOWN_PROVIDERS};
 
 /// Contract: `spn provider list` returns all 12 known providers (Ollama removed in v0.27)
 #[test]
 fn contract_provider_list_returns_all_providers() {
-    let output = run_spn(&["provider", "list"]);
+    let output = run_nika(&["provider", "list"]);
 
     assert!(output.status.success(), "provider list should succeed");
 
@@ -46,7 +46,7 @@ fn contract_provider_list_returns_all_providers() {
 /// Contract: `spn provider list` shows status (configured/not configured)
 #[test]
 fn contract_provider_list_shows_status() {
-    let output = run_spn(&["provider", "list"]);
+    let output = run_nika(&["provider", "list"]);
 
     assert!(output.status.success());
 
@@ -69,7 +69,7 @@ fn contract_provider_list_shows_status() {
 /// Contract: `spn provider list` distinguishes LLM and MCP providers
 #[test]
 fn contract_provider_list_shows_categories() {
-    let output = run_spn(&["provider", "list"]);
+    let output = run_nika(&["provider", "list"]);
 
     assert!(output.status.success());
 
@@ -94,7 +94,7 @@ fn contract_provider_list_shows_categories() {
 /// Contract: `spn provider get <unknown>` returns error
 #[test]
 fn contract_provider_get_unknown_returns_error() {
-    let output = run_spn(&["provider", "get", "nonexistent_provider_xyz"]);
+    let output = run_nika(&["provider", "get", "nonexistent_provider_xyz"]);
 
     assert!(
         !output.status.success(),
@@ -127,7 +127,7 @@ fn contract_provider_test_validates_anthropic_format() {
         return;
     }
 
-    let output = run_spn(&["provider", "test", "anthropic"]);
+    let output = run_nika(&["provider", "test", "anthropic"]);
 
     // Should either succeed (valid key) or fail with format error (not connection error)
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -160,7 +160,7 @@ fn contract_provider_test_rejects_invalid_key() {
 
     // The provider test command should validate format before making API calls
     // This tests the local validation, not API connectivity
-    let output = run_spn(&["provider", "test", "anthropic", "--key", "invalid"]);
+    let output = run_nika(&["provider", "test", "anthropic", "--key", "invalid"]);
 
     // Should fail or warn about invalid format
     let combined = format!(
@@ -187,8 +187,8 @@ fn contract_provider_test_rejects_invalid_key() {
 #[test]
 fn contract_provider_migrate_is_idempotent() {
     // Run migrate twice - second run should not fail
-    let output1 = run_spn(&["provider", "migrate"]);
-    let output2 = run_spn(&["provider", "migrate"]);
+    let output1 = run_nika(&["provider", "migrate"]);
+    let output2 = run_nika(&["provider", "migrate"]);
 
     // Both should succeed (or both fail consistently if no env vars)
     assert_eq!(
@@ -212,7 +212,7 @@ fn contract_provider_migrate_is_idempotent() {
 /// Contract: `spn provider status` shows detailed information
 #[test]
 fn contract_provider_status_shows_detail() {
-    let output = run_spn(&["provider", "status"]);
+    let output = run_nika(&["provider", "status"]);
 
     // status command may not exist in all versions - check gracefully
     if !output.status.success() {
@@ -242,7 +242,7 @@ fn contract_provider_priority_keychain_over_env() {
     // 2. OS Keychain
     // 3. Environment variable
 
-    let output = run_spn(&["provider", "list"]);
+    let output = run_nika(&["provider", "list"]);
     assert!(output.status.success());
 
     // The output should reflect the priority - we can't easily test this
@@ -294,7 +294,7 @@ fn contract_env_var_fallback_for_all_providers() {
 #[test]
 fn contract_provider_get_masks_key() {
     // If we have any key configured, get should mask it
-    let output = run_spn(&["provider", "get", "anthropic"]);
+    let output = run_nika(&["provider", "get", "anthropic"]);
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -320,7 +320,7 @@ fn contract_provider_get_masks_key() {
 /// Contract: `spn provider list --json` returns JSON format (if supported)
 #[test]
 fn contract_provider_list_json_format() {
-    let output = run_spn(&["provider", "list", "--json"]);
+    let output = run_nika(&["provider", "list", "--json"]);
 
     // --json flag may not be supported
     if !output.status.success() {
@@ -349,8 +349,8 @@ fn contract_provider_list_json_format() {
 #[test]
 fn contract_provider_names_case_insensitive() {
     // Test that ANTHROPIC == anthropic == Anthropic
-    let output_lower = run_spn(&["provider", "get", "anthropic"]);
-    let output_upper = run_spn(&["provider", "get", "ANTHROPIC"]);
+    let output_lower = run_nika(&["provider", "get", "anthropic"]);
+    let output_upper = run_nika(&["provider", "get", "ANTHROPIC"]);
 
     // Both should have same behavior (both succeed or both fail)
     assert_eq!(
@@ -363,7 +363,7 @@ fn contract_provider_names_case_insensitive() {
 /// Contract: `spn provider` with no subcommand shows help
 #[test]
 fn contract_provider_no_subcommand_shows_help() {
-    let output = run_spn(&["provider"]);
+    let output = run_nika(&["provider"]);
 
     let combined = format!(
         "{}{}",

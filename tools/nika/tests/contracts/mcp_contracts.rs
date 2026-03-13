@@ -18,12 +18,12 @@
 //! 11. Three-level config scope
 //! 12. MCP foreign server detection
 
-use super::common::{run_spn, MCP_ALIAS_COUNT};
+use super::common::{run_nika, MCP_ALIAS_COUNT};
 
 /// Contract: `spn mcp list` shows configured servers
 #[test]
 fn contract_mcp_list_shows_servers() {
-    let output = run_spn(&["mcp", "list"]);
+    let output = run_nika(&["mcp", "list"]);
 
     // Should succeed even if no servers configured
     assert!(output.status.success(), "mcp list should succeed");
@@ -47,7 +47,7 @@ fn contract_mcp_list_shows_servers() {
 #[test]
 fn contract_mcp_add_with_alias() {
     // Test with a well-known alias that doesn't require external deps
-    let output = run_spn(&["mcp", "add", "neo4j", "--dry-run"]);
+    let output = run_nika(&["mcp", "add", "neo4j", "--dry-run"]);
 
     // --dry-run may not be supported
     if !output.status.success() {
@@ -77,18 +77,18 @@ fn contract_mcp_add_with_alias() {
 #[test]
 fn contract_mcp_all_aliases_recognized() {
     // Get list of available aliases
-    let output = run_spn(&["mcp", "aliases"]);
+    let output = run_nika(&["mcp", "aliases"]);
 
     // aliases subcommand may not exist
     if !output.status.success() {
         // Try listing with verbose
-        let output2 = run_spn(&["mcp", "list", "--available"]);
+        let output2 = run_nika(&["mcp", "list", "--available"]);
         if !output2.status.success() {
             eprintln!("Note: Cannot list MCP aliases, checking known ones");
             // Verify at least the most common aliases work
             let known_aliases = ["neo4j", "github", "slack", "perplexity", "firecrawl"];
             for alias in &known_aliases {
-                let check = run_spn(&["mcp", "add", alias, "--help"]);
+                let check = run_nika(&["mcp", "add", alias, "--help"]);
                 let combined = format!(
                     "{}{}",
                     String::from_utf8_lossy(&check.stdout),
@@ -121,7 +121,7 @@ fn contract_mcp_all_aliases_recognized() {
 #[test]
 fn contract_mcp_remove_deletes_server() {
     // Try to remove a non-existent server
-    let output = run_spn(&["mcp", "remove", "nonexistent_server_xyz"]);
+    let output = run_nika(&["mcp", "remove", "nonexistent_server_xyz"]);
 
     // Should fail gracefully
     let combined = format!(
@@ -146,7 +146,7 @@ fn contract_mcp_remove_deletes_server() {
 #[test]
 fn contract_mcp_test_validates_connection() {
     // Test with a server that doesn't exist
-    let output = run_spn(&["mcp", "test", "nonexistent_server"]);
+    let output = run_nika(&["mcp", "test", "nonexistent_server"]);
 
     // Should fail with meaningful error
     assert!(
@@ -168,7 +168,7 @@ fn contract_mcp_test_validates_connection() {
 #[test]
 fn contract_mcp_tools_lists_available() {
     // Try to list tools for non-existent server
-    let output = run_spn(&["mcp", "tools", "nonexistent_server"]);
+    let output = run_nika(&["mcp", "tools", "nonexistent_server"]);
 
     // Should fail with meaningful error (check both stdout and stderr)
     let combined = format!(
@@ -200,7 +200,7 @@ fn contract_mcp_config_scope() {
     // 3. Global (~/.spn/mcp.yaml)
 
     // Check config location command
-    let output = run_spn(&["config", "where"]);
+    let output = run_nika(&["config", "where"]);
 
     // config command may not exist
     if !output.status.success() {
@@ -228,7 +228,7 @@ fn contract_mcp_secret_injection() {
     // This test verifies the syntax is documented, not that injection works
     // (which requires daemon integration)
 
-    let output = run_spn(&["mcp", "list", "--help"]);
+    let output = run_nika(&["mcp", "list", "--help"]);
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -255,7 +255,7 @@ fn contract_mcp_env_var_expansion() {
 /// Contract: `spn mcp` with no subcommand shows help
 #[test]
 fn contract_mcp_no_subcommand_shows_help() {
-    let output = run_spn(&["mcp"]);
+    let output = run_nika(&["mcp"]);
 
     let combined = format!(
         "{}{}",
@@ -291,7 +291,7 @@ fn contract_mcp_foreign_server_detection() {
     // Document that spn sync can detect foreign MCP servers
     // (servers configured in editor but not in spn)
 
-    let output = run_spn(&["sync", "--status"]);
+    let output = run_nika(&["sync", "--status"]);
 
     // sync command may show foreign servers
     if output.status.success() {
