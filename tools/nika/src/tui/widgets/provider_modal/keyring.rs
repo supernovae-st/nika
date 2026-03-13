@@ -5,7 +5,11 @@
 //! - Windows: Credential Manager
 //! - Linux: Secret Service (GNOME Keyring, KWallet)
 //!
-//! Service name "spn" is shared with supernovae-cli for unified key management.
+//! ## v0.28: Service Name Migration (spn → nika)
+//!
+//! Service name changed from "spn" to "nika" as part of the spn→nika fusion.
+//! Backwards compatibility: reads try "nika" first, then fall back to "spn".
+//! Writes always use "nika" service name.
 //!
 //! ## v0.20: spn-core Integration
 //!
@@ -34,9 +38,12 @@ use crate::tui::providers::env_var as provider_env_var;
 // v0.27: Use nika::core for validation (no more spn-client re-exports for provider types)
 // spn-client is now ONLY used for daemon IPC, not provider definitions
 
-/// Service name for keyring entries.
-/// Uses "spn" for unified keyring with supernovae-cli.
-const SERVICE_NAME: &str = "spn";
+/// Service name for keyring entries (v0.28: migrated from "spn" to "nika").
+const SERVICE_NAME: &str = "nika";
+
+/// Legacy service name for backwards compatibility.
+/// Keys stored under "spn" are still readable but new keys use "nika".
+const LEGACY_SERVICE_NAME: &str = "spn";
 
 /// Keyring error types.
 #[derive(Debug, Error)]
@@ -67,16 +74,29 @@ mod native {
         /// Get API key for a provider as zeroizing string.
         ///
         /// The returned string will be automatically zeroized when dropped.
+        ///
+        /// v0.28: Tries "nika" service first, falls back to legacy "spn" service.
         pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
+            // Try primary service name first ("nika")
             let entry = Entry::new(SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-            let password = entry.get_password().map_err(|e| match e {
-                keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
-                _ => KeyringError::AccessError(e.to_string()),
-            })?;
+            match entry.get_password() {
+                Ok(password) => return Ok(Zeroizing::new(password)),
+                Err(keyring::Error::NoEntry) => {
+                    // Fall back to legacy service name ("spn")
+                    let legacy_entry = Entry::new(LEGACY_SERVICE_NAME, provider)
+                        .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-            Ok(Zeroizing::new(password))
+                    let password = legacy_entry.get_password().map_err(|e| match e {
+                        keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
+                        _ => KeyringError::AccessError(e.to_string()),
+                    })?;
+
+                    Ok(Zeroizing::new(password))
+                }
+                Err(e) => Err(KeyringError::AccessError(e.to_string())),
+            }
         }
 
         /// Get API key wrapped in SecretString for maximum safety.
@@ -106,8 +126,49 @@ mod native {
         }
 
         /// Check if key exists for a provider.
+        ///
+        /// v0.28: Checks both "nika" and legacy "spn" service names.
         pub fn exists(provider: &str) -> bool {
             Self::get(provider).is_ok()
+        }
+
+        /// Check if key exists under legacy "spn" service name.
+        ///
+        /// Used for migration detection.
+        pub fn exists_legacy(provider: &str) -> bool {
+            if let Ok(entry) = Entry::new(LEGACY_SERVICE_NAME, provider) {
+                entry.get_password().is_ok()
+            } else {
+                false
+            }
+        }
+
+        /// Migrate a key from legacy "spn" to new "nika" service.
+        ///
+        /// Returns Ok(true) if migrated, Ok(false) if nothing to migrate.
+        pub fn migrate_legacy(provider: &str) -> Result<bool, KeyringError> {
+            // Check if key exists under legacy service
+            let legacy_entry = Entry::new(LEGACY_SERVICE_NAME, provider)
+                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+
+            let password = match legacy_entry.get_password() {
+                Ok(p) => p,
+                Err(keyring::Error::NoEntry) => return Ok(false), // Nothing to migrate
+                Err(e) => return Err(KeyringError::AccessError(e.to_string())),
+            };
+
+            // Store under new service name
+            let new_entry = Entry::new(SERVICE_NAME, provider)
+                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+
+            new_entry
+                .set_password(&password)
+                .map_err(|e| KeyringError::StoreError(e.to_string()))?;
+
+            // Delete from legacy service
+            let _ = legacy_entry.delete_credential(); // Ignore errors on cleanup
+
+            Ok(true)
         }
 
         /// Get masked version of stored key.
@@ -162,6 +223,16 @@ mod stub {
         /// Always returns false (no keychain access).
         pub fn exists(_provider: &str) -> bool {
             false
+        }
+
+        /// Always returns false (no keychain access).
+        pub fn exists_legacy(_provider: &str) -> bool {
+            false
+        }
+
+        /// Always returns Ok(false) (no keychain access).
+        pub fn migrate_legacy(_provider: &str) -> Result<bool, KeyringError> {
+            Ok(false) // Nothing to migrate in stub mode
         }
 
         /// Always returns None (no keychain access).
@@ -317,8 +388,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_service_name_is_spn() {
-        assert_eq!(SERVICE_NAME, "spn");
+    fn test_service_name_is_nika() {
+        // v0.28: Migrated from "spn" to "nika"
+        assert_eq!(SERVICE_NAME, "nika");
+    }
+
+    #[test]
+    fn test_legacy_service_name_is_spn() {
+        // Backwards compatibility: legacy keys stored under "spn" are still readable
+        assert_eq!(LEGACY_SERVICE_NAME, "spn");
     }
 
     #[test]
