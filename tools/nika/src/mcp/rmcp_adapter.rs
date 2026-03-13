@@ -133,6 +133,10 @@ pub(crate) struct RmcpClientAdapter {
     /// Cached tool definitions (populated after list_tools() call)
     /// Used by get_cached_tools() for synchronous access in rig integration
     cached_tools: Mutex<Vec<ToolDefinition>>,
+
+    /// Timestamp of the last list_tools() call that populated the cache (v0.28)
+    /// Used for TTL-based cache invalidation. None means cache was never populated.
+    tools_fetched_at: Mutex<Option<std::time::Instant>>,
 }
 
 impl std::fmt::Debug for RmcpClientAdapter {
@@ -166,6 +170,7 @@ impl RmcpClientAdapter {
             service: AsyncMutex::new(None),
             server_version: Mutex::new(None),
             cached_tools: Mutex::new(Vec::new()),
+            tools_fetched_at: Mutex::new(None),
         }
     }
 
@@ -550,6 +555,7 @@ impl RmcpClientAdapter {
 
         // Cache tools for synchronous access via get_cached_tools()
         *self.cached_tools.lock() = tools.clone();
+        *self.tools_fetched_at.lock() = Some(std::time::Instant::now());
 
         Ok(tools)
     }
@@ -560,6 +566,23 @@ impl RmcpClientAdapter {
     /// This is used by rig integration which requires sync access to tool definitions.
     pub fn get_cached_tools(&self) -> Vec<ToolDefinition> {
         self.cached_tools.lock().clone()
+    }
+
+    /// Check if the tool cache is still fresh within the given TTL (v0.28).
+    ///
+    /// Returns `true` if tools were fetched within `ttl` duration, `false` if
+    /// the cache is stale or was never populated.
+    pub fn is_tool_cache_fresh(&self, ttl: std::time::Duration) -> bool {
+        self.tools_fetched_at
+            .lock()
+            .map(|fetched_at| fetched_at.elapsed() < ttl)
+            .unwrap_or(false)
+    }
+
+    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call (v0.28).
+    pub fn invalidate_tool_cache(&self) {
+        self.cached_tools.lock().clear();
+        *self.tools_fetched_at.lock() = None;
     }
 }
 
@@ -816,6 +839,63 @@ mod tests {
         let cached2 = adapter.get_cached_tools();
         assert_eq!(cached2.len(), 1);
         assert_eq!(cached2[0].name, "tool2");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tool Cache TTL Tests (v0.28)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_tool_cache_not_fresh_initially() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        assert!(!adapter.is_tool_cache_fresh(std::time::Duration::from_secs(300)));
+    }
+
+    #[test]
+    fn test_tool_cache_fresh_after_populate() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Simulate list_tools() populating the cache
+        *adapter.cached_tools.lock() = vec![ToolDefinition::new("tool1")];
+        *adapter.tools_fetched_at.lock() = Some(std::time::Instant::now());
+
+        assert!(adapter.is_tool_cache_fresh(std::time::Duration::from_secs(300)));
+    }
+
+    #[test]
+    fn test_tool_cache_stale_after_ttl() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Simulate a cache populated in the past (beyond TTL)
+        *adapter.cached_tools.lock() = vec![ToolDefinition::new("tool1")];
+        *adapter.tools_fetched_at.lock() =
+            Some(std::time::Instant::now() - std::time::Duration::from_secs(600));
+
+        // Stale with 5-min TTL
+        assert!(!adapter.is_tool_cache_fresh(std::time::Duration::from_secs(300)));
+        // But fresh with 15-min TTL
+        assert!(adapter.is_tool_cache_fresh(std::time::Duration::from_secs(900)));
+    }
+
+    #[test]
+    fn test_invalidate_tool_cache() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Populate
+        *adapter.cached_tools.lock() = vec![ToolDefinition::new("tool1")];
+        *adapter.tools_fetched_at.lock() = Some(std::time::Instant::now());
+        assert!(adapter.is_tool_cache_fresh(std::time::Duration::from_secs(300)));
+        assert_eq!(adapter.get_cached_tools().len(), 1);
+
+        // Invalidate
+        adapter.invalidate_tool_cache();
+        assert!(!adapter.is_tool_cache_fresh(std::time::Duration::from_secs(300)));
+        assert!(adapter.get_cached_tools().is_empty());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -60,6 +60,15 @@ pub const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
 
 // ═══════════════════════════════════════════════════════════════
+// MCP Cache TTL
+// ═══════════════════════════════════════════════════════════════
+
+/// TTL for cached MCP tool definitions (v0.28).
+/// After this duration, tool lists should be re-fetched from the server.
+/// 5 minutes balances freshness with avoiding excessive list_tools() calls.
+pub const TOOL_CACHE_TTL: Duration = Duration::from_secs(300);
+
+// ═══════════════════════════════════════════════════════════════
 // HTTP Client Limits
 // ═══════════════════════════════════════════════════════════════
 

@@ -1359,6 +1359,31 @@ impl McpClient {
         }
     }
 
+    /// Check if the tool cache is still fresh within the given TTL (v0.28).
+    ///
+    /// Returns `true` for mock clients (always fresh).
+    /// For real clients, checks if tools were fetched within `ttl` duration.
+    pub fn is_tool_cache_fresh(&self, ttl: std::time::Duration) -> bool {
+        if self.is_mock {
+            true
+        } else if let Some(ref adapter) = self.adapter {
+            adapter.is_tool_cache_fresh(ttl)
+        } else {
+            false
+        }
+    }
+
+    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call (v0.28).
+    ///
+    /// No-op for mock clients.
+    pub fn invalidate_tool_cache(&self) {
+        if !self.is_mock {
+            if let Some(ref adapter) = self.adapter {
+                adapter.invalidate_tool_cache();
+            }
+        }
+    }
+
     /// Generate mock tool definitions.
     fn mock_list_tools(&self) -> Vec<ToolDefinition> {
         vec![
