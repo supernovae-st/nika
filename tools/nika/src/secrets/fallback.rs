@@ -10,24 +10,24 @@ use tracing::{debug, info, trace};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TUI-CONDITIONAL IMPORTS
-// When TUI is enabled, use the full SpnKeyring from TUI.
+// When TUI is enabled, use the full NikaKeyring from TUI.
 // When TUI is disabled, use fallback stub below.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[cfg(feature = "tui")]
-use crate::tui::widgets::provider_modal::SpnKeyring;
+use crate::tui::widgets::provider_modal::NikaKeyring;
 
-// Fallback: SpnKeyring stub without TUI (keyring not available without TUI feature)
+// Fallback: NikaKeyring stub without TUI (keyring not available without TUI feature)
 #[cfg(not(feature = "tui"))]
 mod fallback_keyring {
     use secrecy::SecretString;
     use std::io::{Error, ErrorKind};
 
-    /// Stub SpnKeyring when TUI is disabled.
+    /// Stub NikaKeyring when TUI is disabled.
     /// All operations return errors since keyring requires TUI dependencies.
-    pub struct SpnKeyring;
+    pub struct NikaKeyring;
 
-    impl SpnKeyring {
+    impl NikaKeyring {
         pub fn get(_provider: &str) -> Result<String, Error> {
             Err(Error::new(
                 ErrorKind::Unsupported,
@@ -49,7 +49,7 @@ mod fallback_keyring {
 }
 
 #[cfg(not(feature = "tui"))]
-use fallback_keyring::SpnKeyring;
+use fallback_keyring::NikaKeyring;
 
 /// Check if daemon is available (always false without feature).
 pub fn daemon_available() -> bool {
@@ -92,7 +92,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
 /// Try loading from keyring and inject into env if found.
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
-    match SpnKeyring::get(provider) {
+    match NikaKeyring::get(provider) {
         Ok(secret) => {
             std::env::set_var(env_var, &*secret);
             debug!("{}: loaded from keyring → {}", provider, env_var);
@@ -117,7 +117,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // Fall back to keyring
-    SpnKeyring::get_secret(provider).ok()
+    NikaKeyring::get_secret(provider).ok()
 }
 
 /// Check if a secret exists for a provider.
@@ -130,7 +130,7 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // Fall back to keyring
-    SpnKeyring::exists(provider)
+    NikaKeyring::exists(provider)
 }
 
 /// Get the environment variable name for a provider ID.

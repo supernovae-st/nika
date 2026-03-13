@@ -197,14 +197,14 @@ impl ChatView {
                     return ViewAction::DeleteNativeModel(model.clone());
                 }
                 ModalAction::SaveAndTestApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{validate_key_format, SpnKeyring};
+                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
                     // Save to keyring
-                    match SpnKeyring::set(provider, key) {
+                    match NikaKeyring::set(provider, key) {
                         Ok(()) => {
                             self.add_system_message(format!(
                                 "✅ Saved {} API key to keychain",
@@ -219,14 +219,14 @@ impl ChatView {
                     }
                 }
                 ModalAction::SaveApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{validate_key_format, SpnKeyring};
+                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
                         return ViewAction::None;
                     }
                     // Save silently (no verification trigger)
-                    match SpnKeyring::set(provider, key) {
+                    match NikaKeyring::set(provider, key) {
                         Ok(()) => {
                             self.add_system_message(format!(
                                 "✅ Saved {} API key to keychain",

@@ -68,9 +68,9 @@ mod native {
     use keyring::Entry;
 
     /// Keyring wrapper for Nika API keys.
-    pub struct SpnKeyring;
+    pub struct NikaKeyring;
 
-    impl SpnKeyring {
+    impl NikaKeyring {
         /// Get API key for a provider as zeroizing string.
         ///
         /// The returned string will be automatically zeroized when dropped.
@@ -212,9 +212,9 @@ mod stub {
 
     /// Stub keyring for environments without OS keychain (Docker, CI, etc.).
     /// All operations return errors - use environment variables instead.
-    pub struct SpnKeyring;
+    pub struct NikaKeyring;
 
-    impl SpnKeyring {
+    impl NikaKeyring {
         /// Always returns NotFound error (no keychain access in Docker).
         pub fn get(_provider: &str) -> Result<Zeroizing<String>, KeyringError> {
             Err(KeyringError::AccessError(
@@ -267,10 +267,10 @@ mod stub {
 
 // Re-export the appropriate implementation
 #[cfg(feature = "native-keychain")]
-pub use native::SpnKeyring;
+pub use native::NikaKeyring;
 
 #[cfg(not(feature = "native-keychain"))]
-pub use stub::SpnKeyring;
+pub use stub::NikaKeyring;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS (always available)
@@ -361,7 +361,7 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
 
         match std::env::var(env_var) {
             Ok(key) if !key.is_empty() => {
-                if SpnKeyring::exists(provider) {
+                if NikaKeyring::exists(provider) {
                     println!(
                         "  ├── {}: Found → {}",
                         env_var,
@@ -372,7 +372,7 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
                 }
 
                 print!("  ├── {}: Found → Migrating... ", env_var);
-                match SpnKeyring::set(provider, &key) {
+                match NikaKeyring::set(provider, &key) {
                     Ok(()) => {
                         println!("{}", "✓".green());
                         report.migrated += 1;
@@ -506,7 +506,7 @@ mod tests {
         #[test]
         fn test_spn_keyring_not_found() {
             // Test that querying a non-existent key returns NotFound
-            let result = SpnKeyring::get("nonexistent_provider_test_xyz");
+            let result = NikaKeyring::get("nonexistent_provider_test_xyz");
             assert!(matches!(
                 result,
                 Err(KeyringError::NotFound(_)) | Err(KeyringError::AccessError(_))
@@ -521,18 +521,18 @@ mod tests {
 
         #[test]
         fn test_stub_get_returns_error() {
-            let result = SpnKeyring::get("anthropic");
+            let result = NikaKeyring::get("anthropic");
             assert!(result.is_err());
         }
 
         #[test]
         fn test_stub_exists_returns_false() {
-            assert!(!SpnKeyring::exists("anthropic"));
+            assert!(!NikaKeyring::exists("anthropic"));
         }
 
         #[test]
         fn test_stub_set_returns_error() {
-            let result = SpnKeyring::set("anthropic", "test-key");
+            let result = NikaKeyring::set("anthropic", "test-key");
             assert!(result.is_err());
         }
     }

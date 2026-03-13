@@ -18,7 +18,7 @@ pub use components::*;
 pub use handler::*;
 pub use keyring::{
     mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
-    SpnKeyring,
+    NikaKeyring,
 };
 pub use loader::*;
 

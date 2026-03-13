@@ -43,7 +43,7 @@ const COLOR_STATUS_ERROR: Color = Color::Rgb(239, 68, 68); // Red-500
 
 use crate::tui::providers::{env_var as provider_env_var, icons::provider_icon, llm_provider_ids};
 
-use super::super::keyring::{mask_api_key, SpnKeyring};
+use super::super::keyring::{mask_api_key, NikaKeyring};
 use super::super::state::ApiKeyState;
 
 /// Provider key entry for display
@@ -78,7 +78,7 @@ impl ProviderKeyEntry {
     fn detect_state(provider: &str) -> ApiKeyState {
         // Priority 1: Check keyring (v0.12.2)
         // v0.11.0: Use Stored variant to indicate secure keyring storage
-        if let Ok(key) = SpnKeyring::get(provider) {
+        if let Ok(key) = NikaKeyring::get(provider) {
             return ApiKeyState::Stored {
                 masked: mask_api_key(&key),
             };
