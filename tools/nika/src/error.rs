@@ -127,6 +127,13 @@ pub enum NikaError {
         errors: Vec<crate::ast::schema_validator::SchemaError>,
     },
 
+    #[error("[NIKA-006] Could not determine home directory")]
+    #[diagnostic(
+        code(nika::home_directory_not_found),
+        help("Set the NIKA_HOME environment variable to specify the Nika home directory")
+    )]
+    HomeDirectoryNotFound,
+
     // ═══════════════════════════════════════════
     // SCHEMA ERRORS (010-019) - v0.1 compat
     // ═══════════════════════════════════════════
@@ -766,6 +773,7 @@ impl NikaError {
             Self::WorkflowNotFound { .. } => "NIKA-003",
             Self::ValidationError { .. } => "NIKA-004",
             Self::SchemaValidationFailed { .. } => "NIKA-005",
+            Self::HomeDirectoryNotFound => "NIKA-006",
             // Schema errors
             Self::InvalidSchema { .. } => "NIKA-010",
             Self::TaskFailed { .. } => "NIKA-011",
@@ -932,6 +940,9 @@ impl FixSuggestion for NikaError {
             NikaError::ValidationError { .. } => Some("Check workflow structure matches schema"),
             NikaError::SchemaValidationFailed { .. } => {
                 Some("Check YAML against schemas/nika-workflow.schema.json")
+            }
+            NikaError::HomeDirectoryNotFound => {
+                Some("Set NIKA_HOME environment variable to specify Nika home directory")
             }
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchema { .. } => {

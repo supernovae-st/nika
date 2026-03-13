@@ -125,12 +125,12 @@ fn run_auto_setup() -> Result<SetupResult> {
         all_steps.push("Created default mcp.yaml".to_string());
     }
 
-    // Check Claude Code integration
-    let claude_dir = dirs::home_dir()
-        .expect("Could not determine home directory")
-        .join(".claude");
-    if claude_dir.exists() && !claude_dir.join("settings.json").exists() {
-        all_warnings.push("Claude Code detected but settings.json not found".to_string());
+    // Check Claude Code integration (skip if home directory unavailable)
+    if let Some(home) = dirs::home_dir() {
+        let claude_dir = home.join(".claude");
+        if claude_dir.exists() && !claude_dir.join("settings.json").exists() {
+            all_warnings.push("Claude Code detected but settings.json not found".to_string());
+        }
     }
 
     if all_steps.is_empty() {
@@ -242,7 +242,7 @@ fn setup_claude_code() -> Result<SetupResult> {
 
     // Check if Claude Code is installed
     let claude_dir = dirs::home_dir()
-        .expect("Could not determine home directory")
+        .ok_or(NikaError::HomeDirectoryNotFound)?
         .join(".claude");
 
     if !claude_dir.exists() {

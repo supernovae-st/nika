@@ -99,16 +99,30 @@ pub struct Editor {
 
 impl Editor {
     /// Create an Editor instance by detecting installation.
+    ///
+    /// If the home directory cannot be determined (e.g., in containers),
+    /// the editor is marked as not installed with empty paths.
     pub fn detect(kind: EditorKind) -> Self {
-        let config_dir = Self::resolve_config_dir(kind);
-        let installed = config_dir.exists();
-        let mcp_config_path = config_dir.join(kind.mcp_config_filename());
-
-        Self {
-            kind,
-            installed,
-            config_dir,
-            mcp_config_path,
+        match Self::resolve_config_dir(kind) {
+            Some(config_dir) => {
+                let installed = config_dir.exists();
+                let mcp_config_path = config_dir.join(kind.mcp_config_filename());
+                Self {
+                    kind,
+                    installed,
+                    config_dir,
+                    mcp_config_path,
+                }
+            }
+            None => {
+                // Graceful degradation: mark as not installed if home dir unavailable
+                Self {
+                    kind,
+                    installed: false,
+                    config_dir: PathBuf::new(),
+                    mcp_config_path: PathBuf::new(),
+                }
+            }
         }
     }
 
@@ -129,9 +143,10 @@ impl Editor {
     }
 
     /// Resolve the config directory for an editor.
-    fn resolve_config_dir(kind: EditorKind) -> PathBuf {
-        let home = dirs::home_dir().expect("Could not determine home directory");
-        home.join(kind.config_dir_name())
+    ///
+    /// Returns None if the home directory cannot be determined (e.g., in containers).
+    fn resolve_config_dir(kind: EditorKind) -> Option<PathBuf> {
+        dirs::home_dir().map(|home| home.join(kind.config_dir_name()))
     }
 
     /// Check if MCP config file exists.

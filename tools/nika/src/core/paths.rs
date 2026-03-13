@@ -113,6 +113,27 @@ pub fn nika_home_opt() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(NIKA_DIR_NAME))
 }
 
+/// Returns the Nika home directory, or an error if it cannot be determined.
+///
+/// This is the Result-returning version of [`nika_home`] for use in fallible contexts.
+///
+/// # Errors
+///
+/// Returns [`NikaError::HomeDirectoryNotFound`] if the home directory cannot be determined
+/// and `NIKA_HOME` is not set.
+pub fn nika_home_result() -> Result<PathBuf, crate::NikaError> {
+    nika_home_opt().ok_or(crate::NikaError::HomeDirectoryNotFound)
+}
+
+/// Returns the user's home directory, or an error if it cannot be determined.
+///
+/// # Errors
+///
+/// Returns [`NikaError::HomeDirectoryNotFound`] if the home directory cannot be determined.
+pub fn user_home_result() -> Result<PathBuf, crate::NikaError> {
+    dirs::home_dir().ok_or(crate::NikaError::HomeDirectoryNotFound)
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DIRECTORY PATHS
 // ═══════════════════════════════════════════════════════════════════════════
