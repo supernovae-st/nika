@@ -825,6 +825,68 @@ impl StreamResult {
     }
 }
 
+/// Consume a rig-core streaming response, forwarding chunks to the channel.
+///
+/// Shared streaming loop for all rig-core providers. Handles:
+/// - Per-chunk timeout via `STREAM_CHUNK_TIMEOUT`
+/// - Token text forwarding via `StreamChunk::Token`
+/// - Optional thinking/reasoning capture (Claude only)
+/// - Token usage extraction from `Final` response
+///
+/// Returns early on timeout or stream error.
+async fn consume_rig_stream<R>(
+    stream: &mut rig::streaming::StreamingCompletionResponse<R>,
+    tx: &mpsc::Sender<StreamChunk>,
+    response_parts: &mut Vec<String>,
+    result: &mut StreamResult,
+    capture_thinking: bool,
+) -> Result<(), RigInferError>
+where
+    R: Clone + Unpin + GetTokenUsage + serde::Serialize + serde::de::DeserializeOwned,
+{
+    loop {
+        let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
+            Ok(Some(result)) => result,
+            Ok(None) => break,
+            Err(_elapsed) => {
+                let _ = tx.try_send(StreamChunk::Error(format!(
+                    "Stream timeout: no chunk received for {}s",
+                    STREAM_CHUNK_TIMEOUT.as_secs()
+                )));
+                return Err(RigInferError::Timeout {
+                    duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
+                });
+            }
+        };
+
+        match chunk_result {
+            Ok(content) => match content {
+                StreamedAssistantContent::Text(text) => {
+                    response_parts.push(text.text.clone());
+                    let _ = tx.try_send(StreamChunk::Token(text.text));
+                }
+                StreamedAssistantContent::ReasoningDelta { reasoning, .. } if capture_thinking => {
+                    let _ = tx.try_send(StreamChunk::Thinking(reasoning));
+                }
+                StreamedAssistantContent::Final(response) => {
+                    if let Some(usage) = response.token_usage() {
+                        result.input_tokens = usage.input_tokens;
+                        result.output_tokens = usage.output_tokens;
+                        result.total_tokens = usage.total_tokens;
+                        result.cached_input_tokens = usage.cached_input_tokens;
+                    }
+                }
+                _ => {}
+            },
+            Err(e) => {
+                let _ = tx.try_send(StreamChunk::Error(e.to_string()));
+                return Err(RigInferError::PromptError(e.to_string()));
+            }
+        }
+    }
+    Ok(())
+}
+
 impl RigProvider {
     /// Stream text completion with real-time token updates
     ///
@@ -850,301 +912,63 @@ impl RigProvider {
         match self {
             RigProvider::Claude(client) => {
                 let model = client.completion_model(model_id);
-                // Anthropic requires max_tokens to be set explicitly
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break, // Stream ended normally
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                // Use try_send to avoid blocking when receiver is dropped (executor mode)
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
-                                let _ = tx.try_send(StreamChunk::Thinking(reasoning));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                // Extract token usage from final response
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {
-                                // ToolCall, ToolCallDelta, Reasoning - not used in simple infer
-                            }
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, true)
+                    .await?;
             }
             RigProvider::OpenAI(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                // Extract token usage from final response
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
-            // v0.7: Full streaming support for all providers
             RigProvider::Mistral(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             RigProvider::Groq(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             RigProvider::DeepSeek(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                // v0.8.5: Per-chunk timeout to prevent hanging streams
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
-            // v0.15.0: Gemini provider streaming
             RigProvider::Gemini(client) => {
                 let model = client.completion_model(model_id);
                 let request = model.completion_request(prompt).max_tokens(8192).build();
-
                 let mut stream = model
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             // v0.26: Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
@@ -1228,340 +1052,53 @@ impl RigProvider {
             prompt.to_string()
         };
 
+        // Helper: build request with options and start streaming
+        macro_rules! build_request_with_options {
+            ($client:expr) => {{
+                let model = $client.completion_model(model_id);
+                let mut rb = model
+                    .completion_request(&full_prompt)
+                    .max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    rb = rb.temperature(temp);
+                }
+                model
+                    .stream(rb.build())
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?
+            }};
+        }
+
         match self {
             RigProvider::Claude(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
-                                let _ = tx.try_send(StreamChunk::Thinking(reasoning));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, true)
+                    .await?;
             }
             RigProvider::OpenAI(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             RigProvider::Mistral(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             RigProvider::Groq(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             RigProvider::DeepSeek(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
-            // v0.15.0: Gemini provider streaming with options
             RigProvider::Gemini(client) => {
-                let model = client.completion_model(model_id);
-                let mut request_builder = model
-                    .completion_request(&full_prompt)
-                    .max_tokens(max_tokens as u64);
-
-                if let Some(temp) = options.temperature {
-                    request_builder = request_builder.temperature(temp);
-                }
-
-                let request = request_builder.build();
-
-                let mut stream = model
-                    .stream(request)
-                    .await
-                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-
-                loop {
-                    let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
-                        Ok(Some(result)) => result,
-                        Ok(None) => break,
-                        Err(_elapsed) => {
-                            let _ = tx.try_send(StreamChunk::Error(format!(
-                                "Stream timeout: no chunk received for {}s",
-                                STREAM_CHUNK_TIMEOUT.as_secs()
-                            )));
-                            return Err(RigInferError::Timeout {
-                                duration_ms: STREAM_CHUNK_TIMEOUT.as_millis() as u64,
-                            });
-                        }
-                    };
-
-                    match chunk_result {
-                        Ok(content) => match content {
-                            StreamedAssistantContent::Text(text) => {
-                                response_parts.push(text.text.clone());
-                                let _ = tx.try_send(StreamChunk::Token(text.text));
-                            }
-                            StreamedAssistantContent::Final(response) => {
-                                if let Some(usage) = response.token_usage() {
-                                    result.input_tokens = usage.input_tokens;
-                                    result.output_tokens = usage.output_tokens;
-                                    result.total_tokens = usage.total_tokens;
-                                    result.cached_input_tokens = usage.cached_input_tokens;
-                                }
-                            }
-                            _ => {}
-                        },
-                        Err(e) => {
-                            let _ = tx.try_send(StreamChunk::Error(e.to_string()));
-                            return Err(RigInferError::PromptError(e.to_string()));
-                        }
-                    }
-                }
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
             }
             // v0.26: Native provider - uses infer_stream() with options for true streaming
             #[cfg(feature = "native-inference")]
