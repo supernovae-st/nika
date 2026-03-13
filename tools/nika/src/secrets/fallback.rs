@@ -91,7 +91,15 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 }
 
 /// Try loading from keyring and inject into env if found.
+///
+/// During tests (`cfg(test)`), always returns false to avoid macOS Keychain popups.
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
+    // Never access real keychain during tests — prevents macOS popup storms
+    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+        trace!("{}: keychain skipped (test mode or NIKA_SKIP_KEYCHAIN)", provider);
+        return false;
+    }
+
     match NikaKeyring::get(provider) {
         Ok(secret) => {
             std::env::set_var(env_var, &*secret);
@@ -116,6 +124,11 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
+    // Skip keychain in tests to prevent macOS popup storms
+    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+        return None;
+    }
+
     // Fall back to keyring
     NikaKeyring::get_secret(provider).ok()
 }
@@ -127,6 +140,11 @@ pub async fn has_secret(provider: &str) -> bool {
     // Check env first
     if std::env::var(env_var).is_ok() {
         return true;
+    }
+
+    // Skip keychain in tests to prevent macOS popup storms
+    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+        return false;
     }
 
     // Fall back to keyring

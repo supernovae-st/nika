@@ -77,10 +77,10 @@ mod native {
         ///
         /// v0.28: Tries "nika" service first, falls back to legacy "spn" service.
         ///
-        /// Returns NotFound error if NIKA_SKIP_KEYCHAIN=1 is set (for CI/testing).
+        /// Returns NotFound error if NIKA_SKIP_KEYCHAIN is set (for CI/testing).
         pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
-            // Skip keychain access if NIKA_SKIP_KEYCHAIN is set
-            if std::env::var("NIKA_SKIP_KEYCHAIN").is_ok() {
+            // Skip keychain access if NIKA_SKIP_KEYCHAIN is truthy
+            if super::should_skip_keychain() {
                 return Err(KeyringError::NotFound(format!(
                     "{} (keychain skipped via NIKA_SKIP_KEYCHAIN)",
                     provider
@@ -156,13 +156,14 @@ mod native {
         /// Migrate a key from legacy "spn" to new "nika" service.
         ///
         /// Returns Ok(true) if migrated, Ok(false) if nothing to migrate.
+        /// Password is wrapped in `Zeroizing` for automatic memory cleanup.
         pub fn migrate_legacy(provider: &str) -> Result<bool, KeyringError> {
             // Check if key exists under legacy service
             let legacy_entry = Entry::new(LEGACY_SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
             let password = match legacy_entry.get_password() {
-                Ok(p) => p,
+                Ok(p) => Zeroizing::new(p),
                 Err(keyring::Error::NoEntry) => return Ok(false), // Nothing to migrate
                 Err(e) => return Err(KeyringError::AccessError(e.to_string())),
             };
@@ -178,15 +179,16 @@ mod native {
             // Delete from legacy service
             let _ = legacy_entry.delete_credential(); // Ignore errors on cleanup
 
+            // `password` is automatically zeroized when dropped here
             Ok(true)
         }
 
         /// Get masked version of stored key.
         ///
-        /// Returns None if NIKA_SKIP_KEYCHAIN=1 is set (for CI/testing).
+        /// Returns None if NIKA_SKIP_KEYCHAIN is set (for CI/testing).
         pub fn get_masked(provider: &str) -> Option<String> {
-            // Skip keychain access if NIKA_SKIP_KEYCHAIN is set
-            if std::env::var("NIKA_SKIP_KEYCHAIN").is_ok() {
+            // Skip keychain access if NIKA_SKIP_KEYCHAIN is truthy
+            if super::should_skip_keychain() {
                 return None;
             }
             Self::get(provider).ok().map(|k| super::mask_api_key(&k))
@@ -194,11 +196,14 @@ mod native {
     }
 }
 
-/// Check if keychain access should be skipped (NIKA_SKIP_KEYCHAIN=1).
+/// Check if keychain access should be skipped.
 ///
+/// Checks `NIKA_SKIP_KEYCHAIN` env var for truthy values ("1", "true", "yes").
 /// Use this to avoid keychain popup storms during testing or CI.
 pub fn should_skip_keychain() -> bool {
-    std::env::var("NIKA_SKIP_KEYCHAIN").is_ok()
+    std::env::var("NIKA_SKIP_KEYCHAIN")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -499,11 +504,14 @@ mod tests {
     }
 
     // Tests that are only relevant with native-keychain
+    // These tests are #[ignore] by default to avoid macOS Keychain popups.
+    // Run explicitly with: cargo test -- --ignored
     #[cfg(feature = "native-keychain")]
     mod native_tests {
         use super::*;
 
         #[test]
+        #[ignore = "Requires real OS keychain access — causes macOS popup"]
         fn test_spn_keyring_not_found() {
             // Test that querying a non-existent key returns NotFound
             let result = NikaKeyring::get("nonexistent_provider_test_xyz");
