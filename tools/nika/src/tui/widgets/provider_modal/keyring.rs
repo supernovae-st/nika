@@ -76,7 +76,17 @@ mod native {
         /// The returned string will be automatically zeroized when dropped.
         ///
         /// v0.28: Tries "nika" service first, falls back to legacy "spn" service.
+        ///
+        /// Returns NotFound error if NIKA_SKIP_KEYCHAIN=1 is set (for CI/testing).
         pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
+            // Skip keychain access if NIKA_SKIP_KEYCHAIN is set
+            if std::env::var("NIKA_SKIP_KEYCHAIN").is_ok() {
+                return Err(KeyringError::NotFound(format!(
+                    "{} (keychain skipped via NIKA_SKIP_KEYCHAIN)",
+                    provider
+                )));
+            }
+
             // Try primary service name first ("nika")
             let entry = Entry::new(SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
@@ -172,10 +182,23 @@ mod native {
         }
 
         /// Get masked version of stored key.
+        ///
+        /// Returns None if NIKA_SKIP_KEYCHAIN=1 is set (for CI/testing).
         pub fn get_masked(provider: &str) -> Option<String> {
+            // Skip keychain access if NIKA_SKIP_KEYCHAIN is set
+            if std::env::var("NIKA_SKIP_KEYCHAIN").is_ok() {
+                return None;
+            }
             Self::get(provider).ok().map(|k| super::mask_api_key(&k))
         }
     }
+}
+
+/// Check if keychain access should be skipped (NIKA_SKIP_KEYCHAIN=1).
+///
+/// Use this to avoid keychain popup storms during testing or CI.
+pub fn should_skip_keychain() -> bool {
+    std::env::var("NIKA_SKIP_KEYCHAIN").is_ok()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
