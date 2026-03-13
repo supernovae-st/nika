@@ -198,12 +198,18 @@ mod native {
 
 /// Check if keychain access should be skipped.
 ///
-/// Checks `NIKA_SKIP_KEYCHAIN` env var for truthy values ("1", "true", "yes").
-/// Use this to avoid keychain popup storms during testing or CI.
+/// Returns `true` in any of these cases:
+/// - Binary was compiled in test mode (`cfg!(test)`)
+/// - `NIKA_SKIP_KEYCHAIN` env var is truthy ("1", "true", "yes")
+///
+/// This prevents macOS Keychain popup storms during development.
+/// Each `cargo build`/`cargo test` produces a binary with a new CDHash,
+/// causing macOS to re-prompt for keychain access every time.
 pub fn should_skip_keychain() -> bool {
-    std::env::var("NIKA_SKIP_KEYCHAIN")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
-        .unwrap_or(false)
+    cfg!(test)
+        || std::env::var("NIKA_SKIP_KEYCHAIN")
+            .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
