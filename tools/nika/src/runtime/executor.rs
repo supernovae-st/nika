@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use tokio::sync::{mpsc, OnceCell};
+use tokio::sync::mpsc;
 use tracing::{debug, instrument};
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ use crate::ast::{
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{ContextSource, EventKind, EventLog};
-use crate::mcp::{McpClient, McpConfig};
+use crate::mcp::{McpClient, McpClientPool};
 use crate::provider::rig::{InferOptions, RigProvider, StreamChunk};
 use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::{PolicyDecision, PolicyEnforcer};
@@ -39,22 +39,12 @@ pub struct TaskExecutor {
     http_client: reqwest::Client,
     /// Cached rig-core providers (v0.3.1+)
     rig_provider_cache: Arc<DashMap<String, RigProvider>>,
-    /// Cached MCP clients with async-safe initialization (prevents race conditions in for_each)
+    /// Centralized MCP client pool (v0.28)
     ///
-    /// ## Why `Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>`?
-    ///
-    /// The triple-Arc structure is intentional:
-    ///
-    /// 1. **Outer `Arc<DashMap>`**: TaskExecutor derives Clone; Arc ensures clones share the cache.
-    /// 2. **Middle `Arc<OnceCell>`**: DashMap entry() returns RefMut that cannot be held across await.
-    ///    We clone `Arc<OnceCell>` to release the guard before calling get_or_try_init().await.
-    ///    Without this, we'd have the "lock-across-await" footgun causing shard starvation.
-    /// 3. **Inner `Arc<McpClient>`**: McpClient is shared across tasks; Arc enables cheap cloning.
-    ///
-    /// See tests/mcp_race_conditions_test.rs for validation.
-    mcp_client_cache: Arc<DashMap<String, Arc<OnceCell<Arc<McpClient>>>>>,
-    /// MCP server configurations from workflow
-    mcp_configs: Arc<FxHashMap<String, McpConfigInline>>,
+    /// Replaces the previous `mcp_client_cache` + `mcp_configs` pair.
+    /// Handles lazy initialization, per-server deduplication via DashMap + OnceCell,
+    /// and graceful shutdown. Shared across TaskExecutor, TUI App, and ChatAgent.
+    mcp_pool: McpClientPool,
     /// Default provider name
     default_provider: Arc<str>,
     /// Default model
@@ -112,8 +102,10 @@ impl TaskExecutor {
         Self {
             http_client,
             rig_provider_cache: Arc::new(DashMap::new()),
-            mcp_client_cache: Arc::new(DashMap::new()),
-            mcp_configs: Arc::new(mcp_configs.unwrap_or_default()),
+            mcp_pool: McpClientPool::with_configs(
+                event_log.clone(),
+                mcp_configs.unwrap_or_default(),
+            ),
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
@@ -128,11 +120,8 @@ impl TaskExecutor {
     /// Call this after creating the executor but before executing invoke actions.
     #[cfg(test)]
     pub fn inject_mock_mcp_client(&self, name: &str) {
-        let cell = Arc::new(OnceCell::new());
-        // Initialize the cell with a mock client
-        let mock = Arc::new(McpClient::mock(name));
-        cell.set(mock).expect("Cell should be empty");
-        self.mcp_client_cache.insert(name.to_string(), cell);
+        self.mcp_pool
+            .inject_mock(name, Arc::new(McpClient::mock(name)));
     }
 
     /// Expand a decompose spec into iteration items (v0.5)
@@ -1507,94 +1496,10 @@ impl TaskExecutor {
     /// Uses OnceCell per server to ensure thread-safe initialization.
     /// Even with concurrent for_each iterations, only one client is created per server.
     ///
-    /// Creates real MCP clients from workflow configuration if available,
-    /// otherwise falls back to mock clients for testing.
+    /// Delegates to [`McpClientPool::get_or_connect`] which handles lazy initialization,
+    /// per-server deduplication via DashMap + OnceCell, and event logging.
     async fn get_mcp_client(&self, name: &str) -> Result<Arc<McpClient>, NikaError> {
-        // Get or create the OnceCell for this server (atomic via DashMap entry)
-        let cell = self
-            .mcp_client_cache
-            .entry(name.to_string())
-            .or_insert_with(|| Arc::new(OnceCell::new()))
-            .clone();
-
-        // Clone what we need for the async closure
-        let mcp_configs = Arc::clone(&self.mcp_configs);
-        let name_owned = name.to_string();
-        let event_log = self.event_log.clone();
-
-        // OnceCell::get_or_try_init ensures only one initialization runs
-        // Other concurrent callers will wait for the first one to complete
-        let client = cell
-            .get_or_try_init(|| async {
-                let result: Result<Arc<McpClient>, NikaError> =
-                    if let Some(config) = mcp_configs.get(&name_owned) {
-                        // Build McpConfig from inline config
-                        let mut mcp_config = McpConfig::new(&name_owned, &config.command);
-                        for arg in &config.args {
-                            mcp_config = mcp_config.with_arg(arg);
-                        }
-                        for (key, value) in &config.env {
-                            mcp_config = mcp_config.with_env(key, value);
-                        }
-                        if let Some(cwd) = &config.cwd {
-                            mcp_config = mcp_config.with_cwd(cwd);
-                        }
-
-                        // Expand environment variables ($VAR, ${VAR}, ~) in command/args/env/cwd
-                        let mcp_config =
-                            mcp_config.expand_env_vars().map_err(|e| NikaError::McpStartError {
-                                name: name_owned.clone(),
-                                reason: format!("Environment variable expansion failed: {}", e),
-                            })?;
-
-                        // Create and connect real client
-                        let client =
-                            McpClient::new(mcp_config).map_err(|e| NikaError::McpStartError {
-                                name: name_owned.clone(),
-                                reason: e.to_string(),
-                            })?;
-
-                        match client.connect().await {
-                            Ok(()) => {
-                                // Cache tools for synchronous get_tool_definitions() access
-                                if let Err(e) = client.list_tools().await {
-                                    tracing::warn!(mcp_server = %name_owned, error = %e, "Failed to cache tools");
-                                }
-
-                                tracing::info!(mcp_server = %name_owned, "Connected to MCP server");
-
-                                // EMIT: McpConnected event for persistent logging (v0.7.0)
-                                event_log.emit(EventKind::McpConnected {
-                                    server_name: name_owned.clone(),
-                                });
-
-                                Ok(Arc::new(client))
-                            }
-                            Err(e) => {
-                                let error_msg = e.to_string();
-
-                                // EMIT: McpError event for persistent logging (v0.7.0)
-                                event_log.emit(EventKind::McpError {
-                                    server_name: name_owned.clone(),
-                                    error: error_msg.clone(),
-                                });
-
-                                Err(NikaError::McpStartError {
-                                    name: name_owned.clone(),
-                                    reason: error_msg,
-                                })
-                            }
-                        }
-                    } else {
-                        // No config found - this is an error in production
-                        tracing::error!(mcp_server = %name_owned, "MCP server not configured in workflow");
-                        Err(NikaError::McpNotConfigured { name: name_owned.clone() })
-                    };
-                result
-            })
-            .await?;
-
-        Ok(Arc::clone(client))
+        self.mcp_pool.get_or_connect(name).await
     }
 }
 
