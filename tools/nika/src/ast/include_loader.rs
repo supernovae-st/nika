@@ -290,7 +290,7 @@ fn merge_workflow(
     Ok(())
 }
 
-/// Prefix a task ID and use_wiring references (works with Arc<Task>)
+/// Prefix a task ID and use_wiring/with_spec references (works with Arc<Task>)
 fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
     match prefix {
         Some(prefix) if !prefix.is_empty() => {
@@ -302,6 +302,17 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
             if let Some(ref mut wiring) = new_task.use_wiring {
                 for entry in wiring.values_mut() {
                     entry.path = prefix_binding_path(&entry.path, prefix);
+                }
+            }
+
+            // Also prefix with_spec task references (v0.28)
+            if let Some(ref mut with_spec) = new_task.with_spec {
+                use crate::binding::types::BindingSource;
+                for entry in with_spec.values_mut() {
+                    if let BindingSource::Task(ref id) = entry.source.source {
+                        let prefixed = format!("{}{}", prefix, id);
+                        entry.source.source = BindingSource::Task(prefixed.into());
+                    }
                 }
             }
 
@@ -395,6 +406,7 @@ mod tests {
         let task = Arc::new(Task {
             id: "generate".to_string(),
             use_wiring: None,
+            with_spec: None,
             output: None,
             decompose: None,
             for_each: None,
@@ -453,6 +465,7 @@ mod tests {
         let task = Arc::new(Task {
             id: "processor".to_string(),
             use_wiring: Some(wiring),
+            with_spec: None,
             output: None,
             decompose: None,
             for_each: None,

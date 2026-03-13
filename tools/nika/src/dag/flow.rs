@@ -1,4 +1,4 @@
-//! Dag - DAG structure built from workflow flows (optimized)
+//! Dag - DAG structure built from analyzed workflow (optimized)
 //!
 //! Performance optimizations:
 //! - `Arc<str>` for zero-cost cloning of task IDs
@@ -7,6 +7,13 @@
 //!
 //! DAG Validation:
 //! - Cycle detection using DFS three-color algorithm
+//!
+//! ## v0.28 Changes
+//!
+//! - `from_workflow(&Workflow)` → `from_analyzed(&AnalyzedWorkflow)`
+//! - Reads pre-computed `depends_on` + `implicit_deps` from analyzer
+//! - No more manual use: wiring extraction (BUG-003 fix now in analyzer)
+//! - No more legacy `flows:` / `task.flow` processing
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -14,6 +21,7 @@ use std::sync::Arc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
 
+use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::ast::Workflow;
 use crate::error::NikaError;
 use crate::util::intern;
@@ -21,9 +29,16 @@ use crate::util::intern;
 /// Stack-allocated deps: most tasks have 0-4 dependencies
 pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 
-/// Graph of task dependencies built from flows
+/// Graph of task dependencies built from analyzed workflow
 ///
 /// Uses `Arc<str>` + FxHashMap + SmallVec for maximum performance.
+///
+/// ## v0.28
+///
+/// Built from `AnalyzedWorkflow` where dependencies are pre-computed:
+/// - `task.depends_on: Vec<TaskId>` — explicit ordering edges
+/// - `task.implicit_deps: Vec<TaskId>` — auto-extracted from `with:` bindings
+#[derive(Debug)]
 pub struct Dag {
     /// task_id -> list of successor task_ids (SmallVec: stack-allocated for ≤4)
     adjacency: FxHashMap<Arc<str>, DepVec>,
@@ -32,17 +47,22 @@ pub struct Dag {
     /// All task IDs (for iteration)
     task_ids: Vec<Arc<str>>,
     /// Quick lookup for task existence (FxHashSet: faster hashing)
-    #[allow(dead_code)] // Used in from_workflow for Arc<str> reuse
+    #[allow(dead_code)]
     task_set: FxHashSet<Arc<str>>,
 }
 
 impl Dag {
-    /// Build a DAG from a workflow.
+    /// Build a DAG from an analyzed workflow.
+    ///
+    /// The `AnalyzedWorkflow` has already validated unique task IDs and
+    /// pre-computed both explicit (`depends_on`) and implicit (`implicit_deps`)
+    /// dependencies during the analysis phase.
     ///
     /// # Errors
     ///
-    /// Returns `Err(NikaError::DuplicateTaskId)` if duplicate task IDs are found.
-    pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
+    /// Returns `Err(NikaError::DuplicateTaskId)` if duplicate task IDs are
+    /// found (defense-in-depth; analyzer should have caught this).
+    pub fn from_analyzed(workflow: &AnalyzedWorkflow) -> Result<Self, NikaError> {
         let capacity = workflow.tasks.len();
         let mut adjacency: FxHashMap<Arc<str>, DepVec> =
             FxHashMap::with_capacity_and_hasher(capacity, Default::default());
@@ -53,12 +73,12 @@ impl Dag {
             FxHashSet::with_capacity_and_hasher(capacity, Default::default());
 
         // Intern task IDs once, reuse everywhere (single allocation per unique ID)
-        // BUG-001 FIX: Detect duplicate task IDs before insertion
+        // Defense-in-depth: duplicate check (analyzer already validates this)
         for task in &workflow.tasks {
-            let id = intern(&task.id); // Interned Arc<str>
+            let id = intern(&task.name);
             if task_set.contains(&id) {
                 return Err(NikaError::DuplicateTaskId {
-                    task_id: task.id.clone(),
+                    task_id: task.name.clone(),
                 });
             }
             task_ids.push(Arc::clone(&id));
@@ -67,46 +87,31 @@ impl Dag {
             predecessors.insert(id, DepVec::new());
         }
 
-        // Build from workflow-level flows: (lookup Arc from set or intern)
-        for flow in &workflow.flows {
-            let sources = flow.source.as_vec();
-            let targets = flow.target.as_vec();
-
-            for source in &sources {
-                for target in &targets {
-                    // Find existing Arc<str> or intern new (shouldn't happen if task exists)
-                    let src_arc = task_set
-                        .get(*source)
-                        .cloned()
-                        .unwrap_or_else(|| intern(source));
-                    let tgt_arc = task_set
-                        .get(*target)
-                        .cloned()
-                        .unwrap_or_else(|| intern(target));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors.entry(tgt_arc).or_default().push(src_arc);
-                }
-            }
-        }
-
-        // Build from task-level flow: (v0.1+)
-        // flow: [dep1, dep2] means dep1 -> this_task, dep2 -> this_task
+        // Build edges from pre-computed dependencies (depends_on + implicit_deps).
+        // Both are Vec<TaskId> resolved by the analyzer.
         for task in &workflow.tasks {
-            if let Some(ref deps) = task.flow {
-                let tgt_arc = task_set
-                    .get(task.id.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| intern(&task.id));
+            let tgt_arc = task_set
+                .get(task.name.as_str())
+                .cloned()
+                .unwrap_or_else(|| intern(&task.name));
 
-                for dep in deps {
+            // Collect all dependency TaskIds, deduplicating across depends_on and implicit_deps
+            let mut seen_deps: FxHashSet<&str> = FxHashSet::default();
+
+            // Process explicit depends_on edges
+            for dep_id in &task.depends_on {
+                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
+                    if dep_name == task.name {
+                        continue; // Skip self-references
+                    }
+                    if !seen_deps.insert(dep_name) {
+                        continue; // Already processed
+                    }
+
                     let src_arc = task_set
-                        .get(dep.as_str())
+                        .get(dep_name)
                         .cloned()
-                        .unwrap_or_else(|| intern(dep));
+                        .unwrap_or_else(|| intern(dep_name));
 
                     adjacency
                         .entry(Arc::clone(&src_arc))
@@ -118,48 +123,30 @@ impl Dag {
                         .push(src_arc);
                 }
             }
-        }
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // BUG-003 FIX: Build implicit edges from task-level use: wiring (v0.22.4)
-        // use: { data: step1 } creates implicit dependency: step1 -> this_task
-        // ═══════════════════════════════════════════════════════════════════════════
-        for task in &workflow.tasks {
-            if let Some(ref wiring) = task.use_wiring {
-                let tgt_arc = task_set
-                    .get(task.id.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| intern(&task.id));
-
-                for entry in wiring.values() {
-                    let dep_task_id = entry.task_id();
-
-                    // Skip self-references
-                    if dep_task_id == task.id {
-                        continue;
+            // Process implicit dependencies (from with: bindings)
+            for dep_id in &task.implicit_deps {
+                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
+                    if dep_name == task.name {
+                        continue; // Skip self-references
                     }
-
-                    // Skip non-task paths: context.*, inputs.*, etc.
-                    // Only create edges for actual task references
-                    if !task_set.contains(dep_task_id) {
-                        continue;
+                    if !seen_deps.insert(dep_name) {
+                        continue; // Already in depends_on, skip duplicate
                     }
 
                     let src_arc = task_set
-                        .get(dep_task_id)
+                        .get(dep_name)
                         .cloned()
-                        .unwrap_or_else(|| intern(dep_task_id));
+                        .unwrap_or_else(|| intern(dep_name));
 
-                    // Add edge: dependency -> current_task (avoid duplicates)
-                    let adj_entry = adjacency.entry(Arc::clone(&src_arc)).or_default();
-                    if !adj_entry.iter().any(|x| x.as_ref() == tgt_arc.as_ref()) {
-                        adj_entry.push(Arc::clone(&tgt_arc));
-                    }
-
-                    let pred_entry = predecessors.entry(Arc::clone(&tgt_arc)).or_default();
-                    if !pred_entry.iter().any(|x| x.as_ref() == src_arc.as_ref()) {
-                        pred_entry.push(src_arc);
-                    }
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
                 }
             }
         }
@@ -293,7 +280,7 @@ impl Dag {
 
     /// Check if task exists
     #[inline]
-    #[allow(dead_code)] // Used for future validation
+    #[allow(dead_code)]
     pub fn contains(&self, task_id: &str) -> bool {
         self.task_set.contains(task_id)
     }
@@ -367,11 +354,10 @@ impl Dag {
                     match colors.get(neighbor) {
                         Some(Color::Gray) => {
                             // Found cycle - build path from stack
-                            // SAFETY: neighbor is Gray means it's in the current DFS path (stack)
                             let cycle_start = stack
                                 .iter()
                                 .position(|x| x.as_ref() == neighbor.as_ref())
-                                .unwrap_or(0); // Defensive: default to start if invariant fails
+                                .unwrap_or(0);
                             let cycle: Vec<&str> =
                                 stack[cycle_start..].iter().map(|s| s.as_ref()).collect();
                             return Err(format!("{} → {}", cycle.join(" → "), neighbor));
@@ -404,62 +390,244 @@ impl Dag {
 
         Ok(())
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LEGACY SHIM — Old Workflow → Dag (v0.27 compat)
+    // TODO(v0.28-cleanup): Remove when callers migrate to AnalyzedWorkflow
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Build a DAG from an old-style `Workflow` struct.
+    ///
+    /// This is a legacy compatibility shim. New code should use
+    /// `Dag::from_analyzed()` with `AnalyzedWorkflow`.
+    pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
+        let capacity = workflow.tasks.len();
+        let mut adjacency: FxHashMap<Arc<str>, DepVec> =
+            FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        let mut predecessors: FxHashMap<Arc<str>, DepVec> =
+            FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        let mut task_ids: Vec<Arc<str>> = Vec::with_capacity(capacity);
+        let mut task_set: FxHashSet<Arc<str>> =
+            FxHashSet::with_capacity_and_hasher(capacity, Default::default());
+
+        // Register all task IDs
+        for task in &workflow.tasks {
+            let id = intern(&task.id);
+            if task_set.contains(&id) {
+                return Err(NikaError::DuplicateTaskId {
+                    task_id: task.id.clone(),
+                });
+            }
+            task_ids.push(Arc::clone(&id));
+            task_set.insert(Arc::clone(&id));
+            adjacency.insert(Arc::clone(&id), DepVec::new());
+            predecessors.insert(id, DepVec::new());
+        }
+
+        // Build edges from workflow-level flows
+        for flow in &workflow.flows {
+            let sources = flow.source.as_vec();
+            let targets = flow.target.as_vec();
+            for src in &sources {
+                for tgt in &targets {
+                    let src_arc = task_set
+                        .get(*src)
+                        .cloned()
+                        .unwrap_or_else(|| intern(src));
+                    let tgt_arc = task_set
+                        .get(*tgt)
+                        .cloned()
+                        .unwrap_or_else(|| intern(tgt));
+
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
+                }
+            }
+        }
+
+        // Build edges from task-level flow/depends_on
+        for task in &workflow.tasks {
+            if let Some(ref deps) = task.flow {
+                let tgt_arc = task_set
+                    .get(task.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| intern(&task.id));
+                for dep in deps {
+                    let src_arc = task_set
+                        .get(dep.as_str())
+                        .cloned()
+                        .unwrap_or_else(|| intern(dep));
+
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
+                }
+            }
+
+            // BUG-003: Add implicit edges from with: or use: wiring references
+            if let Some(ref with_spec) = task.with_spec {
+                // v0.28: with: block — WithEntry.task_id() returns Option<&str>
+                let tgt_arc = task_set
+                    .get(task.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| intern(&task.id));
+                for entry in with_spec.values() {
+                    let Some(from_task) = entry.task_id() else {
+                        continue; // Context/Input/Env/LoopVar — not a task ref
+                    };
+                    if from_task == task.id || !task_set.contains(from_task) {
+                        continue;
+                    }
+                    let src_arc = task_set
+                        .get(from_task)
+                        .cloned()
+                        .unwrap_or_else(|| intern(from_task));
+
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
+                }
+            } else if let Some(ref wiring) = task.use_wiring {
+                let tgt_arc = task_set
+                    .get(task.id.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| intern(&task.id));
+                for entry in wiring.values() {
+                    let from_task = entry.task_id();
+                    if from_task == task.id || !task_set.contains(from_task) {
+                        continue;
+                    }
+                    let src_arc = task_set
+                        .get(from_task)
+                        .cloned()
+                        .unwrap_or_else(|| intern(from_task));
+
+                    adjacency
+                        .entry(Arc::clone(&src_arc))
+                        .or_default()
+                        .push(Arc::clone(&tgt_arc));
+                    predecessors
+                        .entry(Arc::clone(&tgt_arc))
+                        .or_default()
+                        .push(src_arc);
+                }
+            }
+        }
+
+        Ok(Self {
+            adjacency,
+            predecessors,
+            task_ids,
+            task_set,
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serde_yaml;
+    use crate::ast::analyzed::{
+        AnalyzedInferAction, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, TaskId, TaskTable,
+    };
+    use crate::binding::WithSpec;
+    use crate::source::Span;
+
+    /// Helper: build an AnalyzedWorkflow from a list of task descriptors.
+    ///
+    /// Each descriptor is (name, depends_on_names, implicit_dep_names).
+    fn build_workflow(
+        descriptors: &[(&str, &[&str], &[&str])],
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        let mut tasks = Vec::new();
+
+        // First pass: insert all task names into the table
+        for (name, _, _) in descriptors {
+            task_table.insert(name);
+        }
+
+        // Second pass: build AnalyzedTask structs with resolved IDs
+        for (name, depends_on_names, implicit_dep_names) in descriptors {
+            let id = task_table.get_id(name).unwrap();
+            let depends_on: Vec<TaskId> = depends_on_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+            let implicit_deps: Vec<TaskId> = implicit_dep_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+
+            tasks.push(AnalyzedTask {
+                id,
+                name: name.to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on,
+                implicit_deps,
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            });
+        }
+
+        AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
-    // BUG-003: IMPLICIT DEPENDS_ON FROM USE: WIRING
+    // IMPLICIT DEPENDENCIES FROM with: BINDINGS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_use_wiring_creates_implicit_dependency() {
-        // BUG-003: use: { data: step1 } should create step1 -> step2 edge
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_implicit_dep
-tasks:
-  - id: step1
-    infer: "Generate data"
-  - id: step2
-    use:
-      data: step1
-    infer: "Process: {{use.data}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+    fn test_implicit_dep_creates_edge() {
+        // with: { data: step1.result } → implicit_deps=[step1] → step1 -> step2 edge
+        let workflow = build_workflow(&[
+            ("step1", &[], &[]),
+            ("step2", &[], &["step1"]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        // step2 should depend on step1 (implicit from use:)
         let deps = dag.get_dependencies("step2");
         assert!(
             deps.iter().any(|d| d.as_ref() == "step1"),
-            "step2 should have implicit dependency on step1 from use: block"
+            "step2 should have implicit dependency on step1 from with: binding"
         );
     }
 
     #[test]
-    fn test_use_wiring_no_duplicate_edges() {
-        // When both use: and depends_on: reference same task, only 1 edge
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_no_dup
-tasks:
-  - id: step1
-    infer: "Generate"
-  - id: step2
-    depends_on: [step1]
-    use:
-      data: step1
-    infer: "{{use.data}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+    fn test_no_duplicate_edges() {
+        // When both depends_on and implicit_deps reference same task, only 1 edge
+        let workflow = build_workflow(&[
+            ("step1", &[], &[]),
+            ("step2", &["step1"], &["step1"]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step2");
-        // Should have exactly 1 edge, not 2 (deduped)
         let step1_count = deps.iter().filter(|d| d.as_ref() == "step1").count();
         assert_eq!(
             step1_count, 1,
@@ -468,65 +636,26 @@ tasks:
     }
 
     #[test]
-    fn test_use_wiring_skips_context_refs() {
-        // context.files.* paths should NOT create task dependencies
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_context_ref
-tasks:
-  - id: step1
-    use:
-      brand: context.files.brand
-    infer: "{{use.brand}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+    fn test_no_deps_for_context_only_tasks() {
+        // Tasks with no depends_on and no implicit_deps should have no predecessors
+        let workflow = build_workflow(&[
+            ("step1", &[], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("step1");
-        assert!(deps.is_empty(), "context refs should not create task deps");
+        assert!(deps.is_empty(), "Task with no deps should have no predecessors");
     }
 
     #[test]
-    fn test_use_wiring_skips_inputs_refs() {
-        // inputs.* paths should NOT create task dependencies
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_inputs_ref
-inputs:
-  message:
-    type: string
-tasks:
-  - id: step1
-    use:
-      msg: inputs.message
-    infer: "{{use.msg}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
-
-        let deps = dag.get_dependencies("step1");
-        assert!(deps.is_empty(), "inputs refs should not create task deps");
-    }
-
-    #[test]
-    fn test_use_wiring_multiple_deps() {
-        // Multiple use: entries create multiple edges
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_multi_deps
-tasks:
-  - id: a
-    infer: "A"
-  - id: b
-    infer: "B"
-  - id: c
-    use:
-      data_a: a
-      data_b: b
-    infer: "{{use.data_a}} + {{use.data_b}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+    fn test_multiple_implicit_deps() {
+        // Multiple with: entries create multiple edges
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &[], &[]),
+            ("c", &[], &["a", "b"]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deps = dag.get_dependencies("c");
         assert!(
@@ -540,55 +669,34 @@ tasks:
     }
 
     #[test]
-    fn test_use_wiring_with_field_path() {
-        // use: { data: task.field } should create dependency on "task"
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_field_path
-tasks:
-  - id: producer
-    infer: "Produce"
-  - id: consumer
-    use:
-      name: producer.name
-      price: producer.price
-    infer: "{{use.name}} costs {{use.price}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+    fn test_mixed_depends_on_and_implicit() {
+        // depends_on=[a], implicit_deps=[b] → both edges present, no duplicates
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &[], &[]),
+            ("c", &["a"], &["b"]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        let deps = dag.get_dependencies("consumer");
-        // Both refs are to "producer" (task_id extracts first segment)
-        let producer_count = deps.iter().filter(|d| d.as_ref() == "producer").count();
-        assert_eq!(
-            producer_count, 1,
-            "Should have exactly 1 edge to producer (deduped)"
-        );
+        let deps = dag.get_dependencies("c");
+        assert_eq!(deps.len(), 2, "Should have 2 dependencies (a + b)");
+        assert!(deps.iter().any(|d| d.as_ref() == "a"));
+        assert!(deps.iter().any(|d| d.as_ref() == "b"));
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // BUG-004: DEEPEST TERMINAL TASK SELECTION
+    // DEEPEST TERMINAL TASK SELECTION (BUG-004)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn test_deepest_final_task_simple_chain() {
-        // a -> b -> c (depths: 0, 1, 2)
-        // c should be selected as deepest terminal
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: chain
-tasks:
-  - id: a
-    infer: "A"
-  - id: b
-    depends_on: [a]
-    infer: "B"
-  - id: c
-    depends_on: [b]
-    infer: "C"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+        // a -> b -> c (depths: 0, 1, 2) — c should be deepest terminal
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "c");
@@ -599,24 +707,13 @@ tasks:
         // source -> branch_a (depth 1, terminal)
         //        -> branch_b -> final (depth 2, terminal)
         // final should be selected (depth 2 > depth 1)
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: branching
-tasks:
-  - id: source
-    infer: "Source"
-  - id: branch_a
-    depends_on: [source]
-    infer: "A"
-  - id: branch_b
-    depends_on: [source]
-    infer: "B"
-  - id: final
-    depends_on: [branch_b]
-    infer: "Final"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("source", &[], &[]),
+            ("branch_a", &["source"], &[]),
+            ("branch_b", &["source"], &[]),
+            ("final", &["branch_b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "final");
@@ -627,21 +724,12 @@ tasks:
         // a -> b (depth 1)
         // a -> c (depth 1)
         // Both terminals at same depth, pick last defined (c)
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: parallel
-tasks:
-  - id: a
-    infer: "A"
-  - id: b
-    depends_on: [a]
-    infer: "B"
-  - id: c
-    depends_on: [a]
-    infer: "C"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(
@@ -653,53 +741,30 @@ tasks:
 
     #[test]
     fn test_deepest_final_task_single() {
-        // Single task workflow
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: single
-tasks:
-  - id: only
-    infer: "Only task"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let dag = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("only", &[], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
         let deepest = dag.get_deepest_final_task();
         assert_eq!(deepest.unwrap().as_ref(), "only");
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // CYCLE DETECTION TESTS
+    // CYCLE DETECTION
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn test_detect_cycle_simple() {
-        // A → B → C → A (cycle)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: cycle_test
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: a
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // A → B → C → A (cycle via depends_on)
+        let workflow = build_workflow(&[
+            ("a", &["c"], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        let result = graph.detect_cycles();
+        let result = dag.detect_cycles();
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-020"));
@@ -708,178 +773,147 @@ flows:
     #[test]
     fn test_no_cycle_linear() {
         // A → B → C (no cycle)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: linear_test
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(graph.detect_cycles().is_ok());
-    }
-
-    #[test]
-    fn test_self_loop_is_cycle() {
-        // A → A (self-loop)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: self_loop
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-flows:
-  - source: a
-    target: a
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+        assert!(dag.detect_cycles().is_ok());
     }
 
     #[test]
     fn test_diamond_no_cycle() {
         // Diamond: A → B, A → C, B → D, C → D (no cycle)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: diamond
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-  - id: d
-    infer:
-      prompt: "D"
-flows:
-  - source: a
-    target: [b, c]
-  - source: [b, c]
-    target: d
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+            ("d", &["b", "c"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(graph.detect_cycles().is_ok());
-        assert_eq!(graph.get_final_tasks().len(), 1);
-        assert!(graph.has_path("a", "d"));
+        assert!(dag.detect_cycles().is_ok());
+        assert_eq!(dag.get_final_tasks().len(), 1);
+        assert!(dag.has_path("a", "d"));
     }
 
     #[test]
     fn test_disconnected_no_cycle() {
         // Two disconnected chains: A → B, C → D (no cycle)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: disconnected
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-  - id: d
-    infer:
-      prompt: "D"
-flows:
-  - source: a
-    target: b
-  - source: c
-    target: d
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &[], &[]),
+            ("d", &["c"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        assert!(graph.detect_cycles().is_ok());
-        assert_eq!(graph.get_final_tasks().len(), 2);
+        assert!(dag.detect_cycles().is_ok());
+        assert_eq!(dag.get_final_tasks().len(), 2);
     }
 
     #[test]
     fn test_cycle_path_includes_all_nodes() {
         // A → B → C → A: cycle path should show the cycle
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: cycle_path
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: a
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &["c"], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
 
-        let result = graph.detect_cycles();
+        let result = dag.detect_cycles();
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        // Should contain cycle path
         assert!(err_msg.contains("→"));
     }
 
+    #[test]
+    fn test_cycle_via_implicit_deps() {
+        // Cycle via implicit_deps: a has implicit dep on c, c depends on b, b depends on a
+        let workflow = build_workflow(&[
+            ("a", &[], &["c"]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let result = dag.detect_cycles();
+        assert!(result.is_err());
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // BUG-001: DUPLICATE TASK ID DETECTION
+    // DUPLICATE TASK ID DETECTION (BUG-001)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn test_duplicate_task_id_detection() {
-        // BUG-001 FIX: Duplicate task IDs should return error, not silently overwrite
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_duplicate
-tasks:
-  - id: fetch
-    infer: "First fetch"
-  - id: fetch
-    infer: "Second fetch (duplicate!)"
-  - id: process
-    infer: "Process results"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let result = Dag::from_workflow(&workflow);
+        // Manually construct workflow with duplicate task names
+        // (normally analyzer prevents this, but test defense-in-depth)
+        let mut task_table = TaskTable::new();
+        let id0 = task_table.insert("fetch");
+        let id1 = task_table.insert("process");
 
-        assert!(result.is_err(), "Should detect duplicate task ID 'fetch'");
-        let err = match result {
-            Err(e) => e,
-            Ok(_) => panic!("Expected error for duplicate task ID"),
+        let tasks = vec![
+            AnalyzedTask {
+                id: id0,
+                name: "fetch".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: Vec::new(),
+                implicit_deps: Vec::new(),
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            },
+            // Duplicate name — same "fetch" string but different TaskId
+            AnalyzedTask {
+                id: TaskId::new(99),
+                name: "fetch".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: Vec::new(),
+                implicit_deps: Vec::new(),
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            },
+            AnalyzedTask {
+                id: id1,
+                name: "process".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: Vec::new(),
+                implicit_deps: Vec::new(),
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            },
+        ];
+
+        let workflow = AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
         };
+
+        let result = Dag::from_analyzed(&workflow);
+        assert!(result.is_err(), "Should detect duplicate task name 'fetch'");
+        let err = result.unwrap_err();
         assert!(
             err.to_string().contains("NIKA-022"),
             "Should be NIKA-022 error code"
@@ -892,21 +926,132 @@ tasks:
 
     #[test]
     fn test_unique_task_ids_ok() {
-        // No duplicates should pass
-        let yaml = r#"
-schema: nika/workflow@0.9
-workflow: test_unique
-tasks:
-  - id: fetch
-    infer: "Fetch"
-  - id: process
-    infer: "Process"
-  - id: report
-    infer: "Report"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let result = Dag::from_workflow(&workflow);
-
+        let workflow = build_workflow(&[
+            ("fetch", &[], &[]),
+            ("process", &[], &[]),
+            ("report", &[], &[]),
+        ]);
+        let result = Dag::from_analyzed(&workflow);
         assert!(result.is_ok(), "Unique task IDs should succeed");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GRAPH QUERY METHODS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_final_tasks() {
+        // a -> b, c (standalone) → final tasks = b, c
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &[], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let finals = dag.get_final_tasks();
+        assert_eq!(finals.len(), 2);
+        let names: Vec<&str> = finals.iter().map(|f| f.as_ref()).collect();
+        assert!(names.contains(&"b"));
+        assert!(names.contains(&"c"));
+    }
+
+    #[test]
+    fn test_has_path() {
+        // a -> b -> c
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        assert!(dag.has_path("a", "c"));
+        assert!(dag.has_path("a", "b"));
+        assert!(dag.has_path("b", "c"));
+        assert!(!dag.has_path("c", "a"));
+        assert!(!dag.has_path("b", "a"));
+    }
+
+    #[test]
+    fn test_contains() {
+        let workflow = build_workflow(&[
+            ("alpha", &[], &[]),
+            ("beta", &[], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        assert!(dag.contains("alpha"));
+        assert!(dag.contains("beta"));
+        assert!(!dag.contains("gamma"));
+    }
+
+    #[test]
+    fn test_get_successors() {
+        // a -> b, a -> c
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        let succs = dag.get_successors("a");
+        assert_eq!(succs.len(), 2);
+        let names: Vec<&str> = succs.iter().map(|s| s.as_ref()).collect();
+        assert!(names.contains(&"b"));
+        assert!(names.contains(&"c"));
+
+        // Terminal nodes have no successors
+        assert!(dag.get_successors("b").is_empty());
+        assert!(dag.get_successors("c").is_empty());
+    }
+
+    #[test]
+    fn test_empty_workflow() {
+        let workflow = build_workflow(&[]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        assert!(dag.get_final_tasks().is_empty());
+        assert!(dag.get_deepest_final_task().is_none());
+        assert!(dag.detect_cycles().is_ok());
+    }
+
+    #[test]
+    fn test_single_task_no_deps() {
+        let workflow = build_workflow(&[
+            ("solo", &[], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        assert!(dag.get_dependencies("solo").is_empty());
+        assert!(dag.get_successors("solo").is_empty());
+        assert_eq!(dag.get_final_tasks().len(), 1);
+        assert_eq!(dag.get_deepest_final_task().unwrap().as_ref(), "solo");
+        assert!(dag.detect_cycles().is_ok());
+    }
+
+    #[test]
+    fn test_complex_dag_6_tasks() {
+        // Complex DAG:
+        //   a → b → d → f
+        //   a → c → e → f
+        //   b → e (cross-edge)
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+            ("d", &["b"], &[]),
+            ("e", &["c", "b"], &[]),
+            ("f", &["d", "e"], &[]),
+        ]);
+        let dag = Dag::from_analyzed(&workflow).unwrap();
+
+        assert!(dag.detect_cycles().is_ok());
+        assert_eq!(dag.get_final_tasks().len(), 1);
+        assert_eq!(dag.get_deepest_final_task().unwrap().as_ref(), "f");
+        assert!(dag.has_path("a", "f"));
+        assert!(dag.has_path("b", "e"));
+        assert!(!dag.has_path("d", "e"));
     }
 }

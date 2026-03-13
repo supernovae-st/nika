@@ -1,15 +1,29 @@
 //! Analyzed task AST.
 //!
 //! Tasks with resolved references - TaskId instead of String.
+//!
+//! ## v0.28 Changes
+//!
+//! - `use_refs: IndexMap<String, AnalyzedUseRef>` → `with_spec: WithSpec` (parsed binding expressions)
+//! - `flow_deps: Vec<TaskId>` → `depends_on: Vec<TaskId>` (explicit ordering)
+//! - NEW: `implicit_deps: Vec<TaskId>` (auto-extracted from with: bindings)
 
 use indexmap::IndexMap;
 
 use super::ids::TaskId;
+use crate::binding::WithSpec;
 use crate::source::Span;
 
 /// An analyzed task - validated and resolved.
 ///
 /// All string references are replaced with interned IDs.
+///
+/// ## v0.28 Breaking Changes
+///
+/// - `with_spec` contains parsed `WithEntry` values (rich binding expressions)
+///   instead of the old `AnalyzedUseRef` which only had task_id + path.
+/// - `depends_on` replaces `flow_deps` — explicit ordering-only dependencies.
+/// - `implicit_deps` is auto-extracted from `with_spec` task references by the analyzer.
 #[derive(Debug, Clone)]
 pub struct AnalyzedTask {
     /// Task ID (interned)
@@ -30,11 +44,24 @@ pub struct AnalyzedTask {
     /// Task-specific model override
     pub model: Option<String>,
 
-    /// Resolved use: references (alias → TaskId)
-    pub use_refs: IndexMap<String, AnalyzedUseRef>,
+    /// Parsed `with:` bindings (alias → WithEntry with source, transforms, defaults)
+    ///
+    /// Phase 2 parses raw `Spanned<String>` values via `parse_with_entry()`.
+    /// Each entry has a `BindingPath` source, optional transforms, defaults, and type.
+    pub with_spec: WithSpec,
 
-    /// Resolved flow: dependencies (TaskIds)
-    pub flow_deps: Vec<TaskId>,
+    /// Explicit ordering dependencies: `depends_on: [task_id1, task_id2]`
+    ///
+    /// These are pure ordering edges — no data flows through them.
+    /// Resolved from raw string task names to interned `TaskId`.
+    pub depends_on: Vec<TaskId>,
+
+    /// Implicit dependencies auto-extracted from `with:` bindings.
+    ///
+    /// When a `WithEntry` source references a task (e.g., `step1.data`),
+    /// the analyzer extracts `step1` as an implicit dependency.
+    /// These are used by the DAG builder alongside `depends_on`.
+    pub implicit_deps: Vec<TaskId>,
 
     /// Output configuration
     pub output: Option<AnalyzedOutput>,
@@ -46,22 +73,6 @@ pub struct AnalyzedTask {
     pub retry: Option<AnalyzedRetry>,
 
     /// Span of the task
-    pub span: Span,
-}
-
-/// Resolved use reference.
-#[derive(Debug, Clone)]
-pub struct AnalyzedUseRef {
-    /// Alias name
-    pub alias: String,
-
-    /// Target task ID (resolved)
-    pub target: TaskId,
-
-    /// Optional JSONPath for extracting specific data
-    pub path: Option<String>,
-
-    /// Span of the reference
     pub span: Span,
 }
 
@@ -446,17 +457,22 @@ mod tests {
     }
 
     #[test]
-    fn test_analyzed_use_ref() {
-        let use_ref = AnalyzedUseRef {
-            alias: "data".to_string(),
-            target: TaskId::new(1),
-            path: Some("$.result".to_string()),
-            span: make_span(0, 10),
-        };
+    fn test_analyzed_task_with_spec() {
+        use crate::binding::{WithEntry, WithSpec};
+        use crate::binding::types::{BindingPath, BindingSource, PathSegment};
 
-        assert_eq!(use_ref.alias, "data");
-        assert_eq!(use_ref.target.index(), 1);
-        assert_eq!(use_ref.path.as_deref(), Some("$.result"));
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "data".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("step1".into()),
+                segments: vec![PathSegment::Field("result".into())],
+            }),
+        );
+
+        assert_eq!(with_spec.len(), 1);
+        let entry = with_spec.get("data").unwrap();
+        assert_eq!(entry.task_id(), Some("step1"));
     }
 
     #[test]

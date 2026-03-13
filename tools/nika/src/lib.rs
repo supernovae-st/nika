@@ -22,7 +22,7 @@
 //! │  store/     State management (DataStore, TaskResult)         │
 //! │  event/     Event sourcing (EventLog, EventKind)             │
 //! │  provider/  LLM abstraction (rig-core v0.31 wrapper)         │
-//! │  util/      Utilities (interner, jsonpath)                   │
+//! │  util/      Utilities (interner, constants)                  │
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
 //!
@@ -155,7 +155,7 @@ pub use ast::{
 pub use runtime::{Runner, TaskExecutor};
 
 // DAG types
-pub use dag::{validate_use_wiring, Dag};
+pub use dag::{validate_use_wiring, validate_with_bindings, Dag};
 
 // StableGraph types (v0.9.0) - Stable NodeIndex after deletion
 pub use dag::{DagEdge, StableDag};

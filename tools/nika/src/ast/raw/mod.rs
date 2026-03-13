@@ -60,10 +60,8 @@ pub use action::{
 };
 pub use mcp::{RawMcpConfig, RawMcpServer};
 pub use parser::{parse, ParseError, ParseErrorKind};
-pub use task::{
-    RawFlow, RawForEach, RawOutputConfig, RawRetryConfig, RawTask, RawUseRef, RawUseTarget,
-};
-pub use workflow::{RawContextConfig, RawPkgConfig, RawWorkflow};
+pub use task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
+pub use workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
 
 use crate::source::{Span, Spanned};
 

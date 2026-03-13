@@ -3,11 +3,12 @@
 //! This is the core Phase 2 transformation that:
 //! 1. Validates schema version
 //! 2. Builds task table (interned IDs)
-//! 3. Resolves all task references
-//! 4. Detects cyclic dependencies
-//! 5. Collects all errors with precise spans
+//! 3. Resolves all task references (`with:` bindings → WithSpec, `depends_on:` → Vec<TaskId>)
+//! 4. Extracts implicit dependencies from WithEntry task references
+//! 5. Resolves `imports:` specifications
+//! 6. Detects cyclic dependencies
+//! 7. Collects all errors with precise spans
 
-use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
@@ -16,14 +17,15 @@ use super::errors::{AnalyzeError, AnalyzeResult};
 use super::suggestions::find_similar;
 use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
-    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry,
-    AnalyzedTask, AnalyzedTaskAction, AnalyzedUseRef, AnalyzedWorkflow, HttpMethod, McpTransport,
-    OutputFormat, SchemaVersion, TaskId, TaskTable,
+    AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer,
+    AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
+    McpTransport, OutputFormat, SchemaVersion, TaskId, TaskTable,
 };
 use crate::ast::raw::{
-    RawAgentAction, RawExecAction, RawFetchAction, RawFlow, RawInferAction, RawInvokeAction,
-    RawTask, RawTaskAction, RawWorkflow,
+    RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
+    RawTaskAction, RawWorkflow,
 };
+use crate::binding::{parse_with_entry, WithSpec};
 use crate::source::Span;
 
 /// Analyzer context - holds state during analysis.
@@ -119,7 +121,28 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 5. Build task table (first pass - collect all task IDs)
+    // 5. Analyze imports (v0.28, replaces include: + skills:)
+    if let Some(ref imports) = raw.imports {
+        for import_spanned in &imports.value {
+            let import = &import_spanned.value;
+            workflow.imports.push(AnalyzedImportSpec {
+                path: import.path.value.clone(),
+                prefix: import.prefix.as_ref().map(|s| s.value.clone()),
+                span: import_spanned.span,
+            });
+        }
+    }
+
+    // 6. Analyze inputs
+    if let Some(ref inputs) = raw.inputs {
+        for (key_spanned, val_spanned) in &inputs.value {
+            workflow
+                .inputs
+                .insert(key_spanned.value.clone(), val_spanned.value.clone());
+        }
+    }
+
+    // 7. Build task table (first pass - collect all task IDs)
     for task in raw.tasks.value.iter() {
         let task_name = &task.value.id.value;
         let task_span = task.value.id.span;
@@ -136,7 +159,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 4. Analyze each task (second pass - resolve references)
+    // 8. Analyze each task (second pass - resolve references)
     // Clone task_table to avoid borrow checker issues
     let task_table = ctx.task_table.clone();
     let task_names: Vec<String> = task_table.iter().map(|(_, n)| n.to_string()).collect();
@@ -148,7 +171,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 5. Detect cyclic dependencies
+    // 9. Detect cyclic dependencies
     detect_cycles(&workflow, &mut ctx);
 
     // Copy task table to workflow
@@ -216,14 +239,14 @@ fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut A
         }
     }
 
-    // Check include (v0.9+)
-    if let Some(ref include) = raw.include {
-        if !version.supports_include() {
+    // Check imports (v0.12+, replaces include: + skills:)
+    if let Some(ref imports) = raw.imports {
+        if !version.supports_imports() {
             ctx.add_error(AnalyzeError::unsupported_feature(
-                include.span,
-                "include",
+                imports.span,
+                "imports",
                 version_str,
-                "nika/workflow@0.9",
+                "nika/workflow@0.12",
             ));
         }
     }
@@ -277,6 +300,30 @@ fn validate_task_feature_gates(
         }
     }
 
+    // Check with: bindings (v0.12+)
+    if let Some(ref with_refs) = task.with_refs {
+        if !version.supports_with() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                with_refs.span,
+                "with",
+                version_str,
+                "nika/workflow@0.12",
+            ));
+        }
+    }
+
+    // Check depends_on: (v0.12+)
+    if let Some(ref depends_on) = task.depends_on {
+        if !version.supports_depends_on() {
+            ctx.add_error(AnalyzeError::unsupported_feature(
+                depends_on.span,
+                "depends_on",
+                version_str,
+                "nika/workflow@0.12",
+            ));
+        }
+    }
+
     // Check invoke/agent verbs (v0.2+)
     if let Some(ref action) = task.action {
         match action {
@@ -306,6 +353,9 @@ fn validate_task_feature_gates(
 }
 
 /// Analyze a single task.
+///
+/// Parses `with:` binding expressions via `parse_with_entry()`, resolves `depends_on:`
+/// task names to `TaskId`, and auto-extracts implicit dependencies from task bindings.
 fn analyze_task(
     raw: &RawTask,
     task_table: &TaskTable,
@@ -321,8 +371,9 @@ fn analyze_task(
         action: AnalyzedTaskAction::default(),
         provider: raw.provider.as_ref().map(|s| s.value.clone()),
         model: raw.model.as_ref().map(|s| s.value.clone()),
-        use_refs: IndexMap::new(),
-        flow_deps: Vec::new(),
+        with_spec: WithSpec::default(),
+        depends_on: Vec::new(),
+        implicit_deps: Vec::new(),
         output: None,
         for_each: raw
             .for_each
@@ -337,56 +388,59 @@ fn analyze_task(
         task.action = analyze_action(action);
     }
 
-    // Resolve use: references
-    if let Some(ref use_refs) = raw.use_refs {
-        for (alias_spanned, target) in use_refs.value.iter() {
+    // Parse with: bindings
+    if let Some(ref with_refs) = raw.with_refs {
+        for (alias_spanned, value_spanned) in with_refs.value.iter() {
             let alias = &alias_spanned.value;
-            let target_name = target.task_id();
-            let target_span = target.task_span();
+            let expr = &value_spanned.value;
 
-            if let Some(target_id) = task_table.get_id(target_name) {
-                task.use_refs.insert(
-                    alias.clone(),
-                    AnalyzedUseRef {
-                        alias: alias.clone(),
-                        target: target_id,
-                        path: target.path().map(|s| s.to_string()),
-                        span: target_span,
-                    },
-                );
-            } else {
-                // Unknown task - suggest similar
-                let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
-                let suggestion = find_similar(target_name, &all_names, 0.6);
-                ctx.add_error(AnalyzeError::unknown_task(
-                    target_span,
-                    target_name,
-                    suggestion.as_deref(),
-                ));
+            match parse_with_entry(expr) {
+                Ok(entry) => {
+                    // Extract implicit dependency if this binding references a task
+                    if let Some(dep_task_name) = entry.task_id() {
+                        if let Some(dep_id) = task_table.get_id(dep_task_name) {
+                            // Deduplicate implicit deps
+                            if !task.implicit_deps.contains(&dep_id) {
+                                task.implicit_deps.push(dep_id);
+                            }
+                        } else {
+                            // Unknown task reference in with: binding
+                            let all_names: Vec<&str> =
+                                all_task_names.iter().map(|s| s.as_str()).collect();
+                            let suggestion = find_similar(dep_task_name, &all_names, 0.6);
+                            ctx.add_error(AnalyzeError::unknown_task(
+                                value_spanned.span,
+                                dep_task_name,
+                                suggestion.as_deref(),
+                            ));
+                        }
+                    }
+                    task.with_spec.insert(alias.clone(), entry);
+                }
+                Err(parse_err) => {
+                    ctx.add_error(AnalyzeError::invalid_binding(
+                        value_spanned.span,
+                        expr,
+                        &parse_err.reason,
+                    ));
+                }
             }
         }
     }
 
-    // Resolve flow: dependencies
-    if let Some(ref flow) = raw.flow {
-        let flow_task_ids = flow.value.task_ids();
-        for flow_task_name in flow_task_ids {
-            if let Some(target_id) = task_table.get_id(flow_task_name) {
-                task.flow_deps.push(target_id);
+    // Resolve depends_on: task names to TaskId
+    if let Some(ref depends_on) = raw.depends_on {
+        for dep_spanned in &depends_on.value {
+            let dep_name = &dep_spanned.value;
+            if let Some(dep_id) = task_table.get_id(dep_name) {
+                task.depends_on.push(dep_id);
             } else {
-                // Unknown task in flow
+                // Unknown task in depends_on
                 let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
-                let suggestion = find_similar(flow_task_name, &all_names, 0.6);
-
-                let span = match &flow.value {
-                    RawFlow::Single(s) => s.span,
-                    RawFlow::Multiple(_) => flow.span,
-                    RawFlow::None => flow.span,
-                };
-
+                let suggestion = find_similar(dep_name, &all_names, 0.6);
                 ctx.add_error(AnalyzeError::unknown_task(
-                    span,
-                    flow_task_name,
+                    dep_spanned.span,
+                    dep_name,
                     suggestion.as_deref(),
                 ));
             }
@@ -597,6 +651,8 @@ fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedR
 }
 
 /// Detect cyclic dependencies using DFS.
+///
+/// Checks both `depends_on` (explicit ordering) and `implicit_deps` (from with: bindings).
 fn detect_cycles(workflow: &AnalyzedWorkflow, ctx: &mut AnalyzerContext) {
     let mut visited = HashSet::new();
     let mut rec_stack = HashSet::new();
@@ -629,8 +685,8 @@ fn detect_cycles_dfs(
     path.push(task_id);
 
     if let Some(task) = workflow.get_task(task_id) {
-        // Check flow dependencies
-        for dep_id in &task.flow_deps {
+        // Check explicit depends_on dependencies
+        for dep_id in &task.depends_on {
             if !visited.contains(dep_id) {
                 detect_cycles_dfs(*dep_id, workflow, visited, rec_stack, path, ctx);
             } else if rec_stack.contains(dep_id) {
@@ -651,20 +707,19 @@ fn detect_cycles_dfs(
             }
         }
 
-        // Check use: dependencies
-        for use_ref in task.use_refs.values() {
-            let dep_id = use_ref.target;
-            if !visited.contains(&dep_id) {
-                detect_cycles_dfs(dep_id, workflow, visited, rec_stack, path, ctx);
-            } else if rec_stack.contains(&dep_id) {
-                // Found cycle via use:
-                let cycle_start = path.iter().position(|&id| id == dep_id).unwrap();
+        // Check implicit dependencies (from with: bindings)
+        for dep_id in &task.implicit_deps {
+            if !visited.contains(dep_id) {
+                detect_cycles_dfs(*dep_id, workflow, visited, rec_stack, path, ctx);
+            } else if rec_stack.contains(dep_id) {
+                // Found cycle via with: binding
+                let cycle_start = path.iter().position(|&id| id == *dep_id).unwrap();
                 let cycle_path: Vec<&str> = path[cycle_start..]
                     .iter()
                     .filter_map(|id| workflow.task_table.get_name(*id))
                     .collect();
                 let mut cycle_with_close = cycle_path.clone();
-                if let Some(name) = workflow.task_table.get_name(dep_id) {
+                if let Some(name) = workflow.task_table.get_name(*dep_id) {
                     cycle_with_close.push(name);
                 }
                 ctx.add_error(AnalyzeError::cyclic_dependency(
@@ -682,8 +737,9 @@ fn detect_cycles_dfs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::raw::{RawTask, RawUseTarget, RawWorkflow};
+    use crate::ast::raw::{RawTask, RawWorkflow};
     use crate::source::{FileId, Spanned};
+    use indexmap::IndexMap;
 
     fn make_span(start: u32, end: u32) -> Span {
         Span::new(FileId(0), start, end)
@@ -710,10 +766,34 @@ mod tests {
         }
     }
 
+    /// Helper: add a `with:` binding to a raw task.
+    fn add_with_ref(task: &mut RawTask, alias: &str, expr: &str) {
+        let with_refs = task.with_refs.get_or_insert_with(|| {
+            Spanned::new(IndexMap::new(), make_span(0, 50))
+        });
+        with_refs.value.insert(
+            Spanned::new(alias.to_string(), make_span(0, alias.len() as u32)),
+            Spanned::new(expr.to_string(), make_span(0, expr.len() as u32)),
+        );
+    }
+
+    /// Helper: add `depends_on:` entries to a raw task.
+    fn add_depends_on(task: &mut RawTask, deps: &[&str]) {
+        let spanned_deps: Vec<Spanned<String>> = deps
+            .iter()
+            .map(|d| Spanned::new(d.to_string(), make_span(0, d.len() as u32)))
+            .collect();
+        task.depends_on = Some(Spanned::new(spanned_deps, make_span(0, 50)));
+    }
+
+    // ====================================================================
+    // Basic workflow analysis
+    // ====================================================================
+
     #[test]
     fn test_analyze_valid_workflow() {
         let raw = make_raw_workflow(
-            "nika/workflow@0.10",
+            "nika/workflow@0.12",
             vec![make_raw_task("task1"), make_raw_task("task2")],
         );
 
@@ -736,18 +816,16 @@ mod tests {
 
     #[test]
     fn test_analyze_schema_suggestion() {
-        // Typo in schema version
+        // v0.9 is valid
         let raw = make_raw_workflow("nika/workflow@0.9", vec![]);
         let result = analyze(raw);
-
-        // Should succeed since 0.9 is valid
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_analyze_duplicate_task() {
         let raw = make_raw_workflow(
-            "nika/workflow@0.10",
+            "nika/workflow@0.12",
             vec![make_raw_task("task1"), make_raw_task("task1")],
         );
 
@@ -756,19 +834,35 @@ mod tests {
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::DuplicateTask);
     }
 
+    // ====================================================================
+    // with: binding analysis
+    // ====================================================================
+
     #[test]
-    fn test_analyze_unknown_task_reference() {
-        let mut task1 = make_raw_task("task1");
+    fn test_analyze_with_binding_simple() {
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(&mut task2, "data", "$task1");
 
-        // Add a use: reference to non-existent task
-        let mut use_refs = IndexMap::new();
-        use_refs.insert(
-            Spanned::new("data".to_string(), make_span(0, 4)),
-            RawUseTarget::TaskId(Spanned::new("unknown_task".to_string(), make_span(10, 22))),
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), task2],
         );
-        task1.use_refs = Some(Spanned::new(use_refs, make_span(0, 30)));
+        let result = analyze(raw);
+        assert!(result.is_ok());
 
-        let raw = make_raw_workflow("nika/workflow@0.10", vec![task1]);
+        let workflow = result.value.unwrap();
+        let t2 = workflow.get_task_by_name("task2").unwrap();
+        assert_eq!(t2.with_spec.len(), 1);
+        assert!(t2.with_spec.contains_key("data"));
+        assert_eq!(t2.implicit_deps.len(), 1);
+    }
+
+    #[test]
+    fn test_analyze_with_binding_unknown_task() {
+        let mut task1 = make_raw_task("task1");
+        add_with_ref(&mut task1, "data", "$unknown_task");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
         let result = analyze(raw);
 
         assert!(result.is_err());
@@ -776,23 +870,153 @@ mod tests {
     }
 
     #[test]
-    fn test_analyze_cyclic_dependency() {
+    fn test_analyze_with_binding_invalid_expr() {
+        let mut task1 = make_raw_task("task1");
+        // Empty expression should fail parse_with_entry
+        add_with_ref(&mut task1, "data", "");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidBinding);
+    }
+
+    #[test]
+    fn test_analyze_with_binding_env_source() {
+        // $env.API_KEY should NOT create an implicit dependency
+        let mut task1 = make_raw_task("task1");
+        add_with_ref(&mut task1, "key", "$env.API_KEY");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t1 = workflow.get_task_by_name("task1").unwrap();
+        assert_eq!(t1.with_spec.len(), 1);
+        assert!(t1.implicit_deps.is_empty()); // Env source, no task dep
+    }
+
+    #[test]
+    fn test_analyze_with_binding_deduplicates_implicit_deps() {
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(&mut task2, "a", "$task1.field_a");
+        add_with_ref(&mut task2, "b", "$task1.field_b");
+
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), task2],
+        );
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t2 = workflow.get_task_by_name("task2").unwrap();
+        // Both bindings reference task1, but implicit_deps should deduplicate
+        assert_eq!(t2.implicit_deps.len(), 1);
+    }
+
+    #[test]
+    fn test_analyze_with_binding_with_transforms() {
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(&mut task2, "result", "$task1.data | upper | trim");
+
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), task2],
+        );
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t2 = workflow.get_task_by_name("task2").unwrap();
+        let entry = t2.with_spec.get("result").unwrap();
+        assert!(entry.transform.is_some());
+        assert_eq!(entry.task_id(), Some("task1"));
+    }
+
+    #[test]
+    fn test_analyze_with_binding_with_default() {
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(&mut task2, "val", "$task1.count ?? 0");
+
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), task2],
+        );
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t2 = workflow.get_task_by_name("task2").unwrap();
+        let entry = t2.with_spec.get("val").unwrap();
+        assert!(entry.default.is_some());
+    }
+
+    // ====================================================================
+    // depends_on: analysis
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_depends_on_valid() {
+        let mut task2 = make_raw_task("task2");
+        add_depends_on(&mut task2, &["task1"]);
+
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), task2],
+        );
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t2 = workflow.get_task_by_name("task2").unwrap();
+        assert_eq!(t2.depends_on.len(), 1);
+    }
+
+    #[test]
+    fn test_analyze_depends_on_unknown_task() {
+        let mut task1 = make_raw_task("task1");
+        add_depends_on(&mut task1, &["nonexistent"]);
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
+    }
+
+    #[test]
+    fn test_analyze_depends_on_multiple() {
+        let mut task3 = make_raw_task("task3");
+        add_depends_on(&mut task3, &["task1", "task2"]);
+
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), make_raw_task("task2"), task3],
+        );
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        let t3 = workflow.get_task_by_name("task3").unwrap();
+        assert_eq!(t3.depends_on.len(), 2);
+    }
+
+    // ====================================================================
+    // Cycle detection
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_cyclic_dependency_depends_on() {
         let mut task1 = make_raw_task("task1");
         let mut task2 = make_raw_task("task2");
 
-        // task1 -> task2 via flow
-        task1.flow = Some(Spanned::new(
-            RawFlow::Single(Spanned::new("task2".to_string(), make_span(0, 5))),
-            make_span(0, 10),
-        ));
+        add_depends_on(&mut task1, &["task2"]);
+        add_depends_on(&mut task2, &["task1"]);
 
-        // task2 -> task1 via flow (creates cycle)
-        task2.flow = Some(Spanned::new(
-            RawFlow::Single(Spanned::new("task1".to_string(), make_span(0, 5))),
-            make_span(0, 10),
-        ));
-
-        let raw = make_raw_workflow("nika/workflow@0.10", vec![task1, task2]);
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
         let result = analyze(raw);
 
         assert!(result.is_err());
@@ -802,7 +1026,94 @@ mod tests {
             .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
     }
 
+    #[test]
+    fn test_analyze_cyclic_dependency_via_with() {
+        let mut task1 = make_raw_task("task1");
+        let mut task2 = make_raw_task("task2");
+
+        add_with_ref(&mut task1, "data", "$task2");
+        add_with_ref(&mut task2, "data", "$task1");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    #[test]
+    fn test_analyze_cyclic_dependency_mixed() {
+        // task1 depends_on task2 explicitly, task2 references task1 via with:
+        let mut task1 = make_raw_task("task1");
+        let mut task2 = make_raw_task("task2");
+
+        add_depends_on(&mut task1, &["task2"]);
+        add_with_ref(&mut task2, "data", "$task1");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    // ====================================================================
+    // imports: analysis
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_imports() {
+        use crate::ast::raw::RawImportSpec;
+
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+        raw.imports = Some(Spanned::new(
+            vec![
+                Spanned::new(
+                    RawImportSpec {
+                        path: Spanned::new(
+                            "./partials/setup.nika.yaml".to_string(),
+                            make_span(0, 25),
+                        ),
+                        prefix: Some(Spanned::new("setup_".to_string(), make_span(30, 36))),
+                        span: make_span(0, 40),
+                    },
+                    make_span(0, 40),
+                ),
+                Spanned::new(
+                    RawImportSpec {
+                        path: Spanned::new("./tools.nika.yaml".to_string(), make_span(50, 67)),
+                        prefix: None,
+                        span: make_span(50, 70),
+                    },
+                    make_span(50, 70),
+                ),
+            ],
+            make_span(0, 80),
+        ));
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        assert_eq!(workflow.imports.len(), 2);
+        assert_eq!(workflow.imports[0].path, "./partials/setup.nika.yaml");
+        assert_eq!(
+            workflow.imports[0].prefix.as_deref(),
+            Some("setup_")
+        );
+        assert_eq!(workflow.imports[1].path, "./tools.nika.yaml");
+        assert!(workflow.imports[1].prefix.is_none());
+    }
+
+    // ====================================================================
     // Feature gating tests
+    // ====================================================================
 
     #[test]
     fn test_feature_gate_for_each_v01_fails() {
@@ -940,6 +1251,64 @@ mod tests {
     }
 
     #[test]
+    fn test_feature_gate_with_v11_fails() {
+        let mut task = make_raw_task("task1");
+        add_with_ref(&mut task, "data", "$other");
+
+        // v0.11 doesn't support with:
+        let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_depends_on_v11_fails() {
+        let mut task = make_raw_task("task1");
+        add_depends_on(&mut task, &["other"]);
+
+        // v0.11 doesn't support depends_on:
+        let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_feature_gate_imports_v11_fails() {
+        use crate::ast::raw::RawImportSpec;
+
+        let mut raw = make_raw_workflow("nika/workflow@0.11", vec![make_raw_task("task1")]);
+        raw.imports = Some(Spanned::new(
+            vec![Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./setup.nika.yaml".to_string(), make_span(0, 17)),
+                    prefix: None,
+                    span: make_span(0, 20),
+                },
+                make_span(0, 20),
+            )],
+            make_span(0, 30),
+        ));
+
+        let result = analyze(raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
     fn test_feature_gate_multiple_errors() {
         use crate::ast::raw::{RawAgentAction, RawForEach};
 
@@ -1004,5 +1373,57 @@ mod tests {
         assert!(err.message.contains("nika/workflow@0.3"));
         assert!(err.message.contains("nika/workflow@0.1"));
         assert!(err.suggestion.as_ref().unwrap().contains("upgrade"));
+    }
+
+    // ====================================================================
+    // Metadata extraction
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_metadata() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+        raw.workflow = Some(Spanned::new("my-workflow".to_string(), make_span(0, 11)));
+        raw.description = Some(Spanned::new("A test workflow".to_string(), make_span(0, 15)));
+        raw.provider = Some(Spanned::new("claude".to_string(), make_span(0, 6)));
+        raw.model = Some(Spanned::new("claude-sonnet-4-6".to_string(), make_span(0, 15)));
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        assert_eq!(workflow.name.as_deref(), Some("my-workflow"));
+        assert_eq!(workflow.description.as_deref(), Some("A test workflow"));
+        assert_eq!(workflow.provider.as_deref(), Some("claude"));
+        assert_eq!(workflow.model.as_deref(), Some("claude-sonnet-4-6"));
+    }
+
+    // ====================================================================
+    // Inputs analysis
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_inputs() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+
+        let mut inputs = IndexMap::new();
+        inputs.insert(
+            Spanned::new("topic".to_string(), make_span(0, 5)),
+            Spanned::new(serde_json::Value::String("AI".to_string()), make_span(0, 4)),
+        );
+        inputs.insert(
+            Spanned::new("count".to_string(), make_span(0, 5)),
+            Spanned::new(serde_json::json!(3), make_span(0, 1)),
+        );
+        raw.inputs = Some(Spanned::new(inputs, make_span(0, 50)));
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        assert_eq!(workflow.inputs.len(), 2);
+        assert_eq!(
+            workflow.inputs.get("topic"),
+            Some(&serde_json::Value::String("AI".to_string()))
+        );
     }
 }

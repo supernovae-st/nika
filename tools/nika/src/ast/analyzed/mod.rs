@@ -60,14 +60,14 @@ mod ids;
 mod task;
 mod workflow;
 
-pub use ids::{FlowDefId, McpServerId, StringTable, TaskId, TaskTable};
+pub use ids::{McpServerId, StringTable, TaskId, TaskTable};
 pub use task::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
     AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedOutput, AnalyzedRetry, AnalyzedTask,
-    AnalyzedTaskAction, AnalyzedUseRef, HttpMethod, OutputFormat,
+    AnalyzedTaskAction, HttpMethod, OutputFormat,
 };
 pub use workflow::{
-    AnalyzedContextFile, AnalyzedFlowDef, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
+    AnalyzedContextFile, AnalyzedImportSpec, AnalyzedMcpServer, AnalyzedWorkflow, McpTransport,
     SchemaVersion,
 };
 
@@ -77,6 +77,8 @@ mod tests {
 
     #[test]
     fn test_module_exports() {
+        use crate::binding::WithSpec;
+
         // Basic smoke test that all types are accessible
         let _ = TaskId::new(0);
         let _ = AnalyzedWorkflow::default();
@@ -88,8 +90,9 @@ mod tests {
             action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            use_refs: indexmap::IndexMap::new(),
-            flow_deps: Vec::new(),
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
             output: None,
             for_each: None,
             retry: None,

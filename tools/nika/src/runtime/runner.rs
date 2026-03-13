@@ -619,25 +619,28 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
         let _is_for_each = for_each_binding.is_some();
 
-        // Build bindings from use: wiring
-        let mut bindings =
-            match ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore) {
-                Ok(b) => b,
-                Err(e) => {
-                    let duration = start.elapsed();
-                    // EMIT: TaskFailed (bindings build failed)
-                    event_log.emit(EventKind::TaskFailed {
-                        task_id: Arc::clone(&task_id),
-                        error: e.to_string(),
-                        duration_ms: duration.as_millis() as u64,
-                    });
-                    return IterationResult {
-                        store_id: task_id, // Store with indexed ID for for_each
-                        result: TaskResult::failed(e.to_string(), duration),
-                        for_each_info,
-                    };
-                }
-            };
+        // Build bindings from with: (v0.28) or use: (legacy) wiring
+        let mut bindings = match if task.with_spec.is_some() {
+            ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &datastore)
+        } else {
+            ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore)
+        } {
+            Ok(b) => b,
+            Err(e) => {
+                let duration = start.elapsed();
+                // EMIT: TaskFailed (bindings build failed)
+                event_log.emit(EventKind::TaskFailed {
+                    task_id: Arc::clone(&task_id),
+                    error: e.to_string(),
+                    duration_ms: duration.as_millis() as u64,
+                });
+                return IterationResult {
+                    store_id: task_id, // Store with indexed ID for for_each
+                    result: TaskResult::failed(e.to_string(), duration),
+                    for_each_info,
+                };
+            }
+        };
 
         // Add for_each binding if present (v0.3)
         if let Some((var_name, value, _idx)) = for_each_binding {
@@ -1011,12 +1014,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         traverse = %decompose.traverse,
                         "Expanding decompose modifier"
                     );
-                    // Resolve bindings for decompose source
-                    let bindings = ResolvedBindings::from_wiring_spec(
-                        task.use_wiring.as_ref(),
-                        &self.datastore,
-                    )
-                    .unwrap_or_default();
+                    // Resolve bindings for decompose source (with: or use:)
+                    let bindings = if task.with_spec.is_some() {
+                        ResolvedBindings::from_with_spec(
+                            task.with_spec.as_ref(),
+                            &self.datastore,
+                        )
+                        .unwrap_or_default()
+                    } else {
+                        ResolvedBindings::from_wiring_spec(
+                            task.use_wiring.as_ref(),
+                            &self.datastore,
+                        )
+                        .unwrap_or_default()
+                    };
                     // Expand decompose using executor (with timeout to prevent silent hangs)
                     let decompose_result = tokio::time::timeout(
                         DECOMPOSE_TIMEOUT,
@@ -1051,12 +1062,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 } else if let Some(for_each) = &task.for_each {
                     // v0.18: Handle binding references ($alias or {{use.alias}})
                     if let Some(binding_str) = for_each.as_str() {
-                        // Resolve bindings from use: wiring to access the referenced array
-                        let bindings = ResolvedBindings::from_wiring_spec(
-                            task.use_wiring.as_ref(),
-                            &self.datastore,
-                        )
-                        .unwrap_or_default();
+                        // Resolve bindings from with:/use: wiring to access the referenced array
+                        let bindings = if task.with_spec.is_some() {
+                            ResolvedBindings::from_with_spec(
+                                task.with_spec.as_ref(),
+                                &self.datastore,
+                            )
+                            .unwrap_or_default()
+                        } else {
+                            ResolvedBindings::from_wiring_spec(
+                                task.use_wiring.as_ref(),
+                                &self.datastore,
+                            )
+                            .unwrap_or_default()
+                        };
 
                         if let Some(alias) = binding_str.strip_prefix('$') {
                             // v0.22: Check for $inputs.xxx format first (workflow inputs)
@@ -1704,6 +1723,7 @@ mod tests {
                     },
                 },
                 use_wiring: None,
+                with_spec: None,
                 output: None,
                 artifact: None,
                 log: None,
@@ -1774,6 +1794,7 @@ mod tests {
                     },
                 },
                 use_wiring: None,
+                with_spec: None,
                 output: None,
                 artifact: None,
                 log: None,
@@ -1833,6 +1854,7 @@ mod tests {
                     Arc::new(Task {
                         id: id.to_string(),
                         use_wiring: None,
+                        with_spec: None,
                         output: None,
                         decompose: None,
                         for_each: None,
@@ -2281,6 +2303,7 @@ mod tests {
                     },
                 },
                 use_wiring: None,
+                with_spec: None,
                 output: None,
                 artifact: None,
                 log: None,
@@ -2341,6 +2364,7 @@ mod tests {
                     },
                 },
                 use_wiring: None,
+                with_spec: None,
                 output: None,
                 artifact: None,
                 log: None,
@@ -2391,6 +2415,7 @@ mod tests {
                     },
                 },
                 use_wiring: None,
+                with_spec: None,
                 output: None,
                 artifact: None,
                 log: None,
@@ -2445,6 +2470,7 @@ mod tests {
                 },
             },
             use_wiring: None,
+            with_spec: None,
             output: None,
             artifact: None,
             log: None,
@@ -2498,6 +2524,7 @@ mod tests {
                 },
             },
             use_wiring: None,
+            with_spec: None,
             output: None,
             artifact: None,
             log: None,
@@ -2550,6 +2577,7 @@ mod tests {
                 },
             },
             use_wiring: None,
+            with_spec: None,
             output: None,
             artifact: None,
             log: None,
@@ -2609,6 +2637,7 @@ mod tests {
                 },
             },
             use_wiring: None,
+            with_spec: None,
             output: None,
             artifact: None,
             log: None,

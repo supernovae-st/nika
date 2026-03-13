@@ -58,6 +58,9 @@ marked-yaml = "0.8"     # YAML parsing with Span (line:col) tracking
 strsim = "0.11"         # Levenshtein distance for "did you mean?" suggestions
 indexmap = "2.7"        # Preserve key insertion order in YAML maps
 
+# JSONPath (RFC 9535) - replaces custom util/jsonpath.rs
+serde_json_path = "0.7"
+
 # JSON Schema validation
 jsonschema = "0.26"
 schemars = "1.0"  # JSON Schema generation for Rust types (v0.21 StructuredOutputEngine)

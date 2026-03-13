@@ -49,6 +49,7 @@ pub mod context;
 pub mod decompose;
 pub mod guardrails;
 pub mod include;
+pub mod import_loader;
 pub mod include_loader;
 mod invoke;
 pub mod limits;
@@ -87,7 +88,9 @@ pub use workflow::{
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
 // Loader is defined in loader.rs (v0.13 - Multi-format agent/skill loading)
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
-// Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion)
+// Import loader is defined in import_loader.rs (v0.28 - Raw-level import expansion)
+pub use import_loader::expand_imports;
+// Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion, legacy)
 pub use include_loader::expand_includes;
 // StructuredOutputSpec is defined in structured.rs (v0.21 - JSON Schema validation)
 pub use structured::StructuredOutputSpec;

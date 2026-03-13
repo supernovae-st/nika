@@ -56,7 +56,7 @@ tasks:
 #[test]
 fn test_full_pipeline_multi_task_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: "Multi-task test"
 provider: openai
 
@@ -66,14 +66,14 @@ tasks:
       prompt: "Generate something"
 
   - id: step2
-    use:
-      data: step1
+    with:
+      data: "$step1"
     infer:
-      prompt: "Process: {{use.data}}"
+      prompt: "Process: {{with.data}}"
 
   - id: step3
-    use:
-      prev: step2
+    with:
+      prev: "$step2"
     exec:
       command: "echo done"
 "#;
@@ -94,10 +94,10 @@ tasks:
     assert!(workflow.has_task("step3"));
     assert_eq!(workflow.name.as_deref(), Some("Multi-task test"));
 
-    // Verify dependencies are resolved
+    // Verify with: bindings are resolved
     let step2 = workflow.get_task_by_name("step2").unwrap();
-    assert_eq!(step2.use_refs.len(), 1);
-    assert!(step2.use_refs.contains_key("data"));
+    assert_eq!(step2.with_spec.len(), 1);
+    assert!(step2.with_spec.contains_key("data"));
 }
 
 #[test]
@@ -173,12 +173,12 @@ tasks:
 #[test]
 fn test_error_collection_multiple_errors() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: task1
-    use:
-      missing: unknown_task
+    with:
+      missing: "$unknown_task"
     infer:
       prompt: "Test"
 
@@ -187,8 +187,8 @@ tasks:
       prompt: "Duplicate ID"
 
   - id: task2
-    use:
-      also_missing: another_unknown
+    with:
+      also_missing: "$another_unknown"
     exec:
       command: "echo"
 "#;
@@ -243,12 +243,12 @@ tasks:
 #[test]
 fn test_error_message_includes_code() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: test
-    use:
-      missing: nonexistent
+    with:
+      missing: "$nonexistent"
     infer:
       prompt: "Test"
 "#;
@@ -303,7 +303,7 @@ tasks:
 #[test]
 fn test_error_span_points_to_correct_location() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: good_task
@@ -311,8 +311,8 @@ tasks:
       prompt: "OK"
 
   - id: bad_task
-    use:
-      ref: nonexistent_task
+    with:
+      ref: "$nonexistent_task"
     infer:
       prompt: "Error here"
 "#;
@@ -537,7 +537,7 @@ tasks:
 #[test]
 fn test_task_ids_are_interned() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: task_a
@@ -545,8 +545,8 @@ tasks:
       prompt: "A"
 
   - id: task_b
-    use:
-      ref: task_a
+    with:
+      ref: "$task_a"
     infer:
       prompt: "B"
 "#;
@@ -554,7 +554,11 @@ tasks:
     let raw = parse_yaml(yaml).expect("parse should succeed");
     let result = analyze_workflow(raw);
 
-    assert!(result.is_ok());
+    assert!(
+        result.is_ok(),
+        "analysis should succeed: {:?}",
+        result.errors
+    );
     let workflow = result.value.unwrap();
 
     let task_a = workflow.get_task_by_name("task_a").unwrap();
@@ -567,11 +571,14 @@ tasks:
     // Different tasks should have different IDs
     assert_ne!(task_a.id, task_b.id);
 
-    // use_refs should reference the correct task
-    let ref_entry = task_b.use_refs.get("ref").unwrap();
-    assert_eq!(
-        ref_entry.target, task_a.id,
-        "use ref should point to task_a"
+    // with: binding should have created an implicit dep on task_a
+    assert!(
+        task_b.implicit_deps.contains(&task_a.id),
+        "task_b should have implicit dep on task_a from with: binding"
+    );
+    assert!(
+        task_b.with_spec.contains_key("ref"),
+        "task_b should have 'ref' in with_spec"
     );
 }
 

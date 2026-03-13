@@ -10,8 +10,8 @@ use super::action::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTaskAction,
 };
 use super::mcp::{RawMcpConfig, RawMcpServer};
-use super::task::{RawFlow, RawForEach, RawOutputConfig, RawRetryConfig, RawTask, RawUseTarget};
-use super::workflow::RawWorkflow;
+use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
+use super::workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
@@ -590,89 +590,68 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
 }
 
 // ============================================================================
-// use:/flow:/for_each:/retry:/output: Parsing
+// with:/depends_on:/for_each:/retry:/output: Parsing
 // ============================================================================
 
-/// Parse use: references.
-#[allow(clippy::type_complexity)]
-fn parse_use_refs(
+/// Parse with: bindings (v0.28 — replaces use:).
+///
+/// Values are raw strings parsed by `parse_with_entry()` in Phase 2 (analyzer).
+/// Examples:
+///   - `data: step1` — simple task reference
+///   - `temp: step1.data.temp ?? 20` — path + default
+///   - `cfg: $env.API_KEY` — environment binding
+///   - `val: step1.output | upper | trim` — with transforms
+fn parse_with_refs(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
-) -> Result<Option<Spanned<IndexMap<Spanned<String>, RawUseTarget>>>, ParseError> {
-    match map.get_node("use") {
-        Some(Node::Mapping(m)) => {
-            let span = marked_span_to_span(file, m.span());
-            let mut refs = IndexMap::new();
-
-            for (key, value) in m.iter() {
-                let alias_span = marked_span_to_span(file, key.span());
-                let alias = Spanned::new(key.as_str().to_string(), alias_span);
-                let target = parse_use_target(file, value)?;
-                refs.insert(alias, target);
-            }
-
-            Ok(Some(Spanned::new(refs, span)))
-        }
-        Some(node) => Err(ParseError {
+) -> Result<Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>, ParseError> {
+    // Reject deprecated `use:` keyword with clear error
+    if let Some(node) = map.get_node("use") {
+        return Err(ParseError {
             kind: ParseErrorKind::InvalidType,
             span: node_to_span(file, node),
-            message: "use must be a mapping".to_string(),
-        }),
-        None => Ok(None),
+            message: "'use:' is removed in v0.28. Use 'with:' instead. Values are binding expressions parsed in Phase 2.".to_string(),
+        });
     }
+
+    parse_string_map(file, map, "with")
 }
 
-/// Parse a use target (simple task_id or extended { task, path }).
-fn parse_use_target(file: FileId, node: &Node) -> Result<RawUseTarget, ParseError> {
-    let span = node_to_span(file, node);
-
-    match node {
-        // Simple: alias: task_id
-        Node::Scalar(s) => Ok(RawUseTarget::TaskId(Spanned::new(
-            s.as_str().to_string(),
-            span,
-        ))),
-        // Extended: { task: id, path: "..." }
-        Node::Mapping(m) => {
-            let task = get_string_field(file, m, "task")?.ok_or_else(|| ParseError {
-                kind: ParseErrorKind::MissingField,
-                span,
-                message: "use target requires 'task' field".to_string(),
-            })?;
-            let path = get_string_field(file, m, "path")?;
-
-            Ok(RawUseTarget::Extended { task, path, span })
-        }
-        _ => Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span,
-            message: "use target must be string or mapping".to_string(),
-        }),
-    }
-}
-
-/// Parse flow: dependencies.
-fn parse_flow(
+/// Parse depends_on: ordering dependencies (v0.28 — replaces flow:).
+///
+/// Pure ordering edges — no data flows through them.
+/// Data dependencies are expressed via `with:` bindings.
+fn parse_depends_on(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
-) -> Result<Option<Spanned<RawFlow>>, ParseError> {
-    match map.get_node("flow") {
+) -> Result<Option<Spanned<Vec<Spanned<String>>>>, ParseError> {
+    // Reject deprecated `flow:` keyword with clear error
+    if let Some(node) = map.get_node("flow") {
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file, node),
+            message: "'flow:' is removed in v0.28. Use 'depends_on:' instead.".to_string(),
+        });
+    }
+
+    // depends_on: accepts both single string and array
+    match map.get_node("depends_on") {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
             Ok(Some(Spanned::new(
-                RawFlow::Single(Spanned::new(s.as_str().to_string(), span)),
+                vec![Spanned::new(s.as_str().to_string(), span)],
                 span,
             )))
         }
         Some(Node::Sequence(seq)) => {
             let span = marked_span_to_span(file, seq.span());
             let ids: Result<Vec<_>, _> = seq.iter().map(|n| extract_string(file, n)).collect();
-            Ok(Some(Spanned::new(RawFlow::Multiple(ids?), span)))
+            Ok(Some(Spanned::new(ids?, span)))
         }
         Some(node) => Err(ParseError {
             kind: ParseErrorKind::InvalidType,
             span: node_to_span(file, node),
-            message: "flow must be string or array".to_string(),
+            message: "depends_on must be a string or array of strings".to_string(),
         }),
         None => Ok(None),
     }
@@ -855,6 +834,45 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse MCP server configurations
     workflow.mcp = parse_mcp_config(file_id, map)?;
 
+    // Parse pkg configuration
+    workflow.pkg = parse_pkg_config(file_id, map)?;
+
+    // Parse context configuration
+    workflow.context = parse_context_config(file_id, map)?;
+
+    // Parse imports (v0.28 — replaces include: + skills:)
+    workflow.imports = parse_imports(file_id, map)?;
+
+    // Reject deprecated `include:` keyword
+    if let Some(node) = map.get_node("include") {
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file_id, node),
+            message: "'include:' is removed in v0.28. Use 'imports:' instead.".to_string(),
+        });
+    }
+
+    // Reject deprecated `skills:` keyword
+    if let Some(node) = map.get_node("skills") {
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file_id, node),
+            message: "'skills:' is removed in v0.28. Use 'imports:' instead.".to_string(),
+        });
+    }
+
+    // Reject deprecated `flows:` keyword
+    if let Some(node) = map.get_node("flows") {
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file_id, node),
+            message: "'flows:' is removed in v0.28. Use 'depends_on:' on individual tasks instead.".to_string(),
+        });
+    }
+
+    // Parse inputs
+    workflow.inputs = parse_inputs(file_id, map)?;
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 
@@ -941,6 +959,171 @@ fn parse_mcp_server(file_id: FileId, node: &Node) -> Result<Spanned<RawMcpServer
     Ok(Spanned::new(server, span))
 }
 
+/// Parse pkg: configuration.
+fn parse_pkg_config(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<RawPkgConfig>>, ParseError> {
+    let pkg_node = match map.get_node("pkg") {
+        Some(node) => node,
+        None => return Ok(None),
+    };
+
+    let pkg_map = match pkg_node {
+        Node::Mapping(m) => m,
+        _ => {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span: node_to_span(file_id, pkg_node),
+                message: "pkg must be a mapping".to_string(),
+            });
+        }
+    };
+
+    let span = marked_span_to_span(file_id, pkg_map.span());
+    let include = match parse_string_array(file_id, pkg_map, "include")? {
+        Some(arr) => arr.value,
+        None => Vec::new(),
+    };
+
+    Ok(Some(Spanned::new(RawPkgConfig { include }, span)))
+}
+
+/// Parse context: configuration.
+fn parse_context_config(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<RawContextConfig>>, ParseError> {
+    let ctx_node = match map.get_node("context") {
+        Some(node) => node,
+        None => return Ok(None),
+    };
+
+    let ctx_map = match ctx_node {
+        Node::Mapping(m) => m,
+        _ => {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span: node_to_span(file_id, ctx_node),
+                message: "context must be a mapping".to_string(),
+            });
+        }
+    };
+
+    let span = marked_span_to_span(file_id, ctx_map.span());
+    let files = parse_string_map(file_id, ctx_map, "files")?
+        .map(|s| s.value);
+
+    Ok(Some(Spanned::new(RawContextConfig { files }, span)))
+}
+
+/// Parse imports: specification (v0.28 — replaces include: + skills:).
+///
+/// ```yaml
+/// imports:
+///   - path: ./partials/setup.nika.yaml
+///     prefix: setup_
+///   - path: pkg:@spn/core@1.0/seo.nika.yaml
+/// ```
+fn parse_imports(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<Vec<Spanned<RawImportSpec>>>>, ParseError> {
+    let imports_node = match map.get_node("imports") {
+        Some(node) => node,
+        None => return Ok(None),
+    };
+
+    let seq = match imports_node {
+        Node::Sequence(s) => s,
+        _ => {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span: node_to_span(file_id, imports_node),
+                message: "imports must be a sequence".to_string(),
+            });
+        }
+    };
+
+    let outer_span = marked_span_to_span(file_id, seq.span());
+    let mut specs = Vec::new();
+
+    for item_node in seq.iter() {
+        let item_span = node_to_span(file_id, item_node);
+
+        let item_map = match item_node {
+            Node::Mapping(m) => m,
+            _ => {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span: item_span,
+                    message: "import entry must be a mapping with 'path' field".to_string(),
+                });
+            }
+        };
+
+        let path = get_string_field(file_id, item_map, "path")?.ok_or_else(|| ParseError {
+            kind: ParseErrorKind::MissingField,
+            span: item_span,
+            message: "import entry requires 'path' field".to_string(),
+        })?;
+
+        let prefix = get_string_field(file_id, item_map, "prefix")?;
+
+        specs.push(Spanned::new(
+            RawImportSpec {
+                path,
+                prefix,
+                span: item_span,
+            },
+            item_span,
+        ));
+    }
+
+    Ok(Some(Spanned::new(specs, outer_span)))
+}
+
+/// Parse inputs: parameters with defaults.
+///
+/// ```yaml
+/// inputs:
+///   locale: "fr-FR"
+///   max_items: 10
+/// ```
+fn parse_inputs(
+    file_id: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<IndexMap<Spanned<String>, Spanned<serde_json::Value>>>>, ParseError> {
+    let inputs_node = match map.get_node("inputs") {
+        Some(node) => node,
+        None => return Ok(None),
+    };
+
+    let inputs_map = match inputs_node {
+        Node::Mapping(m) => m,
+        _ => {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span: node_to_span(file_id, inputs_node),
+                message: "inputs must be a mapping".to_string(),
+            });
+        }
+    };
+
+    let span = marked_span_to_span(file_id, inputs_map.span());
+    let mut result = IndexMap::new();
+
+    for (k, v) in inputs_map.iter() {
+        let key_span = marked_span_to_span(file_id, k.span());
+        let key = Spanned::new(k.as_str().to_string(), key_span);
+        let val_span = node_to_span(file_id, v);
+        let val = Spanned::new(node_to_json(v), val_span);
+        result.insert(key, val);
+    }
+
+    Ok(Some(Spanned::new(result, span)))
+}
+
 /// Parse the tasks array from a workflow mapping.
 fn parse_tasks(
     file_id: FileId,
@@ -996,8 +1179,8 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
 
     // Parse all task fields
     let action = parse_action(file_id, map)?;
-    let use_refs = parse_use_refs(file_id, map)?;
-    let flow = parse_flow(file_id, map)?;
+    let with_refs = parse_with_refs(file_id, map)?;
+    let depends_on = parse_depends_on(file_id, map)?;
     let output = parse_output(file_id, map)?;
     let for_each = parse_for_each(file_id, map)?;
     let retry = parse_retry(file_id, map)?;
@@ -1009,8 +1192,8 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         provider,
         model,
         action,
-        use_refs,
-        flow,
+        with_refs,
+        depends_on,
         output,
         for_each,
         retry,
@@ -1312,61 +1495,166 @@ tasks:
     // =========================================================================
 
     #[test]
-    fn test_parse_use_refs_simple() {
+    fn test_parse_with_refs_simple() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    infer: "Generate"
+  - id: step2
+    with:
+      data: step1
+    infer: "Process {{with.data}}"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("step2").unwrap();
+
+        let with_refs = task.value.with_refs.as_ref().unwrap();
+        assert_eq!(with_refs.value.len(), 1);
+
+        let (alias, value) = with_refs.value.iter().next().unwrap();
+        assert_eq!(alias.value, "data");
+        assert_eq!(value.value, "step1");
+    }
+
+    #[test]
+    fn test_parse_with_refs_binding_expr() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    infer: "Generate"
+  - id: step2
+    with:
+      data: "step1"
+      temp: "step1.data.temp ?? 20"
+      cfg: "$env.API_KEY"
+      val: "step1.output | upper | trim"
+    infer: "Process"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("step2").unwrap();
+
+        let with_refs = task.value.with_refs.as_ref().unwrap();
+        assert_eq!(with_refs.value.len(), 4);
+
+        let vals: Vec<&str> = with_refs.value.values().map(|v| v.value.as_str()).collect();
+        assert_eq!(vals[0], "step1");
+        assert_eq!(vals[1], "step1.data.temp ?? 20");
+        assert_eq!(vals[2], "$env.API_KEY");
+        assert_eq!(vals[3], "step1.output | upper | trim");
+    }
+
+    #[test]
+    fn test_parse_depends_on_single() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    infer: "Generate"
+  - id: step2
+    depends_on: step1
+    infer: "Process"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("step2").unwrap();
+
+        let deps = task.value.depends_on.as_ref().unwrap();
+        assert_eq!(deps.value.len(), 1);
+        assert_eq!(deps.value[0].value, "step1");
+    }
+
+    #[test]
+    fn test_parse_depends_on_multiple() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: step1
+    infer: "Step 1"
+  - id: step2
+    infer: "Step 2"
+  - id: step3
+    depends_on: [step1, step2]
+    infer: "Process"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("step3").unwrap();
+
+        let deps = task.value.depends_on.as_ref().unwrap();
+        assert_eq!(deps.value.len(), 2);
+        assert_eq!(deps.value[0].value, "step1");
+        assert_eq!(deps.value[1].value, "step2");
+    }
+
+    #[test]
+    fn test_parse_imports() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+imports:
+  - path: ./partials/setup.nika.yaml
+    prefix: setup_
+  - path: "pkg:@spn/core@1.0/seo.nika.yaml"
+tasks:
+  - id: main_task
+    infer: "Main logic"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+
+        let imports = workflow.imports.as_ref().unwrap();
+        assert_eq!(imports.value.len(), 2);
+
+        assert_eq!(imports.value[0].value.path.value, "./partials/setup.nika.yaml");
+        assert_eq!(imports.value[0].value.prefix.as_ref().unwrap().value, "setup_");
+
+        assert_eq!(imports.value[1].value.path.value, "pkg:@spn/core@1.0/seo.nika.yaml");
+        assert!(imports.value[1].value.prefix.is_none());
+    }
+
+    #[test]
+    fn test_parse_inputs() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+inputs:
+  locale: "fr-FR"
+  max_items: 10
+  debug: true
+tasks:
+  - id: main_task
+    infer: "Main"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+
+        let inputs = workflow.inputs.as_ref().unwrap();
+        assert_eq!(inputs.value.len(), 3);
+
+        let keys: Vec<&str> = inputs.value.keys().map(|k| k.value.as_str()).collect();
+        assert_eq!(keys, vec!["locale", "max_items", "debug"]);
+
+        assert_eq!(inputs.value.values().next().unwrap().value, serde_json::Value::String("fr-FR".to_string()));
+    }
+
+    #[test]
+    fn test_reject_deprecated_use_keyword() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Generate"
   - id: step2
     use:
       data: step1
-    infer: "Process {{use.data}}"
-"#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("step2").unwrap();
-
-        let use_refs = task.value.use_refs.as_ref().unwrap();
-        assert_eq!(use_refs.value.len(), 1);
-
-        let (alias, target) = use_refs.value.iter().next().unwrap();
-        assert_eq!(alias.value, "data");
-        assert_eq!(target.task_id(), "step1");
-    }
-
-    #[test]
-    fn test_parse_use_refs_extended() {
-        let yaml = r#"
-schema: "nika/workflow@0.10"
-tasks:
-  - id: step1
-    infer: "Generate"
-  - id: step2
-    use:
-      data:
-        task: step1
-        path: "$.result.value"
     infer: "Process"
 "#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("step2").unwrap();
-
-        let use_refs = task.value.use_refs.as_ref().unwrap();
-        let (_, target) = use_refs.value.iter().next().unwrap();
-
-        match target {
-            RawUseTarget::Extended { task, path, .. } => {
-                assert_eq!(task.value, "step1");
-                assert_eq!(path.as_ref().unwrap().value, "$.result.value");
-            }
-            _ => panic!("Expected Extended target"),
-        }
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("'use:' is removed in v0.28"));
     }
 
     #[test]
-    fn test_parse_flow_single() {
+    fn test_reject_deprecated_flow_keyword() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Generate"
@@ -1374,31 +1662,84 @@ tasks:
     flow: step1
     infer: "Process"
 "#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("step2").unwrap();
-
-        let flow = task.value.flow.as_ref().unwrap();
-        assert_eq!(flow.value.task_ids(), vec!["step1"]);
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("'flow:' is removed in v0.28"));
     }
 
     #[test]
-    fn test_parse_flow_multiple() {
+    fn test_reject_deprecated_include_keyword() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
+include:
+  - path: ./setup.nika.yaml
 tasks:
-  - id: step1
-    infer: "Step 1"
-  - id: step2
-    infer: "Step 2"
-  - id: step3
-    flow: [step1, step2]
-    infer: "Process"
+  - id: main
+    infer: "Main"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("'include:' is removed in v0.28"));
+    }
+
+    #[test]
+    fn test_reject_deprecated_flows_keyword() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+flows:
+  - source: a
+    target: b
+tasks:
+  - id: a
+    infer: "A"
+  - id: b
+    infer: "B"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.message.contains("'flows:' is removed in v0.28"));
+    }
+
+    #[test]
+    fn test_parse_context_config() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+context:
+  files:
+    brand: ./context/brand.md
+    data: ./context/data.json
+tasks:
+  - id: main
+    infer: "Use brand: {{context.files.brand}}"
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("step3").unwrap();
 
-        let flow = task.value.flow.as_ref().unwrap();
-        assert_eq!(flow.value.task_ids(), vec!["step1", "step2"]);
+        let ctx = workflow.context.as_ref().unwrap();
+        let files = ctx.value.files.as_ref().unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files.values().any(|v| v.value == "./context/brand.md"));
+    }
+
+    #[test]
+    fn test_parse_pkg_config() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+pkg:
+  include:
+    - "github:user/repo"
+    - "local:./path"
+tasks:
+  - id: main
+    infer: "Main"
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+
+        let pkg = workflow.pkg.as_ref().unwrap();
+        assert_eq!(pkg.value.include.len(), 2);
+        assert_eq!(pkg.value.include[0].value, "github:user/repo");
     }
 
     #[test]

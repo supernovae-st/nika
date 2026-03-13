@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::binding::WiringSpec;
+use crate::binding::{WiringSpec, WithSpec};
 use crate::error::NikaError;
 
 use super::action::TaskAction;
@@ -273,6 +273,23 @@ pub struct Task {
     /// Explicit data wiring (v0.1)
     #[serde(default, rename = "use")]
     pub use_wiring: Option<WiringSpec>,
+    /// Rich typed binding system (v0.28)
+    ///
+    /// New `with:` block with typed paths, transforms, and source dispatch.
+    /// When present, takes priority over `use:` for binding resolution.
+    ///
+    /// # Example
+    ///
+    /// ```yaml
+    /// tasks:
+    ///   - id: process
+    ///     with:
+    ///       summary: $step1.abstract | lower | trim
+    ///       count: $step1.items | length ?? 0
+    ///     infer: "Process: {{with.summary}} ({{with.count}} items)"
+    /// ```
+    #[serde(default, rename = "with")]
+    pub with_spec: Option<WithSpec>,
     /// Output format and validation (v0.1)
     #[serde(default)]
     pub output: Option<OutputPolicy>,

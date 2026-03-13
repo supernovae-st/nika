@@ -174,17 +174,21 @@ impl Default for CacheConfig {
 }
 
 /// A cached MCP tool response.
+///
+/// Stores result behind `Arc` for cheap cloning on cache hits.
+/// `ToolCallResult` can contain large content blocks (text, base64 images),
+/// so Arc avoids deep cloning the entire content on every cache access.
 #[derive(Debug, Clone)]
 struct CacheEntry {
-    /// The cached result
-    result: ToolCallResult,
+    /// The cached result (Arc for cheap cloning)
+    result: Arc<ToolCallResult>,
 
     /// When the entry was created
     created_at: Instant,
 }
 
 impl CacheEntry {
-    fn new(result: ToolCallResult) -> Self {
+    fn new(result: Arc<ToolCallResult>) -> Self {
         Self {
             result,
             created_at: Instant::now(),
@@ -245,7 +249,10 @@ impl ResponseCache {
     }
 
     /// Get a cached result if it exists and is not expired.
-    fn get(&self, tool: &str, params: &Value) -> Option<ToolCallResult> {
+    ///
+    /// Returns an `Arc<ToolCallResult>` for cheap sharing (atomic ref-count increment
+    /// instead of deep cloning content blocks).
+    fn get(&self, tool: &str, params: &Value) -> Option<Arc<ToolCallResult>> {
         let key = Self::cache_key(tool, params);
 
         if let Some(entry) = self.entries.get(&key) {
@@ -258,7 +265,7 @@ impl ResponseCache {
             }
 
             self.hits.fetch_add(1, Ordering::Relaxed);
-            return Some(entry.result.clone());
+            return Some(Arc::clone(&entry.result));
         }
 
         self.misses.fetch_add(1, Ordering::Relaxed);
@@ -266,7 +273,9 @@ impl ResponseCache {
     }
 
     /// Store a result in the cache.
-    fn put(&self, tool: &str, params: &Value, result: &ToolCallResult) {
+    ///
+    /// Wraps the result in `Arc` for cheap retrieval on subsequent hits.
+    fn put(&self, tool: &str, params: &Value, result: ToolCallResult) {
         // Don't cache errors
         if result.is_error {
             return;
@@ -279,7 +288,7 @@ impl ResponseCache {
             self.evict_oldest();
         }
 
-        self.entries.insert(key, CacheEntry::new(result.clone()));
+        self.entries.insert(key, CacheEntry::new(Arc::new(result)));
     }
 
     /// Evict the oldest entries to make room for new ones.
@@ -848,7 +857,7 @@ impl McpClient {
                     tool = %name,
                     "Cache hit for MCP tool call"
                 );
-                return Ok(cached_result);
+                return Ok((*cached_result).clone());
             }
         }
 
@@ -864,7 +873,7 @@ impl McpClient {
             let result = self.mock_tool_call(name, &params);
             // Store mock result in cache too
             if let Some(ref cache) = self.cache {
-                cache.put(name, &params, &result);
+                cache.put(name, &params, result.clone());
             }
             return Ok(result);
         }
@@ -885,7 +894,7 @@ impl McpClient {
                 Ok(result) => {
                     // Store successful result in cache
                     if let Some(ref cache) = self.cache {
-                        cache.put(name, &params, &result);
+                        cache.put(name, &params, result.clone());
                         tracing::debug!(
                             mcp_server = %self.name,
                             tool = %name,
@@ -1029,7 +1038,7 @@ impl McpClient {
                     tool = %name,
                     "Cache hit for MCP tool call"
                 );
-                return Ok(cached_result);
+                return Ok((*cached_result).clone());
             }
         }
 
@@ -1043,7 +1052,7 @@ impl McpClient {
             }
             let result = self.mock_tool_call(name, &params);
             if let Some(ref cache) = self.cache {
-                cache.put(name, &params, &result);
+                cache.put(name, &params, result.clone());
             }
             return Ok(result);
         }
@@ -1063,7 +1072,7 @@ impl McpClient {
             match adapter.call_tool(name, params.clone()).await {
                 Ok(result) => {
                     if let Some(ref cache) = self.cache {
-                        cache.put(name, &params, &result);
+                        cache.put(name, &params, result.clone());
                         tracing::debug!(
                             mcp_server = %self.name,
                             tool = %name,

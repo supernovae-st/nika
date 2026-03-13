@@ -135,6 +135,15 @@ impl AnalyzeError {
         )
         .with_suggestion(format!("upgrade to schema: {}", required_version))
     }
+
+    /// Create an "invalid binding" error for malformed `with:` expressions.
+    pub fn invalid_binding(span: Span, input: &str, reason: &str) -> Self {
+        Self::new(
+            AnalyzeErrorKind::InvalidBinding,
+            span,
+            format!("invalid binding expression '{}': {}", input, reason),
+        )
+    }
 }
 
 impl std::fmt::Display for AnalyzeError {
@@ -152,7 +161,7 @@ impl std::error::Error for AnalyzeError {}
 /// Kinds of analysis errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnalyzeErrorKind {
-    /// Unknown task reference (e.g., in `use:` or `flow:`)
+    /// Unknown task reference (e.g., in `with:` or `depends_on:`)
     UnknownTask,
     /// Duplicate task ID
     DuplicateTask,
@@ -166,18 +175,20 @@ pub enum AnalyzeErrorKind {
     MissingField,
     /// Invalid template expression
     InvalidTemplate,
-    /// Unknown flow definition
+    /// Unknown flow definition (legacy, kept for backwards compat diagnostics)
     UnknownFlow,
     /// Unknown MCP server
     UnknownMcpServer,
     /// Feature not available in this schema version
     UnsupportedFeature,
+    /// Invalid binding expression in `with:` block
+    InvalidBinding,
 }
 
 impl AnalyzeErrorKind {
     /// Get the error code in NIKA-XXX format.
     ///
-    /// AST analysis errors use range NIKA-140-149:
+    /// AST analysis errors use range NIKA-140-150:
     /// - NIKA-140: Unknown task reference
     /// - NIKA-141: Duplicate task ID
     /// - NIKA-142: Invalid schema version
@@ -188,6 +199,7 @@ impl AnalyzeErrorKind {
     /// - NIKA-147: Unknown flow definition
     /// - NIKA-148: Unknown MCP server
     /// - NIKA-149: Feature not available in schema version
+    /// - NIKA-150: Invalid binding expression
     pub fn code(&self) -> &'static str {
         match self {
             Self::UnknownTask => "NIKA-140",
@@ -200,6 +212,7 @@ impl AnalyzeErrorKind {
             Self::UnknownFlow => "NIKA-147",
             Self::UnknownMcpServer => "NIKA-148",
             Self::UnsupportedFeature => "NIKA-149",
+            Self::InvalidBinding => "NIKA-150",
         }
     }
 }
@@ -443,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_error_kind_codes() {
-        // AST analysis errors use NIKA-140-149 range
+        // AST analysis errors use NIKA-140-150 range
         assert_eq!(AnalyzeErrorKind::UnknownTask.code(), "NIKA-140");
         assert_eq!(AnalyzeErrorKind::DuplicateTask.code(), "NIKA-141");
         assert_eq!(AnalyzeErrorKind::InvalidSchema.code(), "NIKA-142");
@@ -454,6 +467,7 @@ mod tests {
         assert_eq!(AnalyzeErrorKind::UnknownFlow.code(), "NIKA-147");
         assert_eq!(AnalyzeErrorKind::UnknownMcpServer.code(), "NIKA-148");
         assert_eq!(AnalyzeErrorKind::UnsupportedFeature.code(), "NIKA-149");
+        assert_eq!(AnalyzeErrorKind::InvalidBinding.code(), "NIKA-150");
     }
 
     #[test]
@@ -608,6 +622,7 @@ tasks:
             (AnalyzeErrorKind::UnknownFlow, "NIKA-147"),
             (AnalyzeErrorKind::UnknownMcpServer, "NIKA-148"),
             (AnalyzeErrorKind::UnsupportedFeature, "NIKA-149"),
+            (AnalyzeErrorKind::InvalidBinding, "NIKA-150"),
         ];
 
         for (kind, expected_code) in kinds {

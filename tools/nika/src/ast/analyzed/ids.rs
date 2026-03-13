@@ -32,30 +32,6 @@ impl fmt::Display for TaskId {
     }
 }
 
-/// Interned flow definition identifier.
-///
-/// Flow definitions (in the `flows:` section) are identified by index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FlowDefId(pub u32);
-
-impl FlowDefId {
-    /// Create a new flow definition ID.
-    pub const fn new(index: u32) -> Self {
-        Self(index)
-    }
-
-    /// Get the raw index.
-    pub const fn index(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for FlowDefId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "flow#{}", self.0)
-    }
-}
-
 /// Interned MCP server identifier.
 ///
 /// MCP servers configured in the `mcp:` section are identified by index.

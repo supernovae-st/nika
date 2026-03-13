@@ -10,9 +10,15 @@ use crate::source::{Span, Spanned};
 ///
 /// All fields preserve source positions via `Spanned<T>`.
 /// This is Phase 1 of the Two-Phase IR - no validation, just structure.
+///
+/// ## v0.28 Breaking Changes
+///
+/// - `include:` removed — replaced by `imports:` with richer syntax.
+/// - `flows:` removed — use `depends_on:` on individual tasks instead.
+/// - `skills:` removed — folded into `imports:` system.
 #[derive(Debug, Clone, Default)]
 pub struct RawWorkflow {
-    /// Schema version: "nika/workflow@0.10"
+    /// Schema version: "nika/workflow@0.12"
     pub schema: Spanned<String>,
 
     /// Workflow identifier (optional in YAML, defaults to filename)
@@ -36,17 +42,21 @@ pub struct RawWorkflow {
     /// Context files configuration
     pub context: Option<Spanned<RawContextConfig>>,
 
-    /// Include external workflows
-    pub include: Option<Spanned<Vec<Spanned<String>>>>,
+    /// Import external workflows/modules (v0.28, replaces include: + skills:)
+    ///
+    /// ```yaml
+    /// imports:
+    ///   - path: ./partials/setup.nika.yaml
+    ///     prefix: setup_
+    ///   - path: pkg:@spn/core@1.0/seo.nika.yaml
+    /// ```
+    pub imports: Option<Spanned<Vec<Spanned<RawImportSpec>>>>,
 
     /// Input parameters with defaults
     pub inputs: Option<Spanned<IndexMap<Spanned<String>, Spanned<serde_json::Value>>>>,
 
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
-
-    /// Explicit flow definitions
-    pub flows: Option<Spanned<Vec<Spanned<RawFlowDef>>>>,
 
     /// The span of the entire workflow document
     pub span: Span,
@@ -66,14 +76,20 @@ pub struct RawContextConfig {
     pub files: Option<IndexMap<Spanned<String>, Spanned<String>>>,
 }
 
-/// Raw explicit flow definition.
+/// Raw import specification (v0.28).
+///
+/// Replaces both `include:` (DAG fusion) and `skills:` (prompt injection).
 #[derive(Debug, Clone, Default)]
-pub struct RawFlowDef {
-    /// Source task(s)
-    pub from: Spanned<Vec<Spanned<String>>>,
-    /// Target task(s)
-    pub to: Spanned<Vec<Spanned<String>>>,
-    /// Span of the entire flow definition
+pub struct RawImportSpec {
+    /// Path to the imported workflow or skill file.
+    /// Supports local paths and `pkg:` URIs.
+    pub path: Spanned<String>,
+
+    /// Optional task ID prefix for namespace isolation.
+    /// When set, all imported task IDs get this prefix.
+    pub prefix: Option<Spanned<String>>,
+
+    /// Span of the entire import spec
     pub span: Span,
 }
 
@@ -154,5 +170,17 @@ mod tests {
         assert!(workflow.get_task("task1").is_some());
         assert!(workflow.get_task("task2").is_some());
         assert!(workflow.get_task("task3").is_none());
+    }
+
+    #[test]
+    fn test_raw_import_spec() {
+        let import = RawImportSpec {
+            path: Spanned::new("./partials/setup.nika.yaml".to_string(), make_span(0, 25)),
+            prefix: Some(Spanned::new("setup_".to_string(), make_span(30, 36))),
+            span: make_span(0, 40),
+        };
+
+        assert_eq!(import.path.value, "./partials/setup.nika.yaml");
+        assert_eq!(import.prefix.as_ref().unwrap().value, "setup_");
     }
 }

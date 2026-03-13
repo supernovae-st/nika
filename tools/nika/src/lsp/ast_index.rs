@@ -217,12 +217,9 @@ impl AstIndex {
             ));
         }
 
-        // Check use references
-        for (alias, use_ref) in &task.use_refs {
-            if Self::span_contains_offset(&use_ref.span, offset) {
-                return Some(AstNode::Binding(alias.clone(), use_ref.span));
-            }
-        }
+        // with: bindings don't carry spans (they are parsed expressions),
+        // so we can't do positional lookups into individual bindings.
+        // The task span covers the entire with: block.
 
         // Check for_each
         if let Some(ref for_each) = task.for_each {

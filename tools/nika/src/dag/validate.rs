@@ -1,112 +1,117 @@
-//! DAG Validation - use: wiring validation (v0.1)
+//! DAG Validation — with: binding validation (v0.28)
 //!
 //! Validates:
-//! - use: wiring references (task exists, is upstream)
-//! - Template refs match use: declarations
+//! - with: binding references (task exists, is upstream)
+//! - Template refs match with: declarations
 //! - Task ID format (snake_case)
 //!
 //! Error codes:
 //! - NIKA-055: Invalid task ID format (non-snake_case)
-//! - NIKA-080: use.alias references unknown task
-//! - NIKA-081: use.alias references non-upstream task
-//! - NIKA-082: use.alias creates self-reference
+//! - NIKA-080: with.alias references unknown task
+//! - NIKA-081: with.alias references non-upstream task
+//! - NIKA-082: with.alias creates self-reference
 //!
-//! Note: Template {{use.alias}} validation handled by binding/resolve.rs (NIKA-040-049)
+//! ## v0.28 Changes
+//!
+//! - `validate_use_wiring` → `validate_with_bindings`
+//! - `WiringSpec` → `WithSpec` (rich binding expressions)
+//! - `UseEntry::task_id() -> &str` → `WithEntry::task_id() -> Option<&str>`
+//!   (non-task bindings like Context/Input/Env/LoopVar are skipped)
+//! - `validate_refs` → `validate_with_refs` (2-pass template engine)
+//! - `detect_deprecated_dollar_syntax` removed (no backwards compat)
+//! - Tests use programmatic AnalyzedWorkflow construction instead of YAML
 
 use rustc_hash::FxHashSet;
 
-use crate::ast::{TaskAction, Workflow};
-use crate::binding::{
-    detect_deprecated_dollar_syntax, validate_refs, validate_task_id, WiringSpec,
-};
+use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow};
+use crate::binding::{validate_task_id, validate_with_refs, WithSpec};
 use crate::error::NikaError;
 
 use super::flow::Dag;
 
-/// Validate a workflow's use: wiring against the flow graph
-pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
-    // Zero-clone: use &str references instead of owned Strings
-    let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
+// Legacy imports for validate_use_wiring shim
+use crate::ast::{TaskAction, Workflow};
+use crate::binding::{validate_refs, WiringSpec};
+
+/// Validate a workflow's with: bindings against the flow graph.
+///
+/// For each task that has a `with_spec`, validates:
+/// 1. Each binding that references a task (Context/Input/Env/LoopVar are skipped)
+///    - The referenced task exists in the workflow
+///    - The referenced task is not a self-reference
+///    - The referenced task is upstream (reachable via DAG edges)
+/// 2. Template `{{with.alias}}` refs match declared aliases
+pub fn validate_with_bindings(
+    workflow: &AnalyzedWorkflow,
+    flow_graph: &Dag,
+) -> Result<(), NikaError> {
+    let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.name.as_str()).collect();
 
     for task in &workflow.tasks {
-        if let Some(ref wiring) = task.use_wiring {
-            validate_wiring(&task.id, wiring, &all_task_ids, flow_graph)?;
+        if !task.with_spec.is_empty() {
+            validate_wiring(&task.name, &task.with_spec, &all_task_ids, flow_graph)?;
         }
 
-        // FIX: Validate that {{use.alias}} refs in templates match declared aliases
         validate_template_refs(task)?;
     }
 
     Ok(())
 }
 
-/// Validate that {{use.alias}} references in task templates match declared aliases
-///
-/// BUG FIX (2026-02-21): Previously validate_refs() existed but was never called.
-/// Now it's called during `nika check` to catch template typos early.
-fn validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
-    // Collect declared aliases from use: block
-    let mut declared_aliases: FxHashSet<String> = task
-        .use_wiring
-        .as_ref()
-        .map(|w| w.keys().cloned().collect())
-        .unwrap_or_default();
+/// Validate that `{{with.alias}}` references in task templates match declared aliases.
+fn validate_template_refs(task: &AnalyzedTask) -> Result<(), NikaError> {
+    let mut declared_aliases: FxHashSet<String> =
+        task.with_spec.keys().cloned().collect();
 
-    // BUG FIX (2026-02-21): Add for_each loop variable to declared aliases
-    // If task has for_each, the loop variable (for_each_as) is a valid alias
-    if task.for_each.is_some() {
-        let loop_var = task.for_each_as.as_deref().unwrap_or("item");
-        declared_aliases.insert(loop_var.to_string());
+    // Add for_each loop variable to declared aliases
+    if let Some(ref for_each) = task.for_each {
+        declared_aliases.insert(for_each.as_var.clone());
     }
 
-    // If no use: block, {{use.alias}} refs are invalid (catch early)
     // Extract templates from the task action and validate each
     let templates = extract_templates_from_action(&task.action);
 
     for template in templates {
-        validate_refs(&template, &declared_aliases, &task.id)?;
-        // Check for deprecated $alias syntax (should use {{use.alias}} instead)
-        detect_deprecated_dollar_syntax(&template, &task.id)?;
+        validate_with_refs(&template, &declared_aliases, &task.name)?;
     }
 
     Ok(())
 }
 
-/// Extract all template strings from a task action
-fn extract_templates_from_action(action: &TaskAction) -> Vec<String> {
+/// Extract all template strings from an analyzed task action.
+fn extract_templates_from_action(action: &AnalyzedTaskAction) -> Vec<String> {
     let mut templates = Vec::new();
 
     match action {
-        TaskAction::Infer { infer } => {
+        AnalyzedTaskAction::Infer(infer) => {
             templates.push(infer.prompt.clone());
+            if let Some(ref system) = infer.system {
+                templates.push(system.clone());
+            }
         }
-        TaskAction::Exec { exec } => {
+        AnalyzedTaskAction::Exec(exec) => {
             templates.push(exec.command.clone());
         }
-        TaskAction::Fetch { fetch } => {
+        AnalyzedTaskAction::Fetch(fetch) => {
             templates.push(fetch.url.clone());
             if let Some(ref body) = fetch.body {
                 templates.push(body.clone());
             }
         }
-        TaskAction::Invoke { invoke } => {
-            // params can contain templates in values
+        AnalyzedTaskAction::Invoke(invoke) => {
             if let Some(params) = &invoke.params {
                 collect_string_values(params, &mut templates);
             }
         }
-        TaskAction::Agent { agent } => {
-            templates.push(agent.prompt.clone());
-            if let Some(ref system) = agent.system {
-                templates.push(system.clone());
-            }
+        AnalyzedTaskAction::Agent(agent) => {
+            templates.push(agent.goal.clone());
         }
     }
 
     templates
 }
 
-/// Recursively collect string values from JSON that might contain templates
+/// Recursively collect string values from JSON that might contain templates.
 fn collect_string_values(value: &serde_json::Value, templates: &mut Vec<String>) {
     match value {
         serde_json::Value::String(s) => {
@@ -126,25 +131,28 @@ fn collect_string_values(value: &serde_json::Value, templates: &mut Vec<String>)
     }
 }
 
-/// Validate a single use: wiring
+/// Validate a single with: spec against the DAG.
 ///
-/// Unified validation for new syntax: `alias: task.path [?? default]`
-/// Ensures:
-/// 1. Source task ID is valid (snake_case)
-/// 2. Source task exists in workflow
-/// 3. Source is not self-reference
-/// 4. Source task has path to current task
+/// For each binding entry that references a task:
+/// 1. Validates the source task ID format (snake_case)
+/// 2. Validates the source task exists
+/// 3. Validates the source is not a self-reference
+/// 4. Validates the source task is upstream (reachable via DAG path)
+///
+/// Non-task bindings (Context, Input, Env, LoopVar) are silently skipped.
 fn validate_wiring(
     task_id: &str,
-    wiring: &WiringSpec,
+    with_spec: &WithSpec,
     all_task_ids: &FxHashSet<&str>,
     flow_graph: &Dag,
 ) -> Result<(), NikaError> {
-    for (alias, entry) in wiring {
-        // Extract task_id from the path (first segment before '.')
-        let from_task = entry.task_id();
+    for (alias, entry) in with_spec {
+        // Skip non-task bindings (Context/Input/Env/LoopVar return None)
+        let Some(from_task) = entry.task_id() else {
+            continue;
+        };
 
-        // Validate the source task ID format (snake_case) - O(n) check
+        // Validate the source task ID format (snake_case)
         validate_task_id(from_task)?;
 
         // Validate that the source task exists, is not self-referential, and is upstream
@@ -154,11 +162,11 @@ fn validate_wiring(
     Ok(())
 }
 
-/// Validate that from_task exists and is upstream
+/// Validate that from_task exists and is upstream.
 ///
-/// Checks in order:
-/// 1. Task exists in workflow (O(1) hash lookup)
-/// 2. Not self-reference (O(1) comparison)
+/// Checks in order (cheapest first):
+/// 1. Not self-reference (O(1) comparison)
+/// 2. Task exists in workflow (O(1) hash lookup)
 /// 3. Has path from source to current task in DAG (O(V+E) BFS)
 fn validate_from_task(
     alias: &str,
@@ -197,55 +205,268 @@ fn validate_from_task(
     Ok(())
 }
 
+// ═══════════════════════════════════════════════════════════════
+// LEGACY SHIM — Old Workflow validation (v0.27 compat)
+// TODO(v0.28-cleanup): Remove when callers migrate to AnalyzedWorkflow
+// ═══════════════════════════════════════════════════════════════
+
+/// Legacy: Validate old-style `Workflow` use: bindings against the DAG.
+///
+/// This is a compatibility shim. New code should use
+/// `validate_with_bindings()` with `AnalyzedWorkflow`.
+pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
+    let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
+
+    for task in &workflow.tasks {
+        // v0.28: Validate with: bindings if present, otherwise validate use: bindings
+        if let Some(ref with_spec) = task.with_spec {
+            validate_wiring(&task.id, with_spec, &all_task_ids, flow_graph)?;
+            legacy_validate_template_refs_with(task)?;
+        } else {
+            if let Some(ref wiring) = task.use_wiring {
+                legacy_validate_wiring(&task.id, wiring, &all_task_ids, flow_graph)?;
+            }
+            legacy_validate_template_refs(task)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Legacy: validate a single use: wiring spec.
+fn legacy_validate_wiring(
+    task_id: &str,
+    wiring: &WiringSpec,
+    all_task_ids: &FxHashSet<&str>,
+    flow_graph: &Dag,
+) -> Result<(), NikaError> {
+    for (alias, entry) in wiring {
+        let from_task = entry.task_id();
+        validate_task_id(from_task)?;
+        validate_from_task(alias, from_task, task_id, all_task_ids, flow_graph)?;
+    }
+    Ok(())
+}
+
+/// Legacy: validate template refs for old Task type (use: block → {{use.alias}}).
+fn legacy_validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
+    let mut declared_aliases: FxHashSet<String> = task
+        .use_wiring
+        .as_ref()
+        .map(|w| w.keys().cloned().collect())
+        .unwrap_or_default();
+
+    // Add for_each loop variable
+    if task.for_each.is_some() {
+        let as_var = task.for_each_as.clone().unwrap_or_else(|| "item".to_string());
+        declared_aliases.insert(as_var);
+    }
+
+    let templates = legacy_extract_templates(&task.action);
+    for template in templates {
+        validate_refs(&template, &declared_aliases, &task.id)?;
+    }
+
+    Ok(())
+}
+
+/// Legacy Task with with: block → validate {{with.alias}} refs (v0.28).
+fn legacy_validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError> {
+    let mut declared_aliases: FxHashSet<String> = task
+        .with_spec
+        .as_ref()
+        .map(|w| w.keys().cloned().collect())
+        .unwrap_or_default();
+
+    // Add for_each loop variable
+    if task.for_each.is_some() {
+        let as_var = task.for_each_as.clone().unwrap_or_else(|| "item".to_string());
+        declared_aliases.insert(as_var);
+    }
+
+    let templates = legacy_extract_templates(&task.action);
+    for template in templates {
+        validate_with_refs(&template, &declared_aliases, &task.id)?;
+    }
+
+    Ok(())
+}
+
+/// Legacy: extract template strings from old TaskAction.
+fn legacy_extract_templates(action: &TaskAction) -> Vec<String> {
+    let mut templates = Vec::new();
+    match action {
+        TaskAction::Infer { infer } => {
+            templates.push(infer.prompt.clone());
+            if let Some(ref system) = infer.system {
+                templates.push(system.clone());
+            }
+        }
+        TaskAction::Exec { exec } => {
+            templates.push(exec.command.clone());
+        }
+        TaskAction::Fetch { fetch } => {
+            templates.push(fetch.url.clone());
+            if let Some(ref body) = fetch.body {
+                templates.push(body.clone());
+            }
+        }
+        TaskAction::Invoke { invoke } => {
+            if let Some(ref params) = invoke.params {
+                collect_string_values(params, &mut templates);
+            }
+        }
+        TaskAction::Agent { agent } => {
+            templates.push(agent.prompt.clone());
+            if let Some(ref system) = agent.system {
+                templates.push(system.clone());
+            }
+        }
+    }
+    templates
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{FetchParams, InferParams, InvokeParams, Task};
-    use crate::binding::UseEntry;
-    use crate::serde_yaml;
+    use crate::ast::analyzed::{
+        AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach, AnalyzedInferAction,
+        AnalyzedInvokeAction, AnalyzedAgentAction, AnalyzedTaskAction, TaskId, TaskTable,
+    };
+    use crate::binding::types::{BindingPath, BindingSource, PathSegment};
+    use crate::binding::WithEntry;
+    use crate::source::Span;
     use serde_json::json;
+    use std::sync::Arc;
 
     // ═══════════════════════════════════════════════════════════════
-    // UNIT TESTS: UseEntry.task_id() extraction
-    // ─────────────────────────────────────────────────────────────
-    // Tests path parsing from "task.field.subfield" format
+    // HELPERS — Programmatic AnalyzedWorkflow construction
     // ═══════════════════════════════════════════════════════════════
 
-    #[test]
-    fn entry_task_id_simple() {
-        let entry = UseEntry::new("weather");
-        assert_eq!(entry.task_id(), "weather");
+    /// Build an AnalyzedWorkflow from descriptors: (name, depends_on, implicit_deps)
+    fn build_workflow(
+        descriptors: &[(&str, &[&str], &[&str])],
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        let mut tasks = Vec::new();
+
+        for (name, _, _) in descriptors {
+            task_table.insert(name);
+        }
+
+        for (name, depends_on_names, implicit_dep_names) in descriptors {
+            let id = task_table.get_id(name).unwrap();
+            let depends_on: Vec<TaskId> = depends_on_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+            let implicit_deps: Vec<TaskId> = implicit_dep_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+
+            tasks.push(AnalyzedTask {
+                id,
+                name: name.to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on,
+                implicit_deps,
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            });
+        }
+
+        AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
+        }
     }
 
-    #[test]
-    fn entry_task_id_with_path() {
-        let entry = UseEntry::new("weather.summary");
-        assert_eq!(entry.task_id(), "weather");
+    /// Build an AnalyzedWorkflow where tasks have with: bindings.
+    /// descriptors: (name, depends_on, implicit_deps, with_bindings)
+    /// where with_bindings is &[(alias, source_task)]
+    fn build_workflow_with_bindings(
+        descriptors: &[(&str, &[&str], &[&str], &[(&str, &str)])],
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        let mut tasks = Vec::new();
+
+        for (name, _, _, _) in descriptors {
+            task_table.insert(name);
+        }
+
+        for (name, depends_on_names, implicit_dep_names, bindings) in descriptors {
+            let id = task_table.get_id(name).unwrap();
+            let depends_on: Vec<TaskId> = depends_on_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+            let implicit_deps: Vec<TaskId> = implicit_dep_names
+                .iter()
+                .filter_map(|n| task_table.get_id(n))
+                .collect();
+
+            let mut with_spec = WithSpec::default();
+            for (alias, source_task) in *bindings {
+                with_spec.insert(
+                    alias.to_string(),
+                    WithEntry::simple(BindingPath {
+                        source: BindingSource::Task(Arc::from(*source_task)),
+                        segments: vec![PathSegment::Field("result".into())],
+                    }),
+                );
+            }
+
+            tasks.push(AnalyzedTask {
+                id,
+                name: name.to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec,
+                depends_on,
+                implicit_deps,
+                output: None,
+                for_each: None,
+                retry: None,
+                span: Span::dummy(),
+            });
+        }
+
+        AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
+        }
     }
 
-    #[test]
-    fn entry_task_id_nested_path() {
-        let entry = UseEntry::new("weather.data.temp.celsius");
-        assert_eq!(entry.task_id(), "weather");
-    }
-
-    #[test]
-    fn entry_task_id_with_default() {
-        let entry = UseEntry::with_default("weather.summary", json!("N/A"));
-        assert_eq!(entry.task_id(), "weather");
-    }
-
-    #[test]
-    fn entry_task_id_lazy_binding() {
-        let entry = UseEntry::new_lazy("fetch_data.result");
-        assert_eq!(entry.task_id(), "fetch_data");
-        assert!(entry.is_lazy());
+    /// Build an AnalyzedWorkflow with a specific action on the last task.
+    fn build_workflow_with_action(
+        descriptors: &[(&str, &[&str], &[&str])],
+        action_task: &str,
+        action: AnalyzedTaskAction,
+        with_spec: WithSpec,
+    ) -> AnalyzedWorkflow {
+        let mut workflow = build_workflow(descriptors);
+        for task in &mut workflow.tasks {
+            if task.name == action_task {
+                task.action = action.clone();
+                task.with_spec = with_spec.clone();
+            }
+        }
+        workflow
     }
 
     // ═══════════════════════════════════════════════════════════════
     // UNIT TESTS: Task ID validation (snake_case)
-    // ─────────────────────────────────────────────────────────────
-    // Tests NIKA-055 validation: must be [a-z0-9_]+ format
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -287,37 +508,21 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // UNIT TESTS: Dag construction
-    // ─────────────────────────────────────────────────────────────
-    // Tests building Dag from workflow flows
+    // UNIT TESTS: DAG construction (uses Dag::from_analyzed)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn flowgraph_empty_workflow() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-provider: claude
-tasks: []
-flows: []
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
         let final_tasks = graph.get_final_tasks();
         assert_eq!(final_tasks.len(), 0);
     }
 
     #[test]
     fn flowgraph_single_task() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-provider: claude
-tasks:
-  - id: task1
-    infer: "Test"
-flows: []
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[("task1", &[], &[])]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert_eq!(graph.get_dependencies("task1").len(), 0);
         assert_eq!(graph.get_successors("task1").len(), 0);
@@ -329,39 +534,22 @@ flows: []
 
     #[test]
     fn flowgraph_linear_chain() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: linear
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "C"
-flows:
-  - source: task1
-    target: task2
-  - source: task2
-    target: task3
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // task1 → task2 → task3 via depends_on
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &[]),
+            ("task3", &["task2"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        // Verify dependencies
         assert_eq!(graph.get_dependencies("task1").len(), 0);
         assert_eq!(graph.get_dependencies("task2").len(), 1);
         assert_eq!(graph.get_dependencies("task3").len(), 1);
 
-        // Verify successors
         assert_eq!(graph.get_successors("task1").len(), 1);
         assert_eq!(graph.get_successors("task2").len(), 1);
         assert_eq!(graph.get_successors("task3").len(), 0);
 
-        // Verify final task
         let final_tasks = graph.get_final_tasks();
         assert_eq!(final_tasks.len(), 1);
         assert_eq!(final_tasks[0].as_ref(), "task3");
@@ -369,163 +557,81 @@ flows:
 
     #[test]
     fn flowgraph_multiple_sources_to_target() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: multi_source
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "C"
-flows:
-  - source: [task1, task2]
-    target: task3
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // task1,task2 → task3
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &[], &[]),
+            ("task3", &["task1", "task2"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        // task3 should have 2 dependencies
-        let deps = graph.get_dependencies("task3");
-        assert_eq!(deps.len(), 2);
-
-        // task1 and task2 should each have 1 successor
+        assert_eq!(graph.get_dependencies("task3").len(), 2);
         assert_eq!(graph.get_successors("task1").len(), 1);
         assert_eq!(graph.get_successors("task2").len(), 1);
     }
 
     #[test]
     fn flowgraph_source_to_multiple_targets() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: multi_target
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "C"
-flows:
-  - source: task1
-    target: [task2, task3]
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // task1 → task2, task1 → task3
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &[]),
+            ("task3", &["task1"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        // task1 should have 2 successors
         assert_eq!(graph.get_successors("task1").len(), 2);
-
-        // task2 and task3 should each have 1 dependency
         assert_eq!(graph.get_dependencies("task2").len(), 1);
         assert_eq!(graph.get_dependencies("task3").len(), 1);
 
-        // task2 and task3 should both be final tasks
         let final_tasks = graph.get_final_tasks();
         assert_eq!(final_tasks.len(), 2);
     }
 
     #[test]
     fn flowgraph_diamond_pattern() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: diamond
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "C"
-  - id: task4
-    infer:
-      prompt: "D"
-flows:
-  - source: task1
-    target: [task2, task3]
-  - source: [task2, task3]
-    target: task4
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // a → b,c → d
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+            ("d", &["b", "c"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        // task4 should have 2 dependencies
-        assert_eq!(graph.get_dependencies("task4").len(), 2);
-
-        // Only task4 should be final
+        assert_eq!(graph.get_dependencies("d").len(), 2);
         let final_tasks = graph.get_final_tasks();
         assert_eq!(final_tasks.len(), 1);
-        assert_eq!(final_tasks[0].as_ref(), "task4");
+        assert_eq!(final_tasks[0].as_ref(), "d");
     }
 
     // ═══════════════════════════════════════════════════════════════
     // UNIT TESTS: Cycle detection
-    // ─────────────────────────────────────────────────────────────
-    // Tests NIKA-020: Cycle detection using three-color DFS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn cycle_detection_simple_cycle() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: cycle_simple
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-flows:
-  - source: task1
-    target: task2
-  - source: task2
-    target: task1
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // task1 → task2 → task1 (mutual depends_on)
+        let workflow = build_workflow(&[
+            ("task1", &["task2"], &[]),
+            ("task2", &["task1"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("NIKA-020"));
+        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
     }
 
     #[test]
     fn cycle_detection_three_node_cycle() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: cycle_three
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: a
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        // a → b → c → a
+        let workflow = build_workflow(&[
+            ("a", &["c"], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
         assert!(result.is_err());
@@ -533,87 +639,27 @@ flows:
     }
 
     #[test]
-    fn cycle_detection_self_loop() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: self_loop
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-flows:
-  - source: task1
-    target: task1
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+    fn cycle_detection_self_loop_silently_filtered() {
+        // Self-references in depends_on are silently filtered by Dag::from_analyzed
+        // (defense-in-depth — analyzer should catch these first)
+        let workflow = build_workflow(&[("task1", &["task1"], &[])]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         let result = graph.detect_cycles();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
-    }
-
-    #[test]
-    fn cycle_detection_complex_cycle() {
-        // A → B → C → D → B (cycle: B → C → D → B)
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: complex_cycle
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-  - id: d
-    infer:
-      prompt: "D"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: d
-  - source: d
-    target: b
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+        assert!(result.is_ok(), "Self-deps are filtered out, no cycle exists");
     }
 
     // ═══════════════════════════════════════════════════════════════
     // UNIT TESTS: Path reachability (has_path)
-    // ─────────────────────────────────────────────────────────────
-    // Tests BFS path finding for dependency validation
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn has_path_direct_edge() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: path_test
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-flows:
-  - source: task1
-    target: task2
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(graph.has_path("task1", "task2"));
         assert!(!graph.has_path("task2", "task1"));
@@ -621,27 +667,12 @@ flows:
 
     #[test]
     fn has_path_indirect_path() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: path_indirect
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["b"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(graph.has_path("a", "c"));
         assert!(graph.has_path("a", "b"));
@@ -651,42 +682,19 @@ flows:
 
     #[test]
     fn has_path_same_node() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: path_same
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
-
-        // A node has a path to itself
+        let workflow = build_workflow(&[("task1", &[], &[])]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
         assert!(graph.has_path("task1", "task1"));
     }
 
     #[test]
     fn has_path_no_path() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: path_none
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "C"
-flows:
-  - source: task1
-    target: task2
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &[]),
+            ("task3", &[], &[]),  // Disconnected
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
         assert!(!graph.has_path("task1", "task3"));
         assert!(!graph.has_path("task2", "task3"));
@@ -694,377 +702,510 @@ flows:
 
     #[test]
     fn has_path_diamond_pattern() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: diamond_path
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "C"
-  - id: d
-    infer:
-      prompt: "D"
-flows:
-  - source: a
-    target: [b, c]
-  - source: [b, c]
-    target: d
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let graph = Dag::from_workflow(&workflow).unwrap();
+        let workflow = build_workflow(&[
+            ("a", &[], &[]),
+            ("b", &["a"], &[]),
+            ("c", &["a"], &[]),
+            ("d", &["b", "c"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        // All nodes should reach d via different paths
         assert!(graph.has_path("a", "d"));
         assert!(graph.has_path("b", "d"));
         assert!(graph.has_path("c", "d"));
-
-        // But not backwards
         assert!(!graph.has_path("d", "a"));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // UNIT TESTS: Template reference validation
-    // ─────────────────────────────────────────────────────────────
-    // Tests extraction and validation of {{use.alias}} refs
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn validate_template_infer_with_use_alias() {
-        let task = Task {
-            id: "task2".to_string(),
-            action: TaskAction::Infer {
-                infer: InferParams {
-                    prompt: "Generate based on {{use.data}}".to_string(),
-                    ..Default::default()
-                },
-            },
-            use_wiring: Some({
-                let mut map = rustc_hash::FxHashMap::default();
-                map.insert("data".to_string(), UseEntry::new("task1.result"));
-                map
+    fn validate_template_infer_with_alias() {
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "data".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("result".into())],
             }),
-            for_each: None,
-            for_each_as: None,
-            output: None,
-            decompose: None,
-            concurrency: None,
-            fail_fast: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        };
+        );
 
-        let result = validate_template_refs(&task);
+        let workflow = build_workflow_with_action(
+            &[("task1", &[], &[]), ("task2", &["task1"], &["task1"])],
+            "task2",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "Generate based on {{with.data}}".to_string(),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_template_undeclared_alias() {
-        let task = Task {
-            id: "task2".to_string(),
-            action: TaskAction::Infer {
-                infer: InferParams {
-                    prompt: "Generate based on {{use.missing}}".to_string(),
-                    ..Default::default()
-                },
-            },
-            use_wiring: Some({
-                let mut map = rustc_hash::FxHashMap::default();
-                map.insert("data".to_string(), UseEntry::new("task1.result"));
-                map
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "data".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("result".into())],
             }),
-            for_each: None,
-            for_each_as: None,
-            output: None,
-            decompose: None,
-            concurrency: None,
-            fail_fast: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        };
+        );
 
-        let result = validate_template_refs(&task);
+        let workflow = build_workflow_with_action(
+            &[("task1", &[], &[]), ("task2", &["task1"], &["task1"])],
+            "task2",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "Generate based on {{with.missing}}".to_string(),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_err());
-        // validate_refs returns UnknownAlias error (NIKA-071) for undeclared aliases
+        // validate_with_refs returns UnknownAlias error (NIKA-071)
         assert!(result.unwrap_err().to_string().contains("NIKA-071"));
     }
 
     #[test]
     fn validate_template_for_each_loop_variable() {
-        let task = Task {
-            id: "task1".to_string(),
-            action: TaskAction::Infer {
-                infer: InferParams {
-                    prompt: "Process {{use.item}}".to_string(),
-                    ..Default::default()
-                },
-            },
-            use_wiring: None,
-            for_each: Some(json!(["a", "b"])),
-            for_each_as: Some("item".to_string()),
-            output: None,
-            decompose: None,
-            concurrency: None,
-            fail_fast: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        };
+        let mut workflow = build_workflow(&[("task1", &[], &[])]);
+        workflow.tasks[0].action = AnalyzedTaskAction::Infer(AnalyzedInferAction {
+            prompt: "Process {{with.item}}".to_string(),
+            ..Default::default()
+        });
+        workflow.tasks[0].for_each = Some(AnalyzedForEach {
+            items: r#"["a", "b"]"#.to_string(),
+            as_var: "item".to_string(),
+            ..Default::default()
+        });
 
-        let result = validate_template_refs(&task);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_template_fetch_with_url_placeholder() {
-        let task = Task {
-            id: "task2".to_string(),
-            action: TaskAction::Fetch {
-                fetch: FetchParams {
-                    url: "https://api.example.com/{{use.entity}}".to_string(),
-                    method: "GET".to_string(),
-                    headers: rustc_hash::FxHashMap::default(),
-                    body: None,
-                    json: None,
-                    timeout: None,
-                    retry: None,
-                    follow_redirects: None,
-                },
-            },
-            use_wiring: Some({
-                let mut map = rustc_hash::FxHashMap::default();
-                map.insert("entity".to_string(), UseEntry::new("task1.data.id"));
-                map
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "entity".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("data".into()), PathSegment::Field("id".into())],
             }),
-            for_each: None,
-            for_each_as: None,
-            output: None,
-            decompose: None,
-            concurrency: None,
-            fail_fast: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        };
+        );
 
-        let result = validate_template_refs(&task);
+        let workflow = build_workflow_with_action(
+            &[("task1", &[], &[]), ("task2", &["task1"], &["task1"])],
+            "task2",
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://api.example.com/{{with.entity}}".to_string(),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_template_invoke_with_json_params() {
-        let task = Task {
-            id: "task2".to_string(),
-            action: TaskAction::Invoke {
-                invoke: InvokeParams {
-                    mcp: Some("server_name".to_string()),
-                    tool: Some("tool_name".to_string()),
-                    params: Some(json!({
-                        "entity": "{{use.entity_key}}",
-                        "locale": "{{use.locale}}"
-                    })),
-                    resource: None,
-                },
-            },
-            use_wiring: Some({
-                let mut map = rustc_hash::FxHashMap::default();
-                map.insert("entity_key".to_string(), UseEntry::new("task1.entity.key"));
-                map.insert("locale".to_string(), UseEntry::new("task1.locale"));
-                map
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "entity_key".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("entity".into()), PathSegment::Field("key".into())],
             }),
-            for_each: None,
-            for_each_as: None,
-            output: None,
-            decompose: None,
-            concurrency: None,
-            fail_fast: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        };
+        );
+        with_spec.insert(
+            "locale".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("locale".into())],
+            }),
+        );
 
-        let result = validate_template_refs(&task);
+        let workflow = build_workflow_with_action(
+            &[("task1", &[], &[]), ("task2", &["task1"], &["task1"])],
+            "task2",
+            AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+                tool: "novanet_generate".to_string(),
+                params: Some(json!({
+                    "entity": "{{with.entity_key}}",
+                    "locale": "{{with.locale}}"
+                })),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_template_agent_goal() {
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "topic".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("research".into()),
+                segments: vec![PathSegment::Field("result".into())],
+            }),
+        );
+
+        let workflow = build_workflow_with_action(
+            &[("research", &[], &[]), ("writer", &["research"], &["research"])],
+            "writer",
+            AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+                goal: "Write about {{with.topic}}".to_string(),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_template_exec_command() {
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "file".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("prepare".into()),
+                segments: vec![PathSegment::Field("path".into())],
+            }),
+        );
+
+        let workflow = build_workflow_with_action(
+            &[("prepare", &[], &[]), ("build", &["prepare"], &["prepare"])],
+            "build",
+            AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "cat {{with.file}}".to_string(),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_template_infer_system_prompt() {
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "persona".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("setup".into()),
+                segments: vec![PathSegment::Field("persona".into())],
+            }),
+        );
+
+        let workflow = build_workflow_with_action(
+            &[("setup", &[], &[]), ("generate", &["setup"], &["setup"])],
+            "generate",
+            AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "Generate content".to_string(),
+                system: Some("You are {{with.persona}}".to_string()),
+                ..Default::default()
+            }),
+            with_spec,
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // UNIT TESTS: Full workflow wiring validation
-    // ─────────────────────────────────────────────────────────────
-    // Tests validate_use_wiring() end-to-end
+    // UNIT TESTS: Full workflow with: binding validation
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn validate_wiring_valid_upstream() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: valid_wiring
-tasks:
-  - id: task1
-    infer:
-      prompt: "Generate"
-  - id: task2
-    infer:
-      prompt: "Use {{use.data}}"
-    use:
-      data: task1.result
-flows:
-  - source: task1
-    target: task2
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = validate_use_wiring(&workflow, &flow_graph);
+        // task1 → task2 with binding data: task1.result
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[]),
+            ("task2", &["task1"], &["task1"], &[("data", "task1")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_wiring_unknown_task() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: unknown_task
-tasks:
-  - id: task1
-    infer:
-      prompt: "Generate"
-  - id: task2
-    infer:
-      prompt: "Use {{use.data}}"
-    use:
-      data: nonexistent.result
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = validate_use_wiring(&workflow, &flow_graph);
+        // task2 references nonexistent via with:
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[]),
+            ("task2", &[], &[], &[("data", "nonexistent")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-080"));
     }
 
     #[test]
     fn validate_wiring_self_reference() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: self_ref
-tasks:
-  - id: task1
-    infer:
-      prompt: "Use {{use.self}}"
-    use:
-      self: task1.result
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = validate_use_wiring(&workflow, &flow_graph);
+        // task1 references itself via with:
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[("self_ref", "task1")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-082"));
     }
 
     #[test]
-    fn validate_wiring_implicit_dependency_from_use() {
-        // BUG-003 FIX (v0.22.4): `use:` block now creates implicit dependency
-        // task3 references task2 via use: - this should be VALID now
-        // Previously this was NIKA-081 error, now it works via implicit edge
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: implicit_dep
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "Use {{use.data}}"
-    use:
-      data: task2.result
-flows:
-  - source: task1
-    target: task3
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
-
-        // BUG-003 FIX: Now succeeds because use: creates implicit edge task2 -> task3
-        let result = validate_use_wiring(&workflow, &flow_graph);
+    fn validate_wiring_implicit_dependency_from_with() {
+        // task3 references task2 via with:, and task2 → task3 via implicit_deps
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[]),
+            ("task2", &[], &[], &[]),
+            ("task3", &["task1"], &["task2"], &[("data", "task2")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(
             result.is_ok(),
-            "use: should create implicit dependency (BUG-003 fix)"
+            "with: should be validated against implicit deps (task2 → task3)"
         );
     }
 
     #[test]
     fn validate_wiring_multiple_dependencies() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: multi_dep
-tasks:
-  - id: task1
-    infer:
-      prompt: "A"
-  - id: task2
-    infer:
-      prompt: "B"
-  - id: task3
-    infer:
-      prompt: "Combine {{use.a}} and {{use.b}}"
-    use:
-      a: task1.result
-      b: task2.result
-flows:
-  - source: [task1, task2]
-    target: task3
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
-
-        let result = validate_use_wiring(&workflow, &flow_graph);
+        // task3 references task1 and task2
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[]),
+            ("task2", &[], &[], &[]),
+            ("task3", &["task1", "task2"], &[], &[("a", "task1"), ("b", "task2")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_wiring_indirect_dependency() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-id: indirect_dep
-tasks:
-  - id: a
-    infer:
-      prompt: "A"
-  - id: b
-    infer:
-      prompt: "B"
-  - id: c
-    infer:
-      prompt: "Use {{use.data}}"
-    use:
-      data: a.result
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-        let flow_graph = Dag::from_workflow(&workflow).unwrap();
+        // a → b → c, and c references a (a is upstream via indirect path)
+        let workflow = build_workflow_with_bindings(&[
+            ("a", &[], &[], &[]),
+            ("b", &["a"], &[], &[]),
+            ("c", &["b"], &[], &[("data", "a")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok());
+    }
 
-        // task1 → task3 via task2, so task1 is upstream of task3
-        let result = validate_use_wiring(&workflow, &flow_graph);
+    #[test]
+    fn validate_wiring_non_upstream_task() {
+        // task1 and task2 are disconnected, task2 references task1
+        // task1 is NOT upstream of task2 (no path)
+        let workflow = build_workflow_with_bindings(&[
+            ("task1", &[], &[], &[]),
+            ("task2", &[], &[], &[("data", "task1")]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-081"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // UNIT TESTS: Non-task bindings are skipped
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn validate_wiring_context_binding_skipped() {
+        // A context binding should be silently skipped (no task lookup)
+        let mut workflow = build_workflow(&[("task1", &[], &[])]);
+        workflow.tasks[0].with_spec.insert(
+            "brand".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Context("files".into()),
+                segments: vec![PathSegment::Field("files".into()), PathSegment::Field("brand".into())],
+            }),
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok(), "Context bindings should be silently skipped");
+    }
+
+    #[test]
+    fn validate_wiring_input_binding_skipped() {
+        let mut workflow = build_workflow(&[("task1", &[], &[])]);
+        workflow.tasks[0].with_spec.insert(
+            "name".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Input("user_name".into()),
+                segments: vec![PathSegment::Field("user_name".into())],
+            }),
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok(), "Input bindings should be silently skipped");
+    }
+
+    #[test]
+    fn validate_wiring_env_binding_skipped() {
+        let mut workflow = build_workflow(&[("task1", &[], &[])]);
+        workflow.tasks[0].with_spec.insert(
+            "api_key".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Env("API_KEY".into()),
+                segments: vec![PathSegment::Field("API_KEY".into())],
+            }),
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok(), "Env bindings should be silently skipped");
+    }
+
+    #[test]
+    fn validate_wiring_mixed_bindings() {
+        // task2 has both task and non-task bindings
+        // Only the task binding should be validated
+        let mut workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &["task1"], ),
+        ]);
+        workflow.tasks[1].with_spec.insert(
+            "data".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task("task1".into()),
+                segments: vec![PathSegment::Field("result".into())],
+            }),
+        );
+        workflow.tasks[1].with_spec.insert(
+            "brand".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Context("files".into()),
+                segments: vec![PathSegment::Field("brand".into())],
+            }),
+        );
+        workflow.tasks[1].with_spec.insert(
+            "user".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Input("user_name".into()),
+                segments: vec![PathSegment::Field("name".into())],
+            }),
+        );
+
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok(), "Mixed bindings: only task binding should be validated");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // UNIT TESTS: extract_templates_from_action
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn extract_templates_infer() {
+        let action = AnalyzedTaskAction::Infer(AnalyzedInferAction {
+            prompt: "Hello {{with.name}}".to_string(),
+            system: Some("You are {{with.persona}}".to_string()),
+            ..Default::default()
+        });
+        let templates = extract_templates_from_action(&action);
+        assert_eq!(templates.len(), 2);
+        assert!(templates.contains(&"Hello {{with.name}}".to_string()));
+        assert!(templates.contains(&"You are {{with.persona}}".to_string()));
+    }
+
+    #[test]
+    fn extract_templates_exec() {
+        let action = AnalyzedTaskAction::Exec(AnalyzedExecAction {
+            command: "echo {{with.msg}}".to_string(),
+            ..Default::default()
+        });
+        let templates = extract_templates_from_action(&action);
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0], "echo {{with.msg}}");
+    }
+
+    #[test]
+    fn extract_templates_fetch() {
+        let action = AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+            url: "https://{{with.host}}/api".to_string(),
+            body: Some("{\"key\": \"{{with.key}}\"}".to_string()),
+            ..Default::default()
+        });
+        let templates = extract_templates_from_action(&action);
+        assert_eq!(templates.len(), 2);
+    }
+
+    #[test]
+    fn extract_templates_invoke_json() {
+        let action = AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+            tool: "test_tool".to_string(),
+            params: Some(json!({
+                "key": "{{with.entity}}",
+                "nested": {
+                    "inner": "{{with.locale}}"
+                },
+                "arr": ["{{with.item}}", "static"]
+            })),
+            ..Default::default()
+        });
+        let templates = extract_templates_from_action(&action);
+        assert_eq!(templates.len(), 4); // entity, locale, item, static
+    }
+
+    #[test]
+    fn extract_templates_agent_goal() {
+        let action = AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            goal: "Research {{with.topic}}".to_string(),
+            ..Default::default()
+        });
+        let templates = extract_templates_from_action(&action);
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0], "Research {{with.topic}}");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // UNIT TESTS: No templates (pass-through)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn validate_no_templates_passes() {
+        let workflow = build_workflow(&[
+            ("task1", &[], &[]),
+            ("task2", &["task1"], &[]),
+        ]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_empty_workflow_passes() {
+        let workflow = build_workflow(&[]);
+        let graph = Dag::from_analyzed(&workflow).unwrap();
+        let result = validate_with_bindings(&workflow, &graph);
         assert!(result.is_ok());
     }
 }

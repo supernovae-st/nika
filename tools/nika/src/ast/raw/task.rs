@@ -9,6 +9,13 @@ use crate::source::{Span, Spanned};
 ///
 /// All string references (task IDs, aliases) are unresolved.
 /// Resolution happens in Phase 2 (analyzed AST).
+///
+/// ## v0.28 Breaking Changes
+///
+/// - `use:` replaced by `with:` — values are now binding expressions
+///   parsed by `parse_with_entry()` in Phase 2.
+/// - `flow:` replaced by `depends_on:` — explicit ordering dependencies.
+/// - `flows:` (workflow-level) removed entirely.
 #[derive(Debug, Clone, Default)]
 pub struct RawTask {
     /// Task identifier (must be unique within workflow)
@@ -26,11 +33,21 @@ pub struct RawTask {
     /// Task-specific model override
     pub model: Option<Spanned<String>>,
 
-    /// Dependencies: use: { alias: task_id } or use: { alias: { task: id, path: "..." } }
-    pub use_refs: Option<Spanned<IndexMap<Spanned<String>, RawUseTarget>>>,
+    /// Binding declarations: `with: { alias: "expression" }`
+    ///
+    /// Values are raw strings that get parsed by `parse_with_entry()` in Phase 2.
+    /// Examples:
+    ///   - `data: step1` — simple task reference
+    ///   - `temp: step1.data.temp ?? 20` — path + default
+    ///   - `cfg: $env.API_KEY` — environment binding
+    ///   - `val: step1.output | upper | trim` — with transforms
+    pub with_refs: Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>,
 
-    /// Execution dependencies: `flow: [task_ids]`
-    pub flow: Option<Spanned<RawFlow>>,
+    /// Explicit ordering dependencies: `depends_on: [task_id1, task_id2]`
+    ///
+    /// These are pure ordering edges — no data flows through them.
+    /// Data dependencies are expressed via `with:` bindings.
+    pub depends_on: Option<Spanned<Vec<Spanned<String>>>>,
 
     /// Output configuration
     pub output: Option<Spanned<RawOutputConfig>>,
@@ -43,85 +60,6 @@ pub struct RawTask {
 
     /// The span of the entire task block
     pub span: Span,
-}
-
-/// Flow dependencies for a task.
-#[derive(Debug, Clone, Default)]
-pub enum RawFlow {
-    /// Single dependency: flow: task_id
-    Single(Spanned<String>),
-    /// Multiple dependencies: flow: [task_id1, task_id2]
-    Multiple(Vec<Spanned<String>>),
-    #[default]
-    None,
-}
-
-impl RawFlow {
-    /// Get all task IDs in this flow.
-    pub fn task_ids(&self) -> Vec<&str> {
-        match self {
-            RawFlow::Single(id) => vec![&id.value],
-            RawFlow::Multiple(ids) => ids.iter().map(|s| s.value.as_str()).collect(),
-            RawFlow::None => vec![],
-        }
-    }
-
-    /// Check if this flow is empty.
-    pub fn is_empty(&self) -> bool {
-        matches!(self, RawFlow::None)
-    }
-}
-
-/// A use reference target.
-#[derive(Debug, Clone)]
-pub enum RawUseTarget {
-    /// Simple reference: alias: task_id
-    TaskId(Spanned<String>),
-    /// Extended reference with path: { task: task_id, path: "$.field" }
-    Extended {
-        task: Spanned<String>,
-        path: Option<Spanned<String>>,
-        span: Span,
-    },
-}
-
-impl Default for RawUseTarget {
-    fn default() -> Self {
-        RawUseTarget::TaskId(Spanned::dummy(String::new()))
-    }
-}
-
-impl RawUseTarget {
-    /// Get the target task ID.
-    pub fn task_id(&self) -> &str {
-        match self {
-            RawUseTarget::TaskId(id) => &id.value,
-            RawUseTarget::Extended { task, .. } => &task.value,
-        }
-    }
-
-    /// Get the span of the task ID reference.
-    pub fn task_span(&self) -> Span {
-        match self {
-            RawUseTarget::TaskId(id) => id.span,
-            RawUseTarget::Extended { task, .. } => task.span,
-        }
-    }
-
-    /// Get the path if present.
-    pub fn path(&self) -> Option<&str> {
-        match self {
-            RawUseTarget::TaskId(_) => None,
-            RawUseTarget::Extended { path, .. } => path.as_ref().map(|p| p.value.as_str()),
-        }
-    }
-}
-
-/// A use reference: alias -> target
-#[derive(Debug, Clone)]
-pub struct RawUseRef {
-    pub alias: Spanned<String>,
-    pub target: RawUseTarget,
 }
 
 /// Output configuration for a task.
@@ -168,36 +106,25 @@ impl RawTask {
         }
     }
 
-    /// Check if this task has any dependencies.
+    /// Check if this task has any dependencies (with: or depends_on:).
     pub fn has_dependencies(&self) -> bool {
-        self.use_refs
+        self.with_refs
             .as_ref()
-            .map(|u| !u.value.is_empty())
+            .map(|w| !w.value.is_empty())
             .unwrap_or(false)
             || self
-                .flow
+                .depends_on
                 .as_ref()
-                .map(|f| !f.value.is_empty())
+                .map(|d| !d.value.is_empty())
                 .unwrap_or(false)
     }
 
-    /// Get all task IDs this task depends on.
-    pub fn dependency_ids(&self) -> Vec<&str> {
-        let mut deps = Vec::new();
-
-        // Add use: dependencies
-        if let Some(use_refs) = &self.use_refs {
-            for target in use_refs.value.values() {
-                deps.push(target.task_id());
-            }
+    /// Get all explicit depends_on task IDs.
+    pub fn depends_on_ids(&self) -> Vec<&str> {
+        match &self.depends_on {
+            Some(deps) => deps.value.iter().map(|s| s.value.as_str()).collect(),
+            None => vec![],
         }
-
-        // Add flow: dependencies
-        if let Some(flow) = &self.flow {
-            deps.extend(flow.value.task_ids());
-        }
-
-        deps
     }
 }
 
@@ -218,55 +145,39 @@ mod tests {
     }
 
     #[test]
-    fn test_raw_flow_task_ids() {
-        let single = RawFlow::Single(Spanned::new("task1".to_string(), make_span(0, 5)));
-        assert_eq!(single.task_ids(), vec!["task1"]);
-
-        let multiple = RawFlow::Multiple(vec![
-            Spanned::new("task1".to_string(), make_span(0, 5)),
-            Spanned::new("task2".to_string(), make_span(7, 12)),
-        ]);
-        assert_eq!(multiple.task_ids(), vec!["task1", "task2"]);
-
-        let none = RawFlow::None;
-        assert!(none.task_ids().is_empty());
-    }
-
-    #[test]
-    fn test_raw_use_target() {
-        let simple = RawUseTarget::TaskId(Spanned::new("source".to_string(), make_span(0, 6)));
-        assert_eq!(simple.task_id(), "source");
-        assert!(simple.path().is_none());
-
-        let extended = RawUseTarget::Extended {
-            task: Spanned::new("source".to_string(), make_span(0, 6)),
-            path: Some(Spanned::new("$.result".to_string(), make_span(10, 18))),
-            span: make_span(0, 20),
-        };
-        assert_eq!(extended.task_id(), "source");
-        assert_eq!(extended.path(), Some("$.result"));
-    }
-
-    #[test]
-    fn test_task_dependency_ids() {
+    fn test_task_has_dependencies_with() {
         let mut task = RawTask::new("consumer");
 
-        // Add use: dependency
-        let mut use_refs = IndexMap::new();
-        use_refs.insert(
+        let mut with_refs = IndexMap::new();
+        with_refs.insert(
             Spanned::new("data".to_string(), make_span(0, 4)),
-            RawUseTarget::TaskId(Spanned::new("producer".to_string(), make_span(6, 14))),
+            Spanned::new("producer".to_string(), make_span(6, 14)),
         );
-        task.use_refs = Some(Spanned::new(use_refs, make_span(0, 20)));
+        task.with_refs = Some(Spanned::new(with_refs, make_span(0, 20)));
 
-        // Add flow: dependency
-        task.flow = Some(Spanned::new(
-            RawFlow::Single(Spanned::new("setup".to_string(), make_span(0, 5))),
-            make_span(0, 10),
+        assert!(task.has_dependencies());
+    }
+
+    #[test]
+    fn test_task_has_dependencies_depends_on() {
+        let mut task = RawTask::new("consumer");
+
+        task.depends_on = Some(Spanned::new(
+            vec![
+                Spanned::new("setup".to_string(), make_span(0, 5)),
+                Spanned::new("init".to_string(), make_span(7, 11)),
+            ],
+            make_span(0, 15),
         ));
 
-        let deps = task.dependency_ids();
-        assert!(deps.contains(&"producer"));
-        assert!(deps.contains(&"setup"));
+        assert!(task.has_dependencies());
+        assert_eq!(task.depends_on_ids(), vec!["setup", "init"]);
+    }
+
+    #[test]
+    fn test_task_depends_on_empty() {
+        let task = RawTask::new("standalone");
+        assert!(task.depends_on_ids().is_empty());
+        assert!(!task.has_dependencies());
     }
 }

@@ -4,13 +4,11 @@
 //! - `constants`: Centralized timeouts and limits
 //! - `fs`: Atomic file write operations
 //! - `interner`: String interning for recurring task IDs (`Arc<str>` deduplication)
-//! - `jsonpath`: Minimal JSONPath parser for path resolution
 //! - `system`: Platform-specific system information (RAM detection, etc.)
 
 pub mod constants;
 pub mod fs;
 mod interner;
-pub mod jsonpath;
 pub mod system;
 
 // Re-export public types

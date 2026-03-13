@@ -47,8 +47,11 @@ pub struct AnalyzedWorkflow {
     /// Context file configurations
     pub context_files: Vec<AnalyzedContextFile>,
 
-    /// Named flow definitions (flows: section)
-    pub flow_defs: IndexMap<String, AnalyzedFlowDef>,
+    /// Import specifications (v0.28, replaces include: + skills:)
+    pub imports: Vec<AnalyzedImportSpec>,
+
+    /// Input parameters with defaults
+    pub inputs: IndexMap<String, serde_json::Value>,
 
     /// Span of the entire workflow
     pub span: Span,
@@ -57,7 +60,7 @@ pub struct AnalyzedWorkflow {
 impl Default for AnalyzedWorkflow {
     fn default() -> Self {
         Self {
-            schema_version: SchemaVersion::V10,
+            schema_version: SchemaVersion::V12,
             name: None,
             description: None,
             provider: None,
@@ -66,7 +69,8 @@ impl Default for AnalyzedWorkflow {
             tasks: Vec::new(),
             mcp_servers: IndexMap::new(),
             context_files: Vec::new(),
-            flow_defs: IndexMap::new(),
+            imports: Vec::new(),
+            inputs: IndexMap::new(),
             span: Span::dummy(),
         }
     }
@@ -123,6 +127,10 @@ pub enum SchemaVersion {
     V09,
     /// nika/workflow@0.10
     V10,
+    /// nika/workflow@0.11
+    V11,
+    /// nika/workflow@0.12 — v0.28 binding system (with:/depends_on:/imports:)
+    V12,
 }
 
 impl SchemaVersion {
@@ -139,6 +147,8 @@ impl SchemaVersion {
             "nika/workflow@0.8" => Some(Self::V08),
             "nika/workflow@0.9" => Some(Self::V09),
             "nika/workflow@0.10" => Some(Self::V10),
+            "nika/workflow@0.11" => Some(Self::V11),
+            "nika/workflow@0.12" => Some(Self::V12),
             _ => None,
         }
     }
@@ -156,6 +166,8 @@ impl SchemaVersion {
             Self::V08 => "nika/workflow@0.8",
             Self::V09 => "nika/workflow@0.9",
             Self::V10 => "nika/workflow@0.10",
+            Self::V11 => "nika/workflow@0.11",
+            Self::V12 => "nika/workflow@0.12",
         }
     }
 
@@ -172,12 +184,14 @@ impl SchemaVersion {
             Self::V08,
             Self::V09,
             Self::V10,
+            Self::V11,
+            Self::V12,
         ]
     }
 
     /// Get the latest schema version.
     pub fn latest() -> Self {
-        Self::V10
+        Self::V12
     }
 
     /// Get the numeric version for comparison (e.g., V03 returns 3).
@@ -193,6 +207,8 @@ impl SchemaVersion {
             Self::V08 => 8,
             Self::V09 => 9,
             Self::V10 => 10,
+            Self::V11 => 11,
+            Self::V12 => 12,
         }
     }
 
@@ -249,6 +265,21 @@ impl SchemaVersion {
     /// Check if retry configuration is supported (v0.3+).
     pub fn supports_retry(&self) -> bool {
         self.supports(Self::V03)
+    }
+
+    /// Check if with: binding syntax is supported (v0.12+).
+    pub fn supports_with(&self) -> bool {
+        self.supports(Self::V12)
+    }
+
+    /// Check if imports: syntax is supported (v0.12+).
+    pub fn supports_imports(&self) -> bool {
+        self.supports(Self::V12)
+    }
+
+    /// Check if depends_on: syntax is supported (v0.12+).
+    pub fn supports_depends_on(&self) -> bool {
+        self.supports(Self::V12)
     }
 }
 
@@ -312,16 +343,16 @@ pub struct AnalyzedContextFile {
     pub span: Span,
 }
 
-/// Analyzed flow definition.
+/// Analyzed import specification (v0.28, replaces include: + skills:).
 #[derive(Debug, Clone)]
-pub struct AnalyzedFlowDef {
-    /// Flow name
-    pub name: String,
+pub struct AnalyzedImportSpec {
+    /// Path to the imported workflow or skill file.
+    pub path: String,
 
-    /// Tasks in this flow (resolved to TaskIds)
-    pub tasks: Vec<TaskId>,
+    /// Optional task ID prefix for namespace isolation.
+    pub prefix: Option<String>,
 
-    /// Span of the flow definition
+    /// Span of the import spec
     pub span: Span,
 }
 
@@ -336,8 +367,8 @@ mod tests {
             Some(SchemaVersion::V01)
         );
         assert_eq!(
-            SchemaVersion::parse("nika/workflow@0.10"),
-            Some(SchemaVersion::V10)
+            SchemaVersion::parse("nika/workflow@0.12"),
+            Some(SchemaVersion::V12)
         );
         assert_eq!(SchemaVersion::parse("invalid"), None);
         assert_eq!(SchemaVersion::parse("nika/workflow@0.99"), None);
@@ -345,8 +376,8 @@ mod tests {
 
     #[test]
     fn test_schema_version_latest() {
-        assert_eq!(SchemaVersion::latest(), SchemaVersion::V10);
-        assert_eq!(SchemaVersion::latest().as_str(), "nika/workflow@0.10");
+        assert_eq!(SchemaVersion::latest(), SchemaVersion::V12);
+        assert_eq!(SchemaVersion::latest().as_str(), "nika/workflow@0.12");
     }
 
     #[test]
@@ -359,6 +390,8 @@ mod tests {
 
     #[test]
     fn test_analyzed_workflow_task_lookup() {
+        use crate::binding::WithSpec;
+
         let mut workflow = AnalyzedWorkflow::default();
 
         // Insert some tasks
@@ -372,8 +405,9 @@ mod tests {
             action: super::super::task::AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            use_refs: IndexMap::new(),
-            flow_deps: Vec::new(),
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
             output: None,
             for_each: None,
             retry: None,
@@ -387,8 +421,9 @@ mod tests {
             action: super::super::task::AnalyzedTaskAction::default(),
             provider: None,
             model: None,
-            use_refs: IndexMap::new(),
-            flow_deps: Vec::new(),
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
             output: None,
             for_each: None,
             retry: None,
@@ -409,7 +444,7 @@ mod tests {
     fn test_schema_version_number() {
         assert_eq!(SchemaVersion::V01.version_number(), 1);
         assert_eq!(SchemaVersion::V05.version_number(), 5);
-        assert_eq!(SchemaVersion::V10.version_number(), 10);
+        assert_eq!(SchemaVersion::V12.version_number(), 12);
     }
 
     #[test]
@@ -418,9 +453,9 @@ mod tests {
         assert!(SchemaVersion::V01.supports(SchemaVersion::V01));
         assert!(!SchemaVersion::V01.supports(SchemaVersion::V02));
 
-        // V10 supports all versions
-        assert!(SchemaVersion::V10.supports(SchemaVersion::V01));
-        assert!(SchemaVersion::V10.supports(SchemaVersion::V10));
+        // V12 supports all versions
+        assert!(SchemaVersion::V12.supports(SchemaVersion::V01));
+        assert!(SchemaVersion::V12.supports(SchemaVersion::V12));
     }
 
     #[test]
@@ -428,26 +463,34 @@ mod tests {
         // MCP requires v0.2+
         assert!(!SchemaVersion::V01.supports_mcp());
         assert!(SchemaVersion::V02.supports_mcp());
-        assert!(SchemaVersion::V10.supports_mcp());
+        assert!(SchemaVersion::V12.supports_mcp());
 
         // for_each requires v0.3+
         assert!(!SchemaVersion::V01.supports_for_each());
         assert!(!SchemaVersion::V02.supports_for_each());
         assert!(SchemaVersion::V03.supports_for_each());
-        assert!(SchemaVersion::V10.supports_for_each());
+        assert!(SchemaVersion::V12.supports_for_each());
 
         // skills requires v0.6+
         assert!(!SchemaVersion::V05.supports_skills());
         assert!(SchemaVersion::V06.supports_skills());
-        assert!(SchemaVersion::V10.supports_skills());
+        assert!(SchemaVersion::V12.supports_skills());
 
         // context requires v0.9+
         assert!(!SchemaVersion::V08.supports_context());
         assert!(SchemaVersion::V09.supports_context());
-        assert!(SchemaVersion::V10.supports_context());
+        assert!(SchemaVersion::V12.supports_context());
 
         // inputs requires v0.10+
         assert!(!SchemaVersion::V09.supports_inputs());
         assert!(SchemaVersion::V10.supports_inputs());
+
+        // with:/imports:/depends_on: require v0.12+
+        assert!(!SchemaVersion::V11.supports_with());
+        assert!(SchemaVersion::V12.supports_with());
+        assert!(!SchemaVersion::V11.supports_imports());
+        assert!(SchemaVersion::V12.supports_imports());
+        assert!(!SchemaVersion::V11.supports_depends_on());
+        assert!(SchemaVersion::V12.supports_depends_on());
     }
 }

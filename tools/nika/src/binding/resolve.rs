@@ -1,10 +1,43 @@
-//! Resolved Bindings - runtime value resolution (v0.5)
+//! Resolved Bindings - runtime value resolution (v0.28)
 //!
-//! ResolvedBindings holds resolved values from `use:` blocks for template resolution.
+//! ResolvedBindings holds resolved values from `use:` / `with:` blocks for template resolution.
 //! Supports both eager (immediate) and lazy (deferred) resolution.
+//!
+//! ## Old system (use:) — WiringSpec + UseEntry
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //! Extended syntax: `alias: {path: task.path, lazy: true}`
+//!
+//! ## New system (with:) — WithSpec + WithEntry (v0.28)
+//!
+//! Rich typed paths with transforms:
+//! ```yaml
+//! with:
+//!   summary: $step1.abstract | lower | trim ?? "No abstract"
+//!   data:
+//!     from: $step1.data
+//!     type: object
+//!     transform: sort_keys
+//! ```
+//!
+//! Data flow:
+//! ```text
+//! WithEntry.source (BindingPath)
+//!     ↓ dispatch by BindingSource
+//!     ├── Task(id) → datastore.get_output(id) + navigate PathSegments
+//!     ├── Input(sub) → datastore.resolve_input_path("inputs.{sub}")
+//!     ├── Context(sub) → datastore.get_context_file/session
+//!     ├── Env(var) → std::env::var(var)
+//!     └── LoopVar(_) → error (should be pre-resolved)
+//!     ↓
+//! Apply WithEntry.transform (TransformExpr pipeline)
+//!     ↓
+//! Apply WithEntry.default (if value is null/missing)
+//!     ↓
+//! Validate WithEntry.binding_type (BindingType constraint)
+//!     ↓
+//! LazyBinding::Resolved(value) or error
+//! ```
 //!
 //! Uses FxHashMap for faster hashing (consistent with Dag).
 
@@ -13,41 +46,58 @@ use serde_json::Value;
 
 use crate::error::NikaError;
 use crate::store::DataStore;
-use crate::util::jsonpath;
+use super::jsonpath;
 
-use super::entry::{UseEntry, WiringSpec};
+use super::entry::{UseEntry, WiringSpec, WithEntry, WithSpec};
+use super::transform::TransformExpr;
+use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
 
-/// Lazy binding state - either resolved or pending (v0.5)
+/// Lazy binding state - either resolved or pending (v0.28)
+///
+/// v0.28: Pending now stores `BindingPath` + optional `TransformExpr` + optional default
+/// instead of raw `String` path. This enables typed source dispatch and transform
+/// application during lazy resolution.
 #[derive(Debug, Clone)]
 pub enum LazyBinding {
     /// Already resolved to a concrete value (eager bindings)
     Resolved(Value),
-    /// Pending resolution - stores path and default for deferred resolution
+    /// Pending resolution (old system) — stores raw path string
     Pending {
         path: String,
         default: Option<Value>,
+    },
+    /// Pending resolution (new system) — stores typed BindingPath + transforms
+    PendingWithEntry {
+        source: BindingPath,
+        binding_type: BindingType,
+        default: Option<Value>,
+        transform: Option<TransformExpr>,
     },
 }
 
 impl LazyBinding {
     /// Check if this binding is pending resolution
     pub fn is_pending(&self) -> bool {
-        matches!(self, LazyBinding::Pending { .. })
+        matches!(
+            self,
+            LazyBinding::Pending { .. } | LazyBinding::PendingWithEntry { .. }
+        )
     }
 
     /// Get the value if already resolved
     pub fn get_value(&self) -> Option<&Value> {
         match self {
             LazyBinding::Resolved(v) => Some(v),
-            LazyBinding::Pending { .. } => None,
+            LazyBinding::Pending { .. } | LazyBinding::PendingWithEntry { .. } => None,
         }
     }
 }
 
-/// Resolved bindings from use: block (alias -> value or pending)
+/// Resolved bindings from use:/with: block (alias -> value or pending)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
 /// Supports both eager and lazy bindings (v0.5).
+/// v0.28: Adds `from_with_spec()` for new typed binding system.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedBindings {
     /// Alias -> binding mappings (resolved or pending)
@@ -59,6 +109,10 @@ impl ResolvedBindings {
     pub fn new() -> Self {
         Self::default()
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Old system: from_wiring_spec (use: block)
+    // ═══════════════════════════════════════════════════════════════
 
     /// Build bindings from use: wiring by resolving paths from datastore (v0.5)
     ///
@@ -102,6 +156,56 @@ impl ResolvedBindings {
         Ok(bindings)
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // New system: from_with_spec (with: block, v0.28)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Build bindings from with: spec by resolving typed BindingPaths (v0.28)
+    ///
+    /// Resolution order per entry:
+    /// 1. Dispatch by BindingSource (Task/Input/Context/Env)
+    /// 2. Navigate PathSegments for nested value access
+    /// 3. Apply TransformExpr pipeline (if present)
+    /// 4. Apply default value (if result is null/missing)
+    /// 5. Validate BindingType constraint
+    ///
+    /// Lazy bindings are stored as PendingWithEntry for later resolution.
+    pub fn from_with_spec(
+        with_spec: Option<&WithSpec>,
+        datastore: &DataStore,
+    ) -> Result<Self, NikaError> {
+        let Some(spec) = with_spec else {
+            return Ok(Self::new());
+        };
+
+        let mut bindings = Self::new();
+
+        for (alias, entry) in spec {
+            if entry.is_lazy() {
+                bindings.bindings.insert(
+                    alias.clone(),
+                    LazyBinding::PendingWithEntry {
+                        source: entry.source.clone(),
+                        binding_type: entry.binding_type,
+                        default: entry.default.clone(),
+                        transform: entry.transform.clone(),
+                    },
+                );
+            } else {
+                let value = resolve_with_entry(entry, alias, datastore)?;
+                bindings
+                    .bindings
+                    .insert(alias.clone(), LazyBinding::Resolved(value));
+            }
+        }
+
+        Ok(bindings)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Common API
+    // ═══════════════════════════════════════════════════════════════
+
     /// Set a resolved value (always eager)
     pub fn set(&mut self, alias: impl Into<String>, value: Value) {
         self.bindings
@@ -116,7 +220,7 @@ impl ResolvedBindings {
         self.bindings.get(alias).and_then(|b| b.get_value())
     }
 
-    /// Get a resolved value, resolving lazy bindings on demand (v0.5)
+    /// Get a resolved value, resolving lazy bindings on demand (v0.28)
     ///
     /// For eager bindings, returns the pre-resolved value.
     /// For lazy bindings, resolves from datastore on first call.
@@ -127,13 +231,29 @@ impl ResolvedBindings {
         match self.bindings.get(alias) {
             Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
             Some(LazyBinding::Pending { path, default }) => {
-                // Resolve on demand
+                // Old system: resolve via UseEntry
                 let entry = UseEntry {
                     path: path.clone(),
                     default: default.clone(),
                     lazy: true,
                 };
                 resolve_entry(&entry, alias, datastore)
+            }
+            Some(LazyBinding::PendingWithEntry {
+                source,
+                binding_type,
+                default,
+                transform,
+            }) => {
+                // New system: resolve via WithEntry
+                let entry = WithEntry {
+                    source: source.clone(),
+                    binding_type: *binding_type,
+                    default: default.clone(),
+                    lazy: true,
+                    transform: transform.clone(),
+                };
+                resolve_with_entry(&entry, alias, datastore)
             }
             None => Err(NikaError::BindingNotFound {
                 alias: alias.to_string(),
@@ -168,7 +288,7 @@ impl ResolvedBindings {
     /// Serialize context to JSON Value for event logging
     ///
     /// Returns the full resolved inputs as a JSON object.
-    /// Lazy bindings that haven't been resolved are represented as null.
+    /// Lazy bindings that haven't been resolved are represented as marker objects.
     /// Used by EventLog for TaskStarted events (inputs field).
     pub fn to_value(&self) -> Value {
         let mut map = serde_json::Map::new();
@@ -184,11 +304,24 @@ impl ResolvedBindings {
                         serde_json::json!({"__lazy__": true, "path": path}),
                     );
                 }
+                LazyBinding::PendingWithEntry {
+                    source, default: _, ..
+                } => {
+                    // Represent pending with typed path
+                    map.insert(
+                        alias.clone(),
+                        serde_json::json!({"__lazy__": true, "path": source.to_string()}),
+                    );
+                }
             }
         }
         Value::Object(map)
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Old resolution: UseEntry (use: block)
+// ═══════════════════════════════════════════════════════════════
 
 /// Resolve a single UseEntry to a Value
 ///
@@ -272,16 +405,215 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// New resolution: WithEntry (with: block, v0.28)
+// ═══════════════════════════════════════════════════════════════
+
+/// Resolve a single WithEntry to a Value using typed BindingPath dispatch (v0.28)
+///
+/// Resolution pipeline:
+/// 1. Dispatch by BindingSource to get raw value
+/// 2. Navigate PathSegments for nested access
+/// 3. Apply transform pipeline (if present)
+/// 4. Apply default (if value is null/missing, AFTER transforms)
+/// 5. Validate BindingType constraint
+fn resolve_with_entry(
+    entry: &WithEntry,
+    alias: &str,
+    datastore: &DataStore,
+) -> Result<Value, NikaError> {
+    let path_str = entry.source.to_string();
+
+    // Step 1+2: Dispatch by source and navigate segments
+    let raw_value = resolve_binding_path(&entry.source, alias, datastore)?;
+
+    // Step 3: Apply transforms
+    let transformed = match (&raw_value, &entry.transform) {
+        (Some(v), Some(expr)) if !v.is_null() => {
+            Some(expr.apply(v).map_err(|e| NikaError::PathNotFound {
+                path: format!("{} (transform error: {})", path_str, e),
+            })?)
+        }
+        _ => raw_value,
+    };
+
+    // Step 4: Apply default if null/missing
+    let value = match transformed {
+        Some(v) if !v.is_null() => v,
+        Some(_null) => {
+            // Value is null — use default or error
+            match &entry.default {
+                Some(d) => d.clone(),
+                None => {
+                    return Err(NikaError::NullValue {
+                        path: path_str,
+                        alias: alias.to_string(),
+                    });
+                }
+            }
+        }
+        None => {
+            // Value not found — use default or error
+            match &entry.default {
+                Some(d) => d.clone(),
+                None => {
+                    return Err(NikaError::PathNotFound { path: path_str });
+                }
+            }
+        }
+    };
+
+    // Step 5: Validate BindingType constraint
+    validate_binding_type(&value, entry.binding_type, alias, &path_str)?;
+
+    Ok(value)
+}
+
+/// Dispatch resolution by BindingSource variant
+///
+/// Returns the raw value before transforms/defaults are applied.
+/// Returns `Ok(None)` if the source exists but the specific path is missing.
+fn resolve_binding_path(
+    binding_path: &BindingPath,
+    alias: &str,
+    datastore: &DataStore,
+) -> Result<Option<Value>, NikaError> {
+    match &binding_path.source {
+        BindingSource::Task(task_id) => {
+            let output = match datastore.get_output(task_id) {
+                Some(o) => o,
+                None => return Ok(None),
+            };
+
+            // Navigate path segments through the value
+            navigate_segments(&output, &binding_path.segments)
+        }
+
+        BindingSource::Input(sub_path) => {
+            // DataStore.resolve_input_path expects "inputs.{sub_path}" format
+            let full_path = format!("inputs.{}", sub_path);
+            Ok(datastore.resolve_input_path(&full_path))
+        }
+
+        BindingSource::Context(sub_path) => {
+            let sub = sub_path.as_ref();
+            if sub == "session" {
+                // $context.session → datastore.get_context_session()
+                Ok(datastore.get_context_session())
+            } else if let Some(file_alias) = sub.strip_prefix("files.") {
+                // $context.files.brand → datastore.get_context_file("brand")
+                Ok(datastore.get_context_file(file_alias))
+            } else {
+                // Unrecognized context sub-path
+                Ok(None)
+            }
+        }
+
+        BindingSource::Env(var_name) => match std::env::var(var_name.as_ref()) {
+            Ok(val) => Ok(Some(Value::String(val))),
+            Err(_) => Ok(None),
+        },
+
+        BindingSource::LoopVar(name) => {
+            // Loop variables should be pre-resolved by the executor before reaching here.
+            // If we get here, it means the loop variable wasn't set.
+            Err(NikaError::BindingNotFound {
+                alias: format!(
+                    "{} (loop variable '{}' not pre-resolved)",
+                    alias, name
+                ),
+            })
+        }
+    }
+}
+
+/// Navigate a sequence of PathSegments through a JSON value
+///
+/// Returns `Ok(None)` if a segment doesn't match (missing field, out-of-bounds index).
+fn navigate_segments(
+    value: &Value,
+    segments: &[PathSegment],
+) -> Result<Option<Value>, NikaError> {
+    if segments.is_empty() {
+        return Ok(Some(value.clone()));
+    }
+
+    let mut current = value.clone();
+    for segment in segments {
+        match segment {
+            PathSegment::Field(name) => match current {
+                Value::Object(ref map) => match map.get(name.as_ref()) {
+                    Some(v) => current = v.clone(),
+                    None => return Ok(None),
+                },
+                _ => return Ok(None),
+            },
+            PathSegment::Index(idx) => match current {
+                Value::Array(ref arr) => match arr.get(*idx) {
+                    Some(v) => current = v.clone(),
+                    None => return Ok(None),
+                },
+                _ => return Ok(None),
+            },
+        }
+    }
+
+    Ok(Some(current))
+}
+
+/// Validate that a value matches the expected BindingType constraint
+///
+/// BindingType::Any always passes. Other types check the JSON value variant.
+fn validate_binding_type(
+    value: &Value,
+    binding_type: BindingType,
+    alias: &str,
+    path: &str,
+) -> Result<(), NikaError> {
+    let matches = match binding_type {
+        BindingType::Any => true,
+        BindingType::String => value.is_string(),
+        BindingType::Number => value.is_number(),
+        BindingType::Integer => value.is_i64() || value.is_u64(),
+        BindingType::Boolean => value.is_boolean(),
+        BindingType::Array => value.is_array(),
+        BindingType::Object => value.is_object(),
+    };
+
+    if !matches {
+        return Err(NikaError::BindingTypeMismatch {
+            expected: binding_type.to_string(),
+            actual: json_type_name(value).to_string(),
+            path: format!("{} (alias: {})", path, alias),
+        });
+    }
+
+    Ok(())
+}
+
+/// Get a human-readable type name for a JSON value
+fn json_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::binding::types::BindingPath;
     use crate::store::TaskResult;
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
 
     // ═══════════════════════════════════════════════════════════════
-    // Basic tests
+    // Basic tests (common API)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -309,8 +641,15 @@ mod tests {
         assert!(bindings.is_empty());
     }
 
+    #[test]
+    fn from_with_spec_none() {
+        let store = DataStore::new();
+        let bindings = ResolvedBindings::from_with_spec(None, &store).unwrap();
+        assert!(bindings.is_empty());
+    }
+
     // ═══════════════════════════════════════════════════════════════
-    // Unified syntax tests
+    // Old system: from_wiring_spec tests (use: block)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -373,7 +712,6 @@ mod tests {
     #[test]
     fn resolve_with_default_on_missing() {
         let store = DataStore::new();
-        // No weather task in store
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -406,7 +744,6 @@ mod tests {
     #[test]
     fn resolve_with_default_object() {
         let store = DataStore::new();
-        // No settings task
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -421,7 +758,6 @@ mod tests {
     #[test]
     fn resolve_with_default_array() {
         let store = DataStore::new();
-        // No meta task
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -434,7 +770,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Error cases
+    // Error cases (old system)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -466,7 +802,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // JSONPath tests
+    // JSONPath tests (old system)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -568,6 +904,17 @@ mod tests {
         assert!(binding.is_pending());
     }
 
+    #[test]
+    fn lazy_binding_pending_with_entry_is_pending() {
+        let binding = LazyBinding::PendingWithEntry {
+            source: BindingPath::parse("$step1.data").unwrap(),
+            binding_type: BindingType::Any,
+            default: None,
+            transform: None,
+        };
+        assert!(binding.is_pending());
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // LazyBinding::get_value() tests
     // ═══════════════════════════════════════════════════════════════
@@ -583,6 +930,17 @@ mod tests {
         let binding = LazyBinding::Pending {
             path: "task.path".to_string(),
             default: None,
+        };
+        assert_eq!(binding.get_value(), None);
+    }
+
+    #[test]
+    fn lazy_binding_get_value_pending_with_entry() {
+        let binding = LazyBinding::PendingWithEntry {
+            source: BindingPath::parse("$step1").unwrap(),
+            binding_type: BindingType::Any,
+            default: None,
+            transform: None,
         };
         assert_eq!(binding.get_value(), None);
     }
@@ -688,7 +1046,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ResolvedBindings::get_resolved() tests
+    // ResolvedBindings::get_resolved() tests (old system)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -903,22 +1261,15 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ResolvedBindings::to_value() with lazy bindings
+    // to_value() with lazy bindings
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn to_value_with_lazy_bindings() {
-        let _store = DataStore::new();
-        let mut wiring = WiringSpec::default();
-        wiring.insert("eager".to_string(), UseEntry::new("missing"));
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("missing"));
-
-        // The eager binding will use its default (none here, so it should be present in attempt)
-        // For this test, we'll skip the eager binding which would fail
         let mut bindings = ResolvedBindings::new();
         bindings.set("eager", json!("eager_value"));
 
-        // Insert a lazy binding manually for testing
+        // Insert old-style lazy binding manually
         bindings.bindings.insert(
             "lazy".to_string(),
             LazyBinding::Pending {
@@ -938,6 +1289,30 @@ mod tests {
         assert!(lazy_marker.is_object());
         assert_eq!(lazy_marker["__lazy__"], true);
         assert_eq!(lazy_marker["path"], "task.path");
+    }
+
+    #[test]
+    fn to_value_with_pending_with_entry() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("eager", json!("eager_value"));
+
+        // Insert new-style lazy binding
+        bindings.bindings.insert(
+            "lazy_new".to_string(),
+            LazyBinding::PendingWithEntry {
+                source: BindingPath::parse("$step1.data").unwrap(),
+                binding_type: BindingType::Object,
+                default: None,
+                transform: None,
+            },
+        );
+
+        let value = bindings.to_value();
+        let obj = value.as_object().unwrap();
+
+        let lazy_marker = &obj["lazy_new"];
+        assert_eq!(lazy_marker["__lazy__"], true);
+        assert_eq!(lazy_marker["path"], "$step1.data");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1062,7 +1437,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // inputs.* binding support (v0.22)
+    // inputs.* binding support (v0.22, old system)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1071,7 +1446,6 @@ mod tests {
 
         let store = DataStore::new();
 
-        // Set up workflow inputs
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -1095,7 +1469,6 @@ mod tests {
 
         let store = DataStore::new();
 
-        // Set up workflow inputs with nested object
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "config".to_string(),
@@ -1127,7 +1500,6 @@ mod tests {
     #[test]
     fn resolve_inputs_with_default_on_missing() {
         let store = DataStore::new();
-        // No inputs set
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -1142,7 +1514,6 @@ mod tests {
     #[test]
     fn resolve_inputs_missing_no_default() {
         let store = DataStore::new();
-        // No inputs set
 
         let mut wiring = WiringSpec::default();
         wiring.insert("missing".to_string(), UseEntry::new("inputs.missing"));
@@ -1176,11 +1547,9 @@ mod tests {
 
         let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
 
-        // Lazy binding should be pending
         assert!(bindings.is_lazy("lazy_alias"));
         assert_eq!(bindings.get("lazy_alias"), None);
 
-        // But can be resolved on demand
         let resolved = bindings.get_resolved("lazy_alias", &store).unwrap();
         assert_eq!(resolved, json!("lazy_value"));
     }
@@ -1191,7 +1560,6 @@ mod tests {
 
         let store = DataStore::new();
 
-        // Set up workflow inputs
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -1202,7 +1570,6 @@ mod tests {
         );
         store.set_inputs(inputs);
 
-        // Set up task output
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"result": "generated"}), Duration::from_secs(1)),
@@ -1214,7 +1581,6 @@ mod tests {
 
         let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
 
-        // Both should resolve correctly
         assert_eq!(bindings.get("from_input"), Some(&json!("AI")));
         assert_eq!(bindings.get("from_task"), Some(&json!("generated")));
     }
@@ -1240,5 +1606,845 @@ mod tests {
 
         let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
         assert_eq!(bindings.get("all_items"), Some(&json!(["a", "b", "c"])));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // New system: from_with_spec tests (with: block, v0.28)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_task_simple() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"title": "Hello"}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "title".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1.title").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("title"), Some(&json!("Hello")));
+    }
+
+    #[test]
+    fn with_spec_task_entire_output() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "data".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("data"), Some(&json!({"a": 1, "b": 2})));
+    }
+
+    #[test]
+    fn with_spec_task_nested_path() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(
+                json!({"data": {"items": [{"name": "first"}]}}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "first_name".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1.data.items[0].name").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("first_name"), Some(&json!("first")));
+    }
+
+    #[test]
+    fn with_spec_task_with_default_on_missing() {
+        let store = DataStore::new();
+        // No step1 task in store
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "result".to_string(),
+            WithEntry::with_default(
+                BindingPath::parse("$step1.data").unwrap(),
+                json!("fallback"),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("result"), Some(&json!("fallback")));
+    }
+
+    #[test]
+    fn with_spec_task_with_default_on_null() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "result".to_string(),
+            WithEntry::with_default(
+                BindingPath::parse("$step1.data").unwrap(),
+                json!("fallback"),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("result"), Some(&json!("fallback")));
+    }
+
+    #[test]
+    fn with_spec_task_missing_no_default_error() {
+        let store = DataStore::new();
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "result".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1.data").unwrap()),
+        );
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(err_str.contains("NIKA-052")); // PathNotFound
+    }
+
+    #[test]
+    fn with_spec_task_null_no_default_error() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "result".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1.data").unwrap()),
+        );
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(err_str.contains("NIKA-072")); // NullValue
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Input source tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_input_simple() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({"type": "string", "default": "AI trends"}),
+        );
+        store.set_inputs(inputs);
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "topic".to_string(),
+            WithEntry::simple(BindingPath::parse("$inputs.topic").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("topic"), Some(&json!("AI trends")));
+    }
+
+    #[test]
+    fn with_spec_input_nested() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "config".to_string(),
+            json!({"type": "object", "default": {"theme": "dark", "nested": {"deep": "val"}}}),
+        );
+        store.set_inputs(inputs);
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "theme".to_string(),
+            WithEntry::simple(BindingPath::parse("$inputs.config.theme").unwrap()),
+        );
+        spec.insert(
+            "deep".to_string(),
+            WithEntry::simple(
+                BindingPath::parse("$inputs.config.nested.deep").unwrap(),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("theme"), Some(&json!("dark")));
+        assert_eq!(bindings.get("deep"), Some(&json!("val")));
+    }
+
+    #[test]
+    fn with_spec_input_missing_with_default() {
+        let store = DataStore::new();
+        // No inputs set
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "fallback".to_string(),
+            WithEntry::with_default(
+                BindingPath::parse("$inputs.missing").unwrap(),
+                json!("default_val"),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("fallback"), Some(&json!("default_val")));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Env source tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_env_existing_var() {
+        // Use a known env var
+        std::env::set_var("NIKA_TEST_VAR_8A", "test_value_8a");
+
+        let store = DataStore::new();
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "my_var".to_string(),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_TEST_VAR_8A").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("my_var"), Some(&json!("test_value_8a")));
+
+        std::env::remove_var("NIKA_TEST_VAR_8A");
+    }
+
+    #[test]
+    fn with_spec_env_missing_with_default() {
+        let store = DataStore::new();
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "missing_env".to_string(),
+            WithEntry::with_default(
+                BindingPath::parse("$env.NIKA_NONEXISTENT_VAR_XYZ").unwrap(),
+                json!("fallback_env"),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("missing_env"), Some(&json!("fallback_env")));
+    }
+
+    #[test]
+    fn with_spec_env_missing_no_default_error() {
+        let store = DataStore::new();
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "missing".to_string(),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_NONEXISTENT_VAR_ABC").unwrap()),
+        );
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Context source tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_context_file() {
+        use crate::runtime::LoadedContext;
+        let store = DataStore::new();
+        let mut ctx = LoadedContext::new();
+        ctx.files.insert("brand".to_string(), json!("Brand Guidelines v2"));
+        store.set_context(ctx);
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "brand".to_string(),
+            WithEntry::simple(BindingPath::parse("$context.files.brand").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(
+            bindings.get("brand"),
+            Some(&json!("Brand Guidelines v2"))
+        );
+    }
+
+    #[test]
+    fn with_spec_context_session() {
+        use crate::runtime::LoadedContext;
+        let store = DataStore::new();
+        let mut ctx = LoadedContext::new();
+        ctx.session = Some(json!({"last_run": "2025-01-01"}));
+        store.set_context(ctx);
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "session".to_string(),
+            WithEntry::simple(BindingPath::parse("$context.session").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(
+            bindings.get("session"),
+            Some(&json!({"last_run": "2025-01-01"}))
+        );
+    }
+
+    #[test]
+    fn with_spec_context_missing_with_default() {
+        let store = DataStore::new();
+        // No context files loaded
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "brand".to_string(),
+            WithEntry::with_default(
+                BindingPath::parse("$context.files.brand").unwrap(),
+                json!("no brand"),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("brand"), Some(&json!("no brand")));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Lazy bindings
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_lazy_does_not_fail_on_missing() {
+        let store = DataStore::new();
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.data").unwrap());
+        entry.lazy = true;
+        spec.insert("lazy_val".to_string(), entry);
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_ok());
+        let bindings = result.unwrap();
+        assert!(bindings.is_lazy("lazy_val"));
+        assert_eq!(bindings.get("lazy_val"), None);
+    }
+
+    #[test]
+    fn with_spec_lazy_resolve_on_demand() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"data": "deferred"}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.data").unwrap());
+        entry.lazy = true;
+        spec.insert("lazy_val".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert!(bindings.is_lazy("lazy_val"));
+
+        let resolved = bindings.get_resolved("lazy_val", &store).unwrap();
+        assert_eq!(resolved, json!("deferred"));
+    }
+
+    #[test]
+    fn with_spec_lazy_re_resolves() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.counter").unwrap());
+        entry.lazy = true;
+        spec.insert("counter".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+
+        let v1 = bindings.get_resolved("counter", &store).unwrap();
+        assert_eq!(v1, json!(1));
+
+        // Update store
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"counter": 42}), Duration::from_secs(1)),
+        );
+
+        let v2 = bindings.get_resolved("counter", &store).unwrap();
+        assert_eq!(v2, json!(42));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Transform pipeline tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_with_transform() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"name": "  Hello World  "}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.name").unwrap());
+        entry.transform = Some(TransformExpr::parse("trim | upper").unwrap());
+        spec.insert("name".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("name"), Some(&json!("HELLO WORLD")));
+    }
+
+    #[test]
+    fn with_spec_transform_with_default_on_null() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"name": null}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::with_default(
+            BindingPath::parse("$step1.name").unwrap(),
+            json!("DEFAULT"),
+        );
+        entry.transform = Some(TransformExpr::parse("upper").unwrap());
+        spec.insert("name".to_string(), entry);
+
+        // Null goes through transform pipeline as-is (transform skipped for null),
+        // then default kicks in
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("name"), Some(&json!("DEFAULT")));
+    }
+
+    #[test]
+    fn with_spec_transform_chain() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(
+                json!({"items": [3, 1, 4, 1, 5, 9]}),
+                Duration::from_secs(1),
+            ),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.items").unwrap());
+        entry.transform = Some(TransformExpr::parse("sort | unique | length").unwrap());
+        spec.insert("unique_count".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        // [3,1,4,1,5,9] → sort → [1,1,3,4,5,9] → unique → [1,3,4,5,9] → length → 5
+        assert_eq!(bindings.get("unique_count"), Some(&json!(5)));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: BindingType validation tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_type_string_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"name": "text"}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.name").unwrap());
+        entry.binding_type = BindingType::String;
+        spec.insert("name".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("name"), Some(&json!("text")));
+    }
+
+    #[test]
+    fn with_spec_type_string_invalid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.count").unwrap());
+        entry.binding_type = BindingType::String;
+        spec.insert("count".to_string(), entry);
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(err_str.contains("NIKA-043")); // BindingTypeMismatch
+    }
+
+    #[test]
+    fn with_spec_type_array_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"items": [1, 2, 3]}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.items").unwrap());
+        entry.binding_type = BindingType::Array;
+        spec.insert("items".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("items"), Some(&json!([1, 2, 3])));
+    }
+
+    #[test]
+    fn with_spec_type_any_accepts_all() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"val": [1, "mixed"]}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.val").unwrap());
+        entry.binding_type = BindingType::Any;
+        spec.insert("val".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("val"), Some(&json!([1, "mixed"])));
+    }
+
+    #[test]
+    fn with_spec_type_object_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"cfg": {"debug": true}}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.cfg").unwrap());
+        entry.binding_type = BindingType::Object;
+        spec.insert("cfg".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("cfg"), Some(&json!({"debug": true})));
+    }
+
+    #[test]
+    fn with_spec_type_number_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"temp": 25.5}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.temp").unwrap());
+        entry.binding_type = BindingType::Number;
+        spec.insert("temp".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("temp"), Some(&json!(25.5)));
+    }
+
+    #[test]
+    fn with_spec_type_integer_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.count").unwrap());
+        entry.binding_type = BindingType::Integer;
+        spec.insert("count".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("count"), Some(&json!(42)));
+    }
+
+    #[test]
+    fn with_spec_type_integer_rejects_float() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"val": 3.14}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.val").unwrap());
+        entry.binding_type = BindingType::Integer;
+        spec.insert("val".to_string(), entry);
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-043"));
+    }
+
+    #[test]
+    fn with_spec_type_boolean_valid() {
+        let store = DataStore::new();
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"flag": true}), Duration::from_secs(1)),
+        );
+
+        let mut spec = WithSpec::default();
+        let mut entry = WithEntry::simple(BindingPath::parse("$step1.flag").unwrap());
+        entry.binding_type = BindingType::Boolean;
+        spec.insert("flag".to_string(), entry);
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+        assert_eq!(bindings.get("flag"), Some(&json!(true)));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: Mixed source types
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_mixed_sources() {
+        use rustc_hash::FxHashMap;
+
+        let store = DataStore::new();
+
+        // Task output
+        store.insert(
+            Arc::from("step1"),
+            TaskResult::success(json!({"result": "task_val"}), Duration::from_secs(1)),
+        );
+
+        // Inputs
+        let mut inputs = FxHashMap::default();
+        inputs.insert(
+            "topic".to_string(),
+            json!({"type": "string", "default": "AI"}),
+        );
+        store.set_inputs(inputs);
+
+        // Context file
+        {
+            use crate::runtime::LoadedContext;
+            let mut ctx = LoadedContext::new();
+            ctx.files.insert("brand".to_string(), json!("Brand Text"));
+            store.set_context(ctx);
+        }
+
+        // Env
+        std::env::set_var("NIKA_TEST_MIXED_8A", "env_val");
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "from_task".to_string(),
+            WithEntry::simple(BindingPath::parse("$step1.result").unwrap()),
+        );
+        spec.insert(
+            "from_input".to_string(),
+            WithEntry::simple(BindingPath::parse("$inputs.topic").unwrap()),
+        );
+        spec.insert(
+            "from_context".to_string(),
+            WithEntry::simple(BindingPath::parse("$context.files.brand").unwrap()),
+        );
+        spec.insert(
+            "from_env".to_string(),
+            WithEntry::simple(BindingPath::parse("$env.NIKA_TEST_MIXED_8A").unwrap()),
+        );
+
+        let bindings = ResolvedBindings::from_with_spec(Some(&spec), &store).unwrap();
+
+        assert_eq!(bindings.get("from_task"), Some(&json!("task_val")));
+        assert_eq!(bindings.get("from_input"), Some(&json!("AI")));
+        assert_eq!(bindings.get("from_context"), Some(&json!("Brand Text")));
+        assert_eq!(bindings.get("from_env"), Some(&json!("env_val")));
+
+        std::env::remove_var("NIKA_TEST_MIXED_8A");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WithSpec: LoopVar error
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn with_spec_loop_var_errors() {
+        let store = DataStore::new();
+
+        let mut spec = WithSpec::default();
+        spec.insert(
+            "item".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::LoopVar(Arc::from("item")),
+                segments: vec![],
+            }),
+        );
+
+        let result = ResolvedBindings::from_with_spec(Some(&spec), &store);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(err_str.contains("loop variable"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // navigate_segments tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn navigate_segments_empty() {
+        let value = json!({"hello": "world"});
+        let result = navigate_segments(&value, &[]).unwrap();
+        assert_eq!(result, Some(json!({"hello": "world"})));
+    }
+
+    #[test]
+    fn navigate_segments_field() {
+        let value = json!({"name": "Nika"});
+        let segments = vec![PathSegment::Field(Arc::from("name"))];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!("Nika")));
+    }
+
+    #[test]
+    fn navigate_segments_deep_field() {
+        let value = json!({"a": {"b": {"c": 42}}});
+        let segments = vec![
+            PathSegment::Field(Arc::from("a")),
+            PathSegment::Field(Arc::from("b")),
+            PathSegment::Field(Arc::from("c")),
+        ];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!(42)));
+    }
+
+    #[test]
+    fn navigate_segments_array_index() {
+        let value = json!({"items": ["a", "b", "c"]});
+        let segments = vec![
+            PathSegment::Field(Arc::from("items")),
+            PathSegment::Index(1),
+        ];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!("b")));
+    }
+
+    #[test]
+    fn navigate_segments_mixed() {
+        let value = json!({"data": [{"name": "first"}, {"name": "second"}]});
+        let segments = vec![
+            PathSegment::Field(Arc::from("data")),
+            PathSegment::Index(1),
+            PathSegment::Field(Arc::from("name")),
+        ];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!("second")));
+    }
+
+    #[test]
+    fn navigate_segments_missing_field() {
+        let value = json!({"a": 1});
+        let segments = vec![PathSegment::Field(Arc::from("missing"))];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn navigate_segments_out_of_bounds() {
+        let value = json!([1, 2, 3]);
+        let segments = vec![PathSegment::Index(10)];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn navigate_segments_field_on_non_object() {
+        let value = json!("string_value");
+        let segments = vec![PathSegment::Field(Arc::from("field"))];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn navigate_segments_index_on_non_array() {
+        let value = json!({"key": "val"});
+        let segments = vec![PathSegment::Index(0)];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // validate_binding_type tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn validate_type_any_accepts_all() {
+        validate_binding_type(&json!("str"), BindingType::Any, "a", "p").unwrap();
+        validate_binding_type(&json!(42), BindingType::Any, "a", "p").unwrap();
+        validate_binding_type(&json!(true), BindingType::Any, "a", "p").unwrap();
+        validate_binding_type(&json!([]), BindingType::Any, "a", "p").unwrap();
+        validate_binding_type(&json!({}), BindingType::Any, "a", "p").unwrap();
+        validate_binding_type(&json!(null), BindingType::Any, "a", "p").unwrap();
+    }
+
+    #[test]
+    fn validate_type_string_rejects_number() {
+        let result = validate_binding_type(&json!(42), BindingType::String, "a", "p");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_type_number_accepts_int_and_float() {
+        validate_binding_type(&json!(42), BindingType::Number, "a", "p").unwrap();
+        validate_binding_type(&json!(3.14), BindingType::Number, "a", "p").unwrap();
+    }
+
+    #[test]
+    fn validate_type_integer_rejects_float() {
+        let result = validate_binding_type(&json!(3.14), BindingType::Integer, "a", "p");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn validate_type_boolean_rejects_string() {
+        let result = validate_binding_type(&json!("true"), BindingType::Boolean, "a", "p");
+        assert!(result.is_err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // json_type_name tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn json_type_names() {
+        assert_eq!(json_type_name(&json!(null)), "null");
+        assert_eq!(json_type_name(&json!(true)), "boolean");
+        assert_eq!(json_type_name(&json!(42)), "number");
+        assert_eq!(json_type_name(&json!("str")), "string");
+        assert_eq!(json_type_name(&json!([])), "array");
+        assert_eq!(json_type_name(&json!({})), "object");
     }
 }
