@@ -432,7 +432,7 @@ impl TaskExecutor {
                         .timeout(crate::util::FETCH_TIMEOUT)
                         .connect_timeout(crate::util::CONNECT_TIMEOUT)
                         .redirect(reqwest::redirect::Policy::none())
-                        .user_agent("nika-cli/0.1")
+                        .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
                         .build()
                         .unwrap_or_else(|e| {
                             tracing::error!(

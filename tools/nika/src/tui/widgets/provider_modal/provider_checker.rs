@@ -32,7 +32,7 @@ impl ProviderChecker {
         let client = Client::builder()
             .connect_timeout(PROVIDER_CHECK_TIMEOUT)
             .timeout(PROVIDER_CHECK_TIMEOUT)
-            .user_agent("nika-cli/0.8")
+            .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("Failed to create HTTP client");
 
