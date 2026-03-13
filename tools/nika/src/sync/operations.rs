@@ -485,16 +485,6 @@ fn write_mcp_json(path: &Path, servers: &Value) -> Result<()> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LEGACY COMPATIBILITY
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/// Sync all enabled editors (legacy API, uses SyncConfig).
-#[allow(dead_code)]
-pub fn sync_all_legacy(config: &mut SyncConfig) -> Result<Vec<SyncResult>> {
-    sync_enabled(config)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // TESTS
 // ═══════════════════════════════════════════════════════════════════════════════
 

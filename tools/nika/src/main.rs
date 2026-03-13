@@ -344,14 +344,6 @@ enum Commands {
         action: JobsAction,
     },
 
-    /// [deprecated] Use 'nika' instead
-    #[cfg(feature = "tui")]
-    #[command(hide = true)]
-    Tui {
-        /// Path to workflow YAML file (optional)
-        workflow: Option<PathBuf>,
-    },
-
     /// Create a new workflow from template or wizard (v0.19.3)
     #[command(visible_alias = "n")]
     New {
@@ -1316,19 +1308,6 @@ async fn main() {
         #[cfg(feature = "jobs")]
         Some(Commands::Jobs { action }) => handle_jobs_command(action, quiet).await,
 
-        // Legacy TUI command (hidden, backward compat)
-        #[cfg(feature = "tui")]
-        Some(Commands::Tui { workflow }) => {
-            eprintln!(
-                "{} 'nika tui' is deprecated. Use 'nika' instead.",
-                "Note:".yellow()
-            );
-            match workflow {
-                Some(path) => nika::tui::run_tui(&path).await,
-                None => nika::tui::run_tui_standalone().await,
-            }
-        }
-
         // New workflow creation (v0.19.3)
         Some(Commands::New {
             name,
@@ -1402,7 +1381,6 @@ fn is_tui_mode(cli: &Cli) -> bool {
             Commands::Ui { .. }
                 | Commands::Chat { .. }
                 | Commands::Studio { .. }
-                | Commands::Tui { .. }
         );
     }
 
