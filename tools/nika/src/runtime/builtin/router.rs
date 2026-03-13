@@ -24,7 +24,7 @@ use super::{
 };
 use crate::error::NikaError;
 use crate::tools::ToolContext;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 /// Router for builtin nika:* tools.
@@ -43,7 +43,7 @@ use std::sync::Arc;
 /// }
 /// ```
 pub struct BuiltinToolRouter {
-    tools: HashMap<&'static str, Arc<dyn BuiltinTool>>,
+    tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>>,
 }
 
 impl BuiltinToolRouter {
@@ -51,7 +51,7 @@ impl BuiltinToolRouter {
     ///
     /// For file tools (read, write, edit, glob, grep), use `with_file_tools()`.
     pub fn new() -> Self {
-        let mut tools: HashMap<&'static str, Arc<dyn BuiltinTool>> = HashMap::new();
+        let mut tools: FxHashMap<&'static str, Arc<dyn BuiltinTool>> = FxHashMap::default();
 
         // Register 7 core builtin tools
         tools.insert("sleep", Arc::new(SleepTool));

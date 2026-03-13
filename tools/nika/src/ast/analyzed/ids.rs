@@ -4,7 +4,7 @@
 //! providing O(1) comparison and hashing while keeping string
 //! data deduplicated.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::fmt;
 
 /// Interned task identifier.
@@ -65,7 +65,7 @@ pub struct StringTable {
     /// The interned strings (index → string).
     strings: Vec<String>,
     /// Reverse lookup (string → index) for O(1) interning.
-    index: HashMap<String, u32>,
+    index: FxHashMap<String, u32>,
 }
 
 impl StringTable {
@@ -113,7 +113,7 @@ pub struct TaskTable {
     /// Task names indexed by TaskId.
     names: Vec<String>,
     /// Reverse lookup (name → TaskId) for O(1) lookup.
-    index: HashMap<String, TaskId>,
+    index: FxHashMap<String, TaskId>,
 }
 
 impl TaskTable {
