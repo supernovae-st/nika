@@ -6,10 +6,7 @@
 //! - Manifest loading
 //! - Installation status checking
 //!
-//! ## v0.28 Migration
-//!
-//! This module now uses the unified `core::paths` module for all path operations.
-//! The legacy `~/.nika/` paths are deprecated in favor of `~/.nika/`.
+//! Path operations delegate to `core::paths` for the unified home directory.
 
 use std::fs;
 use std::path::PathBuf;
@@ -20,16 +17,8 @@ use crate::registry::types::{Manifest, RegistryIndex};
 use crate::serde_yaml;
 use crate::NikaError;
 
-// Re-export from core::paths for backward compatibility
+// Re-export from core::paths
 pub use crate::core::paths::{NIKA_DIR_NAME, NIKA_HOME_ENV};
-
-/// Environment variable to override the default home directory.
-/// @deprecated Use `NIKA_HOME_ENV` from `core::paths` instead.
-pub const SPN_HOME_ENV: &str = "NIKA_HOME";
-
-/// Default directory name under user home.
-/// @deprecated Use `NIKA_DIR_NAME` from `core::paths` instead.
-pub const SPN_DIR_NAME: &str = ".nika";
 
 /// Registry index filename.
 pub const REGISTRY_INDEX_FILE: &str = "registry.yaml";
@@ -40,46 +29,18 @@ pub const PACKAGES_DIR_NAME: &str = "packages";
 /// Manifest filename within a package.
 pub const MANIFEST_FILE: &str = "manifest.yaml";
 
-/// Get the Nika home directory.
-///
-/// Priority:
-/// 1. `$NIKA_HOME` environment variable (validated)
-/// 2. `~/.nika/`
-///
-/// # Security
-///
-/// The `$NIKA_HOME` environment variable is validated to ensure:
-/// - Path is absolute
-/// - Path does not contain traversal sequences (`..`)
-///
-/// # Examples
-///
-/// ```no_run
-/// use nika::registry::operations::nika_home;
-///
-/// let home = nika_home()?;
-/// // Returns PathBuf like "/home/user/.nika" or value of $NIKA_HOME
-/// # Ok::<(), nika::NikaError>(())
-/// ```
-///
-/// @deprecated Use `nika_home()` from `core::paths` instead.
-pub fn nika_home() -> Result<PathBuf, NikaError> {
-    // Delegate to the unified paths module
-    Ok(crate::core::paths::nika_home())
-}
-
 /// Get the packages directory.
 ///
 /// Returns `~/.nika/packages/` (or `$NIKA_HOME/packages/`).
 pub fn packages_dir() -> Result<PathBuf, NikaError> {
-    Ok(nika_home()?.join(PACKAGES_DIR_NAME))
+    Ok(crate::core::paths::nika_home().join(PACKAGES_DIR_NAME))
 }
 
 /// Get the registry index file path.
 ///
 /// Returns `~/.nika/registry.yaml` (or `$NIKA_HOME/registry.yaml`).
 pub fn registry_index_path() -> Result<PathBuf, NikaError> {
-    Ok(nika_home()?.join(REGISTRY_INDEX_FILE))
+    Ok(crate::core::paths::nika_home().join(REGISTRY_INDEX_FILE))
 }
 
 /// Get the directory path for a specific package version.
@@ -125,10 +86,8 @@ pub fn manifest_path(name: &str, version: &str) -> Result<PathBuf, NikaError> {
 /// Ensure the Nika home directory exists.
 ///
 /// Creates `~/.nika/` and `~/.nika/packages/` if they don't exist.
-///
-/// @deprecated Use `ensure_nika_home()` from `core::paths` instead.
 pub fn ensure_nika_home() -> Result<PathBuf, NikaError> {
-    let home = nika_home()?;
+    let home = crate::core::paths::nika_home();
 
     if !home.exists() {
         fs::create_dir_all(&home).map_err(|e| NikaError::ValidationError {
@@ -369,13 +328,13 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let temp_path = temp_dir.path().to_path_buf();
 
-        // Set SPN_HOME to temp directory
-        env::set_var(SPN_HOME_ENV, &temp_path);
+        // Set NIKA_HOME to temp directory
+        env::set_var(NIKA_HOME_ENV, &temp_path);
 
         let result = f(&temp_path);
 
         // Clean up env var
-        env::remove_var(SPN_HOME_ENV);
+        env::remove_var(NIKA_HOME_ENV);
 
         result
     }
@@ -384,7 +343,7 @@ mod tests {
     #[serial]
     fn test_nika_home_uses_env_var() {
         with_temp_nika_home(|temp_path| {
-            let home = nika_home().unwrap();
+            let home = crate::core::paths::nika_home();
             assert_eq!(home, temp_path);
         });
     }
