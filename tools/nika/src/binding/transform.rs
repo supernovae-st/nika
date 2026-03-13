@@ -283,7 +283,7 @@ impl TransformOp {
                 Value::Null => Err(TransformError::NullInput { op: "sort" }),
                 Value::Array(arr) => {
                     let mut sorted = arr.clone();
-                    sorted.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
+                    sorted.sort_by_key(|a| a.to_string());
                     Ok(Value::Array(sorted))
                 }
                 _ => Err(type_mismatch("sort", "array", value)),
@@ -652,12 +652,17 @@ fn parse_default_value(arg: &str) -> Result<Value, String> {
     Ok(Value::String(trimmed.to_string()))
 }
 
-/// Truncate a string for error messages.
+/// Truncate a string for error messages (UTF-8 safe).
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max])
+        // Find a valid UTF-8 char boundary at or before `max`
+        let mut end = max;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }
 

@@ -129,7 +129,12 @@ impl ReadTool {
             .map(|(i, line)| {
                 let line_num = offset + i + 1;
                 let truncated_line = if line.len() > Self::MAX_LINE_LENGTH {
-                    format!("{}...", &line[..Self::MAX_LINE_LENGTH])
+                    // Find a valid UTF-8 char boundary at or before MAX_LINE_LENGTH
+                    let mut end = Self::MAX_LINE_LENGTH;
+                    while end > 0 && !line.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    format!("{}...", &line[..end])
                 } else {
                     line.to_string()
                 };
