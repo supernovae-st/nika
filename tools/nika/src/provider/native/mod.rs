@@ -70,13 +70,6 @@ pub use crate::core::storage::{
     default_model_dir, extract_quantization, HuggingFaceStorage, ModelStorage, StorageError,
 };
 
-// Backwards compatibility alias (deprecated in v0.26)
-#[deprecated(
-    since = "0.26.0",
-    note = "Use NativeRuntime directly instead of NativeClient"
-)]
-pub type NativeClient = NativeRuntime;
-
 #[cfg(test)]
 mod tests {
     use super::*;

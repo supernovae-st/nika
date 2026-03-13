@@ -49,7 +49,7 @@ pub mod native;
 pub use cost::{calculate_cost, format_cost, get_model_pricing, ModelPricing, ProviderKind};
 pub use rig::{NikaMcpTool, RigProvider, StreamResult};
 
-// Re-export native runtime when feature is enabled (v0.26: NativeRuntime replaces NativeClient)
+// Re-export native runtime when feature is enabled
 #[cfg(feature = "native-inference")]
 pub use native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeRuntime};
 
@@ -58,8 +58,3 @@ pub use native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeRuntime
 pub use native::{
     default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,
 };
-
-// Backwards compatibility alias (deprecated in v0.26)
-#[cfg(feature = "native-inference")]
-#[allow(deprecated)]
-pub use native::NativeClient;

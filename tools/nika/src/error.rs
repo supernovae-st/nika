@@ -193,14 +193,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // PROVIDER ERRORS (030-039)
     // ═══════════════════════════════════════════
-    /// Legacy: simple provider error (v0.1 compat)
-    #[deprecated(
-        since = "0.4.0",
-        note = "Use ProviderApiError or ProviderNotConfigured instead"
-    )]
-    #[error("Provider error: {0}")]
-    Provider(String),
-
     #[error("[NIKA-030] Provider '{provider}' not configured")]
     ProviderNotConfigured { provider: String },
 
@@ -216,14 +208,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
-    /// Legacy: simple template error (v0.1 compat)
-    #[deprecated(
-        since = "0.4.0",
-        note = "Use TemplateError with structured fields instead"
-    )]
-    #[error("Template error: {0}")]
-    Template(String),
-
     /// Legacy: simple execution error (v0.1 compat)
     /// Note: Widely used - consider structured variant for new code
     #[error("Execution error: {0}")]
@@ -786,13 +770,11 @@ impl NikaError {
             Self::DependencyChainFailed { .. } => "NIKA-026",
             Self::TaskCancelled { .. } => "NIKA-027",
             // Provider errors
-            Self::Provider(_) => "NIKA-030", // legacy
             Self::ProviderNotConfigured { .. } => "NIKA-030",
             Self::ProviderApiError { .. } => "NIKA-031",
             Self::MissingApiKey { .. } => "NIKA-032",
             Self::InvalidConfig { .. } => "NIKA-033",
             // Binding/Template errors
-            Self::Template(_) => "NIKA-040",  // legacy
             Self::Execution(_) => "NIKA-041", // legacy
             Self::BindingError { .. } => "NIKA-040",
             Self::TemplateError { .. } => "NIKA-041",
@@ -956,7 +938,6 @@ impl FixSuggestion for NikaError {
             NikaError::MissingDependency { .. } => {
                 Some("Add the missing task or fix the dependency reference")
             }
-            NikaError::Provider(_) => Some("Check API key env var is set"),
             NikaError::ProviderNotConfigured { .. } => {
                 Some("Add provider configuration to your workflow")
             }
@@ -965,7 +946,6 @@ impl FixSuggestion for NikaError {
                 Some("Set the API key env var (ANTHROPIC_API_KEY or OPENAI_API_KEY)")
             }
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
-            NikaError::Template(_) => Some("Use {{use.alias}} format with use: block"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
             NikaError::BindingError { .. } => Some("Check binding syntax and source task output"),
             NikaError::TemplateError { .. } => Some("Use {{use.alias}} format with use: block"),
@@ -1360,15 +1340,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    #[allow(deprecated)] // Testing deprecated variant intentionally
-    fn test_provider_legacy_error() {
-        let err = NikaError::Provider("Connection failed".to_string());
-        assert_eq!(err.code(), "NIKA-030");
-        let msg = err.to_string();
-        assert!(msg.contains("Provider error"));
-    }
-
-    #[test]
     fn test_provider_not_configured_error() {
         let err = NikaError::ProviderNotConfigured {
             provider: "openai".to_string(),
@@ -1412,15 +1383,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    #[allow(deprecated)] // Testing deprecated variant intentionally
-    fn test_template_legacy_error() {
-        let err = NikaError::Template("unmatched {{".to_string());
-        assert_eq!(err.code(), "NIKA-040");
-        let msg = err.to_string();
-        assert!(msg.contains("Template error"));
-    }
 
     #[test]
     fn test_execution_legacy_error() {

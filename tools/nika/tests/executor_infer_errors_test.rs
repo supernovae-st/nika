@@ -605,12 +605,7 @@ fn test_template_no_whitespace() {
 
 /// Verify error codes are correctly assigned
 #[test]
-#[allow(deprecated)] // Testing deprecated variant intentionally
 fn test_error_codes() {
-    // Template error (legacy)
-    let template_err = NikaError::Template("test".to_string());
-    assert_eq!(template_err.code(), "NIKA-040");
-
     // Null value error
     let null_err = NikaError::NullValue {
         path: "test.path".to_string(),
@@ -638,7 +633,9 @@ fn test_error_codes() {
     };
     assert_eq!(key_err.code(), "NIKA-032");
 
-    // Provider error (legacy)
-    let provider_err = NikaError::Provider("test error".to_string());
+    // Provider not configured error
+    let provider_err = NikaError::ProviderNotConfigured {
+        provider: "openai".to_string(),
+    };
     assert_eq!(provider_err.code(), "NIKA-030");
 }

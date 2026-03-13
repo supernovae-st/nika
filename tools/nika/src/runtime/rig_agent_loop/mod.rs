@@ -33,7 +33,7 @@ mod thinking;
 pub mod types;
 
 // Re-export public types
-pub use types::{GuardrailCheckResult, RigAgentLoopResult, RigAgentStatus};
+pub use types::{RigAgentLoopResult, RigAgentStatus};
 
 use std::path::PathBuf;
 use std::sync::Arc;
