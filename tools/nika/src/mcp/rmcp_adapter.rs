@@ -274,6 +274,10 @@ impl RmcpClientAdapter {
         }
 
         *self.server_version.lock() = None;
+
+        // Invalidate tool cache so reconnection forces a fresh list_tools()
+        self.invalidate_tool_cache();
+
         Ok(())
     }
 
@@ -1210,5 +1214,30 @@ mod tests {
         // Reconnect timeout should be >= connect timeout
         // since reconnect involves disconnect + connect
         assert!(RECONNECT_TIMEOUT >= CONNECT_TIMEOUT);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // NIKA-104: Cache Invalidation on Disconnect
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_disconnect_invalidates_tool_cache() {
+        let config = McpConfig::new("test", "echo");
+        let adapter = RmcpClientAdapter::new(config);
+
+        // Manually populate the tool cache
+        adapter.cached_tools.lock().push(
+            ToolDefinition::new("fake_tool").with_description("test"),
+        );
+        *adapter.tools_fetched_at.lock() = Some(std::time::Instant::now());
+
+        assert!(!adapter.get_cached_tools().is_empty());
+        assert!(adapter.is_tool_cache_fresh(std::time::Duration::from_secs(60)));
+
+        // Disconnect should clear the cache
+        let _ = adapter.disconnect().await;
+
+        assert!(adapter.get_cached_tools().is_empty());
+        assert!(!adapter.is_tool_cache_fresh(std::time::Duration::from_secs(60)));
     }
 }
