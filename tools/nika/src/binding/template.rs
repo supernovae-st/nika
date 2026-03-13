@@ -117,7 +117,17 @@ static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(\w+))*").unwrap());
 
 /// Escape for JSON string context
-fn escape_for_json(s: &str) -> String {
+///
+/// Returns `Cow::Borrowed` when no escaping is needed (common case for simple strings).
+fn escape_for_json(s: &str) -> Cow<'_, str> {
+    // Fast path: check if any escaping is needed
+    let needs_escape = s
+        .chars()
+        .any(|c| matches!(c, '"' | '\\' | '\n' | '\r' | '\t') || c.is_control());
+    if !needs_escape {
+        return Cow::Borrowed(s);
+    }
+
     let mut result = String::with_capacity(s.len());
     for ch in s.chars() {
         match ch {
@@ -132,7 +142,7 @@ fn escape_for_json(s: &str) -> String {
             c => result.push(c),
         }
     }
-    result
+    Cow::Owned(result)
 }
 
 /// Escape a string for safe shell usage (v0.13)
@@ -291,7 +301,7 @@ pub fn resolve<'a>(
 
                 // Apply modifier or context-based escaping (v0.13)
                 let replacement = match modifier {
-                    Some("shell") => escape_for_shell(&replacement),
+                    Some("shell") => Cow::Owned(escape_for_shell(&replacement)),
                     _ if is_in_json_context(template_str, m.start()) => {
                         escape_for_json(&replacement)
                     }
@@ -584,52 +594,57 @@ pub fn resolve_for_shell<'a>(
 
 /// Convert JSON Value to string for template substitution (strict mode)
 ///
+/// Returns `Cow::Borrowed` for string values (avoids cloning).
 /// Returns error for null values - this prevents silent bugs from missing data.
-fn value_to_string(value: &Value, path: &str, alias: &str) -> Result<String, NikaError> {
+fn value_to_string<'a>(
+    value: &'a Value,
+    path: &str,
+    alias: &str,
+) -> Result<Cow<'a, str>, NikaError> {
     match value {
-        Value::String(s) => Ok(s.clone()),
+        Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
         Value::Null => Err(NikaError::NullValue {
             path: path.to_string(),
             alias: alias.to_string(),
         }),
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Number(n) => Ok(n.to_string()),
+        Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
+        Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation
-        other => Ok(other.to_string()),
+        other => Ok(Cow::Owned(other.to_string())),
     }
 }
 
 /// Convert context Value to string for template substitution (v0.14.2)
 ///
-/// Similar to value_to_string but for context bindings.
-fn context_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
+/// Returns `Cow::Borrowed` for string values (avoids cloning).
+fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
     match value {
-        Value::String(s) => Ok(s.clone()),
+        Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
         Value::Null => Err(NikaError::TemplateError {
             template: path.to_string(),
             reason: "Context binding resolved to null".to_string(),
         }),
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Number(n) => Ok(n.to_string()),
+        Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
+        Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation
-        other => Ok(other.to_string()),
+        other => Ok(Cow::Owned(other.to_string())),
     }
 }
 
 /// Convert input Value to string for template substitution (v0.19.4)
 ///
-/// Similar to value_to_string but for input bindings.
-fn input_value_to_string(value: &Value, path: &str) -> Result<String, NikaError> {
+/// Returns `Cow::Borrowed` for string values (avoids cloning).
+fn input_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
     match value {
-        Value::String(s) => Ok(s.clone()),
+        Value::String(s) => Ok(Cow::Borrowed(s.as_str())),
         Value::Null => Err(NikaError::TemplateError {
             template: path.to_string(),
             reason: "Input binding resolved to null. Provide a 'default' value in your inputs definition.".to_string(),
         }),
-        Value::Bool(b) => Ok(b.to_string()),
-        Value::Number(n) => Ok(n.to_string()),
+        Value::Bool(b) => Ok(Cow::Owned(b.to_string())),
+        Value::Number(n) => Ok(Cow::Owned(n.to_string())),
         // For objects/arrays, return compact JSON representation
-        other => Ok(other.to_string()),
+        other => Ok(Cow::Owned(other.to_string())),
     }
 }
 
