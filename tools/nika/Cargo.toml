@@ -63,7 +63,6 @@ serde_json_path = "0.7"
 
 # JSON Schema validation
 jsonschema = "0.26"
-schemars = "1.0"  # JSON Schema generation for Rust types (v0.21 StructuredOutputEngine)
 
 # Errors
 thiserror = "1.0"
@@ -98,9 +97,6 @@ spn-client = { version = "0.3.4", optional = true }
 mistralrs = { version = "0.7", optional = true }
 async-stream = { version = "0.3", optional = true }
 
-# Text editing (v0.21.2 - VS Code quality)
-ropey = "1.6"  # Efficient rope data structure for text editing
-
 # Git integration (v0.21.3 - Git gutter + file status)
 git2 = "0.19"  # libgit2 bindings for git operations
 
@@ -110,7 +106,6 @@ git2 = "0.19"  # libgit2 bindings for git operations
 openssl = { version = "0.10", features = ["vendored"] }
 
 # Utilities
-bytes = "1.11.1"  # Force upgrade to fix RUSTSEC-2026-0007
 regex = "1.11"
 colored = "2.1"
 dotenvy = "0.15"
@@ -201,7 +196,6 @@ pretty_assertions = "1.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
-serde-saphyr = "0.0.20"  # For benchmarks (same as main dep)
 
 # Self-dependency to enable test-fixtures feature for integration tests
 [dev-dependencies.nika]
@@ -227,3 +221,18 @@ harness = false
 [[bench]]
 name = "task_execution"
 harness = false
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROFILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+split-debuginfo = "unpacked"  # Faster incremental builds on macOS
+
+[profile.test]
+opt-level = 1  # Speed up test execution

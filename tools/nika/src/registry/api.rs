@@ -464,11 +464,7 @@ impl RegistryClient {
     /// # Returns
     ///
     /// Raw bytes of the tarball (gzipped tar archive).
-    pub async fn download(
-        &self,
-        name: &str,
-        version: &str,
-    ) -> Result<bytes::Bytes, RegistryApiError> {
+    pub async fn download(&self, name: &str, version: &str) -> Result<Vec<u8>, RegistryApiError> {
         let url = format!(
             "{}/packages/{}/{}/download",
             self.base_url,
@@ -479,7 +475,11 @@ impl RegistryClient {
         let response = self.client.get(&url).send().await?;
 
         match response.status().as_u16() {
-            200 => response.bytes().await.map_err(RegistryApiError::from),
+            200 => response
+                .bytes()
+                .await
+                .map(|b| b.to_vec())
+                .map_err(RegistryApiError::from),
             404 => Err(RegistryApiError::VersionNotFound(
                 name.to_string(),
                 version.to_string(),
@@ -521,7 +521,7 @@ impl RegistryClient {
         std::fs::create_dir_all(target_dir)?;
 
         // Extract tarball
-        let gz = GzDecoder::new(bytes.as_ref());
+        let gz = GzDecoder::new(bytes.as_slice());
         let mut archive = Archive::new(gz);
         archive.unpack(target_dir)?;
 
