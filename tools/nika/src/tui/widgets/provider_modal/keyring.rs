@@ -5,18 +5,8 @@
 //! - Windows: Credential Manager
 //! - Linux: Secret Service (GNOME Keyring, KWallet)
 //!
-//! ## v0.28: Service Name Migration (spn → nika)
 //!
-//! Service name changed from "spn" to "nika" as part of the spn→nika fusion.
-//! Backwards compatibility: reads try "nika" first, then fall back to "spn".
-//! Writes always use "nika" service name.
-//!
-//! ## v0.20: spn-core Integration
-//!
-//! Validation and masking now delegate to spn-core via spn-client re-exports.
-//! Local wrappers maintain backward compatibility with existing API signatures.
-//!
-//! ## v0.21: native-keychain Feature
+//! ## native-keychain Feature
 //!
 //! The keyring crate is optional (via `native-keychain` feature).
 //! Docker builds disable it since containers don't have OS keychains.
@@ -38,12 +28,8 @@ use crate::tui::providers::env_var as provider_env_var;
 // v0.27: Use nika::core for validation (no more spn-client re-exports for provider types)
 // spn-client is now ONLY used for daemon IPC, not provider definitions
 
-/// Service name for keyring entries (v0.28: migrated from "spn" to "nika").
+/// Service name for keyring entries.
 const SERVICE_NAME: &str = "nika";
-
-/// Legacy service name for backwards compatibility.
-/// Keys stored under "spn" are still readable but new keys use "nika".
-const LEGACY_SERVICE_NAME: &str = "spn";
 
 /// Keyring error types.
 #[derive(Debug, Error)]
@@ -75,8 +61,6 @@ mod native {
         ///
         /// The returned string will be automatically zeroized when dropped.
         ///
-        /// v0.28: Tries "nika" service first, falls back to legacy "spn" service.
-        ///
         /// Returns NotFound error if NIKA_SKIP_KEYCHAIN is set (for CI/testing).
         pub fn get(provider: &str) -> Result<Zeroizing<String>, KeyringError> {
             // Skip keychain access if NIKA_SKIP_KEYCHAIN is truthy
@@ -87,26 +71,15 @@ mod native {
                 )));
             }
 
-            // Try primary service name first ("nika")
             let entry = Entry::new(SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
-            match entry.get_password() {
-                Ok(password) => return Ok(Zeroizing::new(password)),
-                Err(keyring::Error::NoEntry) => {
-                    // Fall back to legacy service name ("spn")
-                    let legacy_entry = Entry::new(LEGACY_SERVICE_NAME, provider)
-                        .map_err(|e| KeyringError::AccessError(e.to_string()))?;
+            let password = entry.get_password().map_err(|e| match e {
+                keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
+                _ => KeyringError::AccessError(e.to_string()),
+            })?;
 
-                    let password = legacy_entry.get_password().map_err(|e| match e {
-                        keyring::Error::NoEntry => KeyringError::NotFound(provider.to_string()),
-                        _ => KeyringError::AccessError(e.to_string()),
-                    })?;
-
-                    Ok(Zeroizing::new(password))
-                }
-                Err(e) => Err(KeyringError::AccessError(e.to_string())),
-            }
+            Ok(Zeroizing::new(password))
         }
 
         /// Get API key wrapped in SecretString for maximum safety.
@@ -136,51 +109,8 @@ mod native {
         }
 
         /// Check if key exists for a provider.
-        ///
-        /// v0.28: Checks both "nika" and legacy "spn" service names.
         pub fn exists(provider: &str) -> bool {
             Self::get(provider).is_ok()
-        }
-
-        /// Check if key exists under legacy "spn" service name.
-        ///
-        /// Used for migration detection.
-        pub fn exists_legacy(provider: &str) -> bool {
-            if let Ok(entry) = Entry::new(LEGACY_SERVICE_NAME, provider) {
-                entry.get_password().is_ok()
-            } else {
-                false
-            }
-        }
-
-        /// Migrate a key from legacy "spn" to new "nika" service.
-        ///
-        /// Returns Ok(true) if migrated, Ok(false) if nothing to migrate.
-        /// Password is wrapped in `Zeroizing` for automatic memory cleanup.
-        pub fn migrate_legacy(provider: &str) -> Result<bool, KeyringError> {
-            // Check if key exists under legacy service
-            let legacy_entry = Entry::new(LEGACY_SERVICE_NAME, provider)
-                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
-
-            let password = match legacy_entry.get_password() {
-                Ok(p) => Zeroizing::new(p),
-                Err(keyring::Error::NoEntry) => return Ok(false), // Nothing to migrate
-                Err(e) => return Err(KeyringError::AccessError(e.to_string())),
-            };
-
-            // Store under new service name
-            let new_entry = Entry::new(SERVICE_NAME, provider)
-                .map_err(|e| KeyringError::AccessError(e.to_string()))?;
-
-            new_entry
-                .set_password(&password)
-                .map_err(|e| KeyringError::StoreError(e.to_string()))?;
-
-            // Delete from legacy service
-            let _ = legacy_entry.delete_credential(); // Ignore errors on cleanup
-
-            // `password` is automatically zeroized when dropped here
-            Ok(true)
         }
 
         /// Get masked version of stored key.
@@ -257,16 +187,6 @@ mod stub {
         /// Always returns false (no keychain access).
         pub fn exists(_provider: &str) -> bool {
             false
-        }
-
-        /// Always returns false (no keychain access).
-        pub fn exists_legacy(_provider: &str) -> bool {
-            false
-        }
-
-        /// Always returns Ok(false) (no keychain access).
-        pub fn migrate_legacy(_provider: &str) -> Result<bool, KeyringError> {
-            Ok(false) // Nothing to migrate in stub mode
         }
 
         /// Always returns None (no keychain access).
@@ -423,14 +343,7 @@ mod tests {
 
     #[test]
     fn test_service_name_is_nika() {
-        // v0.28: Migrated from "spn" to "nika"
         assert_eq!(SERVICE_NAME, "nika");
-    }
-
-    #[test]
-    fn test_legacy_service_name_is_spn() {
-        // Backwards compatibility: legacy keys stored under "spn" are still readable
-        assert_eq!(LEGACY_SERVICE_NAME, "spn");
     }
 
     #[test]
