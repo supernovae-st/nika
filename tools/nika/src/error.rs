@@ -14,7 +14,7 @@
 //! - NIKA-060-069: Output errors
 //! - NIKA-070-079: Use block validation errors
 //! - NIKA-080-089: DAG validation errors
-//! - NIKA-090-099: JSONPath/IO errors
+//! - NIKA-090-099: JSONPath/IO/legacy errors (+NIKA-096 Execution catch-all)
 //! - NIKA-100-109: MCP errors (v0.2, v0.5.1: +validation, v0.5.3: +error_code)
 //! - NIKA-110-119: Agent errors (v0.2)
 //! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
@@ -210,7 +210,7 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     /// Legacy: simple execution error (v0.1 compat)
     /// Note: Widely used - consider structured variant for new code
-    #[error("Execution error: {0}")]
+    #[error("[NIKA-096] Execution error: {0}")]
     Execution(String),
 
     #[error("[NIKA-040] Binding resolution failed: {reason}")]
@@ -775,7 +775,7 @@ impl NikaError {
             Self::MissingApiKey { .. } => "NIKA-032",
             Self::InvalidConfig { .. } => "NIKA-033",
             // Binding/Template errors
-            Self::Execution(_) => "NIKA-041", // legacy
+            Self::Execution(_) => "NIKA-096",
             Self::BindingError { .. } => "NIKA-040",
             Self::TemplateError { .. } => "NIKA-041",
             Self::BindingNotFound { .. } => "NIKA-042",
@@ -1387,8 +1387,9 @@ mod tests {
     #[test]
     fn test_execution_legacy_error() {
         let err = NikaError::Execution("command not found".to_string());
-        assert_eq!(err.code(), "NIKA-041");
+        assert_eq!(err.code(), "NIKA-096");
         let msg = err.to_string();
+        assert!(msg.contains("[NIKA-096]"));
         assert!(msg.contains("Execution error"));
     }
 
