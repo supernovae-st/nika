@@ -113,7 +113,7 @@ impl SettingsSection {
 /// Secrets info for display
 #[derive(Debug, Clone, Default)]
 pub struct SecretsInfo {
-    /// Source (spn-daemon or fallback)
+    /// Source (nika-daemon or fallback)
     pub source: String,
     /// Number of keychain entries
     pub keychain_count: usize,
@@ -231,12 +231,12 @@ impl SettingsView {
         self.update_provider_counts(llm_count, mcp_count);
 
         // Check secrets/daemon status
-        #[cfg(feature = "spn-daemon")]
+        #[cfg(feature = "nika-daemon")]
         {
-            // With spn-daemon feature, secrets go through daemon
-            self.update_secrets_info("spn-daemon", llm_count + mcp_count, true);
+            // With nika-daemon feature, secrets go through daemon
+            self.update_secrets_info("nika-daemon", llm_count + mcp_count, true);
         }
-        #[cfg(not(feature = "spn-daemon"))]
+        #[cfg(not(feature = "nika-daemon"))]
         {
             // Without daemon, we use fallback (env vars only)
             self.update_secrets_info("env vars (fallback)", llm_count + mcp_count, false);
@@ -668,8 +668,8 @@ mod tests {
     #[test]
     fn test_update_secrets_info() {
         let mut view = SettingsView::new();
-        view.update_secrets_info("spn-daemon", 5, true);
-        assert_eq!(view.secrets_info.source, "spn-daemon");
+        view.update_secrets_info("nika-daemon", 5, true);
+        assert_eq!(view.secrets_info.source, "nika-daemon");
         assert_eq!(view.secrets_info.keychain_count, 5);
         assert!(view.secrets_info.daemon_available);
     }
@@ -868,11 +868,11 @@ mod tests {
         let mut view = SettingsView::new();
         view.refresh_data();
 
-        // Source should be set to either "spn-daemon" or "env vars (fallback)"
-        #[cfg(feature = "spn-daemon")]
-        assert_eq!(view.secrets_info.source, "spn-daemon");
+        // Source should be set to either "nika-daemon" or "env vars (fallback)"
+        #[cfg(feature = "nika-daemon")]
+        assert_eq!(view.secrets_info.source, "nika-daemon");
 
-        #[cfg(not(feature = "spn-daemon"))]
+        #[cfg(not(feature = "nika-daemon"))]
         assert_eq!(view.secrets_info.source, "env vars (fallback)");
     }
 }

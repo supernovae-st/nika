@@ -182,7 +182,7 @@ pub use stub::SpnKeyring;
 // UTILITY FUNCTIONS (always available)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Mask API key for display (v0.27: unified implementation, no more spn-daemon feature split).
+/// Mask API key for display (v0.27: unified implementation, no more nika-daemon feature split).
 ///
 /// Shows first 8 chars + "..." for keys longer than 8 chars.
 pub fn mask_api_key(key: &str) -> String {

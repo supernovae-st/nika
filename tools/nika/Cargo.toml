@@ -19,11 +19,11 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "spn-daemon", "native-keychain", "native-inference"]
+default = ["tui", "nika-daemon", "native-keychain", "native-inference"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-textarea", "dep:tui-input", "dep:arboard", "dep:notify", "dep:nucleo", "dep:unicode-width", "dep:unicode-segmentation", "dep:terminal_size", "dep:tui-tree-widget", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:syntect"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
-spn-daemon = ["dep:spn-client"]  # Use spn daemon for unified secret management (v0.20)
+nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
 integration = []  # Enable integration tests with real MCP servers
@@ -74,7 +74,7 @@ url = "2"  # URL parsing and validation
 sha2 = "0.10"
 
 # Secure credential storage
-# keyring is optional - only needed when NOT using spn-daemon
+# keyring is optional - only needed when NOT using nika-daemon
 # Docker builds don't include keyring (no OS keychain in containers)
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"], optional = true }
 secrecy = "0.10"   # SecretString wrapper (upgraded for spn-client compat)
@@ -83,9 +83,9 @@ zeroize = "1.8"    # Auto-clear memory on drop
 # Unix system calls for PID file locking (flock) - v0.27 daemon
 nix = { version = "0.29", features = ["fs", "signal", "process"] }
 
-# spn daemon client for unified secret management (v0.20)
+# Nika daemon client for unified secret management (v0.27)
 # Solves macOS Keychain popup issue - daemon is sole keychain accessor
-# Enable with: cargo build --features spn-daemon
+# Enable with: cargo build --features nika-daemon
 # v0.3.4: Re-exports spn-core types (providers, validation, backend)
 spn-client = { version = "0.3.4", optional = true }
 

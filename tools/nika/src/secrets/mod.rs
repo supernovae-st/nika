@@ -63,20 +63,20 @@
 
 mod result;
 
-#[cfg(feature = "spn-daemon")]
+#[cfg(feature = "nika-daemon")]
 mod daemon;
 
-#[cfg(not(feature = "spn-daemon"))]
+#[cfg(not(feature = "nika-daemon"))]
 mod fallback;
 
 // Re-export result type (always available)
 pub use result::SecretsLoadResult;
 
 // Re-export functions based on feature
-#[cfg(feature = "spn-daemon")]
+#[cfg(feature = "nika-daemon")]
 pub use daemon::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
 
-#[cfg(not(feature = "spn-daemon"))]
+#[cfg(not(feature = "nika-daemon"))]
 pub use fallback::{daemon_available, get_secret, has_secret, load_from_daemon_or_fallback};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -122,10 +122,10 @@ mod tests {
     #[test]
     fn test_daemon_available_check() {
         // Without daemon running, should return false
-        #[cfg(not(feature = "spn-daemon"))]
+        #[cfg(not(feature = "nika-daemon"))]
         assert!(!daemon_available());
 
-        #[cfg(feature = "spn-daemon")]
+        #[cfg(feature = "nika-daemon")]
         {
             // With feature, checks if socket exists
             let result = daemon_available();

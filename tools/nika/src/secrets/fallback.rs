@@ -1,7 +1,7 @@
-//! Fallback secrets management (when spn-daemon feature is NOT enabled).
+//! Fallback secrets management (when nika-daemon feature is NOT enabled).
 //!
 //! Uses direct keyring access and environment variables.
-//! This module is only compiled when spn-daemon is not enabled.
+//! This module is only compiled when nika-daemon is not enabled.
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
 use crate::secrets::result::SecretsLoadResult;
