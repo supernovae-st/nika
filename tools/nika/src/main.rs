@@ -1961,7 +1961,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                 // If prompt flag is set or no key provided, read from stdin
                 (true, _) | (false, None) => {
                     print!("Enter API key for {}: ", provider);
-                    io::stdout().flush().unwrap();
+                    let _ = io::stdout().flush();
 
                     // Read password without echo (requires rpassword crate)
                     // For now, just read from stdin (visible)
@@ -2783,10 +2783,14 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                 let scope = if use_global { "global" } else { "project" };
                 print!("Remove '{}' from {} config? [y/N] ", name.bold(), scope);
                 use std::io::Write;
-                std::io::stdout().flush().unwrap();
+                let _ = std::io::stdout().flush();
 
                 let mut input = String::new();
-                std::io::stdin().read_line(&mut input).unwrap();
+                std::io::stdin()
+                    .read_line(&mut input)
+                    .map_err(|e| NikaError::ValidationError {
+                        reason: format!("Failed to read from stdin: {}", e),
+                    })?;
                 if !input.trim().eq_ignore_ascii_case("y") {
                     println!("{} Cancelled", "ℹ".cyan());
                     return Ok(());
@@ -4592,9 +4596,10 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
                 if path.exists() {
                     let metadata = std::fs::metadata(&path)?;
                     let size_mb = metadata.len() / (1024 * 1024);
-                    let quant = nika::provider::native::extract_quantization(
-                        path.file_name().unwrap().to_str().unwrap(),
-                    );
+                    let quant = path
+                        .file_name()
+                        .and_then(|f| f.to_str())
+                        .and_then(nika::provider::native::extract_quantization);
 
                     println!("{}", format!("Model: {}", path.display()).bold());
                     println!("{}", "─".repeat(50));
@@ -4663,10 +4668,14 @@ async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), Ni
             if !force && !quiet {
                 println!("{} Delete model: {}?", "⚠".yellow(), path.display());
                 print!("  Type 'yes' to confirm: ");
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                let _ = std::io::Write::flush(&mut std::io::stdout());
 
                 let mut input = String::new();
-                std::io::stdin().read_line(&mut input).unwrap();
+                std::io::stdin()
+                    .read_line(&mut input)
+                    .map_err(|e| NikaError::ValidationError {
+                        reason: format!("Failed to read from stdin: {}", e),
+                    })?;
                 if input.trim() != "yes" {
                     println!("{}", "Cancelled.".dimmed());
                     return Ok(());
@@ -4825,7 +4834,9 @@ fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaEr
                     }
                     current = current
                         .get_mut(*part)
-                        .unwrap()
+                        .ok_or_else(|| NikaError::ValidationError {
+                            reason: format!("Config key '{}' not found", part),
+                        })?
                         .as_table_mut()
                         .ok_or_else(|| NikaError::ValidationError {
                             reason: format!("'{}' is not a table", part),
