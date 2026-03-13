@@ -195,9 +195,9 @@ fn contract_mcp_tools_lists_available() {
 #[test]
 fn contract_mcp_config_scope() {
     // Document the three-level scope:
-    // 1. Local (./.spn/local.yaml)
+    // 1. Local (./.nika/local.yaml)
     // 2. Team (./mcp.yaml)
-    // 3. Global (~/.spn/mcp.yaml)
+    // 3. Global (~/.nika/mcp.yaml)
 
     // Check config location command
     let output = run_nika(&["config", "where"]);
@@ -212,7 +212,7 @@ fn contract_mcp_config_scope() {
 
     // Should show config file paths
     assert!(
-        stdout.contains(".spn") || stdout.contains("mcp.yaml") || stdout.contains("config"),
+        stdout.contains(".nika") || stdout.contains("mcp.yaml") || stdout.contains("config"),
         "Config where should show paths. Got: {}",
         stdout
     );
@@ -274,9 +274,9 @@ fn contract_mcp_no_subcommand_shows_help() {
 /// Contract: MCP config file default location
 #[test]
 fn contract_mcp_config_default_location() {
-    // The default MCP config is at ~/.spn/mcp.yaml
+    // The default MCP config is at ~/.nika/mcp.yaml
     let home = std::env::var("HOME").unwrap_or_default();
-    let default_path = format!("{}/.spn/mcp.yaml", home);
+    let default_path = format!("{}/.nika/mcp.yaml", home);
 
     // Config may or may not exist, but path should be deterministic
     assert!(!home.is_empty(), "HOME should be set for config resolution");

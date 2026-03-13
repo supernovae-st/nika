@@ -133,12 +133,12 @@ fn contract_job_scheduler_priority() {
 /// Contract: Job persistence survives daemon restart
 #[test]
 fn contract_job_persistence() {
-    // Document that jobs are persisted to ~/.spn/jobs/
+    // Document that jobs are persisted to ~/.nika/jobs/
     // Format: JSON files, one per job
     // Jobs survive daemon restart
 
     let home = std::env::var("HOME").unwrap_or_default();
-    let jobs_dir = format!("{}/.spn/jobs", home);
+    let jobs_dir = format!("{}/.nika/jobs", home);
 
     // Document the expected location
     assert!(!home.is_empty(), "HOME should be set");
@@ -150,7 +150,7 @@ fn contract_job_persistence() {
 fn contract_job_max_concurrent() {
     // Document the concurrency limit:
     // - MAX_CONCURRENT_JOBS = 4 (default)
-    // - Can be configured in ~/.spn/config.toml
+    // - Can be configured in ~/.nika/config.toml
     // - Jobs beyond limit are queued
 
     // This is a behavioral contract

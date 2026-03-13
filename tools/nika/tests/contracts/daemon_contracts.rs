@@ -27,7 +27,7 @@ use super::common::{is_daemon_running, run_nika};
 #[test]
 fn contract_daemon_start_creates_socket() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let socket_path = format!("{}/.spn/daemon.sock", home);
+    let socket_path = format!("{}/.nika/daemon.sock", home);
 
     // Document the expected socket location
     assert!(!home.is_empty(), "HOME should be set");
@@ -43,7 +43,7 @@ fn contract_daemon_start_creates_socket() {
 #[test]
 fn contract_daemon_start_creates_pid() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let pid_path = format!("{}/.spn/daemon.pid", home);
+    let pid_path = format!("{}/.nika/daemon.pid", home);
 
     // Document the expected PID file location
     assert!(!home.is_empty(), "HOME should be set");
@@ -177,7 +177,7 @@ fn contract_daemon_single_instance() {
 #[test]
 fn contract_daemon_socket_permissions() {
     let home = std::env::var("HOME").unwrap_or_default();
-    let socket_path = format!("{}/.spn/daemon.sock", home);
+    let socket_path = format!("{}/.nika/daemon.sock", home);
 
     if is_daemon_running() && std::path::Path::new(&socket_path).exists() {
         #[cfg(unix)]

@@ -153,7 +153,7 @@ fn contract_sync_diff() {
 #[test]
 fn contract_sync_foreign_mcp_detection() {
     // Document foreign MCP detection behavior:
-    // - Servers configured in editor but not in ~/.spn/mcp.yaml
+    // - Servers configured in editor but not in ~/.nika/mcp.yaml
     // - Shown in sync --status output
     // - Not overwritten by sync
 

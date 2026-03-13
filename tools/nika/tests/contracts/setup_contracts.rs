@@ -196,15 +196,15 @@ fn contract_setup_non_destructive() {
 #[test]
 fn contract_setup_creates_directories() {
     // Document the directories setup creates:
-    // - ~/.spn/ (main config directory)
-    // - ~/.spn/logs/ (daemon logs)
-    // - ~/.spn/jobs/ (job storage)
+    // - ~/.nika/ (main config directory)
+    // - ~/.nika/logs/ (daemon logs)
+    // - ~/.nika/jobs/ (job storage)
 
     let home = std::env::var("HOME").unwrap_or_default();
     let required_dirs = [
-        format!("{}/.spn", home),
-        format!("{}/.spn/logs", home),
-        format!("{}/.spn/jobs", home),
+        format!("{}/.nika", home),
+        format!("{}/.nika/logs", home),
+        format!("{}/.nika/jobs", home),
     ];
 
     // Directories should exist after setup
