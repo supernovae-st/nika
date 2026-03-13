@@ -346,8 +346,13 @@ fn find_latest_version(package_base: &PathBuf) -> Result<String, ResolverError> 
     // Sort by semantic version (correctly handles 1.10.0 > 1.9.0)
     versions.sort_by(|a, b| a.0.cmp(&b.0));
 
-    // Return the latest version string
-    Ok(versions.last().unwrap().1.clone())
+    // Return the latest version string (safe: empty check above guarantees at least one element)
+    versions.last().map(|(_, s)| s.clone()).ok_or_else(|| {
+        ResolverError::PackageNotFound(format!(
+            "No valid semantic versions found in {}",
+            package_base.display()
+        ))
+    })
 }
 
 #[cfg(test)]
