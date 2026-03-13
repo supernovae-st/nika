@@ -1,0 +1,220 @@
+//! Types for the rig-based agent loop
+//!
+//! Contains: RigAgentStatus, RigAgentLoopResult, GuardrailCheckResult, StreamingResult,
+//! and the ToolChoice conversion.
+
+use rig::message::ToolChoice as RigToolChoice;
+use serde_json::Value;
+
+use crate::ast::ToolChoice as NikaToolChoice;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Status of the rig-based agent execution
+#[derive(Debug, Clone, PartialEq)]
+pub enum RigAgentStatus {
+    /// Agent completed naturally (no more tool calls)
+    NaturalCompletion,
+    /// Agent called nika:complete tool explicitly (v0.21)
+    ExplicitCompletion,
+    /// Agent completed with confidence above threshold (v0.22)
+    HighConfidence(f64),
+    /// Agent completed with confidence below threshold (v0.22)
+    LowConfidence(f64),
+    /// Agent completed but flagged for review via routing (v0.22)
+    FlaggedForReview(f64),
+    /// Agent escalated to human/other agent via routing (v0.22)
+    Escalated(f64),
+    /// Stop condition matched in output
+    StopConditionMet,
+    /// Maximum turns reached
+    MaxTurnsReached,
+    /// Token budget exceeded
+    TokenBudgetExceeded,
+    /// Cost budget exceeded (v0.24)
+    CostLimitReached,
+    /// Duration limit exceeded (v0.24)
+    DurationLimitReached,
+    /// Partial completion with checkpoint saved (v0.24)
+    PartialCompletion,
+    /// Agent failed with error
+    Failed,
+}
+
+impl RigAgentStatus {
+    /// Convert to canonical snake_case string for event logging.
+    /// Aligns with Anthropic API's stop_reason values.
+    pub fn as_canonical_str(&self) -> &'static str {
+        match self {
+            Self::NaturalCompletion => "end_turn",
+            Self::ExplicitCompletion => "tool_complete", // v0.21
+            Self::HighConfidence(_) => "tool_complete_high", // v0.22
+            Self::LowConfidence(_) => "tool_complete_low", // v0.22
+            Self::FlaggedForReview(_) => "tool_complete_flagged", // v0.22 routing
+            Self::Escalated(_) => "escalated",           // v0.22 routing
+            Self::StopConditionMet => "stop_sequence",
+            Self::MaxTurnsReached => "max_turns",
+            Self::TokenBudgetExceeded => "max_tokens",
+            Self::CostLimitReached => "max_cost", // v0.24
+            Self::DurationLimitReached => "max_duration", // v0.24
+            Self::PartialCompletion => "partial", // v0.24
+            Self::Failed => "error",
+        }
+    }
+
+    /// Check if this status represents successful completion (v0.22)
+    pub fn is_completed(&self) -> bool {
+        matches!(
+            self,
+            Self::NaturalCompletion
+                | Self::ExplicitCompletion
+                | Self::HighConfidence(_)
+                | Self::FlaggedForReview(_) // Accepted, just flagged
+                | Self::StopConditionMet
+        )
+    }
+
+    /// Check if this status requires retry (v0.22)
+    pub fn requires_retry(&self) -> bool {
+        matches!(self, Self::LowConfidence(_))
+    }
+
+    /// Check if this status was escalated (v0.22)
+    pub fn is_escalated(&self) -> bool {
+        matches!(self, Self::Escalated(_))
+    }
+
+    /// Check if this status is flagged for review (v0.22)
+    pub fn is_flagged(&self) -> bool {
+        matches!(self, Self::FlaggedForReview(_))
+    }
+
+    /// Get confidence value if available (v0.22)
+    pub fn confidence(&self) -> Option<f64> {
+        match self {
+            Self::HighConfidence(c)
+            | Self::LowConfidence(c)
+            | Self::FlaggedForReview(c)
+            | Self::Escalated(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    /// Check if a resource limit was reached (v0.24)
+    pub fn is_limit_reached(&self) -> bool {
+        matches!(
+            self,
+            Self::MaxTurnsReached
+                | Self::TokenBudgetExceeded
+                | Self::CostLimitReached
+                | Self::DurationLimitReached
+        )
+    }
+
+    /// Check if this is a partial completion (v0.24)
+    pub fn is_partial(&self) -> bool {
+        matches!(self, Self::PartialCompletion)
+    }
+}
+
+/// Result of running the rig-based agent loop
+#[derive(Debug)]
+pub struct RigAgentLoopResult {
+    /// Final status
+    pub status: RigAgentStatus,
+    /// Number of turns executed
+    pub turns: usize,
+    /// Final output from agent
+    pub final_output: Value,
+    /// Total tokens used (if available)
+    pub total_tokens: u64,
+    /// Confidence level from nika:complete (v0.22)
+    pub confidence: Option<f64>,
+    /// Number of retries due to low confidence (v0.22)
+    pub retry_count: u32,
+    /// Whether all guardrails passed (v0.23)
+    pub guardrails_passed: bool,
+    /// Total cost in USD (v0.24)
+    pub cost_usd: f64,
+    /// Partial result if limit reached (v0.24)
+    pub partial_result: Option<crate::runtime::partial::PartialResult>,
+}
+
+/// Result of guardrail check (v0.25)
+///
+/// Determines the next action based on guardrail results and their
+/// `on_failure` configuration.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GuardrailCheckResult {
+    /// All guardrails passed
+    AllPassed,
+
+    /// Some guardrails failed with `on_failure: retry` (default behavior)
+    FailedRetry,
+
+    /// Some guardrails failed with `on_failure: escalate` - needs human intervention
+    FailedEscalate,
+
+    /// Some guardrails failed with `on_failure: fail` - immediate task failure
+    FailedImmediate,
+}
+
+impl GuardrailCheckResult {
+    /// Check if all guardrails passed
+    pub fn is_passed(&self) -> bool {
+        matches!(self, Self::AllPassed)
+    }
+
+    /// Check if we should retry (default failure behavior)
+    pub fn should_retry(&self) -> bool {
+        matches!(self, Self::FailedRetry)
+    }
+
+    /// Check if we should escalate to human/supervisor
+    pub fn should_escalate(&self) -> bool {
+        matches!(self, Self::FailedEscalate)
+    }
+
+    /// Check if we should fail immediately
+    pub fn should_fail(&self) -> bool {
+        matches!(self, Self::FailedImmediate)
+    }
+}
+
+/// Result from streaming execution with token tracking.
+///
+/// Used internally by streaming helpers to capture both the response
+/// content and token usage from `StreamedAssistantContent::Final`.
+#[derive(Debug, Clone)]
+pub(super) struct StreamingResult {
+    /// The accumulated response text
+    pub(super) response: String,
+    /// Input tokens used (from token_usage())
+    pub(super) input_tokens: u32,
+    /// Output tokens used (from token_usage())
+    pub(super) output_tokens: u32,
+    /// Optional thinking/reasoning content (Claude extended thinking)
+    pub(super) thinking: Option<String>,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ToolChoice Conversion (v0.8.0)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert Nika's ToolChoice to rig-core's ToolChoice.
+///
+/// Nika's ToolChoice maps directly to rig-core's ToolChoice variants:
+/// - `Auto` → LLM decides when to use tools (default)
+/// - `Required` → Must use at least one tool per turn
+/// - `None` → Never use tools (text-only response)
+impl From<NikaToolChoice> for RigToolChoice {
+    fn from(choice: NikaToolChoice) -> Self {
+        match choice {
+            NikaToolChoice::Auto => RigToolChoice::Auto,
+            NikaToolChoice::Required => RigToolChoice::Required,
+            NikaToolChoice::None => RigToolChoice::None,
+        }
+    }
+}
