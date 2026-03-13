@@ -1,4 +1,4 @@
-//! Dag - DAG structure built from analyzed workflow (optimized)
+//! Dag - DAG structure built from workflow definitions
 //!
 //! Performance optimizations:
 //! - `Arc<str>` for zero-cost cloning of task IDs
@@ -8,12 +8,9 @@
 //! DAG Validation:
 //! - Cycle detection using DFS three-color algorithm
 //!
-//! ## v0.28 Changes
-//!
-//! - `from_workflow(&Workflow)` → `from_analyzed(&AnalyzedWorkflow)`
-//! - Reads pre-computed `depends_on` + `implicit_deps` from analyzer
-//! - No more manual use: wiring extraction (BUG-003 fix now in analyzer)
-//! - No more legacy `flows:` / `task.flow` processing
+//! Two entry points:
+//! - `from_workflow(&Workflow)` — runtime path (runner, CLI, TUI)
+//! - `from_analyzed(&AnalyzedWorkflow)` — analyzer pipeline
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -390,14 +387,13 @@ impl Dag {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // LEGACY SHIM — Old Workflow → Dag (v0.27 compat)
-    // TODO(v0.28-cleanup): Remove when callers migrate to AnalyzedWorkflow
+    // Workflow → Dag (runtime path)
     // ═══════════════════════════════════════════════════════════════
 
-    /// Build a DAG from an old-style `Workflow` struct.
+    /// Build a DAG from a `Workflow` struct.
     ///
-    /// This is a legacy compatibility shim. New code should use
-    /// `Dag::from_analyzed()` with `AnalyzedWorkflow`.
+    /// Used by the runtime runner, CLI check command, and TUI standalone.
+    /// New code targeting the analyzer pipeline should use `Dag::from_analyzed()`.
     pub fn from_workflow(workflow: &Workflow) -> Result<Self, NikaError> {
         let capacity = workflow.tasks.len();
         let mut adjacency: FxHashMap<Arc<str>, DepVec> =

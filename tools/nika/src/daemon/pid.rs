@@ -13,18 +13,23 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use nix::fcntl::{Flock, FlockArg};
+
 use crate::error::NikaError;
 use crate::error::Result;
 
-// Platform-specific locking
-#[cfg(unix)]
-use std::os::unix::io::AsRawFd;
-
-/// PID lock guard - holds the lock for the lifetime of the daemon
+/// PID lock guard - holds the lock for the lifetime of the daemon.
+///
+/// Uses `nix::fcntl::Flock` which auto-unlocks on drop.
 pub struct PidLock {
     /// Path to PID file
     path: PathBuf,
-    /// Open file handle (keeps lock active)
+    /// Flock guard (auto-unlocks on drop, keeps file handle alive)
+    #[cfg(unix)]
+    _flock: Flock<File>,
+    /// Open file handle (non-unix fallback)
+    #[cfg(not(unix))]
     #[allow(dead_code)]
     file: File,
 }
@@ -65,7 +70,7 @@ pub fn acquire_pid_lock(pid_path: &Path) -> Result<PidLock> {
     }
 
     // Open PID file for writing
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
@@ -77,50 +82,62 @@ pub fn acquire_pid_lock(pid_path: &Path) -> Result<PidLock> {
             source: e,
         })?;
 
-    // Try to acquire exclusive lock
+    // Try to acquire exclusive lock via Flock (non-deprecated API)
     #[cfg(unix)]
     {
-        #[allow(deprecated)] // TODO: Migrate to nix::fcntl::Flock
-        use nix::fcntl::{flock, FlockArg};
-        let fd = file.as_raw_fd();
-
-        // Non-blocking exclusive lock
-        #[allow(deprecated)]
-        match flock(fd, FlockArg::LockExclusiveNonblock) {
-            Ok(()) => {}
-            Err(nix::errno::Errno::EWOULDBLOCK) => {
-                // Another process holds the lock
-                return Err(NikaError::DaemonAlreadyRunning {
+        let flock = Flock::lock(file, FlockArg::LockExclusiveNonblock).map_err(
+            |(_file, errno)| match errno {
+                nix::errno::Errno::EWOULDBLOCK => NikaError::DaemonAlreadyRunning {
                     pid_file: pid_path.to_path_buf(),
-                });
-            }
-            Err(e) => {
-                return Err(NikaError::DaemonError {
+                },
+                e => NikaError::DaemonError {
                     message: format!("Failed to acquire PID lock: {}", e),
-                });
-            }
-        }
+                },
+            },
+        )?;
+
+        // Write current PID (Flock<File> derefs to File)
+        let pid = std::process::id();
+        writeln!(&*flock, "{}", pid).map_err(|e| NikaError::IoPathError {
+            path: pid_path.to_path_buf(),
+            operation: "write PID".to_string(),
+            source: e,
+        })?;
+
+        // Sync to disk
+        flock.sync_all().map_err(|e| NikaError::IoPathError {
+            path: pid_path.to_path_buf(),
+            operation: "sync PID file".to_string(),
+            source: e,
+        })?;
+
+        return Ok(PidLock {
+            path: pid_path.to_path_buf(),
+            _flock: flock,
+        });
     }
 
-    // Write current PID
-    let pid = std::process::id();
-    writeln!(file, "{}", pid).map_err(|e| NikaError::IoPathError {
-        path: pid_path.to_path_buf(),
-        operation: "write PID".to_string(),
-        source: e,
-    })?;
+    // Non-unix fallback (no file locking)
+    #[cfg(not(unix))]
+    {
+        let pid = std::process::id();
+        writeln!(file, "{}", pid).map_err(|e| NikaError::IoPathError {
+            path: pid_path.to_path_buf(),
+            operation: "write PID".to_string(),
+            source: e,
+        })?;
 
-    // Sync to disk
-    file.sync_all().map_err(|e| NikaError::IoPathError {
-        path: pid_path.to_path_buf(),
-        operation: "sync PID file".to_string(),
-        source: e,
-    })?;
+        file.sync_all().map_err(|e| NikaError::IoPathError {
+            path: pid_path.to_path_buf(),
+            operation: "sync PID file".to_string(),
+            source: e,
+        })?;
 
-    Ok(PidLock {
-        path: pid_path.to_path_buf(),
-        file,
-    })
+        Ok(PidLock {
+            path: pid_path.to_path_buf(),
+            file,
+        })
+    }
 }
 
 /// Release the PID lock (happens automatically on drop)

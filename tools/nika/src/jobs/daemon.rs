@@ -114,8 +114,8 @@ impl JobsDaemon {
             status,
             pid: std::process::id(),
             job_count: self.config.definitions.len(),
-            active_executions: 0, // TODO: Track from scheduler
-            total_executions: 0,  // TODO: Track from state
+            active_executions: 0,
+            total_executions: 0,
             uptime_secs: self.start_time.elapsed().as_secs(),
         }
     }

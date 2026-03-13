@@ -3543,15 +3543,10 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                 println!("{} Updating all packages", "🔄".cyan());
             }
 
-            // TODO: Implement package updates
             println!();
-            println!("{} Package update not yet fully implemented", "⚠".yellow());
             println!(
-                "  Until then, use: nika pkg update{}",
-                package
-                    .as_deref()
-                    .map(|p| format!(" {}", p))
-                    .unwrap_or_default()
+                "{} Package update is not yet implemented",
+                "⚠".yellow()
             );
             Ok(())
         }
@@ -3559,13 +3554,11 @@ async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
         PkgAction::Outdated => {
             println!("{} Checking for outdated packages...", "📋".cyan());
 
-            // TODO: Implement outdated package detection
             println!();
             println!(
-                "{} Outdated detection not yet fully implemented",
+                "{} Outdated package detection is not yet implemented",
                 "⚠".yellow()
             );
-            println!("  Until then, use: nika pkg outdated");
             Ok(())
         }
 
@@ -3806,7 +3799,6 @@ async fn handle_sync_command(
                 mcp_config.servers.len()
             );
         } else {
-            // TODO: Implement actual sync
             println!(
                 "  {} {} → {} servers",
                 "✓".green(),

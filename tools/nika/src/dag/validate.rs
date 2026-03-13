@@ -206,14 +206,13 @@ fn validate_from_task(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LEGACY SHIM — Old Workflow validation (v0.27 compat)
-// TODO(v0.28-cleanup): Remove when callers migrate to AnalyzedWorkflow
+// Workflow validation (runtime path)
 // ═══════════════════════════════════════════════════════════════
 
-/// Legacy: Validate old-style `Workflow` use: bindings against the DAG.
+/// Validate `Workflow` use:/with: bindings against the DAG.
 ///
-/// This is a compatibility shim. New code should use
-/// `validate_with_bindings()` with `AnalyzedWorkflow`.
+/// Used by the runtime runner, CLI check command, and TUI standalone.
+/// New code targeting the analyzer pipeline should use `validate_with_bindings()`.
 pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
     let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 

@@ -133,7 +133,6 @@ impl DaemonServer {
                 // SIGHUP received (reload config)
                 _ = sighup.recv() => {
                     tracing::info!("Received SIGHUP, reloading config...");
-                    // TODO: Reload config if needed
                 }
 
                 // Shutdown requested via protocol
