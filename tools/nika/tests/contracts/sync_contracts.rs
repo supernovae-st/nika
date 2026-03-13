@@ -16,13 +16,13 @@
 
 use super::common::run_nika;
 
-/// Contract: `spn sync` detects 4 supported editors
+/// Contract: `nika sync` detects 4 supported editors
 #[test]
 fn contract_sync_detects_editors() {
-    let output = run_nika(&["sync", "--status"]);
+    let output = run_nika(&["sync", "status"]);
 
     // Should succeed
-    assert!(output.status.success(), "sync --status should succeed");
+    assert!(output.status.success(), "sync status should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -35,7 +35,7 @@ fn contract_sync_detects_editors() {
         .any(|e| stdout.to_lowercase().contains(e));
 
     assert!(
-        has_editor_info || stdout.contains("Editor") || stdout.contains("Status"),
+        has_editor_info || stdout.contains("Editor") || stdout.contains("Sync") || stdout.contains("Status"),
         "sync should show editor info. Got: {}",
         stdout
     );
@@ -69,12 +69,12 @@ fn contract_sync_writes_config() {
     );
 }
 
-/// Contract: `spn sync --status` shows sync status
+/// Contract: `nika sync status` shows sync status
 #[test]
 fn contract_sync_status() {
-    let output = run_nika(&["sync", "--status"]);
+    let output = run_nika(&["sync", "status"]);
 
-    assert!(output.status.success(), "sync --status should succeed");
+    assert!(output.status.success(), "sync status should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -157,7 +157,7 @@ fn contract_sync_foreign_mcp_detection() {
     // - Shown in sync --status output
     // - Not overwritten by sync
 
-    let output = run_nika(&["sync", "--status"]);
+    let output = run_nika(&["sync", "status"]);
 
     if output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);

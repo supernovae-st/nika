@@ -84,8 +84,28 @@ pub mod common {
             .collect()
     }
 
-    /// Known providers from nika::core (must match KNOWN_PROVIDERS)
-    /// NOTE: Ollama removed from LLM providers in v0.27 — use provider: native instead
+    /// LLM providers shown by `nika provider list`
+    /// NOTE: Ollama removed in v0.27 — use provider: native instead
+    pub const LLM_PROVIDERS: &[&str] = &[
+        "anthropic",
+        "openai",
+        "mistral",
+        "groq",
+        "deepseek",
+        "gemini",
+    ];
+
+    /// MCP providers (not shown in `nika provider list`, managed via `nika mcp`)
+    pub const MCP_PROVIDERS: &[&str] = &[
+        "neo4j",
+        "github",
+        "slack",
+        "perplexity",
+        "firecrawl",
+        "supadata",
+    ];
+
+    /// All known providers (LLM + MCP) for reference
     pub const KNOWN_PROVIDERS: &[&str] = &[
         "anthropic",
         "openai",
@@ -93,7 +113,6 @@ pub mod common {
         "groq",
         "deepseek",
         "gemini",
-        // NOTE: Ollama removed in v0.27 — use provider: native with mistral.rs instead
         "neo4j",
         "github",
         "slack",

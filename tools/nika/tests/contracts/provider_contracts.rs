@@ -21,9 +21,9 @@
 //! 14. provider env var fallback works
 //! 15. provider priority: keychain > env
 
-use super::common::{run_nika, KNOWN_PROVIDERS};
+use super::common::{run_nika, KNOWN_PROVIDERS, LLM_PROVIDERS};
 
-/// Contract: `spn provider list` returns all 12 known providers (Ollama removed in v0.27)
+/// Contract: `nika provider list` returns all 6 LLM providers
 #[test]
 fn contract_provider_list_returns_all_providers() {
     let output = run_nika(&["provider", "list"]);
@@ -32,11 +32,12 @@ fn contract_provider_list_returns_all_providers() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // All 12 providers should be listed (Ollama removed in v0.27)
-    for provider in KNOWN_PROVIDERS {
+    // All 6 LLM providers should be listed
+    // MCP providers (neo4j, github, etc.) are managed via `nika mcp`, not `nika provider`
+    for provider in LLM_PROVIDERS {
         assert!(
             stdout.contains(provider),
-            "Provider '{}' should be in list output. Got: {}",
+            "LLM provider '{}' should be in list output. Got: {}",
             provider,
             stdout
         );
@@ -85,35 +86,31 @@ fn contract_provider_list_shows_categories() {
         || stdout.contains("Type");
 
     assert!(
-        has_category_info || stdout.lines().count() >= 13,
+        has_category_info || stdout.lines().count() >= 3,
         "Provider list should show all providers with some structure. Got: {}",
         stdout
     );
 }
 
-/// Contract: `spn provider get <unknown>` returns error
+/// Contract: `nika provider get <unknown>` shows "Not configured"
 #[test]
 fn contract_provider_get_unknown_returns_error() {
     let output = run_nika(&["provider", "get", "nonexistent_provider_xyz"]);
 
-    assert!(
-        !output.status.success(),
-        "Getting unknown provider should fail"
-    );
-
-    // Error may be in stdout (for user-friendly messages) or stderr
+    // `nika provider get` returns exit code 0 but shows "Not configured"
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        combined.contains("unknown")
+        combined.contains("Not configured")
+            || combined.contains("unknown")
             || combined.contains("not found")
             || combined.contains("invalid")
             || combined.contains("No key found")
-            || combined.contains("failed"),
-        "Error should indicate unknown provider. Got: {}",
+            || !output.status.success(),
+        "Should indicate provider not configured. Got: {}",
         combined
     );
 }

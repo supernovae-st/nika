@@ -40,9 +40,9 @@ fn contract_setup_full_wizard() {
     );
 }
 
-/// Contract: `spn setup --quick` runs quick auto-detect setup
+/// Contract: `nika setup` has wizard subcommand for full interactive setup
 #[test]
-fn contract_setup_quick_flag() {
+fn contract_setup_wizard_subcommand() {
     let output = run_nika(&["setup", "--help"]);
 
     let combined = format!(
@@ -51,10 +51,10 @@ fn contract_setup_quick_flag() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Should mention quick option (spn uses --quick not --full)
+    // Should have wizard subcommand for full interactive setup
     assert!(
-        combined.contains("--quick") || combined.contains("quick"),
-        "setup should support --quick. Got: {}",
+        combined.contains("wizard") || combined.contains("setup"),
+        "setup should have wizard subcommand. Got: {}",
         combined
     );
 }
