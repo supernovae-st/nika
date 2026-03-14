@@ -266,6 +266,7 @@ async fn test_execute_invoke_tool_call() {
             tool: Some("novanet_generate".to_string()),
             params: Some(json!({"entity": "qr-code", "locale": "fr-FR"})),
             resource: None,
+            timeout: None,
         },
     };
 
@@ -296,6 +297,7 @@ async fn test_execute_invoke_resource_read() {
             tool: None,
             params: None,
             resource: Some("neo4j://entity/qr-code".to_string()),
+            timeout: None,
         },
     };
 
@@ -330,6 +332,7 @@ async fn test_execute_invoke_emits_mcp_events() {
             tool: Some("novanet_describe".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         },
     };
 
@@ -376,6 +379,7 @@ async fn test_execute_invoke_tool_with_template_params() {
                 "locale": "{{use.locale_val}}"
             })),
             resource: None,
+            timeout: None,
         },
     };
 
@@ -404,6 +408,7 @@ async fn test_execute_invoke_validation_error_both_tool_and_resource() {
             tool: Some("test_tool".to_string()),
             params: None,
             resource: Some("test://resource".to_string()),
+            timeout: None,
         },
     };
 
@@ -434,6 +439,7 @@ async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
             tool: None,
             params: None,
             resource: None,
+            timeout: None,
         },
     };
 
@@ -464,6 +470,7 @@ async fn test_execute_invoke_mcp_not_configured() {
             tool: Some("some_tool".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         },
     };
 
@@ -851,6 +858,7 @@ async fn test_action_type_helper() {
             tool: Some("test".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         },
     };
     assert_eq!(action_type(&invoke_action), "invoke");

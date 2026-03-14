@@ -1305,6 +1305,7 @@ agent:
                 tool: Some("test_tool".to_string()),
                 params: None,
                 resource: None,
+                timeout: None,
             },
         };
         assert_eq!(action.verb_name(), "invoke");

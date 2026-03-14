@@ -66,6 +66,7 @@ async fn test_invoke_execution_tool_call() {
         tool: Some("novanet_generate".to_string()),
         params: Some(json!({"mode": "block", "entity": "qr-code"})),
         resource: None,
+        timeout: None,
     };
 
     // Act
@@ -91,6 +92,7 @@ async fn test_invoke_execution_tool_call_minimal() {
         tool: Some("novanet_describe".to_string()),
         params: None,
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -118,6 +120,7 @@ async fn test_invoke_execution_tool_call_with_params() {
             "forms": ["text", "title"]
         })),
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -143,6 +146,7 @@ async fn test_invoke_execution_resource_read() {
         tool: None,
         params: None,
         resource: Some("entity://qr-code".to_string()),
+        timeout: None,
     };
 
     // Act
@@ -168,6 +172,7 @@ async fn test_invoke_execution_resource_read_neo4j_uri() {
         tool: None,
         params: None,
         resource: Some("neo4j://entity/qr-code".to_string()),
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -192,6 +197,7 @@ async fn test_invoke_execution_fails_with_both_tool_and_resource() {
         tool: Some("novanet_generate".to_string()),
         params: None,
         resource: Some("entity://qr-code".to_string()),
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -220,6 +226,7 @@ async fn test_invoke_execution_fails_with_neither_tool_nor_resource() {
         tool: None,
         params: None,
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -257,6 +264,7 @@ async fn test_invoke_execution_fails_when_not_connected() {
         tool: Some("novanet_generate".to_string()),
         params: None,
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -284,6 +292,7 @@ async fn test_invoke_execution_unknown_tool_returns_generic_response() {
         tool: Some("unknown_tool".to_string()),
         params: Some(json!({"key": "value"})),
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;
@@ -304,6 +313,7 @@ async fn test_invoke_execution_with_empty_params() {
         tool: Some("novanet_describe".to_string()),
         params: Some(json!({})),
         resource: None,
+        timeout: None,
     };
 
     let result = execute_invoke(&invoke, &client).await;

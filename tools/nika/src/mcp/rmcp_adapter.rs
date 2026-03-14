@@ -1226,9 +1226,10 @@ mod tests {
         let adapter = RmcpClientAdapter::new(config);
 
         // Manually populate the tool cache
-        adapter.cached_tools.lock().push(
-            ToolDefinition::new("fake_tool").with_description("test"),
-        );
+        adapter
+            .cached_tools
+            .lock()
+            .push(ToolDefinition::new("fake_tool").with_description("test"));
         *adapter.tools_fetched_at.lock() = Some(std::time::Instant::now());
 
         assert!(!adapter.get_cached_tools().is_empty());

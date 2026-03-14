@@ -51,6 +51,13 @@ pub struct InvokeParams {
     /// Resource URI to read (mutually exclusive with `tool`)
     #[serde(default)]
     pub resource: Option<String>,
+
+    /// Timeout in seconds for tool execution (v0.28)
+    ///
+    /// Overrides the global `INVOKE_TASK_DEADLINE` (300s) for this task.
+    /// If not set, falls back to the global default.
+    #[serde(default)]
+    pub timeout: Option<u64>,
 }
 
 impl InvokeParams {
@@ -164,6 +171,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         assert!(params.validate().is_ok());
         assert!(params.is_tool_call());
@@ -177,6 +185,7 @@ resource: entity://qr-code/fr-FR
             tool: None,
             params: None,
             resource: Some("test://resource".to_string()),
+            timeout: None,
         };
         assert!(params.validate().is_ok());
         assert!(!params.is_tool_call());
@@ -190,6 +199,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("test_tool".to_string()),
             params: None,
             resource: Some("test://resource".to_string()),
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -203,6 +213,7 @@ resource: entity://qr-code/fr-FR
             tool: None,
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -220,6 +231,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -233,6 +245,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("test_tool".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -246,6 +259,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -259,6 +273,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("  \t  ".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -272,6 +287,7 @@ resource: entity://qr-code/fr-FR
             tool: None,
             params: None,
             resource: Some("".to_string()),
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -285,6 +301,7 @@ resource: entity://qr-code/fr-FR
             tool: None,
             params: None,
             resource: Some("   ".to_string()),
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -303,6 +320,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("nika:sleep".to_string()),
             params: Some(json!({"duration": "1s"})),
             resource: None,
+            timeout: None,
         };
         assert!(params.validate().is_ok());
         assert!(params.is_builtin_tool());
@@ -316,6 +334,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("nika:log".to_string()),
             params: Some(json!({"level": "info", "message": "test"})),
             resource: None,
+            timeout: None,
         };
         assert!(params.validate().is_ok());
         assert!(params.is_builtin_tool());
@@ -329,6 +348,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("novanet_generate".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         let result = params.validate();
         assert!(result.is_err());
@@ -342,6 +362,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("nika:sleep".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         assert!(params.is_builtin_tool());
     }
@@ -353,6 +374,7 @@ resource: entity://qr-code/fr-FR
             tool: Some("novanet_generate".to_string()),
             params: None,
             resource: None,
+            timeout: None,
         };
         assert!(!params.is_builtin_tool());
     }
@@ -369,5 +391,33 @@ params:
         assert!(params.mcp.is_none());
         assert_eq!(params.tool, Some("nika:sleep".to_string()));
         assert!(params.validate().is_ok());
+    }
+
+    // =========================================================================
+    // v0.28: Timeout Field Tests
+    // =========================================================================
+
+    #[test]
+    fn parse_tool_call_with_timeout() {
+        let yaml = r#"
+mcp: novanet
+tool: novanet_generate
+timeout: 60
+params:
+  entity: qr-code
+"#;
+        let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.timeout, Some(60));
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn parse_tool_call_without_timeout() {
+        let yaml = r#"
+mcp: novanet
+tool: novanet_generate
+"#;
+        let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(params.timeout, None);
     }
 }

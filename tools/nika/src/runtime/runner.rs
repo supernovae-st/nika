@@ -1102,40 +1102,39 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     Ok(base_value) => {
                                         // Parse JSON strings (objects and arrays) before traversal
                                         let parsed_value: Value;
-                                        let working_value: &Value =
-                                            if let Some(s) = base_value.as_str() {
-                                                let trimmed = s.trim();
-                                                if (trimmed.starts_with('{')
-                                                    && trimmed.ends_with('}'))
-                                                    || (trimmed.starts_with('[')
-                                                        && trimmed.ends_with(']'))
+                                        let working_value: &Value = if let Some(s) =
+                                            base_value.as_str()
+                                        {
+                                            let trimmed = s.trim();
+                                            if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+                                                || (trimmed.starts_with('[')
+                                                    && trimmed.ends_with(']'))
+                                            {
+                                                if let Ok(parsed) =
+                                                    serde_json::from_str::<Value>(trimmed)
                                                 {
-                                                    if let Ok(parsed) =
-                                                        serde_json::from_str::<Value>(trimmed)
-                                                    {
-                                                        parsed_value = parsed;
-                                                        &parsed_value
-                                                    } else {
-                                                        &base_value
-                                                    }
+                                                    parsed_value = parsed;
+                                                    &parsed_value
                                                 } else {
                                                     &base_value
                                                 }
                                             } else {
                                                 &base_value
-                                            };
+                                            }
+                                        } else {
+                                            &base_value
+                                        };
 
                                         // Traverse nested path segments if present
                                         let mut value_ref: &Value = working_value;
                                         let mut traversal_failed = false;
 
                                         for segment in segments {
-                                            let next =
-                                                if let Ok(idx) = segment.parse::<usize>() {
-                                                    value_ref.get(idx)
-                                                } else {
-                                                    value_ref.get(segment)
-                                                };
+                                            let next = if let Ok(idx) = segment.parse::<usize>() {
+                                                value_ref.get(idx)
+                                            } else {
+                                                value_ref.get(segment)
+                                            };
 
                                             match next {
                                                 Some(v) => value_ref = v,
@@ -2776,10 +2775,7 @@ mod tests {
         });
 
         let mut use_wiring = FxHashMap::default();
-        use_wiring.insert(
-            "step1".to_string(),
-            UseEntry::new("step1"),
-        );
+        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
 
         let step2 = Arc::new(Task {
             id: "step2".to_string(),
@@ -2862,10 +2858,7 @@ mod tests {
         });
 
         let mut use_wiring = FxHashMap::default();
-        use_wiring.insert(
-            "step1".to_string(),
-            UseEntry::new("step1"),
-        );
+        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
 
         let step2 = Arc::new(Task {
             id: "step2".to_string(),
@@ -2953,10 +2946,7 @@ mod tests {
         });
 
         let mut use_wiring = FxHashMap::default();
-        use_wiring.insert(
-            "step1".to_string(),
-            UseEntry::new("step1"),
-        );
+        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
 
         let step2 = Arc::new(Task {
             id: "step2".to_string(),
@@ -3039,10 +3029,7 @@ mod tests {
         });
 
         let mut use_wiring = FxHashMap::default();
-        use_wiring.insert(
-            "step1".to_string(),
-            UseEntry::new("step1"),
-        );
+        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
 
         let step2 = Arc::new(Task {
             id: "step2".to_string(),

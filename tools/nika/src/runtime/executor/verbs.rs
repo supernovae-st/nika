@@ -317,6 +317,12 @@ impl TaskExecutor {
             result: resolved_cmd.to_string(),
         });
 
+        // v0.28: Use per-task timeout if specified, otherwise fall back to global default
+        let exec_deadline = params
+            .timeout
+            .map(std::time::Duration::from_secs)
+            .unwrap_or(EXEC_TIMEOUT);
+
         // v0.15.0: Shell-free execution by default, opt-in to shell mode
         // v0.22: Support for env vars
         let output = if params.shell == Some(true) {
@@ -334,12 +340,12 @@ impl TaskExecutor {
                 }
             }
 
-            tokio::time::timeout(EXEC_TIMEOUT, cmd.output())
+            tokio::time::timeout(exec_deadline, cmd.output())
                 .await
                 .map_err(|_| {
                     NikaError::Execution(format!(
                         "Command timed out after {}s",
-                        EXEC_TIMEOUT.as_secs()
+                        exec_deadline.as_secs()
                     ))
                 })?
                 .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
@@ -369,12 +375,12 @@ impl TaskExecutor {
                 }
             }
 
-            tokio::time::timeout(EXEC_TIMEOUT, cmd.output())
+            tokio::time::timeout(exec_deadline, cmd.output())
                 .await
                 .map_err(|_| {
                     NikaError::Execution(format!(
                         "Command timed out after {}s",
-                        EXEC_TIMEOUT.as_secs()
+                        exec_deadline.as_secs()
                     ))
                 })?
                 .map_err(|e| NikaError::Execution(format!("Failed to execute command: {}", e)))?
@@ -738,12 +744,18 @@ impl TaskExecutor {
             Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))
         };
 
+        // v0.28: Use per-task timeout if specified, otherwise fall back to global deadline
+        let deadline = invoke
+            .timeout
+            .map(std::time::Duration::from_secs)
+            .unwrap_or(INVOKE_TASK_DEADLINE);
+
         let mcp_result = tokio::select! {
-            result = tokio::time::timeout(INVOKE_TASK_DEADLINE, mcp_work) => {
+            result = tokio::time::timeout(deadline, mcp_work) => {
                 result.map_err(|_| NikaError::McpTimeout {
                     name: mcp_name.clone(),
-                    operation: format!("invoke task (deadline {}s)", INVOKE_TASK_DEADLINE.as_secs()),
-                    timeout_secs: INVOKE_TASK_DEADLINE.as_secs(),
+                    operation: format!("invoke task (deadline {}s)", deadline.as_secs()),
+                    timeout_secs: deadline.as_secs(),
                 })?
             }
             _ = self.cancel_token.cancelled() => {

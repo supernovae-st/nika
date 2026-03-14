@@ -21,6 +21,7 @@ fn create_invoke_action(tool: &str, params: serde_json::Value) -> TaskAction {
             tool: Some(tool.to_string()),
             params: Some(params),
             resource: None,
+            timeout: None,
         },
     }
 }
@@ -281,6 +282,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
             tool: Some("nika:log".to_string()),
             params: Some(json!({"level": "info", "message": "Value: {{use.value}}"})),
             resource: None,
+            timeout: None,
         },
     };
 
