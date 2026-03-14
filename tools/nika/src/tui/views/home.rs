@@ -28,7 +28,7 @@ use ratatui::{
     Frame,
 };
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::ViewAction;
 use crate::ast::{TaskAction, Workflow};
 
@@ -374,7 +374,7 @@ impl HomeView {
             frame.render_widget(search_bar, search_area);
         }
 
-        // Use filtered entries with v0.12 icons (📁 folder, 📄 file)
+        // Use filtered entries (📁 folder, 📄 file)
         let items: Vec<ListItem> = self
             .filtered_entries()
             .iter()
@@ -1040,7 +1040,7 @@ impl View for HomeView {
             // Chat overlay toggle
             KeyCode::Char('c') => return ViewAction::ToggleChatOverlay,
 
-            // View switching: number keys (4-view architecture v0.22)
+            // View switching: number keys
             // 1=Studio, 2=Runner, 3=Chat, 4=Settings
             KeyCode::Char('1') => return ViewAction::SwitchView(TuiView::Studio),
             KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Runner),

@@ -32,7 +32,7 @@ use ratatui::{
     Frame,
 };
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::{TuiView, ViewAction};
 use crate::tui::keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 use crate::tui::mode::InputMode;

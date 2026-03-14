@@ -29,25 +29,25 @@ mod monitor;
 mod settings;
 mod split;
 mod studio;
-mod trait_view;
+mod view_trait;
 mod wizard;
 // Note: workspace.rs is deprecated, StudioView now provides 3-panel layout
 
 // Main view exports
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
-// Browse = Home (renamed in v0.20 from Explorer)
+// Browse = Home
 #[allow(unused_imports)]
 pub use home::HomeView as BrowseView;
 // Editor = YamlEditorPanel (single-panel editor, embedded in StudioView)
 #[allow(unused_imports)]
 pub use studio::{EditorMode, YamlEditorPanel as EditorView};
-// Runner = Monitor (renamed in v0.12)
+// Runner = Monitor
 #[allow(unused_imports)]
 pub use monitor::MonitorView as RunnerView;
 // Settings stays the same
 pub use settings::SettingsView;
-// Split = NEW in v0.13 (Editor + Runner side-by-side)
+// Split (Editor + Runner side-by-side)
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
 
@@ -63,13 +63,13 @@ pub use studio::StudioView;
 pub use help::HelpView;
 
 // Trait export
-pub use trait_view::View;
+pub use view_trait::View;
 
 // Wizard view
 pub use wizard::WizardView;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Panel Tab Enums (moved from monitor.rs during v0.5.2 cleanup)
+// Panel Tab Enums
 // Used by TuiState for tracking active tabs in each panel
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn test_tui_view_all_has_all_four_views() {
         let views = TuiView::all();
-        // 4-view architecture v0.22.0
+        // 4-view architecture
         assert_eq!(views.len(), 4);
         assert_eq!(views[0], TuiView::Studio);
         assert_eq!(views[1], TuiView::Runner);
@@ -483,7 +483,7 @@ mod tests {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Tab enum tests (moved from monitor.rs during v0.5.2 cleanup)
+    // Tab enum tests
     // ════════════════════════════════════════════════════════════════════════
 
     #[test]

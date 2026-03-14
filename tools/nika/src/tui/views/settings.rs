@@ -39,7 +39,7 @@ use ratatui::{
     Frame,
 };
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::{CosmicVariant, TuiView, ViewAction};
 use crate::tui::state::TuiState;
 use crate::tui::theme::Theme;

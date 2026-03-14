@@ -32,7 +32,7 @@ use ratatui::{
     Frame,
 };
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::ViewAction;
 use crate::ast::schema_validator::WorkflowSchemaValidator;
 use crate::ast::Workflow;
@@ -690,7 +690,7 @@ impl View for StudioView {
             (KeyCode::Char('T'), _) | (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
                 return ViewAction::ToggleTheme;
             }
-            // View switching: number keys 2-4 (4-view architecture v0.22)
+            // View switching: number keys 2-4
             (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Runner),
             (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Chat),
             (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Settings),
@@ -1919,7 +1919,7 @@ impl YamlEditorPanel {
                     ViewAction::Error("No file loaded".to_string())
                 }
             }
-            // View switching: number keys (4-view architecture v0.22)
+            // View switching: number keys
             // 1=Studio (current), 2=Runner, 3=Chat, 4=Settings
             KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Runner),
             KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Chat),
@@ -3151,7 +3151,7 @@ unknown_field: "should fail""#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // StudioView lifecycle tests (TDD v0.21 fix)
+    // StudioView lifecycle tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

@@ -33,7 +33,7 @@ use ratatui::{
 };
 use tui_input::Input;
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::ViewAction;
 
 /// Check if the "command" modifier is pressed (Ctrl on Linux/Windows, Cmd on macOS)
@@ -168,7 +168,7 @@ pub struct ChatView {
     pub activity_items: Vec<ActivityItem>,
     /// Command palette state (⌘K)
     pub command_palette: CommandPaletteState,
-    /// Provider modal state (⌘P - v0.8.8 full management)
+    /// Provider modal state (⌘P)
     pub provider_modal: ProviderModalState,
     // Native model management is handled via nika commands (nika model list/pull/info)
     /// Inline content for current streaming (MCP calls, infer boxes)
@@ -792,7 +792,7 @@ impl View for ChatView {
             HelpOverlay::new(&self.help_overlay).render(help_area, frame.buffer_mut());
         }
 
-        // 8. v0.9 Phase 2: Mention autocomplete popup (if visible)
+        // 8. Mention autocomplete popup (if visible)
         if self.mention_autocomplete.visible {
             // Position popup above the input area
             let popup_height = (self.mention_autocomplete.suggestions.len().min(8) + 2) as u16;

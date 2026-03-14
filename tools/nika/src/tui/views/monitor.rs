@@ -43,7 +43,7 @@ use ratatui::{
     Frame,
 };
 
-use super::trait_view::View;
+use super::view_trait::View;
 use super::{DagTab, MissionTab, NovanetTab, ReasoningTab, TuiView, ViewAction};
 use crate::tui::focus::PanelId;
 use crate::tui::state::TuiState;
