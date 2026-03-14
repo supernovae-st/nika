@@ -418,9 +418,6 @@ pub enum NikaError {
     #[error("[NIKA-110] Agent loop exceeded max turns ({max_turns})")]
     AgentMaxTurns { max_turns: u32 },
 
-    #[error("[NIKA-111] Agent stop condition not met: {condition}")]
-    AgentStopConditionFailed { condition: String },
-
     #[error("[NIKA-112] Invalid tool name format: {name}")]
     InvalidToolName { name: String },
 
@@ -798,7 +795,6 @@ impl NikaError {
             Self::McpTimeout { .. } => "NIKA-109",
             // Agent errors
             Self::AgentMaxTurns { .. } => "NIKA-110",
-            Self::AgentStopConditionFailed { .. } => "NIKA-111",
             Self::InvalidToolName { .. } => "NIKA-112",
             Self::AgentValidationError { .. } => "NIKA-113",
             Self::NotImplemented { .. } => "NIKA-114",
@@ -1001,9 +997,6 @@ impl FixSuggestion for NikaError {
             }
             // Agent errors
             NikaError::AgentMaxTurns { .. } => Some("Increase max_turns or simplify the task"),
-            NikaError::AgentStopConditionFailed { .. } => {
-                Some("Check stop condition is achievable")
-            }
             NikaError::InvalidToolName { .. } => {
                 Some("Tool names must be mcp_server.tool_name format")
             }
@@ -1814,16 +1807,6 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-110]"));
         assert!(msg.contains("10"));
-    }
-
-    #[test]
-    fn test_agent_stop_condition_failed_error() {
-        let err = NikaError::AgentStopConditionFailed {
-            condition: "generate complete landing page".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-111");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-111]"));
     }
 
     #[test]
