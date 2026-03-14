@@ -3,11 +3,6 @@
 //! Mini chart for visualizing latency and metric history.
 //! Uses ratatui's Sparkline with latency-aware coloring.
 //!
-//! ## v0.8 Animation Support
-//!
-//! - `AnimatedLatencySparkline` - Pulse animation for real-time metrics
-//! - `SparklineAnimation` - Animation type selection (None, Pulse, Flow, Wave)
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

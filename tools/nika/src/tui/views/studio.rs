@@ -748,7 +748,6 @@ impl View for StudioView {
     }
 
     fn on_enter(&mut self, _state: &mut TuiState) {
-        // === v0.21 FIX: Initialize TreeState on view enter ===
         // Root cause: visible_nodes was never populated at startup,
         // causing keyboard navigation to fail.
 
@@ -1188,8 +1187,6 @@ impl TextBuffer {
         self.scroll_offset
     }
 
-    // === v0.21.2: Selection Support ===
-    // === v0.21.3: Multi-cursor via SelectionSet ===
 
     /// Get current selection (primary selection from SelectionSet)
     pub fn selection(&self) -> &Selection {
@@ -1496,7 +1493,6 @@ impl TextBuffer {
         }
     }
 
-    // === v0.11.0: Edit History Support ===
 
     /// Get cursor position as linear index (for EditHistory)
     pub fn cursor_position(&self) -> usize {
@@ -1562,7 +1558,6 @@ pub struct YamlEditorPanel {
     cached_workflow: RefCell<Option<crate::ast::Workflow>>,
     /// Content hash when workflow was cached (invalidation)
     cached_content_hash: Cell<u64>,
-    // === v0.9.1: Matrix Rain Effect ===
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
     /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
@@ -1571,16 +1566,12 @@ pub struct YamlEditorPanel {
     pub rain_fading: bool,
     /// Whether matrix effect is enabled
     pub matrix_effect_enabled: bool,
-    // === v0.11.0: Edit History (Undo/Redo) ===
     /// Edit history for undo/redo support (Ctrl+Z/Ctrl+Y)
     edit_history: EditHistory,
-    // === v0.21.2: Real-time Diagnostics ===
     /// Diagnostics engine for real-time error display (gutter + underline)
     diagnostics: DiagnosticsEngine,
-    // === v0.21.2: Clipboard support ===
     /// System clipboard for copy/paste
     clipboard: Option<arboard::Clipboard>,
-    // === v0.21.3: Git gutter support ===
     /// Git status for line-level change indicators
     git_status: Option<GitStatus>,
 }
@@ -1692,7 +1683,6 @@ impl YamlEditorPanel {
         Ok(())
     }
 
-    // === v0.11.0: Edit History (Undo/Redo) ===
 
     /// Undo the last edit (Ctrl+Z)
     fn undo(&mut self) {
@@ -1779,7 +1769,6 @@ impl YamlEditorPanel {
         self.buffer.cursor().1 + 1
     }
 
-    // === v0.21.2: Diagnostics API ===
 
     /// Get diagnostics engine reference (for gutter and underline rendering)
     pub fn diagnostics(&self) -> &DiagnosticsEngine {
@@ -3361,7 +3350,6 @@ unknown_field: "should fail""#;
         assert_eq!(buffer.content(), "acc");
     }
 
-    // === v0.21.3: Multi-cursor tests ===
 
     #[test]
     fn test_multi_cursor_add_cursor() {

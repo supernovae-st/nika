@@ -3,7 +3,6 @@
 //! Popup for selecting LLM provider and model with streaming indicators.
 //! Inspired by VS Code command palette style.
 //!
-//!
 //! All providers check for non-empty API key in environment variables.
 
 use ratatui::{

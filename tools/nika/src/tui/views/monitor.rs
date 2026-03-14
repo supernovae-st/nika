@@ -31,12 +31,6 @@
 //! ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 //! ```
 //!
-//! ## v0.13 Changes
-//!
-//! - **DagAscii Widget**: Shared DAG visualization with real edges (Sugiyama layout)
-//! - **TaskBox Widgets**: Verb-specific boxes migrated from Chat view
-//! - **Cost Tracking**: USD cost per task based on model pricing
-//! - **TokenVelocity**: Ring buffer sparkline showing tokens/sec
 
 use std::collections::HashMap;
 

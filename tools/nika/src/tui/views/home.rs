@@ -79,10 +79,8 @@ pub struct HomeView {
     pub preview_mode: PreviewMode,
     /// Animation frame counter (0-255, wraps)
     pub frame: u8,
-    // === v0.20: Tree Widget ===
     /// Tree state for selection and expansion
     pub tree_state: TreeState,
-    // === v0.9.1: Matrix Rain Effect ===
     /// Matrix rain background opacity (0.0 = invisible, 1.0 = full)
     pub rain_opacity: f32,
     /// Whether rain effect is actively fading out
