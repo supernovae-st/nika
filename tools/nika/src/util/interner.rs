@@ -87,7 +87,6 @@ pub fn intern(s: &str) -> Arc<str> {
     INTERNER.intern(s)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
