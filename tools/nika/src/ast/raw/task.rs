@@ -10,12 +10,6 @@ use crate::source::{Span, Spanned};
 /// All string references (task IDs, aliases) are unresolved.
 /// Resolution happens in Phase 2 (analyzed AST).
 ///
-/// ## v0.28 Breaking Changes
-///
-/// - `use:` replaced by `with:` — values are now binding expressions
-///   parsed by `parse_with_entry()` in Phase 2.
-/// - `flow:` replaced by `depends_on:` — explicit ordering dependencies.
-/// - `flows:` (workflow-level) removed entirely.
 #[derive(Debug, Clone, Default)]
 pub struct RawTask {
     /// Task identifier (must be unique within workflow)

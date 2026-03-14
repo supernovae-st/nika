@@ -2,11 +2,6 @@
 //!
 //! Tasks with resolved references - TaskId instead of String.
 //!
-//! ## v0.28 Changes
-//!
-//! - `use_refs: IndexMap<String, AnalyzedUseRef>` → `with_spec: WithSpec` (parsed binding expressions)
-//! - `flow_deps: Vec<TaskId>` → `depends_on: Vec<TaskId>` (explicit ordering)
-//! - NEW: `implicit_deps: Vec<TaskId>` (auto-extracted from with: bindings)
 
 use indexmap::IndexMap;
 
@@ -22,12 +17,6 @@ use crate::source::Span;
 ///
 /// All string references are replaced with interned IDs.
 ///
-/// ## v0.28 Breaking Changes
-///
-/// - `with_spec` contains parsed `WithEntry` values (rich binding expressions)
-///   instead of the old `AnalyzedUseRef` which only had task_id + path.
-/// - `depends_on` replaces `flow_deps` — explicit ordering-only dependencies.
-/// - `implicit_deps` is auto-extracted from `with_spec` task references by the analyzer.
 #[derive(Debug, Clone)]
 pub struct AnalyzedTask {
     /// Task ID (interned)
