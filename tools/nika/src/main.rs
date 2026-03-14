@@ -1871,7 +1871,7 @@ fn llm_provider_ids() -> Vec<&'static str> {
 async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika::core::provider_to_env_var; // v0.27: from nika::core instead of TUI module
-    use nika::tui::widgets::provider_modal::{
+    use nika::secrets::{
         mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring,
     };
     use std::io::{self, Write};
@@ -2626,7 +2626,7 @@ network:
     // Migrate API keys from env vars to keychain if requested
     #[cfg(feature = "tui")]
     if migrate_keys {
-        use nika::tui::widgets::provider_modal::migrate_env_to_keyring;
+        use nika::secrets::migrate_env_to_keyring;
         println!();
         println!(
             "{}",

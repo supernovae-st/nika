@@ -197,7 +197,7 @@ impl ChatView {
                     return ViewAction::DeleteNativeModel(model.clone());
                 }
                 ModalAction::SaveAndTestApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
+                    use crate::secrets::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));
@@ -219,7 +219,7 @@ impl ChatView {
                     }
                 }
                 ModalAction::SaveApiKey { provider, key } => {
-                    use crate::tui::widgets::provider_modal::{validate_key_format, NikaKeyring};
+                    use crate::secrets::{validate_key_format, NikaKeyring};
                     // Validate format first
                     if let Err(e) = validate_key_format(provider, key) {
                         self.add_system_message(format!("❌ Invalid key format: {}", e));

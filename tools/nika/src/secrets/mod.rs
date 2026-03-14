@@ -61,6 +61,7 @@
 //! }
 //! ```
 
+pub mod keyring;
 mod result;
 
 #[cfg(feature = "nika-daemon")]
@@ -68,6 +69,12 @@ mod daemon;
 
 #[cfg(not(feature = "nika-daemon"))]
 mod fallback;
+
+// Re-export keyring types (v0.28: canonical home, was in tui::widgets::provider_modal)
+pub use keyring::{
+    mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
+    NikaKeyring,
+};
 
 // Re-export result type (always available)
 pub use result::SecretsLoadResult;

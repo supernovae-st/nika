@@ -4,52 +4,10 @@
 //! This module is only compiled when nika-daemon is not enabled.
 
 use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
+use crate::secrets::keyring::{should_skip_keychain, NikaKeyring};
 use crate::secrets::result::SecretsLoadResult;
 use secrecy::SecretString;
 use tracing::{debug, info, trace};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TUI-CONDITIONAL IMPORTS
-// When TUI is enabled, use the full NikaKeyring from TUI.
-// When TUI is disabled, use fallback stub below.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-#[cfg(feature = "tui")]
-use crate::tui::widgets::provider_modal::NikaKeyring;
-
-// Fallback: NikaKeyring stub without TUI (keyring not available without TUI feature)
-#[cfg(not(feature = "tui"))]
-mod fallback_keyring {
-    use secrecy::SecretString;
-    use std::io::{Error, ErrorKind};
-
-    /// Stub NikaKeyring when TUI is disabled.
-    /// All operations return errors since keyring requires TUI dependencies.
-    pub struct NikaKeyring;
-
-    impl NikaKeyring {
-        pub fn get(_provider: &str) -> Result<String, Error> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "Keyring access requires TUI feature",
-            ))
-        }
-
-        pub fn get_secret(_provider: &str) -> Result<SecretString, Error> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "Keyring access requires TUI feature",
-            ))
-        }
-
-        pub fn exists(_provider: &str) -> bool {
-            false
-        }
-    }
-}
-
-#[cfg(not(feature = "tui"))]
-use fallback_keyring::NikaKeyring;
 
 /// Check if daemon is available (always false without feature).
 pub fn daemon_available() -> bool {
@@ -95,7 +53,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 /// During tests (`cfg(test)`), always returns false to avoid macOS Keychain popups.
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
     // Never access real keychain during tests — prevents macOS popup storms
-    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+    if cfg!(test) || should_skip_keychain() {
         trace!(
             "{}: keychain skipped (test mode or NIKA_SKIP_KEYCHAIN)",
             provider
@@ -128,7 +86,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
     }
 
     // Skip keychain in tests to prevent macOS popup storms
-    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+    if cfg!(test) || should_skip_keychain() {
         return None;
     }
 
@@ -146,7 +104,7 @@ pub async fn has_secret(provider: &str) -> bool {
     }
 
     // Skip keychain in tests to prevent macOS popup storms
-    if cfg!(test) || crate::tui::widgets::provider_modal::keyring::should_skip_keychain() {
+    if cfg!(test) || should_skip_keychain() {
         return false;
     }
 
