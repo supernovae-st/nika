@@ -332,7 +332,7 @@ pub enum EventKind {
     AgentTurn {
         task_id: Arc<str>,
         turn_index: u32,
-        /// Event kind: "started", "continue", "natural_completion", "stop_condition_met"
+        /// Event kind: "started", "continue", "natural_completion", "explicit_completion"
         kind: String,
         /// Turn metadata including response text, tokens, thinking
         #[serde(skip_serializing_if = "Option::is_none")]
