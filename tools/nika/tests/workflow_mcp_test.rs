@@ -1,30 +1,30 @@
 //! Integration tests for Workflow MCP configuration
 //!
-//! Tests YAML deserialization of the `mcp` field in Workflow struct.
-//! This field was added in v0.2 to support inline MCP server configuration.
+//! Tests YAML parsing of the `mcp` field in Workflow struct.
+//! The raw parser requires `mcp: { servers: { name: config } }` format.
 
 use nika::ast::parse_workflow;
 
 // ===================================================================
-// V0.2 Workflow with MCP Config Tests
+// Workflow with MCP Config Tests
 // ===================================================================
 
 #[test]
 fn test_workflow_with_mcp_config() {
-    // Full v0.2 workflow with mcp block
     let yaml = r#"
 schema: "nika/workflow@0.2"
 provider: claude
 
 mcp:
-  novanet:
-    command: cargo
-    args:
-      - run
-      - -p
-      - novanet-mcp
-    env:
-      NEO4J_URI: bolt://localhost:7687
+  servers:
+    novanet:
+      command: cargo
+      args:
+        - run
+        - -p
+        - novanet-mcp
+      env:
+        NEO4J_URI: bolt://localhost:7687
 
 tasks:
   - id: get_context
@@ -90,8 +90,9 @@ schema: "nika/workflow@0.2"
 provider: claude
 
 mcp:
-  simple_server:
-    command: ./my-mcp-server
+  servers:
+    simple_server:
+      command: ./my-mcp-server
 
 tasks:
   - id: test
@@ -124,13 +125,14 @@ schema: "nika/workflow@0.2"
 provider: claude
 
 mcp:
-  novanet:
-    command: cargo
-    args: ["run", "-p", "novanet-mcp"]
-  filesystem:
-    command: npx
-    args: ["-y", "@anthropic/filesystem-mcp"]
-    cwd: /tmp/workspace
+  servers:
+    novanet:
+      command: cargo
+      args: ["run", "-p", "novanet-mcp"]
+    filesystem:
+      command: npx
+      args: ["-y", "@anthropic/filesystem-mcp"]
+      cwd: /tmp/workspace
 
 tasks:
   - id: test
@@ -167,12 +169,13 @@ schema: "nika/workflow@0.2"
 provider: claude
 
 mcp:
-  database:
-    command: ./db-mcp
-    env:
-      DATABASE_URL: postgres://user:pass@localhost:5432/db
-      LOG_LEVEL: debug
-      ENABLE_CACHE: "true"
+  servers:
+    database:
+      command: ./db-mcp
+      env:
+        DATABASE_URL: postgres://user:pass@localhost:5432/db
+        LOG_LEVEL: debug
+        ENABLE_CACHE: "true"
 
 tasks:
   - id: query
@@ -197,12 +200,13 @@ tasks:
 
 #[test]
 fn test_workflow_empty_mcp_block() {
-    // Empty mcp block (valid but unusual)
+    // Empty mcp block — lowered to None (no servers to configure)
     let yaml = r#"
 schema: "nika/workflow@0.2"
 provider: claude
 
-mcp: {}
+mcp:
+  servers: {}
 
 tasks:
   - id: hello
@@ -212,8 +216,8 @@ tasks:
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
-    let mcp = workflow
-        .mcp
-        .expect("mcp field should be Some even if empty");
-    assert!(mcp.is_empty(), "mcp should be an empty map");
+    assert!(
+        workflow.mcp.is_none(),
+        "empty mcp servers block should lower to None"
+    );
 }
