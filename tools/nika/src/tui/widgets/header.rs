@@ -6,7 +6,7 @@
 //! └────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! v0.22 4-Views Architecture (Scheduler removed).
+//! 4-Views Architecture.
 
 use ratatui::{
     buffer::Buffer,
@@ -20,7 +20,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::tui::theme::Theme;
 use crate::tui::views::TuiView;
 
-/// Tab names for each view (4-View Architecture v0.22.0)
+/// Tab names for each view
 /// Order: Studio, Runner, Chat, Settings
 const TAB_NAMES: &[(&str, TuiView)] = &[
     ("Studio", TuiView::Studio),
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_tab_names_v022() {
-        // Verify v0.22 4-view architecture: Studio, Runner, Chat, Settings
+        // Verify 4-view architecture: Studio, Runner, Chat, Settings
         assert_eq!(TAB_NAMES.len(), 4);
         assert_eq!(TAB_NAMES[0], ("Studio", TuiView::Studio));
         assert_eq!(TAB_NAMES[1], ("Runner", TuiView::Runner));

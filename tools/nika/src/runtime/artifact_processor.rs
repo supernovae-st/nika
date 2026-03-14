@@ -3,7 +3,7 @@
 //! Integrates the artifact system with the task execution flow.
 //! Called after successful task completion when `artifact:` is configured.
 //!
-//! v0.22: Added template support - artifacts can now specify a `template:` field
+//! Supports template-based artifacts via the `template:` field
 //! which supports `{{use.*}}` bindings for dynamic content generation.
 
 use std::path::PathBuf;
@@ -627,7 +627,7 @@ mod tests {
         assert_eq!(result, "output.json");
     }
 
-    // ========== v0.22: Template resolution tests ==========
+    // ========== Template resolution tests ==========
 
     #[tokio::test]
     async fn test_artifact_template_resolution() {

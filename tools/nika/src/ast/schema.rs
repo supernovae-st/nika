@@ -32,7 +32,7 @@ pub enum SchemaVersion {
     V10,
     /// nika/workflow@0.11
     V11,
-    /// nika/workflow@0.12 — v0.28 binding system (with:/depends_on:/imports:)
+    /// nika/workflow@0.12
     V12,
 }
 

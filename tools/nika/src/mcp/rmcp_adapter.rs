@@ -263,9 +263,9 @@ impl RmcpClientAdapter {
     /// The entire reconnection operation has a timeout of RECONNECT_TIMEOUT (30 seconds)
     /// to prevent indefinite hanging on unresponsive MCP servers.
     ///
-    /// # v0.24 Bug Fix
+    /// # Reconnection Safety
     ///
-    /// Prior to v0.24, reconnection attempts could hang indefinitely if the MCP server
+    /// Reconnection attempts are timeout-protected to prevent hangs if the MCP server
     /// became unresponsive during reconnection. This fix wraps the entire operation
     /// with a 30-second timeout.
     pub async fn reconnect(&self) -> Result<()> {

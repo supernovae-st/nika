@@ -65,15 +65,6 @@
 //! - Zero-clone traversal (references until final value)
 //! - SmallVec for error collection (stack-allocated up to 4)
 //! - Pre-compiled regex via `LazyLock`
-//!
-//! # Version History
-//!
-//! - Initial with lazy bindings
-//! - Added `|shell` modifier
-//! - Added Pass 2 (context bindings)
-//! - Added Pass 3 (input bindings)
-//! - Added bracket notation `[N]`
-//! - Security test suite, documentation
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -123,13 +114,13 @@ static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Matches ANY {{...}} block. Content is parsed by parse_template_expr().
-/// Replaces the old USE_RE + CONTEXT_RE + INPUTS_RE 3-regex approach.
+/// Unified regex that replaces per-namespace patterns (USE_RE, CONTEXT_RE, INPUTS_RE).
 static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
 
 /// Parsed template expression from inside `{{ ... }}`
 ///
-/// The iterative parser replaces the old negative-lookahead regex approach,
-/// fixing bugs with words like "contextual" and enabling arbitrary transform chains.
+/// Uses an iterative parser that correctly handles words like "contextual"
+/// and enables arbitrary transform chains.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TemplateExpr {
     /// Alias from `with:` block, with optional transforms
@@ -305,9 +296,9 @@ fn resolve_alias_path<'a>(
 /// Security: Pass 2 values are NOT re-evaluated by Pass 1 patterns.
 /// Template markers in resolved VALUES are never re-processed.
 ///
-/// Unlike the old `resolve()`, this function:
+/// Features:
 /// - Takes `with_values` directly (not `ResolvedBindings`)
-/// - Drops the `use.` prefix (`{{title}}` instead of `{{use.title}}`)
+/// - No `use.` prefix needed (`{{title}}` instead of `{{use.title}}`)
 /// - Supports arbitrary transform chains (`{{title | upper | trim}}`)
 /// - Returns empty string for null values (not error)
 pub fn resolve_with<'a>(

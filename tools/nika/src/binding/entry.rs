@@ -65,7 +65,7 @@ impl UseEntry {
         }
     }
 
-    /// Create a new lazy UseEntry (deferred resolution, v0.5)
+    /// Create a new lazy UseEntry (deferred resolution)
     pub fn new_lazy(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
@@ -74,7 +74,7 @@ impl UseEntry {
         }
     }
 
-    /// Create a new lazy UseEntry with default (deferred resolution, v0.5)
+    /// Create a new lazy UseEntry with default (deferred resolution)
     pub fn lazy_with_default(path: impl Into<String>, default: Value) -> Self {
         Self {
             path: path.into(),
@@ -944,7 +944,7 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // normalize_path() tests - v0.21 implicit output syntax
+    // normalize_path() tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -957,7 +957,7 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Deserialization normalization tests - v0.21 implicit output syntax
+    // Deserialization normalization tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1000,7 +1000,7 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Comprehensive edge case tests - v0.21 implicit output syntax
+    // Comprehensive edge case tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1725,30 +1725,24 @@ summary:
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // WithEntry: compat tests (equivalents to old UseEntry patterns)
+    // WithEntry: binding pattern tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn with_compat_simple_path() {
-        // Old: "step1" → UseEntry { path: "step1" }
-        // New: "$step1" → WithEntry { source: Task("step1") }
+    fn with_simple_path() {
         let entry = parse_with_entry("$step1").unwrap();
         assert_eq!(entry.task_id(), Some("step1"));
     }
 
     #[test]
-    fn with_compat_deep_path() {
-        // Old: "step1.data.name" → UseEntry { path: "step1.data.name" }
-        // New: "$step1.data.name" → WithEntry { source: Task("step1"), segments: [data, name] }
+    fn with_deep_path() {
         let entry = parse_with_entry("$step1.data.name").unwrap();
         assert_eq!(entry.task_id(), Some("step1"));
         assert_eq!(entry.source.segments.len(), 2);
     }
 
     #[test]
-    fn with_compat_default_string() {
-        // Old: 'step1 ?? "N/A"'
-        // New: '$step1 ?? "N/A"'
+    fn with_default_string() {
         let entry = parse_with_entry(r#"$step1 ?? "N/A""#).unwrap();
         assert_eq!(entry.default, Some(json!("N/A")));
     }

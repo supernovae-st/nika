@@ -40,7 +40,7 @@ mod mask {
     }
 }
 
-// Note: Fallback module removed in v0.27 - all providers come from nika::core
+// Note: Fallback module - all providers come from nika::core
 
 /// Get all LLM providers (6: anthropic, openai, mistral, groq, deepseek, gemini)
 pub fn llm_providers() -> Vec<&'static Provider> {

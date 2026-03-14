@@ -1,7 +1,7 @@
 //! App Frame Rendering
 //!
 //! Contains frame rendering logic for the unified TUI architecture.
-//! v0.22 4-Views: Studio, Runner, Chat, Settings (Scheduler removed)
+//! Studio, Runner, Chat, Settings (Scheduler removed)
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;

@@ -305,7 +305,6 @@ pub struct RichAnalyzeError {
     /// The underlying analysis error
     error: AnalyzeError,
     /// Source code content for display
-    #[allow(dead_code)]
     source_code: String,
     /// Filename for display
     filename: String,

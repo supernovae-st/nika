@@ -627,9 +627,6 @@ tasks:
         assert_eq!(result.tasks.len(), 2);
     }
 
-    // NOTE: Recursive include tests removed — `include:` inside included files
-    // is rejected by parse_workflow(). Recursive include is not supported.
-
     #[test]
     fn test_expand_includes_file_not_found() {
         let temp_dir = TempDir::new().unwrap();
@@ -755,10 +752,4 @@ tasks:
         assert!(result.is_err());
     }
 
-    // ============================================================================
-    // SKILL MERGING TESTS
-    // ============================================================================
-
-    // NOTE: Skills merging tests removed — `skills:` is rejected by parse_workflow().
-    // Skills merging through include is not supported.
 }

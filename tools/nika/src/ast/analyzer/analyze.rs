@@ -55,10 +55,6 @@ impl AnalyzerContext {
         self.errors.push(error);
     }
 
-    #[allow(dead_code)]
-    fn add_warning(&mut self, warning: AnalyzeError) {
-        self.warnings.push(warning);
-    }
 }
 
 /// Validate a raw workflow without producing an analyzed workflow.

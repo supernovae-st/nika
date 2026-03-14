@@ -1,6 +1,5 @@
 //! Import Loader — Raw-level workflow import expansion
 //!
-//! Replaces the old `include_loader.rs` for the v0.28 binding system.
 //! Operates on the **raw AST** (before analysis), so the analyzer sees
 //! all tasks (main + imported) as one unified `RawWorkflow`.
 //!
@@ -21,17 +20,6 @@
 //!     → analyze() → AnalyzedWorkflow
 //! ```
 //!
-//! # Differences from old include_loader
-//!
-//! | Old (include_loader)          | New (import_loader)            |
-//! |-------------------------------|--------------------------------|
-//! | Works on `Workflow`           | Works on `RawWorkflow`         |
-//! | Uses `serde_yaml::from_str`   | Uses `raw::parse()`           |
-//! | Prefixes `use_wiring` paths   | Prefixes `with_refs` strings  |
-//! | Has `flows:` rewriting        | No flows (uses `depends_on:`) |
-//! | Has `skills:` merging         | No skills (use `imports:`)    |
-//! | `include:` + `pkg:` fields    | `imports:` with `path:` only  |
-
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -307,7 +295,7 @@ fn prefix_binding_expr(expr: &str, prefix: &str) -> String {
         return expr.to_string();
     }
 
-    // Strip optional leading '$' (syntactic sugar from v0.21)
+    // Strip optional leading '$' (syntactic sugar)
     let (dollar, rest) = if let Some(stripped) = trimmed.strip_prefix('$') {
         ("$", stripped)
     } else {

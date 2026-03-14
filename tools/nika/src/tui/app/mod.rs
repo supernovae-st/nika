@@ -486,12 +486,12 @@ impl App {
                         .unwrap_or_else(|| Rect::new(0, 0, 80, 24));
                     intro.tick(intro_area);
                 } else {
-                    // FIX v0.22: Mark dirty when intro completes so views render
+                    // Mark dirty when intro completes so views render
                     self.state.dirty.mark_all();
                 }
             }
 
-            // FIX v0.22.2: Clear intro_state and initialize view when done
+            // Clear intro_state and initialize view when done
             // IMPORTANT: Don't call terminal.clear() here - it interferes with ratatui's
             // differential rendering. The Clear widget in render.rs handles this properly.
             if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {

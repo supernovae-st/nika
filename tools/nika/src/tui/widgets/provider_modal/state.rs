@@ -1,6 +1,6 @@
 //! Provider modal state types
 //!
-//! v0.27: Native tab replaced with Native tab (mistral.rs)
+//! Native tab replaced with Native tab (mistral.rs)
 
 /// Native model info for local inference
 #[derive(Debug, Clone, PartialEq, Eq)]

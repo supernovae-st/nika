@@ -3,7 +3,7 @@
 //! The `agents:` block in a workflow allows defining reusable agent configurations.
 //! Agents can be defined inline or loaded from external files.
 //!
-//! # v0.13 Multi-format Support
+//! # Multi-format Support
 //!
 //! Agents and skills can be loaded from multiple formats:
 //! - `.agent.yaml` / `.agent.yml` - YAML format
@@ -16,7 +16,7 @@
 //! ```yaml
 //! agents:
 //!   researcher:
-//!     from: ./agents/researcher           # v0.13: Auto-detect format (folder or file)
+//!     from: ./agents/researcher           # Auto-detect format (folder or file)
 //!   helper:
 //!     file: ./agents/helper.agent.yaml    # Explicit YAML
 //!   reviewer:

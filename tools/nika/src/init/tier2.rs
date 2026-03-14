@@ -684,7 +684,7 @@ flows:
 # │                                                                             │
 # │ tasks:                                                                      │
 # │   - id: translate                                                           │
-# │     for_each: $inputs.locales    # NEW in v0.22!                           │
+# │     for_each: $inputs.locales                           │
 # │     as: locale                                                              │
 # │     infer: "Translate to {{use.locale}}"                                   │
 # └─────────────────────────────────────────────────────────────────────────────┘

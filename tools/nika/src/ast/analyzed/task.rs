@@ -260,7 +260,7 @@ pub struct AnalyzedInvokeAction {
     /// Tool name
     pub tool: String,
 
-    /// Tool parameters (validated against schema in v0.20)
+    /// Tool parameters
     pub params: Option<serde_json::Value>,
 
     /// Timeout for tool execution
