@@ -18,11 +18,11 @@ pub const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 pub const INFER_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Timeout for establishing HTTP connections
-/// v0.12.1: Increased from 10s to 20s for slow MCP server cold starts
+/// Timeout increased for slow MCP server cold starts
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Timeout for MCP tool calls (invoke: verb)
-/// v0.12.1: Increased from 30s to 60s for complex MCP operations
+/// Timeout increased for complex MCP operations
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Total deadline for invoke task execution
@@ -42,14 +42,14 @@ pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const MAX_RECONNECT_ATTEMPTS: u32 = 3;
 
 /// Timeout for decompose expansion (nested BFS traversal)
-/// v0.17.5: Added to prevent silent hangs during graph traversal
+/// Prevents silent hangs during graph traversal
 /// Set higher than MCP_CALL_TIMEOUT to allow multiple MCP calls in BFS loop
 pub const DECOMPOSE_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// v0.8.5: Timeout for complete MCP server initialization (connect + list_tools + overhead)
+/// Timeout for complete MCP server initialization (connect + list_tools + overhead)
 /// Prevents hanging on slow/unresponsive MCP servers during startup.
 /// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
-/// v0.12.1: Increased from 45s to 90s to match increased component timeouts
+/// Increased to match component timeouts
 pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Timeout for streaming chunk delivery (per-chunk, not total stream)
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn mcp_init_timeout_is_longer_than_call_timeout() {
-        // v0.8.5: Init timeout should be > call timeout to allow for connect + list_tools
+        // Init timeout should be > call timeout to allow for connect + list_tools
         assert!(MCP_INIT_TIMEOUT > MCP_CALL_TIMEOUT);
         assert!(MCP_INIT_TIMEOUT > CONNECT_TIMEOUT);
     }
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn connect_timeout_is_reasonable() {
-        // v0.12.1: Connection timeout increased for MCP cold starts
+        // Connection timeout increased for MCP cold starts
         // Should still be shorter than inference timeout
         assert!(CONNECT_TIMEOUT < INFER_TIMEOUT);
         assert!(CONNECT_TIMEOUT <= EXEC_TIMEOUT);
@@ -141,18 +141,18 @@ mod tests {
 
     #[test]
     fn decompose_timeout_allows_multiple_mcp_calls() {
-        // v0.17.5: Decompose can make multiple MCP calls in BFS traversal
+        // Decompose can make multiple MCP calls in BFS traversal
         // The overall timeout should be > single MCP call timeout
         assert!(DECOMPOSE_TIMEOUT > MCP_CALL_TIMEOUT);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.24: Reconnection timeout tests
+    // Reconnection timeout tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn reconnect_timeout_is_30_seconds() {
-        // v0.24: Bug fix - reconnection has explicit 30-second timeout
+
         assert_eq!(RECONNECT_TIMEOUT.as_secs(), 30);
     }
 
@@ -165,17 +165,17 @@ mod tests {
 
     #[test]
     fn max_reconnect_attempts_is_3() {
-        // v0.24: Bug fix - maximum 3 reconnection attempts
+
         assert_eq!(MAX_RECONNECT_ATTEMPTS, 3);
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.24: Invoke task deadline tests
+    // Invoke task deadline tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn invoke_task_deadline_is_5_minutes() {
-        // v0.24: Bug fix - invoke tasks have 5-minute total deadline
+
         assert_eq!(INVOKE_TASK_DEADLINE.as_secs(), 300);
     }
 
