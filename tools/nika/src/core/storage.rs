@@ -6,11 +6,6 @@
 //! - Resumable downloads (via HTTP Range requests)
 //! - Caching (skip download if file exists and matches checksum)
 //!
-//! # v0.27.0: Migrated from spn-native
-//!
-//! This module was previously in `spn-native` but is now part of nika
-//! as part of the spn→nika feature fusion.
-//!
 //! # Example
 //!
 //! ```rust,ignore
@@ -177,7 +172,7 @@ pub trait ModelStorage {
     ///
     /// # Security
     ///
-    /// v0.27: Validates that model_id doesn't escape storage directory via path traversal.
+    /// Validates that model_id doesn't escape storage directory via path traversal.
     ///
     /// # Errors
     ///
@@ -495,7 +490,7 @@ impl HuggingFaceStorage {
     ///
     /// # Security
     ///
-    /// v0.27: Validates that model_id doesn't escape storage directory via `..` or absolute paths.
+    /// Validates that model_id doesn't escape storage directory via `..` or absolute paths.
     ///
     /// # Errors
     ///

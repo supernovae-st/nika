@@ -3,10 +3,6 @@
 //! These types provide a unified interface for local model management,
 //! including download progress, model info, and inference configuration.
 //!
-//! # v0.27.0: Migrated from spn-core
-//!
-//! These types were previously in `spn-core` but are now part of nika
-//! as part of the spn→nika feature fusion.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

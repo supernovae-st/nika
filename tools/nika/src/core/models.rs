@@ -16,8 +16,6 @@ use thiserror::Error;
 
 /// Error type for model resolution operations.
 ///
-/// v0.27.1: This error implements Clone by storing error messages as String
-/// instead of non-Clone types like std::io::Error.
 #[derive(Error, Debug, Clone)]
 pub enum ModelResolveError {
     /// Unknown model ID.
@@ -49,8 +47,6 @@ pub enum ModelResolveError {
 
     /// Cannot read snapshots directory.
     ///
-    /// v0.27.1: Stores error message as String instead of std::io::Error
-    /// to allow Clone implementation.
     #[error("Cannot read snapshots directory {path}: {message}")]
     SnapshotsDirReadError {
         /// The path that could not be read.
