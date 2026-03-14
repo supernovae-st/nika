@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 // Import from lib modules
 use nika::ast::schema_validator::WorkflowSchemaValidator;
-use nika::ast::{expand_includes, TaskAction, Workflow};
+use nika::ast::{expand_includes, parse_workflow, TaskAction, Workflow};
 use nika::dag::{validate_use_wiring, Dag};
 use nika::error::NikaError;
 use nika::init::{
@@ -1496,19 +1496,15 @@ async fn run_workflow(
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
 
-    // Parse into Workflow struct (now we know structure is valid)
-    let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion)
-    // Handle case where parent() returns empty path for relative filenames
+    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let mut workflow = expand_includes(workflow, base_path)?;
-
-    // Validate schema version and task config
-    workflow.validate_schema()?;
 
     // Apply CLI overrides
     if let Some(p) = provider_override {
@@ -1548,26 +1544,20 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
 
-    // Parse into Workflow struct (now we know structure is valid)
-    let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion)
+    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
-    // Validate schema version and task config
-    workflow.validate_schema()?;
-
     // Build flow graph (validates duplicate task IDs: NIKA-022)
+    // Note: analyzer already checks duplicates/cycles, but Dag is needed for use: wiring validation
     let flow_graph = Dag::from_workflow(&workflow)?;
-
-    // BUG-002 FIX: Detect cycles (NIKA-020) during nika check
     flow_graph.detect_cycles()?;
-
-    // Validate use: bindings (NIKA-080, NIKA-081, NIKA-082)
     validate_use_wiring(&workflow, &flow_graph)?;
 
     println!("{} Workflow '{}' is valid", "✓".green(), file);
@@ -1593,20 +1583,17 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let schema_validator = WorkflowSchemaValidator::new()?;
     schema_validator.validate_yaml(&yaml)?;
 
-    // Parse into Workflow struct
-    let workflow: Workflow = serde_yaml::from_str(&yaml)?;
+    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion)
+    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let workflow = expand_includes(workflow, base_path)?;
 
-    // Validate schema version and task config
-    workflow.validate_schema()?;
-
-    // Phase 2: DAG validation
+    // Phase 2: DAG validation (for use: wiring — analyzer handles duplicates/cycles)
     let flow_graph = Dag::from_workflow(&workflow)?;
     flow_graph.detect_cycles()?;
     validate_use_wiring(&workflow, &flow_graph)?;

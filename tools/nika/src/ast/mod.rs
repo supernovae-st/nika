@@ -105,3 +105,56 @@ pub use completion::{
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
 // Lowering: Analyzed AST → Legacy AST (v0.28 - Bridge Pattern Phase 3)
 pub use lower::lower;
+
+// ============================================================================
+// Unified Pipeline: YAML → Raw → Analyzed → Legacy (v0.28 - Bridge Pattern Phase 4)
+// ============================================================================
+
+use crate::error::NikaError;
+use crate::source::FileId;
+
+/// Parse a YAML workflow through the unified two-phase IR pipeline.
+///
+/// Pipeline: `YAML → raw::parse → analyzer::analyze → lower → Workflow`
+///
+/// This replaces the legacy `serde_yaml::from_str::<Workflow>()` path with
+/// the span-tracking, validating two-phase IR pipeline. The returned Workflow
+/// is the legacy type expected by `expand_includes` and `Runner`.
+///
+/// # Errors
+///
+/// - `NikaError::ParseError` — YAML syntax or structural errors (Phase 1)
+/// - `NikaError::ValidationError` — Semantic validation errors (Phase 2)
+pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
+    // Phase 1: YAML → Raw AST (with span tracking)
+    let raw = raw::parse(yaml, FileId(0)).map_err(|e| NikaError::ParseError {
+        details: format!("[{}] {}", e.kind.code(), e.message),
+    })?;
+
+    // Phase 2: Raw → Analyzed (validation, reference resolution)
+    let result = analyzer::analyze(raw);
+
+    if result.is_err() {
+        let messages: Vec<String> = result
+            .errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        return Err(NikaError::ValidationError {
+            reason: messages.join("; "),
+        });
+    }
+
+    let analyzed = result.into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        NikaError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })?;
+
+    // Phase 3: Analyzed → Legacy Workflow (for runtime compatibility)
+    Ok(lower(analyzed))
+}
