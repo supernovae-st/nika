@@ -68,6 +68,12 @@ pub struct AnalyzedTask {
     /// Decompose modifier for runtime DAG expansion
     pub decompose: Option<DecomposeSpec>,
 
+    /// Standalone concurrency (used with decompose when no for_each)
+    pub concurrency: Option<u32>,
+
+    /// Standalone fail_fast (used with decompose when no for_each)
+    pub fail_fast: Option<bool>,
+
     /// Artifact configuration for file persistence
     pub artifact: Option<ArtifactSpec>,
 

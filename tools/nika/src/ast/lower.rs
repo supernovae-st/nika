@@ -81,7 +81,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
 
 fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
     let flow = task_dep_names(&task.depends_on, &task.implicit_deps, table);
-    let (for_each, for_each_as, concurrency, fail_fast) = lower_for_each(task.for_each);
+    let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
     let action = lower_action(task.action, task.provider, task.model, task.retry);
     let output = task.output.map(lower_output);
     let with_spec = if task.with_spec.is_empty() {
@@ -90,12 +90,16 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
         Some(task.with_spec)
     };
 
+    // Use for_each concurrency/fail_fast when available, otherwise standalone values
+    let concurrency = fe_concurrency.or(task.concurrency.map(|c| c as usize));
+    let fail_fast = fe_fail_fast.or(task.fail_fast);
+
     Task {
         id: task.name,
         use_wiring: None,
         with_spec,
         output,
-        decompose: None,
+        decompose: task.decompose,
         for_each,
         for_each_as,
         concurrency,
@@ -408,6 +412,8 @@ mod tests {
             for_each: None,
             retry: None,
             decompose: None,
+            concurrency: None,
+            fail_fast: None,
             artifact: None,
             log: None,
             structured: None,
@@ -463,6 +469,8 @@ mod tests {
             for_each: None,
             retry: None,
             decompose: None,
+            concurrency: None,
+            fail_fast: None,
             artifact: None,
             log: None,
             structured: None,

@@ -3,6 +3,7 @@
 use indexmap::IndexMap;
 
 use super::action::RawTaskAction;
+use crate::ast::decompose::DecomposeSpec;
 use crate::source::{Span, Spanned};
 
 /// A raw task as parsed from YAML.
@@ -51,6 +52,15 @@ pub struct RawTask {
 
     /// Retry configuration
     pub retry: Option<Spanned<RawRetryConfig>>,
+
+    /// Decompose modifier for runtime DAG expansion
+    pub decompose: Option<Spanned<DecomposeSpec>>,
+
+    /// Standalone concurrency (used with decompose when no for_each)
+    pub concurrency: Option<Spanned<u32>>,
+
+    /// Standalone fail_fast (used with decompose when no for_each)
+    pub fail_fast: Option<Spanned<bool>>,
 
     /// The span of the entire task block
     pub span: Span,

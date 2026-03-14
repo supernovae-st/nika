@@ -11,6 +11,7 @@ use super::action::{
 };
 use super::mcp::{RawMcpConfig, RawMcpServer};
 use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
+use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use super::workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
@@ -717,6 +718,77 @@ fn parse_retry(
     }
 }
 
+/// Parse decompose: configuration.
+fn parse_decompose(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<DecomposeSpec>>, ParseError> {
+    match map.get_node("decompose") {
+        Some(Node::Mapping(m)) => {
+            let span = marked_span_to_span(file, m.span());
+
+            let traverse = get_string_field(file, m, "traverse")?
+                .ok_or_else(|| ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span,
+                    message: "decompose missing required field 'traverse'".to_string(),
+                })?
+                .value;
+
+            let source = get_string_field(file, m, "source")?
+                .ok_or_else(|| ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span,
+                    message: "decompose missing required field 'source'".to_string(),
+                })?
+                .value;
+
+            let strategy = match get_string_field(file, m, "strategy")? {
+                Some(s) => match s.value.as_str() {
+                    "semantic" => DecomposeStrategy::Semantic,
+                    "static" => DecomposeStrategy::Static,
+                    "nested" => DecomposeStrategy::Nested,
+                    other => {
+                        return Err(ParseError {
+                            kind: ParseErrorKind::InvalidType,
+                            span: s.span,
+                            message: format!(
+                                "invalid decompose strategy '{}': expected semantic, static, or nested",
+                                other
+                            ),
+                        });
+                    }
+                },
+                None => DecomposeStrategy::default(),
+            };
+
+            let mcp_server = get_string_field(file, m, "mcp_server")?.map(|s| s.value);
+
+            let max_items = get_u32_field(file, m, "max_items")?.map(|s| s.value as usize);
+
+            let max_depth = get_u32_field(file, m, "max_depth")?.map(|s| s.value as usize);
+
+            Ok(Some(Spanned::new(
+                DecomposeSpec {
+                    strategy,
+                    traverse,
+                    source,
+                    mcp_server,
+                    max_items,
+                    max_depth,
+                },
+                span,
+            )))
+        }
+        Some(node) => Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span: node_to_span(file, node),
+            message: "decompose must be a mapping".to_string(),
+        }),
+        None => Ok(None),
+    }
+}
+
 /// Parse output: configuration.
 fn parse_output(
     file: FileId,
@@ -1140,6 +1212,19 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let output = parse_output(file_id, map)?;
     let for_each = parse_for_each(file_id, map)?;
     let retry = parse_retry(file_id, map)?;
+    let decompose = parse_decompose(file_id, map)?;
+
+    // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
+    let standalone_concurrency = if for_each.is_none() {
+        get_u32_field(file_id, map, "concurrency")?
+    } else {
+        None
+    };
+    let standalone_fail_fast = if for_each.is_none() {
+        get_bool_field(file_id, map, "fail_fast")?
+    } else {
+        None
+    };
 
     let task = RawTask {
         span,
@@ -1153,6 +1238,9 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         output,
         for_each,
         retry,
+        decompose,
+        concurrency: standalone_concurrency,
+        fail_fast: standalone_fail_fast,
     };
 
     Ok(Spanned::new(task, span))
