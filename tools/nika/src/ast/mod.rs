@@ -34,6 +34,7 @@
 // v0.19 Foundation - Two-Phase IR
 pub mod analyzed;
 pub mod analyzer;
+pub mod lower;
 pub mod raw;
 pub mod schema;
 
@@ -102,3 +103,5 @@ pub use completion::{
 };
 // LimitsConfig is defined in limits.rs (v0.24 - Agent execution limits)
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
+// Lowering: Analyzed AST → Legacy AST (v0.28 - Bridge Pattern Phase 3)
+pub use lower::lower;
