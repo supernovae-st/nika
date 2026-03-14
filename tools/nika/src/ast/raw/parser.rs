@@ -606,15 +606,6 @@ fn parse_with_refs(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>, ParseError> {
-    // Reject deprecated `use:` keyword with clear error
-    if let Some(node) = map.get_node("use") {
-        return Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file, node),
-            message: "'use:' is removed in v0.28. Use 'with:' instead. Values are binding expressions parsed in Phase 2.".to_string(),
-        });
-    }
-
     parse_string_map(file, map, "with")
 }
 
@@ -626,15 +617,6 @@ fn parse_depends_on(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<Vec<Spanned<String>>>>, ParseError> {
-    // Reject deprecated `flow:` keyword with clear error
-    if let Some(node) = map.get_node("flow") {
-        return Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file, node),
-            message: "'flow:' is removed in v0.28. Use 'depends_on:' instead.".to_string(),
-        });
-    }
-
     // depends_on: accepts both single string and array
     match map.get_node("depends_on") {
         Some(Node::Scalar(s)) => {
@@ -843,34 +825,6 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
 
     // Parse imports
     workflow.imports = parse_imports(file_id, map)?;
-
-    // Reject deprecated `include:` keyword
-    if let Some(node) = map.get_node("include") {
-        return Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file_id, node),
-            message: "'include:' is removed in v0.28. Use 'imports:' instead.".to_string(),
-        });
-    }
-
-    // Reject deprecated `skills:` keyword
-    if let Some(node) = map.get_node("skills") {
-        return Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file_id, node),
-            message: "'skills:' is removed in v0.28. Use 'imports:' instead.".to_string(),
-        });
-    }
-
-    // Reject deprecated `flows:` keyword
-    if let Some(node) = map.get_node("flows") {
-        return Err(ParseError {
-            kind: ParseErrorKind::InvalidType,
-            span: node_to_span(file_id, node),
-            message: "'flows:' is removed in v0.28. Use 'depends_on:' on individual tasks instead."
-                .to_string(),
-        });
-    }
 
     // Parse inputs
     workflow.inputs = parse_inputs(file_id, map)?;
@@ -1647,75 +1601,6 @@ tasks:
         );
     }
 
-    #[test]
-    fn test_reject_deprecated_use_keyword() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-tasks:
-  - id: step1
-    infer: "Generate"
-  - id: step2
-    use:
-      data: step1
-    infer: "Process"
-"#;
-        let result = parse(yaml, FileId(0));
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.message.contains("'use:' is removed in v0.28"));
-    }
-
-    #[test]
-    fn test_reject_deprecated_flow_keyword() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-tasks:
-  - id: step1
-    infer: "Generate"
-  - id: step2
-    flow: step1
-    infer: "Process"
-"#;
-        let result = parse(yaml, FileId(0));
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.message.contains("'flow:' is removed in v0.28"));
-    }
-
-    #[test]
-    fn test_reject_deprecated_include_keyword() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-include:
-  - path: ./setup.nika.yaml
-tasks:
-  - id: main
-    infer: "Main"
-"#;
-        let result = parse(yaml, FileId(0));
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.message.contains("'include:' is removed in v0.28"));
-    }
-
-    #[test]
-    fn test_reject_deprecated_flows_keyword() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-flows:
-  - source: a
-    target: b
-tasks:
-  - id: a
-    infer: "A"
-  - id: b
-    infer: "B"
-"#;
-        let result = parse(yaml, FileId(0));
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.message.contains("'flows:' is removed in v0.28"));
-    }
 
     #[test]
     fn test_parse_context_config() {

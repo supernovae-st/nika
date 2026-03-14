@@ -627,9 +627,8 @@ tasks:
         assert_eq!(result.tasks.len(), 2);
     }
 
-    // NOTE: test_expand_includes_recursive and test_expand_includes_circular_detection
-    // were removed in v0.28 because `include:` inside included files is now rejected
-    // by parse_workflow(). Recursive include is no longer supported.
+    // NOTE: Recursive include tests removed — `include:` inside included files
+    // is rejected by parse_workflow(). Recursive include is not supported.
 
     #[test]
     fn test_expand_includes_file_not_found() {
@@ -760,9 +759,6 @@ tasks:
     // SKILL MERGING TESTS
     // ============================================================================
 
-    // NOTE: Skills merging tests (test_expand_includes_merges_skills_from_included_workflow,
-    // test_expand_includes_main_workflow_skills_override_included,
-    // test_expand_includes_skills_from_multiple_includes) were removed in v0.28
-    // because `skills:` is now rejected by parse_workflow(). Skills merging
-    // through include is no longer supported.
+    // NOTE: Skills merging tests removed — `skills:` is rejected by parse_workflow().
+    // Skills merging through include is not supported.
 }
