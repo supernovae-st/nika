@@ -3,8 +3,7 @@
 //! Tests runtime DAG expansion via MCP traversal.
 //! Phase 4 of MVP 8: RLM Enhancements.
 
-use nika::ast::{DecomposeStrategy, Workflow};
-use nika::serde_yaml;
+use nika::ast::{parse_workflow, DecomposeStrategy};
 
 // ============================================================================
 // PARSING TESTS (GREEN - AST is implemented)
@@ -25,7 +24,7 @@ tasks:
       prompt: "Generate for {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     assert_eq!(workflow.tasks.len(), 1);
 
     let task = &workflow.tasks[0];
@@ -55,7 +54,7 @@ tasks:
       prompt: "Process {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
     let spec = task.decompose_spec().unwrap();
 
@@ -68,6 +67,8 @@ tasks:
 #[test]
 fn test_decompose_coexists_with_for_each_settings() {
     // decompose can use for_each settings like concurrency and fail_fast
+    // Note: concurrency/fail_fast are parsed as part of for_each, so both
+    // for_each and decompose must be present for settings to take effect.
     let yaml = r#"
 schema: nika/workflow@0.4
 provider: claude
@@ -76,13 +77,14 @@ tasks:
     decompose:
       traverse: HAS_CHILD
       source: $parent
+    for_each: "$items"
     concurrency: 5
     fail_fast: false
     infer:
       prompt: "Generate {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.has_decompose());
@@ -101,7 +103,7 @@ tasks:
       prompt: "Hello world"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(!task.has_decompose());

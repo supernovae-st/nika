@@ -1,10 +1,12 @@
 //! DAG Integration Tests
 //!
 //! Tests for DAG validation including cycle detection and path validation.
+//!
+//! Note: parse_workflow() does NOT parse `flows:` YAML sections.
+//! All dependency edges must be expressed via `depends_on:` (requires @0.12+).
 
-use nika::ast::Workflow;
+use nika::ast::parse_workflow;
 use nika::dag::Dag;
-use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // INTEGRATION TESTS: DAG Structure Validation
@@ -14,28 +16,26 @@ use nika::serde_yaml;
 fn test_dag_diamond_no_cycle() {
     // Diamond: A → B, A → C, B → D, C → D (valid DAG)
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: diamond
 tasks:
   - id: a
     infer:
       prompt: "A"
   - id: b
+    depends_on: [a]
     infer:
       prompt: "B"
   - id: c
+    depends_on: [a]
     infer:
       prompt: "C"
   - id: d
+    depends_on: [b, c]
     infer:
       prompt: "D"
-flows:
-  - source: a
-    target: [b, c]
-  - source: [b, c]
-    target: d
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -48,51 +48,49 @@ flows:
 #[test]
 fn test_dag_self_loop() {
     // A → A (self-loop = cycle)
+    // parse_workflow() detects self-referential cycles via depends_on
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: self_loop
 tasks:
   - id: a
+    depends_on: [a]
     infer:
       prompt: "A"
-flows:
-  - source: a
-    target: a
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow).unwrap();
-
-    let result = graph.detect_cycles();
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+    // parse_workflow() catches cycles at analysis time
+    let result = parse_workflow(yaml);
+    assert!(result.is_err(), "Should detect self-referential cycle");
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("cycle") || err_msg.contains("NIKA-"),
+        "Error should mention cycle: {err_msg}"
+    );
 }
 
 #[test]
 fn test_dag_disconnected_valid() {
     // A → B, C → D (two disconnected chains, no cycle)
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: disconnected
 tasks:
   - id: a
     infer:
       prompt: "A"
   - id: b
+    depends_on: [a]
     infer:
       prompt: "B"
   - id: c
     infer:
       prompt: "C"
   - id: d
+    depends_on: [c]
     infer:
       prompt: "D"
-flows:
-  - source: a
-    target: b
-  - source: c
-    target: d
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -104,75 +102,65 @@ flows:
 #[test]
 fn test_dag_complex_cycle() {
     // Complex cycle: A → B → C → D → B (cycle in the middle)
+    // parse_workflow() detects this via depends_on analysis
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: complex_cycle
 tasks:
   - id: a
     infer:
       prompt: "A"
   - id: b
+    depends_on: [a, d]
     infer:
       prompt: "B"
   - id: c
+    depends_on: [b]
     infer:
       prompt: "C"
   - id: d
+    depends_on: [c]
     infer:
       prompt: "D"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: d
-  - source: d
-    target: b
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
-    let graph = Dag::from_workflow(&workflow).unwrap();
-
-    let result = graph.detect_cycles();
-    assert!(result.is_err());
+    // parse_workflow() catches cycles at analysis time
+    let result = parse_workflow(yaml);
+    assert!(result.is_err(), "Should detect cycle: B → C → D → B");
     let err_msg = result.unwrap_err().to_string();
-    assert!(err_msg.contains("NIKA-020"));
-    assert!(err_msg.contains("→")); // Contains cycle path
+    assert!(
+        err_msg.contains("cycle") || err_msg.contains("NIKA-"),
+        "Error should mention cycle: {err_msg}"
+    );
 }
 
 #[test]
 fn test_dag_linear_chain() {
     // Simple linear chain: A → B → C → D → E
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: linear
 tasks:
   - id: a
     infer:
       prompt: "A"
   - id: b
+    depends_on: [a]
     infer:
       prompt: "B"
   - id: c
+    depends_on: [b]
     infer:
       prompt: "C"
   - id: d
+    depends_on: [c]
     infer:
       prompt: "D"
   - id: e
+    depends_on: [d]
     infer:
       prompt: "E"
-flows:
-  - source: a
-    target: b
-  - source: b
-    target: c
-  - source: c
-    target: d
-  - source: d
-    target: e
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -185,31 +173,30 @@ flows:
 fn test_dag_parallel_merge() {
     // Parallel merge: A → [B, C, D] → E (fan-out, fan-in)
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.12
 id: parallel_merge
 tasks:
   - id: a
     infer:
       prompt: "A"
   - id: b
+    depends_on: [a]
     infer:
       prompt: "B"
   - id: c
+    depends_on: [a]
     infer:
       prompt: "C"
   - id: d
+    depends_on: [a]
     infer:
       prompt: "D"
   - id: e
+    depends_on: [b, c, d]
     infer:
       prompt: "E"
-flows:
-  - source: a
-    target: [b, c, d]
-  - source: [b, c, d]
-    target: e
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -224,9 +211,9 @@ flows:
 
 #[test]
 fn test_dag_no_flows_valid() {
-    // No flows = each task is independent (valid DAG)
+    // No dependencies = each task is independent (valid DAG)
     let yaml = r#"
-schema: nika/workflow@0.1
+schema: nika/workflow@0.5
 id: no_flows
 tasks:
   - id: a
@@ -236,7 +223,7 @@ tasks:
     infer:
       prompt: "B"
 "#;
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());

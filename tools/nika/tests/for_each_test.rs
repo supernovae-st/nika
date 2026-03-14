@@ -15,9 +15,8 @@
 //!         locale: "{{use.locale}}"
 //! ```
 
-use nika::ast::Workflow;
+use nika::ast::parse_workflow;
 use nika::runtime::Runner;
-use nika::serde_yaml;
 
 // ═══════════════════════════════════════════════════════════════
 // for_each Parsing Tests
@@ -36,7 +35,7 @@ tasks:
       command: "echo {{use.locale}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     // Verify for_each parsed
@@ -63,12 +62,12 @@ tasks:
       command: "echo {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_some());
-    // When 'as' is not specified, it should default to None (runtime uses "item")
-    assert!(task.for_each_as.is_none());
+    // When 'as' is not specified, it defaults to "item" (set by analyzer)
+    assert_eq!(task.for_each_as.as_deref(), Some("item"));
 }
 
 #[test]
@@ -92,7 +91,7 @@ tasks:
         locale: "{{use.locale}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_some());
@@ -112,7 +111,7 @@ tasks:
       command: "echo {{use.letter}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     // Verify action is Exec
@@ -140,19 +139,15 @@ tasks:
       command: "echo test"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     // Validation should fail for empty array (task-level)
     let result = task.validate_for_each();
     assert!(result.is_err(), "Empty for_each should be invalid");
 
-    // Validation should also fail at workflow level
-    let workflow_result = workflow.validate_schema();
-    assert!(
-        workflow_result.is_err(),
-        "workflow.validate_schema() should catch empty for_each"
-    );
+    // Note: workflow-level validate_schema() was removed
+    // The task-level check above is sufficient
 }
 
 #[test]
@@ -166,7 +161,7 @@ tasks:
       command: "echo hello"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_none());
@@ -190,7 +185,7 @@ tasks:
       command: "echo {{use.fruit}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -220,7 +215,7 @@ tasks:
       command: "echo {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -249,7 +244,7 @@ tasks:
       command: "sh -c '{{use.cmd}}'"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -277,7 +272,7 @@ tasks:
       command: "echo {{use.word}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -307,7 +302,7 @@ tasks:
       command: "{{use.cmd}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -332,24 +327,22 @@ async fn test_for_each_with_use_nested_path_binding() {
     // This test verifies that nested path traversal through use: bindings
     // works correctly with for_each.
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: producer
     exec:
       command: "echo '{\"nested\": {\"items\": [\"alpha\", \"beta\", \"gamma\"]}}'"
 
   - id: consumer
-    use:
-      data: producer
+    with:
+      data: $producer
     for_each: "{{use.data.nested.items}}"
     as: item
-    flow:
-      - producer
     exec:
       command: "echo Processing: {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 

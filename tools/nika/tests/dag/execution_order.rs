@@ -1,10 +1,10 @@
 //! Execution order tests.
 //!
 //! Verifies that DAG structure supports correct execution ordering.
+//! All tests use `depends_on:` syntax (schema @0.12+) instead of legacy `flows:`.
 
-use nika::ast::Workflow;
+use nika::ast::parse_workflow;
 use nika::dag::Dag;
-use nika::serde_yaml;
 
 // ============================================================================
 // DEPENDENCY STRUCTURE TESTS
@@ -13,7 +13,7 @@ use nika::serde_yaml;
 #[test]
 fn test_linear_dependencies() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: linear
 description: "Linear: A -> B -> C"
 
@@ -21,18 +21,14 @@ tasks:
   - id: A
     exec: "echo A"
   - id: B
+    depends_on: [A]
     exec: "echo B"
   - id: C
+    depends_on: [B]
     exec: "echo C"
-
-flows:
-  - source: A
-    target: B
-  - source: B
-    target: C
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -51,7 +47,7 @@ flows:
 #[test]
 fn test_diamond_dependencies() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: diamond
 description: "Diamond: A -> B,C -> D"
 
@@ -59,24 +55,17 @@ tasks:
   - id: A
     exec: "echo A"
   - id: B
+    depends_on: [A]
     exec: "echo B"
   - id: C
+    depends_on: [A]
     exec: "echo C"
   - id: D
+    depends_on: [B, C]
     exec: "echo D"
-
-flows:
-  - source: A
-    target: B
-  - source: A
-    target: C
-  - source: B
-    target: D
-  - source: C
-    target: D
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -101,7 +90,7 @@ flows:
 fn test_parallel_roots() {
     // Multiple root nodes (no dependencies)
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: parallel-roots
 description: "Multiple roots -> single sink"
 
@@ -113,18 +102,11 @@ tasks:
   - id: root3
     exec: "echo root3"
   - id: sink
+    depends_on: [root1, root2, root3]
     exec: "echo sink"
-
-flows:
-  - source: root1
-    target: sink
-  - source: root2
-    target: sink
-  - source: root3
-    target: sink
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -149,7 +131,7 @@ flows:
 #[test]
 fn test_successor_tracking() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: successor-test
 description: "Test successor tracking"
 
@@ -157,18 +139,14 @@ tasks:
   - id: A
     exec: "echo A"
   - id: B
+    depends_on: [A]
     exec: "echo B"
   - id: C
+    depends_on: [A]
     exec: "echo C"
-
-flows:
-  - source: A
-    target: B
-  - source: A
-    target: C
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -190,7 +168,7 @@ flows:
 fn test_deep_wide_dag() {
     // Wide and deep DAG
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: deep-wide
 description: "Deep and wide DAG"
 
@@ -200,45 +178,26 @@ tasks:
   - id: L0_B
     exec: "echo L0_B"
   - id: L1_A
+    depends_on: [L0_A]
     exec: "echo L1_A"
   - id: L1_B
+    depends_on: [L0_A, L0_B]
     exec: "echo L1_B"
   - id: L1_C
+    depends_on: [L0_B]
     exec: "echo L1_C"
   - id: L2_A
+    depends_on: [L1_A, L1_B]
     exec: "echo L2_A"
   - id: L2_B
+    depends_on: [L1_B, L1_C]
     exec: "echo L2_B"
   - id: L3_SINK
+    depends_on: [L2_A, L2_B]
     exec: "echo L3_SINK"
-
-flows:
-  # Level 0 -> Level 1
-  - source: L0_A
-    target: L1_A
-  - source: L0_A
-    target: L1_B
-  - source: L0_B
-    target: L1_B
-  - source: L0_B
-    target: L1_C
-  # Level 1 -> Level 2
-  - source: L1_A
-    target: L2_A
-  - source: L1_B
-    target: L2_A
-  - source: L1_B
-    target: L2_B
-  - source: L1_C
-    target: L2_B
-  # Level 2 -> Level 3
-  - source: L2_A
-    target: L3_SINK
-  - source: L2_B
-    target: L3_SINK
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert!(graph.detect_cycles().is_ok());
@@ -263,7 +222,7 @@ fn test_large_dag_50_tasks() {
     // Generate a large DAG with 50 tasks
     let mut yaml = String::from(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: large-dag-50
 description: "50 task DAG stress test"
 
@@ -271,26 +230,22 @@ tasks:
 "#,
     );
 
-    // Create 50 tasks
+    // Create 50 tasks with linear dependencies
     for i in 0..50 {
-        yaml.push_str(&format!(
-            "  - id: task_{}\n    exec: \"echo task_{}\"\n",
-            i, i
-        ));
+        if i == 0 {
+            yaml.push_str(&format!(
+                "  - id: task_{}\n    exec: \"echo task_{}\"\n",
+                i, i
+            ));
+        } else {
+            yaml.push_str(&format!(
+                "  - id: task_{}\n    depends_on: [task_{}]\n    exec: \"echo task_{}\"\n",
+                i, i - 1, i
+            ));
+        }
     }
 
-    yaml.push_str("\nflows:\n");
-
-    // Create linear chain
-    for i in 1..50 {
-        yaml.push_str(&format!(
-            "  - source: task_{}\n    target: task_{}\n",
-            i - 1,
-            i
-        ));
-    }
-
-    let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let workflow = parse_workflow(&yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert_eq!(workflow.tasks.len(), 50);
@@ -306,7 +261,7 @@ fn test_wide_dag_20_parallel() {
     // 20 parallel tasks feeding into one sink
     let mut yaml = String::from(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: wide-dag-20
 description: "20 parallel tasks"
 
@@ -314,21 +269,22 @@ tasks:
 "#,
     );
 
-    // Create 20 parallel tasks
+    // Create 20 parallel tasks (no depends_on)
     for i in 0..20 {
         yaml.push_str(&format!(
             "  - id: parallel_{}\n    exec: \"echo parallel_{}\"\n",
             i, i
         ));
     }
-    yaml.push_str("  - id: sink\n    exec: \"echo sink\"\n");
 
-    yaml.push_str("\nflows:\n");
-    for i in 0..20 {
-        yaml.push_str(&format!("  - source: parallel_{}\n    target: sink\n", i));
-    }
+    // Sink task depends on all parallel tasks
+    let deps: Vec<String> = (0..20).map(|i| format!("parallel_{}", i)).collect();
+    yaml.push_str(&format!(
+        "  - id: sink\n    depends_on: [{}]\n    exec: \"echo sink\"\n",
+        deps.join(", ")
+    ));
 
-    let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let workflow = parse_workflow(&yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     assert_eq!(workflow.tasks.len(), 21);

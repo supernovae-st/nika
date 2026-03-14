@@ -6,11 +6,10 @@
 //! These tests verify the agent: verb works correctly in conversational
 //! scenarios typical of chat interfaces.
 
-use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
-use nika::ast::{AgentParams, Workflow};
+use nika::ast::{parse_workflow, AgentParams};
 use nika::event::{EventKind, EventLog};
 use nika::mcp::McpClient;
 use nika::runtime::RigAgentLoop;
@@ -165,7 +164,7 @@ tasks:
       max_turns: 10
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
     assert_eq!(workflow.tasks[0].id, "chat");
 }
@@ -186,7 +185,7 @@ tasks:
       max_turns: 20
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -204,7 +203,7 @@ tasks:
       max_turns: 5
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -223,7 +222,7 @@ tasks:
       max_turns: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -409,7 +408,7 @@ fn test_agent_spawn_event_parent_tracking() {
 #[test]
 fn test_parse_agent_with_context_binding() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: context-agent
 
 tasks:
@@ -428,14 +427,14 @@ tasks:
       max_turns: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 2);
 }
 
 #[test]
 fn test_parse_chained_agents() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: chained-agents
 
 tasks:
@@ -455,7 +454,7 @@ tasks:
       max_turns: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 2);
 }
 
