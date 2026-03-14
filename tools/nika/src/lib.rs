@@ -50,8 +50,6 @@ pub mod tools;
 
 // Internal modules (only used within the crate)
 pub(crate) mod io;
-pub(crate) mod setup;
-pub(crate) mod sync;
 pub(crate) mod util;
 
 // Feature-gated modules

@@ -155,7 +155,4 @@ pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
 };
 // Progress widgets
-pub use progress::{
-    DownloadProgress, DownloadStatus, EditorSyncState, SyncProgress, SyncStatus, TaskProgress,
-    TaskProgressStatus,
-};
+pub use progress::{DownloadProgress, DownloadStatus, TaskProgress, TaskProgressStatus};

@@ -32,7 +32,6 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::sync::EditorKind;
 
 /// Total number of wizard steps (excluding Complete).
 const WIZARD_STEP_COUNT: usize = 6;
@@ -229,7 +228,7 @@ pub struct WizardState {
     /// Selected model for native inference (if any).
     pub selected_model: Option<String>,
     /// Editors enabled for sync.
-    pub enabled_editors: Vec<EditorKind>,
+    pub enabled_editors: Vec<String>,
     /// MCP servers to configure.
     pub mcp_servers: Vec<String>,
     /// Error messages collected during setup.
@@ -418,20 +417,20 @@ impl WizardState {
     }
 
     /// Enable an editor for sync.
-    pub fn enable_editor(&mut self, editor: EditorKind) {
-        if !self.enabled_editors.contains(&editor) {
-            self.enabled_editors.push(editor);
+    pub fn enable_editor(&mut self, editor: &str) {
+        if !self.enabled_editors.iter().any(|e| e == editor) {
+            self.enabled_editors.push(editor.to_string());
         }
     }
 
     /// Disable an editor for sync.
-    pub fn disable_editor(&mut self, editor: EditorKind) {
-        self.enabled_editors.retain(|&e| e != editor);
+    pub fn disable_editor(&mut self, editor: &str) {
+        self.enabled_editors.retain(|e| e != editor);
     }
 
     /// Check if an editor is enabled.
-    pub fn is_editor_enabled(&self, editor: EditorKind) -> bool {
-        self.enabled_editors.contains(&editor)
+    pub fn is_editor_enabled(&self, editor: &str) -> bool {
+        self.enabled_editors.iter().any(|e| e == editor)
     }
 
     /// Add an error message.
@@ -892,21 +891,21 @@ mod tests {
         let mut state = WizardState::new();
 
         assert!(state.enabled_editors.is_empty());
-        assert!(!state.is_editor_enabled(EditorKind::ClaudeCode));
+        assert!(!state.is_editor_enabled("claude-code"));
 
-        state.enable_editor(EditorKind::ClaudeCode);
-        assert!(state.is_editor_enabled(EditorKind::ClaudeCode));
-        assert!(!state.is_editor_enabled(EditorKind::Cursor));
+        state.enable_editor("claude-code");
+        assert!(state.is_editor_enabled("claude-code"));
+        assert!(!state.is_editor_enabled("cursor"));
 
         // Duplicate not added
-        state.enable_editor(EditorKind::ClaudeCode);
+        state.enable_editor("claude-code");
         assert_eq!(state.enabled_editors.len(), 1);
 
-        state.enable_editor(EditorKind::Cursor);
+        state.enable_editor("cursor");
         assert_eq!(state.enabled_editors.len(), 2);
 
-        state.disable_editor(EditorKind::ClaudeCode);
-        assert!(!state.is_editor_enabled(EditorKind::ClaudeCode));
+        state.disable_editor("claude-code");
+        assert!(!state.is_editor_enabled("claude-code"));
         assert_eq!(state.enabled_editors.len(), 1);
     }
 
