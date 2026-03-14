@@ -97,6 +97,8 @@ mod tests {
             for_each: None,
             retry: None,
             decompose: None,
+            concurrency: None,
+            fail_fast: None,
             artifact: None,
             log: None,
             structured: None,
