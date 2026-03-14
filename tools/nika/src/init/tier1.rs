@@ -143,10 +143,10 @@ tasks:
     exec:
       command: 'echo "App: $APP_NAME v$APP_VERSION (env: $NODE_ENV)"'
       shell: true
-      # NEW in v0.22: Environment variables for this command
+      # Environment variables for this command
       env:
         APP_NAME: "Nika"
-        APP_VERSION: "0.22.0"
+        APP_VERSION: "0.27.0"
         NODE_ENV: "production"
         DEBUG: "false"
 
@@ -321,16 +321,16 @@ tasks:
       body: '{"message": "Hello from Nika!", "ip": "{{use.my_ip}}", "nested": {"key": "value", "number": 42}}'
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # POST WITH JSON (Auto-serialized) - NEW in v0.22!
+  # POST WITH JSON (Auto-serialized)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: post_json_auto
     fetch:
       url: "https://httpbin.org/post"
       method: POST
-      # NEW in v0.22: json: auto-serializes and sets Content-Type header!
+      # json: auto-serializes and sets Content-Type header
       # No need to manually stringify or set Content-Type!
       json:
-        message: "Hello from Nika v0.22!"
+        message: "Hello from Nika!"
         features:
           - "auto-serialization"
           - "automatic Content-Type header"
@@ -383,7 +383,7 @@ tasks:
         echo "📤 POST /post (with body: string):"
         echo "{{use.post_result}}" | head -8
         echo ""
-        echo "🆕 POST /post (with json: auto-serialized - v0.22!):"
+        echo "🆕 POST /post (with json: auto-serialized):"
         echo "{{use.post_json_result}}" | head -8
         echo ""
         echo "🔐 GET /bearer (with auth):"
