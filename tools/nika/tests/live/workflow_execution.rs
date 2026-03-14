@@ -3,8 +3,7 @@
 //!
 //! These tests execute real workflow files with actual API calls.
 
-use nika::ast::Workflow;
-use nika::serde_yaml;
+use nika::ast::parse_workflow;
 use std::env;
 use std::path::PathBuf;
 
@@ -158,7 +157,7 @@ fn test_all_example_workflows_parse() {
                 }
             };
 
-            match serde_yaml::from_str::<Workflow>(&content) {
+            match parse_workflow(&content) {
                 Ok(_) => {
                     parsed += 1;
                 }

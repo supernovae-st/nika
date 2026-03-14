@@ -3,9 +3,8 @@
 //! These are quick inline benchmarks for development.
 //! For detailed benchmarks, use the Criterion benchmarks in benches/
 
-use nika::ast::Workflow;
+use nika::ast::parse_workflow;
 use nika::dag::Dag;
-use nika::serde_yaml;
 use std::time::Instant;
 
 // ============================================================================
@@ -28,7 +27,7 @@ tasks:
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _: Workflow = serde_yaml::from_str(yaml).unwrap();
+        let _ = parse_workflow(yaml).unwrap();
     }
 
     let elapsed = start.elapsed();
@@ -81,7 +80,7 @@ tasks:
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _: Workflow = serde_yaml::from_str(&yaml).unwrap();
+        let _ = parse_workflow(&yaml).unwrap();
     }
 
     let elapsed = start.elapsed();
@@ -126,7 +125,7 @@ flows:
     target: C
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     let iterations = 10000;
     let start = Instant::now();
@@ -181,7 +180,7 @@ tasks:
         ));
     }
 
-    let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let workflow = parse_workflow(&yaml).unwrap();
 
     let iterations = 1000;
     let start = Instant::now();
@@ -244,7 +243,7 @@ tasks:
         }
     }
 
-    let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let workflow = parse_workflow(&yaml).unwrap();
     let graph = Dag::from_workflow(&workflow).unwrap();
 
     let iterations = 10000;
@@ -292,7 +291,7 @@ tasks:
       method: GET
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     // Approximate memory size
     let size = std::mem::size_of_val(&workflow);
@@ -345,7 +344,7 @@ tasks:
   - id: t1
     exec: "echo"
 "#;
-    let _: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let _ = parse_workflow(yaml).unwrap();
 }
 
 fn benchmark_parse_complex() {
@@ -353,12 +352,12 @@ fn benchmark_parse_complex() {
     for i in 0..50 {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"echo\"\n", i));
     }
-    let _: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let _ = parse_workflow(&yaml).unwrap();
 }
 
 fn benchmark_dag_small() {
     let yaml = "schema: \"nika/workflow@0.5\"\nworkflow: b\ntasks:\n  - id: a\n    exec: \"e\"\n";
-    let w: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let w = parse_workflow(yaml).unwrap();
     let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
@@ -368,7 +367,7 @@ fn benchmark_dag_large() {
     for i in 0..100 {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"e\"\n", i));
     }
-    let w: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let w = parse_workflow(&yaml).unwrap();
     let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
@@ -382,7 +381,7 @@ fn benchmark_cycle_detect() {
     for i in 1..50 {
         yaml.push_str(&format!("  - source: t{}\n    target: t{}\n", i - 1, i));
     }
-    let w: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let w = parse_workflow(&yaml).unwrap();
     let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
