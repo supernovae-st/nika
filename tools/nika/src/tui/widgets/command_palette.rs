@@ -203,9 +203,9 @@ pub struct CommandPaletteState {
     pub recent: Vec<String>,
     /// Is palette visible
     pub visible: bool,
-    /// v0.8.2: Parsed argument when command is detected (e.g., "novanet_describe" from "/invoke novanet_describe")
+    /// Parsed argument when command is detected (e.g., "novanet_describe" from "/invoke novanet_describe")
     pub argument: Option<String>,
-    /// v0.8.2: Whether a command was auto-detected from input
+    /// Whether a command was auto-detected from input
     pub command_locked: bool,
 }
 
@@ -258,9 +258,9 @@ impl CommandPaletteState {
     }
 
     /// Update filtered results based on query
-    /// v0.8.2: Also detects complete commands with arguments (e.g., "/invoke novanet_describe")
+    /// Also detects complete commands with arguments (e.g., "/invoke novanet_describe")
     pub fn update_filter(&mut self) {
-        // v0.8.2: Check if query contains a complete slash command with argument
+        // Check if query contains a complete slash command with argument
         // e.g., "/invoke novanet_describe" -> command="invoke", argument="novanet_describe"
         if !self.command_locked && self.query.starts_with('/') {
             if let Some(space_pos) = self.query.find(' ') {
@@ -326,7 +326,7 @@ impl CommandPaletteState {
         self.selected = 0;
     }
 
-    /// v0.8.2: Set full query (for paste operations)
+    /// Set full query (for paste operations)
     /// Parses "/command argument" syntax and auto-selects the command
     pub fn set_query(&mut self, query: &str) {
         self.query = query.to_string();
@@ -335,7 +335,7 @@ impl CommandPaletteState {
         self.update_filter();
     }
 
-    /// v0.8.2: Get the parsed argument (if any)
+    /// Get the parsed argument (if any)
     pub fn get_argument(&self) -> Option<&str> {
         self.argument.as_deref()
     }
@@ -382,7 +382,7 @@ impl CommandPaletteState {
     }
 
     /// Input a character
-    /// v0.8.2: When command is locked, characters are added to the argument
+    /// When command is locked, characters are added to the argument
     pub fn input_char(&mut self, c: char) {
         if self.command_locked {
             // When command is locked, add to argument instead of query
@@ -398,7 +398,7 @@ impl CommandPaletteState {
     }
 
     /// Delete last character
-    /// v0.8.2: When command is locked, delete from argument; if argument empty, unlock
+    /// When command is locked, delete from argument; if argument empty, unlock
     pub fn backspace(&mut self) {
         if self.command_locked {
             // When command is locked, delete from argument
@@ -486,7 +486,7 @@ impl Widget for CommandPalette<'_> {
         block.render(palette_area, buf);
 
         // Search input
-        // v0.8.2: Show command + argument when command is locked
+        // Show command + argument when command is locked
         let cursor = if self.state.visible { "_" } else { "" };
         let input_line = if self.state.command_locked {
             // Show locked command + argument
@@ -497,7 +497,7 @@ impl Widget for CommandPalette<'_> {
             let cmd_id = selected_cmd.map(|c| c.id.as_str()).unwrap_or("");
             let arg = self.state.argument.as_deref().unwrap_or("");
 
-            // v0.8.2: Use verb color for verb commands (animated + bold)
+            // Use verb color for verb commands (animated + bold)
             let cmd_style = if let Some(verb_color) = verb_color_for_command(cmd_id) {
                 Style::default()
                     .fg(verb_color.animated(self.frame))
@@ -570,7 +570,7 @@ impl Widget for CommandPalette<'_> {
             }
 
             // Icon and label
-            // v0.8.2: Verb commands get animated colors
+            // Verb commands get animated colors
             let (label_style, icon_style) =
                 if let Some(verb_color) = verb_color_for_command(&cmd.id) {
                     let animated_color = verb_color.animated(self.frame);

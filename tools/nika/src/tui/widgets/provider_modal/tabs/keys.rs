@@ -72,11 +72,11 @@ impl ProviderKeyEntry {
 
     /// Detect key state from keyring (priority) or environment
     ///
-    /// v0.12.2: Keyring is checked FIRST, env var is fallback
-    /// v0.11.0: Returns Stored for keyring keys, Configured for env var keys
+    /// Keyring is checked FIRST, env var is fallback
+    /// Returns Stored for keyring keys, Configured for env var keys
     fn detect_state(provider: &str) -> ApiKeyState {
         // Priority 1: Check keyring
-        // v0.11.0: Use Stored variant to indicate secure keyring storage
+        // Use Stored variant to indicate secure keyring storage
         if let Ok(key) = NikaKeyring::get(provider) {
             return ApiKeyState::Stored {
                 masked: mask_api_key(&key),
@@ -84,7 +84,7 @@ impl ProviderKeyEntry {
         }
 
         // Priority 2: Check env var fallback
-        // v0.11.0: Use Configured variant to indicate session-based env var
+        // Use Configured variant to indicate session-based env var
         let env_var = provider_env_var(provider);
         match std::env::var(env_var) {
             Ok(key) if !key.is_empty() => ApiKeyState::Configured {
@@ -211,7 +211,7 @@ impl Widget for KeysTab<'_> {
                 ApiKeyState::Saving { .. } => ("⏳", COLOR_STATUS_SAVING),
                 ApiKeyState::Testing { .. } => ("⠹", COLOR_STATUS_TESTING),
                 ApiKeyState::Configured { .. } => ("●", COLOR_STATUS_SUCCESS),
-                ApiKeyState::Stored { .. } => ("🔐", COLOR_STATUS_SUCCESS), // v0.11.0: Keyring
+                ApiKeyState::Stored { .. } => ("🔐", COLOR_STATUS_SUCCESS), // Keyring
                 ApiKeyState::Verified { .. } => ("✓", COLOR_STATUS_SUCCESS),
                 ApiKeyState::Invalid { .. } => ("✗", COLOR_STATUS_ERROR),
             };
@@ -221,8 +221,8 @@ impl Widget for KeysTab<'_> {
                 ApiKeyState::NotConfigured => "Not configured".to_string(),
                 ApiKeyState::Saving { masked } => format!("{} Saving...", masked),
                 ApiKeyState::Testing { masked } => format!("{} Testing...", masked),
-                ApiKeyState::Configured { masked } => format!("{} (env)", masked), // v0.11.0: Clarify source
-                ApiKeyState::Stored { masked } => format!("{} (keyring)", masked), // v0.11.0: Keyring
+                ApiKeyState::Configured { masked } => format!("{} (env)", masked), // Clarify source
+                ApiKeyState::Stored { masked } => format!("{} (keyring)", masked), // Keyring
                 ApiKeyState::Verified { masked, latency_ms } => {
                     format!("{} ({}ms)", masked, latency_ms)
                 }

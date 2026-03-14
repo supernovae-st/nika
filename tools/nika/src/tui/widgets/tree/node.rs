@@ -183,7 +183,7 @@ impl TreeNode {
         }
 
         // If directory and under max depth, populate children
-        // v0.21.2 PERF FIX: Skip loading children for heavy directories (target/, node_modules/, etc.)
+        // PERF FIX: Skip loading children for heavy directories (target/, node_modules/, etc.)
         // These directories can contain thousands of files and cause multi-second startup delays.
         // The directories are still shown in the tree but collapsed with no children loaded.
         let is_heavy_dir = HEAVY_DIRECTORIES.contains(&node.name.as_str());

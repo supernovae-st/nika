@@ -196,7 +196,7 @@ impl<'a> TreeWidget<'a> {
             }
         }
 
-        // v0.22: Extra padding after tree lines for cleaner VS Code-like spacing
+        // Extra padding after tree lines for cleaner VS Code-like spacing
         spans.push(Span::raw(" "));
 
         // Folder expand/collapse indicator

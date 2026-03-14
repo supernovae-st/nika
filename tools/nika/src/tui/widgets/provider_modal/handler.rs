@@ -88,7 +88,7 @@ impl ModalEventHandler {
             return Self::handle_input_mode(state, key);
         }
 
-        // v0.8.95: In expanded provider mode, handle model selection
+        // In expanded provider mode, handle model selection
         if state.is_provider_expanded() {
             return Self::handle_expanded_mode(state, key);
         }
@@ -182,7 +182,7 @@ impl ModalEventHandler {
         }
     }
 
-    /// v0.8.95: Handle expanded provider mode (model selection)
+    /// Handle expanded provider mode (model selection)
     fn handle_expanded_mode(state: &mut ProviderModalState, key: KeyEvent) -> HandleResult {
         let providers = ProviderInfo::all_providers();
         let provider_idx = state.expanded_provider_idx.unwrap_or(0);
@@ -313,7 +313,7 @@ impl ModalEventHandler {
                 HandleResult::consumed()
             }
             ProviderModalTab::Cloud => {
-                // v0.8.95: Enter now expands the provider to show model list
+                // Enter now expands the provider to show model list
                 // (Space also expands, Enter then selects from the expanded list)
                 state.expand_selected_provider();
                 HandleResult::consumed()
@@ -629,7 +629,7 @@ mod tests {
         let result = ModalEventHandler::handle(&mut state, key_event(KeyCode::Enter));
 
         assert!(result.consumed);
-        // v0.8.95: Enter now expands the provider to show model list
+        // Enter now expands the provider to show model list
         assert!(result.action.is_none());
         assert!(state.is_provider_expanded());
         assert_eq!(state.expanded_provider_idx, Some(1));

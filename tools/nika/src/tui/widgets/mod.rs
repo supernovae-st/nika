@@ -13,7 +13,7 @@
 //! - Header: Top header with view title and navigation hints
 
 // Allow unused code in widgets - many are planned for future TUI enhancements
-// v0.22: Kept blanket allow - 40+ widgets in pre-built library
+// Kept blanket allow - 40+ widgets in pre-built library
 #![allow(dead_code)]
 
 mod activity_stack;
@@ -56,10 +56,10 @@ pub mod tree;
 mod verb_input;
 mod which_key;
 
-// v0.22: Shared panel components for view composition
+// Shared panel components for view composition
 pub mod panels;
 
-// v0.27: Progress widgets for M5 UX Polish
+// Progress widgets for M5 UX Polish
 pub mod progress;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
@@ -122,7 +122,6 @@ pub use mention_system::{
     MentionTrigger, MentionType,
 };
 // Agent steps for Claude Code-like feedback
-// v0.8.1: Added AgentPhase and AgentPhaseIndicator for real-time status
 pub use agent_steps::{
     AgentPhase, AgentPhaseIndicator, AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus,
     TokenUsage, ToolCallMetadata,

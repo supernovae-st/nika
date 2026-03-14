@@ -221,7 +221,7 @@ pub struct MissionControlPanel<'a> {
     turn_metrics: TurnMetrics,
     /// Is panel focused
     focused: bool,
-    /// v0.8.1: Activity items (hot/warm/queued)
+    /// Activity items (hot/warm/queued)
     activities: &'a [ActivityItem],
     /// Animation frame for spinners
     frame: u8,
@@ -281,13 +281,13 @@ impl<'a> MissionControlPanel<'a> {
         self
     }
 
-    /// v0.8.1: Set activity items (hot/warm/queued tasks)
+    /// Set activity items (hot/warm/queued tasks)
     pub fn activities(mut self, activities: &'a [ActivityItem]) -> Self {
         self.activities = activities;
         self
     }
 
-    /// v0.8.1: Set animation frame for spinners
+    /// Set animation frame for spinners
     pub fn frame(mut self, frame: u8) -> Self {
         self.frame = frame;
         self
@@ -540,7 +540,7 @@ impl<'a> MissionControlPanel<'a> {
         para.render(area, buf);
     }
 
-    /// v0.8.1: Render activity section (hot/warm/queued tasks)
+    /// Render activity section (hot/warm/queued tasks)
     fn render_activity_section(&self, area: Rect, buf: &mut Buffer) {
         let header = self.color_header();
         let muted = self.color_muted();
@@ -664,7 +664,7 @@ fn format_cost(cost: f64) -> String {
 
 impl Widget for MissionControlPanel<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // v0.12.1: Minimum height guard to prevent rendering issues
+        // Minimum height guard to prevent rendering issues
         // Need at least: border (2) + 1 section header + 1 content line = 4 lines minimum
         if area.height < 4 {
             // Too small to render - just show border with ellipsis
@@ -721,7 +721,7 @@ impl Widget for MissionControlPanel<'_> {
         self.render_mcp_section(sections[0], buf);
         self.render_context_section(sections[1], buf);
         self.render_memory_section(sections[2], buf);
-        self.render_activity_section(sections[3], buf); // v0.8.1
+        self.render_activity_section(sections[3], buf);
         self.render_runtime_section(sections[4], buf);
     }
 }

@@ -170,7 +170,7 @@ impl ChatTaskQueueItem {
         self.started_at
     }
 
-    // v0.10.0: Mutable setters for ChatView integration
+    // Mutable setters for ChatView integration
     /// Set the task state (mutable)
     pub fn set_state(&mut self, state: ChatTaskState) {
         self.state = state;

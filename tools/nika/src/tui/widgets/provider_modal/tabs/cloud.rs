@@ -286,7 +286,7 @@ impl Widget for CloudTab<'_> {
             .split(area);
 
         for (row_idx, row_area) in rows.iter().enumerate() {
-            // v0.27: 3 providers per row (2x3 grid)
+            // 3 providers per row (2x3 grid)
             let num_cols = 3;
             let cols = Layout::default()
                 .direction(Direction::Horizontal)
@@ -294,12 +294,12 @@ impl Widget for CloudTab<'_> {
                 .split(*row_area);
 
             for (col_idx, col_area) in cols.iter().enumerate() {
-                // v0.27: Row 0 has 3 providers (0-2), row 1 has 3 providers (3-5)
+                // Row 0 has 3 providers (0-2), row 1 has 3 providers (3-5)
                 let provider_idx = row_idx * 3 + col_idx;
                 if provider_idx < self.providers.len() {
                     let p = &self.providers[provider_idx];
 
-                    // v0.8.95: Check if this provider is expanded (showing model list)
+                    // Check if this provider is expanded (showing model list)
                     let is_expanded = self.state.is_provider_idx_expanded(provider_idx);
 
                     // Determine card style based on selection AND active status
@@ -313,10 +313,10 @@ impl Widget for CloudTab<'_> {
                         (false, false) => CardStyle::Normal,
                     };
 
-                    // v0.8.9: Get latency history for sparkline
+                    // Get latency history for sparkline
                     let latency_history = self.state.get_latency_history(provider_idx);
 
-                    // v0.8.9: Get verification entry for Matrix effect
+                    // Get verification entry for Matrix effect
                     let verify_entry = if self.state.verification_active {
                         self.state.verification_state.entries.get(provider_idx)
                     } else {
@@ -338,7 +338,7 @@ impl Widget for CloudTab<'_> {
 
                     card.render(*col_area, buf);
 
-                    // v0.8.95: Render model list overlay if expanded
+                    // Render model list overlay if expanded
                     if is_expanded {
                         Self::render_model_list(
                             buf,
@@ -354,7 +354,7 @@ impl Widget for CloudTab<'_> {
 }
 
 impl CloudTab<'_> {
-    /// v0.8.95: Render model list overlay on top of provider card
+    /// Render model list overlay on top of provider card
     fn render_model_list(buf: &mut Buffer, area: Rect, models: &[ModelInfo], selected_idx: usize) {
         use ratatui::style::{Modifier, Style};
 

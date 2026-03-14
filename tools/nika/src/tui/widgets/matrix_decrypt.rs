@@ -352,7 +352,7 @@ impl<'a> MatrixDecrypt<'a> {
     fn random_glyph(&self, rng: &mut SmallRng) -> DecryptGlyph {
         let roll: f32 = rng.gen();
 
-        // v0.8.1 TRUE Matrix-style: katakana-dominant, minimal emojis
+        // TRUE Matrix-style: katakana-dominant, minimal emojis
         if roll < 0.35 {
             // 35% - ASCII characters (monospace)
             let chars: &[char] = &[
@@ -429,7 +429,7 @@ impl<'a> MatrixDecrypt<'a> {
 
                 // Chaos color (dimmer, different hue)
                 let chaos_color = self.chaos_color(&mut char_rng);
-                // v0.8.1: 100% opacity - no DIM modifier for vibrant chaos
+                // 100% opacity - no DIM modifier for vibrant chaos
                 let style = Style::default().fg(chaos_color);
 
                 spans.push(Span::styled(glyph.as_str(), style));
@@ -510,9 +510,9 @@ impl Default for StreamingDecrypt {
             frame: 0,
             verb: DecryptVerb::default(),
             seed: 42,
-            reveal_speed: 0.025, // v0.8.1: Slower reveal (~40 frames = 667ms at 60fps)
-            wave_factor: 0.15,   // v0.8.1: Cascade effect - later chars reveal slower
-            initial_chaos_frames: 8, // v0.8.1: ~130ms of visible chaos before reveal
+            reveal_speed: 0.025, // Slower reveal (~40 frames = 667ms at 60fps)
+            wave_factor: 0.15, // Cascade effect - later chars reveal slower
+            initial_chaos_frames: 8, // ~130ms of visible chaos before reveal
             is_complete: false,
         }
     }
@@ -566,7 +566,7 @@ impl StreamingDecrypt {
     }
 
     /// Advance animation frame and reveal progress
-    /// v0.8.1: Implements cascade effect and initial chaos delay
+    /// Implements cascade effect and initial chaos delay
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
 
@@ -698,7 +698,7 @@ impl StreamingDecrypt {
                     solarized::RED,
                 ];
                 let chaos_color = colors[char_rng.gen_range(0..colors.len())];
-                // v0.8.1: 100% opacity - no DIM modifier for vibrant chaos
+                // 100% opacity - no DIM modifier for vibrant chaos
                 let style = Style::default().fg(chaos_color);
 
                 spans.push(Span::styled(glyph, style));
@@ -855,7 +855,7 @@ impl StreamingDecrypt {
                     solarized::RED,
                 ];
                 let chaos_color = colors[char_rng.gen_range(0..colors.len())];
-                // v0.8.1: 100% opacity - no DIM modifier for vibrant chaos
+                // 100% opacity - no DIM modifier for vibrant chaos
                 let style = Style::default().fg(chaos_color);
                 spans.push(Span::styled(glyph, style));
             }
@@ -865,7 +865,7 @@ impl StreamingDecrypt {
     }
 
     /// Generate a random chaos glyph (static version for build_line)
-    /// v0.8.1: TRUE Matrix-style - katakana-dominant, Nika mascots only
+    /// TRUE Matrix-style - katakana-dominant, Nika mascots only
     fn random_glyph_static(rng: &mut SmallRng) -> String {
         let roll: f32 = rng.gen();
 
@@ -1112,7 +1112,7 @@ mod tests {
 
     #[test]
     fn test_streaming_decrypt_tick() {
-        // v0.8.1: Need to skip initial chaos frames before reveal starts
+        // Need to skip initial chaos frames before reveal starts
         let mut stream = StreamingDecrypt::new()
             .with_reveal_speed(0.5)
             .with_initial_chaos(0) // Disable chaos delay for this test
@@ -1222,7 +1222,7 @@ mod tests {
         let mut multi = MultiLineDecrypt::new().with_reveal_speed(1.0); // Fast reveal
         multi.push_text("A\nB");
 
-        // v0.8.1: Need multiple ticks due to initial chaos delay (default 8 frames)
+        // Need multiple ticks due to initial chaos delay (default 8 frames)
         // Tick enough times to pass chaos delay + reveal
         for _ in 0..15 {
             multi.tick();

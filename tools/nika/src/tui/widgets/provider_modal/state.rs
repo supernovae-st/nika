@@ -33,7 +33,7 @@ pub struct NativeModelDetails {
 pub enum ProviderModalTab {
     #[default]
     Cloud,
-    /// v0.27: Native local inference (was Native)
+    /// Native local inference (was Native)
     Native,
     Keys,
     Config,
@@ -154,7 +154,7 @@ impl ApiKeyState {
             Self::Saving { .. } => "⏳",
             Self::Testing { .. } => "⠹",
             Self::Configured { .. } => "✓",
-            Self::Stored { .. } => "🔐", // v0.11.0: Keyring stored
+            Self::Stored { .. } => "🔐", // Keyring stored
             Self::Verified { .. } => "✓",
             Self::Invalid { .. } => "✗",
         }
@@ -247,21 +247,21 @@ pub struct ProviderModalState {
     pub active_model: Option<String>,
     /// Animation frame counter for active provider cycling effect
     pub animation_frame: u8,
-    /// v0.8.9: Cached cloud tab label to avoid allocation per frame
+    /// Cached cloud tab label to avoid allocation per frame
     cached_cloud_label: Option<String>,
-    /// v0.8.9: Latency history per provider (6 providers × 10 samples)
+    /// Latency history per provider (6 providers × 10 samples)
     latency_history: Vec<Vec<u64>>,
-    /// v0.8.9: Matrix verification effect state
+    /// Matrix verification effect state
     pub verification_state: super::components::VerificationState,
-    /// v0.8.9: Whether verification animation is active
+    /// Whether verification animation is active
     pub verification_active: bool,
-    /// v0.8.95: Expanded provider index (for model selection)
+    /// Expanded provider index (for model selection)
     pub expanded_provider_idx: Option<usize>,
-    /// v0.8.95: Selected model index within expanded provider
+    /// Selected model index within expanded provider
     pub model_selection_idx: usize,
-    /// v0.9.5: Session token count (wired from ChatView)
+    /// Session token count (wired from ChatView)
     session_tokens: u64,
-    /// v0.9.5: MCP connection count (wired from ChatView)
+    /// MCP connection count (wired from ChatView)
     mcp_connections: usize,
 }
 
@@ -481,7 +481,7 @@ impl ProviderModalState {
     /// Set the active model name
     pub fn set_active_model(&mut self, model: impl Into<String>) {
         self.active_model = Some(model.into());
-        // v0.8.9: Invalidate cached label on model change
+        // Invalidate cached label on model change
         self.cached_cloud_label = None;
     }
 
@@ -489,7 +489,7 @@ impl ProviderModalState {
     pub fn tick_animation(&mut self) {
         self.animation_frame = self.animation_frame.wrapping_add(1);
 
-        // v0.8.9: Also tick verification animation if active
+        // Also tick verification animation if active
         if self.verification_active {
             self.verification_state.tick();
 
@@ -500,13 +500,13 @@ impl ProviderModalState {
         }
     }
 
-    /// v0.8.9: Start verification animation (reset and activate)
+    /// Start verification animation (reset and activate)
     pub fn start_verification(&mut self) {
         self.verification_state.reset();
         self.verification_active = true;
     }
 
-    /// v0.8.9: Update verification entry when provider status changes
+    /// Update verification entry when provider status changes
     pub fn sync_verification_status(&mut self, index: usize) {
         use super::components::VerifyStatus;
 
@@ -522,7 +522,7 @@ impl ProviderModalState {
         }
     }
 
-    /// v0.8.9: Sync all verification statuses from provider_statuses
+    /// Sync all verification statuses from provider_statuses
     pub fn sync_all_verification_statuses(&mut self) {
         for i in 0..6 {
             self.sync_verification_status(i);
@@ -537,7 +537,7 @@ impl ProviderModalState {
     }
 
     /// Get cloud tab label, cached to avoid format! work per frame
-    /// v0.8.9: Returns clone of cached string, recomputed only when model changes
+    /// Returns clone of cached string, recomputed only when model changes
     pub fn cloud_tab_label(&mut self) -> String {
         if self.cached_cloud_label.is_none() {
             let label = if let Some(ref model) = self.active_model {
@@ -558,7 +558,7 @@ impl ProviderModalState {
     }
 
     /// Get Native tab label with model count
-    /// v0.8.9: Shows number of available models
+    /// Shows number of available models
     pub fn native_tab_label(&self) -> String {
         let count = self.native_models.len();
         if count > 0 {
@@ -569,7 +569,7 @@ impl ProviderModalState {
     }
 
     /// Get Keys tab label with status indicators
-    /// v0.8.9: Shows ✓ for configured keys, ✗ for missing
+    /// Shows ✓ for configured keys, ✗ for missing
     pub fn keys_tab_label(&self) -> String {
         // Count configured vs missing keys from provider statuses
         let configured: usize = self
@@ -598,9 +598,9 @@ impl ProviderModalState {
 
     /// Update provider status by index
     ///
-    /// v0.27: Guard against invalid index (max 5 for 6 cloud providers)
-    /// v0.8.9: Automatically pushes latency to history when Connected
-    /// v0.8.9: Syncs verification animation status
+    /// Guard against invalid index (max 5 for 6 cloud providers)
+    /// Automatically pushes latency to history when Connected
+    /// Syncs verification animation status
     pub fn set_provider_status(&mut self, index: usize, status: ConnectionStatus) {
         // Guard against unbounded growth (6 cloud providers: 0-5)
         if index >= 6 {
@@ -615,19 +615,19 @@ impl ProviderModalState {
             self.provider_statuses.push(ConnectionStatus::Unknown);
         }
 
-        // v0.8.9: Push latency to history when connected
+        // Push latency to history when connected
         if let ConnectionStatus::Connected { latency_ms } = &status {
             self.push_latency(index, *latency_ms);
         }
 
         self.provider_statuses[index] = status;
 
-        // v0.8.9: Sync verification animation status
+        // Sync verification animation status
         self.sync_verification_status(index);
     }
 
     /// Update provider status by name (6 cloud providers only)
-    /// v0.27: Native is handled separately via native_models
+    /// Native is handled separately via native_models
     pub fn set_provider_status_by_name(&mut self, name: &str, status: ConnectionStatus) {
         let index = match name.to_lowercase().as_str() {
             "anthropic" | "claude" => 0,
@@ -636,7 +636,7 @@ impl ProviderModalState {
             "groq" => 3,
             "deepseek" => 4,
             "gemini" => 5,
-            // v0.27: Native is not a cloud provider, handled separately
+            // Native is not a cloud provider, handled separately
             _ => return,
         };
         self.set_provider_status(index, status);
@@ -663,9 +663,9 @@ impl ProviderModalState {
             .any(|s| matches!(s, ConnectionStatus::Connected { .. }))
     }
 
-    /// v0.8.9: Push a latency sample to history for a provider
+    /// Push a latency sample to history for a provider
     /// Maintains a rolling window of LATENCY_HISTORY_MAX samples
-    /// v0.27: Updated guard for 6 cloud providers (0-5)
+    /// Updated guard for 6 cloud providers (0-5)
     pub fn push_latency(&mut self, index: usize, latency_ms: u64) {
         if index >= 6 {
             return;
@@ -682,8 +682,8 @@ impl ProviderModalState {
         history.push(latency_ms);
     }
 
-    /// v0.8.9: Push latency by provider name
-    /// v0.21.2: Fixed Gemini (index 5) + Native (index 6) mapping
+    /// Push latency by provider name
+    /// Fixed Gemini (index 5) + Native (index 6) mapping
     pub fn push_latency_by_name(&mut self, name: &str, latency_ms: u64) {
         let index = match name.to_lowercase().as_str() {
             "anthropic" | "claude" => 0,
@@ -698,7 +698,7 @@ impl ProviderModalState {
         self.push_latency(index, latency_ms);
     }
 
-    /// v0.8.9: Get latency history for a provider (for sparkline)
+    /// Get latency history for a provider (for sparkline)
     pub fn get_latency_history(&self, index: usize) -> &[u64] {
         self.latency_history
             .get(index)
@@ -706,7 +706,7 @@ impl ProviderModalState {
             .unwrap_or(&[])
     }
 
-    /// v0.8.9: Compute session statistics for footer display
+    /// Compute session statistics for footer display
     pub fn get_session_stats(&self) -> super::components::SessionStats {
         use super::components::SessionStats;
 
@@ -750,7 +750,7 @@ impl ProviderModalState {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.9.5: Session Stats Wiring Methods
+    // Session Stats Wiring Methods
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Set session token count (wired from ChatView.total_tokens())
@@ -764,7 +764,7 @@ impl ProviderModalState {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.8.95: Model Expand/Collapse Methods
+    // Model Expand/Collapse Methods
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Check if a provider is currently expanded
@@ -1199,7 +1199,7 @@ mod tests {
         state
             .set_provider_status_by_name("deepseek", ConnectionStatus::Connected { latency_ms: 5 });
         state.set_provider_status_by_name("gemini", ConnectionStatus::Connected { latency_ms: 6 });
-        // v0.27: Native is not a cloud provider, handled separately
+        // Native is not a cloud provider, handled separately
 
         assert_eq!(state.provider_statuses.len(), 6);
     }
@@ -1208,7 +1208,7 @@ mod tests {
     fn test_get_provider_statuses_returns_6() {
         let state = ProviderModalState::default();
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 6); // v0.27: 6 cloud providers
+        assert_eq!(statuses.len(), 6); // 6 cloud providers
                                        // All should be Unknown by default
         assert!(statuses
             .iter()
@@ -1222,7 +1222,7 @@ mod tests {
         state.set_provider_status(2, ConnectionStatus::Checking);
 
         let statuses = state.get_provider_statuses();
-        assert_eq!(statuses.len(), 6); // v0.27: 6 cloud providers
+        assert_eq!(statuses.len(), 6); // 6 cloud providers
         assert!(matches!(statuses[0], ConnectionStatus::Connected { .. }));
         assert!(matches!(statuses[1], ConnectionStatus::Unknown));
         assert!(matches!(statuses[2], ConnectionStatus::Checking));
@@ -1434,11 +1434,11 @@ mod tests {
         assert!(state.keys_tab_label().contains("2/6"));
     }
 
-    // v0.8.9: Latency history tests
+    // Latency history tests
     #[test]
     fn test_latency_history_default_empty() {
         let state = ProviderModalState::default();
-        assert_eq!(state.latency_history.len(), 6); // v0.27: 6 cloud providers
+        assert_eq!(state.latency_history.len(), 6); // 6 cloud providers
         for history in &state.latency_history {
             assert!(history.is_empty());
         }
@@ -1544,7 +1544,7 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 0);
-        assert_eq!(stats.total_providers, 6); // v0.27: 6 cloud providers
+        assert_eq!(stats.total_providers, 6); // 6 cloud providers
         assert_eq!(stats.tokens_used, 0);
         assert!(stats.avg_latency_ms.is_none());
     }
@@ -1559,12 +1559,12 @@ mod tests {
         let stats = state.get_session_stats();
 
         assert_eq!(stats.connected_providers, 2);
-        assert_eq!(stats.total_providers, 6); // v0.27: 6 cloud providers
+        assert_eq!(stats.total_providers, 6); // 6 cloud providers
                                               // Average of 100 and 200 is 150
         assert_eq!(stats.avg_latency_ms, Some(150));
     }
 
-    // v0.8.9: Verification state tests
+    // Verification state tests
     #[test]
     fn test_verification_state_default() {
         let state = ProviderModalState::default();

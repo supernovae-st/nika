@@ -54,7 +54,7 @@ pub enum BrowserAction {
 
 /// Browser Panel - Reusable file browser component
 ///
-/// v0.22: Extracted from StudioView for sharing between Studio and Runner views.
+/// Extracted from StudioView for sharing between Studio and Runner views.
 /// Each view provides its own `on_select` behavior.
 pub struct BrowserPanel {
     // === Core State ===
@@ -228,11 +228,11 @@ impl BrowserPanel {
             Style::default().fg(theme.border_normal)
         };
 
-        // v0.22: Focus indicator and breadcrumb in title
+        // Focus indicator and breadcrumb in title
         let focus_indicator = if is_focused { "●" } else { " " };
         let breadcrumb = self.breadcrumb();
 
-        // v0.22: Show filter badge when filtering is active
+        // Show filter badge when filtering is active
         let filter_badge = match self.filter_config.filter {
             TreeFilter::WorkflowsOnly => " [W]",
             TreeFilter::All => "",
@@ -249,7 +249,7 @@ impl BrowserPanel {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // v0.22: Split into Quick Access (top) + Tree (bottom)
+        // Split into Quick Access (top) + Tree (bottom)
         let quick_access_height = if self.quick_access.is_empty() {
             0
         } else {

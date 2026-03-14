@@ -1219,7 +1219,7 @@ impl AgentStepGroup {
 
 /// Widget to render agent steps (Claude Code-like)
 ///
-/// v0.9.1+: Theme-aware widget with colors from Theme struct.
+/// Theme-aware widget with colors from Theme struct.
 pub struct AgentStepsWidget<'a> {
     group: &'a AgentStepGroup,
     theme: &'a Theme,
@@ -2496,7 +2496,7 @@ mod tests {
         assert_eq!(AgentPhase::Processing.label(), "Processing");
         assert_eq!(AgentPhase::Inferring.label(), "Inferring");
         assert_eq!(AgentPhase::Composing.label(), "Composing");
-        assert_eq!(AgentPhase::Streaming.label(), "Streaming"); // v0.8.1: Show label for Matrix effect
+        assert_eq!(AgentPhase::Streaming.label(), "Streaming"); // Show label for Matrix effect
     }
 
     #[test]
@@ -2523,7 +2523,7 @@ mod tests {
 
     #[test]
     fn test_agent_phase_animated_icon_streaming_animates() {
-        // v0.8.1: Streaming now animates like other phases
+        // Streaming now animates like other phases
         assert_eq!(AgentPhase::Streaming.animated_icon(0), "🦋"); // Frame 0-4: Nika brand
         assert_eq!(AgentPhase::Streaming.animated_icon(5), "📡"); // Frame 5-9: Streaming icon
         assert_eq!(AgentPhase::Streaming.animated_icon(10), "🦋"); // Cycles back

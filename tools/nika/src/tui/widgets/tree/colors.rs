@@ -143,7 +143,7 @@ impl TreeColors {
             // Claude Code DX (violet)
             NodeKind::ClaudeFolder | NodeKind::ClaudeMd => solarized::VIOLET,
 
-            // v0.22 UX: Non-ecosystem files are dimmed to emphasize Nika workflows
+            // UX: Non-ecosystem files are dimmed to emphasize Nika workflows
             // Directories (dimmed blue)
             NodeKind::Directory
             | NodeKind::SrcFolder
@@ -288,7 +288,7 @@ mod tests {
             colors.icon_color(NodeKind::NikaWorkflow),
             colors.ecosystem_glow
         );
-        // v0.22: Regular files use dimmed color (non-ecosystem are de-emphasized)
+        // Regular files use dimmed color (non-ecosystem are de-emphasized)
         assert_eq!(colors.icon_color(NodeKind::File), colors.dimmed);
     }
 }

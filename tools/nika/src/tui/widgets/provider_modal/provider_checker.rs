@@ -189,7 +189,7 @@ impl ProviderChecker {
 
     /// Check native inference availability
     async fn check_native(&self) -> Result<(), String> {
-        // v0.27: Native inference via mistral.rs
+        // Native inference via mistral.rs
         // Check if the native-inference feature is enabled
         #[cfg(feature = "native-inference")]
         {

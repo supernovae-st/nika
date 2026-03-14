@@ -50,7 +50,7 @@ impl<'a> ProviderModal<'a> {
     }
 
     fn render_tabs(&mut self, area: Rect, buf: &mut Buffer) {
-        // v0.8.9: All tabs now have dynamic labels with live info
+        // All tabs now have dynamic labels with live info
         let cloud_label = self.state.cloud_tab_label();
         let native_label = self.state.native_tab_label();
         let keys_label = self.state.keys_tab_label();
@@ -93,7 +93,7 @@ impl<'a> ProviderModal<'a> {
             Style::default().fg(self.theme.text_muted),
         );
 
-        // v0.8.9: Render session stats on the right
+        // Render session stats on the right
         let stats = self.state.get_session_stats();
         FooterStatsBar::new(&stats).render(area, buf);
     }
@@ -137,7 +137,7 @@ impl Widget for ProviderModal<'_> {
             ])
             .split(inner);
 
-        // v0.8.9: Render animated cosmic header
+        // Render animated cosmic header
         let header = AnimatedHeader::new()
             .with_title("PROVIDERS")
             .with_frame(self.state.animation_frame);

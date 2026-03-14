@@ -127,7 +127,7 @@ impl ModalLoader {
                 LoaderCommand::CheckNative => {
                     let tx = event_tx.clone();
 
-                    // v0.27: Native inference via mistral.rs
+                    // Native inference via mistral.rs
                     // Check if native-inference feature is enabled
                     tokio::spawn(async move {
                         #[cfg(feature = "native-inference")]
@@ -141,7 +141,7 @@ impl ModalLoader {
                 LoaderCommand::LoadNativeModels => {
                     let tx = event_tx.clone();
 
-                    // v0.27: Native models are loaded from HuggingFace cache
+                    // Native models are loaded from HuggingFace cache
                     // For now, return empty list - actual model discovery happens via nika model list
                     tokio::spawn(async move {
                         // TODO: Implement native model discovery from HuggingFace cache
@@ -167,7 +167,7 @@ impl Drop for ModalLoader {
     fn drop(&mut self) {
         // Send stop command if handle exists
         if self.handle.is_some() {
-            // v0.8.9: Use runtime spawn to ensure Stop is delivered
+            // Use runtime spawn to ensure Stop is delivered
             // try_send can fail silently if the channel buffer is full
             if let Ok(rt) = tokio::runtime::Handle::try_current() {
                 let tx = self.cmd_tx.clone();

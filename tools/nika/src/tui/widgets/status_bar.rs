@@ -387,7 +387,7 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("c", "Chat"),
                 KeyHint::new("q", "Stop"),
             ],
-            // v0.22: Settings is auxiliary view
+            // Settings is auxiliary view
             TuiView::Settings => vec![
                 KeyHint::new("Tab", "Next"),
                 KeyHint::new("Enter", "Select"),

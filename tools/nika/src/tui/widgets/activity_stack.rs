@@ -147,9 +147,9 @@ impl ActivityItem {
 pub struct ActivityStack<'a> {
     items: &'a [ActivityItem],
     frame: u8,
-    /// v0.8 UX: Whether this panel is focused
+    /// UX: Whether this panel is focused
     focused: bool,
-    /// v0.8 UX: Highlight color for focused state
+    /// UX: Highlight color for focused state
     highlight_color: Option<Color>,
 }
 
@@ -168,13 +168,13 @@ impl<'a> ActivityStack<'a> {
         self
     }
 
-    /// v0.8 UX: Set focused state for visual feedback
+    /// UX: Set focused state for visual feedback
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
         self
     }
 
-    /// v0.8 UX: Set highlight color for focused border
+    /// UX: Set highlight color for focused border
     pub fn highlight_color(mut self, color: Color) -> Self {
         self.highlight_color = Some(color);
         self
@@ -192,7 +192,7 @@ impl Widget for ActivityStack<'_> {
             return;
         }
 
-        // v0.8 UX: Focus indicators
+        // UX: Focus indicators
         let border_color = if self.focused {
             self.highlight_color.unwrap_or(DEFAULT_HIGHLIGHT_COLOR)
         } else {

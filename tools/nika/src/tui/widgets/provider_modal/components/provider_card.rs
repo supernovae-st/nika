@@ -158,9 +158,9 @@ pub struct ProviderCard<'a> {
     style: CardStyle,
     /// Animated indicator for active state (cycling ASCII chars)
     active_indicator: &'a str,
-    /// v0.8.9: Latency history for sparkline (up to 10 samples)
+    /// Latency history for sparkline (up to 10 samples)
     latency_history: &'a [u64],
-    /// v0.8.9: Optional verification entry for Matrix effect
+    /// Optional verification entry for Matrix effect
     verify_entry: Option<&'a super::verification_effect::VerifyEntry>,
 }
 
@@ -201,13 +201,13 @@ impl<'a> ProviderCard<'a> {
         self
     }
 
-    /// v0.8.9: Set latency history for sparkline visualization
+    /// Set latency history for sparkline visualization
     pub fn latency_history(mut self, history: &'a [u64]) -> Self {
         self.latency_history = history;
         self
     }
 
-    /// v0.8.9: Set verification entry for Matrix effect during Checking
+    /// Set verification entry for Matrix effect during Checking
     pub fn verify_entry(mut self, entry: &'a super::verification_effect::VerifyEntry) -> Self {
         self.verify_entry = Some(entry);
         self
@@ -281,7 +281,7 @@ impl Widget for ProviderCard<'_> {
                 }
             } else {
                 // Entry complete - show normal status
-                // v0.8.91: Truncate to prevent overflow
+                // Truncate to prevent overflow
                 let status_text = truncate_status(&self.status.display_text(), MAX_STATUS_WIDTH);
                 let status_color = entry.status.color();
                 let status_x = inner.right().saturating_sub(status_text.len() as u16 + 1);
@@ -294,7 +294,7 @@ impl Widget for ProviderCard<'_> {
             }
         } else {
             // No verification entry - render normal status
-            // v0.8.92: Use short text for Failed, full latency for Connected
+            // Use short text for Failed, full latency for Connected
             let (status_text, status_color) = match self.status {
                 ConnectionStatus::Connected { latency_ms } => {
                     (format!("● {}ms", latency_ms), COLOR_SUCCESS)
@@ -318,7 +318,7 @@ impl Widget for ProviderCard<'_> {
 
         // Row 2: Features + Sparkline + Context window (or error message if Failed)
         if inner.height >= 2 {
-            // v0.8.92: Show error message on line 2 if Failed
+            // Show error message on line 2 if Failed
             if let Some(error_msg) = get_error_message(self.status) {
                 // Calculate available width for error (leave space for context window)
                 let ctx_width = if self.context_window > 0 {
@@ -345,7 +345,7 @@ impl Widget for ProviderCard<'_> {
                     Style::default().fg(COLOR_FEATURES),
                 );
 
-                // v0.8.9: Sparkline visualization (center) - only when not error
+                // Sparkline visualization (center) - only when not error
                 if !self.latency_history.is_empty() {
                     let sparkline = latency_to_sparkline(self.latency_history);
                     let features_end = inner.x + 1 + features_str.len() as u16 + 1;
@@ -423,7 +423,7 @@ mod tests {
         card.render(Rect::new(0, 0, 10, 2), &mut buf);
     }
 
-    // v0.8.9: Sparkline tests
+    // Sparkline tests
     #[test]
     fn test_sparkline_empty_history() {
         let result = latency_to_sparkline(&[]);
@@ -506,7 +506,7 @@ mod tests {
         assert!(content.contains("Claude"));
     }
 
-    // v0.8.91: Truncation tests
+    // Truncation tests
     #[test]
     fn test_truncate_status_short_text() {
         let result = truncate_status("● 100ms", 14);
