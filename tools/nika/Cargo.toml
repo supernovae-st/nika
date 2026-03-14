@@ -22,7 +22,6 @@ path = "src/main.rs"
 default = ["tui", "nika-daemon", "native-keychain", "native-inference"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:unicode-width", "dep:terminal_size", "dep:tui-tree-widget", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
-jobs = ["dep:rusqlite", "dep:cron", "dep:humantime-serde"]  # Jobs Daemon feature
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
@@ -163,11 +162,6 @@ tui-input = { version = "0.15", features = ["crossterm"], optional = true }  # C
 # Unicode text handling (from NovaNet patterns)
 unicode-width = { version = "0.2", optional = true }  # Display width for CJK, emoji
 terminal_size = { version = "0.4", optional = true }  # Terminal dimensions for responsive layouts
-
-# Jobs Daemon (feature-gated)
-rusqlite = { version = "0.32", features = ["bundled"], optional = true }  # SQLite state persistence
-cron = { version = "0.13", optional = true }  # Cron expression parsing
-humantime-serde = { version = "1.1", optional = true }  # Duration serde for TOML config
 
 # LSP Server (feature-gated) - v0.22 Language Server Protocol support
 tower-lsp = { version = "0.20", optional = true }

@@ -57,9 +57,6 @@ pub mod secrets;
 #[cfg(feature = "tui")]
 pub mod tui;
 
-#[cfg(feature = "jobs")]
-pub mod jobs;
-
 #[cfg(feature = "lsp")]
 pub mod lsp;
 

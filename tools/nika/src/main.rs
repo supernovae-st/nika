@@ -288,14 +288,6 @@ enum Commands {
         format: String,
     },
 
-    /// Manage the Jobs Daemon for scheduled workflow execution
-    #[cfg(feature = "jobs")]
-    #[command(visible_alias = "j")]
-    Jobs {
-        #[command(subcommand)]
-        action: cli::jobs::JobsAction,
-    },
-
     /// Create a new workflow from template or wizard
     #[command(visible_alias = "n")]
     New {
@@ -519,9 +511,6 @@ async fn main() {
         Some(Commands::Doctor { full, format }) => {
             cli::doctor::handle_doctor_command(full, &format, quiet).await
         }
-
-        #[cfg(feature = "jobs")]
-        Some(Commands::Jobs { action }) => cli::jobs::handle_jobs_command(action, quiet).await,
 
         Some(Commands::New {
             name,

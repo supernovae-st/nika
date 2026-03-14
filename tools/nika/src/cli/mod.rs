@@ -19,7 +19,4 @@ pub mod doctor;
 pub mod schema;
 pub mod workflow;
 
-#[cfg(feature = "jobs")]
-pub mod jobs;
-
 pub mod new_cmd;
