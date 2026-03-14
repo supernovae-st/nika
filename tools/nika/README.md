@@ -165,8 +165,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 8
-      stop_conditions:
-        - "DONE"
 ```
 
 ## Semantic Verbs

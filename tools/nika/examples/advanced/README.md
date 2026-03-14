@@ -54,10 +54,6 @@ checkpoint:
   enabled: true
   frequency: per_batch
   storage: ./.nika/checkpoints/
-
-stop_conditions:
-  - pattern: "CRITICAL_ERROR"
-    action: checkpoint_and_stop
 ```
 
 ## Running Examples

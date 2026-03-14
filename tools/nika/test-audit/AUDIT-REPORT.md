@@ -194,8 +194,6 @@ tasks:
     agent:
       prompt: "List 3 programming languages and one advantage of each..."
       max_turns: 2
-      stop_conditions:
-        - "ANALYSIS_DONE"
 ```
 
 **Error:**

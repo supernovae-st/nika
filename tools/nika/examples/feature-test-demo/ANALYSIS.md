@@ -212,7 +212,6 @@ use:
 - `mcp: [perplexity, firecrawl]` ✅
 - `max_turns: 10` ✅
 - `depth_limit: 3` ✅
-- `stop_conditions: [...]` ✅
 - `tools: [nika:log]` ✅
 - `output.schema: ./schemas/research.schema.json` ✅
 

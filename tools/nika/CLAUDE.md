@@ -1509,9 +1509,8 @@ cargo run -- run examples/test-context-propagation.nika.yaml
 | Test | Features Validated |
 |------|-------------------|
 | `test-parallel-stress.nika.yaml` | 5 concurrent Claude API calls with `for_each` |
-| `test-multi-mcp-agent.nika.yaml` | Agent with MCP tools, spawn_agent, stop_conditions |
+| `test-multi-mcp-agent.nika.yaml` | Agent with MCP tools, spawn_agent, completion config |
 | `test-deep-context-chain.nika.yaml` | 6-level context propagation with `use:` bindings |
-| `test-agent-stop-conditions.nika.yaml` | Agent stop condition triggering |
 | `test-perplexity-mcp.nika.yaml` | External MCP server integration |
 
 ## Error Codes
