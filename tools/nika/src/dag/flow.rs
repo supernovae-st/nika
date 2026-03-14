@@ -416,6 +416,32 @@ impl Dag {
             predecessors.insert(id, DepVec::new());
         }
 
+        // Track seen edges globally to deduplicate across all sources.
+        // lower() puts the same dependency info into both workflow.flows AND task.flow,
+        // so without deduplication edges would be doubled.
+        let mut seen_edges: FxHashSet<(Arc<str>, Arc<str>)> = FxHashSet::default();
+
+        /// Insert an edge if not already seen, updating adjacency and predecessors.
+        fn insert_edge(
+            src: &Arc<str>,
+            tgt: &Arc<str>,
+            seen: &mut FxHashSet<(Arc<str>, Arc<str>)>,
+            adjacency: &mut FxHashMap<Arc<str>, DepVec>,
+            predecessors: &mut FxHashMap<Arc<str>, DepVec>,
+        ) {
+            let key = (Arc::clone(src), Arc::clone(tgt));
+            if seen.insert(key) {
+                adjacency
+                    .entry(Arc::clone(src))
+                    .or_default()
+                    .push(Arc::clone(tgt));
+                predecessors
+                    .entry(Arc::clone(tgt))
+                    .or_default()
+                    .push(Arc::clone(src));
+            }
+        }
+
         // Build edges from workflow-level flows
         for flow in &workflow.flows {
             let sources = flow.source.as_vec();
@@ -424,15 +450,13 @@ impl Dag {
                 for tgt in &targets {
                     let src_arc = task_set.get(*src).cloned().unwrap_or_else(|| intern(src));
                     let tgt_arc = task_set.get(*tgt).cloned().unwrap_or_else(|| intern(tgt));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                    insert_edge(
+                        &src_arc,
+                        &tgt_arc,
+                        &mut seen_edges,
+                        &mut adjacency,
+                        &mut predecessors,
+                    );
                 }
             }
         }
@@ -449,15 +473,13 @@ impl Dag {
                         .get(dep.as_str())
                         .cloned()
                         .unwrap_or_else(|| intern(dep));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                    insert_edge(
+                        &src_arc,
+                        &tgt_arc,
+                        &mut seen_edges,
+                        &mut adjacency,
+                        &mut predecessors,
+                    );
                 }
             }
 
@@ -479,15 +501,13 @@ impl Dag {
                         .get(from_task)
                         .cloned()
                         .unwrap_or_else(|| intern(from_task));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                    insert_edge(
+                        &src_arc,
+                        &tgt_arc,
+                        &mut seen_edges,
+                        &mut adjacency,
+                        &mut predecessors,
+                    );
                 }
             } else if let Some(ref wiring) = task.use_wiring {
                 let tgt_arc = task_set
@@ -503,15 +523,13 @@ impl Dag {
                         .get(from_task)
                         .cloned()
                         .unwrap_or_else(|| intern(from_task));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                    insert_edge(
+                        &src_arc,
+                        &tgt_arc,
+                        &mut seen_edges,
+                        &mut adjacency,
+                        &mut predecessors,
+                    );
                 }
             }
         }
@@ -572,6 +590,8 @@ mod tests {
                 for_each: None,
                 retry: None,
                 decompose: None,
+                concurrency: None,
+                fail_fast: None,
                 artifact: None,
                 log: None,
                 structured: None,
@@ -823,6 +843,8 @@ mod tests {
                 for_each: None,
                 retry: None,
                 decompose: None,
+                concurrency: None,
+                fail_fast: None,
                 artifact: None,
                 log: None,
                 structured: None,
@@ -843,6 +865,8 @@ mod tests {
                 for_each: None,
                 retry: None,
                 decompose: None,
+                concurrency: None,
+                fail_fast: None,
                 artifact: None,
                 log: None,
                 structured: None,
@@ -862,6 +886,8 @@ mod tests {
                 for_each: None,
                 retry: None,
                 decompose: None,
+                concurrency: None,
+                fail_fast: None,
                 artifact: None,
                 log: None,
                 structured: None,
