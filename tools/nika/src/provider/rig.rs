@@ -508,7 +508,7 @@ impl RigProvider {
         if has_key("GEMINI_API_KEY") {
             return Some(Self::gemini());
         }
-        // v0.26: Native is opt-in: requires NIKA_NATIVE_MODEL to be set
+        // Native is opt-in: requires NIKA_NATIVE_MODEL to be set
         // Note: Model must still be loaded via load_native_model() before inference
         #[cfg(feature = "native-inference")]
         if has_key("NIKA_NATIVE_MODEL") {
@@ -518,7 +518,7 @@ impl RigProvider {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.8.2: Provider Health Check & Verification
+    // Provider Health Check & Verification
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Verify the provider connection is working
@@ -614,7 +614,7 @@ impl RigProvider {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.8.2: Provider Verification Types
+// Provider Verification Types
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Result of a successful provider verification
@@ -674,7 +674,7 @@ pub enum RigInferError {
     #[error("Completion error: {0}")]
     PromptError(String),
 
-    /// v0.8.5: Stream timeout - no chunk received within timeout period
+    /// Stream timeout - no chunk received within timeout period
     #[error("Stream timeout: no chunk received for {duration_ms}ms")]
     Timeout { duration_ms: u64 },
 }
@@ -756,7 +756,7 @@ pub enum StreamChunk {
     },
     /// Provider verification failed
     ProviderVerifyFailed { provider: String, error: String },
-    /// v0.8.9: Provider not configured (no API key set)
+    /// Provider not configured (no API key set)
     ProviderNotConfigured { provider: String },
     /// MCP server ping started
     McpPinging { server: String },
@@ -766,7 +766,7 @@ pub enum StreamChunk {
         latency_ms: u64,
         tool_count: usize,
     },
-    /// v0.8.4: All provider verifications timed out (no providers available)
+    /// All provider verifications timed out (no providers available)
     ProviderVerificationTimeout,
     // ═══════════════════════════════════════════════════════════════════════════
     // Native Model Events
@@ -970,7 +970,7 @@ impl RigProvider {
                 consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
                     .await?;
             }
-            // v0.26: Native provider - uses infer_stream() for true token-by-token streaming
+            // Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 use futures::StreamExt;
@@ -1100,7 +1100,7 @@ impl RigProvider {
                 consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
                     .await?;
             }
-            // v0.26: Native provider - uses infer_stream() with options for true streaming
+            // Native provider - uses infer_stream() with options for true streaming
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 use futures::StreamExt;
@@ -1364,7 +1364,7 @@ mod tests {
 
     #[test]
     fn test_rig_infer_error_timeout_display() {
-        // v0.8.5: Test new Timeout variant
+        // Test new Timeout variant
         let err = RigInferError::Timeout { duration_ms: 60000 };
         assert_eq!(
             err.to_string(),
@@ -1373,7 +1373,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.6: New Provider Tests
+    // New Provider Tests
     // =========================================================================
 
     #[test]
@@ -1451,7 +1451,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.17.5: Provider Fallback Chain Tests
+    // Provider Fallback Chain Tests
     // =========================================================================
 
     /// Helper to clear all provider env vars for testing fallback chain
@@ -2171,7 +2171,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.8.2: Provider Verification Tests
+    // Provider Verification Tests
     // =========================================================================
 
     #[test]
@@ -2245,7 +2245,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.15.0: InferOptions Tests
+    // InferOptions Tests
     // =========================================================================
 
     #[test]
