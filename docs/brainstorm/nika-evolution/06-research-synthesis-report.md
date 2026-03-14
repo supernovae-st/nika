@@ -485,7 +485,7 @@ flowchart TB
     subgraph S1["Synergy 1: Episodic Memory"]
         direction LR
         A1["Nika agent\ncompletes task"] --> A2["Compress\ninto record"]
-        A2 -->|"novanet_write"| A3["AgentRecord\nin NovaNet"]
+        A2 -->|"novanet_write"| A3["Record\nin NovaNet"]
         A3 -->|"novanet_search"| A4["Future agent\nreuses knowledge"]
     end
 

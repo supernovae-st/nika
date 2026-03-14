@@ -24,7 +24,7 @@ flowchart LR
         F2["Record compression"]
         F3["Shaka orchestration"]
         F4["Context budget mgmt"]
-        F5["NovaNet episodic memory"]
+        F5["3-tier Punk Records"]
     end
 
     T1 -->|"P-MODEL"| F1
@@ -50,7 +50,7 @@ flowchart TD
     PE["📦 P-RECORD\nRecord compression"]
     PS["🎯 P-SHAKA\nShaka orchestration"]
     PC["📊 P-CONTEXT\nContext budgeting"]
-    PMEM["🧠 P-MEMORY\nNovaNet episodic memory"]
+    PMEM["🧠 P-MEMORY\n3-tier Punk Records"]
     PI["🔍 P-INTROSPECT\nRuntime introspection"]
 
     PM --> PS
@@ -526,21 +526,21 @@ tasks:
 
 ## Wave 3: Persistent Memory (v0.30)
 
-### P-MEMORY: NovaNet Episodic Memory
+### P-MEMORY: 3-Tier Punk Records
 
-Persistent records stored in NovaNet's knowledge graph, linked to semantic entities. Records survive across sessions — enabling cross-session learning and knowledge overhang activation[^1].
+Records live in a 3-tier architecture: **HOT** (Egghead DashMap RAM, one run), **WARM** (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), and **COLD** (NovaNet `Record` node class, permanent, promoted records). Records first live locally in Punk Records (WARM tier), then get promoted to NovaNet (COLD tier) when they prove valuable — enabling cross-session learning and knowledge overhang activation[^1].
 
 ```mermaid
 flowchart LR
     subgraph S1["Session 1"]
         R1["research(qr-code)"] --> E1["Record"]
-        E1 -->|"novanet_write"| AE1["AgentRecord\nin NovaNet"]
+        E1 -->|"novanet_write"| AE1["Record\nin NovaNet"]
     end
 
     subgraph KG["NovaNet Knowledge Graph"]
         AE1 --- ENT["Entity\nqr-code"]
         AE1 --- LOC["Locale\nfr-FR"]
-        AE1 --> AE0["Previous\nAgentRecord"]
+        AE1 --> AE0["Previous\nRecord"]
     end
 
     subgraph S2["Session 2"]
@@ -582,7 +582,7 @@ tasks:
 <summary>🏗️ NovaNet Schema Additions</summary>
 
 ```
-AgentRecord (NodeClass, org realm, output layer)
+Record (NodeClass, org realm, agent layer)
 ├── Properties:
 │   ├── key: string (unique identifier)
 │   ├── workflow: string (source workflow name)
@@ -596,8 +596,8 @@ AgentRecord (NodeClass, org realm, output layer)
 ├── Arcs:
 │   ├── RECORD_OF → Entity (semantic link)
 │   ├── FOR_LOCALE → Locale (if locale-specific)
-│   ├── SIMILAR_TO → AgentRecord (similarity)
-│   └── PRECEDED_BY → AgentRecord (temporal chain)
+│   ├── SIMILAR_TO → Record (similarity)
+│   └── PRECEDED_BY → Record (temporal chain)
 ```
 
 **Requires:** NovaNet schema ADR + coordinated Nika/NovaNet development.
@@ -721,7 +721,7 @@ quadrantChart
 | `src/binding/resolve.rs` | P-RECORD | Record-aware resolution |
 | `src/event/log.rs` | P-RECORD, P-CONTEXT | `RecordCreated`, `BudgetExceeded` events |
 | `src/dag/mod.rs` | P-SHAKA | Mutable operations |
-| `src/mcp/client.rs` | P-MEMORY | `AgentRecord` read/write |
+| `src/mcp/client.rs` | P-MEMORY | `Record` read/write |
 
 </details>
 

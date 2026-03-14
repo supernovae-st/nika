@@ -348,7 +348,7 @@ tasks:
       server: novanet
       params:
         query: "{{with.entity_key}} {{with.locale}} research"
-        kinds: ["AgentRecord"]
+        kinds: ["Record"]
         limit: 5
     record:
       compress: true

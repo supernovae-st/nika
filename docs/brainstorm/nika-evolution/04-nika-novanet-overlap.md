@@ -192,9 +192,9 @@ flowchart LR
 >
 > Nika builds its own episodic memory system (P-MEMORY) that duplicates NovaNet's entity/knowledge storage.
 >
-> **Recommendation:** Nika's episodic memory should USE NovaNet as backend. New `AgentRecord` NodeClass in NovaNet Org realm. Nika writes records via `novanet_write`, reads via `novanet_search`. NovaNet handles persistence, search, and cleanup.
+> **Recommendation:** Nika's episodic memory follows a 3-tier architecture: HOT (Egghead DashMap RAM, single run), WARM (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), COLD (NovaNet `Record` node class, permanent, promoted records only). Nika writes promoted records via `novanet_write`, reads via `novanet_search`. NovaNet handles permanent persistence, search, and cleanup for the COLD tier only.
 >
-> **Why:** NovaNet already has durable storage, fulltext search, and quality audit. Building a parallel system in Nika would duplicate all of this.
+> **Why:** Most records live locally in Punk Records (WARM tier). Only high-value records are promoted to NovaNet (COLD tier) for cross-run, cross-agent reuse. NovaNet is not the whole memory system — it's the durable, graph-queryable long-term store.
 
 > [!WARNING]
 > **Risk 2: Context Assembly Duplication**
@@ -234,7 +234,7 @@ Maps to [P-MEMORY](./05-evolution-roadmap.md) and [P-RECORD](./05-evolution-road
 ```mermaid
 flowchart LR
     AGENT["Agent executes task"] --> RECORD["Record created\n(summary, findings, tools)"]
-    RECORD -->|"novanet_write"| NN["NovaNet\nAgentRecord node"]
+    RECORD -->|"novanet_write"| NN["NovaNet\nRecord node"]
     NN -->|"RECORD_OF arc"| ENT["Entity\n'qr-code'"]
     NN -->|"novanet_search"| FUTURE["Future agent\nreuses knowledge"]
 
@@ -257,7 +257,7 @@ tasks:
       episodic_memory: true  # NEW: persist to NovaNet
 
   # Automatically creates:
-  # AgentRecord node in NovaNet with:
+  # Record node in NovaNet with:
   #   - task_summary, key_findings, tools_used
   #   - linked to Entity "qr-code" via RECORD_OF arc
   #   - searchable for future similar tasks

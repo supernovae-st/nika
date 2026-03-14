@@ -97,7 +97,7 @@ flowchart TD
     PR[📦 P-RECORD<br/>Record compression]
     PS[🎯 P-SHAKA<br/>Shaka orchestration]
     PC[📊 P-CONTEXT<br/>Context budgeting]
-    PMEM[🧠 P-MEMORY<br/>NovaNet episodic memory]
+    PMEM[🧠 P-MEMORY<br/>Punk Records + NovaNet]
     PI[🔍 P-INTROSPECT<br/>Runtime introspection]
 
     PM --> PS
@@ -136,7 +136,7 @@ flowchart TD
 | **P-RECORD** | LLM compression at task completion boundaries | Slate episodes[^2], Context-Folding[^4] | `Record` struct in `runtime/` |
 | **P-SHAKA** | Dynamic satellite dispatch via thread weaving | Slate strategy/tactics[^2], AlphaZero[^5] | Orchestration mode in `runner.rs` |
 | **P-CONTEXT** | Working memory awareness, token budget tracking | Slate dumb zone[^2], Context-Folding[^4] | Budget tracking in `Egghead` |
-| **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate sessions[^2], Memory-R1[^6] | New MCP tools for record storage |
+| **P-MEMORY** | 3-tier memory: Egghead (HOT/RAM) → Punk Records (WARM/NDJSON disk) → NovaNet (COLD/promoted) | Slate sessions[^2], Memory-R1[^6] | `RecordLog` for WARM tier, MCP tools for COLD promotion |
 | **P-INTROSPECT** | 6 runtime introspection builtin tools | RLM REPL[^7] | New tools in `runtime/builtin.rs` |
 
 </details>
@@ -171,7 +171,7 @@ quadrantChart
 |-----------|-------------------|-----------------|
 | **Slate**[^2] | Threads, episodes, thread weaving, cross-model | Integrate all 8 concepts via P-MODEL → P-MEMORY |
 | **LangGraph** | Python flexibility, checkpointing | Keep YAML-first, add introspection (P-INTROSPECT) |
-| **CrewAI** | 3-type memory system | Use NovaNet as memory backend (P-MEMORY) |
+| **CrewAI** | 3-type memory system | Use Punk Records (WARM/local) + NovaNet (COLD/promoted) as memory backend (P-MEMORY) |
 | **Claude Code** | Conversation-driven, subagent delegation | Nika is Claude Code's workflow engine |
 
 > [!NOTE]

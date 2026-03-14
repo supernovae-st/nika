@@ -147,7 +147,7 @@ flowchart LR
 | 5 | Thread Weaving | DAG execution (static) | Dynamic DAG + shaka loop | Real-time TUI visualization |
 | 6 | Shaka/Satellites | Flat agent loop | `orchestration: shaka` | Declarative YAML shakas |
 | 7 | Knowledge Overhang | NovaNet context + files | Record-based scaffolding | 200+ locale knowledge atoms |
-| 8 | Episodic Memory | In-memory `Egghead` | NovaNet `AgentRecord` | Graph-queryable, entity-linked |
+| 8 | Episodic Memory | In-memory `Egghead` | NovaNet `Record` | Graph-queryable, entity-linked |
 | 9 | Model Slots | Single provider | `model_slots:` in YAML | Per-workflow slots |
 | 10 | Composability | `use:` bindings | Record-aware bindings | Structured output + records |
 | 11 | Parallel Threads | `for_each` + concurrency | Shaka parallel dispatch | Token budget + cost tracking |
@@ -426,7 +426,7 @@ satellites:
       tool: novanet_write
       server: novanet
       params:
-        class: AgentRecord
+        class: Record
         key: "landing-page-{{date}}"
     record:
       persist: novanet

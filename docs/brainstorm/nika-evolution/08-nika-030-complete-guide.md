@@ -746,7 +746,7 @@ flowchart TB
 
 ---
 
-## Feature 5: Persistent Memory (NovaNet)
+## Feature 5: Persistent Memory (3-Tier Punk Records)
 
 ### The Problem
 
@@ -759,7 +759,12 @@ Wednesday: Same workflow runs again → starts from zero → pays for research a
 
 ### The Solution
 
-`record.persist: novanet` stores records in NovaNet's knowledge graph, linked to semantic entities:
+Records live in a **3-tier architecture**:
+- **HOT**: Egghead (DashMap RAM, one run) -- what exists today
+- **WARM**: Punk Records (NDJSON on disk, TTL configurable, managed by `RecordLog`) -- records survive restarts locally
+- **COLD**: NovaNet (`Record` node class, permanent, promoted records) -- cross-session learning
+
+Records first live locally in Punk Records (WARM tier), then get promoted to NovaNet (COLD tier) when they prove valuable. `record.persist: novanet` promotes records to the COLD tier, linked to semantic entities:
 
 ```yaml
 tasks:
@@ -778,13 +783,13 @@ flowchart LR
     subgraph SESSION_1["Monday — Session 1"]
         R1["research(qr-code)"]
         R1 --> E1["Record:\ntrends, findings"]
-        E1 -->|"novanet_write"| AE1["AgentRecord\nin NovaNet"]
+        E1 -->|"novanet_write"| AE1["Record\nin NovaNet"]
     end
 
     subgraph KG["NovaNet Knowledge Graph"]
         AE1 -->|"RECORD_OF"| ENT["Entity:\nqr-code"]
         AE1 -->|"FOR_LOCALE"| LOC["Locale:\nfr-FR"]
-        AE1 -->|"PRECEDED_BY"| AE0["Older\nAgentRecord"]
+        AE1 -->|"PRECEDED_BY"| AE0["Older\nRecord"]
     end
 
     subgraph SESSION_2["Wednesday — Session 2"]
@@ -801,7 +806,7 @@ flowchart LR
 ### NovaNet Schema Addition
 
 ```
-AgentRecord (new NodeClass)
+Record (new NodeClass, agent layer)
 ├── key: string
 ├── workflow: string
 ├── task_id: string
@@ -813,8 +818,8 @@ AgentRecord (new NodeClass)
 ├── Arcs:
 │   ├── RECORD_OF → Entity
 │   ├── FOR_LOCALE → Locale
-│   ├── SIMILAR_TO → AgentRecord
-│   └── PRECEDED_BY → AgentRecord
+│   ├── SIMILAR_TO → Record
+│   └── PRECEDED_BY → Record
 ```
 
 This means you can query past experience:
@@ -827,7 +832,7 @@ This means you can query past experience:
     server: novanet
     params:
       query: "QR code research"
-      kinds: ["AgentRecord"]
+      kinds: ["Record"]
       # Returns: [{summary: "...", confidence: 0.92, timestamp: "2026-03-10"}]
 ```
 

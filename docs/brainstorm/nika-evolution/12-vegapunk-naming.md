@@ -30,10 +30,10 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 ║  La conscience centrale             La volonté qui écrit les workflows         ║
 ║  Dirige les satellites              Dirige les agents et l'exécution           ║
 ║                                                                               ║
-║  Punk Records                  →  NovaNet                                     ║
-║  Cerveau externalisé                Knowledge graph externalisé                ║
-║  Mémoire persistante partagée       Mémoire persistante (Neo4j)               ║
-║  Survit à la mort des satellites    Survit aux exécutions de workflows         ║
+║  Punk Records                  →  Punk Records (tier WARM)                    ║
+║  Cerveau externalisé de Vegapunk    Mémoire locale sur disque (NDJSON)        ║
+║  Accumule le savoir des satellites  Accumule les Records des workflow runs    ║
+║  Personnel à Vegapunk               Personnel à Nika (.nika/records/)         ║
 ║                                                                               ║
 ║  Egghead Island (laboratoire)  →  Egghead (DataStore)                         ║
 ║  Lab éphémère de Vegapunk           Mémoire in-memory d'un run                ║
@@ -78,7 +78,7 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 |--------|---------|-------|--------|
 | `Episode` | `Record` | Struct, YAML, tools, docs | Punk Records — mémoire compressée |
 | `episodes` | `records` | Partout | Cohérence |
-| `DataStore` | `Egghead` | Struct Rust interne | Lab éphémère du run |
+| `DataStore` | `Egghead` | Struct Rust interne | Lab éphémère du run — **voir Questions en suspens** |
 | `orchestration: strategy` | `orchestration: shaka` | YAML, Rust | PUNK-01, le leader stratège |
 | `strategy` (alias) | accepté | Parser YAML | Backward-friendly pour onboarding |
 | `tactics` | `satellites` | YAML templates | Dispatchés par Shaka |
@@ -305,7 +305,8 @@ pub struct ShakaRunner { ... }
 | Record compression (v0.28) | `src/runtime/record.rs`, `src/runtime/record_compress.rs` | `Record`, `RecordCompressor` |
 | Shaka orchestration (v0.29) | `src/runtime/shaka.rs`, `src/runtime/shaka_runner.rs`, `src/ast/shaka.rs` | `ShakaRunner`, `ShakaConfig`, `Satellite` |
 | Context budgets (v0.29) | `src/runtime/budget.rs` | Pas de rename (technique) |
-| NovaNet memory (v0.30) | `src/runtime/memory.rs` | `PersistentRecord` (Records stored in NovaNet) |
+| Punk Records (v0.28) | `src/runtime/record_log.rs` | `RecordLog` (NDJSON on disk, .nika/records/) |
+| NovaNet memory (v0.30) | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
 | Introspection (v0.30) | 6 builtin tools | `nika:records`, `nika:shaka`, rest technique |
 
 ### Detailed file impact: DataStore → Egghead
@@ -410,6 +411,18 @@ src/runtime/record_compress.rs  # RecordCompressor (tactical LLM summarization)
 
 Add `record:` field to task AST in `src/ast/action.rs`.
 
+### Phase 2b — Punk Records tier WARM (v0.28)
+
+Create the local disk persistence layer:
+
+```
+src/runtime/record_log.rs       # RecordLog — manages .nika/records/
+src/runtime/record_config.rs    # RecordConfig — TTL, max_size, promotion settings
+```
+
+Add `[records]` section to `.nika/config.toml` parser.
+Add `nika records` CLI subcommand (list, show, search, promote, prune, stats).
+
 ### Phase 3 — Model Slots as Satellites (v0.28)
 
 Create new files with correct naming:
@@ -431,12 +444,20 @@ src/ast/shaka.rs                # ShakaConfig, Satellite AST parsing
 
 Add `orchestration:` field to workflow AST. Parser accepts both `shaka` and `strategy`.
 
-### Phase 5 — Introspection tools (v0.30)
+### Phase 5 — NovaNet promotion + Introspection (v0.30)
+
+Add promotion logic:
+
+```
+src/runtime/promote.rs    # RecordLog::promote() → novanet_write via MCP
+```
+
+Add `Record` node class to NovaNet schema (`brain/models/node-classes/org/agent/record.yaml`).
 
 Add to `src/runtime/builtin/`:
 
 ```
-records.rs     # nika:records — accumulated Records
+records.rs     # nika:records — accumulated Records (from Punk Records)
 shaka.rs       # nika:shaka — Shaka orchestrator state
 ```
 
@@ -472,8 +493,9 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 ║                                                                               ║
 ║  🦋 NIKA        = Le runtime (exécution, liberté)                             ║
 ║  ⭐ STELLA       = L'utilisateur (la volonté qui dirige)                      ║
-║  🧠 NOVANET     = Punk Records (mémoire persistante)                         ║
-║  🏝️ EGGHEAD     = DataStore (mémoire éphémère du run)                        ║
+║  📀 PUNK RECORDS = Tier WARM — mémoire locale disque (RecordLog)             ║
+║  🧠 NOVANET      = Tier COLD — mémoire permanente graph (Record node)       ║
+║  🏝️ EGGHEAD      = Tier HOT — mémoire éphémère du run (DataStore, Q1)       ║
 ║                                                                               ║
 ║  🎯 SHAKA       = Orchestrateur dynamique (PUNK-01, sagesse)                  ║
 ║  💡 EDISON      = Slot main — création (PUNK-03, intelligence)                ║
@@ -489,4 +511,292 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 ║  orchestration: shaka   → mode dynamique (alias: strategy)                    ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## Decisions validees (brainstorm 2026-03-14)
+
+> [!NOTE]
+> Decisions prises apres recherche approfondie (8 queries Perplexity, analyse de Letta/MemGPT, LangGraph, CrewAI, SSGM, A-MAC, conventions KG). Q1 reste en suspens.
+
+### Q1: DataStore → Egghead — EN SUSPENS
+
+**Contexte :** "DataStore" n'est PAS une convention Rust officielle. C'est un nom generique invente pour le projet. Le rename vers "Egghead" est faisable (205 occurrences, 17 fichiers, refactor mecanique).
+
+**Arguments POUR Egghead :**
+- Coherence avec le naming Vegapunk (Egghead Island = lab ephemere)
+- Pas une convention officielle, donc renommable sans perte de sens
+- Le parallele est profond (lab detruit a la fin de l'arc = memoire detruite a la fin du run)
+
+**Arguments POUR garder DataStore :**
+- Self-documenting (tout dev comprend immediatement)
+- Impact massif (668 occurrences si on compte les derivations)
+- "Egghead" pourrait confondre un contributeur externe
+
+**Status :** EN SUSPENS — a trancher lors du kickoff v0.28
+
+### Q2: Punk Records = tier WARM — VALIDE
+
+**Reponse :** Punk Records est le nom du tier WARM (disque local), PAS un concept umbrella.
+
+**Parallele manga :** Dans One Piece, Punk Records est **specifiquement** le cerveau externalise de Vegapunk — une sphere geante flottant au-dessus d'Egghead Island. C'est la ou les resultats du travail des satellites sont accumules et stockes. C'est personnel a Vegapunk, separe du World Government. A long terme, Vegapunk voulait le partager avec le monde entier (le broadcast).
+
+**Architecture memoire 3-tier :**
+
+```
+Nika Memory Architecture (3 tiers, pas de nom umbrella)
+│
+├── HOT:  Egghead         = DashMap (RAM)
+│         Struct Rust:       Egghead (ou DataStore, Q1 en suspens)
+│         Lifetime:          un workflow run
+│         Contenu:           TaskResults, bindings, loaded context
+│         Analogie manga:    Egghead Island (le lab ephemere)
+│         Analogie tech:     CPU cache / memoire de travail
+│
+├── WARM: Punk Records     = NDJSON (disque local)
+│         Struct Rust:       RecordLog
+│         Lifetime:          configurable (TTL: 7d, 30d, 90d, ∞)
+│         Contenu:           Record summaries compresses par run
+│         Fichiers:          .nika/records/{date}_{run_id}.ndjson
+│         Analogie manga:    Punk Records (le cerveau de Vegapunk)
+│         Analogie tech:     Memoire episodique / RAM disque
+│
+└── COLD: NovaNet          = Neo4j (graph via MCP)
+          Node class:        Record (nouveau, layer agent)
+          Lifetime:          permanent, cure
+          Contenu:           Records promus (haute confiance/valeur)
+          Promotion:         auto (seuil configurable) ou manuelle
+          Analogie manga:    Le World Government (savoir partage)
+          Analogie tech:     Memoire semantique / SSD
+```
+
+**Etat de l'art comparatif :**
+
+| Framework | HOT | WARM | COLD |
+|-----------|-----|------|------|
+| **Letta/MemGPT** | Core Memory | Recall Memory | Archival Memory |
+| **LangGraph** | Thread State | MemorySaver | InMemoryStore/DB |
+| **CrewAI** | Short-term (ChromaDB) | Entity Memory (SQLite) | Long-term (SQLite) |
+| **SSGM (2026)** | Mutable Active Graph | Immutable Episodic Log | — |
+| **Nika** | **Egghead** | **Punk Records** | **NovaNet** |
+
+### Q3: Node NovaNet = `Record` — VALIDE
+
+**Decision :** Le node class dans NovaNet s'appelle `Record` (pas AgentRecord, pas NikaRecord).
+
+**Raisonnement :**
+- NovaNet utilise des noms courts : `Entity`, `Page`, `Block` — pas `NovaNetEntity`
+- "Agent" est trompeur — les Records viennent de TOUS les 5 verbes, pas juste `agent:`
+- "Nika" couple au produit — si demain un autre outil genere des records, on est coince
+- `Record` est clair, propre, zero conflit avec les 59 node classes existantes
+- Recherche KG : conventions CamelCase courts, discriminants (source: PuppyGraph, TowardsAI)
+
+**Schema NovaNet :**
+
+```yaml
+# brain/models/node-classes/org/agent/record.yaml
+name: Record
+realm: org
+layer: agent
+description: "Compressed execution record promoted from Nika Punk Records"
+properties:
+  key: { type: string, required: true }       # record-{uuid}
+  summary: { type: string, required: true }
+  confidence: { type: float }
+  tokens_used: { type: integer }
+  source_workflow: { type: string }
+  source_task: { type: string }
+  verb: { type: string }                      # infer|exec|fetch|invoke|agent
+  model: { type: string }
+  created_at: { type: datetime }
+
+# Arcs
+# HAS_RECORD: Project → Record (ownership)
+# RELATES_TO: Record → Entity (semantic link)
+# FOR_LOCALE: Record → Locale (if locale-specific)
+```
+
+---
+
+## Punk Records — Design complet
+
+### Lifecycle d'un Record
+
+```
+Task executes dans Egghead (HOT)
+    ↓
+TaskResult cree (resultat brut)
+    ↓
+Workflow complete → RecordCompressor s'execute
+    ↓
+Record { summary, key_findings, confidence } cree
+    ↓
+RecordLog.save() → .nika/records/{date}_{run_id}.ndjson (WARM)
+    ↓
+[Si auto_promote = true ET confidence > seuil]
+    → RecordLog.promote() → novanet_write Record node (COLD)
+    ↓
+[Apres TTL expire]
+    → RecordLog.prune() supprime les vieux NDJSON
+```
+
+### Format NDJSON
+
+Chaque ligne = un Record :
+
+```jsonl
+{"id":"rec-abc123","task_id":"research","workflow":"seo-pipeline","summary":"Found 15 keywords with >1000 monthly searches for QR code domain","key_findings":["qr code generator","free qr code","qr code scanner"],"confidence":0.92,"tokens_used":1847,"created_at":"2026-03-14T20:00:00Z","verb":"infer","model":"claude-sonnet-4-20250514"}
+{"id":"rec-def456","task_id":"generate_page","workflow":"seo-pipeline","summary":"Generated fr-FR landing page with 1200 words, SEO-optimized H1/H2 structure","key_findings":["targeting generateur qr code as primary keyword"],"confidence":0.87,"tokens_used":3200,"created_at":"2026-03-14T20:01:30Z","verb":"infer","model":"claude-sonnet-4-20250514"}
+```
+
+**Pourquoi NDJSON :**
+- Deja utilise par Nika pour les traces (EventLog) — meme tooling
+- Append-only (pas de risque de corruption)
+- Streamable (lecture ligne par ligne)
+- grep-friendly (un record par ligne)
+- Zero schema migration necessaire
+
+### Structure disque
+
+```
+.nika/
+├── records/
+│   ├── 2026-03-14_abc123.ndjson    # Un fichier par run
+│   ├── 2026-03-14_def456.ndjson
+│   ├── 2026-03-13_xyz789.ndjson.gz # Compresse apres compress_after
+│   └── index.json                   # Index pour recherche rapide
+├── sessions/                         # Existe deja (v0.8.0)
+└── config.toml                       # Existe deja (v0.8.0)
+```
+
+### Index pour lookups rapides
+
+```json
+{
+  "version": 1,
+  "runs": [
+    {
+      "run_id": "abc123",
+      "workflow": "seo-pipeline",
+      "created_at": "2026-03-14T20:00:00Z",
+      "record_count": 5,
+      "total_tokens": 12400,
+      "avg_confidence": 0.89,
+      "promoted": 1,
+      "file": "2026-03-14_abc123.ndjson"
+    }
+  ]
+}
+```
+
+### Configuration (.nika/config.toml)
+
+```toml
+[records]
+enabled = true                   # Activer Punk Records
+ttl = "30d"                      # Duree de retention (defaut: 30 jours)
+max_size = "500mb"               # Taille max sur disque
+prune_on_start = true            # Auto-prune au demarrage de Nika
+compress_after = "7d"            # gzip les records apres 7 jours
+
+[records.promotion]
+enabled = true                   # Activer la promotion vers NovaNet
+auto_promote = false             # false = promotion manuelle uniquement
+confidence_threshold = 0.85      # Seuil pour auto-promotion
+require_entity_link = true       # Promouvoir seulement si lie a une Entity
+```
+
+**Strategies TTL preconfigurrees :**
+
+| Strategy | TTL | compress_after | max_size | Use case |
+|----------|-----|----------------|----------|----------|
+| `ephemeral` | 7d | 3d | 100mb | CI/CD, tests, workflows ponctuels |
+| `standard` | 30d | 7d | 500mb | Dev quotidien (defaut) |
+| `archival` | 90d | 14d | 2gb | Recherche, projets longs |
+| `unlimited` | ∞ | 30d | 10gb | Prune manuelle uniquement |
+
+### Rust structs
+
+```rust
+pub struct Record {
+    pub id: RecordId,              // rec-{uuid}
+    pub task_id: String,           // quelle task a produit ce record
+    pub workflow_id: String,       // quel workflow run
+    pub verb: Verb,                // infer|exec|fetch|invoke|agent
+    pub model: Option<String>,     // modele utilise (si applicable)
+    pub summary: String,           // resume compresse par LLM
+    pub key_findings: Vec<String>, // points cles extraits
+    pub confidence: f64,           // 0.0-1.0
+    pub tokens_used: usize,        // tokens consommes
+    pub created_at: DateTime<Utc>,
+    pub promoted: bool,            // true si promu dans NovaNet
+}
+
+pub struct RecordLog {
+    records_dir: PathBuf,          // .nika/records/
+    config: RecordConfig,          // depuis config.toml
+}
+
+impl RecordLog {
+    /// Sauvegarder les records d'un run
+    pub fn save(&self, run_id: &str, records: &[Record]) -> Result<PathBuf>;
+
+    /// Rechercher dans les Punk Records
+    pub fn query(&self, filter: RecordFilter) -> Result<Vec<Record>>;
+
+    /// Garbage collection des records expires
+    pub fn prune(&self) -> Result<usize>;
+
+    /// Compresser les vieux fichiers NDJSON
+    pub fn compress(&self) -> Result<usize>;
+
+    /// Promouvoir un record vers NovaNet
+    pub fn promote(&self, record_id: &RecordId, mcp: &McpClient) -> Result<()>;
+
+    /// Stats des Punk Records
+    pub fn stats(&self) -> Result<RecordStats>;
+}
+```
+
+### CLI commands
+
+```bash
+# Gestion des Punk Records
+nika records list                    # Lister les runs recents avec records
+nika records show <run-id>           # Afficher les records d'un run
+nika records search "keyword"        # Recherche full-text dans les records
+nika records promote <record-id>     # Promouvoir vers NovaNet
+nika records prune                   # Garbage collection manuelle
+nika records stats                   # Usage disque, count, oldest/newest
+nika records export <run-id>         # Export JSON/CSV
+```
+
+### Promotion vers NovaNet
+
+Quand un Record est promu :
+
+1. `RecordLog` lit le Record depuis le NDJSON
+2. Appel `novanet_write` via MCP pour creer un node `Record` dans NovaNet
+3. Creation des arcs : `RELATES_TO` (Record→Entity si applicable)
+4. Le Record est marque `promoted: true` dans le NDJSON
+5. Les records promus ne sont PAS supprimes par le TTL (ils vivent dans NovaNet)
+
+**3 modes de promotion :**
+
+| Mode | Declencheur | Config |
+|------|-------------|--------|
+| **Manuel** | `nika records promote <id>` | Toujours disponible |
+| **Auto** | `confidence > threshold` a la fin du run | `auto_promote = true` |
+| **Workflow** | `record: { promote: true }` dans le YAML | Par task |
+
+```yaml
+# Promotion explicite dans un workflow
+tasks:
+  - id: critical_research
+    infer: "Deep analysis of competitor landscape"
+    record:
+      compress: true
+      promote: true              # Force promotion vers NovaNet
+      entity_link: "qr-code"    # Lie au node Entity dans NovaNet
 ```

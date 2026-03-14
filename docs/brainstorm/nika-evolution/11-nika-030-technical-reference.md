@@ -928,10 +928,10 @@ flowchart LR
     EP1 -->|"novanet_write"| KG
 
     subgraph KG["NovaNet Knowledge Graph"]
-        AE["AgentRecord\nsummary, findings,\nconfidence, tokens"]
+        AE["Record\nsummary, findings,\nconfidence, tokens"]
         AE -->|RECORD_OF| ENT["Entity\nqr-code"]
         AE -->|FOR_LOCALE| LOC["Locale\nfr-FR"]
-        AE -->|PRECEDED_BY| AE_OLD["Previous\nAgentRecord"]
+        AE -->|PRECEDED_BY| AE_OLD["Previous\nRecord"]
     end
 
     subgraph SESSION2["Session 2"]
@@ -949,14 +949,14 @@ flowchart LR
 
 1. Task completes → record compressed (P-RECORD)
 2. If `record.persist: novanet`, the record is written to NovaNet via `novanet_write`
-3. NovaNet stores it as an `AgentRecord` node, linked to the relevant Entity and Locale
+3. NovaNet stores it as a `Record` node, linked to the relevant Entity and Locale
 4. On next run, Nika calls `novanet_search` to recall relevant records
 5. Recalled records are injected into the agent's context
 
-### AgentRecord Node (NovaNet Schema)
+### Record Node (NovaNet Schema)
 
 ```
-AgentRecord (NodeClass, org realm, output layer)
+Record (NodeClass, org realm, agent layer)
 ├── key: string                 # Unique identifier
 ├── workflow: string            # Source workflow name
 ├── task_id: string             # Source task
@@ -969,8 +969,8 @@ AgentRecord (NodeClass, org realm, output layer)
 └── Arcs:
     ├── RECORD_OF → Entity      # Semantic link
     ├── FOR_LOCALE → Locale     # Locale-specific
-    ├── SIMILAR_TO → AgentRecord
-    └── PRECEDED_BY → AgentRecord (temporal chain)
+    ├── SIMILAR_TO → Record
+    └── PRECEDED_BY → Record (temporal chain)
 ```
 
 ### Cross-Session Learning

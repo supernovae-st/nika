@@ -171,7 +171,7 @@ flowchart LR
 | Multi-locale | 200+ locales via NovaNet knowledge atoms | English-focused |
 | Observability | 34 event types, NDJSON traces, TUI with DAG view | Basic logging |
 | Cost control | Token tracking per task, budget awareness | No token budgeting |
-| Record persistence | NovaNet = graph-queryable, entity-linked (future) | Session files only |
+| Record persistence | 3-tier: Egghead (HOT) → Punk Records (WARM/NDJSON) → NovaNet (COLD/promoted, graph-queryable) | Session files only |
 
 </details>
 
