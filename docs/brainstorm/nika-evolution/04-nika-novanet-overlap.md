@@ -1,35 +1,50 @@
 # 04 — Nika x NovaNet Overlap Analysis
 
 > Identifying duplication, synergies, and boundary decisions.
-> Date: 2026-03-14
+> 6 overlap areas analyzed. 4 duplication risks mapped. 4 synergy opportunities identified.
+
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
 ## Architecture Recap
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  ECOSYSTEM BOUNDARY                                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  NovaNet (Brain)              │  Nika (Body)                        │
-│  ─────────────────            │  ─────────────                      │
-│  Knowledge storage            │  Workflow execution                 │
-│  Schema management            │  LLM orchestration                  │
-│  MCP Server (8 tools)         │  MCP Client (rmcp)                  │
-│  Neo4j graph                  │  tokio runtime                      │
-│  Locale intelligence          │  Multi-provider inference           │
-│  Entity/Page/Block model      │  DAG + 5 verbs                     │
-│  Quality audit (CSR)          │  Event sourcing + traces            │
-│  Denomination forms           │  Transform engine                   │
-│  Knowledge atoms              │  Agent loop + spawning              │
-│                               │                                     │
-│         MCP Protocol ◄────────┼────────►                            │
-│                               │                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph BRAIN["NovaNet — The Brain"]
+        direction TB
+        B1["Knowledge storage"]
+        B2["Schema management"]
+        B3["MCP Server (8 tools)"]
+        B4["Neo4j graph"]
+        B5["Locale intelligence"]
+        B6["Entity/Page/Block model"]
+        B7["Quality audit (CSR)"]
+        B8["Denomination forms"]
+        B9["Knowledge atoms"]
+    end
+
+    subgraph BODY["Nika — The Body"]
+        direction TB
+        K1["Workflow execution"]
+        K2["LLM orchestration"]
+        K3["MCP Client (rmcp)"]
+        K4["tokio runtime"]
+        K5["Multi-provider inference"]
+        K6["DAG + 5 verbs"]
+        K7["Event sourcing + traces"]
+        K8["Transform engine"]
+        K9["Agent loop + spawning"]
+    end
+
+    BRAIN <-->|"MCP Protocol\nJSON-RPC 2.0"| BODY
+
+    style BRAIN fill:#0d9488,color:#fff,stroke:#0d9488
+    style BODY fill:#7c3aed,color:#fff,stroke:#7c3aed
 ```
 
-**Rule (ADR-003):** Nika NEVER accesses Neo4j directly. All graph interaction flows through MCP.
+> [!IMPORTANT]
+> **Rule (ADR-003):** Nika NEVER accesses Neo4j directly. All graph interaction flows through MCP. Zero Cypher in Nika — MCP is the abstraction boundary.
 
 ---
 
@@ -45,10 +60,13 @@
 | File loading | None | `context: { files: ... }` | Nika owns this |
 | Session restore | None | `context: { session: ... }` | Nika owns this |
 
-**Analysis:** No duplication. NovaNet assembles **graph-based context** (entities, knowledge atoms, page structure). Nika assembles **file-based context** (markdown, JSON, YAML from disk). They serve different purposes and combine naturally:
+> [!NOTE]
+> **No duplication.** NovaNet assembles **graph-based context** (entities, knowledge atoms, page structure). Nika assembles **file-based context** (markdown, JSON, YAML from disk). They combine naturally in workflows.
+
+<details>
+<summary>Example: Complementary context assembly</summary>
 
 ```yaml
-# Complementary context assembly
 tasks:
   - id: graph_ctx
     invoke: novanet_context
@@ -67,6 +85,8 @@ tasks:
     infer: "Generate using both: {{use.graph}} {{use.brand}}"
 ```
 
+</details>
+
 ### 2. Schema / Validation
 
 | Capability | NovaNet | Nika | Verdict |
@@ -75,7 +95,8 @@ tasks:
 | Schema validation | `novanet_write(dry_run=true)` | Two-phase AST analyzer | **No overlap** |
 | Schema introspection | `novanet_introspect` | LSP diagnostics | **Different domains** |
 
-**Analysis:** NovaNet validates graph data schemas. Nika validates workflow YAML schemas. Zero overlap.
+> [!NOTE]
+> **Zero overlap.** NovaNet validates graph data schemas. Nika validates workflow YAML schemas. Completely different domains.
 
 ### 3. Search / Discovery
 
@@ -85,7 +106,8 @@ tasks:
 | File search | None | `nika:glob`, `nika:grep` | Nika only |
 | Tool discovery | `list_tools()` (MCP server) | `list_tools()` (MCP client) | **MCP protocol** |
 
-**Analysis:** No duplication. NovaNet searches graph data. Nika searches filesystem.
+> [!NOTE]
+> **No duplication.** NovaNet searches graph data. Nika searches filesystem. Tool discovery is the MCP protocol itself.
 
 ### 4. State Management
 
@@ -95,7 +117,8 @@ tasks:
 | Cross-session | Graph persists forever | Session files only | **Gap in Nika** |
 | Concurrent access | Neo4j transactions | DashMap lock-free | Both handle concurrency |
 
-**Analysis:** NovaNet has durable state (Neo4j). Nika's state is ephemeral (DashMap, session files). This isn't overlap but a **complementary gap**: Nika could use NovaNet to persist cross-session agent memory.
+> [!TIP]
+> **Complementary gap, not overlap.** NovaNet has durable state (Neo4j). Nika's state is ephemeral (DashMap, session files). Nika should use NovaNet to persist cross-session agent memory — see [P-MEMORY in doc 05](./05-evolution-roadmap.md).
 
 ### 5. Event / Audit
 
@@ -106,7 +129,8 @@ tasks:
 | Trace storage | None | NDJSON files | Nika only |
 | Data lineage | Arc-based provenance | None | NovaNet only |
 
-**Analysis:** No overlap. NovaNet audits data quality. Nika traces execution. Could be synergistic: Nika could log generation events TO NovaNet for content lineage.
+> [!NOTE]
+> **No overlap.** NovaNet audits data quality. Nika traces execution. Synergy opportunity: Nika could log generation events TO NovaNet for content lineage.
 
 ### 6. Locale / Content
 
@@ -117,84 +141,112 @@ tasks:
 | Content generation | PageNative, BlockNative (output) | `infer:` verb | **Synergy point** |
 | Content validation | Denomination forms (6 types) | Structured output (4 layers) | **Complementary** |
 
-**Analysis:** NovaNet provides the locale intelligence. Nika provides the generation engine. The workflow is: NovaNet supplies context → Nika generates → NovaNet stores result. The only potential overlap is if Nika started building its own locale awareness, which it should NOT.
+> [!NOTE]
+> **Synergy, not overlap.** NovaNet supplies context → Nika generates → NovaNet stores result. The only risk is if Nika started building its own locale awareness, which it must NOT.
+
+---
+
+## Overlap Verdict
+
+```mermaid
+flowchart LR
+    subgraph CLEAN["Clean Boundaries (no overlap)"]
+        direction TB
+        C1["Context Assembly"]
+        C2["Schema / Validation"]
+        C3["Search / Discovery"]
+        C4["Event / Audit"]
+    end
+
+    subgraph SYNERGY["Synergy Points"]
+        direction TB
+        S1["State Management\n(complementary gap)"]
+        S2["Locale / Content\n(generation pipeline)"]
+    end
+
+    subgraph RISK["Duplication Risks"]
+        direction TB
+        R1["Memory system"]
+        R2["Context assembly"]
+        R3["Schema in AST"]
+        R4["Quality scoring"]
+    end
+
+    CLEAN -.->|"0 overlap today"| OK["Boundary is clean"]
+    SYNERGY -.->|"leverage NovaNet"| OK
+    RISK -.->|"guard against"| RULES["Boundary Rules"]
+
+    style CLEAN fill:#dcfce7,stroke:#16a34a
+    style SYNERGY fill:#dbeafe,stroke:#2563eb
+    style RISK fill:#fecaca,stroke:#dc2626
+    style OK fill:#dcfce7,stroke:#16a34a
+    style RULES fill:#fef3c7,stroke:#d97706
+```
 
 ---
 
 ## Potential Duplication Risks
 
-### Risk 1: Memory / State Duplication
+> [!WARNING]
+> **Risk 1: Memory / State Duplication**
+>
+> Nika builds its own episodic memory system (P-MEMORY) that duplicates NovaNet's entity/knowledge storage.
+>
+> **Recommendation:** Nika's episodic memory should USE NovaNet as backend. New `AgentEpisode` NodeClass in NovaNet Org realm. Nika writes episodes via `novanet_write`, reads via `novanet_search`. NovaNet handles persistence, search, and cleanup.
+>
+> **Why:** NovaNet already has durable storage, fulltext search, and quality audit. Building a parallel system in Nika would duplicate all of this.
 
-```
-RISK: Nika builds its own episodic memory system (P4 priority)
-     that duplicates NovaNet's entity/knowledge storage.
+> [!WARNING]
+> **Risk 2: Context Assembly Duplication**
+>
+> Nika evolves its `context:` system to include entity awareness, essentially rebuilding `novanet_context`.
+>
+> **Recommendation:** Keep `context:` for FILE-based context only. All graph-based context goes through `novanet_context`. Never add entity/locale/knowledge awareness to Nika.
+>
+> **Why:** NovaNet's context assembly has token budgeting, evidence ranking, and spreading activation. Rebuilding this in Nika would be inferior.
 
-RECOMMENDATION:
-  - Nika's episodic memory should USE NovaNet as backend
-  - New NodeClass: "AgentEpisode" in NovaNet Org realm
-  - Nika writes episodes via novanet_write
-  - Nika reads episodes via novanet_search
-  - NovaNet handles persistence, search, and cleanup
+> [!WARNING]
+> **Risk 3: Schema Duplication**
+>
+> Nika adds graph schema concepts (node types, arcs) to its workflow DSL for `decompose:` or routing.
+>
+> **Recommendation:** Keep graph schema knowledge in NovaNet only. Nika uses `novanet_introspect` to discover schema at runtime. `decompose:` strategy should call `novanet_search(mode=walk)`. Never hardcode NovaNet schema in Nika's AST.
+>
+> **Why:** Schema changes in NovaNet (59 → N nodes) shouldn't require Nika code changes. MCP is the abstraction.
 
-WHY: NovaNet already has durable storage, fulltext search,
-     and quality audit. Building a parallel system in Nika
-     would duplicate all of this.
-```
-
-### Risk 2: Context Assembly Duplication
-
-```
-RISK: Nika evolves its context: system to include entity
-     awareness, essentially rebuilding novanet_context.
-
-RECOMMENDATION:
-  - Keep context: for FILE-based context only
-  - All graph-based context goes through novanet_context
-  - Never add entity/locale/knowledge awareness to Nika
-  - Nika is the orchestrator, NovaNet is the memory
-
-WHY: NovaNet's context assembly has token budgeting,
-     evidence ranking, and spreading activation.
-     Rebuilding this in Nika would be inferior.
-```
-
-### Risk 3: Schema Duplication
-
-```
-RISK: Nika adds graph schema concepts (node types, arcs)
-     to its workflow DSL for decompose: or routing.
-
-RECOMMENDATION:
-  - Keep graph schema knowledge in NovaNet only
-  - Nika uses novanet_introspect to discover schema at runtime
-  - decompose: strategy should call novanet_search(mode=walk)
-  - Never hardcode NovaNet schema in Nika's AST
-
-WHY: Schema changes in NovaNet (59→N nodes) shouldn't
-     require Nika code changes. MCP is the abstraction.
-```
-
-### Risk 4: Audit Duplication
-
-```
-RISK: Nika builds its own quality scoring for generated content
-     instead of using novanet_audit CSR metrics.
-
-RECOMMENDATION:
-  - Generated content quality → novanet_audit
-  - Workflow execution quality → Nika event analysis
-  - Content stored in NovaNet → NovaNet audits it
-  - Execution traces in Nika → Nika monitors them
-
-WHY: Content quality depends on entity coverage, locale
-     completeness, and graph integrity — all NovaNet concerns.
-```
+> [!WARNING]
+> **Risk 4: Audit Duplication**
+>
+> Nika builds its own quality scoring for generated content instead of using `novanet_audit` CSR metrics.
+>
+> **Recommendation:** Generated content quality → `novanet_audit`. Workflow execution quality → Nika event analysis. Content stored in NovaNet → NovaNet audits it. Execution traces in Nika → Nika monitors them.
+>
+> **Why:** Content quality depends on entity coverage, locale completeness, and graph integrity — all NovaNet concerns.
 
 ---
 
 ## Synergy Opportunities
 
 ### Opportunity 1: Agent Episodes in NovaNet
+
+Maps to [P-MEMORY](./05-evolution-roadmap.md) and [P-EPISODE](./05-evolution-roadmap.md) in the Evolution Roadmap.
+
+```mermaid
+flowchart LR
+    AGENT["Agent executes task"] --> EPISODE["Episode created\n(summary, findings, tools)"]
+    EPISODE -->|"novanet_write"| NN["NovaNet\nAgentEpisode node"]
+    NN -->|"EPISODE_OF arc"| ENT["Entity\n'qr-code'"]
+    NN -->|"novanet_search"| FUTURE["Future agent\nreuses knowledge"]
+
+    style AGENT fill:#ede9fe,stroke:#7c3aed
+    style EPISODE fill:#fef3c7,stroke:#d97706
+    style NN fill:#0d9488,color:#fff,stroke:#0d9488
+    style ENT fill:#dbeafe,stroke:#2563eb
+    style FUTURE fill:#dcfce7,stroke:#16a34a
+```
+
+<details>
+<summary>Workflow example</summary>
 
 ```yaml
 # Future: Agent writes its experience to NovaNet
@@ -211,7 +263,26 @@ tasks:
   #   - searchable for future similar tasks
 ```
 
+</details>
+
 ### Opportunity 2: Generation Lineage
+
+Track what Nika generated, how, and with what context — full provenance chain.
+
+```mermaid
+flowchart LR
+    CTX["novanet_context\n(focus_key, locale)"] --> NIKA["Nika infer:\nGenerate content"]
+    NIKA -->|"novanet_write"| PN["PageNative\n(generated content)"]
+    PN -->|"provenance"| META["generated_by: nika\nworkflow: generate-page\ntimestamp: 2026-03-14"]
+
+    style CTX fill:#0d9488,color:#fff,stroke:#0d9488
+    style NIKA fill:#7c3aed,color:#fff,stroke:#7c3aed
+    style PN fill:#dbeafe,stroke:#2563eb
+    style META fill:#fef3c7,stroke:#d97706
+```
+
+<details>
+<summary>Workflow example</summary>
 
 ```yaml
 # Future: Track what Nika generated and how
@@ -229,12 +300,18 @@ tasks:
     # With provenance: generated_by="nika", workflow="generate-page.nika.yaml"
 ```
 
+</details>
+
 ### Opportunity 3: Smart Model Routing via NovaNet
+
+NovaNet stores model performance data; Nika queries it for routing decisions.
+
+<details>
+<summary>Workflow example</summary>
 
 ```yaml
 # Future: NovaNet stores model performance data
 # Nika queries it for routing decisions
-
 tasks:
   - id: route
     invoke: novanet_search
@@ -249,9 +326,14 @@ tasks:
     provider: "{{use.model.provider}}"
 ```
 
+</details>
+
 ### Opportunity 4: Decompose via Graph Structure
 
-Already partially implemented:
+Already partially implemented — `decompose:` uses NovaNet's graph to expand the DAG at runtime.
+
+<details>
+<summary>Workflow example</summary>
 
 ```yaml
 # decompose: uses NovaNet's graph to expand DAG
@@ -261,60 +343,98 @@ tasks:
       strategy: semantic
       traverse: HAS_CHILD  # NovaNet arc
       source: $entity
+      max_items: 10         # Optional limit
     infer: "Generate for {{use.item}}"
 ```
+
+</details>
 
 ---
 
 ## Boundary Rules
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  BOUNDARY RULES                                                     │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  NIKA OWNS:                                                         │
-│  ├── Workflow definition and execution                              │
-│  ├── LLM provider management and inference                         │
-│  ├── DAG construction, validation, and scheduling                  │
-│  ├── Agent loop, spawning, and tool routing                        │
-│  ├── File-based context loading                                     │
-│  ├── Execution traces and event sourcing                           │
-│  ├── TUI and developer experience                                   │
-│  ├── Transform engine and data binding                             │
-│  └── Security (shell exec, path validation)                        │
-│                                                                     │
-│  NOVANET OWNS:                                                      │
-│  ├── Entity and content storage (all NodeClasses)                  │
-│  ├── Locale intelligence (atoms, forms, culture)                   │
-│  ├── Graph-based context assembly (token budget, evidence)         │
-│  ├── Schema definition and validation                              │
-│  ├── Content quality audit (CSR metrics)                           │
-│  ├── Search and discovery (fulltext, property, walk)               │
-│  ├── Data lineage and provenance                                    │
-│  └── Cross-session durable state                                   │
-│                                                                     │
-│  SHARED VIA MCP:                                                    │
-│  ├── Tool discovery (list_tools)                                    │
-│  ├── Context requests (novanet_context)                            │
-│  ├── Data writes (novanet_write)                                    │
-│  └── Schema introspection (novanet_introspect)                     │
-│                                                                     │
-│  NEVER DUPLICATE:                                                   │
-│  ├── Entity/locale awareness in Nika                               │
-│  ├── Graph schema in Nika AST                                       │
-│  ├── Workflow execution in NovaNet                                  │
-│  └── LLM inference in NovaNet                                       │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+> [!IMPORTANT]
+> **The Golden Rule** — Five lines that govern every architectural decision. See also [doc 00](./00-README.md).
+
+```mermaid
+flowchart TB
+    subgraph NIKA_OWNS["Nika Owns (DOING)"]
+        direction TB
+        N1["Workflow definition & execution"]
+        N2["LLM provider management & inference"]
+        N3["DAG construction, validation, scheduling"]
+        N4["Agent loop, spawning, tool routing"]
+        N5["File-based context loading"]
+        N6["Execution traces & event sourcing"]
+        N7["TUI & developer experience"]
+        N8["Transform engine & data binding"]
+        N9["Security (shell exec, path validation)"]
+    end
+
+    subgraph NN_OWNS["NovaNet Owns (KNOWING)"]
+        direction TB
+        V1["Entity & content storage (all NodeClasses)"]
+        V2["Locale intelligence (atoms, forms, culture)"]
+        V3["Graph-based context assembly (token budget)"]
+        V4["Schema definition & validation"]
+        V5["Content quality audit (CSR metrics)"]
+        V6["Search & discovery (fulltext, property, walk)"]
+        V7["Data lineage & provenance"]
+        V8["Cross-session durable state"]
+    end
+
+    subgraph MCP_SHARED["Shared via MCP (CONNECTING)"]
+        direction TB
+        M1["Tool discovery (list_tools)"]
+        M2["Context requests (novanet_context)"]
+        M3["Data writes (novanet_write)"]
+        M4["Schema introspection (novanet_introspect)"]
+    end
+
+    subgraph NEVER["Never Duplicate"]
+        direction TB
+        X1["Entity/locale awareness in Nika"]
+        X2["Graph schema in Nika AST"]
+        X3["Workflow execution in NovaNet"]
+        X4["LLM inference in NovaNet"]
+    end
+
+    NIKA_OWNS <-->|"JSON-RPC 2.0"| MCP_SHARED
+    MCP_SHARED <-->|"JSON-RPC 2.0"| NN_OWNS
+
+    style NIKA_OWNS fill:#ede9fe,stroke:#7c3aed
+    style NN_OWNS fill:#ccfbf1,stroke:#0d9488
+    style MCP_SHARED fill:#dbeafe,stroke:#2563eb
+    style NEVER fill:#fecaca,stroke:#dc2626
 ```
 
 ---
 
 ## Summary
 
-The Nika/NovaNet boundary is clean today. The main evolution risk is Nika building parallel systems (memory, context, quality) instead of leveraging NovaNet. The rule is simple:
+The Nika/NovaNet boundary is clean today. The main evolution risk is Nika building parallel systems (memory, context, quality) instead of leveraging NovaNet.
 
-- **If it's about knowing things** → NovaNet
-- **If it's about doing things** → Nika
-- **If it's about connecting knowing and doing** → MCP
+```mermaid
+flowchart LR
+    KNOWING["If it's about\nKNOWING things"] -->|"always"| NN["NovaNet"]
+    DOING["If it's about\nDOING things"] -->|"always"| NK["Nika"]
+    CONNECTING["If it's about\nCONNECTING"]  -->|"always"| MC["MCP"]
+
+    style KNOWING fill:#0d9488,color:#fff,stroke:#0d9488
+    style DOING fill:#7c3aed,color:#fff,stroke:#7c3aed
+    style CONNECTING fill:#2563eb,color:#fff,stroke:#2563eb
+    style NN fill:#ccfbf1,stroke:#0d9488
+    style NK fill:#ede9fe,stroke:#7c3aed
+    style MC fill:#dbeafe,stroke:#2563eb
+```
+
+> [!TIP]
+> **Overlap scorecard:** 0 of 6 areas have duplication today. 4 risks identified and mitigated via boundary rules. 4 synergy opportunities mapped to [Evolution Roadmap priorities](./05-evolution-roadmap.md).
+
+---
+
+<div align="center">
+
+[← 03 Competitive Landscape](./03-competitive-landscape.md) · [📋 Index](./00-README.md) · [05 Evolution Roadmap →](./05-evolution-roadmap.md)
+
+</div>

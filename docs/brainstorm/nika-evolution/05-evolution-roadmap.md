@@ -1,54 +1,132 @@
 # 05 — Evolution Roadmap
 
-> 6 priorities in 3 waves, centered on Slate's thread/episode architecture.
-> Date: 2026-03-14
+> 6 priorities in 3 waves — from Nika v0.27 to v0.30.
+> Centered on Slate's thread/episode architecture, adapted for YAML-first declarative workflows.
+
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+
+---
+
+## Overview
+
+```mermaid
+flowchart LR
+    subgraph TODAY["v0.27 — Today"]
+        T1["Single provider per workflow"]
+        T2["Raw TaskResult passing"]
+        T3["Static DAG execution"]
+        T4["No context budgeting"]
+        T5["In-memory DataStore"]
+    end
+
+    subgraph TOMORROW["v0.30 — Target"]
+        F1["4-slot model routing"]
+        F2["Episode compression"]
+        F3["Strategy orchestration"]
+        F4["Context budget mgmt"]
+        F5["NovaNet episodic memory"]
+    end
+
+    T1 -->|"P-MODEL"| F1
+    T2 -->|"P-EPISODE"| F2
+    T3 -->|"P-STRATEGY"| F3
+    T4 -->|"P-CONTEXT"| F4
+    T5 -->|"P-MEMORY"| F5
+
+    style TODAY fill:#fee2e2,stroke:#dc2626
+    style TOMORROW fill:#dcfce7,stroke:#16a34a
+```
+
+> [!IMPORTANT]
+> **Core insight** — Nika's DAG IS Slate's kernel. `AnalyzedWorkflow` IS the OS. `TaskResult` IS return values. `DataStore` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions, then persist via NovaNet.
 
 ---
 
 ## The 6 Priorities
 
+```mermaid
+flowchart TD
+    PM["🎛️ P-MODEL\n4-slot model routing"]
+    PE["📦 P-EPISODE\nEpisode compression"]
+    PS["🎯 P-STRATEGY\nStrategy orchestration"]
+    PC["📊 P-CONTEXT\nContext budgeting"]
+    PMEM["🧠 P-MEMORY\nNovaNet episodic memory"]
+    PI["🔍 P-INTROSPECT\nRuntime introspection"]
+
+    PM --> PS
+    PE --> PS
+    PE --> PC
+    PS --> PMEM
+    PC --> PMEM
+    PMEM --> PI
+
+    subgraph W1["Wave 1 · v0.28 · schema @0.12"]
+        PM
+        PE
+    end
+
+    subgraph W2["Wave 2 · v0.29 · schema @0.13"]
+        PS
+        PC
+    end
+
+    subgraph W3["Wave 3 · v0.30"]
+        PMEM
+        PI
+    end
+
+    style W1 fill:#dbeafe,stroke:#2563eb
+    style W2 fill:#fef3c7,stroke:#d97706
+    style W3 fill:#dcfce7,stroke:#16a34a
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  EVOLUTION PRIORITIES (Slate Integration)                                        │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  P-MODEL      4-slot model architecture (main/tactical/search/reasoning)        │
-│  P-EPISODE    Episode engine (compression at completion boundary)               │
-│  P-STRATEGY   Strategy orchestration (dynamic tactic dispatch)                  │
-│  P-CONTEXT    Context budget management (working memory awareness)              │
-│  P-MEMORY     NovaNet episodic memory (cross-session, entity-linked)            │
-│  P-INTROSPECT Runtime introspection tools (episodes, threads, cost)             │
-│                                                                                 │
-│  OLD P3 (ConfidenceRouter) → ABSORBED into P-EPISODE (confidence is an          │
-│  episode property; strategy LLM handles escalation naturally)                   │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+
+> [!NOTE]
+> **Old P3 (ConfidenceRouter) absorbed** — Confidence is now an episode property. The strategy LLM handles escalation naturally, with full context, rather than a rigid router with fixed rules.
 
 ---
 
-## P-MODEL: 4-Slot Model Architecture
+## Wave 1: Thread Foundation (v0.28, schema @0.12)
 
-### What It Is
+### P-MODEL: 4-Slot Model Architecture
 
-Per-workflow model slot definitions that route different cognitive tasks to different providers/models. Slate's 4 global slots, made declarative and per-workflow.
+Route different cognitive tasks to different providers/models. Inspired by Slate's cross-model composition (Sonnet + Codex)[^1], adapted as named slots per-workflow.
 
-### Current State
+```mermaid
+flowchart LR
+    subgraph SLOTS["model_slots:"]
+        M["🧠 main\nclaude-sonnet-4-6"]
+        T["⚡ tactical\nllama-3.3-70b"]
+        S["🔍 search\ndeepseek-chat"]
+        R["🤔 reasoning\nclaude + thinking"]
+    end
 
+    subgraph TASKS["tasks:"]
+        T1["plan\n→ reasoning"]
+        T2["generate\n→ main"]
+        T3["fetch data\n→ search"]
+        T4["format\n→ tactical"]
+    end
+
+    M --> T2
+    T --> T4
+    S --> T3
+    R --> T1
+
+    style SLOTS fill:#f0f9ff,stroke:#0284c7
+    style TASKS fill:#fefce8,stroke:#ca8a04
 ```
-TODAY:
-  ├── Single provider: per workflow (all tasks use same model)
-  ├── Per-task provider/model override: NOT supported
-  └── RigProvider::auto() detects from env vars
 
-AFTER:
-  ├── model_slots: block in YAML (4 named slots)
-  ├── Per-task model_slot: reference
-  ├── default_model_slot: fallback
-  └── Different models for strategy vs tactics vs search vs reasoning
-```
+**Current state** → After:
 
-### Proposed Design
+| Aspect | Today (v0.27) | After (v0.28) |
+|--------|---------------|---------------|
+| Provider scope | Single per workflow | 4 named slots per workflow |
+| Per-task override | Not supported | `model_slot:` reference |
+| Cost optimization | None | Route simple tasks to cheap models |
+| Provider resolution | `RigProvider::auto()` | `RigProvider::from_slot()` |
+
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 schema: nika/workflow@0.12
@@ -80,72 +158,86 @@ default_model_slot: main
 
 tasks:
   - id: plan
-    model_slot: reasoning         # Uses expensive deep-thinking model
+    model_slot: reasoning         # Expensive deep-thinking model
     infer: "Create a content plan for {{use.entity}}"
 
   - id: generate_pages
-    model_slot: tactical          # Uses cheap fast model
+    model_slot: tactical          # Cheap fast model
     for_each: $pages
     infer: "Generate page {{use.item}}"
 
   - id: review
-    model_slot: reasoning         # Back to expensive model for review
+    model_slot: reasoning         # Back to expensive model
     infer: "Review all generated pages for quality"
 ```
 
 **Why per-workflow, not global**: Different workflows have different cost/quality tradeoffs. A content generation workflow uses expensive models. An audit workflow uses cheap models. Slate's global config can't express this.
 
-### Implementation
+</details>
+
+<details>
+<summary>🔧 Implementation</summary>
 
 | Change | Location | Effort |
 |--------|----------|--------|
-| `ModelSlot` struct (provider, model, params) | `ast/raw/model_slot.rs` (NEW) | Low |
-| `model_slots:` field in `RawWorkflow` | `ast/raw/workflow.rs` | Low |
-| `model_slot:` field in `RawTask` | `ast/raw/task.rs` | Low |
-| Analyze slot validation | `ast/analyzer/analyze.rs` | Low |
-| `from_slot()` constructor on RigProvider | `provider/rig.rs` | Medium |
-| Resolve slot per task in executor | `runtime/executor.rs` | Medium |
-| Schema bump to @0.12 | `schemas/nika-workflow.schema.json` | Low |
-| Feature gate for @0.12 | `ast/analyzer/feature_gate.rs` | Low |
+| `ModelSlot` struct | `ast/raw/model_slot.rs` (NEW) | Low |
+| `model_slots:` field | `ast/raw/workflow.rs` | Low |
+| `model_slot:` field | `ast/raw/task.rs` | Low |
+| Slot validation | `ast/analyzer/analyze.rs` | Low |
+| `from_slot()` constructor | `provider/rig.rs` | Medium |
+| Slot resolution per task | `runtime/executor.rs` | Medium |
+| Schema bump | `schemas/nika-workflow.schema.json` → @0.12 | Low |
+| Feature gate | `ast/analyzer/feature_gate.rs` | Low |
 
-### Source Inspiration
+**Breaking changes:** None — new optional fields, old workflows unchanged.
 
-- **Slate:** 4 model slots (main/subagent/search/reasoning) — global config
-- **THREAD:** Resource-aware model allocation per subtask
+</details>
+
+<details>
+<summary>📚 Source Inspiration</summary>
+
+- **Slate:** Cross-model composition — uses Sonnet + Codex together for different cognitive tasks[^1]. The "4 named slots" design (main/tactical/search/reasoning) is our proposal.
+- **THREAD:** Resource-aware model allocation per subtask[^2]
 - **SWE-bench:** Different models excel at different cognitive tasks
 
-### Risk Assessment
-
-- **Complexity:** LOW-MEDIUM — mostly AST + provider plumbing
-- **Breaking changes:** None (new optional fields, old workflows unchanged)
-- **Cost impact:** Significant savings by routing simple tasks to cheaper models
+</details>
 
 ---
 
-## P-EPISODE: Episode Engine
+### P-EPISODE: Episode Engine
 
-### What It Is
+Compressed representation of a task's execution, generated at the natural completion boundary. Downstream tasks receive **episodes**, not raw output. This is Slate's core innovation[^1].
 
-Compressed representation of a task's execution, generated at the natural completion boundary (not mid-stream). This is Slate's core innovation: tasks produce **episodes**, not raw output. Downstream tasks receive episodes, keeping context within working memory.
+```mermaid
+stateDiagram-v2
+    [*] --> Executing: Task starts
+    Executing --> Completed: Task finishes
+    Completed --> Compressing: episode.compress = true
+    Compressing --> EpisodeStored: LLM summarizes
+    Completed --> RawStored: episode.compress = false
 
-### Current State
+    EpisodeStored --> [*]: summary + key_findings + confidence
+    RawStored --> [*]: raw TaskResult (legacy)
 
+    note right of Compressing
+        Uses cheap model (tactical slot)
+        Max tokens configurable
+        Confidence self-assessed
+    end note
 ```
-TODAY:
-  ├── TaskResult: raw output stored in DataStore
-  ├── use: bindings pass raw output between tasks
-  ├── No compression — full output carried forward
-  └── Context grows linearly with pipeline depth
 
-AFTER:
-  ├── Episode struct: summary + key_findings + confidence + tokens
-  ├── LLM compression at task completion boundary
-  ├── use: bindings prefer episodes over raw output
-  ├── Context stays within working memory budget
-  └── EpisodeCreated event for observability
-```
+**Current state** → After:
 
-### Proposed Design
+| Aspect | Today (v0.27) | After (v0.28) |
+|--------|---------------|---------------|
+| Task output | Raw `TaskResult` in `DataStore` | `Episode` struct with compression |
+| Context passing | Full output via `use:` bindings | Episode summaries via `use:` bindings |
+| Context growth | Linear with pipeline depth | Bounded by episode `max_tokens` |
+| Observability | `TaskCompleted` event | `TaskCompleted` + `EpisodeCreated` events |
+| Confidence | Not tracked | Self-assessed `0.0-1.0` per episode |
+
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 tasks:
@@ -156,12 +248,17 @@ tasks:
       compress: true           # Generate episode summary after execution
       retain: [key_findings]   # What to keep from raw output
       max_tokens: 500          # Episode summary size limit
-      confidence_threshold: 0.8 # Strategy can escalate if below threshold
+      confidence_threshold: 0.8 # Strategy can escalate if below
 ```
 
-Episode data structure:
+</details>
+
+<details>
+<summary>🦀 Rust Data Structure</summary>
 
 ```rust
+/// Compressed representation of a task's execution.
+/// Generated at the natural completion boundary (not mid-stream).
 pub struct Episode {
     pub task_id: TaskId,
     pub summary: String,           // LLM-compressed summary
@@ -174,23 +271,12 @@ pub struct Episode {
 }
 ```
 
-Episode compression flow:
+**Location:** `src/runtime/episode.rs` (NEW)
 
-```
-Task executes → Full output → LLM compresses → Episode stored in DataStore
-                                    │
-                                    ├── Summary (always kept)
-                                    ├── Key findings (configurable via retain:)
-                                    ├── Confidence score (self-assessed)
-                                    └── Raw output (optional, debug mode only)
+</details>
 
-Downstream tasks receive EPISODE, not raw output.
-Context stays within working memory.
-```
-
-### How Confidence Replaces Old P3 (ConfidenceRouter)
-
-The old ConfidenceRouter was a rigid tiered escalation system. Episodes make this unnecessary:
+<details>
+<summary>🔁 Confidence Replaces Old P3 (ConfidenceRouter)</summary>
 
 ```
 Old approach (ConfidenceRouter):
@@ -203,58 +289,81 @@ New approach (Episode confidence):
   Adaptive. Full context. Natural escalation.
 ```
 
-### Implementation
+</details>
+
+<details>
+<summary>🔧 Implementation</summary>
 
 | Change | Location | Effort |
 |--------|----------|--------|
 | `Episode` struct | `runtime/episode.rs` (NEW) | Medium |
 | `EpisodeCompressor` (LLM-based) | `runtime/episode_compress.rs` (NEW) | Medium |
-| `episode:` field in `RawTask` | `ast/raw/task.rs` | Low |
-| Episode generation after task completion | `runtime/executor.rs` | Medium |
-| Episode storage in DataStore | `store/mod.rs` | Low |
+| `episode:` field | `ast/raw/task.rs` | Low |
+| Episode generation after completion | `runtime/executor.rs` | Medium |
+| Episode storage | `store/mod.rs` | Low |
 | Episode-aware binding resolution | `binding/resolve.rs` | Medium |
 | `EpisodeCreated` event kind | `event/log.rs` | Low |
 
-### Source Inspiration
+**Quality risk:** Compression quality depends on LLM summarization ability. Mitigated by using the `retain:` field for explicit key extraction.
 
-- **Slate:** Episodes — the core innovation. Compressed at natural completion boundary.
-- **Context-Folding:** Sub-trajectory compression for reduced context.
-- **Memory-R1:** RL-trained memory policies (confidence scoring).
+</details>
 
-### Risk Assessment
+<details>
+<summary>📚 Source Inspiration</summary>
 
-- **Complexity:** MEDIUM — new module, LLM compression logic, binding changes
-- **Quality:** Episode compression quality depends on LLM summarization ability
-- **Cost:** Compression adds one extra LLM call per task (use cheap model)
-- **Value:** HIGH — solves context degradation, enables strategy mode
+- **Slate:** Episodes — compressed at natural completion boundary[^1]
+- **Context-Folding:** Sub-trajectory compression for reduced context[^3]
+- **Memory-R1:** RL-trained memory policies with confidence scoring[^4]
+
+</details>
 
 ---
 
-## P-STRATEGY: Strategy Orchestration
+## Wave 2: Strategy Intelligence (v0.29, schema @0.13)
 
-### What It Is
+### P-STRATEGY: Strategy Orchestration
 
-A new workflow execution mode where a **strategy LLM** dynamically dispatches **tactic tasks** based on the goal and accumulated episodes. This is Slate's thread weaving: implicit adaptive decomposition via an orchestrator loop.
+A new workflow execution mode where a **strategy LLM** dynamically dispatches **tactic tasks** based on the goal and accumulated episodes. This is Slate's thread weaving[^1]: implicit adaptive decomposition via an orchestrator loop.
 
-### Current State
+```mermaid
+sequenceDiagram
+    participant S as 🎯 Strategy LLM
+    participant R as 🔍 research
+    participant W as ✍️ write_section
+    participant V as 🔬 review
 
+    Note over S: Round 1
+    S->>R: dispatch(topic="QR trends")
+    R-->>S: Episode{summary, confidence: 0.9}
+
+    Note over S: Round 2
+    S->>W: dispatch(section="hero")
+    S->>W: dispatch(section="features")
+    Note right of W: Parallel execution
+    W-->>S: Episode{content: hero_draft}
+    W-->>S: Episode{content: features_draft}
+
+    Note over S: Round 3
+    S->>V: dispatch(draft=hero+features)
+    V-->>S: Episode{issues: [...], score: 0.85}
+
+    Note over S: Round 4
+    S->>S: All episodes synthesized
+    Note over S: ✅ DONE — assembled page
 ```
-TODAY:
-  ├── Static DAG execution (all tasks and flows known at parse time)
-  ├── decompose: modifier for graph-based expansion
-  ├── spawn_agent for recursive delegation
-  └── No dynamic task creation at runtime
 
-AFTER:
-  ├── orchestration: strategy mode (new workflow execution path)
-  ├── Strategy LLM decides which tasks to dispatch per round
-  ├── Tasks become tactic TEMPLATES (dispatched dynamically)
-  ├── Dynamic DAG mutation (add tasks at runtime)
-  ├── Episode synthesis between rounds
-  └── Strategy LLM decides when to stop
-```
+**Current state** → After:
 
-### Proposed Design
+| Aspect | Today (v0.27) | After (v0.29) |
+|--------|---------------|---------------|
+| Execution mode | Static DAG only | `dag` (default) or `strategy` |
+| Task dispatch | All known at parse time | Dynamic by strategy LLM |
+| Inter-task data | Raw `use:` bindings | Episode synthesis between rounds |
+| Stopping condition | DAG completed | Strategy LLM decides "DONE" |
+| DAG mutation | Immutable after parse | `DynamicDag` adds tasks at runtime |
+
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 schema: nika/workflow@0.13
@@ -292,101 +401,69 @@ tasks:
     episode: { compress: true, retain: [issues, suggestions] }
 ```
 
-### Strategy Orchestration Loop
+</details>
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  STRATEGY ORCHESTRATION LOOP                                                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  Round 1:                                                                       │
-│  ┌──────────────┐                                                               │
-│  │  Strategy LLM │──► "Dispatch: research(topic='QR trends')"                   │
-│  └──────┬───────┘                                                               │
-│         │                                                                       │
-│         ▼                                                                       │
-│  ┌──────────────┐     ┌──────────┐                                              │
-│  │ research task │────►│ Episode  │                                              │
-│  └──────────────┘     └────┬─────┘                                              │
-│                            │                                                    │
-│  Round 2:                  ▼                                                    │
-│  ┌──────────────┐     ┌──────────────────────────────────┐                      │
-│  │  Strategy LLM │◄───│ Episodes: [research_ep]          │                      │
-│  └──────┬───────┘     └──────────────────────────────────┘                      │
-│         │                                                                       │
-│         ▼                                                                       │
-│  "Dispatch: write_section(section='hero'), write_section(section='features')"   │
-│         │                                                                       │
-│         ├──► ┌──────────────┐     ┌──────────┐                                  │
-│         │    │ write (hero)  │────►│ Episode  │  (parallel)                      │
-│         │    └──────────────┘     └──────────┘                                  │
-│         └──► ┌──────────────┐     ┌──────────┐                                  │
-│              │ write (feat.) │────►│ Episode  │                                  │
-│              └──────────────┘     └──────────┘                                  │
-│                                                                                 │
-│  Round 3:                                                                       │
-│  Strategy LLM ◄── [research_ep, hero_ep, features_ep]                           │
-│  "Dispatch: review(draft=hero_ep+features_ep)"                                  │
-│                                                                                 │
-│  Round N:                                                                       │
-│  Strategy LLM: "DONE. Final output: [assembled page]"                           │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Implementation
+<details>
+<summary>🔧 Implementation</summary>
 
 | Change | Location | Effort |
 |--------|----------|--------|
-| `StrategyOrchestrator` struct | `runtime/strategy.rs` (NEW) | High |
+| `StrategyOrchestrator` struct | `runtime/strategy.rs` (NEW) | **High** |
 | `TacticTemplate`, `TacticInstance` | `runtime/tactic.rs` (NEW) | Medium |
-| `DynamicDag` (mutable DAG) | `dag/dynamic.rs` (NEW) | High |
+| `DynamicDag` (mutable DAG) | `dag/dynamic.rs` (NEW) | **High** |
 | `orchestration:` + `strategy:` fields | `ast/raw/workflow.rs` | Low |
-| Strategy mode routing in runner | `runtime/runner.rs` | Medium |
+| Strategy mode routing | `runtime/runner.rs` | Medium |
 | Mutable DAG operations | `dag/mod.rs` | Medium |
 | Strategy visualization in TUI | `tui/views/runner.rs` | Medium |
-| Schema bump to @0.13 | `schemas/nika-workflow.schema.json` | Low |
+| Schema bump | `schemas/nika-workflow.schema.json` → @0.13 | Low |
 
-### Source Inspiration
+**Dependencies:** Requires P-MODEL + P-EPISODE (Wave 1) as foundation.
 
-- **Slate:** Thread weaving — implicit adaptive decomposition via orchestrator loop
-- **Slate:** Strategy/tactics separation (AlphaZero mapping)
-- **THREAD:** Hierarchical decomposition with resource-aware model selection
-- **RLM:** Recursive sub-LM calls with external working memory
+</details>
 
-### Risk Assessment
+<details>
+<summary>📚 Source Inspiration</summary>
 
-- **Complexity:** HIGH — touches DAG, runtime, AST, provider, TUI
-- **Security:** Must validate dynamically generated task parameters
-- **Scope creep:** Start with sequential dispatch, add parallel later
-- **Dependencies:** Requires P-MODEL + P-EPISODE (Wave 1) as foundation
+- **Slate:** Thread weaving — implicit adaptive decomposition[^1]
+- **Slate:** Strategy/tactics separation, AlphaZero mapping (value network = strategy, policy network = tactics)[^5]
+- **THREAD:** Hierarchical decomposition with resource-aware model selection[^2]
+- **RLM:** Recursive sub-LM calls with external working memory[^6]
+
+</details>
 
 ---
 
-## P-CONTEXT: Context Budget Management
+### P-CONTEXT: Context Budget Management
 
-### What It Is
+Working memory awareness at the runtime level. Each task declares its context budget. The runtime enforces this by passing only episode summaries — never raw history.
 
-Working memory awareness at the runtime level. Each task declares how much context it can consume (context budget), and the runtime enforces this by passing only episode summaries and relevant context — never raw history from other tasks.
+```mermaid
+flowchart TB
+    subgraph BEFORE["Without P-CONTEXT"]
+        B1["Task A output\n2,000 tokens"] --> B2["Task B receives\nfull 2,000 tokens"]
+        B2 --> B3["Task C receives\nA + B = 4,000 tokens"]
+        B3 --> B4["Task D receives\nA+B+C = 6,000+ tokens"]
+        B4 --> B5["💀 Dumb Zone\nContext degradation"]
+    end
 
-### Current State
+    subgraph AFTER["With P-CONTEXT"]
+        A1["Task A → Episode\n300 tokens"] --> A2["Task B receives\nepisode = 300 tokens"]
+        A2 --> A3["Task C receives\nA_ep + B_ep = 600 tokens"]
+        A3 --> A4["Task D receives\nrelevant episodes only"]
+        A4 --> A5["✅ Working Memory\nAlways within budget"]
+    end
 
+    style BEFORE fill:#fee2e2,stroke:#dc2626
+    style AFTER fill:#dcfce7,stroke:#16a34a
+    style B5 fill:#dc2626,color:#fff
+    style A5 fill:#16a34a,color:#fff
 ```
-TODAY:
-  ├── No context budgeting — full output passed between tasks
-  ├── No working memory awareness
-  ├── Context grows linearly with pipeline depth
-  └── Agent context window filled until degradation
 
-AFTER:
-  ├── context_budget: per task in YAML
-  ├── Episode-only passing (not raw history)
-  ├── Strategy decides which episodes each thread receives
-  ├── Token budget tracking in events
-  └── Working memory boundary enforcement
-```
+> [!WARNING]
+> **Context degradation** is the root cause of agent failure. LLM performance degrades past the "dumb zone" threshold (Dex Horthy's term[^1]). P-CONTEXT prevents this structurally.
 
-### Proposed Design
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 tasks:
@@ -406,63 +483,66 @@ tasks:
     infer: "Generate landing page based on: {{use.trends}}"
 ```
 
-Rules:
+**Rules:**
 1. Each task receives ONLY: its prompt + relevant episodes + NovaNet context
 2. Never raw history from other tasks
 3. `context_budget` enforced by the runtime (truncate/warn if exceeded)
 4. Strategy orchestrator manages which episodes to include per thread
 5. Token budget tracked in events for observability
 
-### Implementation
+</details>
+
+<details>
+<summary>🔧 Implementation</summary>
 
 | Change | Location | Effort |
 |--------|----------|--------|
-| `context_budget:` field in `RawTask` | `ast/raw/task.rs` | Low |
-| Budget enforcement in executor | `runtime/executor.rs` | Medium |
+| `context_budget:` field | `ast/raw/task.rs` | Low |
+| Budget enforcement | `runtime/executor.rs` | Medium |
 | Token counting utilities | `runtime/context_budget.rs` (NEW) | Medium |
 | Budget tracking in events | `event/log.rs` | Low |
 | Strategy episode selection | `runtime/strategy.rs` | Medium |
 
-### Source Inspiration
+**Accuracy note:** Token counting is approximate (tokenizer-dependent). Use conservative estimates.
 
-- **Slate:** Working memory / dumb zone — never exceed usable context
-- **Context-Folding:** Sub-trajectory compression to stay within budget
-- **RLM:** Token-aware external memory management
-
-### Risk Assessment
-
-- **Complexity:** MEDIUM — new field, budget logic, token counting
-- **Accuracy:** Token counting is approximate (tokenizer-dependent)
-- **Dependencies:** Benefits greatly from P-EPISODE (episodes are budget-friendly)
-- **Value:** HIGH — prevents context degradation, the root cause of agent failure
+</details>
 
 ---
 
-## P-MEMORY: NovaNet Episodic Memory
+## Wave 3: Persistent Memory (v0.30)
 
-### What It Is
+### P-MEMORY: NovaNet Episodic Memory
 
-Persistent episodes stored in NovaNet's knowledge graph, linked to semantic entities. Episodes survive across sessions, enabling cross-session learning, knowledge overhang activation, and experience accumulation.
+Persistent episodes stored in NovaNet's knowledge graph, linked to semantic entities. Episodes survive across sessions — enabling cross-session learning and knowledge overhang activation[^1].
 
-### Current State
+```mermaid
+flowchart LR
+    subgraph S1["Session 1"]
+        R1["research(qr-code)"] --> E1["Episode"]
+        E1 -->|"novanet_write"| AE1["AgentEpisode\nin NovaNet"]
+    end
 
+    subgraph KG["NovaNet Knowledge Graph"]
+        AE1 --- ENT["Entity\nqr-code"]
+        AE1 --- LOC["Locale\nfr-FR"]
+        AE1 --> AE0["Previous\nAgentEpisode"]
+    end
+
+    subgraph S2["Session 2"]
+        G1["generate(qr-code)"] -->|"novanet_search"| AE1
+        AE1 -->|"episodes as context"| G1
+    end
+
+    style S1 fill:#dbeafe,stroke:#2563eb
+    style KG fill:#f0fdf4,stroke:#16a34a
+    style S2 fill:#fef3c7,stroke:#d97706
 ```
-TODAY:
-  ├── DataStore (DashMap) — in-memory, dies with process
-  ├── Session files (.nika/sessions/) — editor state only
-  ├── NDJSON traces — raw events, not queryable
-  └── NovaNet — has durable storage but no agent memory model
 
-AFTER:
-  ├── AgentEpisode NodeClass in NovaNet
-  ├── episode.persist: novanet in workflow YAML
-  ├── entity_link: semantic entity association
-  ├── Cross-session episode retrieval via novanet_search
-  ├── Auto-surfacing relevant episodes as context
-  └── Knowledge overhang activation across sessions
-```
+> [!TIP]
+> **Knowledge overhang** — Models have knowledge they can't access without scaffolding. Cross-session episodes provide that scaffolding, activating latent capabilities across sessions.
 
-### Proposed Design
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 tasks:
@@ -481,7 +561,10 @@ tasks:
       Previous experience: {{use.past_experience}}
 ```
 
-NovaNet schema additions:
+</details>
+
+<details>
+<summary>🏗️ NovaNet Schema Additions</summary>
 
 ```
 AgentEpisode (NodeClass, org realm, output layer)
@@ -498,81 +581,47 @@ AgentEpisode (NodeClass, org realm, output layer)
 ├── Arcs:
 │   ├── EPISODE_OF → Entity (semantic link)
 │   ├── FOR_LOCALE → Locale (if locale-specific)
-│   ├── SIMILAR_TO → AgentEpisode (similarity arcs)
+│   ├── SIMILAR_TO → AgentEpisode (similarity)
 │   └── PRECEDED_BY → AgentEpisode (temporal chain)
 ```
 
-Cross-session knowledge overhang:
+**Requires:** NovaNet schema ADR + coordinated Nika/NovaNet development.
 
-```
-Session 1: research(qr-code) → Episode → novanet_write(AgentEpisode)
-Session 2: generate(qr-code) → novanet_search(AgentEpisode, entity=qr-code)
-                                     ↓
-                              Previous episodes surface as context
-                              Knowledge overhang ACTIVATED
-```
+</details>
 
-### Implementation Phases
+<details>
+<summary>🔧 Implementation (5 Phases)</summary>
 
-1. **Episode data model** — New NodeClass in NovaNet schema (ADR required)
-2. **Write episodes** — Nika calls `novanet_write` after workflow completion
-3. **Recall episodes** — `novanet_search` for similar past runs
-4. **Inject in context** — Recalled episodes added to agent system prompt
-5. **Auto-learning** — Pattern extraction from success/failure episodes
+| Phase | What | Location |
+|-------|------|----------|
+| 1 | Episode data model | NovaNet schema YAML (ADR required) |
+| 2 | Write episodes | Nika calls `novanet_write` after completion |
+| 3 | Recall episodes | `novanet_search` for similar past runs |
+| 4 | Inject in context | Recalled episodes in agent system prompt |
+| 5 | Auto-learning | Pattern extraction from success/failure |
 
-### Implementation
-
-| Change | Location | Effort |
-|--------|----------|--------|
-| `EpisodicMemoryManager` struct | `runtime/episodic_memory.rs` (NEW) | Medium |
-| `persist_to_novanet()` on Episode | `runtime/episode.rs` | Medium |
-| AgentEpisode read/write via MCP | `mcp/client.rs` | Medium |
-| NovaNet AgentEpisode NodeClass | NovaNet schema YAML | Medium |
-| NovaNet EPISODE_OF ArcClass | NovaNet schema YAML | Low |
-| NovaNet HAS_EPISODE ArcClass | NovaNet schema YAML | Low |
-| ADR for episode schema | `dx/adr/novanet/` | Low |
-
-### Source Inspiration
-
-- **Slate:** Episodic memory, cross-session learning via session files
-- **Memory-R1:** RL-trained memory policies for what to remember
-- **CrewAI:** Short/long-term/entity memory (3-type model)
-
-### Risk Assessment
-
-- **Complexity:** HIGH — requires NovaNet schema changes + new Nika module
-- **Cross-project:** Needs coordinated NovaNet + Nika development
-- **Privacy:** Episodes may contain sensitive data — need retention policies
-- **Value:** VERY HIGH — learning from experience is the biggest differentiator
+</details>
 
 ---
 
-## P-INTROSPECT: Runtime Introspection Tools
+### P-INTROSPECT: Runtime Introspection Tools
 
-### What It Is
+New builtin tools that let agents query the current workflow's runtime state. The DAG becomes a first-class data structure that agents can reason about.
 
-New builtin tools that let agents query the current workflow's runtime state: episodes, threads, strategy state, and cost. The DAG becomes a first-class data structure that agents can reason about.
+| Tool | Returns | Use Case |
+|------|---------|----------|
+| `nika:episodes` | `[{task_id, summary, confidence, tokens}]` | Query accumulated episodes |
+| `nika:threads` | `[{task_id, status, model_slot}]` | List active/completed threads |
+| `nika:strategy_state` | `{round, max_rounds, budget_used, budget_total}` | Check strategy progress |
+| `nika:cost` | `{total_tokens, total_cost, per_model}` | Token usage and cost report |
+| `nika:dag_info` | `{predecessors, successors, critical_path}` | DAG structure queries |
+| `nika:task_status` | `{task_id, status, episode}` | Individual task status |
 
-### Current State
+> [!NOTE]
+> These 6 new tools join the existing 11 builtin tools (6 core + 5 file), bringing the total to 17. All read-only — agents cannot modify runtime state via introspection tools.
 
-```
-TODAY:
-  ├── AnalyzedWorkflow has TaskTable (O(1) lookup)
-  ├── DAG validation checks cycles and dependencies
-  ├── Event log captures execution order
-  ├── TUI displays DAG visually (DAG Preview panel)
-  └── Agents CANNOT query "what episodes exist?" or "what's the cost so far?"
-
-AFTER:
-  ├── nika:episodes — list episodes from current workflow
-  ├── nika:threads — list active/completed threads
-  ├── nika:strategy_state — current round, budget, accumulated episodes
-  ├── nika:cost — token usage and cost report
-  ├── nika:dag_info — predecessors, successors, critical path
-  └── nika:task_status — status of specific tasks
-```
-
-### Proposed Design
+<details>
+<summary>📐 YAML Design</summary>
 
 ```yaml
 tasks:
@@ -586,103 +635,80 @@ tasks:
         - nika:dag_info       # Understand DAG structure
 ```
 
-### New Builtin Tools
-
-| Tool | Description | Returns |
-|------|-------------|---------|
-| `nika:episodes` | List episodes from current workflow | `[{task_id, summary, confidence, tokens}]` |
-| `nika:threads` | List active/completed threads | `[{task_id, status, model_slot}]` |
-| `nika:strategy_state` | Current strategy round and budget | `{round, max_rounds, budget_used, budget_total}` |
-| `nika:cost` | Token usage and cost report | `{total_tokens, total_cost, per_model}` |
-| `nika:dag_info` | Query DAG structure | `{predecessors, successors, critical_path}` |
-| `nika:task_status` | Check status of specific tasks | `{task_id, status, episode}` |
-
-### Implementation
-
-| Change | Location | Effort |
-|--------|----------|--------|
-| 6 new builtin tools | `runtime/builtin/*.rs` | Medium |
-| DAG query API | `dag/mod.rs` | Medium |
-| Episode registry accessible to tools | `runtime/executor.rs` | Low |
-| Strategy state accessible to tools | `runtime/strategy.rs` | Low |
-| Cost tracking aggregation | `event/log.rs` | Low |
-
-### Source Inspiration
-
-- **RLM:** Self-referential computation (model reasons about its own process)
-- **Slate:** DAG introspection for strategy adjustment
-- **THREAD:** Resource allocation based on task graph structure
-
-### Risk Assessment
-
-- **Complexity:** MEDIUM — mostly new builtin tools + query APIs
-- **Security:** Read-only access (no modification via tools)
-- **Value:** MEDIUM — enables self-aware agents and adaptive strategies
+</details>
 
 ---
 
 ## Priority Matrix
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  IMPACT vs EFFORT                                                               │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  HIGH     │  P-MEMORY        │  P-STRATEGY      │                               │
-│  IMPACT   │  (NovaNet+Nika)  │  (dynamic DAG +  │                               │
-│           │                  │   orchestration)  │                               │
-│           ├──────────────────┼──────────────────┤                               │
-│           │  P-MODEL         │  P-CONTEXT        │                               │
-│           │  (4-slot)        │  (budget mgmt)    │                               │
-│           │                  │                   │                               │
-│           │  P-EPISODE       │                   │                               │
-│           │  (compression)   │                   │                               │
-│           ├──────────────────┼──────────────────┤                               │
-│  MEDIUM   │  P-INTROSPECT    │                   │                               │
-│  IMPACT   │  (runtime tools) │                   │                               │
-│           │                  │                   │                               │
-│           ├──────────────────┼──────────────────┤                               │
-│           │  LOW EFFORT      │  HIGH EFFORT      │                               │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+quadrantChart
+    title Impact vs Effort
+    x-axis "Low Effort" --> "High Effort"
+    y-axis "Medium Impact" --> "High Impact"
+    quadrant-1 "Strategic Investments"
+    quadrant-2 "Quick Wins"
+    quadrant-3 "Low Priority"
+    quadrant-4 "Consider Carefully"
+    "P-MODEL": [0.30, 0.75]
+    "P-EPISODE": [0.45, 0.85]
+    "P-CONTEXT": [0.50, 0.70]
+    "P-INTROSPECT": [0.40, 0.50]
+    "P-STRATEGY": [0.80, 0.90]
+    "P-MEMORY": [0.75, 0.95]
 ```
 
-## Recommended Sequence
+---
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│  EXECUTION ORDER (3 Waves)                                                      │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  WAVE 1: Thread Foundation (v0.28)                                              │
-│  ├── P-MODEL: 4-slot model architecture                                         │
-│  │   └── model_slots: in YAML, per-task model_slot: reference                   │
-│  └── P-EPISODE: Episode engine                                                  │
-│      └── Episode struct, LLM compression, episode-aware bindings                │
-│                                                                                 │
-│  WAVE 2: Strategy Intelligence (v0.29)                                          │
-│  ├── P-STRATEGY: Strategy orchestration                                         │
-│  │   └── orchestration: strategy mode, dynamic tactic dispatch                  │
-│  └── P-CONTEXT: Context budget management                                       │
-│      └── context_budget: per task, working memory enforcement                   │
-│                                                                                 │
-│  WAVE 3: Persistent Memory (v0.30)                                              │
-│  ├── P-MEMORY: NovaNet episodic memory                                          │
-│  │   └── AgentEpisode NodeClass, entity-linked, cross-session                   │
-│  └── P-INTROSPECT: Runtime introspection tools                                  │
-│      └── nika:episodes, nika:threads, nika:cost, nika:dag_info                  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+## Version Mapping
 
-### Rationale
+| Priority | Version | Schema | New Files | Modified Files | Dependencies |
+|----------|---------|--------|-----------|----------------|--------------|
+| P-MODEL | v0.28.0 | @0.12 | 2 | 6 | None |
+| P-EPISODE | v0.28.0 | @0.12 | 2 | 5 | None (ships with P-MODEL) |
+| P-STRATEGY | v0.29.0 | @0.13 | 3 | 5 | P-MODEL + P-EPISODE |
+| P-CONTEXT | v0.29.0 | @0.13 | 1 | 3 | P-EPISODE |
+| P-MEMORY | v0.30.0 | @0.13 + NovaNet | 1 | 3 | P-EPISODE |
+| P-INTROSPECT | v0.30.0 | — | 6 tools | 3 | P-EPISODE + P-STRATEGY |
 
-1. **P-MODEL first** because it's low-effort, high-value, and prerequisite for everything else (strategy needs model slots to route tactics)
-2. **P-EPISODE with P-MODEL** because episodes are the core primitive — everything downstream depends on compressed task results
-3. **P-STRATEGY after Wave 1** because strategy orchestration REQUIRES both model slots (for routing) and episodes (for inter-round communication)
-4. **P-CONTEXT with P-STRATEGY** because context budgeting makes strategy mode practical (without budgets, strategy rounds accumulate unbounded context)
-5. **P-MEMORY last** because it requires cross-project NovaNet schema changes (ADR, NodeClass, ArcClasses) and builds on episodes being stable
-6. **P-INTROSPECT with P-MEMORY** because introspection tools are simple once the runtime state (episodes, strategy, cost) is already tracked
+---
+
+## File Change Summary
+
+<details>
+<summary>📁 New Files (8)</summary>
+
+| File | Priority | Purpose |
+|------|----------|---------|
+| `src/ast/raw/model_slot.rs` | P-MODEL | `ModelSlot` struct |
+| `src/ast/analyzed/model_slot.rs` | P-MODEL | Analyzed slot with validation |
+| `src/runtime/episode.rs` | P-EPISODE | `Episode` struct + lifecycle |
+| `src/runtime/episode_compress.rs` | P-EPISODE | LLM-based compression |
+| `src/runtime/strategy.rs` | P-STRATEGY | `StrategyOrchestrator` |
+| `src/runtime/tactic.rs` | P-STRATEGY | `TacticTemplate`, `TacticInstance` |
+| `src/dag/dynamic.rs` | P-STRATEGY | `DynamicDag` for runtime mutation |
+| `src/runtime/episodic_memory.rs` | P-MEMORY | `EpisodicMemoryManager` |
+
+</details>
+
+<details>
+<summary>📝 Modified Files (11)</summary>
+
+| File | Priorities | Changes |
+|------|-----------|---------|
+| `src/ast/raw/workflow.rs` | P-MODEL, P-STRATEGY | `model_slots`, `orchestration`, `strategy` fields |
+| `src/ast/raw/task.rs` | P-MODEL, P-EPISODE, P-CONTEXT | `model_slot`, `episode`, `context_budget` fields |
+| `src/ast/analyzer/analyze.rs` | P-MODEL, P-EPISODE | Slot validation, episode config validation |
+| `src/provider/rig.rs` | P-MODEL | `from_slot()` constructor |
+| `src/runtime/executor.rs` | P-MODEL, P-EPISODE, P-CONTEXT | Slot routing, episode gen, budget enforcement |
+| `src/runtime/runner.rs` | P-STRATEGY | Strategy mode routing |
+| `src/store/mod.rs` | P-EPISODE | Episode storage in `DataStore` |
+| `src/binding/resolve.rs` | P-EPISODE | Episode-aware resolution |
+| `src/event/log.rs` | P-EPISODE, P-CONTEXT | `EpisodeCreated`, `BudgetExceeded` events |
+| `src/dag/mod.rs` | P-STRATEGY | Mutable operations |
+| `src/mcp/client.rs` | P-MEMORY | `AgentEpisode` read/write |
+
+</details>
 
 ---
 
@@ -690,73 +716,47 @@ tasks:
 
 ### Context Compression (from literature)
 
-Woven into P-EPISODE and P-CONTEXT, not a separate priority:
-- **P-EPISODE:** Sub-DAG results auto-compressed at completion boundary (Context-Folding paper)
-- **P-CONTEXT:** Working memory budget prevents degradation (Slate's dumb zone concept)
+Not a separate priority — woven into P-EPISODE and P-CONTEXT:
 
-### Old P3 (ConfidenceRouter) — Absorbed
+- **P-EPISODE:** Sub-DAG results auto-compressed at completion boundary (Context-Folding[^3])
+- **P-CONTEXT:** Working memory budget prevents degradation (Slate's dumb zone[^1])
 
-Confidence is now an episode property. The strategy LLM naturally handles escalation:
-
-```
-Episode confidence < threshold
-    → Strategy LLM receives: "Thread produced low-confidence result"
-    → Strategy decides: retry with better model slot? get more context? skip?
-    → Natural escalation — no separate router needed
-```
-
-This is simpler AND more powerful: the strategy LLM has full context to decide how to handle low confidence, rather than a rigid router with fixed rules.
-
-### A2A Protocol (from competitive analysis)
+### A2A Protocol
 
 Future consideration beyond these 6 priorities. If Nika agents need to coordinate with external runtimes (LangGraph, Slate), A2A is the protocol. Not urgent for QR Code AI target.
 
-### Code Execution Sandbox (from CodeAct)
+### Code Execution Sandbox
 
-Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give agents CodeAct-level expressivity. Lower priority because Nika's transform engine + exec: verb cover most needs.
-
----
-
-## Version Mapping
-
-| Priority | Version | Schema Bump | Dependencies |
-|----------|---------|-------------|--------------|
-| P-MODEL | v0.28.0 | @0.12 | None |
-| P-EPISODE | v0.28.0 | @0.12 | None (ships with P-MODEL) |
-| P-STRATEGY | v0.29.0 | @0.13 | P-MODEL + P-EPISODE |
-| P-CONTEXT | v0.29.0 | @0.13 (extends) | P-EPISODE |
-| P-MEMORY | v0.30.0 | @0.13 + NovaNet | P-EPISODE |
-| P-INTROSPECT | v0.30.0 | (new builtin tools) | P-EPISODE + P-STRATEGY |
+Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give agents CodeAct-level expressivity[^7]. Lower priority because Nika's 5 semantic verbs + `exec:` cover most needs.
 
 ---
 
-## File Change Summary
+## Sequencing Rationale
 
-### New Files (8)
+> [!TIP]
+> **Why this order?** Each wave builds the foundation for the next. You can't have strategy without model slots and episodes. You can't have memory without episodes being stable.
 
-| File | Priority | Purpose |
-|------|----------|---------|
-| `src/ast/raw/model_slot.rs` | P-MODEL | ModelSlot struct |
-| `src/ast/analyzed/model_slot.rs` | P-MODEL | Analyzed slot with validation |
-| `src/runtime/episode.rs` | P-EPISODE | Episode struct + lifecycle |
-| `src/runtime/episode_compress.rs` | P-EPISODE | LLM-based compression |
-| `src/runtime/strategy.rs` | P-STRATEGY | StrategyOrchestrator |
-| `src/runtime/tactic.rs` | P-STRATEGY | TacticTemplate, TacticInstance |
-| `src/dag/dynamic.rs` | P-STRATEGY | DynamicDag for runtime mutation |
-| `src/runtime/episodic_memory.rs` | P-MEMORY | EpisodicMemoryManager |
+1. **P-MODEL first** — Low-effort, high-value, prerequisite for everything (strategy needs model slots to route tactics)
+2. **P-EPISODE with P-MODEL** — Episodes are the core primitive. Everything downstream depends on compressed task results
+3. **P-STRATEGY after Wave 1** — Strategy orchestration REQUIRES both model slots (routing) and episodes (inter-round communication)
+4. **P-CONTEXT with P-STRATEGY** — Context budgeting makes strategy mode practical (without budgets, rounds accumulate unbounded context)
+5. **P-MEMORY last** — Requires cross-project NovaNet schema changes (ADR, NodeClass, ArcClasses) and builds on episodes being stable
+6. **P-INTROSPECT with P-MEMORY** — Introspection tools are simple once runtime state (episodes, strategy, cost) is already tracked
 
-### Modified Files (11)
+---
 
-| File | Priorities | Changes |
-|------|-----------|---------|
-| `src/ast/raw/workflow.rs` | P-MODEL, P-STRATEGY | model_slots, orchestration, strategy fields |
-| `src/ast/raw/task.rs` | P-MODEL, P-EPISODE, P-CONTEXT | model_slot, episode, context_budget fields |
-| `src/ast/analyzer/analyze.rs` | P-MODEL, P-EPISODE | Slot validation, episode config validation |
-| `src/provider/rig.rs` | P-MODEL | from_slot() constructor |
-| `src/runtime/executor.rs` | P-MODEL, P-EPISODE, P-CONTEXT | Slot routing, episode gen, budget enforcement |
-| `src/runtime/runner.rs` | P-STRATEGY | Strategy mode routing |
-| `src/store/mod.rs` | P-EPISODE | Episode storage |
-| `src/binding/resolve.rs` | P-EPISODE | Episode-aware resolution |
-| `src/event/log.rs` | P-EPISODE, P-CONTEXT | EpisodeCreated, BudgetExceeded events |
-| `src/dag/mod.rs` | P-STRATEGY | Mutable operations |
-| `src/mcp/client.rs` | P-MEMORY | AgentEpisode read/write |
+<div align="center">
+
+[← 04 Nika × NovaNet Overlap](./04-nika-novanet-overlap.md) · [📋 Index](./00-README.md) · [06 Research Synthesis →](./06-research-synthesis-report.md)
+
+</div>
+
+---
+
+[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate). Episodes, thread weaving, working memory, and cross-model composition are Slate's architectural innovations. The "4 named slots" (main/tactical/search/reasoning) is our design, inspired by Slate's approach.
+[^2]: THREAD: Thinking Deeper with Recursive Spawning — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402). Hierarchical agent decomposition with resource-aware model selection.
+[^3]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967). Branch/fold sub-trajectory compression.
+[^4]: Memory-R1: RL-trained agent memory policies — [arXiv:2508.19828](https://arxiv.org/abs/2508.19828). Confidence scoring and memory retention.
+[^5]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Strategy/tactics separation cited in Slate blog.
+[^6]: RLM: Recursive Language Models — [arXiv:2512.24601](https://arxiv.org/abs/2512.24601) (MIT, 2025). Recursive sub-LM calls with external working memory.
+[^7]: CodeAct: Code Actions for LLM Agents — [arXiv:2402.01030](https://arxiv.org/abs/2402.01030) (ICML 2024).

@@ -1,39 +1,60 @@
 # 02 — Scientific Literature Synthesis
 
 > Key papers and techniques relevant to Nika's evolution.
-> Date: 2026-03-14
+> 6 papers analyzed. 3 evolution axes identified.
+
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
-## 1. RLM — Recursive Language Models (MIT, 2025)
+## Paper Map
 
-**Paper:** "Scaling LLM Test-Time Compute Optimally Can Be More Effective Than Scaling Model Parameters" (derivative work by Xu et al. on recursive decomposition)
+```mermaid
+mindmap
+  root((Literature))
+    Orchestration
+      RLM — Recursive decomposition
+      THREAD — Hierarchical spawning
+    Compression
+      Context-Folding — Branch/fold
+    Action Space
+      CodeAct — Code as action
+    Memory
+      Memory-R1 — RL-trained recall
+    Architecture
+      LLM Swarms — Hybrid DAG+LLM
+```
+
+---
+
+## 1. RLM — Recursive Language Models[^1]
+
+**Paper:** Xu et al. — Recursive decomposition with REPL as external working memory (MIT, 2025)
 
 ### Core Idea
 
-An 8B-parameter model matches GPT-4-level performance on long-context tasks by using a **REPL as external working memory**. Instead of stuffing everything in context, the model:
+An 8B-parameter model matches GPT-4-level performance on long-context tasks by using a **REPL as external working memory**:
 
 1. **Decomposes** complex tasks into sub-problems
 2. **Executes** sub-problems in a REPL (Python/shell)
 3. **Stores** intermediate results in variables (reference semantics)
 4. **Composes** final output from stored references
 
-### Key Mechanism: Reference Semantics
+```mermaid
+flowchart LR
+    subgraph TRAD["Traditional"]
+        T1["prompt = context +\n'Generate all 50 pages'"] --> T2["💀 Context explodes\nQuality degrades"]
+    end
 
+    subgraph RLM["RLM Approach"]
+        R1["ref_1 = sub_llm(page 1)"] --> R2["ref_2 = sub_llm(page 2)"]
+        R2 --> R3["result = compose(refs)"]
+        R3 --> R4["✅ Small, focused context\nper sub-call"]
+    end
+
+    style TRAD fill:#fecaca,stroke:#dc2626
+    style RLM fill:#dcfce7,stroke:#16a34a
 ```
-Traditional approach:
-  prompt = context + "Generate all 50 pages"
-  → Context window explodes, quality degrades
-
-RLM approach:
-  ref_1 = sub_llm("Generate page 1 outline")
-  ref_2 = sub_llm("Generate page 1 content", ref=ref_1)
-  ...
-  result = compose(ref_1, ref_2, ..., ref_50)
-  → Each call has small, focused context
-```
-
-The REPL variables act as **external memory**, preventing context degradation.
 
 ### Relevance to Nika
 
@@ -45,35 +66,35 @@ The REPL variables act as **external memory**, preventing context degradation.
 | Task decomposition | `decompose:` modifier | Exists via MCP traversal |
 | Variable persistence | `store/mod.rs` DashMap | In-memory only (no cross-session) |
 
-**Verdict:** Nika already implements ~70% of RLM patterns. The main gap is **dynamic DAG generation** — the ability for an agent to generate new workflow steps at runtime rather than following a pre-defined YAML.
+> [!TIP]
+> **Verdict:** Nika already implements ~70% of RLM patterns. The main gap is **dynamic DAG generation** — the ability for an agent to generate new workflow steps at runtime rather than following a pre-defined YAML.
 
 ---
 
-## 2. CodeAct (ICML 2024, Wang et al.)
+## 2. CodeAct[^2]
 
-**Paper:** "Executable Code Actions Elicit Better LLM Agents" — arXiv:2402.01030
+**Paper:** Wang et al. — "Executable Code Actions Elicit Better LLM Agents" (ICML 2024, 451 citations)
 
 ### Core Idea
 
-Instead of LLMs choosing from fixed JSON tool schemas, let them **write executable code** (Python) as their action space. Results:
+Instead of LLMs choosing from fixed JSON tool schemas, let them **write executable code** (Python) as their action space:
 - **+20% success rate** vs JSON/function-calling on benchmark tasks
 - More expressive: loops, conditionals, composition in a single action
-- Self-debugging: agents can catch exceptions and retry
 
-### Key Insight: Unified Action Space
+```mermaid
+flowchart LR
+    subgraph JSON["JSON Tools (Traditional)"]
+        J1["search(query)"] --> J2["filter(result)"] --> J3["format(filtered)"]
+        J3 -.->|"3 tool calls\n3 round-trips"| J1
+    end
 
-```
-JSON tools (traditional):
-  {"tool": "search", "query": "nika rust"} → result_1
-  {"tool": "filter", "input": result_1}    → result_2
-  {"tool": "format", "input": result_2}    → final
-  3 tool calls, 3 round-trips, rigid schema
+    subgraph CODE["CodeAct"]
+        C1["results = search(query)\nfiltered = [r for r in results if r.score > 0.8]\nprint(format_table(filtered))"]
+        C1 -->|"1 action\n1 round-trip"| C2["✅ Full expressivity"]
+    end
 
-CodeAct:
-  results = search("nika rust")
-  filtered = [r for r in results if r.score > 0.8]
-  print(format_table(filtered))
-  1 action, 1 round-trip, full expressivity
+    style JSON fill:#fef3c7,stroke:#d97706
+    style CODE fill:#dcfce7,stroke:#16a34a
 ```
 
 ### Relevance to Nika
@@ -85,43 +106,35 @@ CodeAct:
 | Self-debugging | Structured Output retry (layers 3-4) | Only for format, not logic |
 | Tool composition | Transform engine pipes | 30+ ops but not arbitrary code |
 
-**Verdict:** Nika's `exec:` verb supports shell commands but lacks an **integrated code execution sandbox** (Python/JS REPL) where the LLM can write and execute arbitrary compositions. The transform engine is powerful but declarative.
-
-**Opportunity:** A `code:` verb or enriched `exec:` mode that provides a sandboxed REPL (Pyodide, Deno, or WASM) would give agents CodeAct-level expressivity while maintaining Nika's security model.
+> [!NOTE]
+> **Opportunity:** A `code:` verb or enriched `exec:` mode with a sandboxed REPL (Pyodide, Deno, or WASM) would give agents CodeAct-level expressivity while maintaining Nika's security model.
 
 ---
 
-## 3. THREAD (IJCAI 2025, arXiv:2405.17402)
+## 3. THREAD[^3]
 
-**Paper:** "THREAD: Thinking Hierarchically for Resource-Efficient Agent Decision-making"
+**Paper:** "Thinking Hierarchically for Resource-Efficient Agent Decision-making" — arXiv:2405.17402
 
 ### Core Idea
 
 Hierarchical task decomposition with **recursive thread spawning**. A manager thread creates worker threads for sub-tasks, achieving **10-50% improvement** on complex tasks using smaller models.
 
-### Architecture
+```mermaid
+flowchart TB
+    M["🧠 Manager Thread\n(strategic)"] --> W1["⚡ Worker 1\nSmaller model"]
+    M --> W2["⚡ Worker 2"]
+    M --> W3["⚡ Worker 3\nCode verification"]
+    W2 --> S1["🐤 Sub-Worker 2a"]
+    W2 --> S2["🐤 Sub-Worker 2b"]
 
-```
-┌───────────────────────────────────────────────────────┐
-│  THREAD Architecture                                   │
-├───────────────────────────────────────────────────────┤
-│                                                        │
-│  Manager Thread (strategic)                            │
-│  ├── Decomposes task into sub-problems                 │
-│  ├── Allocates resources (model size, tokens)          │
-│  └── Aggregates results                                │
-│       │                                                │
-│       ├── Worker Thread 1 (tactical)                   │
-│       │   └── Uses smaller model for focused task      │
-│       │                                                │
-│       ├── Worker Thread 2 (tactical)                   │
-│       │   ├── Sub-Worker 2a                            │
-│       │   └── Sub-Worker 2b                            │
-│       │                                                │
-│       └── Worker Thread 3 (tactical)                   │
-│           └── Uses code execution for verification     │
-│                                                        │
-└───────────────────────────────────────────────────────┘
+    M -.->|"Aggregates results"| OUT["📊 Final Output"]
+    W1 --> OUT
+    W3 --> OUT
+    S1 --> W2
+    S2 --> W2
+
+    style M fill:#ede9fe,stroke:#7c3aed
+    style OUT fill:#dcfce7,stroke:#16a34a
 ```
 
 ### Key Features
@@ -141,44 +154,49 @@ Hierarchical task decomposition with **recursive thread spawning**. A manager th
 | Resource allocation | Single `provider:` per workflow | **No per-task model selection** |
 | Context compression | None | **Major gap** |
 
-**Verdict:** Nika has the spawning infrastructure (SpawnAgentTool, depth limits) but lacks:
-1. **Per-task model routing** — Using Claude for planning, Groq for speed tasks
-2. **Context compression** — Threads carry full parent context
-3. **Strategy/tactics separation** — No explicit decomposition pattern in YAML
+> [!WARNING]
+> **Three critical gaps:** per-task model routing, context compression, and strategy/tactics separation. These map directly to priorities P-MODEL, P-EPISODE, and P-STRATEGY in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
-## 4. Context-Folding (arXiv:2510.11967)
+## 4. Context-Folding[^4]
 
-**Paper:** "Context-Folding: Compressing Agent Trajectories with Branch-and-Fold" (2025)
+**Paper:** "Compressing Agent Trajectories with Branch-and-Fold" — arXiv:2510.11967 (2025)
 
 ### Core Idea
 
-Agent trajectories grow linearly with each step, degrading performance. Context-Folding introduces **branch/fold operations** to compress sub-trajectories:
+Agent trajectories grow linearly with each step, degrading performance. Context-Folding introduces **branch/fold operations**:
 
 1. **Branch:** Fork a sub-trajectory for a focused sub-task
 2. **Execute:** Run the sub-task with minimal context
 3. **Fold:** Compress the sub-trajectory result back into parent
 4. **Continue:** Parent proceeds with compressed summary, not full trace
 
-### Impact
+```mermaid
+flowchart LR
+    subgraph WITHOUT["Without Folding"]
+        direction LR
+        S1["Step 1"] --> S2["Step 2"] --> S3["Step 3"] --> S4["..."] --> SN["Step N"]
+        SN --> DOOM["💀 Context grows\nlinearly → degrades\nat ~Step 20"]
+    end
 
-- **10x smaller active context** during complex tasks
-- Quality maintained or improved (less noise in context)
-- Trained with FoldGRPO (reinforcement learning)
+    subgraph WITH["With Folding"]
+        direction LR
+        W1["Step 1-2"] -->|"branch"| SUB["Sub 1-3"]
+        SUB -->|"fold"| SUM["Summary"]
+        SUM --> W2["Step 7"]
+        W2 -->|"branch"| SUB2["Sub 4"]
+        SUB2 -->|"fold"| SUM2["Summary 2"]
+        SUM2 --> OK["✅ Context stays\nbounded"]
+    end
 
-### Architecture
-
+    style WITHOUT fill:#fecaca,stroke:#dc2626
+    style WITH fill:#dcfce7,stroke:#16a34a
+    style DOOM fill:#dc2626,color:#fff
+    style OK fill:#16a34a,color:#fff
 ```
-Without folding:
-  [Step1] [Step2] [Step3] [Step4] [Step5] [Step6] ... [StepN]
-  Context grows linearly → performance degrades at ~Step 20
 
-With folding:
-  [Step1] [Step2] → branch → [Sub1] [Sub2] [Sub3] → fold → [Summary]
-  [Step1] [Step2] [Summary] [Step7] → branch → [Sub4] → fold → [Sum2]
-  Context stays bounded → consistent quality
-```
+**Impact:** 10x smaller active context, quality maintained or improved.
 
 ### Relevance to Nika
 
@@ -189,13 +207,14 @@ With folding:
 | Sub-trajectory | Agent turn history | No automatic folding |
 | Context bounds | `max_turns` per agent | Blunt instrument |
 
-**Verdict:** Nika spawns child agents but doesn't compress their results. When a child agent runs 15 turns to produce a result, that full trajectory is available but not summarized. Implementing automatic **result folding** (LLM-summarized output from child agents) would significantly improve multi-agent workflows.
+> [!TIP]
+> **Verdict:** Nika spawns child agents but doesn't compress their results. Implementing automatic **result folding** (LLM-summarized output from child agents) maps to P-EPISODE in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
-## 5. LLM-Powered Swarms (arXiv:2506.14496)
+## 5. LLM-Powered Swarms[^5]
 
-**Paper:** "From Rule-Based to LLM-Powered: A Comparative Study of Swarm Intelligence" (2025)
+**Paper:** "From Rule-Based to LLM-Powered: A Comparative Study of Swarm Intelligence" — arXiv:2506.14496 (2025)
 
 ### Core Findings
 
@@ -203,74 +222,104 @@ With folding:
 2. **LLM swarms** excel at **creative, open-ended tasks** where rules can't be pre-defined
 3. **Hybrid approach** is optimal: rules for structure, LLM for decisions
 
-### Key Insight for Nika
-
-Don't replace DAG orchestration with pure agent swarms. The DAG structure (rule-based) provides efficiency and predictability. LLM agents should be used **within** the structure for decisions that require reasoning.
-
-```
-Bad:  Let agents figure out workflow structure
-Good: DAG defines structure, agents fill in decisions
-
-Nika is already in the "good" position:
-  DAG (rule-based) → task order, dependencies, parallelism
-  LLM (agent-based) → content generation, analysis, decisions
-```
-
 ### Relevance to Nika
 
+```mermaid
+flowchart LR
+    subgraph BAD["❌ Pure Agent Swarm"]
+        B1["Agents figure out\nworkflow structure"]
+    end
+
+    subgraph GOOD["✅ Nika's Hybrid Approach"]
+        G1["DAG (rule-based)\nTask order, deps, parallelism"]
+        G2["LLM (agent-based)\nContent, analysis, decisions"]
+        G1 --- G2
+    end
+
+    style BAD fill:#fecaca,stroke:#dc2626
+    style GOOD fill:#dcfce7,stroke:#16a34a
+```
+
 | Finding | Nika Implication |
-|---------|-----------------|
+|---------|--------------------|
 | Rule-based is faster | Keep DAG orchestration, don't go pure-swarm |
 | LLM for creativity | `infer:` and `agent:` verbs cover this |
 | Hybrid is optimal | Nika IS hybrid (DAG + LLM). Lean into it |
 | Swarm communication | Inter-agent messaging not implemented |
 
-**Verdict:** Nika's architecture is already aligned with the paper's recommendation (hybrid DAG+LLM). The paper validates keeping structured workflows rather than going pure-swarm. However, Nika lacks **inter-agent communication** — agents can't message siblings, only parent-child via spawn.
+> [!NOTE]
+> **Validation:** The Swarms paper confirms Nika's hybrid DAG+LLM architecture is the right approach. Nika should NOT go pure-swarm.
 
 ---
 
-## 6. Additional Papers
+## 6. Memory-R1[^6]
 
-### Memory-R1 (2025)
+**Paper:** RL-trained agent memory policies — arXiv:2508.19828 (2025)
+
 Reinforcement learning for agent memory management. Agents learn when to store, retrieve, and forget information across episodes.
 
-**Relevance:** P4 Episodic Memory — if Nika adds cross-session memory, Memory-R1's approach of RL-trained memory policies is more effective than simple retrieval.
-
-### FoldAct (2025)
-Extension of CodeAct with folding — agents write code AND compress their execution traces.
-
-**Relevance:** Combines CodeAct expressivity with Context-Folding efficiency. A future `code:` verb with auto-folding would be the most capable agent action mode.
+**Relevance:** If Nika adds cross-session memory (P-MEMORY), Memory-R1's approach of RL-trained memory policies is more effective than simple retrieval. See [Evolution Roadmap — P-MEMORY](./05-evolution-roadmap.md#p-memory-novanet-episodic-memory).
 
 ---
 
-## Synthesis: What The Literature Says Nika Should Do
+## Synthesis: Three Evolution Axes
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  PRIORITY MAP FROM LITERATURE                                       │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  HIGH IMPACT + LOW EFFORT                                           │
-│  ├── Per-task model routing (THREAD)                                │
-│  └── Result folding/compression (Context-Folding)                   │
-│                                                                     │
-│  HIGH IMPACT + MEDIUM EFFORT                                        │
-│  ├── Dynamic DAG generation from agent (RLM + THREAD)               │
-│  └── Strategy/tactics separation in agent: verb                     │
-│                                                                     │
-│  HIGH IMPACT + HIGH EFFORT                                          │
-│  ├── Code execution sandbox (CodeAct)                               │
-│  └── Episodic memory + RL-trained policies (Memory-R1)              │
-│                                                                     │
-│  VALIDATION (already done right)                                    │
-│  ├── Hybrid DAG+LLM architecture (Swarms paper)                    │
-│  ├── Reference semantics via DataStore (RLM)                        │
-│  └── Recursive spawning with depth limits (THREAD)                  │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph AXE1["🎛️ Smarter Orchestration"]
+        O1["Per-task model routing"]
+        O2["Context management"]
+        O3["Strategy/tactics separation"]
+    end
+
+    subgraph AXE2["⚡ Richer Action Space"]
+        A1["Code execution beyond shell"]
+        A2["Sandboxed REPL"]
+    end
+
+    subgraph AXE3["🧠 Persistent Memory"]
+        M1["Cross-session knowledge"]
+        M2["Entity-linked episodes"]
+        M3["RL-trained recall"]
+    end
+
+    AXE1 --> |"P-MODEL\nP-STRATEGY\nP-CONTEXT"| ROADMAP["📍 Evolution Roadmap\ndoc 05"]
+    AXE2 --> |"Future\ncode: verb"| ROADMAP
+    AXE3 --> |"P-MEMORY\nP-EPISODE"| ROADMAP
+
+    style AXE1 fill:#dbeafe,stroke:#2563eb
+    style AXE2 fill:#fef3c7,stroke:#d97706
+    style AXE3 fill:#dcfce7,stroke:#16a34a
+    style ROADMAP fill:#ede9fe,stroke:#7c3aed
 ```
 
-The literature consistently points to three evolution axes:
-1. **Smarter agent orchestration** — model routing, context management, strategy separation
-2. **Richer action space** — code execution beyond shell commands
-3. **Persistent memory** — cross-session knowledge retention and recall
+### Impact × Effort Matrix
+
+| | High Impact + Low Effort | High Impact + Medium Effort | High Impact + High Effort |
+|---|---|---|---|
+| **Papers** | THREAD, Context-Folding | RLM, THREAD | CodeAct, Memory-R1 |
+| **Priorities** | Per-task model routing, result compression | Dynamic DAG, strategy/tactics | Code sandbox, episodic memory + RL |
+
+### What the Literature Validates
+
+The literature consistently validates three things Nika already does right:
+1. **Hybrid DAG+LLM architecture** — Swarms paper confirms this outperforms pure-swarm
+2. **Reference semantics via DataStore** — RLM paper's core insight, already implemented
+3. **Recursive spawning with depth limits** — THREAD paper's approach, already in `SpawnAgentTool`
+
+---
+
+<div align="center">
+
+[← 01 Current Features](./01-current-features.md) · [📋 Index](./00-README.md) · [03 Competitive Landscape →](./03-competitive-landscape.md)
+
+</div>
+
+---
+
+[^1]: RLM: Recursive Language Models — [arXiv:2512.24601](https://arxiv.org/abs/2512.24601) (MIT, 2025). Recursive sub-LM calls with external working memory.
+[^2]: CodeAct: Code Actions for LLM Agents — [arXiv:2402.01030](https://arxiv.org/abs/2402.01030) (ICML 2024, Wang et al.). Executable code as unified action space.
+[^3]: THREAD: Thinking Hierarchically for Resource-Efficient Agent Decision-making — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402). Hierarchical decomposition with recursive spawning.
+[^4]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967) (2025). Branch/fold sub-trajectory compression.
+[^5]: From Rule-Based to LLM-Powered: A Comparative Study of Swarm Intelligence — [arXiv:2506.14496](https://arxiv.org/abs/2506.14496) (2025).
+[^6]: Memory-R1: RL-trained agent memory policies — [arXiv:2508.19828](https://arxiv.org/abs/2508.19828) (2025).

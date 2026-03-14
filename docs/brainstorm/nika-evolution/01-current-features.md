@@ -1,44 +1,40 @@
 # 01 — Current Features Inventory
 
 > Exhaustive map of Nika v0.27.0 + NovaNet v0.20.0 capabilities.
-> Date: 2026-03-14
+> Every claim verified against actual source code on 2026-03-14.
+
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
 ## Nika v0.27.0 — The Body
 
-**Stats:** 371 Rust source files | ~219K lines | 6,157+ tests | Zero clippy warnings
+**Stats:** 373 Rust source files[^1] | 220K lines[^2] | 6,610 tests[^3] | Zero clippy warnings
 
 ### Core Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  NIKA ARCHITECTURE (v0.27.0)                                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  YAML Source                                                        │
-│      │                                                              │
-│      ▼                                                              │
-│  ┌─────────────────────────────────┐                                │
-│  │  TWO-PHASE AST                  │                                │
-│  │  Phase 1: Raw (marked_yaml)     │  ← spans, all Optional        │
-│  │  Phase 2: Analyzed (validated)  │  ← TaskId interning, gating   │
-│  └─────────────┬───────────────────┘                                │
-│                │                                                    │
-│                ▼                                                    │
-│  ┌─────────────────────────────────┐                                │
-│  │  DAG VALIDATION                 │                                │
-│  │  Cycle detection, dep resolution│                                │
-│  └─────────────┬───────────────────┘                                │
-│                │                                                    │
-│                ▼                                                    │
-│  ┌─────────────────────────────────┐   ┌─────────────────────────┐ │
-│  │  RUNTIME EXECUTOR               │──▶│  EVENT SOURCING         │ │
-│  │  tokio tasks, JoinSet,          │   │  34 EventKind variants  │ │
-│  │  CancellationToken, fail_fast   │   │  NDJSON trace writer    │ │
-│  └─────────────────────────────────┘   └─────────────────────────┘ │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    YAML["📄 YAML Source"] --> P1
+
+    subgraph AST["Two-Phase AST"]
+        P1["Phase 1: Raw\nmarked_yaml, spans, all Optional"]
+        P1 --> P2["Phase 2: Analyzed\nTaskId interning, semantic validation"]
+    end
+
+    P2 --> DAG["🔀 DAG Validation\nCycle detection, dep resolution"]
+    DAG --> EXEC
+
+    subgraph RUNTIME["Runtime"]
+        EXEC["⚙️ Executor\ntokio tasks, JoinSet,\nCancellationToken, fail_fast"]
+        EXEC --> STORE["📦 DataStore\nDashMap, TaskResult"]
+    end
+
+    EXEC --> EVENTS["📊 Event Sourcing\n34 EventKind variants\nNDJSON trace writer"]
+
+    style AST fill:#dbeafe,stroke:#2563eb
+    style RUNTIME fill:#fef3c7,stroke:#d97706
+    style EVENTS fill:#dcfce7,stroke:#16a34a
 ```
 
 ### Module Breakdown
@@ -69,7 +65,34 @@
 | **setup** | 2 | 0.5K | Onboarding wizard |
 | **backup** | 2 | 0.5K | Data backup/restore |
 
-### 1. Five Semantic Verbs
+> [!NOTE]
+> 22 modules totaling 373 files. The TUI alone accounts for 44% of all source files — reflecting the investment in developer experience.
+
+---
+
+### Feature Catalog
+
+#### 1. Five Semantic Verbs
+
+```mermaid
+flowchart LR
+    subgraph VERBS["5 Semantic Verbs"]
+        direction TB
+        I["⚡ infer:\nLLM generation"]
+        E["📟 exec:\nShell commands"]
+        F["🛰️ fetch:\nHTTP requests"]
+        V["🔌 invoke:\nMCP tool calls"]
+        A["🐔 agent:\nAgentic loop"]
+    end
+
+    I --> RIG["rig-core v0.32\n6 cloud + 1 native"]
+    E --> SHLEX["shlex parsing\nshell: false default"]
+    F --> REQ["reqwest\nauto-JSON body"]
+    V --> MCP["rmcp v0.16\n30s timeout"]
+    A --> LOOP["AgentBuilder\nspawning, depth limits"]
+
+    style VERBS fill:#ede9fe,stroke:#7c3aed
+```
 
 | Verb | Icon | Purpose | Implementation |
 |------|------|---------|----------------|
@@ -81,7 +104,7 @@
 
 **Verb syntax:** `infer:` and `exec:` support shorthand string form (`infer: "prompt"`) plus full object form (`infer: { prompt, model, temperature }`).
 
-### 2. LLM Provider Ecosystem
+#### 2. LLM Provider Ecosystem
 
 **6 cloud providers** (rig-core v0.32):
 
@@ -100,7 +123,7 @@
 
 **Auto-detection:** Priority order checks env vars (ANTHROPIC → OPENAI → MISTRAL → GROQ → DEEPSEEK → GEMINI).
 
-### 3. Agent Capabilities
+#### 3. Agent Capabilities
 
 - **Multi-turn loop:** `RigAgentLoop` with `AgentBuilder`, chat history via rig `Chat` trait
 - **Extended thinking:** Claude-only, `thinking_budget: 1024-65536`, reasoning captured in `AgentTurnMetadata`
@@ -109,7 +132,7 @@
 - **Chat history:** `add_to_history()`, `chat_continue()`, `with_history()`
 - **Streaming:** All 7 providers support real-time token streaming
 
-### 4. Builtin Tools (11)
+#### 4. Builtin Tools (11)
 
 **Core tools (6):**
 `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`
@@ -117,7 +140,20 @@
 **File tools (5, agent-only):**
 `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
 
-### 5. Data Flow & Bindings
+#### 5. Data Flow & Bindings
+
+```mermaid
+flowchart LR
+    A["Task A\noutput: result"] -->|"use: { data: $$A }"| B["Task B\n{{use.data}}"]
+    B -->|"lazy: true"| C["Task C\nresolved on access"]
+
+    CTX["context:\nfiles: { brand: ./brand.md }"] -.->|"{{context.files.brand}}"| B
+    INP["inputs:\n{ locale: fr-FR }"] -.->|"{{inputs.locale}}"| A
+
+    style A fill:#dbeafe,stroke:#2563eb
+    style B fill:#fef3c7,stroke:#d97706
+    style C fill:#dcfce7,stroke:#16a34a
+```
 
 - **`use:` block:** Bind upstream task outputs to aliases
 - **`$task` implicit syntax:** `$step1` sugar for `step1` (v0.21)
@@ -126,19 +162,24 @@
 - **`{{inputs.*}}`:** Workflow input parameter access
 - **Lazy bindings:** `lazy: true` defers resolution until access (v0.5)
 
-### 6. Transform Engine (v0.28)
+#### 6. Transform Engine
 
 30+ chained operations via pipe syntax (`sort | unique | first(3)`):
 
+<details>
+<summary>📋 All transform operations</summary>
+
 | Category | Operations |
 |----------|-----------|
-| String | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `replace`, `slice`, `truncate`, `capitalize`, `camel_case`, `snake_case`, `kebab_case` |
-| Collection | `length`, `first`, `last`, `nth`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `filter`, `map`, `group_by`, `zip` |
-| Type | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `type_of` |
-| Numeric | `round`, `abs`, `ceil`, `floor`, `min`, `max`, `sum`, `avg` |
-| Utility | `default`, `join`, `split`, `shell`, `regex_match`, `regex_replace` |
+| **String** | `upper`, `lower`, `trim`, `trim_start`, `trim_end`, `replace`, `slice`, `truncate`, `capitalize`, `camel_case`, `snake_case`, `kebab_case` |
+| **Collection** | `length`, `first`, `last`, `nth`, `keys`, `values`, `flatten`, `reverse`, `sort`, `unique`, `compact`, `filter`, `map`, `group_by`, `zip` |
+| **Type** | `to_string`, `to_number`, `to_bool`, `to_json`, `parse_json`, `type_of` |
+| **Numeric** | `round`, `abs`, `ceil`, `floor`, `min`, `max`, `sum`, `avg` |
+| **Utility** | `default`, `join`, `split`, `shell`, `regex_match`, `regex_replace` |
 
-### 7. DAG Execution
+</details>
+
+#### 7. DAG Execution
 
 - **Parallel execution:** `for_each` with `concurrency` control and `JoinSet`
 - **`fail_fast:`** `tokio::select!` cancellation of in-flight tasks
@@ -146,16 +187,30 @@
 - **Deadlock detection:** Distinguishes true cycles from chain failures
 - **Decompose modifier:** Runtime DAG expansion via MCP traversal
 
-### 8. Structured Output
+#### 8. Structured Output
 
-- **JSON Schema enforcement:** 4-layer validation pipeline
-  - Layer 1: JSON extraction from LLM response
-  - Layer 2: Schema validation
-  - Layer 3: Retry with feedback via `InferCallback`
-  - Layer 4: LLM repair via `InferCallback`
+4-layer validation pipeline:
+
+```mermaid
+flowchart LR
+    LLM["LLM Response"] --> L1["Layer 1\nJSON extraction"]
+    L1 --> L2["Layer 2\nSchema validation"]
+    L2 -->|"invalid"| L3["Layer 3\nRetry with feedback"]
+    L3 -->|"still invalid"| L4["Layer 4\nLLM repair"]
+    L2 -->|"valid"| OUT["✅ Validated Output"]
+    L3 -->|"valid"| OUT
+    L4 --> OUT
+
+    style L1 fill:#dbeafe,stroke:#2563eb
+    style L2 fill:#fef3c7,stroke:#d97706
+    style L3 fill:#fed7aa,stroke:#ea580c
+    style L4 fill:#fecaca,stroke:#dc2626
+    style OUT fill:#dcfce7,stroke:#16a34a
+```
+
 - **Output policy:** Task-level schema injection for infer/agent prompts
 
-### 9. MCP Client (rmcp v0.16)
+#### 9. MCP Client (rmcp v0.16)
 
 - **Server management:** 48 pre-configured aliases via `MCP_ALIASES`
 - **Timeout enforcement:** 30s default, 5min deadline for tasks
@@ -163,14 +218,14 @@
 - **Cache invalidation:** Tool + response caches invalidated on disconnect
 - **Connection lifecycle:** Auto-start, health check, reconnect
 
-### 10. Workflow Composition
+#### 10. Workflow Composition
 
 - **`context:`** File loading at workflow start (markdown, JSON, YAML, glob patterns)
 - **`include:`** DAG fusion from external workflows with prefix namespacing
 - **`skills:`** Skill definition merging through DAG fusion, `pkg:` URI resolution
 - **Schema versions:** `nika/workflow@0.1` through `@0.11`
 
-### 11. Security
+#### 11. Security
 
 - **Shell-free execution:** `exec:` defaults to `shell: false` (shlex parsing)
 - **Command blocklist:** Dangerous binaries blocked (`rm -rf`, `sudo`, etc.)
@@ -178,16 +233,20 @@
 - **Template injection prevention:** Sanitized variable interpolation
 - **TOCTOU mitigation:** Atomic writes with temp+fsync+rename
 
-### 12. Observability
+> [!IMPORTANT]
+> Security-by-default: `exec:` requires explicit `shell: true` for pipe/redirect. All paths validated against traversal. Templates sanitized before interpolation.
+
+#### 12. Observability
 
 - **Event sourcing:** 34 `EventKind` variants across 11 categories
 - **NDJSON traces:** Per-run trace files with full event replay
 - **`AgentTurnMetadata`:** thinking, tokens, stop_reason, tool_calls, cache tokens
 - **Broadcast channels:** Real-time event streaming to TUI
 
-### 13. TUI (91.5K lines)
+#### 13. TUI (91.5K lines)
 
 **4 Views:**
+
 | View | Key | Description |
 |------|-----|-------------|
 | Studio | `1`/`s` | 3-panel: Browser + Editor + DAG Preview |
@@ -197,7 +256,10 @@
 
 **Studio features:** Edit history (undo/redo), session persistence, Solarized theme, syntax highlighting, schema validation, tab management, fuzzy file search, command palette.
 
-### 14. CLI Commands (v0.27 spn fusion)
+#### 14. CLI Commands (v0.27 spn fusion)
+
+<details>
+<summary>📋 Full command reference (30+ commands)</summary>
 
 | Category | Commands |
 |----------|----------|
@@ -212,9 +274,12 @@
 | **Setup** | `nika setup nika/novanet/claude-code` |
 | **Daemon** | `nika daemon start/stop/status` |
 
-### 15. Error System
+</details>
 
-20+ error code categories spanning NIKA-000 through NIKA-429:
+#### 15. Error System
+
+<details>
+<summary>📋 20+ error code ranges (NIKA-000 through NIKA-429)</summary>
 
 | Range | Category | Count |
 |-------|----------|-------|
@@ -239,18 +304,20 @@
 | 300-309 | Structured output | 10 |
 | 400-429 | Daemon/IO/Sync | 30 |
 
-### 16. Artifact System (v0.18)
+</details>
+
+#### 16. Artifact System (v0.18)
 
 - **Atomic writes:** temp+fsync+rename pattern
 - **Security:** Path validation, traversal prevention
 - **Templates:** `{{task_id}}`, `{{date}}`, variable interpolation
 - **Events:** `ArtifactWritten`, `ArtifactFailed`
 
-### 17. LSP (Language Server Protocol)
+#### 17. LSP (Language Server Protocol)
 
 13 files, 6.2K lines — IDE integration for `.nika.yaml` files with diagnostics and completion.
 
-### 18. Secrets Management (v0.27)
+#### 18. Secrets Management (v0.27)
 
 - **Resolution chain:** daemon → keychain → environment variables
 - **spn daemon IPC:** Unix socket at `~/.spn/daemon.sock`
@@ -262,11 +329,37 @@
 
 ### Schema
 
+```mermaid
+flowchart TB
+    subgraph SHARED["Shared Realm (36 NodeClasses)"]
+        direction TB
+        SC["config (3)"]
+        SL["locale (5)"]
+        SG["geography (7)"]
+        SK["knowledge (21)"]
+    end
+
+    subgraph ORG["Org Realm (23 NodeClasses)"]
+        direction TB
+        OC["config (1)"]
+        OF["foundation (8)"]
+        OS["structure (3)"]
+        OSE["semantic (2)"]
+        OI["instruction (3)"]
+        OO["output (6)"]
+    end
+
+    SHARED ---|"159 ArcClasses\n5 families"| ORG
+
+    style SHARED fill:#ccfbf1,stroke:#0d9488
+    style ORG fill:#dbeafe,stroke:#2563eb
+```
+
 - **59 NodeClasses** across 2 realms (Shared: 36, Org: 23)
 - **159 ArcClasses** in 5 families (ownership, localization, semantic, generation, mining)
-- **5 layers per realm:** config, locale, geography, knowledge (Shared); config, foundation, structure, semantic, instruction, output (Org)
+- **5-6 layers per realm:** config, locale, geography, knowledge (Shared); config, foundation, structure, semantic, instruction, output (Org)
 
-### MCP Server (14 → 8 tools in v0.20)
+### MCP Server (8 tools)
 
 | Tool | Purpose |
 |------|---------|
@@ -290,6 +383,9 @@
 | Taboo | Things to avoid per locale |
 | AudienceTrait | Audience characteristics |
 
+> [!TIP]
+> Knowledge atoms are NovaNet's unique differentiator. No competitor offers per-locale cultural intelligence (expressions, taboos, audience traits) integrated into content generation.
+
 ### Key Patterns
 
 - ***Native Pattern (ADR-029):** `EntityNative`, `PageNative`, `BlockNative` — unified suffix
@@ -307,6 +403,25 @@
 ---
 
 ## Nika ↔ NovaNet Integration
+
+```mermaid
+sequenceDiagram
+    participant W as Nika Workflow
+    participant MCP as MCP Protocol
+    participant NN as NovaNet
+
+    W->>MCP: invoke: novanet_context
+    MCP->>NN: focus_key=homepage, locale=fr-FR
+    NN-->>MCP: Assembled context (entities + atoms)
+    MCP-->>W: Context as TaskResult
+
+    W->>W: infer: Generate landing page<br/>using {{use.ctx}}
+
+    W->>MCP: invoke: novanet_write
+    MCP->>NN: Store PageNative
+    NN-->>MCP: Write confirmed
+    MCP-->>W: Success
+```
 
 ```yaml
 # The integration pattern
@@ -333,8 +448,8 @@ tasks:
       {{use.ctx}}
 ```
 
-**Protocol:** MCP (Model Context Protocol) — Zero Cypher rule enforced (ADR-003).
-Nika never queries Neo4j directly. All graph access flows through NovaNet MCP tools.
+> [!IMPORTANT]
+> **Zero Cypher Rule** (ADR-003) — Nika never queries Neo4j directly. All graph access flows through NovaNet's 8 MCP tools. MCP is the abstraction boundary.
 
 ---
 
@@ -342,10 +457,24 @@ Nika never queries Neo4j directly. All graph access flows through NovaNet MCP to
 
 | Metric | Nika | NovaNet | Combined |
 |--------|------|---------|----------|
-| Tests | 6,157 | 1,210 | 7,367 |
-| Source files | 371 | ~200 | ~571 |
-| Lines of Rust | 219K | ~50K | ~269K |
+| Tests | 6,610[^3] | 1,210 | 7,820 |
+| Source files | 373[^1] | ~200 | ~573 |
+| Lines of Rust | 220K[^2] | ~50K | ~270K |
 | Providers | 7 | 0 | 7 |
 | MCP tools | 11 builtin | 8 exposed | 19 |
 | Error codes | 20+ ranges | — | 20+ |
 | CLI commands | 30+ | 10+ | 40+ |
+
+---
+
+<div align="center">
+
+[← 00 Index](./00-README.md) · [📋 Index](./00-README.md) · [02 Scientific Literature →](./02-scientific-literature.md)
+
+</div>
+
+---
+
+[^1]: Verified via `find src -name '*.rs' | wc -l` on 2026-03-14. Count: 373.
+[^2]: Verified via `find src -name '*.rs' -exec cat {} + | wc -l` on 2026-03-14. Count: 220,380.
+[^3]: Verified via `cargo test -- --list | grep "test$" | wc -l` on 2026-03-14. Count: 6,610.

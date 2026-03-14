@@ -1,102 +1,94 @@
 # 03 — Competitive Landscape
 
-> Analysis of competing agent runtimes and coding agents.
-> Date: 2026-03-14
+> Analysis of competing agent runtimes, coding agents, and protocols.
+> 5 competitors mapped. 3 protocols analyzed. Positioning defined.
+
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
 ## Market Map
 
+```mermaid
+quadrantChart
+    title Declarative vs Imperative × Simple vs Complex
+    x-axis "Simple" --> "Complex"
+    y-axis "Imperative" --> "Declarative"
+    quadrant-1 "Declarative + Complex"
+    quadrant-2 "Declarative + Simple"
+    quadrant-3 "Imperative + Simple"
+    quadrant-4 "Imperative + Complex"
+    "Nika": [0.80, 0.85]
+    "Dify": [0.30, 0.75]
+    "LangGraph": [0.70, 0.25]
+    "CrewAI": [0.45, 0.35]
+    "AutoGen": [0.55, 0.30]
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  AGENT RUNTIME LANDSCAPE (March 2026)                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  CODING AGENTS (product)                                            │
-│  ├── Claude Code (Anthropic) — CLI agent with hooks/skills          │
-│  ├── Codex (OpenAI) — cloud sandbox, PR-oriented                    │
-│  ├── Devin (Cognition) — full dev environment                       │
-│  ├── Cursor / Windsurf / Cline — IDE-embedded agents                │
-│  └── Slate (Random Labs) — swarm-native coding agent                │
-│                                                                     │
-│  WORKFLOW ENGINES (framework)                                       │
-│  ├── LangGraph (LangChain) — Python, stateful graphs                │
-│  ├── CrewAI — role-based multi-agent                                │
-│  ├── AutoGen (Microsoft) — conversational agents                    │
-│  ├── Dify — visual workflow builder                                 │
-│  └── Nika — YAML DAG + MCP + knowledge graph                       │
-│                                                                     │
-│  PROTOCOLS                                                          │
-│  ├── MCP (Anthropic) — tool provision (intra-agent)                 │
-│  ├── A2A (Google → Linux Foundation) — agent coordination           │
-│  └── ACP (various) — agent communication                            │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+
+```mermaid
+flowchart TB
+    subgraph ENGINES["Workflow Engines (framework)"]
+        direction LR
+        NIKA["Nika\nYAML DAG + MCP + KG"]
+        LG["LangGraph\nPython, stateful graphs"]
+        CREW["CrewAI\nRole-based multi-agent"]
+        AUTO["AutoGen\nConversational agents"]
+        DIFY["Dify\nVisual workflow builder"]
+    end
+
+    subgraph AGENTS["Coding Agents (product)"]
+        direction LR
+        CC["Claude Code\nCLI + hooks/skills"]
+        CODEX["Codex\nCloud sandbox, PRs"]
+        SLATE["Slate\nSwarm-native, episodes"]
+        DEVIN["Devin\nFull dev environment"]
+        CURSOR["Cursor / Windsurf / Cline\nIDE-embedded"]
+    end
+
+    subgraph PROTOCOLS["Protocols"]
+        direction LR
+        MCP["MCP (Anthropic)\nAgent ↔ Tools"]
+        A2A["A2A (Google → LF)\nAgent ↔ Agent"]
+        ACP["ACP (various)\nAgent communication"]
+    end
+
+    style ENGINES fill:#dbeafe,stroke:#2563eb
+    style AGENTS fill:#fef3c7,stroke:#d97706
+    style PROTOCOLS fill:#dcfce7,stroke:#16a34a
 ```
+
+> [!NOTE]
+> Nika sits in the **Declarative + Complex** quadrant — a unique position. No other framework combines YAML-first workflows, knowledge graph integration, and multi-provider orchestration.
 
 ---
 
-## 1. Slate by Random Labs
+## 1. Slate by Random Labs[^1]
 
-**Source:** Blog post (randomlabs.ai/blog/slate) + full documentation (docs.randomlabs.ai) + Twitter thread by @realmcore_ (March 12, 2026)
-**Package:** `@randomlabs/slate` v1.0.15 (npm)
+**Source:** Blog post + documentation + npm `@randomlabs/slate` v1.0.15
 **Config:** `slate.json` / `slate.jsonc` with 3-level merge (global → project → inline)
 
-### Architecture (Deep Technical Analysis)
+### Architecture: 8 Interconnected Concepts
 
-Slate is built on 8 interconnected concepts. At its core, it solves the **context window degradation problem**: past a threshold (the "dumb zone"), LLM performance degrades. Every existing approach (compaction, subagents, markdown plans, task decomposition, RLM) fails for different reasons. Slate's answer is **threads + episodes + thread weaving**.
+Slate solves the **context window degradation problem**: past a threshold (the "dumb zone"), LLM performance degrades. Every existing approach fails for different reasons. Slate's answer is **threads + episodes + thread weaving**.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  SLATE ARCHITECTURE (Deep Mechanics)                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  1. WORKING MEMORY & DUMB ZONE                                      │
-│     Context has a usable zone (working memory) and a degraded       │
-│     zone (dumb zone). Solution: NEVER exceed working memory.        │
-│     ≠ compaction (lossy, unpredictable information loss)             │
-│                                                                     │
-│  2. THREADS (NOT subagents)                                         │
-│     Each thread executes ONE action, then pauses and returns        │
-│     control to orchestrator. Context is isolated per thread.        │
-│     KEY: threads are one-shot, not persistent like subagents.       │
-│     One action → episode → return to orchestrator.                  │
-│                                                                     │
-│  3. EPISODES (Compression at Completion Boundary)                   │
-│     Compressed representation of a thread's execution.              │
-│     Generated AT the natural completion boundary (not mid-stream).  │
-│     The agent that ran the thread decides what's important.         │
-│     ≠ compaction (lossy mid-stream) or subagent return (raw dump)   │
-│                                                                     │
-│  4. THREAD WEAVING (Implicit Adaptive Decomposition)                │
-│     Orchestrator loop: dispatch threads → collect episodes →        │
-│     synthesize → dispatch next threads. No explicit plan needed.    │
-│     The orchestrator adapts based on episode results.               │
-│     ≠ markdown planning (gets stale, 3 failure modes)               │
-│     ≠ task decomposition (rigid, can't adapt)                       │
-│                                                                     │
-│  5. STRATEGY / TACTICS (AlphaZero Mapping)                          │
-│     Strategy = open-ended planning, value network                   │
-│     Tactics = learned action sequences, policy network              │
-│     Software engineering is an "open-ended infinite game."          │
-│     Orchestrator = strategist. Threads = tacticians.                │
-│                                                                     │
-│  6. KNOWLEDGE OVERHANG                                              │
-│     Models have knowledge they can't access without scaffolding.    │
-│     The gap is a systems problem, not capability.                   │
-│     Episodes provide scaffolding that activates latent knowledge.   │
-│                                                                     │
-│  7. COMPOSABILITY                                                   │
-│     Episodes as inputs to other threads (A's ep → B's input).      │
-│     Cross-model composition: different models across threads,       │
-│     episodes as clean handoff boundary.                             │
-│     Parallel thread execution with episode synthesis.               │
-│                                                                     │
-│  8. OS FRAMING                                                      │
-│     Orchestrator = kernel, Threads = processes,                     │
-│     Episodes = process return values, Context = RAM.                │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    WM["1. Working Memory\n& Dumb Zone"] --> TH["2. Threads\n(one-shot, NOT subagents)"]
+    TH --> EP["3. Episodes\n(completion boundary\ncompression)"]
+    EP --> TW["4. Thread Weaving\n(implicit adaptive\ndecomposition)"]
+    TW --> ST["5. Strategy / Tactics\n(AlphaZero mapping)"]
+    ST --> KO["6. Knowledge\nOverhang"]
+    KO --> CO["7. Composability\n(episodes as inputs)"]
+    CO --> OS["8. OS Framing\n(kernel metaphor)"]
+
+    style WM fill:#fecaca,stroke:#dc2626
+    style TH fill:#dbeafe,stroke:#2563eb
+    style EP fill:#dcfce7,stroke:#16a34a
+    style TW fill:#fef3c7,stroke:#d97706
+    style ST fill:#ede9fe,stroke:#7c3aed
+    style KO fill:#ccfbf1,stroke:#0d9488
+    style CO fill:#dbeafe,stroke:#2563eb
+    style OS fill:#fef3c7,stroke:#d97706
 ```
 
 ### Slate's Critique of Existing Approaches
@@ -104,31 +96,40 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | Approach | Failure Mode | Slate's Alternative |
 |----------|-------------|---------------------|
 | **Compaction** | Lossy, unpredictable information loss | Episode compression at completion boundary |
-| **Subagents** | Context isolated, can't transfer info across boundaries | Threads (one-shot) + episodes (compressed handoff) |
-| **Markdown Plans** | Underspecified, incomplete execution, agent forgets to update | No explicit plans — implicit adaptive decomposition |
+| **Subagents** | Context isolated, can't transfer info | Threads (one-shot) + episodes (compressed handoff) |
+| **Markdown Plans** | Underspecified, incomplete execution, stale | No explicit plans — implicit adaptive decomposition |
 | **Task Decomposition** | Rigid, can't adapt, low expressivity | Thread weaving — orchestrator adapts per round |
-| **RLM** | Blind N-step execution, no intermediate feedback | Every thread produces episode, orchestrator reviews between |
-| **Devin/Manus** | Context lost at compress boundary, strategize-delegate-compress | Episodes preserve key info, entity-linked persistence |
+| **RLM** | Blind N-step execution, no intermediate feedback | Every thread produces episode, orchestrator reviews |
+| **Devin/Manus** | Context lost at compress boundary | Episodes preserve key info, entity-linked persistence |
 
-### Slate's 4 Model Slots
+### Slate's Model Slots
 
+> [!IMPORTANT]
+> **Attribution note:** Slate configures 4 model slots: **main**, **subagent**, **search**, **reasoning**. Our proposed 4-slot design (P-MODEL) uses **main**, **tactical**, **search**, **reasoning** — renaming "subagent" to "tactical" to better reflect the strategy/tactics separation from THREAD[^2] and AlphaZero[^3]. The slot concept is inspired by Slate; the specific taxonomy is our design.
+
+```mermaid
+flowchart LR
+    subgraph SLATE_SLOTS["Slate's Slots"]
+        SM["main\n(expensive, capable)"]
+        SS["subagent\n(cheaper, faster)"]
+        SSE["search\n(fast, cheap)"]
+        SR["reasoning\n(deep thinking)"]
+    end
+
+    subgraph NIKA_SLOTS["Nika's Proposed Slots (P-MODEL)"]
+        NM["main\n(orchestration)"]
+        NT["tactical\n(execution)"]
+        NSE["search\n(retrieval)"]
+        NR["reasoning\n(planning/review)"]
+    end
+
+    SLATE_SLOTS -.->|"inspired by"| NIKA_SLOTS
+
+    style SLATE_SLOTS fill:#fef3c7,stroke:#d97706
+    style NIKA_SLOTS fill:#dbeafe,stroke:#2563eb
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  MODEL SLOT ARCHITECTURE (slate.json config)                        │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  main       → Primary reasoning (expensive, most capable)           │
-│  subagent   → Thread execution (can be cheaper/faster)              │
-│  search     → Information retrieval (fast, cheap)                   │
-│  reasoning  → Planning, review, critique (deep thinking)            │
-│                                                                     │
-│  Configured globally. Two primary agents: "build" and "plan".       │
-│  Permission system: allow/ask/deny per action type.                 │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
 
-### Slate's Architecture Comparison Table
+### Slate's Architecture Comparison
 
 | Dimension | ReAct | Plan | Task Trees | RLM | Devin | Claude Code | **Slate** |
 |-----------|:-----:|:----:|:----------:|:---:|:-----:|:-----------:|:---------:|
@@ -140,19 +141,25 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | Parallelism | None | None | None | None | Multi-agent | None | Native |
 | Adaptability | Low | Low | Low | Low | Medium | High | High |
 
-### What Slate Does Better Than Nika
+### Head-to-Head: Slate vs Nika
 
-| Feature | Slate | Nika |
-|---------|-------|------|
-| Context management | Working memory awareness, episode compression | None — full context carried |
-| Model routing | 4 model slots (main/subagent/search/reasoning) | Single provider per workflow |
-| Episodic memory | Cross-session persistence (session files) | In-memory only |
-| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop |
-| Thread model | One-shot threads with episode compression | Persistent subagents |
-| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation |
-| Long-running tasks | Hours to days | Single session |
+<details>
+<summary>Where Slate leads (gaps Nika must close)</summary>
 
-### What Nika Does Better Than Slate
+| Feature | Slate | Nika | Priority |
+|---------|-------|------|----------|
+| Context management | Working memory awareness, episode compression | None — full context carried | P-CONTEXT |
+| Model routing | 4 model slots (main/subagent/search/reasoning) | Single provider per workflow | P-MODEL |
+| Episodic memory | Cross-session persistence (session files) | In-memory only | P-MEMORY |
+| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop | P-STRATEGY |
+| Thread model | One-shot threads with episode compression | Persistent subagents | P-EPISODE |
+| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation | P-STRATEGY |
+| Long-running tasks | Hours to days | Single session | P-MEMORY |
+
+</details>
+
+<details>
+<summary>Where Nika leads (moat Slate cannot replicate)</summary>
 
 | Feature | Nika | Slate |
 |---------|------|-------|
@@ -166,16 +173,10 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | Cost control | Token tracking per task, budget awareness | No token budgeting |
 | Episode persistence | NovaNet = graph-queryable, entity-linked (future) | Session files only |
 
-### Key Takeaways from Slate
+</details>
 
-1. **Thread model is the core innovation** — One-shot threads (not persistent subagents) with episode compression at natural completion boundaries solve context bloat without lossy compaction
-2. **Thread weaving > explicit planning** — Implicit adaptive decomposition via orchestrator loop avoids all 3 failure modes of markdown planning
-3. **4 model slots is the right abstraction** — Different cognitive tasks need different models (strategy vs tactics vs search vs reasoning)
-4. **Episodes are composable** — They flow between threads as clean handoff boundaries, enabling cross-model composition
-5. **Nika's DAG IS the orchestrator** — Nika doesn't need to BUILD Slate's architecture from scratch. The DAG engine is already the kernel. Tasks are already processes. We need to ADD episode compression, dynamic dispatch, and model slots.
-6. **Nika goes beyond Slate** via NovaNet (persistent entity-linked memory), declarative YAML (auditable, version-controlled), and full observability (34 events + traces)
-
-> **See doc 07 for the complete Slate → Nika integration strategy.**
+> [!TIP]
+> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `DataStore` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, episodes, strategy mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
 
 ---
 
@@ -183,16 +184,6 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 
 **Type:** CLI coding agent
 **Traction:** Dominant in developer workflows (March 2026)
-
-### Architecture
-
-- Hook system for extensibility (PreToolUse, PostToolUse, etc.)
-- Skill files for reusable capabilities
-- MCP server integration
-- Conversation-based context management
-- No workflow definition format — conversational only
-
-### Comparison
 
 | Aspect | Claude Code | Nika |
 |--------|------------|------|
@@ -203,16 +194,14 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | Multi-model | Claude only | 7 providers |
 | Knowledge graph | None | NovaNet integration |
 
-**Insight:** Claude Code is Nika's user, not competitor. Nika workflows are authored and invoked from Claude Code sessions. The relationship is symbiotic.
+> [!NOTE]
+> **Relationship:** Claude Code is Nika's **user**, not competitor. Nika workflows are authored and invoked from Claude Code sessions. The relationship is symbiotic — Claude Code provides the interactive shell, Nika provides the reproducible workflow engine.
 
 ---
 
 ## 3. Codex (OpenAI)
 
-**Type:** Cloud-based coding agent
-**Architecture:** Sandboxed cloud environment, PR-oriented
-
-### Comparison
+**Type:** Cloud-based coding agent — sandboxed environment, PR-oriented
 
 | Aspect | Codex | Nika |
 |--------|-------|------|
@@ -222,16 +211,14 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | Trace | GitHub PR diffs | NDJSON events |
 | Cost model | Per-task billing | Pay-per-API-call |
 
-**Insight:** Codex focuses on code-change-as-output (PRs). Nika focuses on arbitrary AI workflow orchestration. Different target markets.
+> [!NOTE]
+> **Different markets:** Codex focuses on code-change-as-output (PRs). Nika focuses on arbitrary AI workflow orchestration.
 
 ---
 
 ## 4. LangGraph (LangChain)
 
 **Type:** Python framework for stateful agent graphs
-**Traction:** Large Python ecosystem
-
-### Comparison
 
 | Aspect | LangGraph | Nika |
 |--------|-----------|------|
@@ -243,7 +230,8 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 | MCP | Via langchain-mcp | Native rmcp |
 | Knowledge graph | Manual integration | NovaNet built-in |
 
-**Insight:** LangGraph is more flexible (arbitrary Python) but slower, harder to reproduce, and lacks Nika's YAML-first philosophy. Nika's YAML workflows are version-controllable artifacts; LangGraph's Python graphs are code.
+> [!NOTE]
+> **Tradeoff:** LangGraph is more flexible (arbitrary Python) but slower, harder to reproduce, and lacks YAML-first philosophy. Nika's YAML workflows are version-controllable artifacts; LangGraph's Python graphs are code.
 
 ---
 
@@ -251,22 +239,19 @@ Slate is built on 8 interconnected concepts. At its core, it solves the **contex
 
 **Type:** Role-based multi-agent framework (Python)
 
-### Comparison
-
 | Aspect | CrewAI | Nika |
 |--------|--------|------|
 | Agent model | Role-based (researcher, writer, etc.) | Verb-based (infer, exec, agent) |
 | Coordination | Sequential/hierarchical | DAG with parallel + for_each |
-| Memory | Short/long-term/entity memory | DataStore (session only) |
+| Memory | Short/long-term/entity memory (3 types) | DataStore (session only) |
 | Tools | Custom tool definitions | MCP tools + 11 builtins |
 
-**Insight:** CrewAI's role-based model is intuitive but less precise than Nika's verb-based approach. CrewAI's memory system (3 types) is more mature than Nika's (single DataStore).
+> [!WARNING]
+> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single DataStore. This gap is addressed by P-MEMORY and P-EPISODE in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
 ## 6. SWE-bench Leaderboard (March 2026)
-
-Current agent performance benchmarks:
 
 | Agent | Score | Model |
 |-------|-------|-------|
@@ -275,11 +260,39 @@ Current agent performance benchmarks:
 | Devin | ~85% | Multi-model |
 | SWE-Agent | ~80% | Various |
 
-**Insight for Nika:** The models themselves are converging at high capability. The differentiator is now **orchestration quality** — how effectively you chain, route, and compose LLM calls. This validates Nika's focus on workflow engineering over model capability.
+> [!TIP]
+> The models themselves are converging at high capability. The differentiator is now **orchestration quality** — how effectively you chain, route, and compose LLM calls. This validates Nika's focus on workflow engineering over model capability.
 
 ---
 
 ## 7. Protocol Landscape
+
+```mermaid
+flowchart LR
+    subgraph MCP_BOX["MCP (Anthropic)"]
+        direction TB
+        M1["Agent ↔ Tools"]
+        M2["What an agent can DO"]
+    end
+
+    subgraph A2A_BOX["A2A (Google → Linux Foundation)"]
+        direction TB
+        A1["Agent ↔ Agent"]
+        A2["How agents COORDINATE"]
+    end
+
+    NIKA_NOW["Nika today:\nMCP client +\nspawn_agent"]
+    NIKA_FUT["Nika future:\nMCP client +\nA2A for discovery\n& delegation"]
+
+    MCP_BOX --> NIKA_NOW
+    MCP_BOX --> NIKA_FUT
+    A2A_BOX -.->|"future"| NIKA_FUT
+
+    style MCP_BOX fill:#dbeafe,stroke:#2563eb
+    style A2A_BOX fill:#dcfce7,stroke:#16a34a
+    style NIKA_NOW fill:#fef3c7,stroke:#d97706
+    style NIKA_FUT fill:#ede9fe,stroke:#7c3aed
+```
 
 ### MCP (Model Context Protocol)
 
@@ -291,62 +304,88 @@ Current agent performance benchmarks:
 ### A2A (Agent-to-Agent Protocol)
 
 - **Created by:** Google (April 2025), donated to Linux Foundation (June 2025)
-- **Focus:** Inter-agent coordination and task delegation
 - **Key features:** Agent Cards at `/.well-known/agent.json`, JSON-RPC 2.0, SSE streaming, OAuth 2.0
 - **Role:** Inter-agent communication (agent ↔ agent)
 
-### Relationship
-
-```
-MCP and A2A are complementary:
-
-  MCP:  Agent ←→ Tools (what an agent can DO)
-  A2A:  Agent ←→ Agent (how agents COORDINATE)
-
-  Nika today: MCP client (tools) + spawn_agent (basic coordination)
-  Nika future: MCP client + A2A for agent discovery and delegation
-```
-
-**Insight:** If Nika wants to support multi-runtime agent coordination (e.g., a Nika agent delegating to an external agent running on LangGraph), A2A is the protocol to adopt.
+> [!NOTE]
+> If Nika wants to support multi-runtime agent coordination (e.g., a Nika agent delegating to an external LangGraph agent), A2A is the protocol to adopt.
 
 ---
 
 ## Competitive Positioning
 
+```mermaid
+quadrantChart
+    title Expressivity vs Memory Sophistication
+    x-axis "Basic Memory" --> "Episodic Memory"
+    y-axis "Low Expressivity" --> "High Expressivity"
+    quadrant-1 "Leader Zone"
+    quadrant-2 "Expressive but Forgetful"
+    quadrant-3 "Rigid & Forgetful"
+    quadrant-4 "Smart Memory, Low Flex"
+    "Nika v0.27": [0.35, 0.80]
+    "Nika v0.30 (target)": [0.85, 0.90]
+    "Slate": [0.75, 0.85]
+    "Claude Code": [0.30, 0.60]
+    "LangGraph": [0.45, 0.50]
+    "CrewAI": [0.55, 0.40]
+    "Codex": [0.20, 0.55]
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  WHERE NIKA STANDS                                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  UNIQUE STRENGTHS (no competitor has all of these)                  │
-│  ├── YAML-first declarative workflows → reproducibility             │
-│  ├── NovaNet knowledge graph integration → multi-locale content     │
-│  ├── Rust performance + tokio concurrency → fast execution          │
-│  ├── 5 semantic verbs → clear action taxonomy                       │
-│  ├── Event sourcing + NDJSON traces → full observability            │
-│  └── 7 LLM providers + native inference → provider independence    │
-│                                                                     │
-│  GAPS TO CLOSE                                                      │
-│  ├── Context compression (Slate, Context-Folding)                   │
-│  ├── Multi-model routing per task (THREAD, Slate)                   │
-│  ├── Episodic memory (Slate, CrewAI)                                │
-│  ├── Strategy/tactics separation (Slate, THREAD)                    │
-│  ├── Code execution sandbox (CodeAct)                               │
-│  └── Inter-agent protocol (A2A)                                     │
-│                                                                     │
-│  MOAT                                                               │
-│  ├── NovaNet — no competitor has a curated knowledge graph          │
-│  ├── YAML DSL — workflows as artifacts, not code                    │
-│  └── Multi-locale — 200+ locales, no one else does this             │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+
+### Nika's Moat
+
+No competitor has **all** of these:
+
+```mermaid
+mindmap
+    root((Nika's Moat))
+        NovaNet Knowledge Graph
+            Curated, not auto-generated
+            59 NodeClasses
+            200+ locales
+        YAML-First Workflows
+            Version-controlled
+            Auditable DAG
+            Reproducible traces
+        Rust Performance
+            tokio concurrency
+            Sub-millisecond DAG validation
+        Observability
+            34 event types
+            NDJSON traces
+            Full token tracking
+        Security
+            Shell-free exec default
+            Command blocklist
+            Path traversal prevention
+        Structured Output
+            4-layer validation pipeline
+            Parse → Validate → Retry → Repair
 ```
 
 ### NovaNet's Unique Position
 
-Research confirmed that NovaNet has **no direct competitors** in the curated-graph native-generation space. The closest are:
-- **GraphRAG (Microsoft)** — auto-built from documents, not curated
-- **Knowledge graph + LLM** research — academic, no product
-- **Wikidata/DBpedia** — general purpose, not per-org content generation
+Research confirmed that NovaNet has **no direct competitors** in the curated-graph native-generation space:
 
-NovaNet's combination of per-locale knowledge atoms (Expression, Pattern, CultureRef, Taboo) with entity-based content generation is unique in the market.
+| Closest Alternative | Why It's Different |
+|--------------------|--------------------|
+| GraphRAG (Microsoft) | Auto-built from documents, not curated |
+| Knowledge graph + LLM research | Academic, no product |
+| Wikidata / DBpedia | General purpose, not per-org content generation |
+
+> [!IMPORTANT]
+> NovaNet's combination of per-locale knowledge atoms (Expression, Pattern, CultureRef, Taboo) with entity-based content generation is **unique in the market**. No competitor offers curated, locale-aware knowledge graph integration with workflow orchestration.
+
+---
+
+<div align="center">
+
+[← 02 Scientific Literature](./02-scientific-literature.md) · [📋 Index](./00-README.md) · [04 Nika × NovaNet Overlap →](./04-nika-novanet-overlap.md)
+
+</div>
+
+---
+
+[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with thread-based episodic memory architecture. [Documentation](https://docs.randomlabs.ai). npm: `@randomlabs/slate` v1.0.15.
+[^2]: THREAD: Thinking Hierarchically for Resource-Efficient Agent Decision-making — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402). Hierarchical decomposition with per-task model routing.
+[^3]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Cited in Slate blog for strategy/tactics separation.
