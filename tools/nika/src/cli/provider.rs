@@ -57,9 +57,7 @@ fn llm_provider_ids() -> Vec<&'static str> {
 pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
     use colored::Colorize;
     use nika::core::provider_to_env_var;
-    use nika::secrets::{
-        mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring,
-    };
+    use nika::secrets::{mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring};
     use std::io::{self, Write};
 
     // Get LLM provider IDs from nika::core

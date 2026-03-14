@@ -511,7 +511,7 @@ impl Default for StreamingDecrypt {
             verb: DecryptVerb::default(),
             seed: 42,
             reveal_speed: 0.025, // Slower reveal (~40 frames = 667ms at 60fps)
-            wave_factor: 0.15, // Cascade effect - later chars reveal slower
+            wave_factor: 0.15,   // Cascade effect - later chars reveal slower
             initial_chaos_frames: 8, // ~130ms of visible chaos before reveal
             is_complete: false,
         }

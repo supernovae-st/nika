@@ -1187,7 +1187,6 @@ impl TextBuffer {
         self.scroll_offset
     }
 
-
     /// Get current selection (primary selection from SelectionSet)
     pub fn selection(&self) -> &Selection {
         self.selections.primary()
@@ -1493,7 +1492,6 @@ impl TextBuffer {
         }
     }
 
-
     /// Get cursor position as linear index (for EditHistory)
     pub fn cursor_position(&self) -> usize {
         let mut pos = 0;
@@ -1683,7 +1681,6 @@ impl YamlEditorPanel {
         Ok(())
     }
 
-
     /// Undo the last edit (Ctrl+Z)
     fn undo(&mut self) {
         if let Some((text, cursor)) = self.edit_history.undo() {
@@ -1768,7 +1765,6 @@ impl YamlEditorPanel {
     pub fn current_col(&self) -> usize {
         self.buffer.cursor().1 + 1
     }
-
 
     /// Get diagnostics engine reference (for gutter and underline rendering)
     pub fn diagnostics(&self) -> &DiagnosticsEngine {
@@ -3349,7 +3345,6 @@ unknown_field: "should fail""#;
         // Should have "a" + "cc" = "acc"
         assert_eq!(buffer.content(), "acc");
     }
-
 
     #[test]
     fn test_multi_cursor_add_cursor() {

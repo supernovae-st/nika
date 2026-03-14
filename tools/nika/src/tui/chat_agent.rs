@@ -1287,7 +1287,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_with_overrides_mistral() {
         std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");

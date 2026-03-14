@@ -393,7 +393,6 @@ async fn test_chat_continue_emits_events() {
     );
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Integration Tests - chat_continue with OpenAI (require OPENAI_API_KEY)
 // ═══════════════════════════════════════════════════════════════════════════

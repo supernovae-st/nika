@@ -38,8 +38,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use nika::mcp::{McpClient, McpConfig};
 use nika::ast::parse_workflow;
+use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
 use serde_json::json;
 use tokio::sync::Barrier;

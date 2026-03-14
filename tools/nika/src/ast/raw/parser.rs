@@ -11,8 +11,8 @@ use super::action::{
 };
 use super::mcp::{RawMcpConfig, RawMcpServer};
 use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
-use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use super::workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
+use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
@@ -1688,7 +1688,6 @@ tasks:
             serde_json::Value::String("fr-FR".to_string())
         );
     }
-
 
     #[test]
     fn test_parse_context_config() {

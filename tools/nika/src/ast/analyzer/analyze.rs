@@ -54,7 +54,6 @@ impl AnalyzerContext {
     fn add_error(&mut self, error: AnalyzeError) {
         self.errors.push(error);
     }
-
 }
 
 /// Validate a raw workflow without producing an analyzed workflow.

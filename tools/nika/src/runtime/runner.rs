@@ -611,8 +611,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         executor: TaskExecutor,
         event_log: EventLog,
         for_each_binding: Option<(String, Value, usize)>, // Added index
-        workflow_artifacts: Option<ArtifactsConfig>, // Artifact config
-        base_path: PathBuf, // Artifact base path
+        workflow_artifacts: Option<ArtifactsConfig>,      // Artifact config
+        base_path: PathBuf,                               // Artifact base path
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -770,8 +770,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     workflow_artifacts.as_ref(),
                     &base_path,
                     Some(&event_log), // Pass event log for artifact events
-                    &bindings, // For template resolution
-                    &datastore, // For lazy binding resolution
+                    &bindings,        // For template resolution
+                    &datastore,       // For lazy binding resolution
                 )
                 .await;
 

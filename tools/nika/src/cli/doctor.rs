@@ -182,7 +182,6 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
         }
     }
 
-
     if !any_found {
         checks.push(DiagnosticCheck::warn(
             "API Key",

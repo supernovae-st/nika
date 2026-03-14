@@ -590,7 +590,7 @@ pub fn models_by_type(model_type: ModelType) -> Vec<&'static KnownModel> {
 /// Returns 80% of total RAM to leave headroom for the OS and other processes.
 /// This is used for auto-selecting quantization levels.
 ///
-/// This is a re-export of [`crate::util::system::get_available_ram_gb`] 
+/// This is a re-export of [`crate::util::system::get_available_ram_gb`]
 /// compatibility. New code should use `crate::util::system` directly.
 #[must_use]
 pub fn detect_available_ram_gb() -> u32 {

@@ -53,9 +53,9 @@ pub(crate) mod io;
 pub(crate) mod util;
 
 // Feature-gated modules
+pub mod secrets;
 #[cfg(feature = "tui")]
 pub mod tui;
-pub mod secrets;
 
 #[cfg(feature = "jobs")]
 pub mod jobs;

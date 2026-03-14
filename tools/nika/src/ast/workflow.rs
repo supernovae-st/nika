@@ -125,7 +125,6 @@ impl Workflow {
         let hash = xxh3_64(hasher_input.as_bytes());
         format!("{:016x}", hash)
     }
-
 }
 
 #[derive(Debug, Clone, Deserialize)]

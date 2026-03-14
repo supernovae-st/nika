@@ -32,7 +32,6 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-
 /// Total number of wizard steps (excluding Complete).
 const WIZARD_STEP_COUNT: usize = 6;
 

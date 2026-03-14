@@ -428,8 +428,7 @@ tasks:
       model: gpt-4-turbo
 "#;
 
-    let workflow: nika::ast::Workflow =
-        parse_workflow(yaml).expect("Failed to parse workflow");
+    let workflow: nika::ast::Workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -454,8 +453,7 @@ tasks:
       max_turns: 5
 "#;
 
-    let workflow: nika::ast::Workflow =
-        parse_workflow(yaml).expect("Failed to parse workflow");
+    let workflow: nika::ast::Workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     assert_eq!(workflow.tasks.len(), 2);
 }

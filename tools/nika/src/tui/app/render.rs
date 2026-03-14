@@ -66,7 +66,7 @@ impl App {
             let monitor_view = &mut self.monitor_view;
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state;
-                                                 // P0 Fix: Use is_paused() accessor for unified pause state
+            // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
             let input_mode = self.input_mode;
 

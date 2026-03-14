@@ -227,7 +227,7 @@ impl App {
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
             session_id: None,
-            config,          
+            config,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             intro_state: None,
@@ -298,8 +298,8 @@ impl App {
             chat_agent,
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
-            session_id: None,                    
-            config,                              
+            session_id: None,
+            config,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             intro_state: Some(NikaIntroState::new()),

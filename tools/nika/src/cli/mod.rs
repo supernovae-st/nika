@@ -15,9 +15,9 @@ pub mod pkg;
 pub mod model;
 
 pub mod config;
+pub mod doctor;
 pub mod schema;
 pub mod workflow;
-pub mod doctor;
 
 #[cfg(feature = "jobs")]
 pub mod jobs;

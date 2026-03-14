@@ -240,7 +240,9 @@ tasks:
         } else {
             yaml.push_str(&format!(
                 "  - id: task_{}\n    depends_on: [task_{}]\n    exec: \"echo task_{}\"\n",
-                i, i - 1, i
+                i,
+                i - 1,
+                i
             ));
         }
     }

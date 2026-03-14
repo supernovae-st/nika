@@ -19,7 +19,11 @@ use nika::tools::PermissionMode;
 /// - `workflows/partials/` with reusable workflow fragments (for include:)
 /// - `schemas/` with JSON schemas for output validation
 /// - `output/` for generated workflow outputs
-pub fn init_project(permission: &str, no_example: bool, migrate_keys: bool) -> Result<(), NikaError> {
+pub fn init_project(
+    permission: &str,
+    no_example: bool,
+    migrate_keys: bool,
+) -> Result<(), NikaError> {
     let cwd = std::env::current_dir()?;
     let nika_dir = cwd.join(".nika");
 

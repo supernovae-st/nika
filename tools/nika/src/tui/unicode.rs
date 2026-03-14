@@ -108,5 +108,4 @@ mod tests {
         // Should be "日…" (2 + 1 = 3 columns, which is <= 4)
         assert!(display_width(&result) <= 4);
     }
-
 }

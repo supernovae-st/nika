@@ -751,5 +751,4 @@ tasks:
         let result = validate_path_boundary(&project, &outside_file);
         assert!(result.is_err());
     }
-
 }

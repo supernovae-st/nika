@@ -67,17 +67,10 @@ pub use mention::{
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
-    detect_deprecated_dollar_syntax,
-    escape_for_shell,
-    extract_refs,
-    extract_with_refs,
-    parse_template_expr,
-    resolve as template_resolve,
-    resolve_for_shell as template_resolve_for_shell,
-    resolve_with as template_resolve_with,
-    validate_refs,
-    validate_with_refs,
-    TemplateExpr,
+    detect_deprecated_dollar_syntax, escape_for_shell, extract_refs, extract_with_refs,
+    parse_template_expr, resolve as template_resolve,
+    resolve_for_shell as template_resolve_for_shell, resolve_with as template_resolve_with,
+    validate_refs, validate_with_refs, TemplateExpr,
 };
 pub use transform::{TransformError, TransformExpr, TransformOp, TransformParseError};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};

@@ -156,7 +156,6 @@ mod tests {
 
     #[test]
     fn reconnect_timeout_is_30_seconds() {
-
         assert_eq!(RECONNECT_TIMEOUT.as_secs(), 30);
     }
 
@@ -169,7 +168,6 @@ mod tests {
 
     #[test]
     fn max_reconnect_attempts_is_3() {
-
         assert_eq!(MAX_RECONNECT_ATTEMPTS, 3);
     }
 
@@ -179,7 +177,6 @@ mod tests {
 
     #[test]
     fn invoke_task_deadline_is_5_minutes() {
-
         assert_eq!(INVOKE_TASK_DEADLINE.as_secs(), 300);
     }
 

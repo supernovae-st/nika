@@ -464,11 +464,11 @@ impl ChatView {
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
             // NIKA butterfly pattern + explosion
-            rain_opacity: 1.0,                  // Start visible for NIKA pattern
-            rain_fading: false,                 // Pattern handles its own fade
+            rain_opacity: 1.0,  // Start visible for NIKA pattern
+            rain_fading: false, // Pattern handles its own fade
             intro_state: NikaIntroState::new(),
-            explosion_frame: 0,                 // Start with NIKA pattern visible
-            nika_pattern_visible: true,         // Show NIKA pattern at start
+            explosion_frame: 0,         // Start with NIKA pattern visible
+            nika_pattern_visible: true, // Show NIKA pattern at start
 
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
@@ -673,7 +673,7 @@ impl View for ChatView {
                 Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
                 Constraint::Min(10),   // Main content area
                 Constraint::Length(input_height), // Dynamic input height (1-10 lines + borders)
-                Constraint::Length(1),            // Command hints
+                Constraint::Length(1), // Command hints
             ])
             .split(area);
 

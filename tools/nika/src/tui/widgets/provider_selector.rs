@@ -955,7 +955,6 @@ mod tests {
         assert!(!state.visible);
     }
 
-
     #[test]
     fn test_all_models_have_streaming() {
         let providers = ProviderInfo::all_providers();
