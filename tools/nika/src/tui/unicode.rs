@@ -59,28 +59,6 @@ pub fn truncate_to_width(s: &str, max_width: usize) -> String {
     result
 }
 
-/// Check if a string contains only ASCII characters
-#[allow(dead_code)] // Utility for future use
-pub fn is_ascii_only(s: &str) -> bool {
-    s.is_ascii()
-}
-
-/// Pad a string to a fixed width with spaces
-///
-/// If the string is shorter than `width`, spaces are added to the right.
-/// If longer, the string is truncated.
-#[allow(dead_code)] // Utility for future use
-pub fn pad_to_width(s: &str, width: usize) -> String {
-    let current_width = display_width(s);
-
-    if current_width >= width {
-        truncate_to_width(s, width)
-    } else {
-        let padding = width - current_width;
-        format!("{}{}", s, " ".repeat(padding))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,18 +109,4 @@ mod tests {
         assert!(display_width(&result) <= 4);
     }
 
-    #[test]
-    fn test_is_ascii_only() {
-        assert!(is_ascii_only("hello"));
-        assert!(is_ascii_only(""));
-        assert!(!is_ascii_only("héllo"));
-        assert!(!is_ascii_only("日本語"));
-    }
-
-    #[test]
-    fn test_pad_to_width() {
-        assert_eq!(pad_to_width("hi", 5), "hi   ");
-        assert_eq!(pad_to_width("hello", 5), "hello");
-        assert_eq!(pad_to_width("hello world", 5), "hell…");
-    }
 }
