@@ -1,13 +1,11 @@
 //! Workflow management subcommand handler
 
 use clap::Subcommand;
-use std::fs;
 use std::path::PathBuf;
 
 use colored::Colorize;
 
-use nika::ast::{parse_workflow, TaskAction};
-use nika::dag::Dag;
+use nika::ast::parse_workflow;
 use nika::error::NikaError;
 
 /// Workflow management actions
