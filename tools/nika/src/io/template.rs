@@ -206,7 +206,7 @@ impl TemplateResolver {
         // Built-in variables
         match var_name {
             "task_id" => Ok(self.task_id.clone()),
-            // v0.19.4: "workflow" alias for "workflow_name" (shorter, intuitive)
+            // "workflow" alias for "workflow_name" (shorter, intuitive)
             "workflow_name" | "workflow" => Ok(self.workflow_name.clone()),
             "date" => Ok(self.timestamp.format("%Y-%m-%d").to_string()),
             "time" => Ok(self.timestamp.format("%H-%M-%S").to_string()),
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_resolve_workflow_alias() {
-        // v0.19.4: {{workflow}} is an alias for {{workflow_name}}
+        // {{workflow}} is an alias for {{workflow_name}}
         let resolver = fixed_resolver();
         let result = resolver.resolve("{{workflow}}/{{task_id}}.json").unwrap();
         assert_eq!(result, "test_workflow/test_task.json");
