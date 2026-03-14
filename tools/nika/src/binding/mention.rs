@@ -99,12 +99,12 @@ pub fn parse_mentions(text: &str) -> Vec<Mention> {
     for cap in MENTION_REGEX.captures_iter(text) {
         if let (Some(start), Some(end)) = (cap.get(1), cap.get(2)) {
             // Range: @N..M
-            let start: u32 = start.as_str().parse().unwrap();
-            let end: u32 = end.as_str().parse().unwrap();
+            let Ok(start) = start.as_str().parse::<u32>() else { continue };
+            let Ok(end) = end.as_str().parse::<u32>() else { continue };
             mentions.push(Mention::Range { start, end });
         } else if let Some(num) = cap.get(3) {
             // Number: @N
-            let n: u32 = num.as_str().parse().unwrap();
+            let Ok(n) = num.as_str().parse::<u32>() else { continue };
             mentions.push(Mention::Number(n));
         } else if let Some(keyword) = cap.get(4) {
             // Keyword: @last or @all
