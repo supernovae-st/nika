@@ -30,10 +30,9 @@
 //! - v0.14.0: task_local! depth tracking prevents race conditions between concurrent workflows
 
 use super::BuiltinTool;
-use crate::ast::Workflow;
+use crate::ast::parse_workflow;
 use crate::error::NikaError;
 use crate::runtime::Runner;
-use crate::serde_yaml;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::Cell;
@@ -266,8 +265,8 @@ impl BuiltinTool for RunTool {
                 reason: format!("Failed to read workflow file: {}", e),
             })?;
 
-            let workflow: Workflow =
-                serde_yaml::from_str(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
+            let workflow =
+                parse_workflow(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
                     tool: "nika_run".into(),
                     reason: format!("Failed to parse workflow YAML: {}", e),
                 })?;

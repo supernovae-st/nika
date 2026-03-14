@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 // Import from lib modules
 use nika::ast::schema_validator::WorkflowSchemaValidator;
-use nika::ast::{expand_includes, parse_workflow, TaskAction, Workflow};
+use nika::ast::{expand_includes, parse_workflow, TaskAction};
 use nika::dag::{validate_use_wiring, Dag};
 use nika::error::NikaError;
 use nika::init::{
@@ -2826,7 +2826,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
             // If workflow provided, show workflow's MCP config
             if let Some(file) = workflow {
                 let yaml = tokio::fs::read_to_string(&file).await?;
-                let wf: Workflow = serde_yaml::from_str(&yaml)?;
+                let wf = parse_workflow(&yaml)?;
 
                 match wf.mcp {
                     Some(ref mcp_servers) if !mcp_servers.is_empty() => {
@@ -3025,7 +3025,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 
             // Load workflow
             let yaml = tokio::fs::read_to_string(&workflow).await?;
-            let wf: Workflow = serde_yaml::from_str(&yaml)?;
+            let wf = parse_workflow(&yaml)?;
 
             // Get MCP config
             let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
@@ -3076,7 +3076,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
         McpAction::Tools { workflow, server } => {
             // Load workflow
             let yaml = tokio::fs::read_to_string(&workflow).await?;
-            let wf: Workflow = serde_yaml::from_str(&yaml)?;
+            let wf = parse_workflow(&yaml)?;
 
             // Get MCP config
             let mcp_servers = wf.mcp.as_ref().ok_or_else(|| NikaError::ValidationError {
@@ -5412,7 +5412,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
             // Parse workflow
             let content = std::fs::read_to_string(&file)?;
-            let workflow: nika::ast::Workflow = serde_yaml::from_str(&content)?;
+            let workflow = parse_workflow(&content)?;
 
             // Generate graph based on format
             let graph_output = match format.as_str() {
@@ -5461,7 +5461,7 @@ async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Result<
 
             // Parse and validate
             let content = std::fs::read_to_string(&file)?;
-            let workflow: nika::ast::Workflow = serde_yaml::from_str(&content)?;
+            let workflow = parse_workflow(&content)?;
 
             // Collect validation results
             let mut issues: Vec<(String, String, String)> = Vec::new(); // (level, code, message)

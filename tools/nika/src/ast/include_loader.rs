@@ -237,15 +237,13 @@ fn load_included_workflow(path: &Path) -> Result<Workflow, NikaError> {
         path: format!("{}: {}", path.display(), e),
     })?;
 
-    let workflow: Workflow = serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
+    serde_yaml::from_str(&content).map_err(|e| NikaError::ParseError {
         details: format!(
             "Failed to parse included workflow '{}': {}",
             path.display(),
             e
         ),
-    })?;
-
-    Ok(workflow)
+    })
 }
 
 /// Merge an included workflow into the main workflow
