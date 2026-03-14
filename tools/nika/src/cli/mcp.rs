@@ -1,8 +1,6 @@
 //! MCP server management subcommand handler
 
 use clap::Subcommand;
-use colored::Colorize;
-use std::path::PathBuf;
 
 use nika::ast::parse_workflow;
 use nika::error::NikaError;

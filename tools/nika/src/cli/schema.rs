@@ -2,8 +2,6 @@
 
 use clap::Subcommand;
 use colored::Colorize;
-use std::fs;
-use std::path::PathBuf;
 
 use nika::error::NikaError;
 
