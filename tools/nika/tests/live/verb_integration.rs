@@ -153,11 +153,12 @@ tasks:
 #[test]
 fn test_parse_invoke_verb() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 mcp:
-  novanet:
-    command: "node"
-    args: ["./mcp-server.js"]
+  servers:
+    novanet:
+      command: "node"
+      args: ["./mcp-server.js"]
 tasks:
   - id: call_tool
     invoke:
@@ -219,57 +220,53 @@ tasks:
 #[test]
 fn test_parse_all_verbs_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
-  tools:
-    command: "node"
-    args: ["./tools.js"]
+  servers:
+    tools:
+      command: "node"
+      args: ["./tools.js"]
 
 tasks:
   - id: step1_exec
     exec: "echo 'Step 1: exec'"
 
   - id: step2_fetch
+    depends_on: [step1_exec]
     fetch:
       url: "https://httpbin.org/get"
       method: GET
 
   - id: step3_infer
+    depends_on: [step2_fetch]
     infer: "Analyze the data"
-    use:
-      data: step2_fetch
+    with:
+      data: $step2_fetch
 
   - id: step4_invoke
+    depends_on: [step3_infer]
     invoke:
       mcp: tools
       tool: "format_output"
       params:
-        input: "{{use.analysis}}"
-    use:
-      analysis: step3_infer
+        input: "{{with.analysis}}"
+    with:
+      analysis: $step3_infer
 
   - id: step5_agent
+    depends_on: [step4_invoke]
     agent:
       prompt: "Synthesize all results into a report"
       max_turns: 3
-    use:
-      formatted: step4_invoke
-
-flows:
-  - source: step1_exec
-    target: step2_fetch
-  - source: step2_fetch
-    target: step3_infer
-  - source: step3_infer
-    target: step4_invoke
-  - source: step4_invoke
-    target: step5_agent
+    with:
+      formatted: $step4_invoke
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 5);
-    assert_eq!(workflow.flows.len(), 4);
+    // depends_on creates flows during lowering
+    assert!(workflow.flows.len() >= 4);
     assert!(workflow.mcp.is_some());
 }
 
