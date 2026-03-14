@@ -218,26 +218,20 @@ tasks:
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[tokio::test]
-async fn test_exec_with_use_binding() {
+async fn test_exec_with_binding() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: producer
-    exec: |
-      echo '{"message": "from_producer"}'
-    output:
-      format: json
+    exec: "echo 'from_producer'"
 
   - id: consumer
-    use:
-      data: producer
-    exec: "echo 'received: {{use.data.message}}'"
-
-flows:
-  - source: producer
-    target: consumer
+    depends_on: [producer]
+    with:
+      data: $producer
+    exec: "echo 'received: {{with.data}}'"
 "#,
     );
 
@@ -770,32 +764,25 @@ async fn test_multi_verb_workflow() {
     // Note: Using agent: instead of infer: because mock provider only supports agent:
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1_exec
-    exec: |
-      echo '{"data": "from_exec"}'
-    output:
-      format: json
+    exec: "echo 'from_exec'"
 
   - id: step2_agent
-    use:
-      input: step1_exec
+    depends_on: [step1_exec]
     agent:
-      prompt: "Process this data: {{use.input.data}}"
+      prompt: "Process this data: {{with.input}}"
       max_turns: 1
+    with:
+      input: $step1_exec
 
   - id: step3_exec
-    use:
-      result: step2_agent
+    depends_on: [step2_agent]
     exec: "echo 'Final result received'"
-
-flows:
-  - source: step1_exec
-    target: step2_agent
-  - source: step2_agent
-    target: step3_exec
+    with:
+      result: $step2_agent
 "#,
     );
 
