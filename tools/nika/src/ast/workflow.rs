@@ -548,6 +548,7 @@ impl FlowEndpoint {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::parse_workflow;
     use crate::serde_yaml;
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -555,16 +556,16 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_workflow_parse_minimal_v05() {
+    fn test_workflow_parse_minimal() {
         let yaml = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 tasks:
   - id: hello
     infer: "Say hello"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
-        assert_eq!(workflow.schema, "nika/workflow@0.5");
+        assert_eq!(workflow.schema, "nika/workflow@0.12");
         assert_eq!(workflow.provider, "claude"); // default
         assert_eq!(workflow.tasks.len(), 1);
         assert_eq!(workflow.tasks[0].id, "hello");
@@ -576,14 +577,14 @@ tasks:
     #[test]
     fn test_workflow_parse_with_provider_and_model() {
         let yaml = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 provider: openai
 model: gpt-4-turbo
 tasks:
   - id: task1
     exec: "echo test"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
         assert_eq!(workflow.provider, "openai");
         assert_eq!(workflow.model, Some("gpt-4-turbo".to_string()));
@@ -592,7 +593,7 @@ tasks:
     #[test]
     fn test_workflow_parse_multiple_tasks() {
         let yaml = r#"
-schema: nika/workflow@0.1
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "First task"
@@ -602,7 +603,7 @@ tasks:
     fetch:
       url: "https://example.com"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
         assert_eq!(workflow.tasks.len(), 3);
         assert_eq!(workflow.tasks[0].id, "task1");
@@ -631,13 +632,14 @@ flows:
     #[test]
     fn test_workflow_parse_with_mcp_config() {
         let yaml = r#"
-schema: nika/workflow@0.2
+schema: "nika/workflow@0.12"
 mcp:
-  novanet:
-    command: cargo
-    args: [run, -p, novanet-mcp]
-    env:
-      NEO4J_URI: bolt://localhost:7687
+  servers:
+    novanet:
+      command: cargo
+      args: [run, -p, novanet-mcp]
+      env:
+        NEO4J_URI: bolt://localhost:7687
 tasks:
   - id: invoke_task
     invoke:
@@ -646,7 +648,7 @@ tasks:
       params:
         entity: qr-code
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
         assert!(workflow.mcp.is_some());
         let mcp = workflow.mcp.unwrap();
@@ -1247,7 +1249,7 @@ target: [step3, step4]
     #[test]
     fn test_workflow_compute_hash() {
         let yaml = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 provider: claude
 model: claude-sonnet-4-6
 tasks:
@@ -1256,7 +1258,7 @@ tasks:
   - id: task2
     exec: "echo done"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let workflow = parse_workflow(yaml).expect("Failed to parse");
         let hash = workflow.compute_hash();
 
         // Should be 16-character hex string (64-bit hash)
@@ -1267,12 +1269,12 @@ tasks:
     #[test]
     fn test_workflow_compute_hash_consistency() {
         let yaml = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let workflow = parse_workflow(yaml).expect("Failed to parse");
         let hash1 = workflow.compute_hash();
         let hash2 = workflow.compute_hash();
 
@@ -1282,46 +1284,46 @@ tasks:
 
     #[test]
     fn test_workflow_compute_hash_differs_with_schema() {
-        let yaml_v1 = r#"
-schema: nika/workflow@0.1
+        let yaml_v10 = r#"
+schema: "nika/workflow@0.10"
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let yaml_v5 = r#"
-schema: nika/workflow@0.5
+        let yaml_v12 = r#"
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow_v1: Workflow = serde_yaml::from_str(yaml_v1).expect("Failed to parse");
-        let workflow_v5: Workflow = serde_yaml::from_str(yaml_v5).expect("Failed to parse");
+        let workflow_v10 = parse_workflow(yaml_v10).expect("Failed to parse");
+        let workflow_v12 = parse_workflow(yaml_v12).expect("Failed to parse");
 
-        let hash_v1 = workflow_v1.compute_hash();
-        let hash_v5 = workflow_v5.compute_hash();
+        let hash_v10 = workflow_v10.compute_hash();
+        let hash_v12 = workflow_v12.compute_hash();
 
         // Different schema should produce different hash
-        assert_ne!(hash_v1, hash_v5);
+        assert_ne!(hash_v10, hash_v12);
     }
 
     #[test]
     fn test_workflow_compute_hash_differs_with_tasks() {
         let yaml_1task = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "Test"
 "#;
         let yaml_2tasks = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "Test"
   - id: task2
     exec: "echo done"
 "#;
-        let workflow_1: Workflow = serde_yaml::from_str(yaml_1task).expect("Failed to parse");
-        let workflow_2: Workflow = serde_yaml::from_str(yaml_2tasks).expect("Failed to parse");
+        let workflow_1 = parse_workflow(yaml_1task).expect("Failed to parse");
+        let workflow_2 = parse_workflow(yaml_2tasks).expect("Failed to parse");
 
         // Different task count should produce different hash
         assert_ne!(workflow_1.compute_hash(), workflow_2.compute_hash());
@@ -1330,21 +1332,21 @@ tasks:
     #[test]
     fn test_workflow_compute_hash_differs_with_model() {
         let yaml_claude = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 model: claude-sonnet-4-6
 tasks:
   - id: task1
     infer: "Test"
 "#;
         let yaml_openai = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 model: gpt-4-turbo
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow_claude: Workflow = serde_yaml::from_str(yaml_claude).expect("Failed to parse");
-        let workflow_openai: Workflow = serde_yaml::from_str(yaml_openai).expect("Failed to parse");
+        let workflow_claude = parse_workflow(yaml_claude).expect("Failed to parse");
+        let workflow_openai = parse_workflow(yaml_openai).expect("Failed to parse");
 
         // Different models should produce different hash
         assert_ne!(
@@ -1466,15 +1468,16 @@ infer: "Generate JSON"
     #[test]
     fn test_mcp_config_inline_minimal() {
         let yaml = r#"
-schema: nika/workflow@0.2
+schema: "nika/workflow@0.12"
 mcp:
-  test_server:
-    command: echo
+  servers:
+    test_server:
+      command: echo
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let workflow = parse_workflow(yaml).expect("Failed to parse");
         let mcp = workflow.mcp.unwrap();
         let server = &mcp["test_server"];
 
@@ -1487,20 +1490,21 @@ tasks:
     #[test]
     fn test_mcp_config_inline_full() {
         let yaml = r#"
-schema: nika/workflow@0.2
+schema: "nika/workflow@0.12"
 mcp:
-  novanet:
-    command: cargo
-    args: [run, -p, novanet-mcp]
-    env:
-      NEO4J_URI: bolt://localhost:7687
-      NEO4J_USER: neo4j
-    cwd: /path/to/workspace
+  servers:
+    novanet:
+      command: cargo
+      args: [run, -p, novanet-mcp]
+      env:
+        NEO4J_URI: bolt://localhost:7687
+        NEO4J_USER: neo4j
+      cwd: /path/to/workspace
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let workflow = parse_workflow(yaml).expect("Failed to parse");
         let mcp = workflow.mcp.unwrap();
         let server = &mcp["novanet"];
 
@@ -1538,12 +1542,12 @@ infer: "Test"
     #[test]
     fn test_workflow_default_provider_is_claude() {
         let yaml = r#"
-schema: nika/workflow@0.5
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     infer: "Test"
 "#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+        let workflow = parse_workflow(yaml).expect("Failed to parse");
         assert_eq!(workflow.provider, "claude");
     }
 
