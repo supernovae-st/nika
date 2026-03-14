@@ -21,11 +21,11 @@ use crate::ast::analyzed::{
     AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
     McpTransport, OutputFormat, TaskId, TaskTable,
 };
-use crate::ast::schema::SchemaVersion;
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
     RawTaskAction, RawWorkflow,
 };
+use crate::ast::schema::SchemaVersion;
 use crate::binding::{parse_with_entry, WithSpec};
 use crate::source::{Span, Spanned};
 
@@ -681,7 +681,7 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
         parallel: raw.parallel.as_ref().map(|s| s.value),
-        fail_fast: true, // Default to true (not yet configurable in raw)
+        fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
         span,
     }
 }
