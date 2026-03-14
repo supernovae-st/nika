@@ -337,11 +337,14 @@ tasks:
     match &task.action {
         TaskAction::Agent { agent } => {
             assert!(agent.prompt.contains("landing page"));
-            assert_eq!(agent.mcp, vec!["novanet".to_string()]);
+            // mcp server references are resolved at runtime from workflow-level mcp config
             assert_eq!(agent.max_turns, Some(5));
         }
         _ => panic!("Expected Agent action, got {:?}", task.action),
     }
+
+    // Verify MCP config is at workflow level
+    assert!(workflow.mcp.is_some(), "Workflow should have MCP config");
 }
 
 /// Test: Multi-locale generation workflow pattern (common Nika use case)
@@ -478,7 +481,7 @@ fn test_workflow_invoke_then_agent_pattern() {
     use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 
 mcp:
   servers:
