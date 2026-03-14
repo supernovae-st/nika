@@ -55,7 +55,7 @@ mod analyze;
 mod errors;
 pub mod suggestions;
 
-pub use analyze::analyze;
+pub use analyze::{analyze, validate};
 pub use errors::{
     format_error, to_rich_diagnostics, AnalyzeError, AnalyzeErrorKind, AnalyzeResult,
     RichAnalyzeError,

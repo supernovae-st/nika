@@ -26,7 +26,7 @@ use crate::ast::raw::{
     RawTaskAction, RawWorkflow,
 };
 use crate::binding::{parse_with_entry, WithSpec};
-use crate::source::Span;
+use crate::source::{Span, Spanned};
 
 /// Analyzer context - holds state during analysis.
 struct AnalyzerContext {
@@ -57,6 +57,65 @@ impl AnalyzerContext {
     #[allow(dead_code)]
     fn add_warning(&mut self, warning: AnalyzeError) {
         self.warnings.push(warning);
+    }
+}
+
+/// Validate a raw workflow without producing an analyzed workflow.
+///
+/// Runs all validation checks (schema, feature gates, duplicate tasks,
+/// unknown task references, invalid bindings, cycle detection) and returns
+/// collected errors. This is cheaper than `analyze()` when you only need
+/// to check if a workflow is valid.
+///
+/// # Arguments
+///
+/// * `raw` - The raw workflow from Phase 1 parsing
+///
+/// # Returns
+///
+/// An `AnalyzeResult<()>` — `Ok(())` if valid, or errors if not.
+///
+/// # Example
+///
+/// ```ignore
+/// let raw = raw::parse(&source, file_id)?;
+/// let result = validate(&raw);
+/// if result.is_err() {
+///     for error in &result.errors {
+///         eprintln!("{}: {}", error.kind.code(), error);
+///     }
+/// }
+/// ```
+pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
+    let mut ctx = AnalyzerContext::new();
+
+    // 1. Validate schema version
+    let version = analyze_schema(raw, &mut ctx).unwrap_or(SchemaVersion::V01);
+
+    // 2. Validate version-gated features
+    validate_feature_gates(raw, version, &mut ctx);
+
+    // 3. Build task table (detect duplicates)
+    build_task_table(&raw.tasks.value, &mut ctx);
+
+    // 4. Validate task references (unknown tasks in with:/depends_on:, invalid bindings)
+    let task_table = ctx.task_table.clone();
+    let task_names: Vec<String> = task_table.iter().map(|(_, n)| n.to_string()).collect();
+    for raw_task in raw.tasks.value.iter() {
+        validate_task_refs(&raw_task.value, &task_table, &task_names, &mut ctx);
+    }
+
+    // 5. Detect cyclic dependencies (requires building a lightweight dep graph)
+    detect_cycles_from_raw(&raw.tasks.value, &task_table, &mut ctx);
+
+    if ctx.errors.is_empty() {
+        let mut result = AnalyzeResult::ok(());
+        result.warnings = ctx.warnings;
+        result
+    } else {
+        let mut result = AnalyzeResult::err(ctx.errors);
+        result.warnings = ctx.warnings;
+        result
     }
 }
 
@@ -143,21 +202,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     }
 
     // 7. Build task table (first pass - collect all task IDs)
-    for task in raw.tasks.value.iter() {
-        let task_name = &task.value.id.value;
-        let task_span = task.value.id.span;
-
-        if let Some(first_span) = ctx.task_spans.get(task_name) {
-            ctx.add_error(AnalyzeError::duplicate_task(
-                task_span,
-                task_name,
-                *first_span,
-            ));
-        } else {
-            ctx.task_table.insert(task_name);
-            ctx.task_spans.insert(task_name.clone(), task_span);
-        }
-    }
+    build_task_table(&raw.tasks.value, &mut ctx);
 
     // 8. Analyze each task (second pass - resolve references)
     // Clone task_table to avoid borrow checker issues
@@ -648,6 +693,205 @@ fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedR
         backoff: raw.backoff.as_ref().map(|s| s.value),
         span,
     }
+}
+
+/// Build the task table from raw tasks, detecting duplicates.
+///
+/// Shared between `validate()` and `analyze()`.
+fn build_task_table(tasks: &[Spanned<RawTask>], ctx: &mut AnalyzerContext) {
+    for task in tasks.iter() {
+        let task_name = &task.value.id.value;
+        let task_span = task.value.id.span;
+
+        if let Some(first_span) = ctx.task_spans.get(task_name) {
+            ctx.add_error(AnalyzeError::duplicate_task(
+                task_span,
+                task_name,
+                *first_span,
+            ));
+        } else {
+            ctx.task_table.insert(task_name);
+            ctx.task_spans.insert(task_name.clone(), task_span);
+        }
+    }
+}
+
+/// Validate task references without building analyzed tasks.
+///
+/// Checks `with:` bindings for unknown task references and invalid expressions,
+/// and `depends_on:` for unknown task references. Used by `validate()`.
+fn validate_task_refs(
+    raw: &RawTask,
+    task_table: &TaskTable,
+    all_task_names: &[String],
+    ctx: &mut AnalyzerContext,
+) {
+    // Validate with: bindings
+    if let Some(ref with_refs) = raw.with_refs {
+        for (_alias_spanned, value_spanned) in with_refs.value.iter() {
+            let expr = &value_spanned.value;
+
+            match parse_with_entry(expr) {
+                Ok(entry) => {
+                    // Check for unknown task references
+                    if let Some(dep_task_name) = entry.task_id() {
+                        if task_table.get_id(dep_task_name).is_none() {
+                            let all_names: Vec<&str> =
+                                all_task_names.iter().map(|s| s.as_str()).collect();
+                            let suggestion = find_similar(dep_task_name, &all_names, 0.6);
+                            ctx.add_error(AnalyzeError::unknown_task(
+                                value_spanned.span,
+                                dep_task_name,
+                                suggestion.as_deref(),
+                            ));
+                        }
+                    }
+                }
+                Err(parse_err) => {
+                    ctx.add_error(AnalyzeError::invalid_binding(
+                        value_spanned.span,
+                        expr,
+                        &parse_err.reason,
+                    ));
+                }
+            }
+        }
+    }
+
+    // Validate depends_on: references
+    if let Some(ref depends_on) = raw.depends_on {
+        for dep_spanned in &depends_on.value {
+            let dep_name = &dep_spanned.value;
+            if task_table.get_id(dep_name).is_none() {
+                let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
+                let suggestion = find_similar(dep_name, &all_names, 0.6);
+                ctx.add_error(AnalyzeError::unknown_task(
+                    dep_spanned.span,
+                    dep_name,
+                    suggestion.as_deref(),
+                ));
+            }
+        }
+    }
+}
+
+/// Detect cyclic dependencies from raw workflow (without AnalyzedWorkflow).
+///
+/// Builds a lightweight dependency graph from raw task data and runs DFS cycle detection.
+/// Used by `validate()`.
+fn detect_cycles_from_raw(
+    tasks: &[Spanned<RawTask>],
+    task_table: &TaskTable,
+    ctx: &mut AnalyzerContext,
+) {
+    // Build adjacency list: TaskId → Vec<TaskId>
+    let mut adjacency: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
+    let mut task_spans: HashMap<TaskId, Span> = HashMap::new();
+
+    for raw_task in tasks.iter() {
+        let task_name = &raw_task.value.id.value;
+        let Some(task_id) = task_table.get_id(task_name) else {
+            continue; // Skip tasks that failed duplicate detection
+        };
+        task_spans.insert(task_id, raw_task.value.span);
+        let deps = adjacency.entry(task_id).or_default();
+
+        // Collect depends_on edges
+        if let Some(ref depends_on) = raw_task.value.depends_on {
+            for dep_spanned in &depends_on.value {
+                if let Some(dep_id) = task_table.get_id(&dep_spanned.value) {
+                    deps.push(dep_id);
+                }
+            }
+        }
+
+        // Collect implicit deps from with: bindings
+        if let Some(ref with_refs) = raw_task.value.with_refs {
+            for (_alias, value_spanned) in with_refs.value.iter() {
+                if let Ok(entry) = parse_with_entry(&value_spanned.value) {
+                    if let Some(dep_task_name) = entry.task_id() {
+                        if let Some(dep_id) = task_table.get_id(dep_task_name) {
+                            if !deps.contains(&dep_id) {
+                                deps.push(dep_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // DFS cycle detection
+    let graph = RawDepGraph {
+        adjacency,
+        task_table,
+        task_spans,
+    };
+    let mut visited = HashSet::new();
+    let mut rec_stack = HashSet::new();
+    let mut path = Vec::new();
+
+    for &task_id in graph.adjacency.keys() {
+        if !visited.contains(&task_id) {
+            detect_cycles_raw_dfs(
+                task_id,
+                &graph,
+                &mut visited,
+                &mut rec_stack,
+                &mut path,
+                ctx,
+            );
+        }
+    }
+}
+
+/// Read-only dependency graph context for raw cycle detection.
+struct RawDepGraph<'a> {
+    adjacency: HashMap<TaskId, Vec<TaskId>>,
+    task_table: &'a TaskTable,
+    task_spans: HashMap<TaskId, Span>,
+}
+
+/// DFS helper for raw cycle detection.
+fn detect_cycles_raw_dfs(
+    task_id: TaskId,
+    graph: &RawDepGraph<'_>,
+    visited: &mut HashSet<TaskId>,
+    rec_stack: &mut HashSet<TaskId>,
+    path: &mut Vec<TaskId>,
+    ctx: &mut AnalyzerContext,
+) {
+    visited.insert(task_id);
+    rec_stack.insert(task_id);
+    path.push(task_id);
+
+    if let Some(deps) = graph.adjacency.get(&task_id) {
+        for dep_id in deps {
+            if !visited.contains(dep_id) {
+                detect_cycles_raw_dfs(*dep_id, graph, visited, rec_stack, path, ctx);
+            } else if rec_stack.contains(dep_id) {
+                // Found cycle
+                let cycle_start = path.iter().position(|&id| id == *dep_id).unwrap();
+                let cycle_path: Vec<&str> = path[cycle_start..]
+                    .iter()
+                    .filter_map(|id| graph.task_table.get_name(*id))
+                    .collect();
+                let mut cycle_with_close = cycle_path.clone();
+                if let Some(name) = graph.task_table.get_name(*dep_id) {
+                    cycle_with_close.push(name);
+                }
+                let span = graph
+                    .task_spans
+                    .get(&task_id)
+                    .copied()
+                    .unwrap_or(Span::dummy());
+                ctx.add_error(AnalyzeError::cyclic_dependency(span, &cycle_with_close));
+            }
+        }
+    }
+
+    path.pop();
+    rec_stack.remove(&task_id);
 }
 
 /// Detect cyclic dependencies using DFS.
@@ -1413,5 +1657,169 @@ mod tests {
             workflow.inputs.get("topic"),
             Some(&serde_json::Value::String("AI".to_string()))
         );
+    }
+
+    // ====================================================================
+    // validate() tests
+    // ====================================================================
+
+    #[test]
+    fn test_validate_valid_workflow() {
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), make_raw_task("task2")],
+        );
+
+        let result = validate(&raw);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_invalid_schema() {
+        let raw = make_raw_workflow("invalid", vec![]);
+        let result = validate(&raw);
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidSchema);
+    }
+
+    #[test]
+    fn test_validate_duplicate_task() {
+        let raw = make_raw_workflow(
+            "nika/workflow@0.12",
+            vec![make_raw_task("task1"), make_raw_task("task1")],
+        );
+
+        let result = validate(&raw);
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::DuplicateTask);
+    }
+
+    #[test]
+    fn test_validate_unknown_task_in_with() {
+        let mut task1 = make_raw_task("task1");
+        add_with_ref(&mut task1, "data", "$unknown_task");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
+    }
+
+    #[test]
+    fn test_validate_unknown_task_in_depends_on() {
+        let mut task1 = make_raw_task("task1");
+        add_depends_on(&mut task1, &["nonexistent"]);
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::UnknownTask);
+    }
+
+    #[test]
+    fn test_validate_invalid_binding() {
+        let mut task1 = make_raw_task("task1");
+        add_with_ref(&mut task1, "data", "");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidBinding);
+    }
+
+    #[test]
+    fn test_validate_cyclic_dependency_depends_on() {
+        let mut task1 = make_raw_task("task1");
+        let mut task2 = make_raw_task("task2");
+
+        add_depends_on(&mut task1, &["task2"]);
+        add_depends_on(&mut task2, &["task1"]);
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    #[test]
+    fn test_validate_cyclic_dependency_via_with() {
+        let mut task1 = make_raw_task("task1");
+        let mut task2 = make_raw_task("task2");
+
+        add_with_ref(&mut task1, "data", "$task2");
+        add_with_ref(&mut task2, "data", "$task1");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1, task2]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    #[test]
+    fn test_validate_feature_gate() {
+        use crate::ast::raw::RawForEach;
+
+        let mut task = make_raw_task("task1");
+        task.for_each = Some(Spanned::new(
+            RawForEach {
+                items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
+                as_var: None,
+                parallel: None,
+                fail_fast: None,
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.1", vec![task]);
+        let result = validate(&raw);
+
+        assert!(result.is_err());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::UnsupportedFeature));
+    }
+
+    #[test]
+    fn test_validate_agrees_with_analyze() {
+        // Ensure validate() and analyze() produce the same errors for invalid workflows
+        let mut task1 = make_raw_task("task1");
+        add_with_ref(&mut task1, "data", "$nonexistent");
+        add_depends_on(&mut task1, &["also_missing"]);
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1]);
+
+        let validate_result = validate(&raw);
+        let analyze_result = analyze(raw.clone());
+
+        // Both should fail
+        assert!(validate_result.is_err());
+        assert!(analyze_result.is_err());
+
+        // Both should report the same error kinds
+        let validate_kinds: Vec<_> = validate_result.errors.iter().map(|e| &e.kind).collect();
+        let analyze_kinds: Vec<_> = analyze_result.errors.iter().map(|e| &e.kind).collect();
+        assert_eq!(validate_kinds, analyze_kinds);
+    }
+
+    #[test]
+    fn test_validate_valid_with_bindings() {
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(&mut task2, "data", "$task1");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
+        let result = validate(&raw);
+        assert!(result.is_ok());
     }
 }
