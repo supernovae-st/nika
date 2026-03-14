@@ -16,7 +16,7 @@ use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::binding::jsonpath;
-use crate::runtime::context_loader::LoadedContext;
+use super::context::LoadedContext;
 
 /// Task execution status
 #[derive(Debug, Clone)]

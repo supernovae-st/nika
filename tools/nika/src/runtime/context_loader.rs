@@ -26,7 +26,6 @@ use std::path::Path;
 
 use globset::GlobBuilder;
 use ignore::WalkBuilder;
-use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::ast::context::ContextConfig;
@@ -56,51 +55,8 @@ fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), Ni
     })
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// LOADED CONTEXT
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// Loaded context from workflow `context:` block
-///
-/// Contains all files loaded at workflow start, keyed by alias.
-#[derive(Debug, Clone, Default)]
-pub struct LoadedContext {
-    /// Loaded files by alias
-    ///
-    /// - Single files: `Value::String` (text) or `Value::Object` (JSON/YAML)
-    /// - Glob patterns: `Value::Array` of strings
-    pub files: FxHashMap<String, Value>,
-
-    /// Loaded session data (if any)
-    pub session: Option<Value>,
-}
-
-impl LoadedContext {
-    /// Create an empty LoadedContext
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get a file by alias
-    pub fn get_file(&self, alias: &str) -> Option<&Value> {
-        self.files.get(alias)
-    }
-
-    /// Get session data
-    pub fn get_session(&self) -> Option<&Value> {
-        self.session.as_ref()
-    }
-
-    /// Check if context is empty
-    pub fn is_empty(&self) -> bool {
-        self.files.is_empty() && self.session.is_none()
-    }
-
-    /// Get number of loaded files
-    pub fn file_count(&self) -> usize {
-        self.files.len()
-    }
-}
+// Re-export LoadedContext from store (canonical location)
+pub use crate::store::LoadedContext;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONTEXT LOADER
@@ -283,6 +239,7 @@ async fn load_glob_files(pattern: &str, base_path: &Path) -> Result<Value, NikaE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustc_hash::FxHashMap;
     use tempfile::TempDir;
     use tokio::fs;
 

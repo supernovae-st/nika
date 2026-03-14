@@ -7,8 +7,11 @@
 //! - `DataStore`: Central storage for task results
 //! - `TaskResult`: Execution result with status and output
 //! - `TaskStatus`: Success or failure status
+//! - `LoadedContext`: Loaded workflow context files
 
+pub mod context;
 mod datastore;
 
 // Re-export all public types
+pub use context::LoadedContext;
 pub use datastore::{DataStore, TaskResult, TaskStatus};
