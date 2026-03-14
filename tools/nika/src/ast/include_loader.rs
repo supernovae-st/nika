@@ -113,7 +113,7 @@ fn expand_includes_recursive(
 
     // Process each include
     for include_spec in includes {
-        // v0.17: Validate that exactly one of path/pkg is specified
+        // Validate that exactly one of path/pkg is specified
         include_spec
             .validate()
             .map_err(|e| NikaError::ValidationError { reason: e })?;

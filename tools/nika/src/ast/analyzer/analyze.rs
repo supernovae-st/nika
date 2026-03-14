@@ -1065,7 +1065,7 @@ mod tests {
 
     #[test]
     fn test_analyze_schema_suggestion() {
-        // v0.9 is valid
+        // Is valid
         let raw = make_raw_workflow("nika/workflow@0.9", vec![]);
         let result = analyze(raw);
         assert!(result.is_ok());
@@ -1486,7 +1486,7 @@ mod tests {
         let mut task = make_raw_task("task1");
         add_with_ref(&mut task, "data", "$other");
 
-        // v0.11 doesn't support with:
+        // Doesn't support with:
         let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
         let result = analyze(raw);
 
@@ -1502,7 +1502,7 @@ mod tests {
         let mut task = make_raw_task("task1");
         add_depends_on(&mut task, &["other"]);
 
-        // v0.11 doesn't support depends_on:
+        // Doesn't support depends_on:
         let raw = make_raw_workflow("nika/workflow@0.11", vec![task]);
         let result = analyze(raw);
 

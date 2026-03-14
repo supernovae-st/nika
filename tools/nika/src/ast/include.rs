@@ -104,7 +104,7 @@ prefix: ""
         assert_eq!(spec.prefix, Some(String::new()));
     }
 
-    // v0.17: Package reference support
+    // Package reference support
     #[test]
     fn test_include_spec_parse_pkg() {
         let yaml = r#"

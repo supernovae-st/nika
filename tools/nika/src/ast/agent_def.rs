@@ -33,7 +33,7 @@ use serde::Deserialize;
 /// Agent definition
 ///
 /// Can be either an external file/folder reference or an inline definition.
-/// v0.13 adds support for `from:` which auto-detects format.
+/// Adds support for `from:` which auto-detects format.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AgentDef {
@@ -184,7 +184,7 @@ system: "You are a helpful assistant."
             assert!(model.is_none());
             assert!(max_turns.is_none());
             assert!(temperature.is_none());
-            assert!(skills.is_none()); // v0.15.3: no skills in minimal
+            assert!(skills.is_none()); // no skills in minimal
         }
     }
 
@@ -213,7 +213,7 @@ temperature: 0.7
             assert_eq!(model, Some("gpt-4o".to_string()));
             assert_eq!(max_turns, Some(5));
             assert_eq!(temperature, Some(0.7));
-            assert!(skills.is_none()); // v0.15.3: no skills in this test
+            assert!(skills.is_none()); // no skills in this test
         }
     }
 

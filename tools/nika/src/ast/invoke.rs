@@ -86,8 +86,8 @@ impl InvokeParams {
     /// # v0.21.0
     /// Builtin tools (nika:* prefix) don't require mcp field.
     pub fn validate(&self) -> Result<(), String> {
-        // v0.21.0: Builtin tools don't require mcp
-        // v0.17.5: Validate MCP server name is not empty (for non-builtin tools)
+        // Builtin tools don't require mcp
+        // Validate MCP server name is not empty (for non-builtin tools)
         if !self.is_builtin_tool() {
             match &self.mcp {
                 None => {
@@ -221,7 +221,7 @@ resource: entity://qr-code/fr-FR
     }
 
     // =========================================================================
-    // v0.17.5: Empty String Validation Tests
+    // Empty String Validation Tests
     // =========================================================================
 
     #[test]
@@ -309,7 +309,7 @@ resource: entity://qr-code/fr-FR
     }
 
     // =========================================================================
-    // v0.21.0: Builtin Tools Tests (nika:* prefix)
+    // Builtin Tools Tests (nika:* prefix)
     // =========================================================================
 
     #[test]
@@ -394,7 +394,7 @@ params:
     }
 
     // =========================================================================
-    // v0.28: Timeout Field Tests
+    // Timeout Field Tests
     // =========================================================================
 
     #[test]
