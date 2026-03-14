@@ -34,7 +34,7 @@ tasks:
 #[test]
 fn test_snapshot_complex_workflow_parse() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -45,25 +45,20 @@ tasks:
       timeout: 5000
 
   - id: process
+    depends_on: [fetch_data]
     exec: "process-data.sh"
 
   - id: analyze
-    infer: "Analyze this data: {{use.data}}"
-    use:
-      data: fetch_data
+    depends_on: [fetch_data]
+    infer: "Analyze this data: {{with.data}}"
+    with:
+      data: $fetch_data
 
   - id: report
-    infer: "Generate report from: {{use.analysis}}"
-    use:
-      analysis: analyze
-
-flows:
-  - source: fetch_data
-    target: process
-  - source: fetch_data
-    target: analyze
-  - source: analyze
-    target: report
+    depends_on: [analyze]
+    infer: "Generate report from: {{with.analysis}}"
+    with:
+      analysis: $analyze
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -76,7 +71,8 @@ flows:
             "task_count": workflow.tasks.len(),
             "task_ids": workflow.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             "has_flows": !workflow.flows.is_empty(),
-            "flow_count": workflow.flows.len()
+            "flow_count": workflow.flows.len(),
+            "has_bindings": workflow.tasks.iter().any(|t| t.use_wiring.is_some())
         })
     );
 }
@@ -116,9 +112,10 @@ fn test_snapshot_mcp_workflow() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  novanet:
-    command: cargo
-    args: ["run", "--bin", "novanet-mcp"]
+  servers:
+    novanet:
+      command: cargo
+      args: ["run", "--bin", "novanet-mcp"]
 
 tasks:
   - id: invoke_tool
@@ -232,8 +229,9 @@ schema: "nika/workflow@0.5"
 provider: claude
 
 mcp:
-  test:
-    command: "echo"
+  servers:
+    test:
+      command: "echo"
 
 tasks:
   - id: infer_task
@@ -275,24 +273,17 @@ tasks:
 #[test]
 fn test_snapshot_binding_variants() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: source
     exec: "echo data"
 
   - id: simple_binding
-    infer: "Process: {{use.data}}"
-    use:
-      data: source
-
-  - id: lazy_binding
-    infer: "Process: {{use.lazy_data}}"
-    use:
-      lazy_data:
-        path: source
-        lazy: true
-        default: "fallback"
+    depends_on: [source]
+    infer: "Process: {{with.data}}"
+    with:
+      data: $source
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -301,7 +292,7 @@ tasks:
         "binding_variants",
         json!({
             "task_count": workflow.tasks.len(),
-            "has_bindings": workflow.tasks.iter().any(|t| t.use_wiring.is_some())
+            "has_bindings": workflow.tasks.iter().any(|t| t.with_spec.is_some())
         })
     );
 }

@@ -1,6 +1,6 @@
 ---
 source: tests/regression/workflow_snapshots.rs
-expression: "json!({\n    \"task_count\": workflow.tasks.len(), \"has_bindings\":\n    workflow.tasks.iter().any(|t| t.use_wiring.is_some())\n})"
+expression: "json!({\n    \"task_count\": workflow.tasks.len(), \"has_bindings\":\n    workflow.tasks.iter().any(|t| t.with_spec.is_some())\n})"
 ---
-task_count: 3
+task_count: 2
 has_bindings: true
