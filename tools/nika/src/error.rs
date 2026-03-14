@@ -456,22 +456,6 @@ pub enum NikaError {
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     Timeout { operation: String, duration_ms: u64 },
 
-    #[error(
-        "[NIKA-122] Task exceeded MCP deadline after {call_count} calls ({deadline_secs}s total)"
-    )]
-    #[diagnostic(
-        code(nika::task_mcp_deadline_exceeded),
-        help("Reduce the number of MCP calls or increase task timeout")
-    )]
-    TaskMcpDeadlineExceeded { call_count: u32, deadline_secs: u64 },
-
-    #[error("[NIKA-123] MCP server '{server}' reconnection failed after {attempts} attempts")]
-    #[diagnostic(
-        code(nika::mcp_reconnect_failed),
-        help("Check MCP server is running and network connectivity")
-    )]
-    McpReconnectFailed { server: String, attempts: u32 },
-
     #[error("[NIKA-125] MCP tool call '{tool}' failed: {reason}")]
     McpToolCallFailed { tool: String, reason: String },
 
@@ -746,7 +730,6 @@ pub enum NikaError {
     SyncError { message: String },
 }
 
-#[allow(deprecated)] // code() handles deprecated variants
 impl NikaError {
     /// Get the error code (e.g., "NIKA-001")
     pub fn code(&self) -> &'static str {
@@ -833,8 +816,6 @@ impl NikaError {
             // Resilience errors
             Self::ProviderError { .. } => "NIKA-120",
             Self::Timeout { .. } => "NIKA-121",
-            Self::TaskMcpDeadlineExceeded { .. } => "NIKA-122",
-            Self::McpReconnectFailed { .. } => "NIKA-123",
             Self::McpToolCallFailed { .. } => "NIKA-125",
             // TUI errors
             Self::TuiError { .. } => "NIKA-130",
@@ -898,19 +879,16 @@ impl NikaError {
                 | Self::Timeout { .. }
                 | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
-                // Reconnection failures are potentially recoverable
-                | Self::McpReconnectFailed { .. }
                 // Structured output errors that can be retried (v0.21)
                 | Self::StructuredOutputExtractionFailed { .. }
                 | Self::StructuredOutputValidationFailed { .. }
                 | Self::StructuredOutputRepairFailed { .. }
         )
-        // Note: BuiltinToolTimeout and TaskMcpDeadlineExceeded are NOT recoverable
-        // because they indicate a resource exhaustion issue that won't be fixed by retrying
+        // Note: BuiltinToolTimeout is NOT recoverable
+        // because it indicates a resource exhaustion issue that won't be fixed by retrying
     }
 }
 
-#[allow(deprecated)] // Handles deprecated variants in match
 impl FixSuggestion for NikaError {
     fn fix_suggestion(&self) -> Option<&str> {
         match self {
@@ -1154,14 +1132,6 @@ impl FixSuggestion for NikaError {
             // Builtin tool timeout (v0.24)
             NikaError::BuiltinToolTimeout { .. } => {
                 Some("Builtin tool timed out. Increase timeout or check for deadlocks.")
-            }
-            // MCP deadline (v0.24)
-            NikaError::TaskMcpDeadlineExceeded { .. } => {
-                Some("Task exceeded MCP call deadline. Reduce MCP calls or increase deadline.")
-            }
-            // MCP reconnect (v0.24)
-            NikaError::McpReconnectFailed { .. } => {
-                Some("MCP server reconnection failed. Check server is running and network connectivity.")
             }
             // Duplicate task ID (v0.25)
             NikaError::DuplicateTaskId { .. } => {
