@@ -632,20 +632,13 @@ impl App {
             }
         };
 
-        // 3. Validate schema
-        if let Err(e) = workflow.validate_schema() {
-            self.set_status(&format!("Schema error: {}", e));
-            tracing::error!("Schema validation failed: {}", e);
-            return;
-        }
-
-        // 4. Create EventLog with broadcast channel for TUI
+        // 3. Create EventLog with broadcast channel for TUI
         let (event_log, event_rx) = EventLog::new_with_broadcast();
 
-        // 5. Wire broadcast receiver to App (must be before spawn)
+        // 4. Wire broadcast receiver to App (must be before spawn)
         self.broadcast_rx = Some(event_rx);
 
-        // 6. Reset TUI state for new workflow execution
+        // 5. Reset TUI state for new workflow execution
         let workflow_name = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -655,10 +648,10 @@ impl App {
         self.state.tasks.clear();
         self.workflow_done = false;
 
-        // 7. Create Runner with quiet mode (no console output)
+        // 6. Create Runner with quiet mode (no console output)
         let mut runner = Runner::with_event_log(workflow, event_log).quiet();
 
-        // 8. Spawn Runner in background task
+        // 7. Spawn Runner in background task
         self.spawn_tracked(async move {
             tracing::info!("Starting workflow execution: {}", workflow_name);
             match runner.run().await {
@@ -675,7 +668,7 @@ impl App {
             }
         });
 
-        // 9. Switch to Runner view and update status
+        // 8. Switch to Runner view and update status
         self.switch_to_view(TuiView::Runner);
         self.set_status(&format!("Running: {}", path.display()));
     }

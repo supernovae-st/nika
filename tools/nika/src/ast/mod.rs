@@ -82,10 +82,7 @@ pub use output::{OutputFormat, OutputPolicy, SchemaRef};
 pub use skill_def::{SkillDef, SkillRef};
 // PkgUri is defined in pkg_resolver.rs (v0.15.2 - Skill Ecosystem)
 pub use pkg_resolver::PkgUri;
-pub use workflow::{
-    Flow, FlowEndpoint, McpConfigInline, Task, Workflow, SCHEMA_V01, SCHEMA_V02, SCHEMA_V03,
-    SCHEMA_V04, SCHEMA_V05, SCHEMA_V06, SCHEMA_V07, SCHEMA_V08, SCHEMA_V09, SCHEMA_V10,
-};
+pub use workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
 // DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
 // Loader is defined in loader.rs (v0.13 - Multi-format agent/skill loading)

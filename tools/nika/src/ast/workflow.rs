@@ -21,36 +21,6 @@ use super::action::TaskAction;
 use super::decompose::DecomposeSpec;
 use super::output::OutputPolicy;
 
-/// Expected schema version for v0.1 workflows
-pub const SCHEMA_V01: &str = "nika/workflow@0.1";
-
-/// Expected schema version for v0.2 workflows
-pub const SCHEMA_V02: &str = "nika/workflow@0.2";
-
-/// Expected schema version for v0.3 workflows (for_each parallelism)
-pub const SCHEMA_V03: &str = "nika/workflow@0.3";
-
-/// Expected schema version for v0.4 workflows (extended thinking)
-pub const SCHEMA_V04: &str = "nika/workflow@0.4";
-
-/// Expected schema version for v0.5 workflows (decompose, lazy bindings, spawn_agent)
-pub const SCHEMA_V05: &str = "nika/workflow@0.5";
-
-/// Expected schema version for v0.6 workflows (memory, agents, skills)
-pub const SCHEMA_V06: &str = "nika/workflow@0.6";
-
-/// Expected schema version for v0.7 workflows (enhanced TUI streaming)
-pub const SCHEMA_V07: &str = "nika/workflow@0.7";
-
-/// Expected schema version for v0.8 workflows (Studio DX, agents from:)
-pub const SCHEMA_V08: &str = "nika/workflow@0.8";
-
-/// Expected schema version for v0.9 workflows (context:, include: DAG fusion)
-pub const SCHEMA_V09: &str = "nika/workflow@0.9";
-
-/// Expected schema version for v0.10 workflows (artifacts:, log:)
-pub const SCHEMA_V10: &str = "nika/workflow@0.10";
-
 /// Inline MCP server configuration (v0.2)
 ///
 /// Allows workflows to define MCP servers directly in YAML.
@@ -78,44 +48,6 @@ pub struct McpConfigInline {
     pub env: FxHashMap<String, String>,
     /// Working directory for the server process
     pub cwd: Option<String>,
-}
-
-/// Workflow parsed from YAML (raw)
-#[derive(Debug, Deserialize)]
-struct WorkflowRaw {
-    pub schema: String,
-    #[serde(default = "default_provider")]
-    pub provider: String,
-    #[serde(default)]
-    pub model: Option<String>,
-    /// MCP server configurations (v0.2)
-    #[serde(default)]
-    pub mcp: Option<FxHashMap<String, McpConfigInline>>,
-    /// Context configuration for file loading at workflow start (v0.9)
-    #[serde(default)]
-    pub context: Option<super::context::ContextConfig>,
-    /// Include external workflows for DAG fusion (v0.9)
-    #[serde(default)]
-    pub include: Option<Vec<super::include::IncludeSpec>>,
-    /// Reusable agent definitions (v0.6)
-    #[serde(default)]
-    pub agents: Option<FxHashMap<String, super::agent_def::AgentDef>>,
-    /// Skill file mappings for prompt augmentation (v0.6)
-    #[serde(default)]
-    pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
-    /// Artifact configuration for file persistence (v0.18)
-    #[serde(default)]
-    pub artifacts: Option<super::artifact::ArtifactsConfig>,
-    /// Log configuration (v0.18)
-    #[serde(default)]
-    pub log: Option<super::logging::LogConfig>,
-    /// Input parameters with defaults (v0.19.4)
-    /// Maps parameter names to their definitions (type, default, description)
-    #[serde(default)]
-    pub inputs: Option<FxHashMap<String, serde_json::Value>>,
-    pub tasks: Vec<Task>,
-    #[serde(default)]
-    pub flows: Vec<Flow>,
 }
 
 /// Workflow with Arc-wrapped tasks for efficient cloning
@@ -167,30 +99,6 @@ pub struct Workflow {
     pub flows: Vec<Flow>,
 }
 
-impl<'de> Deserialize<'de> for Workflow {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let raw = WorkflowRaw::deserialize(deserializer)?;
-        Ok(Workflow {
-            schema: raw.schema,
-            provider: raw.provider,
-            model: raw.model,
-            mcp: raw.mcp,
-            context: raw.context,
-            include: raw.include,
-            agents: raw.agents,
-            skills: raw.skills,
-            artifacts: raw.artifacts,
-            log: raw.log,
-            inputs: raw.inputs,
-            tasks: raw.tasks.into_iter().map(Arc::new).collect(),
-            flows: raw.flows,
-        })
-    }
-}
-
 impl Workflow {
     /// Compute a hash of the workflow for cache invalidation (v0.4.1)
     ///
@@ -218,53 +126,6 @@ impl Workflow {
         format!("{:016x}", hash)
     }
 
-    /// Validate the workflow schema version and task configuration
-    ///
-    /// Returns error if:
-    /// - Schema doesn't match expected version (v0.1 through v0.9)
-    /// - Any task has invalid for_each configuration (non-array or empty)
-    pub fn validate_schema(&self) -> Result<(), NikaError> {
-        // Validate schema version
-        if self.schema != SCHEMA_V01
-            && self.schema != SCHEMA_V02
-            && self.schema != SCHEMA_V03
-            && self.schema != SCHEMA_V04
-            && self.schema != SCHEMA_V05
-            && self.schema != SCHEMA_V06
-            && self.schema != SCHEMA_V07
-            && self.schema != SCHEMA_V08
-            && self.schema != SCHEMA_V09
-            && self.schema != SCHEMA_V10
-        {
-            return Err(NikaError::InvalidSchema {
-                expected: format!(
-                    "{} or {} or {} or {} or {} or {} or {} or {} or {} or {}",
-                    SCHEMA_V01,
-                    SCHEMA_V02,
-                    SCHEMA_V03,
-                    SCHEMA_V04,
-                    SCHEMA_V05,
-                    SCHEMA_V06,
-                    SCHEMA_V07,
-                    SCHEMA_V08,
-                    SCHEMA_V09,
-                    SCHEMA_V10
-                ),
-                actual: self.schema.clone(),
-            });
-        }
-
-        // Validate for_each on all tasks
-        for task in &self.tasks {
-            task.validate_for_each()?;
-        }
-
-        Ok(())
-    }
-}
-
-fn default_provider() -> String {
-    "claude".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -612,24 +473,6 @@ tasks:
     }
 
     #[test]
-    fn test_workflow_parse_with_flows() {
-        let yaml = r#"
-schema: nika/workflow@0.5
-tasks:
-  - id: step1
-    infer: "Generate"
-  - id: step2
-    infer: "Refine"
-flows:
-  - source: step1
-    target: step2
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
-
-        assert_eq!(workflow.flows.len(), 1);
-    }
-
-    #[test]
     fn test_workflow_parse_with_mcp_config() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
@@ -657,257 +500,6 @@ tasks:
         let novanet_config = &mcp["novanet"];
         assert_eq!(novanet_config.command, "cargo");
         assert_eq!(novanet_config.args.len(), 3);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // SCHEMA VALIDATION TESTS
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_validate_schema_v01() {
-        let yaml = r#"
-schema: nika/workflow@0.1
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v02() {
-        let yaml = r#"
-schema: nika/workflow@0.2
-tasks:
-  - id: task1
-    invoke:
-      mcp: novanet
-      tool: novanet_generate
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v03() {
-        let yaml = r#"
-schema: nika/workflow@0.3
-tasks:
-  - id: task1
-    for_each: ["a", "b"]
-    infer: "Test {{use.item}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v04() {
-        let yaml = r#"
-schema: nika/workflow@0.4
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v05() {
-        let yaml = r#"
-schema: nika/workflow@0.5
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v06() {
-        let yaml = r#"
-schema: nika/workflow@0.6
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v07() {
-        let yaml = r#"
-schema: nika/workflow@0.7
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_v08() {
-        let yaml = r#"
-schema: nika/workflow@0.8
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_workflow_parse_v09_with_context() {
-        let yaml = r#"
-schema: nika/workflow@0.9
-context:
-  files:
-    brand: ./context/brand.md
-    persona: ./context/persona.json
-  session: .nika/sessions/prev.json
-tasks:
-  - id: generate
-    infer: "Generate content using {{context.files.brand}}"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.9 workflow");
-        assert_eq!(workflow.schema, "nika/workflow@0.9");
-        assert!(workflow.context.is_some());
-
-        let context = workflow.context.as_ref().unwrap();
-        assert_eq!(context.files.len(), 2);
-        assert!(context.files.contains_key("brand"));
-        assert!(context.files.contains_key("persona"));
-        assert!(context.session.is_some());
-    }
-
-    #[test]
-    fn test_workflow_parse_v06_with_agents() {
-        let yaml = r#"
-schema: nika/workflow@0.6
-agents:
-  researcher:
-    file: ./agents/researcher.agent.yaml
-  translator:
-    system: "You are a translator"
-    provider: openai
-    model: gpt-4o
-    max_turns: 5
-tasks:
-  - id: research
-    infer: "Research topic"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
-        assert!(workflow.agents.is_some());
-
-        let agents = workflow.agents.as_ref().unwrap();
-        assert_eq!(agents.len(), 2);
-        assert!(agents.contains_key("researcher"));
-        assert!(agents.contains_key("translator"));
-
-        // Check researcher is external
-        let researcher = agents.get("researcher").unwrap();
-        assert!(researcher.is_external());
-        assert_eq!(
-            researcher.file_path(),
-            Some("./agents/researcher.agent.yaml")
-        );
-
-        // Check translator is inline
-        let translator = agents.get("translator").unwrap();
-        assert!(translator.is_inline());
-    }
-
-    #[test]
-    fn test_workflow_parse_v06_with_skills() {
-        let yaml = r#"
-schema: nika/workflow@0.6
-skills:
-  seo: ./skills/seo-writer.skill.md
-  brand: ./skills/brand-voice.skill.md
-tasks:
-  - id: write
-    infer: "Write SEO content"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse v0.6 workflow");
-        assert!(workflow.skills.is_some());
-
-        let skills = workflow.skills.as_ref().unwrap();
-        assert_eq!(skills.len(), 2);
-        assert_eq!(skills.get("seo").unwrap(), "./skills/seo-writer.skill.md");
-        assert_eq!(
-            skills.get("brand").unwrap(),
-            "./skills/brand-voice.skill.md"
-        );
-    }
-
-    #[test]
-    fn test_workflow_parse_v09_full() {
-        // Test a complete v0.9 workflow with all new features
-        let yaml = r#"
-schema: nika/workflow@0.9
-provider: claude
-model: claude-sonnet-4-6
-context:
-  files:
-    brand: ./context/brand.md
-skills:
-  writing: ./skills/writing.skill.md
-agents:
-  writer:
-    system: "You are a content writer"
-    max_turns: 3
-tasks:
-  - id: generate
-    infer: "Generate content"
-"#;
-        let workflow: Workflow =
-            serde_yaml::from_str(yaml).expect("Failed to parse full v0.9 workflow");
-
-        assert_eq!(workflow.schema, "nika/workflow@0.9");
-        assert_eq!(workflow.provider, "claude");
-        assert_eq!(workflow.model, Some("claude-sonnet-4-6".to_string()));
-        assert!(workflow.context.is_some());
-        assert!(workflow.skills.is_some());
-        assert!(workflow.agents.is_some());
-        assert_eq!(workflow.tasks.len(), 1);
-
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_validate_schema_invalid_version() {
-        let yaml = r#"
-schema: nika/workflow@0.99
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        let result = workflow.validate_schema();
-
-        assert!(result.is_err());
-        if let Err(e) = result {
-            let error_str = format!("{:?}", e);
-            assert!(error_str.contains("InvalidSchema"));
-        }
-    }
-
-    #[test]
-    fn test_validate_schema_unknown_version() {
-        let yaml = r#"
-schema: unknown/workflow@0.1
-tasks:
-  - id: task1
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_err());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1080,36 +672,6 @@ infer: "Test"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
         assert!(task.validate_for_each().is_ok());
-    }
-
-    #[test]
-    fn test_workflow_validate_for_each_on_all_tasks() {
-        let yaml = r#"
-schema: nika/workflow@0.3
-tasks:
-  - id: task1
-    for_each: ["a", "b"]
-    infer: "Test"
-  - id: task2
-    infer: "Normal"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_workflow_validate_fails_with_empty_for_each() {
-        let yaml = r#"
-schema: nika/workflow@0.3
-tasks:
-  - id: task1
-    for_each: []
-    infer: "Test"
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        let result = workflow.validate_schema();
-
-        assert!(result.is_err());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1360,30 +922,6 @@ tasks:
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_workflow_empty_tasks_list() {
-        let yaml = r#"
-schema: nika/workflow@0.5
-tasks: []
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert_eq!(workflow.tasks.len(), 0);
-        assert!(workflow.validate_schema().is_ok());
-    }
-
-    #[test]
-    fn test_workflow_empty_flows_list() {
-        let yaml = r#"
-schema: nika/workflow@0.5
-tasks:
-  - id: task1
-    infer: "Test"
-flows: []
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert_eq!(workflow.flows.len(), 0);
-    }
-
-    #[test]
     fn test_task_depends_on_ids_returns_empty_when_no_deps() {
         let yaml = r#"
 id: task1
@@ -1416,29 +954,6 @@ infer: "Test"
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
         let deps = task.depends_on_ids();
         assert_eq!(deps, vec!["step_a", "step_b"]);
-    }
-
-    #[test]
-    fn test_workflow_with_multiple_flows() {
-        let yaml = r#"
-schema: nika/workflow@0.5
-tasks:
-  - id: step1
-    infer: "Start"
-  - id: step2
-    infer: "Middle"
-  - id: step3
-    infer: "End"
-flows:
-  - source: step1
-    target: step2
-  - source: step2
-    target: step3
-  - source: step1
-    target: step3
-"#;
-        let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert_eq!(workflow.flows.len(), 3);
     }
 
     #[test]
