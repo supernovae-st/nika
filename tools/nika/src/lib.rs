@@ -49,8 +49,6 @@ pub mod store;
 pub mod tools;
 
 // Internal modules (only used within the crate)
-pub(crate) mod backup;
-pub(crate) mod daemon;
 pub(crate) mod io;
 pub(crate) mod setup;
 pub(crate) mod sync;
