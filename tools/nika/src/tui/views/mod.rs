@@ -23,11 +23,9 @@
 //! Shortcuts: [1-4] jump directly, [s/r/c/,] letter shortcuts.
 
 mod chat;
-mod help;
 mod home;
 mod monitor;
 mod settings;
-mod split;
 mod studio;
 mod view_trait;
 mod wizard;
@@ -40,8 +38,6 @@ pub use home::HomeView as BrowseView;
 pub use monitor::MonitorView as RunnerView;
 pub use settings::SettingsView;
 #[allow(unused_imports)]
-pub use split::{SplitFocus, SplitRatio, SplitView};
-#[allow(unused_imports)]
 pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 
 // Internal re-exports (original struct names used internally)
@@ -51,9 +47,6 @@ pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
 // StudioView = 3-panel layout, enums are internal
 pub use studio::StudioView;
-// Help view still exists but is no longer a main TuiView (merged into Settings)
-#[allow(unused_imports)]
-pub use help::HelpView;
 
 // Trait export
 pub use view_trait::View;

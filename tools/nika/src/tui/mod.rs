@@ -162,7 +162,7 @@ pub use utils::{format_number, format_number_compact, format_number_u64};
 pub use verification::{VerificationCache, VerificationEntry};
 #[cfg(feature = "tui")]
 pub use views::{
-    ChatView, DagTab, HelpView, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
+    ChatView, DagTab, HomeView, MissionTab, MonitorView, NovanetTab, ReasoningTab,
     SettingsView, StudioView, TuiView, View, ViewAction, YamlEditorPanel,
 };
 #[cfg(feature = "tui")]
