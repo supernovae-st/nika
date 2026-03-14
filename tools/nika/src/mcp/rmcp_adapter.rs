@@ -994,12 +994,12 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.24: Reconnection Timeout Tests
+    // Reconnection Timeout Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_reconnect_timeout_constant_is_30_seconds() {
-        // v0.24: Reconnection has explicit 30-second timeout
+        // Reconnection has explicit 30-second timeout
         assert_eq!(RECONNECT_TIMEOUT.as_secs(), 30);
     }
 
