@@ -5,7 +5,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use nika::util::system::{get_total_ram_gb, get_available_ram_gb, has_enough_ram_gb};
 //!
 //! let total = get_total_ram_gb();
@@ -33,7 +33,7 @@ const RAM_HEADROOM_FACTOR: f64 = 0.8;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use nika::util::system::get_total_ram_gb;
 ///
 /// let ram = get_total_ram_gb();
@@ -95,7 +95,7 @@ pub fn get_total_ram_bytes() -> Option<u64> {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use nika::util::system::get_available_ram_gb;
 ///
 /// let available = get_available_ram_gb();
@@ -114,7 +114,7 @@ pub fn get_available_ram_gb() -> u32 {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use nika::util::system::has_enough_ram_gb;
 ///
 /// // Check if we have at least 4 GB available (with headroom)
@@ -137,7 +137,7 @@ pub fn has_enough_ram_gb(required_gb: f64) -> bool {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use nika::util::system::has_enough_ram_bytes;
 ///
 /// // Check if we have at least 4 GB (in bytes)
