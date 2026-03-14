@@ -170,7 +170,7 @@ impl Command {
     }
 
     /// Parse /fetch arguments: /fetch <url> [method]
-    /// v0.8.2: Smart error detection with helpful hints
+    /// Smart error detection with helpful hints
     fn parse_fetch_args(args: &str) -> Command {
         let args = args.trim();
 
@@ -337,7 +337,7 @@ impl Command {
     }
 
     /// Parse /export arguments: /export [json|yaml] [path]
-    /// v0.13: Added yaml format for workflow export
+    /// Added yaml format for workflow export
     fn parse_export_args(args: &str) -> Command {
         let parts: Vec<&str> = args.split_whitespace().collect();
 
@@ -744,7 +744,7 @@ mod tests {
         ));
     }
 
-    // v0.8.2: FetchError tests for smart error detection
+    // FetchError tests for smart error detection
     #[test]
     fn test_parse_fetch_error_curl() {
         let input = "/fetch curl https://api.example.com";
@@ -1069,7 +1069,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // v0.6 provider tests (new providers)
+    // Provider tests (new providers)
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]

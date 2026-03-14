@@ -278,7 +278,7 @@ pub fn verify_project_access() -> Result<ProjectReport> {
 
 /// Verify project access in a specific directory (for testing)
 pub fn verify_project_access_in(project_dir: &std::path::Path) -> Result<ProjectReport> {
-    // v0.8.4: Use struct initialization to avoid clippy::field_reassign_with_default
+    // Use struct initialization to avoid clippy::field_reassign_with_default
     let mut report = ProjectReport {
         project_dir: Some(project_dir.to_path_buf()),
         ..Default::default()

@@ -118,7 +118,6 @@ impl App {
     /// Handle unified keyboard events across all views
     ///
     /// Processes key events and returns the appropriate Action.
-    /// v0.21 FIX: Now delegates to view handle_key() after checking global shortcuts.
     pub(crate) fn handle_unified_key(&mut self, code: KeyCode, modifiers: KeyModifiers) -> Action {
         // 1. Global shortcuts (always available)
         if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (code, modifiers) {
@@ -158,7 +157,6 @@ impl App {
         }
 
         // 5. Delegate to current view's handle_key
-        // v0.21 FIX: This was the missing connection!
         let view_action = self.dispatch_to_current_view(code, modifiers);
 
         // 6. Convert ViewAction to Action
@@ -167,7 +165,7 @@ impl App {
 
     /// Dispatch key event to the current view's handle_key method
     ///
-    /// v0.21 FIX: This bridges the gap between the app event loop
+    /// Bridges the gap between the app event loop
     /// and view-specific keyboard handling.
     fn dispatch_to_current_view(&mut self, code: KeyCode, modifiers: KeyModifiers) -> ViewAction {
         // Convert KeyCode + modifiers to KeyEvent

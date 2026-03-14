@@ -56,7 +56,7 @@ pub mod file_resolve;
 #[cfg(feature = "tui")]
 mod focus;
 #[cfg(feature = "tui")]
-pub mod git; // v0.21.3: Git integration for gutter + file status
+pub mod git; // Git integration for gutter + file status
 #[cfg(feature = "tui")]
 pub mod highlight;
 #[cfg(feature = "tui")]

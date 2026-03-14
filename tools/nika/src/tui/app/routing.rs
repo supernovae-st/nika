@@ -83,11 +83,9 @@ impl App {
                 self.handle_scroll_down();
             }
             Action::ScrollToTop => {
-                // v0.22.3: Delegate to scroll up (simple implementation)
                 self.handle_scroll_up();
             }
             Action::ScrollToBottom => {
-                // v0.22.3: Delegate to scroll down (simple implementation)
                 self.handle_scroll_down();
             }
 
@@ -221,7 +219,6 @@ impl App {
 
     /// Apply view-specific actions that need App-level orchestration
     ///
-    /// v0.21 FIX: These actions come from view handle_key() methods
     /// and need access to App-level state (spawning tasks, MCP clients, etc.)
     fn apply_view_action(&mut self, action: ViewAction) {
         match action {
@@ -529,7 +526,7 @@ impl App {
 
     /// Switch to a specific view with appropriate mode changes
     ///
-    /// v0.21 FIX: Now calls lifecycle hooks (on_leave, on_enter)
+    /// Calls lifecycle hooks (on_leave, on_enter)
     fn switch_to_view(&mut self, view: TuiView) {
         // Skip if already on this view
         if self.current_view == view {
@@ -589,7 +586,7 @@ impl App {
 
     /// Run a workflow from a file path
     ///
-    /// v0.21.1: Actually executes the workflow and displays results in Runner view.
+    /// Executes the workflow and displays results in Runner view.
     /// This is the glue code that connects:
     /// - Studio view (F5 to run)
     /// - Workflow parsing (ast module)

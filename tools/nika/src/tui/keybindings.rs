@@ -61,7 +61,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
     let mut bindings = Vec::new();
 
     // Global bindings (always available)
-    // v0.8.7: Ctrl+C is context-dependent:
+    // Ctrl+C is context-dependent:
     // - In input: Copy to clipboard
     // - Elsewhere: Quit (double-tap required)
     bindings.push(Keybinding {
@@ -214,14 +214,12 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 description: "Toggle Infer/Agent mode",
                 category: KeyCategory::Chat,
             });
-            // v0.9 Phase 3: Search
             bindings.push(Keybinding {
                 code: KeyCode::Char('f'),
                 modifiers: KeyModifiers::CONTROL,
                 description: "Search conversation",
                 category: KeyCategory::Chat,
             });
-            // v0.9 Phase 2: Retry
             bindings.push(Keybinding {
                 code: KeyCode::Char('r'),
                 modifiers: KeyModifiers::CONTROL,
@@ -388,7 +386,6 @@ mod tests {
     fn test_keybindings_for_chat_normal() {
         let bindings = keybindings_for_context(TuiView::Chat, InputMode::Normal);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Char('i')));
-        // v0.8.1: Removed 'q' to quit - use Ctrl+C (double-tap) instead
         assert!(bindings
             .iter()
             .any(|b| b.code == KeyCode::Char('c') && b.modifiers == KeyModifiers::CONTROL));

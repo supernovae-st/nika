@@ -34,7 +34,7 @@ impl App {
             }
 
             // All views use unified layout with Header + Content + StatusBar
-            // v0.8 FIX: Extract read-only values BEFORE taking mutable references
+            // Extract read-only values BEFORE taking mutable references
             // This allows render() to take &mut self for scroll state updates
             let total_tokens = self.chat_view.total_tokens();
             let provider = self.chat_view.provider();
@@ -65,7 +65,7 @@ impl App {
             let settings_view = &mut self.settings_view;
             let monitor_view = &mut self.monitor_view;
             let workflow_path = &self.state.workflow.path;
-            let intro_state = &self.intro_state; // v0.12: Intro animation state
+            let intro_state = &self.intro_state;
                                                  // P0 Fix: Use is_paused() accessor for unified pause state
             let paused = self.state.is_paused();
             let input_mode = self.input_mode;
@@ -86,20 +86,17 @@ impl App {
                 .draw(|frame| {
                     let size = frame.area();
 
-                    // v0.8: Check terminal size for graceful degradation
                     let layout_mode = check_terminal_size(size);
 
                     // If terminal is too small, show overlay and return early
                     if !layout_mode.is_usable() {
                         use super::super::widgets::TerminalTooSmallOverlay;
-                        // v0.22.1 FIX: Clear before overlay to prevent artifacts from previous render
                         frame.render_widget(Clear, size);
                         let overlay = TerminalTooSmallOverlay::new(size.width, size.height);
                         frame.render_widget(overlay, size);
                         return;
                     }
 
-                    // v0.12: Show intro animation (full screen overlay) if active
                     if let Some(intro) = intro_state {
                         if !intro.is_done() {
                             let intro_widget = NikaIntro::new(intro);
@@ -108,7 +105,6 @@ impl App {
                         }
                     }
 
-                    // v0.22.2 FIX: Clear entire frame and fill with background color
                     // Block without borders renders nothing - use Paragraph for proper fill
                     frame.render_widget(Clear, size);
                     let bg = Paragraph::new("").style(Style::default().bg(theme.background));
@@ -151,7 +147,7 @@ impl App {
                     }
 
                     // Render status message if active (just above status bar)
-                    // v0.8.8: Skip when overlays are visible to prevent overlap
+                    // Skip when overlays are visible to prevent overlap
                     let overlay_visible = matches!(current_view, TuiView::Chat)
                         && (chat_view.provider_modal.visible
                             || chat_view.command_palette.visible

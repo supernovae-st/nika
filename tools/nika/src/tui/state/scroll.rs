@@ -107,7 +107,7 @@ impl PanelScrollState {
     }
 
     /// Scroll down by one item
-    /// v0.8.1: NovaNet pattern - scroll works before render sets `visible`
+    /// NovaNet pattern - scroll works before render sets `visible`
     pub fn scroll_down(&mut self) {
         // Calculate max offset:
         // - If visible is known (> 0), cap at total - visible
@@ -124,7 +124,7 @@ impl PanelScrollState {
     }
 
     /// Scroll up by one item
-    /// v0.8.1: NovaNet pattern - scroll works before render sets `visible`
+    /// NovaNet pattern - scroll works before render sets `visible`
     pub fn scroll_up(&mut self) {
         if self.offset > 0 {
             self.offset -= 1;

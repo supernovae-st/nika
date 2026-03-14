@@ -756,7 +756,7 @@ impl TuiState {
                     .push(input_tokens + output_tokens);
                 if let Some(ttft) = ttft_ms {
                     self.metrics.latency_history.push(*ttft);
-                    // v0.13: Calculate tokens/sec from TTFT and push to velocity tracker
+                    // Calculate tokens/sec from TTFT and push to velocity tracker
                     // TTFT in ms, output_tokens is total - estimate avg rate
                     let ttft_secs = (*ttft as f32).max(1.0) / 1000.0;
                     let velocity = *output_tokens as f32 / ttft_secs;
@@ -889,7 +889,7 @@ impl TuiState {
                 self.dirty.status = true;
             }
 
-            // v0.9.3: Handle builtin log events
+            // Handle builtin log events
             EventKind::Log {
                 level,
                 message,
@@ -914,7 +914,7 @@ impl TuiState {
                 self.dirty.notifications = true;
             }
 
-            // v0.9.3: Handle custom events from nika:emit
+            // Handle custom events from nika:emit
             EventKind::Custom {
                 name,
                 payload,

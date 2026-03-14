@@ -150,7 +150,7 @@ pub enum ChatPanel {
     Input,
 }
 
-#[allow(dead_code)] // v0.8: API methods for future use
+#[allow(dead_code)] // API methods for future use
 impl ChatPanel {
     /// Get all panels in order for Tab cycling
     pub fn all() -> &'static [ChatPanel] {

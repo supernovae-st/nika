@@ -138,7 +138,6 @@ pub struct App {
     pub(crate) session_id: Option<String>,
     // ═══ TUI Config ═══
     /// Loaded configuration from .nika/config.toml
-    /// v0.12.0: Field loaded at startup, full integration in v0.13 (theme/editor settings)
     #[allow(dead_code)]
     pub(crate) config: TuiConfig,
     // ═══ Performance: Reusable Event Buffer ═══
@@ -227,11 +226,11 @@ impl App {
             chat_agent,
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
-            session_id: None, // v0.12: No session in workflow mode
-            config,           // v0.12.0: TUI config from .nika/config.toml
+            session_id: None,
+            config,          
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
-            intro_state: None, // v0.12: No intro in workflow execution mode
+            intro_state: None,
         })
     }
 
@@ -299,11 +298,11 @@ impl App {
             chat_agent,
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
-            session_id: None,                     // v0.12: Session loaded on demand
-            config,                               // v0.12.0: TUI config from .nika/config.toml
+            session_id: None,                    
+            config,                              
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
-            intro_state: Some(NikaIntroState::new()), // v0.12: Show intro animation on startup
+            intro_state: Some(NikaIntroState::new()),
         })
     }
 
@@ -407,7 +406,6 @@ impl App {
     pub async fn run_unified(mut self) -> Result<bool> {
         tracing::info!("TUI (unified) started");
 
-        // v0.8.4: Startup verification - ensure directories, schema, config, project access
         let startup_report = startup::verify_startup()?;
         if !startup_report.is_ok() {
             // Log details before failing
@@ -427,16 +425,15 @@ impl App {
         // Initialize MCP clients from workflow config
         self.init_mcp_clients();
 
-        // v0.8.2: Provider/MCP verification - verify all providers and MCP servers
         // Results are cached for 30s to avoid redundant API calls
         self.spawn_provider_verification();
-        self.spawn_provider_verification_timeout(); // v0.8.4: Show fallback UI after 5s
+        self.spawn_provider_verification_timeout();
         self.spawn_mcp_verification();
 
         // Initialize terminal
         self.init_terminal()?;
 
-        // v0.22.1 FIX: Call on_enter() for initial view, but only if no intro
+        // Call on_enter() for initial view, but only if no intro
         // If intro is active, defer on_enter() until intro completes (see line ~507)
         // This ensures view state (tree cache, git status) is fresh when visible
         if self.intro_state.is_none() {
@@ -474,11 +471,10 @@ impl App {
             if let Some(ref mut home) = self.home_view {
                 home.tick(); // Enables gradient logo animation + sparkline pulse
             }
-            self.studio_view.tick(&mut self.state); // v0.21: 3-panel animations + validation
-            self.monitor_view.tick(&mut self.state); // v0.12.1: Runner panel animations
-            self.settings_view.tick(&mut self.state); // v0.22: Settings animations
+            self.studio_view.tick(&mut self.state);
+            self.monitor_view.tick(&mut self.state);
+            self.settings_view.tick(&mut self.state);
 
-            // v0.12: Tick intro animation (if active)
             if let Some(ref mut intro) = self.intro_state {
                 if !intro.is_done() {
                     // Get terminal size for intro animation
@@ -533,7 +529,6 @@ impl App {
 
                 let action = match event {
                     Event::Key(key) => self.handle_unified_key(key.code, key.modifiers),
-                    // v0.22.3: Mouse events ignored (not yet implemented)
                     Event::Mouse(_) => Action::Continue,
                     _ => Action::Continue,
                 };

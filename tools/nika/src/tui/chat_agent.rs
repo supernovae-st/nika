@@ -323,7 +323,7 @@ impl ChatAgent {
                     agent.provider = RigProvider::deepseek();
                 }
                 "native" => {
-                    // v0.27: Native inference via mistral.rs (no API key needed)
+                    // Native inference via mistral.rs (no API key needed)
                     #[cfg(feature = "native-inference")]
                     {
                         agent.provider = RigProvider::native();
@@ -439,7 +439,7 @@ impl ChatAgent {
                 self.provider = RigProvider::deepseek();
             }
             ModelProvider::Native => {
-                // v0.27: Native inference via mistral.rs (no API key needed)
+                // Native inference via mistral.rs (no API key needed)
                 #[cfg(feature = "native-inference")]
                 {
                     self.provider = RigProvider::native();
@@ -1242,7 +1242,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // v0.6 provider switching tests (new providers)
+    // Provider switching tests (new providers)
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]

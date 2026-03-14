@@ -53,7 +53,6 @@ impl App {
     /// Uses TTL-based caching to avoid redundant API calls (30s default).
     pub(crate) fn spawn_provider_verification(&self) {
         let tx = self.stream_chunk_tx.clone();
-        // v0.8.8: Static list of provider IDs (no longer from ProviderSelectorState)
         let provider_ids = [
             ("claude", "claude-sonnet-4-6"),
             ("openai", "gpt-4o"),
@@ -131,7 +130,6 @@ impl App {
                 // Create provider and check if configured
                 let provider_opt: Option<RigProvider> = match provider_id.as_str() {
                     "claude" => {
-                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                         if std::env::var("ANTHROPIC_API_KEY").is_ok() {
                             let p = RigProvider::claude();
                             if p.is_configured() {
@@ -144,7 +142,6 @@ impl App {
                         }
                     }
                     "openai" => {
-                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                         if std::env::var("OPENAI_API_KEY").is_ok() {
                             let p = RigProvider::openai();
                             if p.is_configured() {
@@ -157,7 +154,6 @@ impl App {
                         }
                     }
                     "mistral" => {
-                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                         if std::env::var("MISTRAL_API_KEY").is_ok() {
                             let p = RigProvider::mistral();
                             if p.is_configured() {
@@ -170,7 +166,6 @@ impl App {
                         }
                     }
                     "groq" => {
-                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                         if std::env::var("GROQ_API_KEY").is_ok() {
                             let p = RigProvider::groq();
                             if p.is_configured() {
@@ -183,7 +178,6 @@ impl App {
                         }
                     }
                     "deepseek" => {
-                        // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
                         if std::env::var("DEEPSEEK_API_KEY").is_ok() {
                             let p = RigProvider::deepseek();
                             if p.is_configured() {
@@ -196,7 +190,6 @@ impl App {
                         }
                     }
                     "native" => {
-                        // v0.27: Native inference via mistral.rs (no API key needed)
                         #[cfg(feature = "native-inference")]
                         {
                             Some(RigProvider::native())
@@ -209,7 +202,6 @@ impl App {
                     _ => None,
                 };
 
-                // v0.8.9: Per-provider verification timeout (10 seconds)
                 const SINGLE_PROVIDER_TIMEOUT: Duration = Duration::from_secs(10);
 
                 match provider_opt {
@@ -253,7 +245,6 @@ impl App {
                                     .await;
                             }
                             Err(_timeout) => {
-                                // v0.8.9: Timeout - send failed event
                                 tracing::warn!(
                                     provider = %provider_id,
                                     "Provider verification timed out after 10s"
@@ -277,7 +268,6 @@ impl App {
                         }
                     }
                     None => {
-                        // v0.8.9: Send NotConfigured event to clear Checking state
                         tracing::debug!(provider = %provider_id, "Provider not configured");
                         let _ = tx
                             .send(StreamChunk::ProviderNotConfigured {

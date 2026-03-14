@@ -593,13 +593,13 @@ pub struct Theme {
     // ═══════════════════════════════════════════
     pub border_normal: Color,
     pub border_focused: Color,
-    pub text: Color, // v0.21.2: alias for text_primary (for selection)
+    pub text: Color,
     pub text_primary: Color,
     pub text_secondary: Color,
     pub text_muted: Color,
     pub background: Color,
     pub highlight: Color,
-    pub selection: Color, // v0.21.2: Selection highlight background
+    pub selection: Color,
 
     // ═══════════════════════════════════════════
     // GIT GUTTER
@@ -1281,7 +1281,6 @@ mod tests {
     fn test_theme_solarized_maps_to_cosmic_dark() {
         let theme = Theme::solarized();
 
-        // v0.9.1+: Solarized maps to Cosmic Dark
         assert_eq!(theme.background, Color::Rgb(15, 23, 42)); // Slate-900
         assert_eq!(theme.text_primary, Color::Rgb(248, 250, 252)); // Slate-50
     }
@@ -1290,7 +1289,6 @@ mod tests {
     fn test_theme_solarized_has_cosmic_status_colors() {
         let theme = Theme::solarized();
 
-        // v0.9.1+: Uses Cosmic status colors
         assert_eq!(theme.status_running, Color::Rgb(245, 158, 11)); // Amber-500
         assert_eq!(theme.status_success, Color::Rgb(16, 185, 129)); // Emerald-500
         assert_eq!(theme.status_failed, Color::Rgb(239, 68, 68)); // Red-500
@@ -1301,7 +1299,7 @@ mod tests {
         let dark = Theme::dark();
         let solarized = Theme::solarized();
 
-        // v0.9.1+: Solarized maps to Dark
+        // Solarized maps to Dark
         assert_eq!(dark.background, solarized.background);
         assert_eq!(dark.text_primary, solarized.text_primary);
     }
@@ -1651,7 +1649,7 @@ mod tests {
     #[test]
     fn test_theme_mode_solarized_theme_returns_cosmic_dark() {
         let solarized_theme = ThemeMode::Solarized.theme();
-        // v0.9.1+: Solarized maps to Cosmic Dark (Slate-900)
+        // Solarized maps to Cosmic Dark (Slate-900)
         assert_eq!(solarized_theme.background, Color::Rgb(15, 23, 42)); // #0f172a
     }
 
