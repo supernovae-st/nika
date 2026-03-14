@@ -61,7 +61,7 @@ use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
 pub enum LazyBinding {
     /// Already resolved to a concrete value (eager bindings)
     Resolved(Value),
-    /// Pending resolution (old system) — stores raw path string
+    /// Pending resolution — stores raw path string
     Pending {
         path: String,
         default: Option<Value>,
@@ -763,7 +763,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Error cases (old system)
+    // Error cases
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -795,7 +795,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // JSONPath tests (old system)
+    // JSONPath tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1039,7 +1039,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ResolvedBindings::get_resolved() tests (old system)
+    // ResolvedBindings::get_resolved() tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
