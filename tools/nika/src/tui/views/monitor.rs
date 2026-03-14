@@ -62,7 +62,7 @@ use crate::tui::widgets::{
 /// - Panel 3: Task Detail (full TaskBox for selected task)
 /// - Panel 4: Agent Reasoning (agent turns)
 ///
-/// v0.13.0: Major redesign with DagAscii and TaskBox integration.
+/// Major redesign with DagAscii and TaskBox integration.
 /// - DagAscii replaces custom DAG rendering
 /// - TaskBox widgets replace simple List items
 /// - Cost tracking per task
@@ -337,8 +337,8 @@ impl MonitorView {
 
     /// Render Mission Control panel (Panel 1) with verb-colored TaskBox style
     ///
-    /// v0.13: Uses TaskBox visual language (verb icons, colors, progress)
-    /// v0.21.2: Tab-aware rendering (Progress | TaskIO | Output)
+    /// Uses TaskBox visual language (verb icons, colors, progress)
+    /// Tab-aware rendering (Progress | TaskIO | Output)
     fn render_mission_panel(
         &self,
         frame: &mut Frame,
@@ -347,7 +347,7 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        // v0.21.2: Tab indicator in title
+        // Tab indicator in title
         let tab_indicator = state.mission_tab.title();
         let mode_indicator = match self.render_mode {
             RenderMode::Compact => "compact",
@@ -373,7 +373,7 @@ impl MonitorView {
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
 
-        // v0.21.2: Tab-aware content rendering
+        // Tab-aware content rendering
         match state.mission_tab {
             MissionTab::TaskIO => {
                 // Show selected task's input/output
@@ -641,9 +641,9 @@ impl MonitorView {
 
     /// Render DAG Execution panel (Panel 2) using DagAscii widget
     ///
-    /// v0.13: Replaced custom tree rendering with DagAscii widget
+    /// Replaced custom tree rendering with DagAscii widget
     /// featuring Sugiyama layout algorithm and real edges.
-    /// v0.21.2: Tab-aware rendering (Graph | Yaml)
+    /// Tab-aware rendering (Graph | Yaml)
     fn render_dag_panel(
         &self,
         frame: &mut Frame,
@@ -652,7 +652,7 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        // v0.21.2: Tab indicator in title
+        // Tab indicator in title
         let tab_indicator = state.dag_tab.title();
         let mode_indicator = match self.dag_mode {
             NodeBoxMode::Minimal => "compact",
@@ -676,7 +676,7 @@ impl MonitorView {
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
 
-        // v0.21.2: Tab-aware content rendering
+        // Tab-aware content rendering
         match state.dag_tab {
             DagTab::Yaml => {
                 self.render_dag_yaml(frame, inner_area, state, theme);
@@ -722,7 +722,7 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        // v0.21.2: Tab indicator in title
+        // Tab indicator in title
         let tab_indicator = state.novanet_tab.title();
 
         let block = Block::default()
@@ -739,7 +739,7 @@ impl MonitorView {
         let inner_area = block.inner(area);
         frame.render_widget(block.clone(), area);
 
-        // v0.21.2: Tab-aware content rendering
+        // Tab-aware content rendering
         match state.novanet_tab {
             NovanetTab::FullJson => {
                 self.render_novanet_full_json(frame, inner_area, state, theme);
@@ -849,7 +849,7 @@ impl MonitorView {
         theme: &Theme,
         focused: bool,
     ) {
-        // v0.21.2: Tab indicator in title
+        // Tab indicator in title
         let tab_indicator = state.reasoning_tab.title();
 
         let block = Block::default()
@@ -866,7 +866,7 @@ impl MonitorView {
         let inner_area = block.inner(area);
         frame.render_widget(block.clone(), area);
 
-        // v0.21.2: Tab-aware content rendering
+        // Tab-aware content rendering
         match state.reasoning_tab {
             ReasoningTab::Thinking => {
                 self.render_agent_thinking(frame, inner_area, state, theme);
@@ -915,7 +915,7 @@ impl MonitorView {
                 let mut lines = vec![main_line];
 
                 // Add thinking content if present
-                // v0.12.1: Use unicode-aware truncation to avoid panic on multi-byte chars
+                // Use unicode-aware truncation to avoid panic on multi-byte chars
                 if let Some(ref thinking) = turn.thinking {
                     let truncated = truncate_to_width(thinking, 100);
                     lines.push(Line::from(vec![
@@ -1018,7 +1018,7 @@ impl MonitorView {
             ));
         frame.render_widget(paragraph, area);
     }
-    // v0.12.1: render_footer() removed - global StatusBar handles metrics now
+    // Render_footer() removed - global StatusBar handles metrics now
 }
 
 impl Default for MonitorView {
@@ -1036,7 +1036,7 @@ impl Default for MonitorView {
 
 impl View for MonitorView {
     fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
-        // v0.12.1: Minimum height guard - need at least 8 lines for 2x2 grid
+        // Minimum height guard - need at least 8 lines for 2x2 grid
         if area.height < 8 {
             // Terminal too small - render fallback message
             let msg = "↕ Terminal too small";
@@ -1048,7 +1048,7 @@ impl View for MonitorView {
             return;
         }
 
-        // v0.12.1: Removed internal footer - global StatusBar handles this now
+        // Removed internal footer - global StatusBar handles this now
         // 4-panel grid (2x2) using full area
         let rows = Layout::default()
             .direction(Direction::Vertical)
@@ -1147,13 +1147,13 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
-            // v0.13: 'm' cycles TaskBox render mode (Compact/Expanded/Full)
+            // 'm' cycles TaskBox render mode (Compact/Expanded/Full)
             KeyCode::Char('m') => {
                 self.cycle_render_mode();
                 ViewAction::None
             }
 
-            // v0.13: 'e' toggles DAG mode (Minimal/Expanded)
+            // 'e' toggles DAG mode (Minimal/Expanded)
             KeyCode::Char('e') => {
                 self.toggle_dag_mode();
                 ViewAction::None
@@ -1475,7 +1475,7 @@ mod tests {
 
     #[test]
     fn test_handle_key_j_selects_task_in_mission_panel() {
-        // v0.13: j/k now select tasks when Mission panel is focused
+        // J/k now select tasks when Mission panel is focused
         let mut view = MonitorView::new();
         let mut state = TuiState::new("test");
         // Add some tasks to state
@@ -1489,7 +1489,7 @@ mod tests {
 
     #[test]
     fn test_handle_key_j_scrolls_in_other_panels() {
-        // v0.13: j/k still scroll when other panels are focused
+        // J/k still scroll when other panels are focused
         let mut view = MonitorView::new();
         view.focus = PanelId::RunnerDag;
         let mut state = TuiState::new("test");
@@ -1501,7 +1501,7 @@ mod tests {
 
     #[test]
     fn test_handle_key_k_selects_prev_task_in_mission_panel() {
-        // v0.13: j/k now select tasks when Mission panel is focused
+        // J/k now select tasks when Mission panel is focused
         let mut view = MonitorView::new();
         view.selected_task = 1;
         let mut state = TuiState::new("test");
@@ -1514,7 +1514,7 @@ mod tests {
 
     #[test]
     fn test_handle_key_k_scrolls_in_other_panels() {
-        // v0.13: j/k still scroll when other panels are focused
+        // J/k still scroll when other panels are focused
         let mut view = MonitorView::new();
         view.focus = PanelId::RunnerDag;
         view.scroll[1] = 5;
@@ -1541,7 +1541,7 @@ mod tests {
         let view = MonitorView::new();
         let state = TuiState::new("test");
         let status = view.status_line(&state);
-        // v0.13: Status line now says "Runner" instead of "Monitor"
+        // Status line now says "Runner" instead of "Monitor"
         assert!(status.contains("Runner"));
         assert!(status.contains("Preflight"));
     }
@@ -1570,7 +1570,7 @@ mod tests {
         let _: &dyn View = &view;
     }
 
-    // v0.11.0: Thinking display tests
+    // Thinking display tests
     #[test]
     fn test_agent_turn_with_thinking_short() {
         use crate::tui::AgentTurnState;

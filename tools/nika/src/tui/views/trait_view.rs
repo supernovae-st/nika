@@ -28,7 +28,7 @@ use crate::tui::theme::Theme;
 /// All hooks have default no-op implementations.
 pub trait View {
     /// Render the view to the frame
-    /// v0.8 FIX: Changed to &mut self to support scroll state updates during render
+    /// Changed to &mut self to support scroll state updates during render
     fn render(&mut self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme);
 
     /// Handle a key event, returning an action

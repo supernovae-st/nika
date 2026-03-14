@@ -237,7 +237,7 @@ impl StudioView {
         let root_path = Utf8Path::from_path(&root_dir).unwrap_or(Utf8Path::new("."));
         let git_cache = build_git_status_cache(root_path);
 
-        // v0.22: Scan for .nika.yaml files for Quick Access
+        // Scan for .nika.yaml files for Quick Access
         let quick_access = Self::scan_nika_files(&root_dir);
 
         Self {
@@ -253,7 +253,7 @@ impl StudioView {
             git_cache_time: Instant::now(),
             cached_tree: None,
             quick_access,
-            // v0.21.2: Overlay states
+            // Overlay states
             command_palette: CommandPaletteState::new(),
             which_key: WhichKeyState::new(),
         }
@@ -324,14 +324,14 @@ impl StudioView {
     fn render_browser(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let style = self.border_style(StudioFocus::Browser, theme);
 
-        // v0.21.4 UX: Add focus indicator ● to show which panel is active
+        // UX: Add focus indicator ● to show which panel is active
         let focus_indicator = if self.focus == StudioFocus::Browser {
             "●"
         } else {
             " "
         };
 
-        // v0.21 FIX: Show filter badge in title so users know which filter is active
+        // Show filter badge in title so users know which filter is active
         let title = if self.filter_config.filter.badge().is_empty() {
             format!(" {} Browser ", focus_indicator)
         } else {
@@ -350,7 +350,7 @@ impl StudioView {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // v0.22: Split into Quick Access (top) + Tree (bottom)
+        // Split into Quick Access (top) + Tree (bottom)
         let quick_access_height = if self.quick_access.is_empty() {
             0
         } else {
@@ -363,7 +363,7 @@ impl StudioView {
             .constraints([Constraint::Length(quick_access_height), Constraint::Min(3)])
             .split(inner);
 
-        // v0.22: Render Quick Access section
+        // Render Quick Access section
         if !self.quick_access.is_empty() {
             self.render_quick_access(frame, chunks[0], theme);
         }
@@ -382,7 +382,7 @@ impl StudioView {
         }
 
         // Build tree with caching (rebuild only when cache is empty)
-        // v0.21.2 PERF FIX: Track if tree was just rebuilt to avoid per-frame overhead
+        // PERF FIX: Track if tree was just rebuilt to avoid per-frame overhead
         let tree_rebuilt = self.cached_tree.is_none();
         let root_node = if let Some(ref cached) = self.cached_tree {
             cached.clone()
@@ -392,7 +392,7 @@ impl StudioView {
             tree
         };
 
-        // v0.21.2 PERF FIX: Only update visible_nodes when tree structure changes
+        // PERF FIX: Only update visible_nodes when tree structure changes
         // This was being called EVERY frame causing severe performance issues
         if tree_rebuilt {
             self.tree_state.update_visible_nodes(&root_node);
@@ -459,7 +459,7 @@ impl StudioView {
     fn render_dag_panel(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let style = self.border_style(StudioFocus::Dag, theme);
 
-        // v0.21.4 UX: Add focus indicator ● to show which panel is active
+        // UX: Add focus indicator ● to show which panel is active
         let focus_indicator = if self.focus == StudioFocus::Dag {
             "●"
         } else {
@@ -508,7 +508,7 @@ impl StudioView {
 
         // Try TreeAction navigation first
         if let Some(action) = TreeAction::from_key_event(key) {
-            // v0.21.2 PERF FIX: Only update visible_nodes for structure-changing actions
+            // PERF FIX: Only update visible_nodes for structure-changing actions
             let needs_update = matches!(
                 action,
                 TreeAction::Toggle | TreeAction::Left | TreeAction::Right
@@ -542,7 +542,7 @@ impl StudioView {
                 ViewAction::None
             }
             // Filter hotkeys (W/A/E/0)
-            // v0.22.1 FIX: Invalidate cached_tree so visible_nodes updates correctly
+            // Invalidate cached_tree so visible_nodes updates correctly
             KeyCode::Char('w') | KeyCode::Char('W') => {
                 self.filter_config.set_filter(TreeFilter::WorkflowsOnly);
                 self.cached_tree = None; // Force rebuild with new filter
@@ -586,7 +586,7 @@ impl View for StudioView {
         self.render_browser(frame, panel_chunks[0], theme);
 
         // Editor panel with focused border
-        // v0.21.4 UX: Add focus indicator ● at start, modified indicator ◆ after name
+        // UX: Add focus indicator ● at start, modified indicator ◆ after name
         let editor_style = self.border_style(StudioFocus::Editor, theme);
         let focus_indicator = if self.focus == StudioFocus::Editor {
             "●"
@@ -612,7 +612,7 @@ impl View for StudioView {
         // Validation bar at bottom
         self.editor.render_validation(frame, main_chunks[1], theme);
 
-        // v0.21.2: Render overlays on top
+        // Render overlays on top
         // Command palette (Ctrl+P)
         if self.command_palette.visible {
             let palette_area = centered_rect(60, 50, area);
@@ -626,12 +626,12 @@ impl View for StudioView {
     }
 
     fn handle_key(&mut self, key: KeyEvent, state: &mut TuiState) -> ViewAction {
-        // v0.21.2: Handle command palette overlay first
+        // Handle command palette overlay first
         if self.command_palette.visible {
             return self.handle_palette_key(key);
         }
 
-        // v0.21.2: Handle which-key popup
+        // Handle which-key popup
         if self.which_key.is_visible() || self.which_key.is_pending() {
             if let KeyCode::Char(c) = key.code {
                 if let Some((prefix, key_char)) = self.which_key.on_key(c) {
@@ -644,7 +644,7 @@ impl View for StudioView {
             }
         }
 
-        // v0.21.2: Detect which-key prefixes in Normal mode
+        // Detect which-key prefixes in Normal mode
         // Only trigger for g, z, [, ], Space when not in Insert mode
         if self.focus != StudioFocus::Editor || self.editor.mode != EditorMode::Insert {
             if let KeyCode::Char(c) = key.code {
@@ -663,7 +663,7 @@ impl View for StudioView {
                 return ViewAction::None;
             }
             // Tab: Cycle focus forward (but NOT when editor is in Insert mode)
-            // v0.21 FIX: Allow Tab for indentation in Insert mode
+            // Allow Tab for indentation in Insert mode
             (KeyCode::Tab, KeyModifiers::NONE) => {
                 if self.focus == StudioFocus::Editor && self.editor.mode == EditorMode::Insert {
                     // Let editor handle Tab for indentation
@@ -727,7 +727,7 @@ impl View for StudioView {
             EditorMode::Normal => "NORMAL",
             EditorMode::Insert => "INSERT",
         };
-        // v0.21.4 UX: Highlight focus panel with ● prefix
+        // UX: Highlight focus panel with ● prefix
         format!(
             "Studio | ●{} | {} | {} | [Tab] Panel • [Ctrl+]] Ratio",
             self.focus.title(),
@@ -743,7 +743,7 @@ impl View for StudioView {
         self.editor.tick();
         // Run debounced validation
         self.editor.maybe_validate();
-        // v0.21.2: Tick which-key popup for delay timing
+        // Tick which-key popup for delay timing
         self.which_key.tick();
     }
 
@@ -961,10 +961,10 @@ pub struct TextBuffer {
     scroll_offset: usize,
     /// Last known viewport height — Cell allows update via &self from render path
     visible_height: Cell<usize>,
-    /// v0.22: Track if buffer has unsaved changes
+    /// Track if buffer has unsaved changes
     modified: bool,
-    /// v0.21.2: Selection state (anchor/head model)
-    /// v0.21.3: Upgraded to SelectionSet for multi-cursor support
+    /// Selection state (anchor/head model)
+    /// Upgraded to SelectionSet for multi-cursor support
     selections: SelectionSet,
 }
 
@@ -1015,17 +1015,17 @@ impl TextBuffer {
         }
     }
 
-    /// v0.22: Check if buffer has unsaved changes
+    /// Check if buffer has unsaved changes
     pub fn is_modified(&self) -> bool {
         self.modified
     }
 
-    /// v0.22: Mark buffer as modified (called after any edit)
+    /// Mark buffer as modified (called after any edit)
     pub fn mark_modified(&mut self) {
         self.modified = true;
     }
 
-    /// v0.22: Clear modified flag (called after save)
+    /// Clear modified flag (called after save)
     pub fn clear_modified(&mut self) {
         self.modified = false;
     }
@@ -1099,7 +1099,7 @@ impl TextBuffer {
             let col = self.cursor_col.min(line.len());
             line.insert(col, c);
             self.cursor_col = col + 1;
-            self.modified = true; // v0.22: track modification
+            self.modified = true; // track modification
         }
     }
 
@@ -1112,7 +1112,7 @@ impl TextBuffer {
             self.lines.insert(self.cursor_row + 1, rest);
             self.cursor_row += 1;
             self.cursor_col = 0;
-            self.modified = true; // v0.22: track modification
+            self.modified = true; // track modification
             self.adjust_scroll();
         }
     }
@@ -1125,7 +1125,7 @@ impl TextBuffer {
                 if col > 0 {
                     line.remove(col - 1);
                     self.cursor_col = col - 1;
-                    self.modified = true; // v0.22: track modification
+                    self.modified = true; // track modification
                 }
             }
         } else if self.cursor_row > 0 {
@@ -1134,7 +1134,7 @@ impl TextBuffer {
             self.cursor_row -= 1;
             self.cursor_col = self.lines[self.cursor_row].len();
             self.lines[self.cursor_row].push_str(&current_line);
-            self.modified = true; // v0.22: track modification
+            self.modified = true; // track modification
             self.adjust_scroll();
         }
     }
@@ -1145,12 +1145,12 @@ impl TextBuffer {
             let col = self.cursor_col.min(line.len());
             if col < line.len() {
                 line.remove(col);
-                self.modified = true; // v0.22: track modification
+                self.modified = true; // track modification
             } else if self.cursor_row < self.lines.len() - 1 {
                 // Merge with next line
                 let next_line = self.lines.remove(self.cursor_row + 1);
                 self.lines[self.cursor_row].push_str(&next_line);
-                self.modified = true; // v0.22: track modification
+                self.modified = true; // track modification
             }
         }
     }
@@ -1595,13 +1595,13 @@ impl YamlEditorPanel {
             rain_opacity: 1.0,
             rain_fading: true,
             matrix_effect_enabled: true,
-            // v0.11.0: Edit History (Undo/Redo)
+            // Edit History (Undo/Redo)
             edit_history: EditHistory::new(100),
-            // v0.21.2: Real-time Diagnostics
+            // Real-time Diagnostics
             diagnostics: DiagnosticsEngine::new(),
-            // v0.21.2: Clipboard (graceful fallback if unavailable)
+            // Clipboard (graceful fallback if unavailable)
             clipboard: arboard::Clipboard::new().ok(),
-            // v0.21.3: Git gutter (initialized on file load)
+            // Git gutter (initialized on file load)
             git_status: None,
         }
     }
@@ -1627,7 +1627,7 @@ impl YamlEditorPanel {
         self.modified = true;
         self.validation_pending = true;
         self.last_edit_time = Some(Instant::now());
-        // v0.11.0: Push state to edit history for undo/redo
+        // Push state to edit history for undo/redo
         let content = self.buffer.content();
         let cursor = self.buffer.cursor_position();
         self.edit_history.push(&content, cursor);
@@ -1666,9 +1666,9 @@ impl YamlEditorPanel {
         self.path = Some(path.clone());
         self.modified = false;
         self.validate();
-        // v0.11.0: Initialize edit history with loaded content
+        // Initialize edit history with loaded content
         self.edit_history.init(&content, 0);
-        // v0.21.3: Initialize git status for gutter display
+        // Initialize git status for gutter display
         self.git_status = GitStatus::open(&path);
         Ok(())
     }
@@ -1794,7 +1794,7 @@ impl Default for YamlEditorPanel {
 
 impl View for YamlEditorPanel {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // v0.9.1: Matrix Rain background effect (full screen, renders FIRST)
+        // Matrix Rain background effect (full screen, renders FIRST)
         if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
             let rain_area = Rect {
                 x: area.x + 1,
@@ -1845,7 +1845,7 @@ impl View for YamlEditorPanel {
         };
         let modified = if self.modified { " ●" } else { "" };
 
-        // v0.12: Undo/Redo indicator (⤺N ⤻M format)
+        // Undo/Redo indicator (⤺N ⤻M format)
         let undo_depth = self.edit_history.undo_depth();
         let redo_depth = self.edit_history.redo_depth();
         let undo_redo = if undo_depth > 0 || redo_depth > 0 {
@@ -1877,12 +1877,12 @@ impl YamlEditorPanel {
                     ViewAction::None
                 }
             }
-            // v0.11.0: Ctrl+Z for undo
+            // Ctrl+Z for undo
             KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.undo();
                 ViewAction::None
             }
-            // v0.11.0: Ctrl+Y or Ctrl+Shift+Z for redo
+            // Ctrl+Y or Ctrl+Shift+Z for redo
             KeyCode::Char('y') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.redo();
                 ViewAction::None
@@ -1945,7 +1945,7 @@ impl YamlEditorPanel {
     }
 
     fn handle_insert_mode(&mut self, key: KeyEvent) -> ViewAction {
-        // v0.11.0: Handle Ctrl+Z and Ctrl+Y before other key handlers
+        // Handle Ctrl+Z and Ctrl+Y before other key handlers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             match key.code {
                 KeyCode::Char('z') => {
@@ -1956,12 +1956,12 @@ impl YamlEditorPanel {
                     self.redo();
                     return ViewAction::None;
                 }
-                // v0.21.2: Ctrl+A for select all
+                // Ctrl+A for select all
                 KeyCode::Char('a') => {
                     self.buffer.select_all();
                     return ViewAction::None;
                 }
-                // v0.21.2: Ctrl+C for copy
+                // Ctrl+C for copy
                 KeyCode::Char('c') => {
                     if let Some(text) = self.buffer.get_selected_text() {
                         if let Some(ref mut clipboard) = self.clipboard {
@@ -1970,7 +1970,7 @@ impl YamlEditorPanel {
                     }
                     return ViewAction::None;
                 }
-                // v0.21.2: Ctrl+X for cut
+                // Ctrl+X for cut
                 KeyCode::Char('x') => {
                     if let Some(text) = self.buffer.get_selected_text() {
                         if let Some(ref mut clipboard) = self.clipboard {
@@ -1981,7 +1981,7 @@ impl YamlEditorPanel {
                     }
                     return ViewAction::None;
                 }
-                // v0.21.2: Ctrl+V for paste
+                // Ctrl+V for paste
                 KeyCode::Char('v') => {
                     if let Some(ref mut clipboard) = self.clipboard {
                         if let Ok(text) = clipboard.get_text() {
@@ -2002,12 +2002,12 @@ impl YamlEditorPanel {
                     }
                     return ViewAction::None;
                 }
-                // v0.21.3: Ctrl+D for select next occurrence (multi-cursor)
+                // Ctrl+D for select next occurrence (multi-cursor)
                 KeyCode::Char('d') => {
                     self.buffer.select_next_occurrence();
                     return ViewAction::None;
                 }
-                // v0.21.3: Escape clears additional cursors first
+                // Escape clears additional cursors first
                 KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     // Ctrl+G: Clear additional cursors (back to single cursor mode)
                     if self.buffer.is_multi_cursor() {
@@ -2028,12 +2028,12 @@ impl YamlEditorPanel {
             return ViewAction::None;
         }
 
-        // v0.21.2: Shift+Arrow for selection extension
+        // Shift+Arrow for selection extension
         let extending = key.modifiers.contains(KeyModifiers::SHIFT);
 
         match key.code {
             KeyCode::Esc => {
-                // v0.21.2: Clear selection first, then exit insert mode
+                // Clear selection first, then exit insert mode
                 if self.buffer.has_selection() {
                     self.buffer.clear_selection();
                 } else {
@@ -2090,7 +2090,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             KeyCode::Enter => {
-                // v0.21.2: Delete selection before inserting newline
+                // Delete selection before inserting newline
                 if self.buffer.has_selection() {
                     self.buffer.delete_selection();
                 }
@@ -2099,7 +2099,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             KeyCode::Backspace => {
-                // v0.21.2: Delete selection if active
+                // Delete selection if active
                 if self.buffer.has_selection() {
                     self.buffer.delete_selection();
                     self.mark_edited();
@@ -2110,7 +2110,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             KeyCode::Delete => {
-                // v0.21.2: Delete selection if active
+                // Delete selection if active
                 if self.buffer.has_selection() {
                     self.buffer.delete_selection();
                     self.mark_edited();
@@ -2121,7 +2121,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             KeyCode::Char(c) => {
-                // v0.21.2: Replace selection with typed character
+                // Replace selection with typed character
                 if self.buffer.has_selection() {
                     self.buffer.delete_selection();
                 }
@@ -2130,7 +2130,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             KeyCode::Tab => {
-                // v0.21.2: Replace selection with tab spaces
+                // Replace selection with tab spaces
                 if self.buffer.has_selection() {
                     self.buffer.delete_selection();
                 }
@@ -2150,7 +2150,7 @@ impl YamlEditorPanel {
             EditorMode::Insert => " [INSERT]",
         };
 
-        // v0.22: Breadcrumb with file path (VS Code-like)
+        // Breadcrumb with file path (VS Code-like)
         let title = if let Some(path) = &self.path {
             let filename = path
                 .file_name()
@@ -2179,7 +2179,7 @@ impl YamlEditorPanel {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // v0.22: Split inner into content + status bar
+        // Split inner into content + status bar
         let content_area = Rect {
             x: inner.x,
             y: inner.y,
@@ -2193,7 +2193,7 @@ impl YamlEditorPanel {
             height: 1,
         };
 
-        // v0.21.1: Show placeholder when no file is loaded
+        // Show placeholder when no file is loaded
         if self.path.is_none() {
             let placeholder = vec![
                 Line::from(""),
@@ -2224,7 +2224,7 @@ impl YamlEditorPanel {
         // Build lines with line numbers, syntax highlighting, and selection
         let selection = self.buffer.selection();
 
-        // v0.21.3: Get git line changes for gutter display
+        // Get git line changes for gutter display
         // We clone the changes to avoid borrow issues in the closure
         let git_line_changes: Option<HashMap<usize, LineChange>> =
             self.path.as_ref().and_then(|p| {
@@ -2250,7 +2250,7 @@ impl YamlEditorPanel {
                     Style::default()
                 };
 
-                // v0.21.3: Git gutter indicator
+                // Git gutter indicator
                 let git_gutter = git_line_changes
                     .as_ref()
                     .and_then(|changes| changes.get(&i))
@@ -2273,7 +2273,7 @@ impl YamlEditorPanel {
                     ),
                 ];
 
-                // v0.21.2: Check for selection on this line
+                // Check for selection on this line
                 let selection_range = selection.line_range(i);
 
                 if let Some((sel_start, sel_end)) = selection_range {
@@ -2314,7 +2314,7 @@ impl YamlEditorPanel {
         let paragraph = Paragraph::new(lines);
         frame.render_widget(paragraph, content_area);
 
-        // v0.8.2: Render ScrollIndicator with dynamic arrows
+        // Render ScrollIndicator with dynamic arrows
         let total_lines = self.buffer.lines().len();
         if total_lines > visible_height {
             let scrollbar_area = Rect {
@@ -2333,8 +2333,8 @@ impl YamlEditorPanel {
             frame.render_widget(scroll_indicator, scrollbar_area);
         }
 
-        // v0.22: Render status bar (Ln:Col | Mode | Schema)
-        // v0.21.3: Show cursor count when multi-cursor active
+        // Render status bar (Ln:Col | Mode | Schema)
+        // Show cursor count when multi-cursor active
         let (cursor_row, cursor_col) = self.buffer.cursor();
         let mode_str = match self.mode {
             EditorMode::Normal => "NORMAL",
@@ -2521,7 +2521,7 @@ impl YamlEditorPanel {
             Span::styled("No warnings", Style::default().fg(theme.status_success))
         };
 
-        // v0.12: DAG Complexity Meter
+        // DAG Complexity Meter
         let complexity_meter = self.render_complexity_meter(theme);
 
         let line = Line::from(vec![
@@ -2544,7 +2544,7 @@ impl YamlEditorPanel {
         frame.render_widget(paragraph, area);
     }
 
-    /// v0.12: Render DAG complexity meter
+    /// Render DAG complexity meter
     /// Shows visual indicator of workflow complexity (tasks × flows)
     fn render_complexity_meter(&self, theme: &Theme) -> Span<'static> {
         let cached = self.cached_workflow.borrow();
@@ -3268,7 +3268,7 @@ unknown_field: "should fail""#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.21.2: Selection tests
+    // Selection tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

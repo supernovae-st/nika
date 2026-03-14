@@ -52,7 +52,7 @@ pub use settings::SettingsView;
 pub use split::{SplitFocus, SplitRatio, SplitView};
 
 // Internal re-exports (original struct names used internally)
-// v0.21: StudioView is now the 3-panel view (Browser + Editor + DAG)
+// StudioView is now the 3-panel view (Browser + Editor + DAG)
 pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
@@ -178,7 +178,7 @@ impl ReasoningTab {
 
 /// Active view in the TUI - 4 views navigation
 ///
-/// v0.22 consolidates to 4 views:
+/// Consolidates to 4 views:
 /// - Studio (1, default) \[s\] - Unified editor with browser + YAML editor + DAG preview
 /// - Runner (2) \[r\] - Real-time execution monitoring
 /// - Chat (3) \[c\] - Conversational playground

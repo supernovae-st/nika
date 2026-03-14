@@ -100,7 +100,7 @@ impl HomeView {
         if !standalone.browser_entries.is_empty() {
             list_state.select(Some(0));
         }
-        // v0.20: Initialize tree state with visible nodes count
+        // Initialize tree state with visible nodes count
         let tree_state = TreeState::new_with_count(entry_count);
 
         Self {
@@ -795,7 +795,7 @@ impl HomeView {
     }
 
     /// Render the history bar (bottom, toggleable)
-    /// v0.8.2: Uses Timeline widget for visual history display
+    /// Uses Timeline widget for visual history display
     fn render_history(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let toggle_hint = if self.history_expanded { "^" } else { "v" };
         let title = format!(" HISTORY [h] {} ", toggle_hint);
@@ -858,7 +858,7 @@ impl HomeView {
         // Calculate total elapsed time from all runs
         let total_ms: u64 = latency_data.iter().sum();
 
-        // v0.12: Split inner area - Timeline (70%) | Sparkline (30%)
+        // Split inner area - Timeline (70%) | Sparkline (30%)
         let history_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
@@ -885,7 +885,7 @@ impl HomeView {
 
 impl View for HomeView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // v0.9.1: Matrix Rain background effect (full screen, renders FIRST)
+        // Matrix Rain background effect (full screen, renders FIRST)
         if self.matrix_effect_enabled && self.rain_opacity > 0.05 {
             let rain_area = Rect {
                 x: area.x + 1,
@@ -975,7 +975,7 @@ impl View for HomeView {
 
         // Normal mode key handling
         //
-        // v0.20: Priority order:
+        // Priority order:
         // 1. Reserved keys (s, T, /, e, E, d, h, c, number keys)
         // 2. TreeAction navigation (j/k, Up/Down, Left/Right, Enter, g/G, etc.)
         // 3. Fallback to ViewAction::None
@@ -1047,7 +1047,7 @@ impl View for HomeView {
             KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Chat),
             KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Settings),
 
-            // v0.11.0: Validate selected workflow
+            // Validate selected workflow
             KeyCode::Char('v') => {
                 if let Some(entry) = self.selected_entry() {
                     if !entry.is_dir {
