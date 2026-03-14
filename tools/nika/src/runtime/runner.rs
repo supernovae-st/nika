@@ -111,10 +111,14 @@ impl Runner {
     /// Use `EventLog::new_with_broadcast()` to create an EventLog that
     /// sends events to TUI in real-time.
     pub fn with_event_log(workflow: Workflow, event_log: EventLog) -> Self {
-        // DAG construction should not fail for validated workflows
-        // If it does, it's a bug in validation - panic with context
-        let flow_graph = Dag::from_workflow(&workflow)
-            .expect("Dag::from_workflow failed - workflow should be validated before Runner");
+        // DAG construction should not fail for validated workflows.
+        // This is a programming invariant: callers must validate before constructing Runner.
+        let flow_graph = Dag::from_workflow(&workflow).unwrap_or_else(|e| {
+            panic!(
+                "BUG: Dag::from_workflow failed for {} tasks — workflow must be validated before Runner: {e}",
+                workflow.tasks.len()
+            )
+        });
         let datastore = DataStore::new();
         let executor = TaskExecutor::new(
             &workflow.provider,
