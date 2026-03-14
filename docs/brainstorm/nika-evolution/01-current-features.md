@@ -144,23 +144,24 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A["Task A\noutput: result"] -->|"use: { data: $$A }"| B["Task B\n{{use.data}}"]
+    A["Task A\nstructured: output"] -->|"with: { data: $$A }"| B["Task B\n{{with.data}}"]
     B -->|"lazy: true"| C["Task C\nresolved on access"]
 
-    CTX["context:\nfiles: { brand: ./brand.md }"] -.->|"{{context.files.brand}}"| B
-    INP["inputs:\n{ locale: fr-FR }"] -.->|"{{inputs.locale}}"| A
+    CTX["context:\nfiles: { brand: ./brand.md }"] -.->|"$$context.files.brand"| B
+    INP["inputs:\n{ locale: fr-FR }"] -.->|"$$inputs.locale"| A
 
     style A fill:#dbeafe,stroke:#2563eb
     style B fill:#fef3c7,stroke:#d97706
     style C fill:#dcfce7,stroke:#16a34a
 ```
 
-- **`use:` block:** Bind upstream task outputs to aliases
-- **`$task` implicit syntax:** `$step1` sugar for `step1` (v0.21)
-- **`{{use.alias}}` templates:** Variable interpolation in prompts
-- **`{{context.files.alias}}`:** Context file references
-- **`{{inputs.*}}`:** Workflow input parameter access
-- **Lazy bindings:** `lazy: true` defers resolution until access (v0.5)
+- **`with:` block** (v0.28, was `use:`)**:** Typed bindings with `WithEntry` — source, binding_type, default, lazy, transform
+- **`BindingPath` syntax:** `$task_id`, `$task_id.field`, `$context.files.X`, `$inputs.param`, `$env.VAR`, `$item`
+- **`{{with.alias}}` templates:** Variable interpolation in prompts (was `{{use.alias}}`)
+- **Transform pipes:** Inline transforms via `| sort | unique | first(3)` syntax (27 operations)
+- **Typed bindings:** `binding_type` enforces string/number/integer/boolean/array/object/any
+- **Lazy bindings:** `lazy: true` defers resolution until access, with optional `default`
+- **2-pass template resolution:** Pass 1: `{{with.*}}`, Pass 2: `{{context.*}}` + `{{inputs.*}}` + `{{env.*}}`
 
 #### 6. Transform Engine
 
@@ -187,17 +188,17 @@ flowchart LR
 - **Deadlock detection:** Distinguishes true cycles from chain failures
 - **Decompose modifier:** Runtime DAG expansion via MCP traversal
 
-#### 8. Structured Output
+#### 8. Structured Output (`structured:`)
 
-4-layer validation pipeline:
+4-layer validation pipeline via the `structured:` keyword (v0.21+):
 
 ```mermaid
 flowchart LR
-    LLM["LLM Response"] --> L1["Layer 1\nJSON extraction"]
-    L1 --> L2["Layer 2\nSchema validation"]
-    L2 -->|"invalid"| L3["Layer 3\nRetry with feedback"]
-    L3 -->|"still invalid"| L4["Layer 4\nLLM repair"]
-    L2 -->|"valid"| OUT["✅ Validated Output"]
+    LLM["LLM Response"] --> L1["Layer 1\nrig extractor"]
+    L1 --> L2["Layer 2\nProvider-native\njson_schema"]
+    L2 -->|"invalid"| L3["Layer 3\nRetry with feedback\nInferCallback"]
+    L3 -->|"still invalid"| L4["Layer 4\nLLM repair\nrepair_model"]
+    L2 -->|"valid"| OUT["✅ Typed Output\nflows via with:"]
     L3 -->|"valid"| OUT
     L4 --> OUT
 
@@ -208,7 +209,29 @@ flowchart LR
     style OUT fill:#dcfce7,stroke:#16a34a
 ```
 
-- **Output policy:** Task-level schema injection for infer/agent prompts
+- **`structured:` keyword:** `StructuredOutputSpec` with schema, enable_extractor, enable_tool_use, enable_retry, enable_repair, max_retries, repair_model
+- **Output quality gate:** Validated output flows downstream via `with:` bindings as typed data
+- **InferCallback:** Async callback enabling Layers 3 & 4 to re-invoke the LLM
+
+```yaml
+# Example: structured output feeding typed bindings
+- id: extract_data
+  infer: "Extract product information"
+  structured:
+    schema:
+      type: object
+      properties:
+        name: { type: string }
+        price: { type: number }
+      required: [name, price]
+    max_retries: 3
+    enable_repair: true
+
+- id: format
+  with:
+    product: "$extract_data"       # Typed object guaranteed
+  infer: "Format {{with.product.name}} at ${{with.product.price}}"
+```
 
 #### 9. MCP Client (rmcp v0.16)
 
@@ -415,7 +438,7 @@ sequenceDiagram
     NN-->>MCP: Assembled context (entities + atoms)
     MCP-->>W: Context as TaskResult
 
-    W->>W: infer: Generate landing page<br/>using {{use.ctx}}
+    W->>W: infer: Generate landing page<br/>using {{with.ctx}}
 
     W->>MCP: invoke: novanet_write
     MCP->>NN: Store PageNative
@@ -441,11 +464,11 @@ tasks:
       mode: page
 
   - id: generate
-    use:
-      ctx: $get_context
+    with:
+      ctx: "$get_context"
     infer: |
       Generate landing page content:
-      {{use.ctx}}
+      {{with.ctx}}
 ```
 
 > [!IMPORTANT]

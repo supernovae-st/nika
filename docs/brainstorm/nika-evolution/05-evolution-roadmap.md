@@ -159,12 +159,12 @@ default_model_slot: main
 tasks:
   - id: plan
     model_slot: reasoning         # Expensive deep-thinking model
-    infer: "Create a content plan for {{use.entity}}"
+    infer: "Create a content plan for {{with.entity}}"
 
   - id: generate_pages
     model_slot: tactical          # Cheap fast model
     for_each: $pages
-    infer: "Generate page {{use.item}}"
+    infer: "Generate page {{with.item}}"
 
   - id: review
     model_slot: reasoning         # Back to expensive model
@@ -231,7 +231,7 @@ stateDiagram-v2
 | Aspect | Today (v0.27) | After (v0.28) |
 |--------|---------------|---------------|
 | Task output | Raw `TaskResult` in `DataStore` | `Episode` struct with compression |
-| Context passing | Full output via `use:` bindings | Episode summaries via `use:` bindings |
+| Context passing | Full output via `with:` bindings | Episode summaries via `with:` bindings |
 | Context growth | Linear with pipeline depth | Bounded by episode `max_tokens` |
 | Observability | `TaskCompleted` event | `TaskCompleted` + `EpisodeCreated` events |
 | Confidence | Not tracked | Self-assessed `0.0-1.0` per episode |
@@ -358,7 +358,7 @@ sequenceDiagram
 |--------|---------------|---------------|
 | Execution mode | Static DAG only | `dag` (default) or `strategy` |
 | Task dispatch | All known at parse time | Dynamic by strategy LLM |
-| Inter-task data | Raw `use:` bindings | Episode synthesis between rounds |
+| Inter-task data | Raw `with:` bindings | Episode synthesis between rounds |
 | Stopping condition | DAG completed | Strategy LLM decides "DONE" |
 | DAG mutation | Immutable after parse | `DynamicDag` adds tasks at runtime |
 
@@ -387,18 +387,33 @@ strategy:
 tasks:
   - id: research
     model_slot: search
-    infer: "Research: {{use.topic}}"
+    infer: "Research: {{with.topic}}"
     episode: { compress: true, max_tokens: 300 }
 
   - id: write_section
     model_slot: main
-    infer: "Write: {{use.section}} using context: {{use.context}}"
+    infer: "Write: {{with.section}} using context: {{with.context}}"
     episode: { compress: true, retain: [content], max_tokens: 800 }
+    structured:
+      schema:
+        type: object
+        properties:
+          content: { type: string }
+          word_count: { type: integer }
+        required: [content]
 
   - id: review
     model_slot: reasoning
-    infer: "Review and critique: {{use.draft}}"
+    infer: "Review and critique: {{with.draft}}"
     episode: { compress: true, retain: [issues, suggestions] }
+    structured:
+      schema:
+        type: object
+        properties:
+          issues: { type: array, items: { type: string } }
+          suggestions: { type: array, items: { type: string } }
+          score: { type: number }
+        required: [issues, score]
 ```
 
 </details>
@@ -478,9 +493,9 @@ tasks:
   - id: generate
     model_slot: main
     context_budget: 8000     # Larger budget for generation
-    use:
-      trends: $research      # Receives episode, not raw output
-    infer: "Generate landing page based on: {{use.trends}}"
+    with:
+      trends: "$research"     # Receives episode, not raw output
+    infer: "Generate landing page based on: {{with.trends}}"
 ```
 
 **Rules:**
@@ -554,11 +569,11 @@ tasks:
       entity_link: qr-code    # Link to semantic entity
 
   - id: generate
-    use:
-      past_experience: $recall_episodes  # Retrieved from NovaNet
+    with:
+      past_experience: "$recall_episodes"  # Retrieved from NovaNet
     infer: |
       Generate a QR code landing page.
-      Previous experience: {{use.past_experience}}
+      Previous experience: {{with.past_experience}}
 ```
 
 </details>

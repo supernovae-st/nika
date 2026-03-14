@@ -503,7 +503,7 @@ mindmap
 
 <div align="center">
 
-[← 06 Research Synthesis](./06-research-synthesis-report.md) · [📋 Index](./00-README.md)
+[← 06 Research Synthesis](./06-research-synthesis-report.md) · [📋 Index](./00-README.md) · [08 v0.30 Guide →](./08-nika-030-complete-guide.md)
 
 </div>
 

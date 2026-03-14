@@ -1,7 +1,7 @@
 # 🦋 Nika Evolution — Research & Strategy
 
 > Comprehensive research corpus for Nika's next evolution phase.
-> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 7 brainstorm documents produced.
+> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 9 brainstorm documents produced.
 
 **Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
@@ -22,6 +22,9 @@ mindmap
       05 Evolution Roadmap
       06 Research Synthesis
       07 Slate Deep Integration
+    Guides
+      08 v0.30 Complete Guide
+      09 Use Cases Cookbook
 ```
 
 | # | Document | Purpose | Key Output |
@@ -33,6 +36,8 @@ mindmap
 | [05](./05-evolution-roadmap.md) | **Evolution Roadmap** | 6 priorities in 3 waves with full designs | Implementation blueprint |
 | [06](./06-research-synthesis-report.md) | **Research Synthesis** | Complete synthesis from 13 research agents | Unified strategy |
 | [07](./07-slate-deep-integration.md) | **Slate Deep Integration** | Thread/episode/weaving → Nika architecture | Kernel upgrade plan |
+| [08](./08-nika-030-complete-guide.md) | **v0.30 Complete Guide** | Comprehensive tutorial: Nika + NovaNet + all 6 features | User-facing guide |
+| [09](./09-use-cases-cookbook.md) | **Use Cases Cookbook** | 3 concrete use cases with full YAML workflows | Copy-paste recipes |
 
 ---
 
@@ -220,7 +225,7 @@ All claims verified against actual source code on 2026-03-14:
 
 - **13 research agents** deployed in parallel
 - **12-step ultrathink** sequential analysis (Slate → Nika concept mapping)
-- **7 brainstorm documents** produced (01-features through 07-slate-integration)
+- **9 brainstorm documents** produced (01-features through 09-cookbook)
 - **Full Slate blog** scraped and analyzed (26 academic references in blog)
 
 ---
