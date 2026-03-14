@@ -342,12 +342,6 @@ impl ModalEventHandler {
         }
     }
 
-    /// Get currently selected cloud provider name
-    #[allow(dead_code)]
-    fn selected_cloud_provider(state: &ProviderModalState) -> &'static str {
-        Self::selected_cloud_provider_by_idx(state.selected_idx)
-    }
-
     /// Get cloud provider name by index
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
         match idx {

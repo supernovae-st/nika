@@ -50,7 +50,7 @@ use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
 use crate::tui::unicode::truncate_to_width;
 use crate::tui::widgets::{
-    task_box::{AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, RenderMode, TaskBox},
+    task_box::RenderMode,
     DagAscii, NodeBoxData, NodeBoxMode,
 };
 
@@ -151,95 +151,6 @@ impl MonitorView {
         deps
     }
 
-    /// Create TaskBox from task state for mission panel
-    #[allow(dead_code)] // Reserved for future inline TaskBox rendering
-    fn task_to_box(task_id: &str, state: &TuiState, _frame: u8) -> Option<TaskBox> {
-        let task = state.tasks.get(task_id)?;
-        let task_type = task.task_type.as_deref().unwrap_or("infer");
-
-        // Convert TaskStatus to BoxState
-        let box_state = match &task.status {
-            TaskStatus::Queued => BoxState::Queued,
-            TaskStatus::Pending => BoxState::Queued,
-            TaskStatus::Running => BoxState::running(),
-            TaskStatus::Success => BoxState::success(task.duration_ms.unwrap_or(0)),
-            TaskStatus::Failed => BoxState::failed(
-                task.error.as_deref().unwrap_or("Unknown error"),
-                task.duration_ms.unwrap_or(0),
-            ),
-            TaskStatus::Paused => BoxState::Queued, // Treat paused as queued visually
-            TaskStatus::Skipped => BoxState::Queued, // Treat skipped as queued visually
-        };
-
-        match task_type {
-            "infer" => {
-                let model = task.model.as_deref().unwrap_or("claude-sonnet-4-6");
-                let prompt = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("prompt"))
-                    .and_then(|p| p.as_str())
-                    .unwrap_or("...");
-                let mut infer = InferBox::new(model, prompt).with_state(box_state);
-                infer.tokens_out = task.tokens.unwrap_or(0);
-                Some(TaskBox::Infer(infer))
-            }
-            "exec" => {
-                let command = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("command"))
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("...");
-                let exec = ExecBox::new(command).with_state(box_state);
-                Some(TaskBox::Exec(exec))
-            }
-            "fetch" => {
-                let method = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("method"))
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("GET");
-                let url = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("url"))
-                    .and_then(|u| u.as_str())
-                    .unwrap_or("...");
-                let fetch = FetchBox::new(method, url).with_state(box_state);
-                Some(TaskBox::Fetch(fetch))
-            }
-            "invoke" => {
-                let tool = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("tool"))
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("...");
-                let server = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("server"))
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("mcp");
-                let invoke = InvokeBox::new(tool, server).with_state(box_state);
-                Some(TaskBox::Invoke(invoke))
-            }
-            "agent" => {
-                let prompt = task
-                    .input
-                    .as_ref()
-                    .and_then(|v| v.get("prompt"))
-                    .and_then(|p| p.as_str())
-                    .unwrap_or("...");
-                let agent = AgentBox::new(task_id, prompt).with_state(box_state);
-                Some(TaskBox::Agent(agent))
-            }
-            _ => None,
-        }
-    }
-
     /// Select next task in mission panel
     pub fn select_next_task(&mut self, task_count: usize) {
         if task_count > 0 {
@@ -305,20 +216,6 @@ impl MonitorView {
     fn scroll_up(&mut self) {
         let idx = Self::panel_index(self.focus);
         self.scroll[idx] = self.scroll[idx].saturating_sub(1);
-    }
-
-    /// Get icon for task status
-    #[allow(dead_code)] // Reserved for future inline status rendering
-    fn status_icon(status: &TaskStatus) -> &'static str {
-        match status {
-            TaskStatus::Queued => "○",
-            TaskStatus::Pending => "◦",
-            TaskStatus::Running => "►",
-            TaskStatus::Success => "✓",
-            TaskStatus::Failed => "✗",
-            TaskStatus::Paused => "⏸",
-            TaskStatus::Skipped => "⊘",
-        }
     }
 
     /// Get icon for mission phase
@@ -1381,17 +1278,6 @@ mod tests {
         assert_eq!(view.scroll_offset(PanelId::RunnerDag), 2);
         assert_eq!(view.scroll_offset(PanelId::RunnerNovanet), 3);
         assert_eq!(view.scroll_offset(PanelId::RunnerReasoning), 4);
-    }
-
-    #[test]
-    fn test_status_icon() {
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Queued), "○");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Pending), "◦");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Running), "►");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Success), "✓");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Failed), "✗");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Paused), "⏸");
-        assert_eq!(MonitorView::status_icon(&TaskStatus::Skipped), "⊘");
     }
 
     #[test]

@@ -70,12 +70,6 @@ pub struct WizardView {
     editors: Vec<EditorItem>,
     /// Available MCP servers (subset of 48 aliases)
     mcp_servers: Vec<&'static str>,
-    /// Verification results (used in verification step)
-    #[allow(dead_code)]
-    verification_results: Vec<(String, bool)>,
-    /// Whether verification is running (used in verification step)
-    #[allow(dead_code)]
-    verification_running: bool,
     /// Input buffer for API key entry
     input_buffer: String,
     /// Whether we're in input mode
@@ -177,8 +171,6 @@ impl WizardView {
                 "postgres",
                 "sqlite",
             ],
-            verification_results: Vec::new(),
-            verification_running: false,
             input_buffer: String::new(),
             input_mode: false,
             input_provider: None,

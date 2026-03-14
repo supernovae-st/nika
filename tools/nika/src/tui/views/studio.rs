@@ -1613,13 +1613,6 @@ impl YamlEditorPanel {
         }
     }
 
-    /// Trigger matrix rain effect with fade-out
-    #[allow(dead_code)]
-    pub fn trigger_rain_effect(&mut self) {
-        self.rain_opacity = 0.6; // Start subtle
-        self.rain_fading = true;
-    }
-
     /// Mark content as edited - validation will run after debounce delay
     fn mark_edited(&mut self) {
         self.modified = true;

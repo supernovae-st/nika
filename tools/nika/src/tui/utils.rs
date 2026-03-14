@@ -83,14 +83,6 @@ pub fn truncate_str(s: &str, max_chars: usize) -> String {
     }
 }
 
-/// Safely truncate a string to a maximum width, without adding suffix
-///
-/// Useful when you just want to cut content without indicating truncation.
-#[allow(dead_code)]
-pub fn truncate_str_no_suffix(s: &str, max_chars: usize) -> String {
-    s.chars().take(max_chars).collect()
-}
-
 /// Wrap text to fit within a given width (character count)
 ///
 /// Performs simple word wrapping, trying to break at spaces when possible.
@@ -230,10 +222,4 @@ mod tests {
         assert_eq!(truncate_str("abcde", 4), "a...");
     }
 
-    #[test]
-    fn test_truncate_str_no_suffix() {
-        assert_eq!(truncate_str_no_suffix("hello world", 5), "hello");
-        assert_eq!(truncate_str_no_suffix("日本語", 2), "日本");
-        assert_eq!(truncate_str_no_suffix("🎉🎊🎁", 2), "🎉🎊");
-    }
 }

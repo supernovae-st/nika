@@ -134,13 +134,6 @@ impl HomeView {
         }
     }
 
-    /// Trigger matrix rain effect with fade-out
-    #[allow(dead_code)]
-    pub fn trigger_rain_effect(&mut self) {
-        self.rain_opacity = 0.6; // Start subtle
-        self.rain_fading = true;
-    }
-
     /// Update filtered indices based on search query
     fn update_filter(&mut self) {
         if self.search_query.is_empty() {
@@ -262,18 +255,48 @@ impl HomeView {
                 if let Some(entry) = self.selected_entry() {
                     if entry.is_dir && entry.expanded {
                         self.toggle_folder();
+                    } else if entry.depth > 0 {
+                        // Move to parent: find previous entry with depth - 1
+                        let target_depth = entry.depth - 1;
+                        if let Some(selected) = self.tree_state.selection_index() {
+                            for i in (0..selected).rev() {
+                                if let Some(&idx) = self.filtered_indices.get(i) {
+                                    if let Some(e) = self.standalone.browser_entries.get(idx) {
+                                        if e.depth == target_depth {
+                                            self.tree_state.set_selection_index(Some(i));
+                                            self.standalone.browser_index = idx;
+                                            self.standalone.update_preview();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // TODO: move to parent when implemented
                 }
                 Some(ViewAction::None)
             }
             TreeAction::Right => {
-                // Expand folder if collapsed, otherwise move into
+                // Expand folder if collapsed, otherwise move into first child
                 if let Some(entry) = self.selected_entry() {
                     if entry.is_dir && !entry.expanded {
                         self.toggle_folder();
+                    } else if entry.is_dir {
+                        // Move into first child: next entry with depth + 1
+                        let target_depth = entry.depth + 1;
+                        if let Some(selected) = self.tree_state.selection_index() {
+                            let next = selected + 1;
+                            if let Some(&idx) = self.filtered_indices.get(next) {
+                                if let Some(e) = self.standalone.browser_entries.get(idx) {
+                                    if e.depth == target_depth {
+                                        self.tree_state.set_selection_index(Some(next));
+                                        self.standalone.browser_index = idx;
+                                        self.standalone.update_preview();
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // TODO: move into children when implemented
                 }
                 Some(ViewAction::None)
             }

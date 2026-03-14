@@ -72,12 +72,6 @@ impl ChatView {
         self.rain_fading = true; // Will fade out over ~1.5 seconds
     }
 
-    /// Stop rain effect immediately (optional)
-    #[allow(dead_code)]
-    pub fn stop_rain_effect(&mut self) {
-        self.rain_opacity = 0.0;
-        self.rain_fading = false;
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
