@@ -132,20 +132,7 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
     })?;
 
     // Phase 2: Raw → Analyzed (validation, reference resolution)
-    let result = analyzer::analyze(raw);
-
-    if result.is_err() {
-        let messages: Vec<String> = result
-            .errors
-            .iter()
-            .map(|e| format!("[{}] {}", e.kind.code(), e))
-            .collect();
-        return Err(NikaError::ValidationError {
-            reason: messages.join("; "),
-        });
-    }
-
-    let analyzed = result.into_result().map_err(|errors| {
+    let analyzed = analyzer::analyze(raw).into_result().map_err(|errors| {
         let messages: Vec<String> = errors
             .iter()
             .map(|e| format!("[{}] {}", e.kind.code(), e))
