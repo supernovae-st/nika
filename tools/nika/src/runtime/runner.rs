@@ -185,7 +185,7 @@ impl Runner {
     ///
     /// This allows external control of workflow cancellation.
     /// The TUI can hold a clone of the token and call `cancel()` on it.
-    /// v0.28: Also propagated to TaskExecutor so MCP invoke operations
+    /// Also propagated to TaskExecutor so MCP invoke operations
     /// abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
         self.executor = self.executor.with_cancel_token(token.clone());
@@ -241,7 +241,7 @@ impl Runner {
 
     /// Get tasks that are ready to run (all dependencies satisfied)
     ///
-    /// v0.24: Also detects and marks tasks whose dependencies have failed.
+    /// Also detects and marks tasks whose dependencies have failed.
     /// These tasks are marked as DependencyFailed and stored in the datastore.
     fn get_ready_tasks(&self) -> Vec<Arc<Task>> {
         self.workflow
@@ -305,7 +305,7 @@ impl Runner {
 
     /// Get tasks that are blocked waiting for incomplete dependencies (not failed)
     ///
-    /// v0.24: Used to distinguish actual deadlocks from dependency failures.
+    /// Used to distinguish actual deadlocks from dependency failures.
     fn get_pending_tasks(&self) -> Vec<String> {
         self.workflow
             .tasks
@@ -602,7 +602,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// * `for_each_binding` - Optional (var_name, value, index) for for_each iteration
     /// * `workflow_artifacts` - Workflow-level artifact configuration
     /// * `base_path` - Base path for artifact resolution
-    #[allow(clippy::too_many_arguments)] // v0.18: Artifact integration requires additional params
+    #[allow(clippy::too_many_arguments)] // Artifact integration requires additional params
     async fn execute_task_iteration(
         task: Arc<Task>,
         task_id: Arc<str>,
@@ -611,8 +611,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         executor: TaskExecutor,
         event_log: EventLog,
         for_each_binding: Option<(String, Value, usize)>, // Added index
-        workflow_artifacts: Option<ArtifactsConfig>,      // v0.18: Artifact config
-        base_path: PathBuf,                               // v0.18: Artifact base path
+        workflow_artifacts: Option<ArtifactsConfig>, // Artifact config
+        base_path: PathBuf, // Artifact base path
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -691,7 +691,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             match result {
                 Ok(output) => {
-                    // v0.21: Structured output validation via 4-layer engine
+                    // Structured output validation via 4-layer engine
                     let final_output = if let Some(ref structured_spec) = task.structured {
                         let mut engine = StructuredOutputEngine::new(
                             structured_spec.clone(),
@@ -756,8 +756,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         };
 
-        // v0.18: Process artifacts if task succeeded and has artifact config
-        // v0.22: Pass bindings and datastore for template resolution
+        // Process artifacts if task succeeded and has artifact config
+        // Pass bindings and datastore for template resolution
         if task_result.is_success() {
             if let Some(ref artifact_spec) = task.artifact {
                 // Get the output content for artifact writing
@@ -770,8 +770,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     workflow_artifacts.as_ref(),
                     &base_path,
                     Some(&event_log), // Pass event log for artifact events
-                    &bindings,        // v0.22: For template resolution
-                    &datastore,       // v0.22: For lazy binding resolution
+                    &bindings, // For template resolution
+                    &datastore, // For lazy binding resolution
                 )
                 .await;
 
@@ -932,7 +932,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     break;
                 }
 
-                // v0.24: Check if we're blocked due to dependency failures (not a deadlock)
+                // Check if we're blocked due to dependency failures (not a deadlock)
                 let pending = self.get_pending_tasks();
                 if pending.is_empty() {
                     // All tasks are done - shouldn't happen, but check for consistency
@@ -982,7 +982,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Spawn all ready tasks in parallel (Tokio handles concurrency)
             let mut join_set = JoinSet::new();
 
-            // v0.18: Prepare artifact config for all tasks in this batch
+            // Prepare artifact config for all tasks in this batch
             let workflow_artifacts = self.workflow.artifacts.clone();
             let artifact_base_path = base_path.clone();
 
@@ -1060,7 +1060,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                     }
                 } else if let Some(for_each) = &task.for_each {
-                    // v0.18: Handle binding references ($alias or {{use.alias}})
+                    // Handle binding references ($alias or {{use.alias}})
                     if let Some(binding_str) = for_each.as_str() {
                         // Resolve bindings from with:/use: wiring to access the referenced array
                         let bindings = if task.with_spec.is_some() {
@@ -1078,7 +1078,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         };
 
                         if let Some(alias) = binding_str.strip_prefix('$') {
-                            // v0.22: Check for $inputs.xxx format first (workflow inputs)
+                            // Check for $inputs.xxx format first (workflow inputs)
                             if alias.starts_with("inputs.") {
                                 match self.datastore.resolve_input_path(alias) {
                                     Some(value) => value_to_array(&value),
@@ -1198,7 +1198,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 }
                             }
                         } else if binding_str.contains("{{inputs.") {
-                            // v0.22: Template format for inputs (e.g., "{{inputs.items}}")
+                            // Template format for inputs (e.g., "{{inputs.items}}")
                             if let Some(start) = binding_str.find("{{inputs.") {
                                 let after = &binding_str[start + 9..]; // "{{inputs." is 9 chars
                                 if let Some(end) = after.find("}}") {
@@ -1240,7 +1240,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                                     match bindings.get_resolved(alias, &self.datastore) {
                                         Ok(base_value) => {
-                                            // v0.24.1: If base_value is a JSON string, parse it first
+                                            // If base_value is a JSON string, parse it first
                                             // This handles exec: tasks that output JSON as strings
                                             let parsed_value: Value;
                                             let working_value: &Value =
@@ -1373,12 +1373,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
                             let cancelled = Arc::clone(&cancelled);
-                            // v0.18: Clone artifact config for this iteration
+                            // Clone artifact config for this iteration
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
 
                             join_set.spawn(async move {
-                                // v0.24 FIX: Check cancellation BEFORE acquiring semaphore
+                                // Check cancellation BEFORE acquiring semaphore
                                 // This prevents tasks from executing after fail_fast triggers
                                 if cancelled.load(Ordering::SeqCst) {
                                     return IterationResult {
@@ -1391,7 +1391,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     };
                                 }
 
-                                // v0.24 FIX: Use tokio::select! to race semaphore acquisition
+                                // Use tokio::select! to race semaphore acquisition
                                 // against cancellation check. This ensures tasks waiting on
                                 // semaphore can be cancelled promptly.
                                 let _permit = tokio::select! {
@@ -1469,7 +1469,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let datastore = self.datastore.clone();
                     let executor = self.executor.clone();
                     let event_log = self.event_log.clone();
-                    // v0.18: Clone artifact config for this task
+                    // Clone artifact config for this task
                     let workflow_artifacts = workflow_artifacts.clone();
                     let artifact_base_path = artifact_base_path.clone();
 
@@ -1494,7 +1494,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 FxHashMap::default();
 
-            // v0.24: Track if we've already triggered abort_all for fail_fast
+            // Track if we've already triggered abort_all for fail_fast
             let mut fail_fast_triggered = false;
 
             // Wait for all spawned tasks to complete (with cancellation support v0.5.2)
@@ -1575,7 +1575,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 self.datastore
                                     .insert(Arc::clone(&store_id), task_result.clone());
 
-                                // v0.24 FIX: If this is a for_each failure with fail_fast,
+                                // If this is a for_each failure with fail_fast,
                                 // abort all remaining in-flight tasks immediately
                                 if !success && !skipped && for_each_info.is_some() && !fail_fast_triggered {
                                     // Check if the parent task had fail_fast enabled
@@ -1600,7 +1600,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             Some(Err(e)) => {
                                 // Task was aborted (likely via abort_all) or panicked
                                 if e.is_cancelled() {
-                                    // v0.24: Task was aborted by abort_all - this is expected
+                                    // Task was aborted by abort_all - this is expected
                                     debug!("Task aborted (likely due to fail_fast)");
                                     // Continue collecting remaining results
                                 } else {
@@ -1726,7 +1726,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.14.0: INITIAL CONTEXT TESTS
+    // INITIAL CONTEXT TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -3437,7 +3437,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.22.1: VALUE_TO_ARRAY HELPER TESTS
+    // VALUE_TO_ARRAY HELPER TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

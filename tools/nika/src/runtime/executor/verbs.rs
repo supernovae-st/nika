@@ -38,7 +38,7 @@ impl TaskExecutor {
         datastore: &DataStore,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
-        // v0.17.5: Validate infer params (empty prompt, invalid temperature)
+        // Validate infer params (empty prompt, invalid temperature)
         infer
             .validate()
             .map_err(|e| NikaError::ValidationError { reason: e })?;
@@ -46,7 +46,7 @@ impl TaskExecutor {
         // Resolve {{use.alias}} templates
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
 
-        // v0.17.5: Validate resolved prompt is not empty (could happen if template resolves to empty)
+        // Validate resolved prompt is not empty (could happen if template resolves to empty)
         if prompt.trim().is_empty() {
             return Err(NikaError::ValidationError {
                 reason: format!(
@@ -56,7 +56,7 @@ impl TaskExecutor {
             });
         }
 
-        // v0.19.4: Inject JSON schema instruction if output policy requires JSON with schema
+        // Inject JSON schema instruction if output policy requires JSON with schema
         if let Some(schema_instruction) = Self::build_json_schema_instruction(output_policy) {
             prompt.push_str(&schema_instruction);
             debug!(task_id = %task_id, "Injected JSON schema instruction into infer prompt");
@@ -96,7 +96,7 @@ impl TaskExecutor {
         // Use task-level override or workflow default
         let provider_name = infer.provider.as_deref().unwrap_or(&self.default_provider);
 
-        // v0.19.4: Mock provider support for testing (no API call)
+        // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
         if provider_name == "mock" {
             // Generate a response that satisfies common test schemas
@@ -185,7 +185,7 @@ impl TaskExecutor {
             infer.temperature.is_some() || infer.max_tokens.is_some() || infer.system.is_some();
 
         let stream_result = if has_llm_options {
-            // v0.15.0: Use InferOptions for temperature, max_tokens, system prompt
+            // Use InferOptions for temperature, max_tokens, system prompt
             let options = InferOptions {
                 model: model.map(|s| s.to_string()),
                 temperature: infer.temperature,
@@ -226,8 +226,8 @@ impl TaskExecutor {
             cost_usd: 0.0,
         });
 
-        // v0.22.0: Structured output validation via StructuredOutputEngine
-        // v0.24.0: Added InferCallback for real Layer 3 & 4 LLM retry/repair
+        // Structured output validation via StructuredOutputEngine
+        // Added InferCallback for real Layer 3 & 4 LLM retry/repair
         // If output policy requires JSON with schema, validate and repair the output
         if let Some(policy) = output_policy {
             if policy.is_structured() {
@@ -317,14 +317,14 @@ impl TaskExecutor {
             result: resolved_cmd.to_string(),
         });
 
-        // v0.28: Use per-task timeout if specified, otherwise fall back to global default
+        // Use per-task timeout if specified, otherwise fall back to global default
         let exec_deadline = params
             .timeout
             .map(std::time::Duration::from_secs)
             .unwrap_or(EXEC_TIMEOUT);
 
-        // v0.15.0: Shell-free execution by default, opt-in to shell mode
-        // v0.22: Support for env vars
+        // Shell-free execution by default, opt-in to shell mode
+        // Support for env vars
         let output = if params.shell == Some(true) {
             // Shell mode: use sh -c (preserves shell metacharacters like ;, |, &&)
             tracing::debug!(task_id = %task_id, "exec: using shell mode (sh -c)");
@@ -620,7 +620,7 @@ impl TaskExecutor {
         let call_id = Uuid::new_v4().to_string();
         let start_time = Instant::now();
 
-        // v0.12.1: Resolve templates FIRST, then emit event with resolved params
+        // Resolve templates FIRST, then emit event with resolved params
         // This fixes the bug where TUI showed literal {{use.topic}} instead of resolved values
         let resolved_params = if let Some(ref original_params) = invoke.params {
             let params_str = serde_json::to_string(original_params)
@@ -639,7 +639,7 @@ impl TaskExecutor {
         };
 
         // EMIT: McpInvoke event (with RESOLVED params for TUI display)
-        // v0.21.0: For builtin tools, mcp is None - use "builtin" as server name
+        // For builtin tools, mcp is None - use "builtin" as server name
         let mcp_server = invoke.mcp.clone().unwrap_or_else(|| "builtin".to_string());
         self.event_log.emit(EventKind::McpInvoke {
             task_id: Arc::clone(task_id),
@@ -682,7 +682,7 @@ impl TaskExecutor {
         }
 
         // Get or create MCP client (real or mock depending on config)
-        // v0.21.0: mcp is Option<String>, validate() guarantees Some for non-builtin tools
+        // Mcp is Option<String>, validate() guarantees Some for non-builtin tools
         let mcp_name = invoke
             .mcp
             .as_ref()
@@ -690,7 +690,7 @@ impl TaskExecutor {
                 reason: "MCP server name required for non-builtin tools".to_string(),
             })?;
 
-        // v0.28: Race MCP work against both deadline timeout AND cancellation token.
+        // Race MCP work against both deadline timeout AND cancellation token.
         // This ensures MCP calls abort promptly on workflow cancellation instead of
         // waiting up to INVOKE_TASK_DEADLINE (5 min).
         let mcp_work = async {
@@ -700,7 +700,7 @@ impl TaskExecutor {
             let result = if let Some(tool) = &invoke.tool {
                 // Tool call path - use already-resolved params
                 let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
-                // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
+                // Use call_tool_with_retry_events for McpRetry event emission
                 let tool_result = client
                     .call_tool_with_retry_events(tool, params, task_id, &self.event_log)
                     .await?;
@@ -744,7 +744,7 @@ impl TaskExecutor {
             Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))
         };
 
-        // v0.28: Use per-task timeout if specified, otherwise fall back to global deadline
+        // Use per-task timeout if specified, otherwise fall back to global deadline
         let deadline = invoke
             .timeout
             .map(std::time::Duration::from_secs)
@@ -798,7 +798,7 @@ impl TaskExecutor {
         let mut resolved_prompt =
             template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
 
-        // v0.19.4: Inject JSON schema instruction if output policy requires JSON with schema
+        // Inject JSON schema instruction if output policy requires JSON with schema
         if let Some(schema_instruction) = Self::build_json_schema_instruction(output_policy) {
             resolved_prompt.push_str(&schema_instruction);
             debug!(task_id = %task_id, "Injected JSON schema instruction into agent prompt");

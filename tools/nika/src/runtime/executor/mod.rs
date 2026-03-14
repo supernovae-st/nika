@@ -227,7 +227,7 @@ impl TaskExecutor {
         match self.rig_provider_cache.entry(name.to_string()) {
             Entry::Occupied(e) => Ok(e.get().clone()),
             Entry::Vacant(e) => {
-                // v0.8.4: Check env var BEFORE constructor (rig-core panics without it)
+                // Check env var BEFORE constructor (rig-core panics without it)
                 let provider = match name {
                     "claude" | "anthropic" => {
                         if std::env::var("ANTHROPIC_API_KEY").is_err() {
@@ -277,7 +277,7 @@ impl TaskExecutor {
                         }
                         RigProvider::gemini()
                     }
-                    // v0.24: Native local inference (requires native-inference feature)
+                    // Native local inference (requires native-inference feature)
                     // Note: Model must be loaded separately via load_native_model()
                     #[cfg(feature = "native-inference")]
                     "native" | "local" => RigProvider::native(),
