@@ -37,7 +37,7 @@ pub enum Command {
     /// `/fetch <url> [method]` - HTTP request
     Fetch { url: String, method: String },
 
-    /// /fetch error - user made a common mistake (v0.8.2)
+    /// /fetch error - user made a common mistake
     FetchError {
         error: String,
         hint: String,
@@ -55,7 +55,7 @@ pub enum Command {
     Agent {
         goal: String,
         max_turns: Option<u32>,
-        /// MCP servers to use for this agent (v0.5.2)
+        /// MCP servers to use for this agent
         mcp_servers: Vec<String>,
     },
 
@@ -71,27 +71,27 @@ pub enum Command {
     /// /clear - Clear chat history
     Clear,
 
-    /// /mcp [list|select|toggle] - MCP server management (v0.5.2)
+    /// /mcp [list|select|toggle] - MCP server management
     Mcp { action: McpAction },
 
-    /// `/export [json|yaml] [path]` - Export chat session (v0.9, v0.13: yaml)
+    /// `/export [json|yaml] [path]` - Export chat session
     Export {
         format: ExportFormat,
         path: Option<String>,
     },
 }
 
-/// Export format for chat sessions (v0.13: added yaml)
+/// Export format for chat sessions
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum ExportFormat {
     /// JSON format (default, v0.9)
     #[default]
     Json,
-    /// YAML workflow format (v0.13) - exports as runnable .nika.yaml
+    /// YAML workflow format - exports as runnable .nika.yaml
     Yaml,
 }
 
-/// Available LLM providers via rig-core (v0.15: expanded to 7 providers)
+/// Available LLM providers via rig-core
 #[derive(Debug, Clone, PartialEq)]
 pub enum ModelProvider {
     /// OpenAI (gpt-4o, gpt-4, etc.)
@@ -306,7 +306,7 @@ impl Command {
         }
     }
 
-    /// Parse /model arguments: /model <provider> (v0.15: 7 providers)
+    /// Parse /model arguments: /model <provider>
     fn parse_model_args(args: &str) -> Command {
         let provider = args.trim().to_lowercase();
         match provider.as_str() {
@@ -504,7 +504,7 @@ impl Command {
         }
     }
 
-    /// Check if this command is an error (v0.8.2)
+    /// Check if this command is an error
     pub fn is_error(&self) -> bool {
         matches!(self, Command::FetchError { .. })
     }
@@ -544,7 +544,7 @@ impl Command {
 }
 
 impl ModelProvider {
-    /// Get the display name for the provider (v0.15: 7 providers)
+    /// Get the display name for the provider
     pub fn name(&self) -> &'static str {
         match self {
             ModelProvider::OpenAI => "OpenAI (gpt-4o)",
@@ -592,7 +592,7 @@ impl ModelProvider {
         }
     }
 
-    /// Convert provider name string to ModelProvider enum (v0.12.2)
+    /// Convert provider name string to ModelProvider enum
     ///
     /// Used by Provider Modal SelectProvider action to switch providers.
     /// Returns None for invalid provider names.
@@ -618,9 +618,9 @@ Nika Chat Commands:
   /fetch <url> [method]     HTTP request (default: GET)
   /invoke [server:]tool     MCP tool call (params as JSON)
   /agent <goal>             Multi-turn agent (--max-turns N) (--mcp servers)
-  /mcp [list|select|toggle] MCP server management (v0.5.2)
+  /mcp [list|select|toggle] MCP server management
   /model <provider>         Switch LLM (openai, claude, mistral, groq, deepseek, native)
-  /export [path]            Export chat to JSON file (v0.9)
+  /export [path]            Export chat to JSON file
   /clear                    Clear chat history
   /help or /?               Show this help
 
@@ -1165,7 +1165,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // /agent with --mcp tests (v0.5.2)
+    // /agent with --mcp tests
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1234,7 +1234,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // /mcp command tests (v0.5.2)
+    // /mcp command tests
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1389,7 +1389,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // ModelProvider::from_name tests (v0.12.2)
+    // ModelProvider::from_name tests
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1428,7 +1428,7 @@ mod tests {
             ModelProvider::from_name("deepseek"),
             Some(ModelProvider::DeepSeek)
         );
-        // Native inference (v0.27: Ollama removed, use native instead)
+        // Native inference
         assert_eq!(
             ModelProvider::from_name("native"),
             Some(ModelProvider::Native)
@@ -1450,7 +1450,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Task 2.4: parse_export_args tests (v0.13)
+    // Task 2.4: parse_export_args tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

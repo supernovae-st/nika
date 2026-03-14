@@ -134,7 +134,7 @@ pub(crate) struct RmcpClientAdapter {
     /// Used by get_cached_tools() for synchronous access in rig integration
     cached_tools: Mutex<Vec<ToolDefinition>>,
 
-    /// Timestamp of the last list_tools() call that populated the cache (v0.28)
+    /// Timestamp of the last list_tools() call that populated the cache
     /// Used for TTL-based cache invalidation. None means cache was never populated.
     tools_fetched_at: Mutex<Option<std::time::Instant>>,
 }
@@ -572,7 +572,7 @@ impl RmcpClientAdapter {
         self.cached_tools.lock().clone()
     }
 
-    /// Check if the tool cache is still fresh within the given TTL (v0.28).
+    /// Check if the tool cache is still fresh within the given TTL.
     ///
     /// Returns `true` if tools were fetched within `ttl` duration, `false` if
     /// the cache is stale or was never populated.
@@ -583,7 +583,7 @@ impl RmcpClientAdapter {
             .unwrap_or(false)
     }
 
-    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call (v0.28).
+    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call.
     pub fn invalidate_tool_cache(&self) {
         self.cached_tools.lock().clear();
         *self.tools_fetched_at.lock() = None;
@@ -846,7 +846,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Tool Cache TTL Tests (v0.28)
+    // Tool Cache TTL Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -916,7 +916,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Error Code Extraction Tests (v0.5.3)
+    // Error Code Extraction Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Alias for extract_error_code_from_string for test compatibility
@@ -1040,7 +1040,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Structured Error Code Extraction Tests (v0.22 - Bug 3 fix)
+    // Structured Error Code Extraction Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     use rmcp::model::ErrorCode;

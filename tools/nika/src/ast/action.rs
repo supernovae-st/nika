@@ -1,13 +1,13 @@
-//! Task Action Types - the 5 action verbs (v0.2)
+//! Task Action Types - the 5 action verbs
 //!
 //! Defines the task action variants:
 //! - `InferParams`: One-shot LLM call
 //! - `ExecParams`: Shell command execution
 //! - `FetchParams`: HTTP request
-//! - `InvokeParams`: MCP tool call / resource read (v0.2)
-//! - `AgentParams`: Agentic execution with tool calling (v0.2)
+//! - `InvokeParams`: MCP tool call / resource read
+//! - `AgentParams`: Agentic execution with tool calling
 //!
-//! ## Shorthand Syntax (v0.5.1)
+//! ## Shorthand Syntax
 //!
 //! `infer:` and `exec:` support shorthand string syntax:
 //! ```yaml
@@ -27,7 +27,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ast::{AgentParams, InvokeParams};
 
-/// Expected response format for infer tasks (v0.10+)
+/// Expected response format for infer tasks
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ResponseFormat {
@@ -44,12 +44,12 @@ pub enum ResponseFormat {
 ///
 /// Supports shorthand: `infer: "prompt"` or full form `infer: { prompt: "..." }`
 ///
-/// ## LLM Control Options (v0.15.0)
+/// ## LLM Control Options
 /// - `temperature`: Control randomness (0.0-2.0, default varies by model)
 /// - `max_tokens`: Limit output length
 /// - `system`: System prompt to prepend
 ///
-/// ## Extended Thinking (v0.18.0)
+/// ## Extended Thinking
 /// - `extended_thinking`: Enable Claude's extended thinking for deeper reasoning
 /// - `thinking_budget`: Token budget for extended thinking (1024-65536, default 4096)
 #[derive(Debug, Clone, Default)]
@@ -65,7 +65,7 @@ pub struct InferParams {
     pub max_tokens: Option<u32>,
     /// System prompt to set context for the LLM
     pub system: Option<String>,
-    /// Expected response format (v0.10+): json, text, markdown
+    /// Expected response format: json, text, markdown
     pub response_format: Option<ResponseFormat>,
     /// Enable extended thinking for deeper reasoning (Claude only, v0.18.0)
     pub extended_thinking: Option<bool>,
@@ -170,7 +170,7 @@ impl InferParams {
             }
         }
 
-        // Validate extended_thinking requires Claude provider (v0.18.0)
+        // Validate extended_thinking requires Claude provider
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
                 if provider != "claude" {
@@ -183,7 +183,7 @@ impl InferParams {
             // If provider is None, will inherit workflow default (validation deferred to runtime)
         }
 
-        // Validate thinking_budget range (v0.18.0)
+        // Validate thinking_budget range
         if let Some(budget) = self.thinking_budget {
             if !(1024..=65536).contains(&budget) {
                 return Err(format!(
@@ -196,7 +196,7 @@ impl InferParams {
         Ok(())
     }
 
-    /// Get effective thinking budget (v0.18.0).
+    /// Get effective thinking budget.
     ///
     /// Returns the configured `thinking_budget` if set, otherwise returns
     /// the default value (4096).
@@ -209,7 +209,7 @@ impl InferParams {
 ///
 /// Supports shorthand: `exec: "command"` or full form `exec: { command: "...", shell: true }`
 ///
-/// ## Shell Field (v0.15.0 Security)
+/// ## Shell Field
 /// - `shell: None` (default) → Shell-free execution via shlex parsing
 /// - `shell: Some(true)` → Execute via shell (opt-in for pipes, env vars)
 /// - `shell: Some(false)` → Explicitly shell-free
@@ -222,7 +222,7 @@ pub struct ExecParams {
     pub timeout: Option<u64>,
     /// Working directory for command execution
     pub cwd: Option<String>,
-    /// Environment variables to pass to the command (v0.22)
+    /// Environment variables to pass to the command
     pub env: Option<FxHashMap<String, String>>,
 }
 
@@ -303,11 +303,11 @@ fn default_multiplier() -> f64 {
 
 /// Fetch action - HTTP request
 ///
-/// ## JSON Body (v0.22)
+/// ## JSON Body
 /// - `json: { ... }` — Auto-serializes to JSON and sets Content-Type: application/json
 /// - Mutually exclusive with `body` (json takes precedence)
 ///
-/// ## Redirect Control (v0.23)
+/// ## Redirect Control
 /// - `follow_redirects: true` (default) — Follows HTTP redirects up to 10 hops
 /// - `follow_redirects: false` — Disables redirect following, returns 3xx response
 #[derive(Debug, Clone, Deserialize)]
@@ -318,7 +318,7 @@ pub struct FetchParams {
     #[serde(default)]
     pub headers: FxHashMap<String, String>,
     pub body: Option<String>,
-    /// JSON body to auto-serialize (v0.22)
+    /// JSON body to auto-serialize
     /// If provided, serializes to string and sets Content-Type: application/json
     /// Takes precedence over `body` if both are specified
     #[serde(default)]
@@ -328,7 +328,7 @@ pub struct FetchParams {
     /// Optional retry configuration for failed requests
     #[serde(default)]
     pub retry: Option<RetryConfig>,
-    /// Whether to follow HTTP redirects (v0.23)
+    /// Whether to follow HTTP redirects
     /// Defaults to true if not specified
     #[serde(default)]
     pub follow_redirects: Option<bool>,
@@ -338,7 +338,7 @@ fn default_method() -> String {
     "GET".to_string()
 }
 
-/// The 5 task action types (v0.2)
+/// The 5 task action types
 ///
 /// Each variant corresponds to a YAML verb:
 /// - `infer:` - LLM inference (one-shot)
@@ -485,7 +485,7 @@ infer:
     }
 
     // =========================================================================
-    // InferParams Validation Tests (v0.17.5)
+    // InferParams Validation Tests
     // =========================================================================
 
     #[test]
@@ -569,7 +569,7 @@ infer:
     }
 
     // =========================================================================
-    // InferParams LLM Control Options Tests (v0.15.0)
+    // InferParams LLM Control Options Tests
     // =========================================================================
 
     #[test]
@@ -753,7 +753,7 @@ exec: "cat file.txt | grep pattern > output.txt"
     }
 
     // =========================================================================
-    // ExecParams Shell Field Tests (v0.15.0 Security)
+    // ExecParams Shell Field Tests
     // =========================================================================
 
     #[test]

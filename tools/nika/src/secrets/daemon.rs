@@ -116,7 +116,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // Try daemon client (v0.22: NO fallback to direct keyring)
+    // Try daemon client
     if let Some(client_lock) = get_or_init_client().await {
         let mut guard = client_lock.lock().await;
         if let Some(client) = guard.as_mut() {
@@ -139,7 +139,7 @@ pub async fn has_secret(provider: &str) -> bool {
         return true;
     }
 
-    // Try daemon client (v0.22: NO fallback to direct keyring)
+    // Try daemon client
     if let Some(client_lock) = get_or_init_client().await {
         let mut guard = client_lock.lock().await;
         if let Some(client) = guard.as_mut() {

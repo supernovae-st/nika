@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 // =============================================================================
-// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// SEMANTIC COLOR CONSTANTS
 // =============================================================================
 
 /// Status: checking (in progress)
@@ -493,7 +493,7 @@ mod tests {
     fn test_verification_state_all_complete() {
         let mut state = VerificationState::new_providers();
 
-        // Set all 6 to connected (v0.27: reduced from 7)
+        // Set all 6 to connected
         for i in 0..6 {
             state.set_status(i, VerifyStatus::Connected);
         }

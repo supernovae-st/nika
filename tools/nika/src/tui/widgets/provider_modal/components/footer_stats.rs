@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 // =============================================================================
-// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// SEMANTIC COLOR CONSTANTS
 // =============================================================================
 
 /// Status: all connected (success)
@@ -191,7 +191,7 @@ mod tests {
     fn test_footer_stats_renders_without_panic() {
         let stats = SessionStats {
             connected_providers: 3,
-            total_providers: 6, // 6 LLM providers (v0.27: Ollama removed)
+            total_providers: 6, // 6 LLM providers
             tokens_used: 15_000,
             mcp_connections: 2,
             avg_latency_ms: Some(150),
@@ -220,7 +220,7 @@ mod tests {
     fn test_footer_stats_empty_tokens_not_shown() {
         let stats = SessionStats {
             connected_providers: 2,
-            total_providers: 6, // 6 LLM providers (v0.27: Ollama removed)
+            total_providers: 6, // 6 LLM providers
             tokens_used: 0,
             mcp_connections: 0,
             avg_latency_ms: None,
@@ -240,7 +240,7 @@ mod tests {
     fn test_footer_stats_all_connected() {
         let stats = SessionStats {
             connected_providers: 6,
-            total_providers: 6, // 6 LLM providers (v0.27: Ollama removed)
+            total_providers: 6, // 6 LLM providers
             ..Default::default()
         };
         let bar = FooterStatsBar::new(&stats);

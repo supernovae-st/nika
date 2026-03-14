@@ -63,7 +63,7 @@ pub struct TreeColors {
     pub indent_guide: Color,
     /// Tree branch lines color
     pub branch_lines: Color,
-    /// Dimmed color for non-ecosystem files (v0.22 UX improvement)
+    /// Dimmed color for non-ecosystem files
     pub dimmed: Color,
 }
 

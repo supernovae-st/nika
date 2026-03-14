@@ -1,10 +1,10 @@
-//! Output Handling - task result processing (v0.2)
+//! Output Handling - task result processing
 //!
 //! Extracted from runner.rs for cleaner separation:
 //! - `make_task_result`: Convert raw output to TaskResult with format handling
 //! - `validate_schema`: Validate JSON output against JSON Schema (with caching)
 //! - `validate_schema_ref`: Validate against SchemaRef (inline or file)
-//! - `extract_json_from_output`: Extract JSON from markdown code blocks (v0.7.2)
+//! - `extract_json_from_output`: Extract JSON from markdown code blocks
 //! - `format_validation_errors`: Format errors for retry feedback
 
 use std::sync::{Arc, LazyLock};
@@ -666,7 +666,7 @@ mod tests {
     }
 
     // ══════════════════════════════════════════════════════════════
-    // EXTRACT_JSON_FROM_OUTPUT TESTS (v0.7.2)
+    // EXTRACT_JSON_FROM_OUTPUT TESTS
     // ══════════════════════════════════════════════════════════════
 
     #[test]

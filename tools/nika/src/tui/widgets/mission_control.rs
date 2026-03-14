@@ -697,7 +697,7 @@ impl Widget for MissionControlPanel<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        // Split into 5 sections (v0.8.1: added Activity)
+        // Split into 5 sections
         let activity_lines = if self.activities.is_empty() {
             2 // header + "No active tasks"
         } else {
@@ -713,7 +713,7 @@ impl Widget for MissionControlPanel<'_> {
                     3 + self.memory_files.len().min(3) as u16
                         + if self.conversation_turns > 0 { 1 } else { 0 },
                 ), // Memory
-                Constraint::Length(activity_lines as u16),                    // Activity (v0.8.1)
+                Constraint::Length(activity_lines as u16),                    // Activity
                 Constraint::Min(5),                                           // Runtime
             ])
             .split(inner);

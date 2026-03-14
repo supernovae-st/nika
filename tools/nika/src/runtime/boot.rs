@@ -1,4 +1,4 @@
-//! Boot Sequence - 7-phase startup with progress reporting (v0.20)
+//! Boot Sequence - 7-phase startup with progress reporting
 //!
 //! Phases:
 //! 1. Config discovery (find .nika/)
@@ -24,7 +24,7 @@ pub enum BootPhase {
     ConfigValidation,
     /// Phase 3: Loading memory files
     MemoryLoading,
-    /// Phase 4: Loading secrets from nika daemon (v0.20)
+    /// Phase 4: Loading secrets from nika daemon
     SecretsLoading,
     /// Phase 5: Starting MCP servers
     McpStartup,
@@ -94,7 +94,7 @@ pub struct BootContext {
     pub config: Option<NikaConfig>,
     /// Loaded memory context
     pub memory: Option<HashMap<String, serde_json::Value>>,
-    /// Secrets loading result (v0.20)
+    /// Secrets loading result
     pub secrets_loaded: Option<crate::secrets::SecretsLoadResult>,
     /// Available MCP servers
     pub mcp_servers: Vec<String>,
@@ -343,7 +343,7 @@ impl BootSequence {
         let phase_result = self.phase_memory_loading(&mut ctx).await;
         ctx.phases.push(phase_result);
 
-        // Phase 4: Secrets Loading (v0.20 - daemon integration)
+        // Phase 4: Secrets Loading
         let phase_result = self.phase_secrets_loading(&mut ctx).await;
         ctx.phases.push(phase_result);
 
@@ -516,7 +516,7 @@ impl BootSequence {
         }
     }
 
-    /// Phase 4: Load secrets from nika daemon or fallback (v0.20)
+    /// Phase 4: Load secrets from nika daemon or fallback
     async fn phase_secrets_loading(&self, ctx: &mut BootContext) -> PhaseResult {
         let start = Instant::now();
         let mut warnings = vec![];

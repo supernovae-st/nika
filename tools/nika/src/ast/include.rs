@@ -1,4 +1,4 @@
-//! Include specification for DAG fusion (v0.9)
+//! Include specification for DAG fusion
 //!
 //! The `include:` block merges tasks from external workflows into the main DAG.
 //! Included tasks share the same DataStore as the parent workflow.
@@ -10,17 +10,17 @@
 //!   # Filesystem path
 //!   - path: ./lib/seo-tasks.nika.yaml
 //!     prefix: seo_
-//!   # Package reference (v0.17)
+//!   # Package reference
 //!   - pkg: "@workflows/common"
 //!     prefix: common_
 //! ```
 
 use serde::Deserialize;
 
-/// Include specification for DAG fusion (v0.9+)
+/// Include specification for DAG fusion
 ///
 /// Merges tasks from an external workflow into the main DAG at parse time.
-/// Supports both filesystem paths and package references (v0.17).
+/// Supports both filesystem paths and package references.
 #[derive(Debug, Clone, Deserialize)]
 pub struct IncludeSpec {
     /// Path to the workflow file to include (relative to parent workflow)
@@ -29,7 +29,7 @@ pub struct IncludeSpec {
     pub path: Option<String>,
 
     /// Package reference to include (e.g., "@workflows/seo-audit")
-    /// Mutually exclusive with `path` (v0.17)
+    /// Mutually exclusive with `path`
     #[serde(default)]
     pub pkg: Option<String>,
 

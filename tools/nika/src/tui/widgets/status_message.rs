@@ -1,4 +1,4 @@
-//! Status Message Widget — User feedback system (v0.8)
+//! Status Message Widget — User feedback system
 //!
 //! Provides visual feedback for user actions with auto-dismiss.
 //!

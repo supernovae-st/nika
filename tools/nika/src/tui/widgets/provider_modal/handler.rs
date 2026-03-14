@@ -58,11 +58,11 @@ pub enum ModalAction {
     SaveApiKey { provider: &'static str, key: String },
     /// Save API key and then test it (recommended flow)
     SaveAndTestApiKey { provider: &'static str, key: String },
-    /// Pull native model (v0.27: Ollama removed)
+    /// Pull native model
     PullModel { model: String },
-    /// Delete native model (v0.27: Ollama removed)
+    /// Delete native model
     DeleteModel { model: String },
-    /// Refresh native models list (v0.27: Ollama removed)
+    /// Refresh native models list
     RefreshNativeModels,
     /// Refresh all provider statuses
     RefreshProviders,

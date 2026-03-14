@@ -21,9 +21,9 @@ pub enum LoaderEvent {
     },
     /// All providers checked
     ProvidersComplete,
-    /// Native inference availability check (v0.27: Ollama removed)
+    /// Native inference availability check
     NativeAvailable(bool),
-    /// Native models loaded (v0.27: Ollama removed)
+    /// Native models loaded
     NativeModels(Vec<NativeModelInfo>),
     /// Loading error
     Error { source: String, message: String },
@@ -34,9 +34,9 @@ pub enum LoaderEvent {
 pub enum LoaderCommand {
     /// Check all provider statuses
     CheckProviders,
-    /// Load native models (v0.27: Ollama removed)
+    /// Load native models
     LoadNativeModels,
-    /// Check native inference availability (v0.27: Ollama removed)
+    /// Check native inference availability
     CheckNative,
     /// Stop the loader
     Stop,
@@ -188,13 +188,13 @@ impl Drop for ModalLoader {
 pub struct LoadingState {
     /// Providers are being checked
     pub checking_providers: bool,
-    /// Native models are being loaded (v0.27: Ollama removed)
+    /// Native models are being loaded
     pub loading_models: bool,
     /// Provider statuses by name
     pub provider_statuses: Vec<(&'static str, ConnectionStatus)>,
-    /// Native inference availability (v0.27: Ollama removed)
+    /// Native inference availability
     pub native_available: Option<bool>,
-    /// Loaded native models (v0.27: Ollama removed)
+    /// Loaded native models
     pub native_models: Vec<NativeModelInfo>,
 }
 

@@ -1,4 +1,4 @@
-//! Partial completion support for agent execution (v0.24)
+//! Partial completion support for agent execution
 //!
 //! When an agent hits a limit (turns, tokens, cost, duration), this module
 //! allows capturing and saving the partial progress for potential resumption.

@@ -1,4 +1,4 @@
-//! Info Panel - Context-aware detail panel (v0.22)
+//! Info Panel - Context-aware detail panel
 //!
 //! Shows detailed information about the currently selected task.
 //! Content adapts based on task type (verb) and state.

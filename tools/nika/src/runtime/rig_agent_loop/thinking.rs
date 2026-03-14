@@ -1,4 +1,4 @@
-//! Extended thinking, guardrails, and confidence routing (v0.4+, v0.22+, v0.23+)
+//! Extended thinking, guardrails, and confidence routing
 //!
 //! Contains: check_stop_conditions, check_completion_signal, check_guardrails,
 //! determine_status, confidence routing, and run_claude_with_thinking.
@@ -32,7 +32,7 @@ impl RigAgentLoop {
             .any(|cond| output.contains(cond))
     }
 
-    /// Check if output contains explicit completion signal (v0.21)
+    /// Check if output contains explicit completion signal
     ///
     /// This checks for the COMPLETION_MARKER in tool results, indicating the
     /// agent called nika:complete to signal task completion.
@@ -41,7 +41,7 @@ impl RigAgentLoop {
         output.contains(COMPLETION_MARKER)
     }
 
-    /// Run all configured guardrails against the output (v0.23, updated v0.25)
+    /// Run all configured guardrails against the output
     ///
     /// Emits events for each guardrail result:
     /// - `GuardrailPassed`: Guardrail check succeeded
@@ -63,7 +63,7 @@ impl RigAgentLoop {
         let results = run_sync_guardrails(&self.params.guardrails, output);
         let mut all_passed = true;
 
-        // PERF(v0.25.1): Hoist Arc allocation outside loops to avoid
+        // PERF: Hoist Arc allocation outside loops to avoid
         // per-iteration allocation overhead. Arc::clone is cheap (atomic inc).
         let task_id: Arc<str> = Arc::from(self.task_id.as_str());
 
@@ -123,7 +123,7 @@ impl RigAgentLoop {
         GuardrailCheckResult::FailedRetry
     }
 
-    /// Determine agent status based on output content (v0.21 + v0.22)
+    /// Determine agent status based on output content
     ///
     /// Checks in order:
     /// 1. Explicit completion via nika:complete tool
@@ -133,13 +133,13 @@ impl RigAgentLoop {
     /// 3. Natural completion (NaturalCompletion)
     pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
-            // Parse the completion response to extract confidence (v0.22)
+            // Parse the completion response to extract confidence
             use crate::runtime::builtin::parse_completion_response;
 
             if let Some(response) = parse_completion_response(output) {
                 // Check if confidence is provided
                 if let Some(confidence) = response.confidence {
-                    // Use apply_routing for confidence-based status (v0.22)
+                    // Use apply_routing for confidence-based status
                     return self.apply_routing(confidence);
                 }
             }
@@ -152,7 +152,7 @@ impl RigAgentLoop {
         }
     }
 
-    /// Get confidence threshold from completion config (v0.22)
+    /// Get confidence threshold from completion config
     ///
     /// Returns the configured threshold, or 0.8 as default.
     pub(crate) fn get_confidence_threshold(&self) -> f64 {
@@ -163,7 +163,7 @@ impl RigAgentLoop {
             .unwrap_or(0.8)
     }
 
-    /// Get low confidence configuration (v0.22)
+    /// Get low confidence configuration
     ///
     /// Returns the OnLowConfidenceConfig if available, or None.
     pub(super) fn get_low_confidence_config(
@@ -175,7 +175,7 @@ impl RigAgentLoop {
             .map(|conf| conf.on_low.clone())
     }
 
-    /// Check if retry should be attempted for low confidence (v0.22)
+    /// Check if retry should be attempted for low confidence
     ///
     /// Returns true if:
     /// - Status is LowConfidence
@@ -194,7 +194,7 @@ impl RigAgentLoop {
             && retry_count < config.max_retries
     }
 
-    /// Get retry feedback message (v0.22)
+    /// Get retry feedback message
     ///
     /// Returns the feedback message to append to prompt on retry.
     pub(super) fn get_retry_feedback(&self, confidence: f64) -> String {
@@ -216,7 +216,7 @@ impl RigAgentLoop {
         )
     }
 
-    /// Get confidence routing configuration (v0.22)
+    /// Get confidence routing configuration
     ///
     /// Returns the ConfidenceRouting if available, or None.
     pub(crate) fn get_confidence_routing(
@@ -228,7 +228,7 @@ impl RigAgentLoop {
             .and_then(|conf| conf.routing.clone())
     }
 
-    /// Apply confidence-based routing (v0.22)
+    /// Apply confidence-based routing
     ///
     /// Uses routing configuration to determine the appropriate status
     /// based on confidence level. If routing is not configured, falls back
@@ -263,7 +263,7 @@ impl RigAgentLoop {
         self.route_action_to_status(&routing.low.action, confidence)
     }
 
-    /// Convert a RouteAction to RigAgentStatus (v0.22)
+    /// Convert a RouteAction to RigAgentStatus
     pub(crate) fn route_action_to_status(
         &self,
         action: &crate::ast::completion::RouteAction,
@@ -308,8 +308,8 @@ impl RigAgentLoop {
             }
         });
 
-        // Build request with native temperature method (v0.8.0)
-        // Inject skills into system prompt if configured (v0.15.4)
+        // Build request with native temperature method
+        // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
 
         // v0.18.0: Use effective_max_tokens (required for extended thinking)
@@ -325,7 +325,7 @@ impl RigAgentLoop {
             .max_tokens(max_tokens as u64)
             .additional_params(thinking_config);
 
-        // Apply temperature using native rig-core method (v0.8.0)
+        // Apply temperature using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
             request_builder = request_builder.temperature(f64::from(temp));
         }
@@ -392,7 +392,7 @@ impl RigAgentLoop {
                         }
                     }
                     StreamedAssistantContent::Final(final_resp) => {
-                        // Extract token usage from final response (v0.4.1 fix)
+                        // Extract token usage from final response
                         if let Some(usage) = final_resp.token_usage() {
                             input_tokens = usage.input_tokens as u32;
                             output_tokens = usage.output_tokens as u32;
@@ -423,10 +423,10 @@ impl RigAgentLoop {
         };
         let response = response_parts.concat();
 
-        // Determine status (v0.21: uses determine_status for completion detection)
+        // Determine status
         let status = self.determine_status(&response);
 
-        // Build metadata with thinking and token usage (v0.4.1 fix)
+        // Build metadata with thinking and token usage
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking,
@@ -445,7 +445,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 

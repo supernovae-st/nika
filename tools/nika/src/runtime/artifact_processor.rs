@@ -1,4 +1,4 @@
-//! Artifact Processor - Write task outputs to disk (v0.18)
+//! Artifact Processor - Write task outputs to disk
 //!
 //! Integrates the artifact system with the task execution flow.
 //! Called after successful task completion when `artifact:` is configured.
@@ -45,8 +45,8 @@ pub struct ArtifactProcessResult {
 /// * `workflow_config` - Workflow-level artifact defaults
 /// * `base_path` - Base path for artifact resolution (workflow directory)
 /// * `event_log` - Optional event log for emitting artifact events
-/// * `bindings` - Resolved bindings for template resolution (v0.22)
-/// * `datastore` - Data store for lazy binding resolution (v0.22)
+/// * `bindings` - Resolved bindings for template resolution
+/// * `datastore` - Data store for lazy binding resolution
 ///
 /// # Returns
 ///

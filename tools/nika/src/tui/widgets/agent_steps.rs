@@ -49,7 +49,7 @@ use ratatui::{
 pub use super::dag::VerbType;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// THEME INTEGRATION (v0.9.1+ - migrated from hardcoded constants)
+// THEME INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 use crate::tui::theme::Theme;
@@ -73,14 +73,14 @@ const PROGRESS_FILLED: char = '█';
 const PROGRESS_EMPTY: char = '░';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AGENT PHASE (v0.8.1: Real-time status tracking)
+// AGENT PHASE
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Agent execution phase for real-time status display
 ///
 /// Shows what the agent is actually doing instead of generic "Generating..."
 ///
-/// # Currently Used Phases (v0.8.1)
+/// # Currently Used Phases
 ///
 /// | Phase | Event Trigger | Description |
 /// |-------|---------------|-------------|
@@ -177,7 +177,7 @@ impl AgentPhase {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// AGENT PHASE INDICATOR (v0.8.1: Compact status with Matrix effect)
+// AGENT PHASE INDICATOR
 // ═══════════════════════════════════════════════════════════════════════════════
 
 use crate::tui::theme::solarized;
@@ -1248,7 +1248,7 @@ impl<'a> AgentStepsWidget<'a> {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // THEME-AWARE COLOR HELPERS (v0.9.1+)
+    // THEME-AWARE COLOR HELPERS
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Get color for step content/description
@@ -2464,7 +2464,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // AGENT PHASE TESTS (v0.8.1)
+    // AGENT PHASE TESTS
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -2549,7 +2549,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // AGENT PHASE INDICATOR TESTS (v0.8.1)
+    // AGENT PHASE INDICATOR TESTS
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]

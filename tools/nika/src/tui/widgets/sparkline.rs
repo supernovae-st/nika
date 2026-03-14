@@ -25,7 +25,7 @@ const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
 const DEFAULT_HIGHLIGHT_COLOR: Color = Color::Rgb(99, 102, 241); // indigo for pulse
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ANIMATION TYPES (v0.8)
+// ANIMATION TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Animation style for sparklines
@@ -277,7 +277,7 @@ impl Widget for BorderedSparkline<'_> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ANIMATED SPARKLINE (v0.8)
+// ANIMATED SPARKLINE
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Animated latency sparkline with threshold-based coloring
@@ -666,7 +666,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // ANIMATED SPARKLINE TESTS (v0.8)
+    // ANIMATED SPARKLINE TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

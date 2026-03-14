@@ -1,4 +1,4 @@
-//! Verb implementations for TaskExecutor (v0.28 split)
+//! Verb implementations for TaskExecutor
 //!
 //! Contains the five verb execution methods:
 //! - `run_infer`: LLM text generation
@@ -43,7 +43,7 @@ impl TaskExecutor {
             .validate()
             .map_err(|e| NikaError::ValidationError { reason: e })?;
 
-        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        // Resolve {{use.alias}} templates
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
 
         // v0.17.5: Validate resolved prompt is not empty (could happen if template resolves to empty)
@@ -69,7 +69,7 @@ impl TaskExecutor {
             result: prompt.to_string(),
         });
 
-        // EMIT: ContextAssembled - capture binding sources used in prompt (v0.7.0)
+        // EMIT: ContextAssembled - capture binding sources used in prompt
         let bindings_value = bindings.to_value();
         let sources: Vec<ContextSource> = bindings_value
             .as_object()
@@ -144,7 +144,7 @@ impl TaskExecutor {
             return Ok(mock_response_str);
         }
 
-        // Get cached rig provider (v0.3.1+)
+        // Get cached rig provider
         let provider = self.get_rig_provider(provider_name)?;
 
         // Resolve model: task override -> workflow default -> provider default
@@ -160,7 +160,7 @@ impl TaskExecutor {
             prompt_len: prompt.len(),
         });
 
-        // POLICY CHECK: token budget (v0.13.1)
+        // POLICY CHECK: token budget
         // Estimate tokens for budget check (actual usage tracked after call)
         let estimated_tokens = (prompt.len() / 4) as u64; // ~4 chars per token
         {
@@ -177,7 +177,7 @@ impl TaskExecutor {
             }
         }
 
-        // Use infer_stream_with_options when LLM control options are set (v0.15.0)
+        // Use infer_stream_with_options when LLM control options are set
         // Otherwise fall back to infer_stream for backward compatibility.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
@@ -208,7 +208,7 @@ impl TaskExecutor {
                 })?
         };
 
-        // Record actual token spend (v0.13.1)
+        // Record actual token spend
         let actual_tokens = (stream_result.input_tokens + stream_result.output_tokens) as u64;
         self.policy_enforcer
             .write()
@@ -237,7 +237,7 @@ impl TaskExecutor {
                         "Validating structured output via StructuredOutputEngine"
                     );
 
-                    // Create inference callback for Layer 3 & 4 (v0.24.0)
+                    // Create inference callback for Layer 3 & 4
                     // This allows the engine to actually call the LLM for retries and repairs
                     let infer_callback: InferCallback = {
                         let provider = provider.clone();
@@ -290,15 +290,15 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        // Resolve {{use.alias}} templates
         // Note: Shell escaping is NOT applied by default to preserve backward compatibility.
-        // For values that need shell escaping, use {{use.alias|shell}} syntax (v0.13+).
+        // For values that need shell escaping, use {{use.alias|shell}} syntax.
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
-        // SECURITY CHECK: validate command for control characters and blocklist (v0.15.0)
+        // SECURITY CHECK: validate command for control characters and blocklist
         crate::runtime::security::validate_exec_command(&resolved_cmd)?;
 
-        // POLICY CHECK: exec verb (v0.13.1)
+        // POLICY CHECK: exec verb
         let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);
         if let PolicyDecision::Block(reason) = policy_decision {
             tracing::warn!(
@@ -331,7 +331,7 @@ impl TaskExecutor {
             let mut cmd = tokio::process::Command::new("sh");
             cmd.arg("-c").arg(resolved_cmd.as_ref());
 
-            // Add environment variables if specified (v0.22)
+            // Add environment variables if specified
             if let Some(ref env_vars) = params.env {
                 for (key, value) in env_vars {
                     // Resolve templates in env values
@@ -366,7 +366,7 @@ impl TaskExecutor {
             let mut cmd = tokio::process::Command::new(&parts[0]);
             cmd.args(&parts[1..]);
 
-            // Add environment variables if specified (v0.22)
+            // Add environment variables if specified
             if let Some(ref env_vars) = params.env {
                 for (key, value) in env_vars {
                     // Resolve templates in env values
@@ -402,10 +402,10 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates (v0.5: supports lazy bindings)
+        // Resolve {{use.alias}} templates
         let url = template_resolve(&fetch.url, bindings, datastore)?;
 
-        // POLICY CHECK: fetch verb (v0.13.1)
+        // POLICY CHECK: fetch verb
         let policy_decision = self.policy_enforcer.read().check_fetch(&url);
         if let PolicyDecision::Block(reason) = policy_decision {
             tracing::warn!(
@@ -424,7 +424,7 @@ impl TaskExecutor {
             result: url.to_string(),
         });
 
-        // Select HTTP client based on follow_redirects setting (v0.23)
+        // Select HTTP client based on follow_redirects setting
         // Default behavior (None or Some(true)) uses the shared client with redirects enabled
         // When follow_redirects = false, create a one-off client without redirect following
         let http_client: std::borrow::Cow<'_, reqwest::Client> =
@@ -451,7 +451,7 @@ impl TaskExecutor {
                 std::borrow::Cow::Borrowed(&self.http_client)
             };
 
-        // Build request based on HTTP method (v0.19.5: added PATCH and HEAD support)
+        // Build request based on HTTP method
         let mut request = if fetch.method.eq_ignore_ascii_case("POST") {
             http_client.post(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("PUT") {
@@ -472,7 +472,7 @@ impl TaskExecutor {
             request = request.header(key, resolved_value.as_ref());
         }
 
-        // Handle json field (v0.22) - takes precedence over body
+        // Handle json field - takes precedence over body
         // Auto-serializes to JSON string and sets Content-Type: application/json
         if let Some(ref json_value) = fetch.json {
             // Serialize JSON value to string
@@ -502,7 +502,7 @@ impl TaskExecutor {
             request = request.timeout(std::time::Duration::from_secs(timeout_secs));
         }
 
-        // Retry configuration (v0.17.2)
+        // Retry configuration
         let max_attempts = fetch.retry.as_ref().map_or(1, |r| r.max_attempts.max(1));
         let backoff_ms = fetch.retry.as_ref().map_or(1000, |r| r.backoff_ms);
         let multiplier = fetch.retry.as_ref().map_or(2.0, |r| r.multiplier);
@@ -650,7 +650,7 @@ impl TaskExecutor {
             params: resolved_params.clone(),
         });
 
-        // Check for builtin nika_* tools (v0.12.1: changed from nika:* for Anthropic API)
+        // Check for builtin nika_* tools
         if let Some(tool) = &invoke.tool {
             if BuiltinToolRouter::is_builtin(tool) {
                 // Use already-resolved params
@@ -698,7 +698,7 @@ impl TaskExecutor {
 
             let is_error = false;
             let result = if let Some(tool) = &invoke.tool {
-                // Tool call path - use already-resolved params (v0.12.1: moved resolution before event)
+                // Tool call path - use already-resolved params
                 let params = resolved_params.clone().unwrap_or(serde_json::Value::Null);
                 // v0.11.0: Use call_tool_with_retry_events for McpRetry event emission
                 let tool_result = client
@@ -794,7 +794,7 @@ impl TaskExecutor {
         datastore: &DataStore,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates in prompt (v0.5: supports lazy bindings)
+        // Resolve {{use.alias}} templates in prompt
         let mut resolved_prompt =
             template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
 
@@ -822,7 +822,7 @@ impl TaskExecutor {
             .validate()
             .map_err(|e| NikaError::AgentValidationError { reason: e })?;
 
-        // POLICY CHECK: token budget (v0.13.1)
+        // POLICY CHECK: token budget
         // Estimate tokens for budget check - use token_budget from agent params if set,
         // otherwise estimate from prompt length
         let estimated_tokens: u64 =
@@ -873,7 +873,7 @@ impl TaskExecutor {
             mcp_clients.insert(mcp_name.clone(), client);
         }
 
-        // Create rig-based agent loop (v0.3.1+)
+        // Create rig-based agent loop
         let mut agent_loop = RigAgentLoop::new(
             task_id.to_string(),
             resolved_agent,
@@ -896,7 +896,7 @@ impl TaskExecutor {
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
-        // Record actual token spend (v0.13.1)
+        // Record actual token spend
         self.policy_enforcer
             .write()
             .record_token_spend(result.total_tokens as u64);

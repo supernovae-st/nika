@@ -1,4 +1,4 @@
-//! Multi-format loader for agents and skills (v0.13)
+//! Multi-format loader for agents and skills
 //!
 //! Supports loading agent and skill definitions from multiple formats:
 //! - `.agent.yaml` / `.agent.yml` - YAML format

@@ -623,7 +623,7 @@ impl StreamingDecrypt {
         &self.text
     }
 
-    /// Get current verb (v0.17.1)
+    /// Get current verb
     pub fn verb(&self) -> DecryptVerb {
         self.verb
     }
@@ -728,7 +728,7 @@ impl StreamingDecrypt {
         result
     }
 
-    /// Build multiple Lines with word wrapping (v0.8.1)
+    /// Build multiple Lines with word wrapping
     ///
     /// Wraps text at the specified max_width to prevent overflow.
     /// Maintains character progress indices across wrapped lines.
@@ -765,7 +765,7 @@ impl StreamingDecrypt {
         result
     }
 
-    /// Simple word wrapping helper (v0.8.1)
+    /// Simple word wrapping helper
     fn wrap_line(text: &str, max_width: usize) -> Vec<String> {
         if max_width == 0 || text.is_empty() {
             return vec![text.to_string()];

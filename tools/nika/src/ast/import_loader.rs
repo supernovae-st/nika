@@ -1,4 +1,4 @@
-//! Import Loader — Raw-level workflow import expansion (v0.28)
+//! Import Loader — Raw-level workflow import expansion
 //!
 //! Replaces the old `include_loader.rs` for the v0.28 binding system.
 //! Operates on the **raw AST** (before analysis), so the analyzer sees

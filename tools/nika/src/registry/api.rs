@@ -1,4 +1,4 @@
-//! SuperNovae Registry API Client (v0.28.0)
+//! SuperNovae Registry API Client
 //!
 //! HTTP client for the SuperNovae package registry.
 //!

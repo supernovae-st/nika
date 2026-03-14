@@ -1,4 +1,4 @@
-//! Chat Session Persistence (v0.8)
+//! Chat Session Persistence
 //!
 //! Save and load chat conversations between TUI sessions.
 //! Sessions are stored in `.nika/sessions/` as JSON files.

@@ -1,4 +1,4 @@
-//! Human-In-The-Loop (HITL) Handler for interactive workflows (v0.10.0)
+//! Human-In-The-Loop (HITL) Handler for interactive workflows
 //!
 //! This module provides the `HitlHandler` trait for requesting user input
 //! during workflow execution. Implementations can integrate with different
@@ -222,7 +222,7 @@ mod tests {
         assert!(err.to_string().contains("test"));
     }
 
-    // v0.10.0: Test that PromptTool uses HitlHandler when provided
+    // Test that PromptTool uses HitlHandler when provided
     #[tokio::test]
     async fn test_custom_hitl_handler() {
         struct CustomHandler {

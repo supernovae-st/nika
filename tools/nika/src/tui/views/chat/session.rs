@@ -96,7 +96,7 @@ impl ChatView {
         }
     }
 
-    /// Mark an MCP server as connected (v0.7.0+)
+    /// Mark an MCP server as connected
     pub fn mark_mcp_server_connected(&mut self, server_name: &str) {
         if let Some(server) = self
             .session_context
@@ -108,7 +108,7 @@ impl ChatView {
         }
     }
 
-    /// Mark an MCP server as errored (v0.7.0+)
+    /// Mark an MCP server as errored
     pub fn mark_mcp_server_error(&mut self, server_name: &str) {
         if let Some(server) = self
             .session_context
@@ -120,7 +120,7 @@ impl ChatView {
         }
     }
 
-    /// Update MCP server status with ping result (v0.8.2)
+    /// Update MCP server status with ping result
     ///
     /// Updates the server's connection status and recorded latency.
     pub fn update_mcp_server_status(

@@ -1,6 +1,6 @@
 //! Unified provider access for Nika TUI
 //!
-//! Single source of truth: Uses `KNOWN_PROVIDERS` from nika::core (v0.27 spn fusion).
+//! Single source of truth: Uses `KNOWN_PROVIDERS` from nika::core.
 //! All provider operations should go through this module to avoid duplication.
 //!
 //! v0.27: Ollama removed
@@ -21,7 +21,7 @@
 pub mod icons;
 pub mod status;
 
-// Re-export nika::core types (v0.27: migrated from spn-client)
+// Re-export nika::core types
 pub use crate::core::{
     find_provider, provider_to_env_var, providers_by_category, validate_key_format, Provider,
     ProviderCategory, KNOWN_PROVIDERS,

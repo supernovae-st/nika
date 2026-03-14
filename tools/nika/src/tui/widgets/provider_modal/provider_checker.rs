@@ -188,7 +188,7 @@ impl ProviderChecker {
         Ok(())
     }
 
-    /// Check native inference availability (v0.27: Ollama removed)
+    /// Check native inference availability
     async fn check_native(&self) -> Result<(), String> {
         // v0.27: Native inference via mistral.rs
         // Check if the native-inference feature is enabled

@@ -63,7 +63,7 @@ pub enum EditorMode {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// StudioView: 3-Panel Layout (v0.22)
+// StudioView: 3-Panel Layout
 // Browser (20%) | Editor (50%) | DAG Structure (30%)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -171,7 +171,7 @@ impl StudioRatio {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// StudioView: Main 3-Panel Struct (v0.22)
+// StudioView: Main 3-Panel Struct
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Studio View - Unified 3-panel layout: Browser | Editor | DAG
@@ -198,7 +198,7 @@ pub struct StudioView {
     git_cache_time: Instant,
     /// Cached tree root node (avoids rebuilding on every frame)
     cached_tree: Option<TreeNode>,
-    /// Quick Access: recently used .nika.yaml files (v0.22)
+    /// Quick Access: recently used .nika.yaml files
     quick_access: Vec<PathBuf>,
 
     // === Editor Panel (Center) ===
@@ -211,7 +211,7 @@ pub struct StudioView {
     /// Current panel ratio
     pub ratio: StudioRatio,
 
-    // === Overlays (v0.21.2) ===
+    // === Overlays ===
     /// Command palette state (Ctrl+P)
     pub command_palette: CommandPaletteState,
     /// Which-key popup state (g, z, \[, \], Space prefixes)
@@ -416,7 +416,7 @@ impl StudioView {
         frame.render_stateful_widget(tree_widget, tree_area, &mut self.tree_state);
     }
 
-    /// Render Quick Access section (v0.22)
+    /// Render Quick Access section
     fn render_quick_access(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut lines: Vec<Line> = Vec::new();
 
@@ -657,7 +657,7 @@ impl View for StudioView {
 
         // Global shortcuts first
         match (key.code, key.modifiers) {
-            // Ctrl+P: Open command palette (v0.21.2)
+            // Ctrl+P: Open command palette
             (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
                 self.command_palette.open();
                 return ViewAction::None;
@@ -782,7 +782,7 @@ impl View for StudioView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Command Palette & Which-Key Handling (v0.21.2)
+// Command Palette & Which-Key Handling
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl StudioView {
@@ -857,7 +857,7 @@ impl StudioView {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Which-Key Popup Handling (v0.21.2)
+    // Which-Key Popup Handling
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Handle a which-key action (prefix + follow-up key)
@@ -1762,7 +1762,7 @@ impl YamlEditorPanel {
             }
         }
 
-        // Phase 3: Two-Phase IR diagnostics (v0.21.2)
+        // Phase 3: Two-Phase IR diagnostics
         // Provides precise span locations for gutter icons and underlines
         self.diagnostics.analyze(&content);
     }
@@ -1908,7 +1908,7 @@ impl YamlEditorPanel {
             }
             // 's' opens Settings view
             KeyCode::Char('s') => ViewAction::OpenSettings,
-            // Shift+T or Ctrl+t toggles theme (v0.8.1 - consistent across all views)
+            // Shift+T or Ctrl+t toggles theme
             KeyCode::Char('T') => ViewAction::ToggleTheme,
             KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 ViewAction::ToggleTheme
@@ -2588,7 +2588,7 @@ impl YamlEditorPanel {
     }
 }
 
-/// YAML syntax highlighting colors (v0.22: Nika-aware highlighting)
+/// YAML syntax highlighting colors
 struct YamlHighlight;
 
 impl YamlHighlight {
@@ -3081,7 +3081,7 @@ unknown_field: "should fail""#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // YAML syntax highlighting tests (v0.7.0+)
+    // YAML syntax highlighting tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

@@ -1,4 +1,4 @@
-//! I/O utilities for Nika (v0.18)
+//! I/O utilities for Nika
 //!
 //! Shared file operations used across the codebase.
 //!

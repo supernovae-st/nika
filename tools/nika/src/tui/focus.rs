@@ -1,11 +1,11 @@
 //! Focus State for Panel Navigation
 //!
 //! Manages which panel is currently focused and provides Tab/Shift+Tab navigation.
-//! Updated for 4-Views Architecture (v0.22.0)
+//! Updated for 4-Views Architecture
 
 use super::views::TuiView;
 
-/// Panel identifiers for 4-view architecture (v0.22.0)
+/// Panel identifiers for 4-view architecture
 ///
 /// Each view has its own set of panels that can receive focus.
 /// Views: Studio (default), Runner, Chat, Settings

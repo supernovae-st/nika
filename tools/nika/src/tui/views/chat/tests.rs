@@ -700,7 +700,7 @@ fn test_show_error_adds_system_message() {
     assert!(last.content.contains("/help"));
 }
 
-// === tui-input Feature Tests (v0.5.2+) ===
+// === tui-input Feature Tests ===
 
 #[test]
 fn test_chat_view_word_navigation() {
@@ -904,7 +904,7 @@ fn test_default_session_path() {
     assert!(path.ends_with("nika-chat-session.json") || path.to_string_lossy().contains("nika"));
 }
 
-// === Phase 8: Real-time Streaming Updates Tests (v0.7.3) ===
+// === Phase 8: Real-time Streaming Updates Tests ===
 
 #[test]
 fn test_set_current_verb() {
@@ -2383,7 +2383,7 @@ fn test_dag_panel_toggle_syncs_state() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SESSION PERSISTENCE TESTS (v0.12.0)
+// SESSION PERSISTENCE TESTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -2448,7 +2448,7 @@ fn test_get_chat_state_preserves_model() {
 #[test]
 fn test_chat_view_workflow_initialized() {
     let view = ChatView::new();
-    // Workflow should be initialized with welcome message (v0.13: for DAG sync)
+    // Workflow should be initialized with welcome message
     assert_eq!(view.workflow.message_count(), 1);
 }
 
@@ -2459,7 +2459,7 @@ fn test_chat_view_user_message_wires_to_workflow() {
 
     // Should be in both messages vec and workflow
     assert_eq!(view.messages.len(), 2); // welcome + user
-    assert_eq!(view.workflow.message_count(), 2); // welcome + user (v0.13: both wired)
+    assert_eq!(view.workflow.message_count(), 2); // welcome + user
 }
 
 #[test]

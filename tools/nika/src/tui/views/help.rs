@@ -1,4 +1,4 @@
-//! Help View - Keyboard shortcuts reference, command guide (v0.11.2)
+//! Help View - Keyboard shortcuts reference, command guide
 //!
 //! Layout:
 //! ```text

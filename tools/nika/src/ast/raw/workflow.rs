@@ -42,7 +42,7 @@ pub struct RawWorkflow {
     /// Context files configuration
     pub context: Option<Spanned<RawContextConfig>>,
 
-    /// Import external workflows/modules (v0.28, replaces include: + skills:)
+    /// Import external workflows/modules
     ///
     /// ```yaml
     /// imports:
@@ -76,7 +76,7 @@ pub struct RawContextConfig {
     pub files: Option<IndexMap<Spanned<String>, Spanned<String>>>,
 }
 
-/// Raw import specification (v0.28).
+/// Raw import specification.
 ///
 /// Replaces both `include:` (DAG fusion) and `skills:` (prompt injection).
 #[derive(Debug, Clone, Default)]

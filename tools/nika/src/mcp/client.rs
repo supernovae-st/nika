@@ -1,4 +1,4 @@
-//! MCP Client Implementation (v0.3)
+//! MCP Client Implementation
 //!
 //! Provides a client for connecting to MCP (Model Context Protocol) servers.
 //! Uses rmcp SDK for real connections, with mock mode for testing.
@@ -29,7 +29,7 @@
 //! assert!(client.is_connected());
 //! ```
 //!
-//! ## Response Caching (v0.5.2)
+//! ## Response Caching
 //!
 //! Enable response caching for deterministic tools:
 //!
@@ -67,10 +67,10 @@ use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult
 use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HEALTH CHECK TYPES (v0.8.2)
+// HEALTH CHECK TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Result of a successful MCP server ping (v0.8.2).
+/// Result of a successful MCP server ping.
 #[derive(Debug, Clone)]
 pub struct McpPingResult {
     /// Server name
@@ -86,7 +86,7 @@ pub struct McpPingResult {
     pub was_connected: bool,
 }
 
-/// Error when pinging an MCP server (v0.8.2).
+/// Error when pinging an MCP server.
 #[derive(Debug, Clone)]
 pub enum McpPingError {
     /// Server process failed to start
@@ -140,7 +140,7 @@ impl McpPingError {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CACHE TYPES (v0.5.2)
+// CACHE TYPES
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Cache configuration for MCP response caching.
@@ -356,7 +356,7 @@ impl ResponseCacheStats {
 /// - **Real mode**: Uses rmcp SDK via RmcpClientAdapter
 /// - **Mock mode**: Returns canned responses for testing
 ///
-/// ## Validation (v0.5.1)
+/// ## Validation
 ///
 /// Enable parameter validation with `with_validation()`:
 ///
@@ -570,7 +570,7 @@ impl McpClient {
         }
     }
 
-    /// Ping the MCP server to verify it's responsive (v0.8.2).
+    /// Ping the MCP server to verify it's responsive.
     ///
     /// This method:
     /// 1. Connects to the server if not already connected
@@ -633,7 +633,7 @@ impl McpClient {
         }
     }
 
-    /// Quick check if MCP server is likely to be reachable (v0.8.2).
+    /// Quick check if MCP server is likely to be reachable.
     ///
     /// Returns true if:
     /// - Mock client: always true
@@ -796,7 +796,7 @@ impl McpClient {
     /// * `name` - Tool name (e.g., "novanet_generate", "read_file")
     /// * `params` - Tool parameters as JSON value
     ///
-    /// # Validation (v0.5.1)
+    /// # Validation
     ///
     /// When validation is enabled via `with_validation()`:
     /// - Parameters are validated against the tool schema before calling
@@ -945,7 +945,7 @@ impl McpClient {
         Ok(result)
     }
 
-    /// Call an MCP tool with retry event emission (v0.11.0).
+    /// Call an MCP tool with retry event emission.
     ///
     /// This method is similar to `call_tool()` but emits `McpRetry` events
     /// through the provided EventLog when connection errors trigger retries.
@@ -1324,7 +1324,7 @@ impl McpClient {
         }
     }
 
-    /// Check if the tool cache is still fresh within the given TTL (v0.28).
+    /// Check if the tool cache is still fresh within the given TTL.
     ///
     /// Returns `true` for mock clients (always fresh).
     /// For real clients, checks if tools were fetched within `ttl` duration.
@@ -1338,7 +1338,7 @@ impl McpClient {
         }
     }
 
-    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call (v0.28).
+    /// Invalidate the tool cache, forcing re-fetch on next `list_tools()` call.
     ///
     /// No-op for mock clients.
     pub fn invalidate_tool_cache(&self) {
@@ -1518,7 +1518,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // VALIDATION TESTS (v0.5.1)
+    // VALIDATION TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1654,7 +1654,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // RESPONSE CACHING TESTS (v0.5.2)
+    // RESPONSE CACHING TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1840,7 +1840,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // MCP PING HEALTH CHECK TESTS (v0.8.2)
+    // MCP PING HEALTH CHECK TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]

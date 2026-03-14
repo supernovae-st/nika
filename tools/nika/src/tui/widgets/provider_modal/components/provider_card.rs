@@ -15,7 +15,7 @@ use ratatui::{
 use super::super::state::ConnectionStatus;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// SEMANTIC COLOR CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Status colors (aligned with Theme status_*)

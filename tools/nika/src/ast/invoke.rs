@@ -1,4 +1,4 @@
-//! Invoke Action - MCP tool calls and resource reads (v0.2)
+//! Invoke Action - MCP tool calls and resource reads
 //!
 //! Defines the invoke verb parameters for MCP integration:
 //! - Tool calls: `mcp` + `tool` + optional `params`
@@ -52,7 +52,7 @@ pub struct InvokeParams {
     #[serde(default)]
     pub resource: Option<String>,
 
-    /// Timeout in seconds for tool execution (v0.28)
+    /// Timeout in seconds for tool execution
     ///
     /// Overrides the global `INVOKE_TASK_DEADLINE` (300s) for this task.
     /// If not set, falls back to the global default.

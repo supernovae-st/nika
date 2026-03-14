@@ -1,4 +1,4 @@
-//! nika:complete - Signal agent task completion (v0.21)
+//! nika:complete - Signal agent task completion
 //!
 //! The completion tool is called by the agent to signal task completion
 //! with a structured result. This is part of the "explicit" completion mode.
@@ -139,7 +139,7 @@ impl CompleteResponse {
 // Tool Implementation
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// nika:complete builtin tool (v0.21).
+/// nika:complete builtin tool.
 ///
 /// Called by the agent to signal task completion in "explicit" mode.
 /// The RigAgentLoop detects this tool call and triggers the completion flow.

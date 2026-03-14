@@ -59,7 +59,7 @@ pub struct HomeView {
     pub list_state: ListState,
     /// Whether history bar is expanded
     pub history_expanded: bool,
-    /// Fuzzy search query (v0.6.1)
+    /// Fuzzy search query
     pub search_query: String,
     /// Whether search mode is active
     pub search_active: bool,
@@ -243,7 +243,7 @@ impl HomeView {
         }
     }
 
-    /// Handle tree navigation action (v0.20 tree widget)
+    /// Handle tree navigation action
     ///
     /// Maps TreeAction variants to HomeView operations.
     /// Returns Some(ViewAction) if action was handled, None otherwise.
@@ -439,7 +439,7 @@ impl HomeView {
     }
 
     // =========================================================================
-    // DAG PREVIEW HELPERS (v0.7.2+)
+    // DAG PREVIEW HELPERS
     // =========================================================================
 
     /// Compute a simple hash of content for cache invalidation
@@ -847,7 +847,7 @@ impl HomeView {
             })
             .collect();
 
-        // Collect latency data for sparkline (v0.12: AnimatedLatencySparkline)
+        // Collect latency data for sparkline
         let latency_data: Vec<u64> = self
             .standalone
             .history
@@ -873,7 +873,7 @@ impl HomeView {
             .with_frame(self.frame);
         frame.render_widget(timeline, history_chunks[0]);
 
-        // Right: Latency sparkline (v0.12)
+        // Right: Latency sparkline
         if !latency_data.is_empty() {
             let sparkline = AnimatedLatencySparkline::new(&latency_data)
                 .frame(self.frame)
@@ -1065,7 +1065,7 @@ impl View for HomeView {
             _ => {} // Fall through to TreeAction handling
         }
 
-        // 2. TreeAction navigation (v0.20)
+        // 2. TreeAction navigation
         // Convert key to TreeAction and delegate to handle_tree_action
         if let Some(action) = TreeAction::from_key_event(key) {
             if let Some(view_action) = self.handle_tree_action(action) {

@@ -61,7 +61,7 @@ pub struct PromptResponse {
 pub struct PromptTool {
     /// Whether running in headless mode (no TUI).
     headless: bool,
-    /// Optional HITL handler for interactive mode (v0.10.0).
+    /// Optional HITL handler for interactive mode.
     handler: Option<Arc<dyn HitlHandler>>,
 }
 
@@ -84,7 +84,7 @@ impl PromptTool {
         }
     }
 
-    /// Create a new PromptTool with a custom HITL handler (v0.10.0).
+    /// Create a new PromptTool with a custom HITL handler.
     /// The handler will be used for all prompt requests.
     pub fn with_handler(handler: Arc<dyn HitlHandler>) -> Self {
         Self {

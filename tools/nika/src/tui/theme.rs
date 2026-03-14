@@ -1,14 +1,14 @@
-//! TUI Theme - Cosmic Tailwind Design System (v0.9.1+)
+//! TUI Theme - Cosmic Tailwind Design System
 //!
 //! Color palette using Tailwind CSS colors with Cosmic accent themes.
 //! Provides consistent styling across all TUI components.
 //!
-//! # Theme Architecture (v0.9.1+)
+//! # Theme Architecture
 //!
 //! ```text
 //! ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 //! │   CosmicTheme    │ ──► │   TokenResolver  │ ──► │  SemanticColors  │
-//! │   (Adapter)      │     │   (v0.9.1+)      │     │  ColorPalette    │
+//! │   (Adapter)      │     │      │     │  ColorPalette    │
 //! └──────────────────┘     └──────────────────┘     └──────────────────┘
 //!          │
 //!          ▼
@@ -24,7 +24,7 @@
 //! - **Cosmic Light**: Slate-50 background, inverted colors
 //! - **Cosmic Violet**: Violet-950 background, accent theme
 //!
-//! # ColorMode Detection (v0.7.0+)
+//! # ColorMode Detection
 //!
 //! Automatically detects terminal color capabilities:
 //! - TrueColor (24-bit): Modern terminals with COLORTERM=truecolor
@@ -42,7 +42,7 @@ use super::icons::verb as icons_verb;
 use super::tokens::TokenResolver;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SOLARIZED PALETTE CONSTANTS (v0.8.0+ for WOW effects)
+// SOLARIZED PALETTE CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Solarized base colors
@@ -100,7 +100,7 @@ pub mod solarized {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COLOR MODE DETECTION (v0.7.0+)
+// COLOR MODE DETECTION
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Terminal color mode detection.
@@ -386,7 +386,7 @@ impl VerbColor {
         }
     }
 
-    /// Get muted RGB tuple for gradient interpolation (v0.8.2)
+    /// Get muted RGB tuple for gradient interpolation
     pub fn muted_tuple(&self) -> (u8, u8, u8) {
         match self {
             Self::Infer => (97, 64, 171),   // Muted violet
@@ -602,14 +602,14 @@ pub struct Theme {
     pub selection: Color, // v0.21.2: Selection highlight background
 
     // ═══════════════════════════════════════════
-    // GIT GUTTER (v0.21.3 - Git integration)
+    // GIT GUTTER
     // ═══════════════════════════════════════════
     pub git_added: Color,    // Green for added lines
     pub git_modified: Color, // Yellow/Orange for modified lines
     pub git_deleted: Color,  // Red for deleted markers
 
     // ═══════════════════════════════════════════
-    // SCROLLBAR (v0.8.1 - Solarized styled)
+    // SCROLLBAR
     // ═══════════════════════════════════════════
     pub scrollbar_thumb: Color,  // Main thumb color (visible indicator)
     pub scrollbar_track: Color,  // Track background (subtle)
@@ -617,7 +617,7 @@ pub struct Theme {
 }
 
 impl Default for Theme {
-    /// Default theme is Cosmic Dark (v0.9.1+)
+    /// Default theme is Cosmic Dark
     ///
     /// Uses Tailwind CSS Slate palette with Cosmic accents.
     fn default() -> Self {
@@ -637,7 +637,7 @@ impl Theme {
         Self::default()
     }
 
-    /// Create theme from config theme name (v0.8)
+    /// Create theme from config theme name
     ///
     /// Bridges config::ThemeName to Theme struct.
     pub fn from_name(name: &super::config::ThemeName) -> Self {
@@ -648,7 +648,7 @@ impl Theme {
         }
     }
 
-    /// Create light theme (v0.9.1+: Cosmic Light)
+    /// Create light theme
     ///
     /// Uses Tailwind CSS Slate-50 background with adjusted accents.
     pub fn light() -> Self {
@@ -656,7 +656,7 @@ impl Theme {
         Self::cosmic_light()
     }
 
-    /// Create Solarized theme (v0.9.1+: maps to Cosmic Dark)
+    /// Create Solarized theme
     ///
     /// Note: In v0.9.1+, Solarized is mapped to Cosmic Dark as the closest
     /// visual match. The original Solarized palette is preserved in the
@@ -736,7 +736,7 @@ impl Theme {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // ANIMATED STYLES (v0.8.0+ WOW effects)
+    // ANIMATED STYLES
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Get animated highlight that pulses with frame counter
@@ -1275,7 +1275,7 @@ mod tests {
         assert_eq!(light.text_primary, Color::Rgb(15, 23, 42)); // #0f172a
     }
 
-    // ═══ SOLARIZED THEME TESTS (v0.8) ═══
+    // ═══ SOLARIZED THEME TESTS ═══
 
     #[test]
     fn test_theme_solarized_maps_to_cosmic_dark() {
@@ -1703,7 +1703,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // VERBCOLOR SPAWN VARIANT TESTS (v0.9.1 Consolidation)
+    // VERBCOLOR SPAWN VARIANT TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

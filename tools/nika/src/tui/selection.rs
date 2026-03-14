@@ -1,10 +1,10 @@
-//! Selection Model for Text Editor (v0.21.2)
+//! Selection Model for Text Editor
 //!
 //! Provides VS Code-like text selection support with:
 //! - Anchor/head selection model (anchor = start, head = cursor)
 //! - Character, word, and line selection modes
 //! - Selection expansion (Shift+Arrow, Shift+Ctrl+Arrow)
-//! - Multi-cursor foundation (v0.22 preparation)
+//! - Multi-cursor foundation
 //!
 //! # Architecture
 //!
@@ -214,7 +214,7 @@ impl Selection {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Multi-Cursor Support (v0.22 preparation)
+// Multi-Cursor Support
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Collection of selections for multi-cursor support
@@ -266,7 +266,7 @@ impl SelectionSet {
         self.additional.push(Selection::new(pos));
     }
 
-    /// Add a new selection spanning from anchor to head (v0.21.3: multi-cursor with selection)
+    /// Add a new selection spanning from anchor to head
     pub fn add_selection_spanning(&mut self, anchor: Position, head: Position) {
         self.additional.push(Selection::spanning(anchor, head));
     }

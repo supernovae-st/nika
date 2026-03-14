@@ -53,7 +53,7 @@ struct TrackedTask {
 /// Uses mistral.rs for high-performance inference on GGUF models.
 /// Supports CPU and GPU (Metal on macOS, CUDA on Linux) acceleration.
 ///
-/// # Cancellation Support (v0.27)
+/// # Cancellation Support
 ///
 /// Spawned inference tasks support graceful cancellation via `CancellationToken`.
 /// Call `cancel_all()` to signal all in-flight tasks to stop, or `shutdown()`
@@ -393,7 +393,7 @@ impl InferenceBackend for NativeRuntime {
             request = request.set_sampler_max_len(max_tokens as usize);
         }
 
-        // Send request with sampling parameters and timeout (v0.27 security)
+        // Send request with sampling parameters and timeout
         let response = tokio::time::timeout(INFER_TIMEOUT, model.send_chat_request(request))
             .await
             .map_err(|_| NativeError::InferenceTimeout {
@@ -478,7 +478,7 @@ impl InferenceBackend for NativeRuntime {
                 request = request.set_sampler_max_len(max_tokens as usize);
             }
 
-            // Stream chat request with per-chunk timeout (v0.27 security)
+            // Stream chat request with per-chunk timeout
             match model.stream_chat_request(request).await {
                 Ok(mut stream) => {
                     loop {

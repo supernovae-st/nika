@@ -46,7 +46,7 @@
 //!
 //! ## Architecture
 //!
-//! This is the core module for Nika (v0.27+). All provider, model, and MCP
+//! This is the core module for Nika. All provider, model, and MCP
 //! definitions are defined directly in this module with zero external dependencies.
 //!
 //! ## Usage

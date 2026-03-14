@@ -1,4 +1,4 @@
-//! Structured Output Configuration (v0.21)
+//! Structured Output Configuration
 //!
 //! Defines task-level configuration for JSON Schema validation:
 //! - `StructuredOutputSpec`: Schema + layer enables + retry config

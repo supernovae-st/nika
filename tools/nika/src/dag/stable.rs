@@ -1,4 +1,4 @@
-//! StableDag - petgraph::StableGraph wrapper for stable NodeIndex (v0.9.0)
+//! StableDag - petgraph::StableGraph wrapper for stable NodeIndex
 //!
 //! Provides stable NodeIndex values that persist after node deletion.
 //! Critical for @mention references where deleted messages should not
@@ -12,7 +12,7 @@
 //! ├── Node 1: "msg-002" (index=1)  ← DELETE THIS
 //! └── Node 2: "msg-003" (index=2)  ← BECOMES index=1 ⚠️
 //!
-//! StableGraph (v0.9.0+):
+//! StableGraph:
 //! ├── Node 0: "msg-001" (index=0)
 //! ├── Node 1: DELETED
 //! └── Node 2: "msg-003" (index=2)  ← STAYS index=2 ✅

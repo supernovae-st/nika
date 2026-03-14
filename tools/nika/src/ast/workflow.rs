@@ -1,13 +1,13 @@
-//! Workflow Types - main workflow structure (v0.1 - v0.9)
+//! Workflow Types - main workflow structure
 //!
 //! Contains the core YAML-parsed types:
 //! - `Workflow`: Root workflow with tasks and flows
 //! - `Task`: Individual task definition
 //! - `Flow`: DAG edge between tasks
 //! - `FlowEndpoint`: Single or multiple task references
-//! - `McpConfigInline`: Inline MCP server configuration (v0.2+)
-//! - `ContextConfig`: File loading at workflow start (v0.9)
-//! - `IncludeSpec`: DAG fusion from external workflows (v0.9)
+//! - `McpConfigInline`: Inline MCP server configuration
+//! - `ContextConfig`: File loading at workflow start
+//! - `IncludeSpec`: DAG fusion from external workflows
 
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ use super::action::TaskAction;
 use super::decompose::DecomposeSpec;
 use super::output::OutputPolicy;
 
-/// Inline MCP server configuration (v0.2)
+/// Inline MCP server configuration
 ///
 /// Allows workflows to define MCP servers directly in YAML.
 /// The server name is the map key in the `mcp` field.
@@ -56,40 +56,40 @@ pub struct Workflow {
     pub schema: String,
     pub provider: String,
     pub model: Option<String>,
-    /// MCP server configurations (v0.2)
+    /// MCP server configurations
     ///
     /// Allows workflows to define MCP servers inline rather than
     /// referencing external configuration. The map key is the server
     /// name used in `invoke.mcp` fields.
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
-    /// Context configuration for file loading at workflow start (v0.9)
+    /// Context configuration for file loading at workflow start
     ///
     /// Files are loaded into the DataStore at workflow start and accessible
     /// via `{{context.files.alias}}` bindings.
     pub context: Option<super::context::ContextConfig>,
-    /// Include external workflows for DAG fusion (v0.9)
+    /// Include external workflows for DAG fusion
     ///
     /// Included workflows have their tasks merged into the main DAG
     /// at parse time. They share the same DataStore.
     pub include: Option<Vec<super::include::IncludeSpec>>,
-    /// Reusable agent definitions (v0.6)
+    /// Reusable agent definitions
     ///
     /// Named agent configurations that can be referenced by tasks.
     /// Agents can be inline definitions or file references.
     pub agents: Option<FxHashMap<String, super::agent_def::AgentDef>>,
-    /// Skill file mappings for prompt augmentation (v0.6)
+    /// Skill file mappings for prompt augmentation
     ///
     /// Named skill files that can be injected into agent system prompts.
     pub skills: Option<FxHashMap<String, super::skill_def::SkillDef>>,
-    /// Artifact configuration for file persistence (v0.18)
+    /// Artifact configuration for file persistence
     ///
     /// Workflow-level defaults for artifact output.
     pub artifacts: Option<super::artifact::ArtifactsConfig>,
-    /// Log configuration (v0.18)
+    /// Log configuration
     ///
     /// Workflow-level logging configuration.
     pub log: Option<super::logging::LogConfig>,
-    /// Input parameters with defaults (v0.19.4)
+    /// Input parameters with defaults
     ///
     /// Maps parameter names to their definitions. Each definition is a JSON object
     /// with type, default, description, and optional enum values.
@@ -100,7 +100,7 @@ pub struct Workflow {
 }
 
 impl Workflow {
-    /// Compute a hash of the workflow for cache invalidation (v0.4.1)
+    /// Compute a hash of the workflow for cache invalidation
     ///
     /// Uses xxhash3 for fast hashing. The hash is computed from:
     /// - Schema version
@@ -131,10 +131,10 @@ impl Workflow {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Task {
     pub id: String,
-    /// Explicit data wiring (v0.1)
+    /// Explicit data wiring
     #[serde(default, rename = "use")]
     pub use_wiring: Option<WiringSpec>,
-    /// Rich typed binding system (v0.28)
+    /// Rich typed binding system
     ///
     /// New `with:` block with typed paths, transforms, and source dispatch.
     /// When present, takes priority over `use:` for binding resolution.
@@ -151,10 +151,10 @@ pub struct Task {
     /// ```
     #[serde(default, rename = "with")]
     pub with_spec: Option<WithSpec>,
-    /// Output format and validation (v0.1)
+    /// Output format and validation
     #[serde(default)]
     pub output: Option<OutputPolicy>,
-    /// Runtime DAG expansion via semantic traversal (v0.5)
+    /// Runtime DAG expansion via semantic traversal
     ///
     /// When specified, the task will be decomposed at runtime based on
     /// graph traversal results. This takes precedence over static `for_each`.
@@ -172,7 +172,7 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub decompose: Option<DecomposeSpec>,
-    /// Parallel iteration over array values (v0.3)
+    /// Parallel iteration over array values
     ///
     /// When specified, the task will be executed once for each value in the array.
     /// Each iteration runs in parallel with its own bindings.
@@ -189,13 +189,13 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub for_each: Option<serde_json::Value>,
-    /// Variable name for current iteration value (v0.3)
+    /// Variable name for current iteration value
     ///
     /// Defaults to "item" if not specified.
     /// The value is accessible as `{{use.<as>}}` in templates.
     #[serde(default, rename = "as")]
     pub for_each_as: Option<String>,
-    /// Maximum parallel executions for for_each (v0.3)
+    /// Maximum parallel executions for for_each
     ///
     /// Controls how many iterations run concurrently.
     /// Defaults to 1 (sequential). Set higher for parallel execution.
@@ -208,7 +208,7 @@ pub struct Task {
     /// ```
     #[serde(default)]
     pub concurrency: Option<usize>,
-    /// Stop all iterations on first error (v0.3)
+    /// Stop all iterations on first error
     ///
     /// When true (default), aborts remaining iterations if any fails.
     /// When false, continues executing remaining iterations.
@@ -223,18 +223,18 @@ pub struct Task {
     pub fail_fast: Option<bool>,
     #[serde(flatten)]
     pub action: TaskAction,
-    /// Artifact output configuration for this task (v0.18)
+    /// Artifact output configuration for this task
     ///
     /// Can be a simple boolean to enable/disable, a single output spec,
     /// or an array of output specs for multiple artifacts.
     #[serde(default)]
     pub artifact: Option<super::artifact::ArtifactSpec>,
-    /// Task-level logging configuration (v0.18)
+    /// Task-level logging configuration
     ///
     /// Overrides workflow-level log settings for this task.
     #[serde(default)]
     pub log: Option<super::logging::LogConfig>,
-    /// Explicit task dependencies (v0.1)
+    /// Explicit task dependencies
     ///
     /// Task IDs that must complete before this task can execute.
     /// Alternative to workflow-level `flows:` declaration.
@@ -250,7 +250,7 @@ pub struct Task {
     /// ```
     #[serde(default, alias = "depends_on")]
     pub flow: Option<Vec<String>>,
-    /// Structured output configuration (v0.21)
+    /// Structured output configuration
     ///
     /// When specified, enforces JSON Schema validation on task output.
     /// Uses the 4-layer StructuredOutputEngine for ~99.99% compliance.
@@ -278,7 +278,7 @@ pub struct Task {
 }
 
 impl Task {
-    /// Validate for_each configuration (v0.3)
+    /// Validate for_each configuration
     ///
     /// Returns error if:
     /// - for_each is not an array and not a binding expression
@@ -336,12 +336,12 @@ impl Task {
         self.fail_fast.unwrap_or(true)
     }
 
-    /// Check if this task has decompose modifier (v0.5)
+    /// Check if this task has decompose modifier
     pub fn has_decompose(&self) -> bool {
         self.decompose.is_some()
     }
 
-    /// Get the decompose spec if present (v0.5)
+    /// Get the decompose spec if present
     pub fn decompose_spec(&self) -> Option<&DecomposeSpec> {
         self.decompose.as_ref()
     }

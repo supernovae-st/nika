@@ -38,7 +38,7 @@ pub struct ChatMessage {
     pub created_at: Instant,
     /// Optional inline execution result
     pub execution: Option<ExecutionResult>,
-    /// Optional agent thinking/reasoning content (v0.5.2+)
+    /// Optional agent thinking/reasoning content
     /// Displayed inline when present (collapsible in UI)
     pub thinking: Option<String>,
 }
@@ -125,7 +125,7 @@ pub enum InlineContent {
     McpCall(McpCallData),
     /// Streaming inference with token counter
     InferStream(InferStreamData),
-    /// Task box for any verb (v0.8.1 - unified rendering)
+    /// Task box for any verb
     Task(TaskBox),
 }
 
@@ -304,10 +304,10 @@ impl ChatSession {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MCP Retry Types (v0.9 Phase 2)
+// MCP Retry Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Stores info about a failed MCP call for retry (v0.9 Phase 2)
+/// Stores info about a failed MCP call for retry
 /// Different from FailedMcpCall which is for display - this one stores params for retry
 #[derive(Debug, Clone)]
 pub struct McpRetryInfo {
@@ -320,7 +320,7 @@ pub struct McpRetryInfo {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Chat Message Selection Types (v0.8 Text Selection)
+// Chat Message Selection Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Position of a rendered line for hit testing during mouse selection

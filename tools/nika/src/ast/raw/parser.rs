@@ -593,7 +593,7 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
 // with:/depends_on:/for_each:/retry:/output: Parsing
 // ============================================================================
 
-/// Parse with: bindings (v0.28 — replaces use:).
+/// Parse with: bindings.
 ///
 /// Values are raw strings parsed by `parse_with_entry()` in Phase 2 (analyzer).
 /// Examples:
@@ -618,7 +618,7 @@ fn parse_with_refs(
     parse_string_map(file, map, "with")
 }
 
-/// Parse depends_on: ordering dependencies (v0.28 — replaces flow:).
+/// Parse depends_on: ordering dependencies.
 ///
 /// Pure ordering edges — no data flows through them.
 /// Data dependencies are expressed via `with:` bindings.
@@ -841,7 +841,7 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse context configuration
     workflow.context = parse_context_config(file_id, map)?;
 
-    // Parse imports (v0.28 — replaces include: + skills:)
+    // Parse imports
     workflow.imports = parse_imports(file_id, map)?;
 
     // Reject deprecated `include:` keyword
@@ -1018,7 +1018,7 @@ fn parse_context_config(
     Ok(Some(Spanned::new(RawContextConfig { files }, span)))
 }
 
-/// Parse imports: specification (v0.28 — replaces include: + skills:).
+/// Parse imports: specification.
 ///
 /// ```yaml
 /// imports:

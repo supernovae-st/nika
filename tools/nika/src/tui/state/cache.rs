@@ -33,7 +33,7 @@ impl JsonFormatCache {
     }
 
     /// Get cached JSON for a key, or format and cache it
-    /// PERF: Returns &str to avoid clone on every cache hit (v0.8.1)
+    /// PERF: Returns &str to avoid clone on every cache hit
     pub fn get_or_format<T: serde::Serialize>(&mut self, key: &str, value: &T) -> &str {
         // PERF: Only format and insert if not already cached
         if !self.cache.contains_key(key) {

@@ -1,4 +1,4 @@
-//! Browser Panel - Shared file browser for Studio and Runner views (v0.22)
+//! Browser Panel - Shared file browser for Studio and Runner views
 //!
 //! ## Features
 //!

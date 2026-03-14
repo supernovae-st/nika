@@ -1,4 +1,4 @@
-//! Atomic file operations for safe writes (v0.18)
+//! Atomic file operations for safe writes
 //!
 //! Shared by WriteTool and ArtifactWriter.
 //! All functions use tokio::fs for async I/O.

@@ -1,4 +1,4 @@
-//! Shared Panel Components for TUI Views (v0.22)
+//! Shared Panel Components for TUI Views
 //!
 //! This module provides reusable panel widgets that can be composed into different views.
 //! Each panel is self-contained and handles its own state, rendering, and input.

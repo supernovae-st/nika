@@ -1,4 +1,4 @@
-//! Structured Output Engine (v0.24)
+//! Structured Output Engine
 //!
 //! 4-layer defense system for ~99.99% JSON Schema compliance:
 //!
@@ -99,11 +99,11 @@ pub struct StructuredOutputEngine {
     log: Arc<EventLog>,
     /// Cached compiled schema (for validation speed)
     compiled_schema: Option<Value>,
-    /// Callback for LLM inference in Layer 3 & 4 (v0.24.0)
+    /// Callback for LLM inference in Layer 3 & 4
     ///
     /// When set, enables actual LLM retries and repairs instead of just re-validation.
     infer_fn: Option<InferCallback>,
-    /// Original prompt for retry context (v0.24.0)
+    /// Original prompt for retry context
     ///
     /// Used by Layer 3 to construct the retry prompt with full context.
     original_prompt: Option<String>,
@@ -121,7 +121,7 @@ impl StructuredOutputEngine {
         }
     }
 
-    /// Set the inference callback for Layer 3 & 4 (v0.24.0)
+    /// Set the inference callback for Layer 3 & 4
     ///
     /// This enables actual LLM retries and repairs. Without this callback,
     /// only Layer 2 validation is functional.
@@ -143,7 +143,7 @@ impl StructuredOutputEngine {
         self
     }
 
-    /// Set the original prompt for retry context (v0.24.0)
+    /// Set the original prompt for retry context
     ///
     /// Used by Layer 3 to construct the retry prompt with full context.
     pub fn with_original_prompt(mut self, prompt: String) -> Self {
@@ -312,7 +312,7 @@ impl StructuredOutputEngine {
         }
     }
 
-    /// Layer 3: Retry with Feedback (v0.24.0 - REAL IMPLEMENTATION)
+    /// Layer 3: Retry with Feedback
     ///
     /// Re-calls the LLM with validation error feedback to get corrected output.
     /// Requires `infer_fn` callback to be set via `with_infer_callback()`.
@@ -446,7 +446,7 @@ impl StructuredOutputEngine {
         }
     }
 
-    /// Layer 4: LLM Repair (v0.24.0 - REAL IMPLEMENTATION)
+    /// Layer 4: LLM Repair
     ///
     /// Calls a repair LLM to fix invalid JSON.
     /// Requires `infer_fn` callback to be set via `with_infer_callback()`.
@@ -1065,7 +1065,7 @@ Hope this helps!"#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LAYER 3 TESTS (v0.24.0 - Real LLM Retry)
+    // LAYER 3 TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -1149,7 +1149,7 @@ Hope this helps!"#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LAYER 4 TESTS (v0.24.0 - Real LLM Repair)
+    // LAYER 4 TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
@@ -1227,7 +1227,7 @@ Hope this helps!"#;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // MAX_RETRIES TESTS (v0.24.0)
+    // MAX_RETRIES TESTS
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[tokio::test]

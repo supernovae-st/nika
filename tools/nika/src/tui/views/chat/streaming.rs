@@ -163,7 +163,7 @@ impl ChatView {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
-    /// Append thinking content during streaming (v0.5.2+)
+    /// Append thinking content during streaming
     pub fn append_thinking(&mut self, thinking: &str) {
         match &mut self.pending_thinking {
             Some(existing) => {
@@ -176,7 +176,7 @@ impl ChatView {
         }
     }
 
-    /// Finalize thinking and attach to last message (v0.5.2+)
+    /// Finalize thinking and attach to last message
     /// Call this when streaming completes
     pub fn finalize_thinking(&mut self) {
         if let Some(thinking) = self.pending_thinking.take() {

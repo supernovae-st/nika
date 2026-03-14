@@ -1,4 +1,4 @@
-//! Security Module - Path Validation for Artifact Output (v0.18)
+//! Security Module - Path Validation for Artifact Output
 //!
 //! Provides security-critical path validation functions for artifact output.
 //! These functions prevent path traversal attacks and ensure artifacts stay

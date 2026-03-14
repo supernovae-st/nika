@@ -1,4 +1,4 @@
-//! Chat history management and multi-turn conversation support (v0.6)
+//! Chat history management and multi-turn conversation support
 //!
 //! Provides methods for managing conversation history and continuing
 //! multi-turn conversations with different LLM providers.
@@ -51,7 +51,7 @@ impl RigAgentLoop {
         &self.history
     }
 
-    /// Create with pre-existing history (v0.6)
+    /// Create with pre-existing history
     ///
     /// Useful for resuming conversations or injecting context.
     pub fn with_history(mut self, history: Vec<Message>) -> Self {
@@ -59,7 +59,7 @@ impl RigAgentLoop {
         self
     }
 
-    /// Continue a conversation using the accumulated history (v0.6)
+    /// Continue a conversation using the accumulated history
     ///
     /// Uses rig-core's `Chat` trait for multi-turn conversations.
     /// The history is automatically updated with the user prompt and response.
@@ -99,7 +99,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Continue conversation with Claude (v0.6)
+    /// Continue conversation with Claude
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// The rig-core `Chat` trait returns only `String`, not token metadata.
@@ -124,18 +124,18 @@ impl RigAgentLoop {
 
         // Build agent and chat with history
         // Anthropic requires max_tokens to be set explicitly
-        // Inject skills into system prompt if configured (v0.15.4)
+        // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
             .max_tokens(8192);
 
-        // Apply temperature using native rig-core method (v0.8.0)
+        // Apply temperature using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
             builder = builder.temperature(f64::from(temp));
         }
 
-        // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+        // Apply tool_choice only if explicitly set
         // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
         // See AgentParams::has_explicit_tool_choice() for provider compatibility notes
         if self.params.has_explicit_tool_choice() {
@@ -157,7 +157,7 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        // Determine status (v0.21: uses determine_status for completion detection)
+        // Determine status
         let status = self.determine_status(&response);
 
         // Emit completion
@@ -171,7 +171,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -188,7 +188,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Continue conversation with OpenAI (v0.6)
+    /// Continue conversation with OpenAI
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// The rig-core `Chat` trait returns only `String`, not token metadata.
@@ -212,18 +212,18 @@ impl RigAgentLoop {
         });
 
         // Build agent and chat with history
-        // Inject skills into system prompt if configured (v0.15.4)
+        // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
             .max_tokens(8192);
 
-        // Apply temperature using native rig-core method (v0.8.0)
+        // Apply temperature using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
             builder = builder.temperature(f64::from(temp));
         }
 
-        // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+        // Apply tool_choice only if explicitly set
         // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
         if self.params.has_explicit_tool_choice() {
             let tool_choice = self.params.effective_tool_choice();
@@ -244,7 +244,7 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        // Determine status (v0.21: uses determine_status for completion detection)
+        // Determine status
         let status = self.determine_status(&response);
 
         // Emit completion
@@ -258,7 +258,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -275,7 +275,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Continue conversation with Mistral (v0.6)
+    /// Continue conversation with Mistral
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// Use `run_mistral()` for single-turn requests with full token tracking.
@@ -323,7 +323,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -340,7 +340,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Continue conversation with Groq (v0.6)
+    /// Continue conversation with Groq
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// Use `run_groq()` for single-turn requests with full token tracking.
@@ -385,7 +385,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -402,7 +402,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Continue conversation with DeepSeek (v0.6)
+    /// Continue conversation with DeepSeek
     ///
     /// **Note:** Token tracking is not available for chat methods.
     /// Use `run_deepseek()` for single-turn requests with full token tracking.
@@ -450,7 +450,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response);
         let guardrails_passed = guardrail_result.is_passed();
 

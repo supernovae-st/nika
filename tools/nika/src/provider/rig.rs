@@ -27,7 +27,7 @@ use crate::mcp::McpClient;
 use crate::util::STREAM_CHUNK_TIMEOUT;
 use futures::StreamExt;
 
-// Import InferenceBackend trait for native inference methods (v0.26)
+// Import InferenceBackend trait for native inference methods
 #[cfg(feature = "native-inference")]
 use crate::provider::native::InferenceBackend;
 use rig::client::{CompletionClient, ProviderClient};
@@ -115,7 +115,7 @@ impl std::fmt::Display for McpToolError {
 
 impl std::error::Error for McpToolError {}
 
-/// Options for LLM inference (v0.15.0)
+/// Options for LLM inference
 ///
 /// Provides fine-grained control over inference behavior.
 #[derive(Debug, Clone, Default)]
@@ -130,7 +130,7 @@ pub struct InferOptions {
     pub system: Option<String>,
 }
 
-/// Provider type enum for rig-core providers (v0.6: expanded, v0.15.0: +Gemini, v0.24: +Native)
+/// Provider type enum for rig-core providers
 ///
 /// Nika leverages rig-core's native multi-provider support.
 /// Each variant wraps the corresponding rig-core client.
@@ -140,15 +140,15 @@ pub enum RigProvider {
     Claude(anthropic::Client),
     /// OpenAI provider - OPENAI_API_KEY
     OpenAI(openai::Client),
-    /// Mistral provider (v0.6) - MISTRAL_API_KEY
+    /// Mistral provider - MISTRAL_API_KEY
     Mistral(mistral::Client),
-    /// Groq provider (v0.6) - GROQ_API_KEY
+    /// Groq provider - GROQ_API_KEY
     Groq(groq::Client),
-    /// DeepSeek provider (v0.6) - DEEPSEEK_API_KEY
+    /// DeepSeek provider - DEEPSEEK_API_KEY
     DeepSeek(deepseek::Client),
-    /// Gemini (Google) provider (v0.15.0) - GEMINI_API_KEY
+    /// Gemini (Google) provider - GEMINI_API_KEY
     Gemini(gemini::Client),
-    /// Native local provider (v0.26) - GGUF models via mistral.rs
+    /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
     /// Now uses NativeRuntime directly with full streaming support.
     #[cfg(feature = "native-inference")]
@@ -168,31 +168,31 @@ impl RigProvider {
         RigProvider::OpenAI(client)
     }
 
-    /// Create a Mistral provider from environment variable MISTRAL_API_KEY (v0.6)
+    /// Create a Mistral provider from environment variable MISTRAL_API_KEY
     pub fn mistral() -> Self {
         let client = mistral::Client::from_env();
         RigProvider::Mistral(client)
     }
 
-    /// Create a Groq provider from environment variable GROQ_API_KEY (v0.6)
+    /// Create a Groq provider from environment variable GROQ_API_KEY
     pub fn groq() -> Self {
         let client = groq::Client::from_env();
         RigProvider::Groq(client)
     }
 
-    /// Create a DeepSeek provider from environment variable DEEPSEEK_API_KEY (v0.6)
+    /// Create a DeepSeek provider from environment variable DEEPSEEK_API_KEY
     pub fn deepseek() -> Self {
         let client = deepseek::Client::from_env();
         RigProvider::DeepSeek(client)
     }
 
-    /// Create a Gemini (Google) provider from environment variable GEMINI_API_KEY (v0.15.0)
+    /// Create a Gemini (Google) provider from environment variable GEMINI_API_KEY
     pub fn gemini() -> Self {
         let client = gemini::Client::from_env();
         RigProvider::Gemini(client)
     }
 
-    /// Create a Native provider for local GGUF inference (v0.26)
+    /// Create a Native provider for local GGUF inference
     ///
     /// The provider is created without a model loaded. Call `load_native_model()`
     /// before running inference.
@@ -205,7 +205,7 @@ impl RigProvider {
         RigProvider::Native(super::native::NativeRuntime::new())
     }
 
-    /// Load a model for native inference (v0.26).
+    /// Load a model for native inference.
     ///
     /// Only valid for `RigProvider::Native`. Returns an error for other providers.
     ///
@@ -261,7 +261,7 @@ impl RigProvider {
     /// | Mistral | mistral-large-latest | Best for complex tasks |
     /// | Groq | llama-3.3-70b-versatile | Fast inference |
     /// | DeepSeek | deepseek-chat | Cost-effective |
-    /// | Gemini | gemini-2.0-flash | Latest stable (v0.15.0) |
+    /// | Gemini | gemini-2.0-flash | Latest stable |
     /// | Native | (loaded model) | Uses pre-loaded GGUF model |
     pub fn default_model(&self) -> &'static str {
         match self {
@@ -349,7 +349,7 @@ impl RigProvider {
         }
     }
 
-    /// Text completion with full control over LLM parameters (v0.15.0)
+    /// Text completion with full control over LLM parameters
     ///
     /// # Arguments
     /// * `prompt` - The text prompt to send
@@ -455,7 +455,7 @@ impl RigProvider {
             }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
-                // Native inference uses ChatOptions from native module (v0.26)
+                // Native inference uses ChatOptions from native module
                 let chat_options = super::native::ChatOptions {
                     temperature: options.temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
@@ -472,7 +472,7 @@ impl RigProvider {
         }
     }
 
-    /// Auto-detect and create a provider from available environment variables (v0.6, v0.15.0: +Gemini)
+    /// Auto-detect and create a provider from available environment variables
     ///
     /// Provider detection order:
     /// 1. ANTHROPIC_API_KEY → Claude
@@ -480,8 +480,8 @@ impl RigProvider {
     /// 3. MISTRAL_API_KEY → Mistral
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
-    /// 6. GEMINI_API_KEY → Gemini (v0.15.0)
-    /// 7. NIKA_NATIVE_MODEL → Native (v0.26, opt-in)
+    /// 6. GEMINI_API_KEY → Gemini
+    /// 7. NIKA_NATIVE_MODEL → Native
     ///
     /// Returns None if no provider is available.
     /// Empty env vars are treated as unset.
@@ -504,7 +504,7 @@ impl RigProvider {
         if has_key("DEEPSEEK_API_KEY") {
             return Some(Self::deepseek());
         }
-        // Gemini (v0.15.0)
+        // Gemini
         if has_key("GEMINI_API_KEY") {
             return Some(Self::gemini());
         }
@@ -521,7 +521,7 @@ impl RigProvider {
     // v0.8.2: Provider Health Check & Verification
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Verify the provider connection is working (v0.8.2)
+    /// Verify the provider connection is working
     ///
     /// Makes a minimal API call to check:
     /// - API key is valid
@@ -589,7 +589,7 @@ impl RigProvider {
         }
     }
 
-    /// Quick check if provider credentials are configured (v0.8.2, v0.15.0: +Gemini)
+    /// Quick check if provider credentials are configured
     ///
     /// This is a fast, synchronous check that doesn't make network calls.
     /// Use `verify()` for actual connection testing.
@@ -617,7 +617,7 @@ impl RigProvider {
 // v0.8.2: Provider Verification Types
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Result of a successful provider verification (v0.8.2)
+/// Result of a successful provider verification
 #[derive(Debug, Clone)]
 pub struct ProviderVerifyResult {
     /// Provider name (claude, openai, etc.)
@@ -628,7 +628,7 @@ pub struct ProviderVerifyResult {
     pub model: String,
 }
 
-/// Error during provider verification (v0.8.2)
+/// Error during provider verification
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ProviderVerifyError {
     #[error("Invalid API key for {provider}")]
@@ -699,12 +699,12 @@ pub enum StreamChunk {
         input_tokens: u64,
         output_tokens: u64,
     },
-    /// MCP server connected successfully (v0.7.0)
+    /// MCP server connected successfully
     McpConnected(String),
-    /// MCP server connection failed (v0.7.0)
+    /// MCP server connection failed
     McpError { server_name: String, error: String },
     // ═══════════════════════════════════════════════════════════════════════════
-    // Chat Inline Box Events (v0.8.0 - wire widgets to chat commands)
+    // Chat Inline Box Events
     // ═══════════════════════════════════════════════════════════════════════════
     /// MCP tool call started (for inline visualization)
     McpCallStart {
@@ -729,7 +729,7 @@ pub enum StreamChunk {
     /// Infer stream completed
     InferComplete,
     // ═══════════════════════════════════════════════════════════════════════════
-    // Activity Events for /exec, /fetch, /agent (v0.8.0)
+    // Activity Events for /exec, /fetch, /agent
     // ═══════════════════════════════════════════════════════════════════════════
     /// Shell command started (for activity stack)
     ExecStart { command: String },
@@ -744,7 +744,7 @@ pub enum StreamChunk {
     /// Agent loop completed
     AgentComplete,
     // ═══════════════════════════════════════════════════════════════════════════
-    // Connection Verification Events (v0.8.2)
+    // Connection Verification Events
     // ═══════════════════════════════════════════════════════════════════════════
     /// Provider verification started
     ProviderVerifying { provider: String, model: String },
@@ -769,7 +769,7 @@ pub enum StreamChunk {
     /// v0.8.4: All provider verifications timed out (no providers available)
     ProviderVerificationTimeout,
     // ═══════════════════════════════════════════════════════════════════════════
-    // Native Model Events (v0.27 - local GGUF model management)
+    // Native Model Events
     // ═══════════════════════════════════════════════════════════════════════════
     /// Native model pull started
     NativeModelPullStarted { model: String },
@@ -976,7 +976,7 @@ impl RigProvider {
                 use futures::StreamExt;
                 use std::pin::pin;
 
-                // Native inference now supports streaming via mistral.rs (v0.26)
+                // Native inference now supports streaming via mistral.rs
                 let stream = runtime
                     .infer_stream(prompt, super::native::ChatOptions::default())
                     .await
@@ -1009,7 +1009,7 @@ impl RigProvider {
         let complete_response = response_parts.concat();
         let _ = tx.try_send(StreamChunk::Done(complete_response.clone()));
 
-        // Send metrics after Done (v0.7.0) - use try_send to avoid blocking
+        // Send metrics after Done - use try_send to avoid blocking
         let _ = tx.try_send(StreamChunk::Metrics {
             input_tokens: result.input_tokens,
             output_tokens: result.output_tokens,
@@ -1019,7 +1019,7 @@ impl RigProvider {
         Ok(result)
     }
 
-    /// Stream inference with LLM control options (v0.15.0)
+    /// Stream inference with LLM control options
     ///
     /// Similar to `infer_stream` but accepts `InferOptions` for temperature,
     /// max_tokens, and system prompt control.
@@ -1106,7 +1106,7 @@ impl RigProvider {
                 use futures::StreamExt;
                 use std::pin::pin;
 
-                // Native inference now supports streaming via mistral.rs (v0.26)
+                // Native inference now supports streaming via mistral.rs
                 let chat_options = super::native::ChatOptions {
                     temperature: options.temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
@@ -1534,7 +1534,7 @@ mod tests {
         // When: auto() is called
         let provider = RigProvider::auto();
 
-        // Then: Should fall back to Gemini (v0.15.0)
+        // Then: Should fall back to Gemini
         assert!(provider.is_some());
         assert_eq!(provider.unwrap().name(), "gemini");
     }
@@ -1597,7 +1597,7 @@ mod tests {
         // When: auto() is called
         let provider = RigProvider::auto();
 
-        // Then: Should treat whitespace-only as unset (v0.21.0 security fix)
+        // Then: Should treat whitespace-only as unset
         // The implementation now uses !v.trim().is_empty() to reject whitespace-only keys
         assert!(
             provider.is_none(),

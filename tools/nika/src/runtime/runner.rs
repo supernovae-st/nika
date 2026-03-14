@@ -1,4 +1,4 @@
-//! DAG Runner - workflow execution with tokio (v0.1)
+//! DAG Runner - workflow execution with tokio
 //!
 //! Performance optimizations:
 //! - Arc for zero-cost task/context sharing
@@ -40,7 +40,7 @@ use std::path::PathBuf;
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Try to extract an array from a Value, parsing JSON strings if needed (v0.22.1).
+/// Try to extract an array from a Value, parsing JSON strings if needed.
 ///
 /// This function handles the case where a task output is a JSON array stored as a
 /// string (e.g., from `exec: 'echo ''["a","b","c"]'''`). The for_each resolution
@@ -91,13 +91,13 @@ pub struct Runner {
     generation_id: String,
     /// Suppress console output (for TUI mode)
     quiet: bool,
-    /// Cancellation token for aborting workflow (v0.5.2)
+    /// Cancellation token for aborting workflow
     cancel_token: CancellationToken,
-    /// Pause state (v0.5.2+) - when true, runner waits between layers
+    /// Pause state - when true, runner waits between layers
     paused: Arc<AtomicBool>,
-    /// Notify to wake runner from pause (v0.5.2+)
+    /// Notify to wake runner from pause
     resume_notify: Arc<Notify>,
-    /// Resolved agents and skills (v0.13 Schema @0.6)
+    /// Resolved agents and skills
     resolved_assets: ResolvedAssets,
 }
 
@@ -154,7 +154,7 @@ impl Runner {
         self
     }
 
-    /// Inject initial context into the datastore (v0.14.0)
+    /// Inject initial context into the datastore
     ///
     /// Used by nika_run to pass parent context to child workflows.
     /// The context is stored as a successful task result under the given key,
@@ -181,7 +181,7 @@ impl Runner {
         self
     }
 
-    /// Set a custom cancellation token (v0.5.2, v0.28: propagates to executor)
+    /// Set a custom cancellation token
     ///
     /// This allows external control of workflow cancellation.
     /// The TUI can hold a clone of the token and call `cancel()` on it.
@@ -193,19 +193,19 @@ impl Runner {
         self
     }
 
-    /// Get a clone of the cancellation token (v0.5.2)
+    /// Get a clone of the cancellation token
     ///
     /// The TUI can use this to abort the workflow by calling `cancel()`.
     pub fn cancel_token(&self) -> CancellationToken {
         self.cancel_token.clone()
     }
 
-    /// Check if the workflow has been cancelled (v0.5.2)
+    /// Check if the workflow has been cancelled
     pub fn is_cancelled(&self) -> bool {
         self.cancel_token.is_cancelled()
     }
 
-    /// Pause workflow execution (v0.5.2+)
+    /// Pause workflow execution
     ///
     /// When paused, the runner will complete current tasks but won't start new ones.
     /// Use `resume()` to continue execution.
@@ -214,19 +214,19 @@ impl Runner {
         self.event_log.emit(EventKind::WorkflowPaused);
     }
 
-    /// Resume workflow execution after pause (v0.5.2+)
+    /// Resume workflow execution after pause
     pub fn resume(&self) {
         self.paused.store(false, Ordering::SeqCst);
         self.resume_notify.notify_one();
         self.event_log.emit(EventKind::WorkflowResumed);
     }
 
-    /// Check if the workflow is paused (v0.5.2+)
+    /// Check if the workflow is paused
     pub fn is_paused(&self) -> bool {
         self.paused.load(Ordering::SeqCst)
     }
 
-    /// Get cloneable handles for external pause/resume control (v0.5.2+)
+    /// Get cloneable handles for external pause/resume control
     ///
     /// Returns (paused_flag, resume_notify) that can be used by the TUI
     /// to control pause state externally.
@@ -315,7 +315,7 @@ impl Runner {
             .collect()
     }
 
-    /// Get the first failed task in the workflow (for error reporting) (v0.24)
+    /// Get the first failed task in the workflow (for error reporting)
     fn find_root_failure(&self) -> Option<String> {
         for task in &self.workflow.tasks {
             if let Some(result) = self.datastore.get(&task.id) {
@@ -330,7 +330,7 @@ impl Runner {
 
     /// Get the final output (from tasks with no successors)
     ///
-    /// BUG-004 FIX (v0.22.4): Now uses `get_deepest_final_task()` to select the
+    /// BUG-004 FIX: Now uses `get_deepest_final_task()` to select the
     /// terminal task with the highest topological depth. This ensures branching
     /// DAGs return the correct output (e.g., "final" task, not "branch_a").
     fn get_final_output(&self) -> Option<String> {
@@ -437,7 +437,7 @@ impl Runner {
                 infer: current_infer.clone(),
             };
 
-            // Execute (v0.19.4: pass output_policy for JSON schema injection)
+            // Execute
             let result = executor
                 .execute(task_id, &action, bindings, datastore, output_policy)
                 .await;
@@ -600,8 +600,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// * `executor` - Task executor
     /// * `event_log` - Event log for observability
     /// * `for_each_binding` - Optional (var_name, value, index) for for_each iteration
-    /// * `workflow_artifacts` - Workflow-level artifact configuration (v0.18)
-    /// * `base_path` - Base path for artifact resolution (v0.18)
+    /// * `workflow_artifacts` - Workflow-level artifact configuration
+    /// * `base_path` - Base path for artifact resolution
     #[allow(clippy::too_many_arguments)] // v0.18: Artifact integration requires additional params
     async fn execute_task_iteration(
         task: Arc<Task>,
@@ -622,7 +622,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
         let _is_for_each = for_each_binding.is_some();
 
-        // Build bindings from with: (v0.28) or use: (legacy) wiring
+        // Build bindings from with: or use: (legacy) wiring
         let mut bindings = match if task.with_spec.is_some() {
             ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &datastore)
         } else {
@@ -645,7 +645,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         };
 
-        // Add for_each binding if present (v0.3)
+        // Add for_each binding if present
         if let Some((var_name, value, _idx)) = for_each_binding {
             bindings.set(&var_name, value);
         }
@@ -657,7 +657,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             inputs: bindings.to_value(),
         });
 
-        // Check if task qualifies for schema validation retry (v0.19: structured output enforcement)
+        // Check if task qualifies for schema validation retry
         // Conditions: infer action + JSON output + inline schema + max_retries > 0
         let retry_config = Self::get_retry_config(&task);
 
@@ -677,7 +677,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             )
             .await
         } else {
-            // Standard execution without retry (v0.19.4: pass output_policy for JSON schema injection)
+            // Standard execution without retry
             let result = executor
                 .execute(
                     &task_id,
@@ -808,7 +808,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let workflow_start = Instant::now();
         info!("Starting workflow execution");
 
-        // Check for cancellation before starting (v0.5.2)
+        // Check for cancellation before starting
         if self.cancel_token.is_cancelled() {
             let duration = workflow_start.elapsed();
             self.event_log.emit(EventKind::WorkflowAborted {
@@ -825,7 +825,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Validate use: blocks before execution (fail-fast)
         validate_use_wiring(&self.workflow, &self.flow_graph)?;
 
-        // Load context files if workflow has context: block (v0.14.2 Schema @0.9)
+        // Load context files if workflow has context: block
         let base_path = std::env::current_dir().unwrap_or_default();
         if let Some(context_config) = &self.workflow.context {
             let loaded_context = load_context(context_config, &base_path).await?;
@@ -833,13 +833,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             debug!("Loaded {} context files", context_config.files.len());
         }
 
-        // Load inputs if workflow has inputs: block (v0.19.4 Schema @0.10)
+        // Load inputs if workflow has inputs: block
         if let Some(ref inputs) = self.workflow.inputs {
             self.datastore.set_inputs(inputs.clone());
             debug!("Loaded {} input parameters", inputs.len());
         }
 
-        // Resolve agents and skills (v0.13 Schema @0.6)
+        // Resolve agents and skills
         // This loads external agent definitions and skill files
         if self.workflow.agents.is_some() || self.workflow.skills.is_some() {
             self.resolved_assets = resolve_assets(&self.workflow, &base_path).await?;
@@ -870,7 +870,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         loop {
-            // Check for cancellation at start of each loop iteration (v0.5.2)
+            // Check for cancellation at start of each loop iteration
             if self.cancel_token.is_cancelled() {
                 let duration = workflow_start.elapsed();
                 // Collect IDs of tasks that haven't completed yet
@@ -893,7 +893,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 ));
             }
 
-            // Check for pause at start of each loop iteration (v0.5.2+)
+            // Check for pause at start of each loop iteration
             // Waits until resumed, while also checking for cancellation
             while self.paused.load(Ordering::SeqCst) {
                 tokio::select! {
@@ -926,7 +926,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             let ready = self.get_ready_tasks();
 
-            // Check for completion or deadlock (v0.24: improved error messages)
+            // Check for completion or deadlock
             if ready.is_empty() {
                 if self.all_done() {
                     break;
@@ -1006,7 +1006,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     );
                 }
 
-                // Check if task has decompose (v0.5) - expands to for_each items
+                // Check if task has decompose - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
                 let for_each_items: Option<Vec<Value>> = if let Some(decompose) =
                     task.decompose_spec()
@@ -1047,7 +1047,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             continue;
                         }
                         Err(_timeout) => {
-                            // Decompose expansion timed out (v0.17.5)
+                            // Decompose expansion timed out
                             let timeout_error = NikaError::DecomposeTimeout {
                                 task_id: task.id.clone(),
                                 timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
@@ -1234,7 +1234,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 if let Some(end) = after.find("}}") {
                                     let path = &after[..end];
 
-                                    // Split: first segment is alias, rest is nested path (v0.24.1 fix)
+                                    // Split: first segment is alias, rest is nested path
                                     let mut parts = path.split('.');
                                     let alias = parts.next().unwrap();
 
@@ -1330,10 +1330,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     None
                 };
 
-                // Check if task has for_each (v0.3 parallelism) or decompose items
+                // Check if task has for_each or decompose items
                 if let Some(items) = for_each_items {
                     if !items.is_empty() {
-                        // Get concurrency settings from task (v0.3)
+                        // Get concurrency settings from task
                         let concurrency = task.for_each_concurrency();
                         let fail_fast = task.for_each_fail_fast();
 
@@ -2517,7 +2517,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // FOR_EACH WITH INPUTS.* SUPPORT (v0.22)
+    // FOR_EACH WITH INPUTS.* SUPPORT
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
@@ -3148,7 +3148,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // CANCELLATION TESTS (v0.5.2)
+    // CANCELLATION TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -3295,7 +3295,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // PAUSE/RESUME TESTS (v0.5.2+)
+    // PAUSE/RESUME TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

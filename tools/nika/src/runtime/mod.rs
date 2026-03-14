@@ -1,24 +1,24 @@
-//! Runtime Module - Workflow execution (v0.24.0)
+//! Runtime Module - Workflow execution
 //!
 //! Contains the runtime execution components:
 //! - `runner`: DAG execution with tokio concurrency
 //! - `executor`: Individual task execution (infer, exec, fetch, invoke, agent)
-//!   - Includes decompose: modifier expansion (v0.5 MVP 8 Phase 4)
+//!   - Includes decompose: modifier expansion
 //! - `output`: Output format handling and schema validation
-//! - `structured_output`: 4-layer StructuredOutputEngine for ~99.99% compliance (v0.21)
-//! - `rig_agent_loop`: Rig-based agentic execution (v0.3+)
-//! - `spawn`: Nested agent spawning (v0.5 MVP 8 Phase 2)
-//! - `chat_workflow`: Chat-as-DAG wrapper (v0.9.1)
-//! - `builtin`: Builtin nika:* tools (v0.9.3)
-//! - `hitl`: Human-In-The-Loop handler trait (v0.10.0)
-//! - `context_loader`: Context file loading at workflow start (v0.14.2 Schema @0.9)
-//! - `resolver`: Agent and skill resolution (v0.13 Schema @0.6)
-//! - `boot`: Boot sequence with 6-phase initialization (v0.13.1)
-//! - `policy`: Security policy enforcement for exec/fetch/tokens (v0.13.1)
-//! - `security`: Command validation and blocklist (v0.15.0)
-//! - `artifact_processor`: Task output file persistence (v0.18.0)
-//! - `limit_tracker`: Agent execution limits tracking (v0.24)
-//! - `partial`: Partial completion checkpointing (v0.24)
+//! - `structured_output`: 4-layer StructuredOutputEngine for ~99.99% compliance
+//! - `rig_agent_loop`: Rig-based agentic execution
+//! - `spawn`: Nested agent spawning
+//! - `chat_workflow`: Chat-as-DAG wrapper
+//! - `builtin`: Builtin nika:* tools
+//! - `hitl`: Human-In-The-Loop handler trait
+//! - `context_loader`: Context file loading at workflow start
+//! - `resolver`: Agent and skill resolution
+//! - `boot`: Boot sequence with 6-phase initialization
+//! - `policy`: Security policy enforcement for exec/fetch/tokens
+//! - `security`: Command validation and blocklist
+//! - `artifact_processor`: Task output file persistence
+//! - `limit_tracker`: Agent execution limits tracking
+//! - `partial`: Partial completion checkpointing
 //!
 //! This module represents the "how" - runtime execution.
 //! For static structure, see the `ast` module.
@@ -61,27 +61,20 @@ pub use runner::Runner;
 pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
 
-// v0.13.1: Boot sequence and policy enforcement
 pub use boot::{
     BootContext, BootPhase, BootSequence, EditorConfig, NikaConfig, PhaseResult, PolicyConfig,
     ProviderConfig, SessionConfig, ToolsConfig, TraceConfig,
 };
 pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};
 
-// v0.15.0: Security module for exec command validation
 pub use security::{check_blocklist, validate_command_string, validate_exec_command};
 
-// v0.18.0: Artifact processor for task output persistence
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 
-// v0.21.0: Structured output engine for JSON Schema compliance
-// v0.24.0: Added InferCallback for real Layer 3 & 4 LLM calls
 pub use structured_output::{
     validate_structured_output, InferCallback, StructuredOutputEngine, StructuredOutputResult,
 };
 
-// v0.24.0: Agent execution limits tracking
 pub use limit_tracker::LimitTracker;
 
-// v0.24.0: Partial completion for limit-stopped tasks
 pub use partial::{PartialCheckpoint, PartialResult, StopReason};

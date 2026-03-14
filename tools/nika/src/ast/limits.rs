@@ -1,4 +1,4 @@
-//! Agent Limits Configuration (v0.24)
+//! Agent Limits Configuration
 //!
 //! Defines resource limits for agent execution including turns, tokens,
 //! cost, and duration constraints with configurable actions on limit reach.

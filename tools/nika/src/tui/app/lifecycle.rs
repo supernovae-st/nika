@@ -45,7 +45,7 @@ impl App {
         self.background_handles.lock().push(handle.abort_handle());
     }
 
-    /// Spawn async provider verification tasks (v0.8.2)
+    /// Spawn async provider verification tasks
     ///
     /// Verifies all configured LLM providers in parallel, sending StreamChunk events
     /// to update the session context display in real-time.
@@ -291,7 +291,7 @@ impl App {
         }
     }
 
-    /// Spawn provider verification timeout watcher (v0.8.4)
+    /// Spawn provider verification timeout watcher
     ///
     /// After 5 seconds, checks if ANY provider has been verified.
     /// If not, sends ProviderVerificationTimeout event to show fallback UI.
@@ -317,7 +317,7 @@ impl App {
         });
     }
 
-    /// Spawn async MCP server verification tasks (v0.8.2)
+    /// Spawn async MCP server verification tasks
     ///
     /// Pings all configured MCP servers in parallel, sending StreamChunk events
     /// to update the session context display in real-time.

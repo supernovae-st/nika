@@ -54,7 +54,7 @@ const SEPARATOR_52: &str = "╰────────────────�
 const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 // tui utils moved to messages.rs
 use crate::tui::widgets::{
-    // Task Box widgets (v0.8.1 - visual verb containers)
+    // Task Box widgets
     task_box::{BoxState, RenderMode, TaskBox},
     ActivityItem,
     ActivityTemp,
@@ -185,20 +185,20 @@ pub struct ChatView {
     pub deep_thinking: bool,
     /// Current provider name for display
     pub provider_name: String,
-    /// Current provider ID for inference (v0.8.2: used by ChatAgent)
+    /// Current provider ID for inference
     /// This is the actual provider ID (claude, openai, mistral, etc.)
     pub current_provider_id: String,
 
-    // === Thinking Accumulation (v0.5.2+) ===
+    // === Thinking Accumulation ===
     /// Accumulated thinking content during streaming
     /// Attached to the final message when stream completes
     pub pending_thinking: Option<String>,
 
-    // === UX Hints (v0.7.1) ===
+    // === UX Hints ===
     /// Whether the @mention hint has been shown (show once per session)
     pub shown_file_hint: bool,
 
-    // === Panel Navigation & Scroll (v0.8 UX Enhancement) ===
+    // === Panel Navigation & Scroll ===
     /// Currently focused panel for Tab navigation
     pub focused_panel: ChatPanel,
     /// Conversation panel scroll state (messages)
@@ -346,7 +346,7 @@ pub struct ChatView {
 
 impl ChatView {
     pub fn new() -> Self {
-        // Detect initial model and provider from environment (v0.8.2: also track provider_id)
+        // Detect initial model and provider from environment
         let (initial_model, provider_name, provider_id) =
             if std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.is_empty()) {
                 (
@@ -461,13 +461,13 @@ impl ChatView {
             provider_name,
             current_provider_id: provider_id,
 
-            // Thinking Accumulation (v0.5.2)
+            // Thinking Accumulation
             pending_thinking: None,
 
-            // UX Hints (v0.7.1)
+            // UX Hints
             shown_file_hint: false,
 
-            // Panel Navigation & Scroll (v0.8 UX Enhancement)
+            // Panel Navigation & Scroll
             focused_panel: ChatPanel::Input, // Start with input focused (typing)
             conversation_scroll: PanelScrollState::new(),
             activity_scroll: PanelScrollState::new(),
@@ -771,7 +771,7 @@ impl View for ChatView {
             // DAG visualization panel
             self.render_dag_panel(frame, main_chunks[1], theme);
         } else {
-            // Mission Control panel (v0.7.3 - replaces Activity Stack)
+            // Mission Control panel
             // v0.8.1: Now includes Activity section with hot/warm/queued tasks
             MissionControlPanel::new(&self.session_context.mcp_servers)
                 .context(&self.context_items)
@@ -939,7 +939,7 @@ impl View for ChatView {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // Lifecycle Hooks (v0.22.3 FIX)
+    // Lifecycle Hooks
     // ─────────────────────────────────────────────────────────────────────────────
 
     /// Called when ChatView becomes active

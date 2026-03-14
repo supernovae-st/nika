@@ -1,4 +1,4 @@
-//! EventEmitter Trait - abstraction for event emission (v0.3)
+//! EventEmitter Trait - abstraction for event emission
 //!
 //! Enables dependency injection for testing - real emitters in production,
 //! NoopEmitter or MockEmitter in tests.

@@ -1,4 +1,4 @@
-//! Native LLM inference module (v0.27)
+//! Native LLM inference module
 //!
 //! This module provides local GGUF model inference via mistral.rs.
 //! v0.27.0: Migrated from spn-native to nika directly.
@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
-//! │  Nika Native Inference (v0.27)                                              │
+//! │  Nika Native Inference                                              │
 //! ├─────────────────────────────────────────────────────────────────────────────┤
 //! │                                                                             │
 //! │  NativeRuntime (local implementation)                                       │
@@ -49,7 +49,7 @@
 //! }
 //! ```
 
-// Local modules (v0.27 - migrated from spn-native)
+// Local modules
 pub mod error;
 pub mod runtime;
 pub mod traits;
@@ -65,7 +65,7 @@ pub use crate::core::backend::{
     ModelInfo, PullProgress,
 };
 
-// Re-export storage types from core (v0.27)
+// Re-export storage types from core
 pub use crate::core::storage::{
     default_model_dir, extract_quantization, HuggingFaceStorage, ModelStorage, StorageError,
 };

@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 // =============================================================================
-// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// SEMANTIC COLOR CONSTANTS
 // =============================================================================
 
 /// Dark background for overlay
@@ -42,7 +42,7 @@ pub struct ProviderInfo {
     pub features: Vec<&'static str>,
     pub context_window: u32,
     pub status: ConnectionStatus,
-    /// Available models for this provider (v0.8.95: expandable list)
+    /// Available models for this provider
     pub models: Vec<ModelInfo>,
 }
 
@@ -55,7 +55,7 @@ pub struct ModelInfo {
 }
 
 impl ProviderInfo {
-    /// Create all 6 cloud providers with default status (v0.27: Ollama removed)
+    /// Create all 6 cloud providers with default status
     pub fn all_providers() -> Vec<Self> {
         vec![
             ProviderInfo {

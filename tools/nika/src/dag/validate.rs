@@ -1,4 +1,4 @@
-//! DAG Validation — with: binding validation (v0.28)
+//! DAG Validation — with: binding validation
 //!
 //! Validates:
 //! - with: binding references (task exists, is upstream)
@@ -11,14 +11,14 @@
 //! - NIKA-081: with.alias references non-upstream task
 //! - NIKA-082: with.alias creates self-reference
 //!
-//! ## v0.28 Changes
+//! ## Changes
 //!
 //! - `validate_use_wiring` → `validate_with_bindings`
 //! - `WiringSpec` → `WithSpec` (rich binding expressions)
 //! - `UseEntry::task_id() -> &str` → `WithEntry::task_id() -> Option<&str>`
 //!   (non-task bindings like Context/Input/Env/LoopVar are skipped)
 //! - `validate_refs` → `validate_with_refs` (2-pass template engine)
-//! - `detect_deprecated_dollar_syntax` removed (no backwards compat)
+//! - `detect_deprecated_dollar_syntax` removed
 //! - Tests use programmatic AnalyzedWorkflow construction instead of YAML
 
 use rustc_hash::FxHashSet;

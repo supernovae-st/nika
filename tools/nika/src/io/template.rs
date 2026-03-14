@@ -1,4 +1,4 @@
-//! Template Resolver - Variable Interpolation for Artifact Paths (v0.18)
+//! Template Resolver - Variable Interpolation for Artifact Paths
 //!
 //! Provides variable interpolation for artifact output paths.
 //! Supports task context, timestamps, and custom formats.
@@ -9,7 +9,7 @@
 //! |----------|-------------|---------|
 //! | `{{task_id}}` | Current task ID | `generate_report` |
 //! | `{{workflow_name}}` | Workflow name | `my-workflow` |
-//! | `{{workflow}}` | Alias for workflow_name (v0.19.4) | `my-workflow` |
+//! | `{{workflow}}` | Alias for workflow_name | `my-workflow` |
 //! | `{{date}}` | Current date (ISO) | `2024-01-15` |
 //! | `{{time}}` | Current time (ISO) | `14-30-00` |
 //! | `{{timestamp}}` | Unix timestamp | `1705329000` |

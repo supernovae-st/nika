@@ -93,7 +93,7 @@ impl ChatView {
                 current_line += 1;
             }
 
-            // Account for thinking lines if present and visible (v0.9)
+            // Account for thinking lines if present and visible
             if let Some(ref thinking) = msg.thinking {
                 if self.is_thinking_visible(msg_idx) {
                     current_line += 1; // "🧠 Thinking:" header
@@ -357,7 +357,7 @@ impl ChatView {
                     lines.push(ListItem::new(Line::from(bottom_spans)));
                 }
 
-                // Add thinking display if present (v0.5.2+, v0.9: visibility toggle)
+                // Add thinking display if present
                 if let Some(ref thinking) = msg.thinking {
                     let is_visible = thinking_visible.get(idx).copied().unwrap_or(false);
 

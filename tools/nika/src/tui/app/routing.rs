@@ -2,7 +2,7 @@
 //!
 //! Contains the apply_action method for routing user actions to appropriate handlers.
 //!
-//! # Chat Command Delegation (v0.27)
+//! # Chat Command Delegation
 //!
 //! Chat commands (ChatInfer, ChatExec, ChatFetch) are delegated to `ChatAgent` for
 //! actual execution. Because ChatAgent methods are async, we spawn background tasks
@@ -212,7 +212,7 @@ impl App {
             // ═══ Continue (no-op) ═══
             Action::Continue => {}
 
-            // ═══ View-Specific Actions (v0.21 TUI Fix) ═══
+            // ═══ View-Specific Actions ═══
             Action::ViewSpecific(view_action) => {
                 self.apply_view_action(view_action);
             }
@@ -226,7 +226,7 @@ impl App {
     fn apply_view_action(&mut self, action: ViewAction) {
         match action {
             // ═══════════════════════════════════════════════════════════════════
-            // Chat Commands — Delegated to ChatAgent (v0.27)
+            // Chat Commands — Delegated to ChatAgent
             //
             // Because ChatAgent methods are async, we spawn background tasks via
             // spawn_tracked() and communicate results back via stream_chunk_tx.
@@ -376,7 +376,7 @@ impl App {
                     }
                 });
             }
-            // ChatAgent: Run agentic loop with MCP tools (v0.28)
+            // ChatAgent: Run agentic loop with MCP tools
             ViewAction::ChatAgent(goal, max_turns, extended, servers) => {
                 self.chat_view.add_user_message(format!("/agent {}", goal));
                 self.set_status("Running agent...");
@@ -488,7 +488,7 @@ impl App {
                 tracing::debug!("ProviderSelectorConfirm: {} / {}", provider_id, model);
             }
 
-            // Native model actions (v0.27 - wired to provider/native module)
+            // Native model actions
             ViewAction::PullNativeModel(model) => {
                 self.pull_native_model(model);
             }
@@ -510,7 +510,7 @@ impl App {
                 self.set_status(&format!("Error: {}", msg));
             }
 
-            // Launch wizard (v0.27 - exits TUI and launches setup wizard)
+            // Launch wizard
             ViewAction::LaunchWizard => {
                 self.should_launch_wizard = true;
                 self.should_quit = true;
@@ -674,7 +674,7 @@ impl App {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Native Model Management (v0.27)
+    // Native Model Management
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Pull a native model from HuggingFace.

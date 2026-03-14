@@ -2435,7 +2435,7 @@ fn test_chat_overlay_message_new() {
     assert_eq!(msg.content, "test message");
 }
 
-// ═══ PanelScrollState Tests (v0.7.0) ═══
+// ═══ PanelScrollState Tests ═══
 
 #[test]
 fn test_panel_scroll_state_new() {

@@ -1,4 +1,4 @@
-//! Task Box Flow - Scrollable stack of TaskBox widgets (v0.22)
+//! Task Box Flow - Scrollable stack of TaskBox widgets
 //!
 //! Displays ALL TaskBox widgets stacked vertically with auto-scroll.
 //! The view follows the currently running task automatically.

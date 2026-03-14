@@ -1,4 +1,4 @@
-//! Tests for TaskExecutor (v0.28 split)
+//! Tests for TaskExecutor
 //!
 //! Covers: construction, exec verb, fetch verb, invoke verb,
 //! binding resolution, decompose, error handling, policy enforcement,
@@ -892,13 +892,13 @@ async fn test_action_type_helper() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// POLICY ENFORCEMENT TESTS (v0.13.1)
+// POLICY ENFORCEMENT TESTS
 // ═══════════════════════════════════════════════════════════════
 
 #[tokio::test]
 async fn test_execute_exec_blocked_by_policy() {
     // Configure policy to block custom commands
-    // Note: "sudo" is now in the security blocklist (v0.21.0), so we use custom patterns
+    // Note: "sudo" is now in the security blocklist, so we use custom patterns
     let policy_config = PolicyConfig {
         allow_exec: true,
         blocked_commands: vec!["dangerous_tool".to_string(), "custom_block".to_string()],
@@ -1108,7 +1108,7 @@ async fn test_executor_with_policy_config() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SHLEX COMMAND PARSING TESTS (v0.15.0 Security)
+// SHLEX COMMAND PARSING TESTS
 // ═══════════════════════════════════════════════════════════════
 
 #[test]
@@ -1136,7 +1136,7 @@ fn test_shlex_split_escaped_characters() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SHELL-FREE EXECUTION TESTS (v0.15.0 Security)
+// SHELL-FREE EXECUTION TESTS
 // ═══════════════════════════════════════════════════════════════
 
 #[tokio::test]

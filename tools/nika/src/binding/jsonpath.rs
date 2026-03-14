@@ -1,4 +1,4 @@
-//! JSONPath evaluation — RFC 9535 via `serde_json_path` (v0.28)
+//! JSONPath evaluation — RFC 9535 via `serde_json_path`
 //!
 //! Replaces the minimal custom `util/jsonpath.rs` with RFC 9535 compliance.
 //!
@@ -74,7 +74,7 @@ pub fn is_jsonpath(path: &str) -> bool {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Simple path resolution (backward compatible with util/jsonpath)
+// Simple path resolution
 // ═══════════════════════════════════════════════════════════════
 
 /// A parsed path segment (field or array index)
@@ -189,7 +189,7 @@ mod tests {
     use serde_json::json;
 
     // ═══════════════════════════════════════════════════════════════
-    // Simple path resolution (backward compat with util/jsonpath)
+    // Simple path resolution
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

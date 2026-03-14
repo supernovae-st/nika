@@ -1,4 +1,4 @@
-//! Template Resolution — 3-Pass Variable Substitution (v0.23)
+//! Template Resolution — 3-Pass Variable Substitution
 //!
 //! This module resolves template variables in workflow strings using a 3-pass
 //! architecture that ensures security isolation between different binding sources.
@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────────┐
-//! │  3-PASS TEMPLATE RESOLUTION (v0.23)                                    │
+//! │  3-PASS TEMPLATE RESOLUTION                                    │
 //! ├─────────────────────────────────────────────────────────────────────────┤
 //! │                                                                         │
 //! │  Pass 1: {{use.alias}} — Task output bindings                          │
@@ -68,12 +68,12 @@
 //!
 //! # Version History
 //!
-//! - v0.5: Initial with lazy bindings
-//! - v0.13: Added `|shell` modifier
-//! - v0.14.2: Added Pass 2 (context bindings)
-//! - v0.19.4: Added Pass 3 (input bindings)
-//! - v0.22: Added bracket notation `[N]`
-//! - v0.23: Security test suite, documentation
+//! - Initial with lazy bindings
+//! - Added `|shell` modifier
+//! - Added Pass 2 (context bindings)
+//! - Added Pass 3 (input bindings)
+//! - Added bracket notation `[N]`
+//! - Security test suite, documentation
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -90,23 +90,23 @@ use super::resolve::ResolvedBindings;
 use super::transform::TransformExpr;
 
 /// Pre-compiled regex for {{use.alias}} or {{with.alias}} pattern
-/// v0.13: Now supports optional |shell modifier: {{use.alias|shell}}
-/// v0.22: Also supports bracket notation after preprocessing: {{use.items[0]}} → {{use.items.0}}
-/// v0.28: Extended to match both `use.` and `with.` prefixes
+/// Supports optional |shell modifier: {{use.alias|shell}}
+/// Also supports bracket notation after preprocessing: {{use.items[0]}} → {{use.items.0}}
+/// Extended to match both `use.` and `with.` prefixes
 static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*(?:use|with)\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
 });
 
-/// Pre-compiled regex for bracket array notation (v0.22)
+/// Pre-compiled regex for bracket array notation
 /// Converts [0] to .0 for uniform handling
 static BRACKET_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[(\d+)\]").unwrap());
 
-/// Pre-compiled regex for {{context.files.alias}} or {{context.session.key}} pattern (v0.14.2)
+/// Pre-compiled regex for {{context.files.alias}} or {{context.session.key}} pattern
 static CONTEXT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*context\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
 });
 
-/// Pre-compiled regex for {{inputs.param}} pattern (v0.19.4)
+/// Pre-compiled regex for {{inputs.param}} pattern
 /// Extracts the input parameter name for lookup in workflow inputs
 static INPUTS_RE: LazyLock<Regex> = LazyLock::new(|| {
     // Match inputs.param or inputs.param.nested.path
@@ -119,7 +119,7 @@ static DEPRECATED_DOLLAR_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\$([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(\w+))*").unwrap());
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.28: New 2-pass template engine with iterative parser
+// New 2-pass template engine with iterative parser
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Matches ANY {{...}} block. Content is parsed by parse_template_expr().
@@ -215,7 +215,7 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
     Ok(TemplateExpr::Alias { path, transforms })
 }
 
-/// Convert a Value to its display string for template interpolation (v0.28)
+/// Convert a Value to its display string for template interpolation
 ///
 /// Unlike `value_to_string()` which errors on null, this returns empty string.
 ///
@@ -297,7 +297,7 @@ fn resolve_alias_path<'a>(
     Ok(current)
 }
 
-/// Resolve all template references in a string (v0.28 — 2-pass architecture)
+/// Resolve all template references in a string
 ///
 /// Pass 1: `{{alias}}` and `{{alias | transform}}` — resolved from `with:` values
 /// Pass 2: `{{context.*}}` and `{{inputs.*}}` — direct access (convenience)
@@ -320,7 +320,7 @@ pub fn resolve_with<'a>(
         return Ok(Cow::Borrowed(template));
     }
 
-    // v0.22: Normalize bracket notation to dot notation
+    // Normalize bracket notation to dot notation
     // {{items[0]}} → {{items.0}}
     let normalized = normalize_bracket_notation(template);
     let template_str: &str = normalized.as_ref();
@@ -531,7 +531,7 @@ pub fn resolve_with<'a>(
     Ok(Cow::Owned(result))
 }
 
-/// Extract all alias references from a template (v0.28 — new syntax)
+/// Extract all alias references from a template
 ///
 /// Returns aliases used in `{{alias}}` patterns (no `use.` prefix).
 /// Does NOT return context/input refs — those are direct access.
@@ -550,7 +550,7 @@ pub fn extract_with_refs(template: &str) -> Vec<String> {
     aliases
 }
 
-/// Validate that all template alias references exist in declared aliases (v0.28)
+/// Validate that all template alias references exist in declared aliases
 pub fn validate_with_refs(
     template: &str,
     declared_aliases: &FxHashSet<String>,
@@ -600,7 +600,7 @@ fn escape_for_json(s: &str) -> Cow<'_, str> {
     Cow::Owned(result)
 }
 
-/// Escape a string for safe shell usage (v0.13)
+/// Escape a string for safe shell usage
 ///
 /// Uses single quotes with proper escaping for all special characters.
 /// This ensures values from LLM outputs can be safely used in shell commands.
@@ -630,7 +630,7 @@ pub fn escape_for_shell(s: &str) -> String {
     result
 }
 
-/// Normalize bracket notation to dot notation (v0.22)
+/// Normalize bracket notation to dot notation
 ///
 /// Converts `{{use.items[0]}}` to `{{use.items.0}}` for uniform handling.
 /// This allows users to use familiar JavaScript-style array indexing.
@@ -641,22 +641,22 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
     Cow::Owned(BRACKET_RE.replace_all(template, ".$1").to_string())
 }
 
-/// Resolve all {{use.alias}}, {{context.*}}, and {{inputs.*}} templates (v0.19.4)
+/// Resolve all {{use.alias}}, {{context.*}}, and {{inputs.*}} templates
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
 ///
 /// Performance: Zero-clone traversal - uses references until final value_to_string.
 ///
-/// v0.5: Supports lazy bindings by resolving them on demand via DataStore.
-/// v0.14.2: Supports context bindings via {{context.files.alias}} and {{context.session.key}}.
-/// v0.19.4: Supports inputs bindings via {{inputs.param}}.
+/// Supports lazy bindings by resolving them on demand via DataStore.
+/// Supports context bindings via {{context.files.alias}} and {{context.session.key}}.
+/// Supports inputs bindings via {{inputs.param}}.
 ///
 /// Example: `{{use.forecast}}` → resolved value from bindings
 /// Example: `{{use.flight_info.departure}}` → nested access
-/// Example: `{{context.files.brand}}` → loaded file content (v0.14.2)
-/// Example: `{{context.session.focus}}` → session data (v0.14.2)
-/// Example: `{{inputs.topic}}` → input parameter default value (v0.19.4)
+/// Example: `{{context.files.brand}}` → loaded file content
+/// Example: `{{context.session.focus}}` → session data
+/// Example: `{{inputs.topic}}` → input parameter default value
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
@@ -675,7 +675,7 @@ pub fn resolve<'a>(
         return Ok(Cow::Borrowed(template));
     }
 
-    // v0.22: Normalize bracket notation to dot notation
+    // Normalize bracket notation to dot notation
     // {{use.items[0]}} → {{use.items.0}}
     let normalized = normalize_bracket_notation(template);
     let template_str: &str = normalized.as_ref();
@@ -691,7 +691,7 @@ pub fn resolve<'a>(
     for cap in USE_RE.captures_iter(template_str) {
         let m = cap.get(0).unwrap();
         let path = &cap[1]; // e.g., "forecast" or "flight_info.departure"
-        let modifier = cap.get(2).map(|m| m.as_str()); // v0.13: optional |shell modifier
+        let modifier = cap.get(2).map(|m| m.as_str()); // optional |shell modifier
 
         // Copy segment before this match
         result.push_str(&template_str[last_end..m.start()]);
@@ -754,7 +754,7 @@ pub fn resolve<'a>(
                 // This is the ONLY place we convert/allocate for the value
                 let replacement = value_to_string(value_ref, path, alias)?;
 
-                // Apply modifier or context-based escaping (v0.13)
+                // Apply modifier or context-based escaping
                 let replacement = match modifier {
                     Some("shell") => Cow::Owned(escape_for_shell(&replacement)),
                     _ if is_in_json_context(template_str, m.start()) => {
@@ -785,7 +785,7 @@ pub fn resolve<'a>(
     result.push_str(&template_str[last_end..]);
 
     // ─────────────────────────────────────────────────────────────
-    // Pass 2: Resolve {{context.files.alias}} and {{context.session.key}} (v0.14.2)
+    // Pass 2: Resolve {{context.files.alias}} and {{context.session.key}}
     // ─────────────────────────────────────────────────────────────
     if has_context && result.contains("context.") {
         let intermediate = std::mem::take(&mut result);
@@ -845,7 +845,7 @@ pub fn resolve<'a>(
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Pass 3: Resolve {{inputs.param}} (v0.19.4)
+    // Pass 3: Resolve {{inputs.param}}
     // ─────────────────────────────────────────────────────────────
     if has_inputs && result.contains("inputs.") {
         let intermediate = std::mem::take(&mut result);
@@ -901,7 +901,7 @@ pub fn resolve<'a>(
     Ok(Cow::Owned(result))
 }
 
-/// Resolve templates for shell context (v0.13)
+/// Resolve templates for shell context
 ///
 /// Similar to `resolve`, but shell-escapes all substituted values to prevent
 /// command injection from LLM outputs containing special characters.
@@ -981,7 +981,7 @@ pub fn resolve_for_shell<'a>(
                 }
 
                 let raw_value = value_to_string(value_ref, path, alias)?;
-                // Shell-escape the value (v0.13)
+                // Shell-escape the value
                 let escaped = escape_for_shell(&raw_value);
                 result.push_str(&escaped);
             }
@@ -1069,7 +1069,7 @@ fn value_to_string<'a>(
     }
 }
 
-/// Convert context Value to string for template substitution (v0.14.2)
+/// Convert context Value to string for template substitution
 ///
 /// Returns `Cow::Borrowed` for string values (avoids cloning).
 fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
@@ -1086,7 +1086,7 @@ fn context_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, s
     }
 }
 
-/// Convert input Value to string for template substitution (v0.19.4)
+/// Convert input Value to string for template substitution
 ///
 /// Returns `Cow::Borrowed` for string values (avoids cloning).
 fn input_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str>, NikaError> {
@@ -1325,7 +1325,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // v0.22: Bracket notation tests (array indexing with [N])
+    // Bracket notation tests (array indexing with [N])
     // ─────────────────────────────────────────────────────────────
 
     #[test]
@@ -1414,7 +1414,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // v0.1: Strict mode tests
+    // Strict mode tests
     // ─────────────────────────────────────────────────────────────
 
     #[test]
@@ -1468,7 +1468,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // v0.1: Static validation tests
+    // Static validation tests
     // ─────────────────────────────────────────────────────────────
 
     #[test]
@@ -1518,7 +1518,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // v0.7.2: Deprecated $alias syntax detection (NIKA-075)
+    // Deprecated $alias syntax detection (NIKA-075)
     // ─────────────────────────────────────────────────────────────
 
     #[test]
@@ -1600,7 +1600,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // v0.14.2: Context binding tests
+    // Context binding tests
     // ─────────────────────────────────────────────────────────────
 
     use crate::runtime::context_loader::LoadedContext;
@@ -1716,7 +1716,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Shell escaping tests (v0.13)
+    // Shell escaping tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1760,7 +1760,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // |shell modifier tests (v0.13)
+    // |shell modifier tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1802,7 +1802,7 @@ mod tests {
         bindings.set("msg", json!("hello world"));
         let ds = empty_datastore();
 
-        // Without |shell modifier, no escaping happens (backward compatible)
+        // Without |shell modifier, no escaping happens
         let result = resolve("echo {{use.msg}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo hello world");
     }
@@ -1875,7 +1875,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Input binding tests (v0.19.4)
+    // Input binding tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     use rustc_hash::FxHashMap;
@@ -2038,7 +2038,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Template Injection Security Tests (v0.23)
+    // Template Injection Security Tests
     // ═══════════════════════════════════════════════════════════════════════════
     //
     // These tests verify that malicious content in template values cannot:
@@ -2383,7 +2383,7 @@ mod tests {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// v0.28: New template engine tests — parse_template_expr + resolve_with
+// New template engine tests — parse_template_expr + resolve_with
 // ═════════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]

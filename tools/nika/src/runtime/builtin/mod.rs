@@ -9,7 +9,7 @@
 //! - `nika:assert` - Validate condition, fail if false
 //! - `nika:prompt` - HITL - request user input
 //! - `nika:run` - Execute nested workflow
-//! - `nika:complete` - Signal agent task completion (v0.21)
+//! - `nika:complete` - Signal agent task completion
 //!
 //! **File tools (5):**
 //! - `nika:read` - Read file with line numbers

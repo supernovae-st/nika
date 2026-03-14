@@ -1,4 +1,4 @@
-//! Task List Panel - Selectable list of workflow tasks (v0.22)
+//! Task List Panel - Selectable list of workflow tasks
 //!
 //! Shows all tasks in a workflow with their status icons.
 //! Selection syncs with TaskBoxFlow for detail view.

@@ -1,4 +1,4 @@
-//! Agent definition types for workflow (v0.6, v0.13)
+//! Agent definition types for workflow
 //!
 //! The `agents:` block in a workflow allows defining reusable agent configurations.
 //! Agents can be defined inline or loaded from external files.
@@ -30,14 +30,14 @@
 
 use serde::Deserialize;
 
-/// Agent definition (v0.6, v0.13)
+/// Agent definition
 ///
 /// Can be either an external file/folder reference or an inline definition.
 /// v0.13 adds support for `from:` which auto-detects format.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AgentDef {
-    /// External reference using `from:` (v0.13 - auto-detect format)
+    /// External reference using `from:`
     From {
         /// Path to agent definition (file or folder, any supported format)
         from: String,
@@ -67,7 +67,7 @@ pub enum AgentDef {
         /// Temperature for generation (optional)
         temperature: Option<f32>,
 
-        /// Skills to load for this agent (v0.15.3)
+        /// Skills to load for this agent
         ///
         /// Skills can be:
         /// - Relative paths: `./skills/my-skill.md`
@@ -95,7 +95,7 @@ impl AgentDef {
         matches!(self, AgentDef::Inline { .. })
     }
 
-    /// Check if this uses the new `from:` syntax (v0.13)
+    /// Check if this uses the new `from:` syntax
     pub fn is_from(&self) -> bool {
         matches!(self, AgentDef::From { .. })
     }
@@ -114,7 +114,7 @@ impl AgentDef {
         self.file_path()
     }
 
-    /// Get the skills list if this is an inline definition (v0.15.3)
+    /// Get the skills list if this is an inline definition
     ///
     /// Agent-level skills override workflow-level skills when both define
     /// the same skill path.
@@ -271,7 +271,7 @@ temperature: 0.7
     }
 
     // =========================================================================
-    // Skills Tests (v0.15.3 - Sub-Plan 3)
+    // Skills Tests
     // =========================================================================
 
     #[test]

@@ -1,4 +1,4 @@
-//! Skill definition types for workflow (v0.6)
+//! Skill definition types for workflow
 //!
 //! The `skills:` block in a workflow allows loading prompt augmentation files.
 //! Skills are loaded at workflow start and injected into agent system prompts.
@@ -23,7 +23,7 @@
 //!       skills: [seo, brand] # Multiple skills
 //! ```
 //!
-//! ## pkg: URI Support (v0.15.2)
+//! ## pkg: URI Support
 //!
 //! Skills can also be loaded from the package registry using `pkg:` URIs:
 //!
@@ -39,7 +39,7 @@ use std::path::{Path, PathBuf};
 use super::pkg_resolver::PkgUri;
 use crate::error::NikaError;
 
-/// Resolve a skill path, handling both local paths and pkg: URIs (v0.15.2)
+/// Resolve a skill path, handling both local paths and pkg: URIs
 ///
 /// # Arguments
 /// * `skill_path` - The skill path from YAML (local path or `pkg:` URI)
@@ -95,12 +95,12 @@ pub fn is_pkg_uri(skill_path: &str) -> bool {
     skill_path.starts_with("pkg:")
 }
 
-/// Skill definition (v0.6)
+/// Skill definition
 ///
 /// A skill is a path to a skill file (.skill.md) containing prompt augmentation.
 pub type SkillDef = String;
 
-/// Skill reference for agent tasks (v0.6)
+/// Skill reference for agent tasks
 ///
 /// Agents can reference skills by name (single or multiple).
 #[derive(Debug, Clone, Deserialize, PartialEq)]

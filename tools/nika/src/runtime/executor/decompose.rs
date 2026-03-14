@@ -1,4 +1,4 @@
-//! Decompose expansion strategies (v0.5)
+//! Decompose expansion strategies
 //!
 //! Expands decompose specs into iteration items via:
 //! - Semantic: MCP traverse (novanet_traverse)
@@ -15,7 +15,7 @@ use crate::store::DataStore;
 use super::TaskExecutor;
 
 impl TaskExecutor {
-    /// Expand a decompose spec into iteration items (v0.5)
+    /// Expand a decompose spec into iteration items
     ///
     /// Returns an array of JSON values that can be used as for_each items.
     /// Supports semantic (MCP traverse), static (binding resolution), and nested strategies.
@@ -127,7 +127,7 @@ impl TaskExecutor {
         Ok(items)
     }
 
-    /// Expand using nested recursive traversal via MCP (v0.5.2)
+    /// Expand using nested recursive traversal via MCP
     ///
     /// Recursively follows arcs until max_depth or no more children.
     /// Uses BFS to collect all descendant nodes (excluding root) into a flat array.
@@ -242,7 +242,7 @@ impl TaskExecutor {
         Ok(items)
     }
 
-    /// Resolve source binding expression for decompose (v0.5: lazy binding support)
+    /// Resolve source binding expression for decompose
     pub(super) fn resolve_decompose_source(
         &self,
         source: &str,
@@ -297,7 +297,7 @@ impl TaskExecutor {
 
     /// Extract nodes array from novanet_traverse result
     /// Extract nodes from decompose result, taking ownership to avoid cloning
-    /// PERF: Takes ownership of Value to avoid cloning arrays (v0.8.1)
+    /// PERF: Takes ownership of Value to avoid cloning arrays
     pub(super) fn extract_decompose_nodes(
         &self,
         result: serde_json::Value,

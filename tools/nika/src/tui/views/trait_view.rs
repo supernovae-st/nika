@@ -18,7 +18,7 @@ use crate::tui::theme::Theme;
 /// Each view (Chat, Home, Studio, Monitor) implements this trait
 /// for consistent rendering and input handling.
 ///
-/// ## Lifecycle Hooks (v0.9.x)
+/// ## Lifecycle Hooks
 ///
 /// Views can override lifecycle hooks for animation and state management:
 /// - `on_enter`: Called when view becomes active (focus gained)
@@ -38,7 +38,7 @@ pub trait View {
     fn status_line(&self, state: &TuiState) -> String;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Lifecycle Hooks (v0.9.x) - Default implementations provided
+    // Lifecycle Hooks - Default implementations provided
     // Reserved for future view lifecycle management (not yet wired)
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -132,7 +132,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Lifecycle Hook Tests (v0.9.x)
+    // Lifecycle Hook Tests
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]

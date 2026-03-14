@@ -1,4 +1,4 @@
-//! Rig ToolDyn adapter for builtin tools (v0.12.0)
+//! Rig ToolDyn adapter for builtin tools
 //!
 //! Wraps BuiltinTool implementations as rig-core ToolDyn for use in RigAgentLoop.
 //!
@@ -11,7 +11,7 @@
 //!         ├── SpawnAgentTool
 //!         └── NikaBuiltinToolAdapter (builtin tools)
 //!               ├── Arc<dyn BuiltinTool>
-//!               └── EventLog (v0.12.0: emits EventKind::Log/Custom)
+//!               └── EventLog
 //! ```
 
 use std::sync::Arc;
@@ -35,9 +35,9 @@ pub struct NikaBuiltinToolAdapter {
     tool: Arc<dyn BuiltinTool>,
     /// Full tool name with nika_ prefix
     full_name: String,
-    /// EventLog for emitting events (v0.12.0)
+    /// EventLog for emitting events
     event_log: Option<Arc<EventLog>>,
-    /// Task ID for event context (v0.12.0)
+    /// Task ID for event context
     task_id: Option<Arc<str>>,
 }
 
@@ -58,7 +58,7 @@ impl NikaBuiltinToolAdapter {
         }
     }
 
-    /// Set EventLog and task_id for event emission (v0.12.0)
+    /// Set EventLog and task_id for event emission
     ///
     /// When set, `nika:log` will emit `EventKind::Log` and
     /// `nika:emit` will emit `EventKind::Custom` to the EventLog.

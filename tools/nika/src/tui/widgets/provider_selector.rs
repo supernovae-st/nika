@@ -38,7 +38,7 @@ const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
 // v0.27: Ollama removed - use provider: native (mistral.rs) for local inference
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Connection verification status (v0.8.2)
+/// Connection verification status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum VerifyStatus {
     /// Not yet verified
@@ -52,7 +52,7 @@ pub enum VerifyStatus {
     Failed,
 }
 
-/// Selector section for navigation (v0.8.2)
+/// Selector section for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SelectorSection {
     /// LLM providers section
@@ -62,7 +62,7 @@ pub enum SelectorSection {
     McpServers,
 }
 
-/// MCP server display information (v0.8.2)
+/// MCP server display information
 #[derive(Debug, Clone)]
 pub struct McpServerDisplay {
     /// Server name
@@ -131,13 +131,13 @@ pub struct ProviderInfo {
     pub available: bool,
     /// Environment variable name
     pub env_var: &'static str,
-    /// Reason why provider is unavailable (v0.8.2)
+    /// Reason why provider is unavailable
     pub unavailable_reason: Option<String>,
-    /// Connection verification status (v0.8.2)
+    /// Connection verification status
     pub verify_status: VerifyStatus,
-    /// Last measured latency (v0.8.2)
+    /// Last measured latency
     pub latency: Option<Duration>,
-    /// Verification error message (v0.8.2)
+    /// Verification error message
     pub verify_error: Option<String>,
 }
 
@@ -390,7 +390,7 @@ pub struct ProviderSelectorState {
     pub model_mode: bool,
     /// Whether the selector is visible
     pub visible: bool,
-    // ═══ MCP Section (v0.8.2) ═══
+    // ═══ MCP Section ═══
     /// MCP servers display information
     pub mcp_servers: Vec<McpServerDisplay>,
     /// Current section (Providers or McpServers)
@@ -546,14 +546,14 @@ impl ProviderSelectorState {
         self.selected_model = 0;
     }
 
-    /// Mark provider as verifying (v0.8.2)
+    /// Mark provider as verifying
     pub fn set_verifying(&mut self, provider_id: &str) {
         if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
             p.verify_status = VerifyStatus::Verifying;
         }
     }
 
-    /// Update provider verification result (v0.8.2)
+    /// Update provider verification result
     pub fn set_verified(&mut self, provider_id: &str, latency: Duration) {
         if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
             p.verify_status = VerifyStatus::Verified;
@@ -564,7 +564,7 @@ impl ProviderSelectorState {
         }
     }
 
-    /// Mark provider verification as failed (v0.8.2)
+    /// Mark provider verification as failed
     pub fn set_verify_failed(&mut self, provider_id: &str, error: String) {
         if let Some(p) = self.providers.iter_mut().find(|p| p.id == provider_id) {
             p.verify_status = VerifyStatus::Failed;
@@ -573,7 +573,7 @@ impl ProviderSelectorState {
         }
     }
 
-    /// Refresh provider list (re-check availability) (v0.8.2)
+    /// Refresh provider list (re-check availability)
     pub fn refresh(&mut self) {
         self.providers = ProviderInfo::all_providers();
     }
@@ -588,7 +588,7 @@ impl ProviderSelectorState {
         self.providers.iter_mut().find(|p| p.id == id)
     }
 
-    // ═══ MCP Section Methods (v0.8.2) ═══
+    // ═══ MCP Section Methods ═══
 
     /// Toggle between sections (Providers <-> McpServers)
     pub fn toggle_section(&mut self) {
@@ -768,7 +768,7 @@ impl<'a> ProviderSelector<'a> {
             };
             buf.set_string(area.x + 4, y, &provider.name, name_style);
 
-            // Status indicator (v0.8.2: More descriptive status with latency)
+            // Status indicator
             let status_x = area.x + area.width.saturating_sub(18);
             match (&provider.verify_status, provider.available) {
                 (VerifyStatus::Verified, _) => {

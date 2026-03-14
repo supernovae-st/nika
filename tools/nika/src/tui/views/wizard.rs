@@ -1,4 +1,4 @@
-//! Wizard View for Nika Setup (v0.27)
+//! Wizard View for Nika Setup
 //!
 //! Full-screen setup wizard launched via `nika setup`.
 //! NOT part of the 4-view TuiView navigation - runs standalone.

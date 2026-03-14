@@ -20,7 +20,7 @@ use super::super::theme::{MissionPhase, TaskStatus};
 use super::super::widgets::task_box::TokenVelocity;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ANIMATION FRAME CONSTANTS (v0.9.x)
+// ANIMATION FRAME CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // These constants define the animation frame standard for the TUI.
@@ -419,7 +419,7 @@ pub struct AgentTurnState {
     pub tokens: Option<u32>,
     /// Tool calls made this turn
     pub tool_calls: Vec<String>,
-    /// Extended thinking content (v0.4+)
+    /// Extended thinking content
     /// Captured from Claude's reasoning process when extended_thinking is enabled
     pub thinking: Option<String>,
     /// Response text from the agent turn
@@ -430,7 +430,7 @@ pub struct AgentTurnState {
 // SPAWNED AGENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Spawned sub-agent state (v0.5 MVP 8)
+/// Spawned sub-agent state
 ///
 /// Tracks nested agents spawned via spawn_agent tool.
 #[derive(Debug, Clone)]
@@ -489,7 +489,7 @@ pub struct Metrics {
     pub provider_calls: usize,
     /// Last model used (for status display)
     pub last_model: Option<String>,
-    /// Token velocity tracker for sparkline display (v0.13)
+    /// Token velocity tracker for sparkline display
     pub token_velocity: TokenVelocity,
 }
 

@@ -1,4 +1,4 @@
-//! Settings View - Provider configuration, theme, preferences (v0.21.2)
+//! Settings View - Provider configuration, theme, preferences
 //!
 //! 5-section layout:
 //!
@@ -165,7 +165,7 @@ impl SettingsView {
 
     /// Update provider info from state
     ///
-    /// Called from App when provider changes (v0.12 state sync).
+    /// Called from App when provider changes.
     pub fn update_provider(&mut self, provider: &str, model: &str) {
         self.provider_name = provider.to_string();
         self.model_name = model.to_string();
@@ -173,7 +173,7 @@ impl SettingsView {
 
     /// Update theme name from theme mode
     ///
-    /// Called from App when theme changes (v0.12 state sync).
+    /// Called from App when theme changes.
     pub fn update_theme_name(&mut self, name: &str) {
         self.theme_name = name.to_string();
     }
@@ -518,12 +518,12 @@ impl View for SettingsView {
                 ViewAction::None
             }
 
-            // Theme shortcuts - direct selection (v0.12.0 fix)
+            // Theme shortcuts - direct selection
             KeyCode::Char('1') => ViewAction::SetTheme(CosmicVariant::CosmicLight),
             KeyCode::Char('2') => ViewAction::SetTheme(CosmicVariant::CosmicDark),
             KeyCode::Char('3') => ViewAction::SetTheme(CosmicVariant::CosmicViolet),
 
-            // ? falls through to app-level Help mode (v0.21.2 fix)
+            // ? falls through to app-level Help mode
 
             // Enter on Providers opens modal (via chat's Ctrl+P)
             KeyCode::Enter if self.section == SettingsSection::Providers => {
@@ -531,7 +531,7 @@ impl View for SettingsView {
                 ViewAction::OpenSettings // Reuse to trigger provider modal
             }
 
-            // 'w' launches the setup wizard (v0.27)
+            // 'w' launches the setup wizard
             KeyCode::Char('w') => ViewAction::LaunchWizard,
 
             _ => ViewAction::None,
@@ -557,7 +557,7 @@ mod tests {
     use super::*;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // SettingsView Basic Tests (v0.21.2 - 5 sections)
+    // SettingsView Basic Tests
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -772,7 +772,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // Theme Shortcut Tests (v0.12.0)
+    // Theme Shortcut Tests
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -824,7 +824,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // refresh_data Tests (v0.21.2 - GAP 2 fix)
+    // refresh_data Tests
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]

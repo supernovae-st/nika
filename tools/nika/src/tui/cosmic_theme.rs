@@ -10,7 +10,7 @@
 //! ```text
 //! ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 //! │   CosmicTheme    │ ──► │   TokenResolver  │ ──► │  SemanticColors  │
-//! │   (Adapter)      │     │   (v0.9.1+)      │     │  ColorPalette    │
+//! │   (Adapter)      │     │      │     │  ColorPalette    │
 //! └──────────────────┘     └──────────────────┘     └──────────────────┘
 //!          │
 //!          ▼
@@ -56,7 +56,7 @@ use super::tokens::{CosmicVariant, TokenResolver};
 ///
 /// This enables incremental migration without breaking the 306 existing usages.
 ///
-/// # Performance (v0.9.1+)
+/// # Performance
 ///
 /// The `as_theme()` method caches its result using `OnceCell`. The cache is
 /// automatically invalidated when `cycle()` or `set_variant()` is called.
@@ -114,7 +114,7 @@ impl CosmicTheme {
     /// This creates a `Theme` struct populated from the TokenResolver's
     /// semantic colors. Use this for existing widgets that expect `&Theme`.
     ///
-    /// # Performance (v0.9.1+)
+    /// # Performance
     ///
     /// This method caches the Theme using `OnceCell`. Subsequent calls
     /// return a clone of the cached value. The cache is invalidated
@@ -257,7 +257,7 @@ impl Theme {
             highlight: semantic.accent_primary,
             selection: semantic.accent_secondary, // v0.21.2: cyan for selection
 
-            // ═══ GIT GUTTER (v0.21.3) ═══
+            // ═══ GIT GUTTER ═══
             git_added: semantic.status_success, // Green for added lines
             git_modified: semantic.status_warning, // Yellow/Orange for modified
             git_deleted: semantic.status_error, // Red for deleted markers
@@ -453,7 +453,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CACHING TESTS (v0.9.1+)
+    // CACHING TESTS
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]

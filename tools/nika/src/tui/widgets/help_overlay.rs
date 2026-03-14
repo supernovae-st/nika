@@ -1,4 +1,4 @@
-//! Help Overlay — Keyboard shortcuts reference (v0.8)
+//! Help Overlay — Keyboard shortcuts reference
 //!
 //! Shows all keybindings organized by context.
 //! Toggle with ? or F1, scroll with j/k, close with Escape.

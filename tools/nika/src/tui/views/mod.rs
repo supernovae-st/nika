@@ -1,6 +1,6 @@
 //! TUI Views Module
 //!
-//! Four-view architecture for Nika TUI (v0.22):
+//! Four-view architecture for Nika TUI:
 //!
 //! **Views (Tab cycling through all 4):**
 //! 1. **Studio View** - Unified editor with browser + YAML editor + DAG (default) [s]
@@ -33,7 +33,7 @@ mod trait_view;
 mod wizard;
 // Note: workspace.rs is deprecated, StudioView now provides 3-panel layout
 
-// Main view exports (v0.21 names)
+// Main view exports
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
 // Browse = Home (renamed in v0.20 from Explorer)
@@ -56,7 +56,7 @@ pub use split::{SplitFocus, SplitRatio, SplitView};
 pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;
-// StudioView = 3-panel layout (v0.21+), enums are internal
+// StudioView = 3-panel layout, enums are internal
 pub use studio::StudioView;
 // Help view still exists but is no longer a main TuiView (merged into Settings)
 #[allow(unused_imports)]
@@ -65,7 +65,7 @@ pub use help::HelpView;
 // Trait export
 pub use trait_view::View;
 
-// Wizard view (v0.27 - standalone setup wizard via `nika setup`)
+// Wizard view
 pub use wizard::WizardView;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -154,7 +154,7 @@ pub enum ReasoningTab {
     #[default]
     Turns,
     Thinking,
-    /// Claude Code-like step-by-step view (v0.8)
+    /// Claude Code-like step-by-step view
     Steps,
 }
 
@@ -176,7 +176,7 @@ impl ReasoningTab {
     }
 }
 
-/// Active view in the TUI - 4 views navigation (v0.22)
+/// Active view in the TUI - 4 views navigation
 ///
 /// v0.22 consolidates to 4 views:
 /// - Studio (1, default) \[s\] - Unified editor with browser + YAML editor + DAG preview
@@ -212,7 +212,7 @@ impl TuiView {
         matches!(self, TuiView::Settings)
     }
 
-    /// Get all views including auxiliary (v0.22: same as all())
+    /// Get all views including auxiliary)
     pub fn all_including_auxiliary() -> &'static [TuiView] {
         Self::all()
     }
@@ -290,7 +290,7 @@ impl TuiView {
 
 /// Model provider for LLM switching
 pub use crate::tui::command::{McpAction, ModelProvider};
-/// Theme variant for direct theme selection (v0.12.0)
+/// Theme variant for direct theme selection
 pub use crate::tui::tokens::CosmicVariant;
 
 /// Result of handling a key event in a view
@@ -327,32 +327,32 @@ pub enum ViewAction {
     ChatAgent(String, Option<u32>, bool, Vec<String>),
     /// Execute /model command - switch LLM provider
     ChatModelSwitch(ModelProvider),
-    /// Execute /mcp command - MCP server management (v0.5.2)
+    /// Execute /mcp command - MCP server management
     ChatMcp(McpAction),
     /// Execute /clear command - clear chat history
     ChatClear,
     /// Open Settings view
     OpenSettings,
-    /// Toggle theme (v0.8.1)
+    /// Toggle theme
     ToggleTheme,
-    /// Set specific theme by variant (v0.12.0 - fix for `[1][2][3]` selection)
+    /// Set specific theme by variant
     SetTheme(CosmicVariant),
-    /// Verify all configured providers (v0.8.2)
+    /// Verify all configured providers
     VerifyProviders,
-    /// Refresh verification (invalidate cache + re-verify) (v0.8.2)
+    /// Refresh verification (invalidate cache + re-verify)
     RefreshVerification,
-    /// Provider selector confirmed a change (v0.8.3 - BUG #2 fix)
+    /// Provider selector confirmed a change
     /// Signals app.rs to invalidate/recreate chat_agent with new provider
     ProviderSelectorConfirm { provider_id: String, model: String },
-    /// Pull native model (v0.27 — was PullOllamaModel)
+    /// Pull native model
     PullNativeModel(String),
-    /// Delete native model (v0.27 — was DeleteOllamaModel)
+    /// Delete native model
     DeleteNativeModel(String),
-    /// Refresh native model list (v0.27 — was RefreshOllamaModels)
+    /// Refresh native model list
     RefreshNativeModels,
-    /// Validate workflow in Home view (v0.11.0)
+    /// Validate workflow in Home view
     ValidateWorkflow(std::path::PathBuf),
-    /// Launch setup wizard (v0.27 - from Settings or first-run)
+    /// Launch setup wizard
     LaunchWizard,
 }
 
@@ -539,7 +539,7 @@ mod tests {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // ViewAction::SetTheme tests (v0.12.0)
+    // ViewAction::SetTheme tests
     // ════════════════════════════════════════════════════════════════════════
 
     #[test]

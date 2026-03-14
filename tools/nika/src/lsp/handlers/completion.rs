@@ -244,7 +244,7 @@ fn top_level_completions() -> Vec<CompletionItem> {
             ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "Optional. Load files at workflow start (v0.14.3+).".to_string(),
+                "Optional. Load files at workflow start.".to_string(),
             )),
             ..Default::default()
         },
@@ -257,7 +257,7 @@ fn top_level_completions() -> Vec<CompletionItem> {
             ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "Optional. Include tasks from other workflows (v0.14.3+).".to_string(),
+                "Optional. Include tasks from other workflows.".to_string(),
             )),
             ..Default::default()
         },

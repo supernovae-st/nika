@@ -12,7 +12,7 @@
 //! - `chat_overlay` - Chat overlay for contextual AI assistance
 //! - `cache` - JSON formatting cache
 //!
-//! ## Animation Frame Standard (v0.9.x)
+//! ## Animation Frame Standard
 //!
 //! All animation frames use a standardized system based on 60 FPS:
 //!
@@ -155,7 +155,7 @@ pub struct TuiState {
     pub streaming_buffer: String,
     /// Max turns for current agent
     pub agent_max_turns: Option<u32>,
-    /// Spawned sub-agents (v0.5 MVP 8 nested agents)
+    /// Spawned sub-agents
     pub spawned_agents: Vec<SpawnedAgent>,
     /// Recent template resolutions (for observability)
     pub recent_templates: VecDeque<TemplateResolution>,
@@ -220,7 +220,7 @@ pub struct TuiState {
     pub max_notifications: usize,
 
     // ═══════════════════════════════════════════
-    // STATUS MESSAGES (v0.8 User Feedback)
+    // STATUS MESSAGES
     // ═══════════════════════════════════════════
     /// Status message queue for user feedback
     pub status_messages: StatusQueue,
@@ -605,7 +605,7 @@ impl TuiState {
                     budget_used_pct: *budget_used_pct,
                     truncated: *truncated,
                 };
-                // TIER 4.1: Mark novanet panel dirty (v0.5 fix)
+                // TIER 4.1: Mark novanet panel dirty
                 self.dirty.novanet = true;
             }
 
@@ -648,9 +648,9 @@ impl TuiState {
                 metadata,
                 ..
             } => {
-                // Extract tokens from metadata if present (v0.4.1)
+                // Extract tokens from metadata if present
                 let tokens = metadata.as_ref().map(|m| m.total_tokens());
-                // Extract thinking and response_text from metadata (v0.4 reasoning capture)
+                // Extract thinking and response_text from metadata
                 let thinking = metadata.as_ref().and_then(|m| m.thinking.clone());
                 let response_text = metadata.as_ref().map(|m| m.response_text.clone());
 
@@ -693,7 +693,7 @@ impl TuiState {
                 child_task_id,
                 depth,
             } => {
-                // Track spawned sub-agent (v0.5 MVP 8)
+                // Track spawned sub-agent
                 self.spawned_agents.push(SpawnedAgent {
                     parent_task_id: parent_task_id.to_string(),
                     child_task_id: child_task_id.to_string(),
@@ -850,7 +850,7 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
-            // MCP CONNECTION EVENTS (v0.7)
+            // MCP CONNECTION EVENTS
             // ═══════════════════════════════════════════
             EventKind::McpConnected { server_name, .. } => {
                 self.add_notification(Notification::success(
@@ -944,7 +944,7 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
-            // ARTIFACT EVENTS (v0.18)
+            // ARTIFACT EVENTS
             // ═══════════════════════════════════════════
             EventKind::ArtifactWritten {
                 task_id,
@@ -979,7 +979,7 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
-            // STRUCTURED OUTPUT EVENTS (v0.21)
+            // STRUCTURED OUTPUT EVENTS
             // ═══════════════════════════════════════════
             EventKind::StructuredOutputAttempt {
                 task_id,
@@ -1027,7 +1027,7 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
-            // GUARDRAIL EVENTS (v0.23)
+            // GUARDRAIL EVENTS
             // ═══════════════════════════════════════════
             EventKind::GuardrailPassed {
                 task_id,
@@ -1083,7 +1083,7 @@ impl TuiState {
             }
 
             // ═══════════════════════════════════════════
-            // LIMIT EVENTS (v0.24)
+            // LIMIT EVENTS
             // ═══════════════════════════════════════════
             EventKind::LimitReached {
                 task_id,
@@ -1169,7 +1169,7 @@ impl TuiState {
     }
 
     // ═══════════════════════════════════════════
-    // STATUS MESSAGE HELPERS (v0.8 User Feedback)
+    // STATUS MESSAGE HELPERS
     // ═══════════════════════════════════════════
 
     /// Show an info status message

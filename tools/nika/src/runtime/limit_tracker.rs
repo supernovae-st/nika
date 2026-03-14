@@ -1,4 +1,4 @@
-//! LimitTracker - Runtime limit tracking for agent execution (v0.24)
+//! LimitTracker - Runtime limit tracking for agent execution
 //!
 //! Tracks resource consumption during agent execution and checks against
 //! configured limits to enable cost control and graceful partial completion.

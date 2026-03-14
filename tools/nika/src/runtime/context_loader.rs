@@ -1,4 +1,4 @@
-//! Context Loader - Load files at workflow start (v0.9)
+//! Context Loader - Load files at workflow start
 //!
 //! Loads files declared in the `context:` block at workflow start.
 //! Files are made available via `{{context.files.alias}}` bindings.
@@ -470,7 +470,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.17.5: Additional Error Path Tests
+    // Additional Error Path Tests
     // =========================================================================
 
     #[tokio::test]

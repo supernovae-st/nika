@@ -1,4 +1,4 @@
-//! Git Integration for TUI (v0.21.3)
+//! Git Integration for TUI
 //!
 //! Provides git status tracking for:
 //! - File browser: Show modified/added/deleted status

@@ -41,7 +41,7 @@ pub enum McpStatus {
     Hot,
     /// Called < 5min ago, connection idle
     Warm,
-    /// Connected but idle (v0.7.0+)
+    /// Connected but idle
     Connected,
     /// Not called recently
     #[default]
@@ -125,7 +125,7 @@ pub struct McpServerInfo {
     pub status: McpStatus,
     pub last_call: Option<Instant>,
     pub call_count: u32,
-    /// Last measured latency in milliseconds (v0.8.2)
+    /// Last measured latency in milliseconds
     pub latency_ms: Option<u64>,
 }
 
@@ -152,7 +152,7 @@ impl McpServerInfo {
         self.call_count += 1;
     }
 
-    /// Mark server as connected (v0.7.0+)
+    /// Mark server as connected
     pub fn mark_connected(&mut self) {
         // Only upgrade from Cold to Connected, don't downgrade Hot/Warm
         if self.status == McpStatus::Cold {
@@ -160,7 +160,7 @@ impl McpServerInfo {
         }
     }
 
-    /// Update server with ping result (v0.8.2)
+    /// Update server with ping result
     pub fn update_from_ping(&mut self, connected: bool, latency_ms: u64) {
         self.latency_ms = Some(latency_ms);
         if connected {
@@ -170,7 +170,7 @@ impl McpServerInfo {
         }
     }
 
-    /// Mark server as errored (v0.7.0+)
+    /// Mark server as errored
     pub fn mark_error(&mut self) {
         self.status = McpStatus::Error;
     }

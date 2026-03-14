@@ -1,4 +1,4 @@
-//! Agent and Skill Resolver (v0.6, v0.17)
+//! Agent and Skill Resolver
 //!
 //! Resolves external agent definitions and loads skill files at workflow start.
 //! This module handles the loading and resolution of:

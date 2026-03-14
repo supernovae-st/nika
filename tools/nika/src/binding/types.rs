@@ -1,4 +1,4 @@
-//! Core Binding Types (v0.28)
+//! Core Binding Types
 //!
 //! Foundational types for the binding system redesign:
 //! - `BindingPath`: Parsed path like `$step1.data.items[0].name`

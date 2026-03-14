@@ -1,4 +1,4 @@
-//! Decompose Module - Runtime DAG expansion via MCP traversal (v0.5)
+//! Decompose Module - Runtime DAG expansion via MCP traversal
 //!
 //! The `decompose:` modifier enables dynamic task expansion based on
 //! semantic graph traversal. Instead of static `for_each` arrays,
@@ -31,7 +31,7 @@ pub enum DecomposeStrategy {
     Nested,
 }
 
-/// Specification for runtime decomposition (v0.5)
+/// Specification for runtime decomposition
 ///
 /// Decompose expands a task at runtime into multiple iterations
 /// based on graph traversal or static arrays.

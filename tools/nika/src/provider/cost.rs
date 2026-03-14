@@ -1,4 +1,4 @@
-//! Cost calculation for LLM providers (v0.24)
+//! Cost calculation for LLM providers
 //!
 //! Provides pricing tables and cost calculation for all supported providers.
 //! Prices are in USD per million tokens.
@@ -29,7 +29,7 @@ pub enum ProviderKind {
     Groq,
     DeepSeek,
     Gemini,
-    /// Native local provider (v0.26) - GGUF models via mistral.rs
+    /// Native local provider - GGUF models via mistral.rs
     Native,
 }
 

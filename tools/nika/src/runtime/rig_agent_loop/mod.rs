@@ -1,4 +1,4 @@
-//! Rig-based Agent Loop (v0.3)
+//! Rig-based Agent Loop
 //!
 //! This module implements agentic execution using rig-core's AgentBuilder.
 //! It replaces the custom agent_loop.rs with rig's native multi-turn support.
@@ -17,7 +17,7 @@
 //!   └── Emits events to EventLog for observability
 //! ```
 //!
-//! ## Module Organization (v0.28)
+//! ## Module Organization
 //! - `types`: Status enums, result types, ToolChoice conversion
 //! - `chat`: Chat history management and multi-turn conversation
 //! - `streaming`: Streaming execution helpers for token tracking
@@ -59,7 +59,7 @@ use crate::tools::{
 ///
 /// Uses rig-core's AgentBuilder for multi-turn execution with MCP tools.
 ///
-/// ## Chat History (v0.6)
+/// ## Chat History
 ///
 /// The agent loop now supports conversation history for multi-turn interactions:
 ///
@@ -85,15 +85,15 @@ pub struct RigAgentLoop {
     mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// Pre-built tools from MCP clients
     tools: Vec<Box<dyn rig::tool::ToolDyn>>,
-    /// Conversation history for multi-turn chat (v0.6).
+    /// Conversation history for multi-turn chat.
     ///
     /// NOTE: This Vec is cloned on each `chat()` call because rig-core's API
     /// takes ownership. The clone is necessary to preserve history for future turns.
     /// Pre-allocated with capacity based on `max_turns` to minimize reallocations.
     history: Vec<Message>,
-    /// Optional streaming channel for real-time token display (v0.8.1 TUI integration)
+    /// Optional streaming channel for real-time token display
     stream_tx: Option<tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>>,
-    /// Skill injector for loading and caching skills (v0.15.4)
+    /// Skill injector for loading and caching skills
     skill_injector: Option<Arc<SkillInjector>>,
     /// Skills map from workflow definition (skill_name -> path)
     skills_map: Option<std::collections::HashMap<String, String>>,
@@ -163,7 +163,7 @@ impl RigAgentLoop {
             tools.push(Box::new(spawn_tool));
         }
 
-        // Add builtin nika:* tools (v0.12.0, v0.22: filtered by params.tools)
+        // Add builtin nika:* tools
         // If params.tools is non-empty, only add tools that are explicitly requested.
         // If params.tools is empty, add all core tools for backward compatibility.
         use super::builtin::{
@@ -171,7 +171,7 @@ impl RigAgentLoop {
             RunTool, SleepTool,
         };
 
-        // Create Arc wrappers for sharing with builtin tools (v0.12.0)
+        // Create Arc wrappers for sharing with builtin tools
         // EventLog is Clone with Arc internals, so this is cheap.
         let event_log_arc = Arc::new(event_log.clone());
         let task_id_arc: Arc<str> = task_id.as_str().into();
@@ -298,7 +298,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Set streaming channel for real-time token display (v0.8.1 TUI integration)
+    /// Set streaming channel for real-time token display
     ///
     /// When set, tokens will be sent to this channel as they arrive during streaming.
     /// This enables Claude Code-like real-time text display in the TUI.
@@ -310,7 +310,7 @@ impl RigAgentLoop {
         self
     }
 
-    /// Configure skill injection for this agent (v0.15.4)
+    /// Configure skill injection for this agent
     ///
     /// When set, skills defined in the workflow are loaded and prepended to
     /// the agent's system prompt before LLM calls.
@@ -345,7 +345,7 @@ impl RigAgentLoop {
     // v0.15.4: Skill Injection
     // =========================================================================
 
-    /// Inject skills into the system prompt (v0.15.4)
+    /// Inject skills into the system prompt
     ///
     /// If skills are configured via `with_skills()` and the agent has skills
     /// defined in `AgentParams.skills`, this method loads and prepends skill

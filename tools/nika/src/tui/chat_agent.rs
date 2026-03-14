@@ -227,7 +227,7 @@ pub struct ChatAgent {
 }
 
 impl ChatAgent {
-    /// Create a new ChatAgent with auto-detected provider (v0.6)
+    /// Create a new ChatAgent with auto-detected provider
     ///
     /// Provider detection order:
     /// 1. ANTHROPIC_API_KEY → Claude
@@ -235,9 +235,9 @@ impl ChatAgent {
     /// 3. MISTRAL_API_KEY → Mistral
     /// 4. GROQ_API_KEY → Groq
     /// 5. DEEPSEEK_API_KEY → DeepSeek
-    /// 6. GEMINI_API_KEY → Gemini (v0.27: Ollama removed, use native instead)
+    /// 6. GEMINI_API_KEY → Gemini
     pub fn new() -> Result<Self, NikaError> {
-        // Use RigProvider::auto() for consistent detection (v0.6)
+        // Use RigProvider::auto() for consistent detection
         // Return error if no API keys are set (instead of panicking on fallback)
         let provider = RigProvider::auto().ok_or_else(|| NikaError::MissingApiKey {
             provider: "any (ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY)".to_string(),
@@ -256,7 +256,7 @@ impl ChatAgent {
         })
     }
 
-    /// Create a new ChatAgent with specific provider and model overrides (v0.6)
+    /// Create a new ChatAgent with specific provider and model overrides
     ///
     /// # Arguments
     ///
@@ -279,7 +279,7 @@ impl ChatAgent {
         // Helper to check non-empty env var
         let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
 
-        // Apply provider override (v0.15: supports 7 providers)
+        // Apply provider override
         if let Some(p) = provider {
             match p.to_lowercase().as_str() {
                 "claude" | "anthropic" => {
@@ -394,7 +394,7 @@ impl ChatAgent {
     /// agent.set_provider(ModelProvider::Claude).unwrap();
     /// ```
     pub fn set_provider(&mut self, provider: ModelProvider) -> Result<(), NikaError> {
-        // Helper: check env var exists and is non-empty (v0.6 fix)
+        // Helper: check env var exists and is non-empty
         let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
 
         match provider {
@@ -711,7 +711,7 @@ impl ChatAgent {
         self.streaming_state.is_streaming
     }
 
-    /// Invoke an MCP tool (v0.28)
+    /// Invoke an MCP tool
     ///
     /// # Arguments
     ///
@@ -852,7 +852,7 @@ impl ChatAgent {
         }
     }
 
-    /// Run an agentic loop with MCP tools (v0.28)
+    /// Run an agentic loop with MCP tools
     ///
     /// # Arguments
     ///

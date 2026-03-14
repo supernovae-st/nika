@@ -1,4 +1,4 @@
-//! Utilities Module - shared infrastructure (v0.1)
+//! Utilities Module - shared infrastructure
 //!
 //! Contains helper functions and data structures used across the codebase:
 //! - `constants`: Centralized timeouts and limits

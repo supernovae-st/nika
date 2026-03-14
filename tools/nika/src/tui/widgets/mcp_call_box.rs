@@ -65,7 +65,7 @@ pub struct McpCallData {
     pub expanded: bool,
     /// Animation frame for spinner
     pub frame: u8,
-    /// Retry count (v0.5.2+)
+    /// Retry count
     pub retry_count: u8,
     /// Maximum retries allowed
     pub max_retries: u8,

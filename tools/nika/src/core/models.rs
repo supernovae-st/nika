@@ -14,7 +14,7 @@ use std::fmt;
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Error type for model resolution operations (v0.27 security).
+/// Error type for model resolution operations.
 ///
 /// v0.27.1: This error implements Clone by storing error messages as String
 /// instead of non-Clone types like std::io::Error.

@@ -1,6 +1,6 @@
 //! Provider abstraction layer
 //!
-//! ## Provider Strategy (v0.4)
+//! ## Provider Strategy
 //!
 //! Nika uses [rig-core](https://github.com/0xPlaygrounds/rig) for LLM providers.
 //!
@@ -10,7 +10,7 @@
 //! | `infer:` verb | `RigProvider` + rig-core |
 //! | Tool calling | `NikaMcpTool` (rig `ToolDyn`) |
 //!
-//! ## Cost Calculation (v0.24)
+//! ## Cost Calculation
 //!
 //! The `cost` module provides pricing tables and cost calculation for all providers.
 //!
@@ -53,7 +53,7 @@ pub use rig::{NikaMcpTool, RigProvider, StreamResult};
 #[cfg(feature = "native-inference")]
 pub use native::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, NativeRuntime};
 
-// Re-export storage types for model management (v0.27)
+// Re-export storage types for model management
 #[cfg(feature = "native-inference")]
 pub use native::{
     default_model_dir, DownloadRequest, HuggingFaceStorage, ModelStorage, PullProgress,

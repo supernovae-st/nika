@@ -6,7 +6,7 @@
 use super::{ChatPanel, ChatView, PanelScrollState};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Panel Navigation (v0.8 UX Enhancement)
+// Panel Navigation
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -40,7 +40,7 @@ impl ChatView {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
-    /// Scroll down by one item (v0.8.1: scrolls conversation even from input panel)
+    /// Scroll down by one item
     pub fn scroll_down(&mut self) {
         // v0.8.1: Don't update total here - add_message() and render() handle it
         // This lets tests configure scroll state manually
@@ -56,7 +56,7 @@ impl ChatView {
         }
     }
 
-    /// Scroll up by one item (v0.8.1: scrolls conversation even from input panel)
+    /// Scroll up by one item
     pub fn scroll_up(&mut self) {
         // v0.8.1: Don't update total here - add_message() and render() handle it
         match self.focused_panel {
@@ -71,7 +71,7 @@ impl ChatView {
         }
     }
 
-    /// Scroll to top (v0.8.1: scrolls conversation even from input panel)
+    /// Scroll to top
     pub fn scroll_to_top(&mut self) {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
@@ -85,7 +85,7 @@ impl ChatView {
         }
     }
 
-    /// Scroll to bottom (v0.8.1: scrolls conversation even from input panel)
+    /// Scroll to bottom
     pub fn scroll_to_bottom(&mut self) {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
@@ -99,7 +99,7 @@ impl ChatView {
         }
     }
 
-    /// Page down (v0.8.1: scrolls conversation even from input panel)
+    /// Page down
     pub fn page_down(&mut self) {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
@@ -113,7 +113,7 @@ impl ChatView {
         }
     }
 
-    /// Page up (v0.8.1: scrolls conversation even from input panel)
+    /// Page up
     pub fn page_up(&mut self) {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {

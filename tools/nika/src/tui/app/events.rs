@@ -24,7 +24,7 @@ impl App {
         // Clear buffer for reuse
         self.event_buffer.clear();
 
-        // Check broadcast receiver (v0.4.1 preferred)
+        // Check broadcast receiver
         if let Some(ref mut rx) = self.broadcast_rx {
             loop {
                 match rx.try_recv() {

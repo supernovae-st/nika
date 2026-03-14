@@ -1,4 +1,4 @@
-//! Transform Engine (v0.28)
+//! Transform Engine
 //!
 //! Pipeline transforms applied to binding values.
 //! Transforms are chained with `|` pipes: `sort | unique | first(3)`

@@ -180,15 +180,15 @@ pub struct DagNode {
     pub duration_ms: Option<u64>,
     /// Edge state for incoming edges
     pub incoming_edge_state: EdgeState,
-    /// Has breakpoint set (v0.5.2+)
+    /// Has breakpoint set
     pub has_breakpoint: bool,
-    /// for_each loop count (v0.5.2+)
+    /// for_each loop count
     pub for_each_count: Option<usize>,
-    /// for_each loop group ID (v0.5.2+) - shared by all tasks in same loop
+    /// for_each loop group ID - shared by all tasks in same loop
     pub loop_group_id: Option<String>,
-    /// decompose expansion count (v0.7.0+) - number of expanded subtasks
+    /// decompose expansion count - number of expanded subtasks
     pub decompose_count: Option<usize>,
-    /// decompose parent task ID (v0.7.0+) - links expanded tasks to parent
+    /// decompose parent task ID - links expanded tasks to parent
     pub decompose_parent_id: Option<String>,
 }
 
@@ -243,19 +243,19 @@ impl DagNode {
         self
     }
 
-    /// Set breakpoint flag (v0.5.2+)
+    /// Set breakpoint flag
     pub fn with_breakpoint(mut self, has_bp: bool) -> Self {
         self.has_breakpoint = has_bp;
         self
     }
 
-    /// Set for_each loop count (v0.5.2+)
+    /// Set for_each loop count
     pub fn with_for_each_count(mut self, count: usize) -> Self {
         self.for_each_count = Some(count);
         self
     }
 
-    /// Set loop group ID (v0.5.2+) - for visual grouping of parallel tasks
+    /// Set loop group ID - for visual grouping of parallel tasks
     pub fn with_loop_group(mut self, group_id: impl Into<String>) -> Self {
         self.loop_group_id = Some(group_id.into());
         self
@@ -266,13 +266,13 @@ impl DagNode {
         self.for_each_count.is_some() || self.loop_group_id.is_some()
     }
 
-    /// Set decompose expansion count (v0.7.0+) - number of expanded subtasks
+    /// Set decompose expansion count - number of expanded subtasks
     pub fn with_decompose_count(mut self, count: usize) -> Self {
         self.decompose_count = Some(count);
         self
     }
 
-    /// Set decompose parent task ID (v0.7.0+) - links expanded tasks to parent
+    /// Set decompose parent task ID - links expanded tasks to parent
     pub fn with_decompose_parent(mut self, parent_id: impl Into<String>) -> Self {
         self.decompose_parent_id = Some(parent_id.into());
         self
@@ -537,7 +537,7 @@ impl Widget for Dag<'_> {
             );
             buf.set_string(area.x + x, area.y + y, icon, icon_style);
 
-            // Draw breakpoint marker (v0.5.2+)
+            // Draw breakpoint marker
             if node.has_breakpoint {
                 buf.set_string(area.x + x + 1, area.y + y, "🔴", Style::default());
             }
@@ -577,7 +577,7 @@ impl Widget for Dag<'_> {
                     next_x += 2;
                 }
 
-                // for_each loop indicator (v0.5.2+)
+                // for_each loop indicator
                 if let Some(count) = node.for_each_count {
                     if next_x < area.x + area.width - 10 {
                         let loop_indicator = format!("🔁×{}", count);
@@ -591,7 +591,7 @@ impl Widget for Dag<'_> {
                     }
                 }
 
-                // decompose expansion indicator (v0.7.0+)
+                // decompose expansion indicator
                 if let Some(count) = node.decompose_count {
                     if next_x < area.x + area.width - 10 {
                         let decompose_indicator = format!("🔀×{}", count);

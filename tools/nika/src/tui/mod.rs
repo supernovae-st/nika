@@ -1,6 +1,6 @@
 //! Terminal User Interface Module
 //!
-//! Feature-gated TUI with 4-view architecture (v0.22+).
+//! Feature-gated TUI with 4-view architecture.
 //!
 //! # Entry Points
 //!
@@ -9,7 +9,7 @@
 //! - `nika studio` → Studio view (YAML editor)
 //! - `nika workflow.yaml` → Runner view (run workflow)
 //!
-//! # 4-View Architecture (v0.22)
+//! # 4-View Architecture
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
@@ -30,7 +30,7 @@
 //! - `?` - Show help
 //! - `Ctrl+C` (2x) - Quit
 //!
-//! # Panic Recovery (v0.7.0+)
+//! # Panic Recovery
 //!
 //! The TUI installs a panic hook to restore terminal state on crashes.
 //! Crash logs are written to `~/.nika/crash.log`.
@@ -139,7 +139,7 @@ pub use session::{
 pub use standalone::{BrowserEntry, HistoryEntry, StandalonePanel, StandaloneState};
 #[cfg(feature = "tui")]
 pub use state::{
-    // Animation frame constants (v0.9.x standard)
+    // Animation frame constants
     AgentTurnState,
     PanelId,
     PanelScrollState,
@@ -387,7 +387,7 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     let app = App::new_standalone(state)?;
     let launch_wizard = app.run_unified().await?;
 
-    // Check if wizard was requested from Settings view (v0.27)
+    // Check if wizard was requested from Settings view
     if launch_wizard {
         println!();
         run_tui_wizard().await?;

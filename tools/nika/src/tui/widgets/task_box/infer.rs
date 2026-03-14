@@ -47,7 +47,7 @@ pub struct InferBox {
     pub velocity: TokenVelocity,
     /// Estimated cost in USD
     pub cost: Option<f64>,
-    /// Matrix decrypt effect for streaming response (v0.17.1)
+    /// Matrix decrypt effect for streaming response
     pub decrypt: StreamingDecrypt,
     /// Whether to use decrypt effect for streaming
     pub use_decrypt_effect: bool,
@@ -831,7 +831,7 @@ mod tests {
         assert!((box_.cost.unwrap() - 0.0105).abs() < 0.0001);
     }
 
-    // === Matrix Decrypt Integration Tests (v0.17.1) ===
+    // === Matrix Decrypt Integration Tests ===
 
     #[test]
     fn test_decrypt_effect_enabled_by_default() {

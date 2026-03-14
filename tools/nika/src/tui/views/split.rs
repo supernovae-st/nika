@@ -1,4 +1,4 @@
-//! Split View - Side-by-side Editor + Runner (v0.13)
+//! Split View - Side-by-side Editor + Runner
 //!
 //! Combines Editor (YAML editing) and Runner (execution monitoring) in a split pane.
 //!

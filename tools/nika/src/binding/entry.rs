@@ -1,4 +1,4 @@
-//! Wiring Spec - YAML types for explicit data wiring (v0.5)
+//! Wiring Spec - YAML types for explicit data wiring
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //!
@@ -8,7 +8,7 @@
 //! - `name: user.profile ?? "Anonymous"` -> with string default (quoted)
 //! - `cfg: x ?? {"a": 1}` -> with object default
 //!
-//! Extended syntax for lazy bindings (v0.5 MVP 8):
+//! Extended syntax for lazy bindings:
 //! - `alias: { path: task.result, lazy: true }` -> deferred resolution
 //! - `alias: { path: task.result, lazy: true, default: "fallback" }` -> lazy with default
 
@@ -26,7 +26,7 @@ use super::types::{BindingPath, BindingType};
 /// Wiring spec - map of alias to entry (YAML `use:` block)
 pub type WiringSpec = FxHashMap<String, UseEntry>;
 
-/// Unified use entry - supports both string and extended object syntax (v0.5)
+/// Unified use entry - supports both string and extended object syntax
 ///
 /// String syntax: `task.path [?? default]`
 /// - path: "task.field.subfield" or "task" for entire output
@@ -42,7 +42,7 @@ pub struct UseEntry {
     pub path: String,
     /// Optional default value (JSON literal)
     pub default: Option<Value>,
-    /// Lazy flag - if true, resolution is deferred until first access (v0.5)
+    /// Lazy flag - if true, resolution is deferred until first access
     pub lazy: bool,
 }
 
@@ -93,7 +93,7 @@ impl UseEntry {
         self.path.split('.').next().unwrap_or(&self.path)
     }
 
-    /// Normalize a binding path by stripping the `$` prefix if present (v0.21).
+    /// Normalize a binding path by stripping the `$` prefix if present.
     ///
     /// This enables implicit output reference syntax where `$task` is
     /// syntactic sugar for `task`. The DataStore.resolve_path() function
@@ -188,11 +188,11 @@ fn find_operator_outside_quotes(s: &str, op: &str) -> Option<usize> {
     None
 }
 
-/// Custom deserializer for UseEntry (v0.5)
+/// Custom deserializer for UseEntry
 ///
 /// Accepts two formats:
 /// 1. String: `task.path [?? default]` → eager binding
-/// 2. Object: `{path: "task.path", lazy: true, default: ...}` → lazy binding (v0.5)
+/// 2. Object: `{path: "task.path", lazy: true, default: ...}` → lazy binding
 impl<'de> Deserialize<'de> for UseEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -223,7 +223,7 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
         Ok(entry)
     }
 
-    /// Handle object format: {path, lazy?, default?} (v0.5 extended syntax)
+    /// Handle object format: {path, lazy?, default?}
     fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
     where
         M: MapAccess<'de>,
@@ -271,10 +271,10 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// v0.28 WithEntry -- new binding system
+// WithEntry -- new binding system
 // ═══════════════════════════════════════════════════════════════
 
-/// A single binding entry in the `with:` block (v0.28)
+/// A single binding entry in the `with:` block
 ///
 /// Supports two YAML forms:
 ///
@@ -372,7 +372,7 @@ impl WithEntry {
     }
 }
 
-/// Parse a with-entry from its string form (v0.28)
+/// Parse a with-entry from its string form
 ///
 /// Grammar:
 /// ```text
@@ -563,7 +563,7 @@ fn split_transforms(s: &str) -> (&str, Option<&str>) {
     (s, None)
 }
 
-/// Custom deserializer for WithEntry (v0.28)
+/// Custom deserializer for WithEntry
 ///
 /// Accepts two YAML formats:
 /// 1. String: `"$step1.data | upper ?? fallback"` → parsed by `parse_with_entry`
@@ -1177,7 +1177,7 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.28 WithEntry -- parse_with_entry() tests
+    // WithEntry -- parse_with_entry() tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

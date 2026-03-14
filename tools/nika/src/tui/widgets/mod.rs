@@ -63,15 +63,15 @@ pub mod panels;
 pub mod progress;
 
 pub use agent_turns::{AgentTurns, TurnEntry};
-// Animation utilities (v0.10.4)
+// Animation utilities
 pub use animation::{AnimationState, AnimationTicker, Easing};
-// Chat DAG widgets (v0.10.0-v0.10.4)
+// Chat DAG widgets
 pub use chat_dag_panel::{ChatDagPanel, DagEdgeData, DagNodeData};
 pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
 pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use provider_modal::*;
-// Provider selector types (v0.8.2) + Verification status + MCP display
+// Provider selector types + Verification status + MCP display
 // v0.27: Ollama health check functions removed (native inference via mistral.rs)
 // Note: ProviderSelector/ProviderSelectorState removed in v0.8.8 (replaced by Provider Modal)
 pub use provider_selector::{
@@ -110,53 +110,53 @@ pub use status_bar::{ConnectionStatus, Provider, StatusBar, StatusMetrics, Workf
 pub use timeline::{Timeline, TimelineEntry};
 // Pro status bar for Chat view (Claude Code-inspired)
 pub use pro_status_bar::{ChatModeIndicator, ProStatusBar, SessionMetrics};
-// Mission Control panel for Chat view (v0.7.3)
+// Mission Control panel for Chat view
 pub use mission_control::{
     ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
     TurnMetrics,
 };
-// Verb input system for Chat view (v0.7.3)
+// Verb input system for Chat view
 pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
-// Mention system for Chat view (v0.7.3)
+// Mention system for Chat view
 pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
-// Agent steps for Claude Code-like feedback (v0.7.3, enhanced v0.8)
+// Agent steps for Claude Code-like feedback
 // v0.8.1: Added AgentPhase and AgentPhaseIndicator for real-time status
 pub use agent_steps::{
     AgentPhase, AgentPhaseIndicator, AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus,
     TokenUsage, ToolCallMetadata,
 };
-// Terminal size handling (v0.8 - graceful degradation)
+// Terminal size handling
 pub use terminal_size::{
     check_terminal_size, LayoutMode, TerminalTooSmallOverlay, COMPACT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
     WIDE_WIDTH,
 };
-// Help overlay (v0.8 - ? or F1)
+// Help overlay
 pub use help_overlay::{HelpOverlay, HelpOverlayState, HelpSection, HELP_SECTIONS};
-// Status messages (v0.8 - user feedback)
+// Status messages
 pub use status_message::{StatusLevel, StatusMessage, StatusMessageWidget, StatusQueue};
-// Matrix Rain effect (v0.8 - WOW dither effect for background)
+// Matrix Rain effect
 pub use matrix_rain::MatrixRain;
-// Nika Intro animation (v0.9.1 - ASCII art explosion into rain)
+// Nika Intro animation
 pub use nika_intro::{IntroPhase, NikaIntro, NikaIntroState};
-// Matrix Decrypt effect (v0.8 - streaming text reveal with verb themes)
+// Matrix Decrypt effect
 pub use matrix_decrypt::{DecryptVerb, MatrixDecrypt, MultiLineDecrypt, StreamingDecrypt};
-// Task Box widgets (v0.8.2 - structured verb boxes)
+// Task Box widgets
 pub use task_box::{
     exit, http, status, AgentBox, BoxState, ExecBox, FetchBox, InferBox, InvokeBox, TaskBox,
     TaskBoxWidget, VerbColor, BRAILLE_SPINNER,
 };
-// Tree widget (v0.20 - VS Code-like file tree)
+// Tree widget
 pub use tree::{GitStatus, NodeId, NodeKind, TreeAction, TreeColors, TreeNode, TreeState};
-// Which-key popup (v0.21.2 - vim-style leader key hints)
+// Which-key popup
 pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
-// Panel components (v0.22 - shared between views)
+// Panel components
 pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
 };
-// Progress widgets (v0.27 - M5 UX Polish)
+// Progress widgets
 pub use progress::{
     DownloadProgress, DownloadStatus, EditorSyncState, SyncProgress, SyncStatus, TaskProgress,
     TaskProgressStatus,

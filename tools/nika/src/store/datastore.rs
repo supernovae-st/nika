@@ -1,10 +1,10 @@
-//! DataStore - task output storage with DashMap (v0.1 optimized)
+//! DataStore - task output storage with DashMap
 //!
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
 //!
-//! v0.14.2: Added context storage for workflow `context:` block.
-//! v0.19.4: Added inputs storage for workflow `inputs:` block.
+//! Added context storage for workflow `context:` block.
+//! Added inputs storage for workflow `inputs:` block.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use super::context::LoadedContext;
 pub enum TaskStatus {
     Success,
     Failed(String),
-    /// Task cannot run because a dependency failed (v0.24)
+    /// Task cannot run because a dependency failed
     DependencyFailed {
         /// ID of the failed dependency
         dependency: String,
@@ -74,7 +74,7 @@ impl TaskResult {
         }
     }
 
-    /// Create a result for a task that cannot run because its dependency failed (v0.24)
+    /// Create a result for a task that cannot run because its dependency failed
     ///
     /// This is distinct from `failed()` because the task itself didn't fail -
     /// it simply cannot run because an upstream dependency failed.
@@ -88,7 +88,7 @@ impl TaskResult {
         }
     }
 
-    /// Create a skipped result (v0.24)
+    /// Create a skipped result
     ///
     /// Used when a task is skipped due to cancellation or other reasons.
     pub fn skipped(reason: impl Into<String>) -> Self {
@@ -106,12 +106,12 @@ impl TaskResult {
         matches!(self.status, TaskStatus::Success)
     }
 
-    /// Check if task failed due to a dependency failure (v0.24)
+    /// Check if task failed due to a dependency failure
     pub fn is_dependency_failed(&self) -> bool {
         matches!(self.status, TaskStatus::DependencyFailed { .. })
     }
 
-    /// Check if task was skipped (v0.24)
+    /// Check if task was skipped
     pub fn is_skipped(&self) -> bool {
         matches!(self.status, TaskStatus::Skipped { .. })
     }
@@ -123,7 +123,7 @@ impl TaskResult {
         true // All TaskStatus variants are terminal states
     }
 
-    /// Get the failed dependency name if this is a DependencyFailed result (v0.24)
+    /// Get the failed dependency name if this is a DependencyFailed result
     pub fn failed_dependency(&self) -> Option<&str> {
         match &self.status {
             TaskStatus::DependencyFailed { dependency } => Some(dependency),
@@ -154,20 +154,20 @@ impl TaskResult {
 ///
 /// Uses `Arc<str>` keys for zero-cost cloning with same Arc used in events.
 ///
-/// v0.14.2: Added context storage for workflow `context:` block.
-/// v0.19.4: Added inputs storage for workflow `inputs:` block.
+/// Added context storage for workflow `context:` block.
+/// Added inputs storage for workflow `inputs:` block.
 #[derive(Clone, Default)]
 pub struct DataStore {
     /// Task results: task_id → TaskResult
     results: Arc<DashMap<Arc<str>, TaskResult>>,
 
-    /// Context loaded at workflow start (v0.14.2)
+    /// Context loaded at workflow start
     ///
     /// Contains files loaded from the `context:` block.
     /// Accessible via `{{context.files.alias}}` bindings.
     context: Arc<RwLock<LoadedContext>>,
 
-    /// Input parameters with defaults (v0.19.4)
+    /// Input parameters with defaults
     ///
     /// Contains input definitions from the `inputs:` block.
     /// Accessible via `{{inputs.param}}` bindings.
@@ -199,7 +199,7 @@ impl DataStore {
         self.get(task_id).is_some_and(|r| r.is_success())
     }
 
-    /// Check if task failed (either directly or due to dependency failure) (v0.24)
+    /// Check if task failed (either directly or due to dependency failure)
     pub fn is_failed(&self, task_id: &str) -> bool {
         self.get(task_id).is_some_and(|r| {
             matches!(
@@ -209,12 +209,12 @@ impl DataStore {
         })
     }
 
-    /// Check if task failed due to a dependency failure (v0.24)
+    /// Check if task failed due to a dependency failure
     pub fn is_dependency_failed(&self, task_id: &str) -> bool {
         self.get(task_id).is_some_and(|r| r.is_dependency_failed())
     }
 
-    /// Get the failed dependency name if task has DependencyFailed status (v0.24)
+    /// Get the failed dependency name if task has DependencyFailed status
     pub fn get_failed_dependency(&self, task_id: &str) -> Option<String> {
         self.get(task_id)
             .and_then(|r| r.failed_dependency().map(String::from))
@@ -247,36 +247,36 @@ impl DataStore {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // CONTEXT STORAGE (v0.14.2 Schema @0.9)
+    // CONTEXT STORAGE
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Set workflow context (v0.14.2)
+    /// Set workflow context
     ///
     /// Called by Runner at workflow start after loading context files.
     pub fn set_context(&self, context: LoadedContext) {
         *self.context.write() = context;
     }
 
-    /// Get a context file by alias (v0.14.2)
+    /// Get a context file by alias
     ///
     /// Returns the loaded value for `{{context.files.alias}}` bindings.
     pub fn get_context_file(&self, alias: &str) -> Option<Value> {
         self.context.read().get_file(alias).cloned()
     }
 
-    /// Get session data (v0.14.2)
+    /// Get session data
     ///
     /// Returns the loaded session for `{{context.session.key}}` bindings.
     pub fn get_context_session(&self) -> Option<Value> {
         self.context.read().get_session().cloned()
     }
 
-    /// Check if context is loaded (v0.14.2)
+    /// Check if context is loaded
     pub fn has_context(&self) -> bool {
         !self.context.read().is_empty()
     }
 
-    /// Resolve a context path (v0.14.2)
+    /// Resolve a context path
     ///
     /// Supports:
     /// - `context.files.alias` → file content
@@ -325,10 +325,10 @@ impl DataStore {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // INPUTS STORAGE (v0.19.4 Schema @0.10)
+    // INPUTS STORAGE
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Set workflow inputs (v0.19.4)
+    /// Set workflow inputs
     ///
     /// Called by Runner at workflow start with input definitions.
     /// Each input is a JSON object with `type`, `default`, `description`, etc.
@@ -336,7 +336,7 @@ impl DataStore {
         *self.inputs.write() = inputs;
     }
 
-    /// Get an input's value by name (v0.19.4)
+    /// Get an input's value by name
     ///
     /// Supports two formats:
     /// - Full form: `{ type: string, default: "value" }` → extracts `default` field
@@ -366,12 +366,12 @@ impl DataStore {
         Some(definition.clone())
     }
 
-    /// Check if inputs are loaded (v0.19.4)
+    /// Check if inputs are loaded
     pub fn has_inputs(&self) -> bool {
         !self.inputs.read().is_empty()
     }
 
-    /// Resolve an input path (v0.19.4)
+    /// Resolve an input path
     ///
     /// Supports:
     /// - `inputs.param` → default value of parameter
@@ -501,7 +501,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Concurrent Access Tests (v0.5.0 - Plan B Test Coverage)
+    // Concurrent Access Tests
     // =========================================================================
 
     #[test]
@@ -609,7 +609,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Edge Case Tests (v0.5.0 - Plan B Test Coverage)
+    // Edge Case Tests
     // =========================================================================
 
     #[test]
@@ -770,7 +770,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Context Storage Tests (v0.14.2 Schema @0.9)
+    // Context Storage Tests
     // =========================================================================
 
     #[test]
@@ -885,7 +885,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Inputs Storage Tests (v0.19.4 Schema @0.10)
+    // Inputs Storage Tests
     // =========================================================================
 
     #[test]

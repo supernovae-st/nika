@@ -25,18 +25,18 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 /// v0.12.1: Increased from 30s to 60s for complex MCP operations
 pub const MCP_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Total deadline for invoke task execution (v0.24 - Bug fix)
+/// Total deadline for invoke task execution
 /// Prevents N MCP calls × MCP_CALL_TIMEOUT from causing unbounded execution time.
 /// A single invoke task with retries must complete within this deadline.
 /// Set to 5 minutes to allow multiple retries while preventing runaway tasks.
 pub const INVOKE_TASK_DEADLINE: Duration = Duration::from_secs(300);
 
-/// Timeout for MCP reconnection attempts (v0.24 - Bug fix)
+/// Timeout for MCP reconnection attempts
 /// Each reconnection attempt (disconnect + connect) has this timeout.
 /// Prevents indefinite hanging when MCP servers become unresponsive.
 pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Maximum number of MCP reconnection attempts (v0.24 - Bug fix)
+/// Maximum number of MCP reconnection attempts
 /// After this many failed reconnection attempts, the operation fails.
 /// Prevents infinite retry loops on persistently broken connections.
 pub const MAX_RECONNECT_ATTEMPTS: u32 = 3;
@@ -63,7 +63,7 @@ pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
 // MCP Cache TTL
 // ═══════════════════════════════════════════════════════════════
 
-/// TTL for cached MCP tool definitions (v0.28).
+/// TTL for cached MCP tool definitions.
 /// After this duration, tool lists should be re-fetched from the server.
 /// 5 minutes balances freshness with avoiding excessive list_tools() calls.
 pub const TOOL_CACHE_TTL: Duration = Duration::from_secs(300);

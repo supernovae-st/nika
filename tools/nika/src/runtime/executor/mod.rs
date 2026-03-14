@@ -1,4 +1,4 @@
-//! Task Executor - individual task execution (v0.2, split v0.28)
+//! Task Executor - individual task execution
 //!
 //! Handles execution of individual tasks: infer, exec, fetch, invoke, agent.
 //! Uses DashMap for lock-free provider caching.
@@ -40,9 +40,9 @@ use crate::util::{CONNECT_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 pub struct TaskExecutor {
     /// Shared HTTP client (connection pooling)
     http_client: reqwest::Client,
-    /// Cached rig-core providers (v0.3.1+)
+    /// Cached rig-core providers
     rig_provider_cache: Arc<DashMap<String, RigProvider>>,
-    /// Centralized MCP client pool (v0.28)
+    /// Centralized MCP client pool
     ///
     /// Replaces the previous `mcp_client_cache` + `mcp_configs` pair.
     /// Handles lazy initialization, per-server deduplication via DashMap + OnceCell,
@@ -54,11 +54,11 @@ pub struct TaskExecutor {
     default_model: Option<Arc<str>>,
     /// Event log for fine-grained audit trail
     event_log: EventLog,
-    /// Router for builtin nika:* tools (v0.9.3)
+    /// Router for builtin nika:* tools
     builtin_router: Arc<BuiltinToolRouter>,
-    /// Policy enforcer for security checks (v0.13.1)
+    /// Policy enforcer for security checks
     policy_enforcer: Arc<parking_lot::RwLock<PolicyEnforcer>>,
-    /// Cancellation token for aborting in-flight operations (v0.28)
+    /// Cancellation token for aborting in-flight operations
     ///
     /// When cancelled, MCP invoke operations race against this token
     /// so they can abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
@@ -76,7 +76,7 @@ impl TaskExecutor {
         Self::with_policy(provider, model, mcp_configs, event_log, None)
     }
 
-    /// Create a new executor with explicit policy configuration (v0.13.1)
+    /// Create a new executor with explicit policy configuration
     pub fn with_policy(
         provider: &str,
         model: Option<&str>,
@@ -99,7 +99,7 @@ impl TaskExecutor {
 
         let policy_enforcer = PolicyEnforcer::new(policy_config.unwrap_or_default());
 
-        // Create ToolContext for file tools (v0.16.3 fix)
+        // Create ToolContext for file tools
         // Use current working directory and YoloMode for maximum compatibility
         let working_dir = std::env::current_dir().unwrap_or_else(|_| {
             tracing::warn!("Failed to get current directory, using /tmp");
@@ -123,7 +123,7 @@ impl TaskExecutor {
         }
     }
 
-    /// Set a cancellation token for aborting in-flight operations (v0.28).
+    /// Set a cancellation token for aborting in-flight operations.
     ///
     /// When the token is cancelled, MCP invoke operations will abort promptly
     /// instead of waiting for the full INVOKE_TASK_DEADLINE timeout.
@@ -142,7 +142,7 @@ impl TaskExecutor {
             .inject_mock(name, Arc::new(McpClient::mock(name)));
     }
 
-    /// Build JSON schema instruction for LLM prompts (v0.19.4)
+    /// Build JSON schema instruction for LLM prompts
     ///
     /// When output policy requires JSON format with a schema, this generates
     /// an instruction string to append to the prompt, telling the LLM to
@@ -185,7 +185,7 @@ impl TaskExecutor {
         ))
     }
 
-    /// Run a task action with the given bindings (v0.5, updated v0.19.4)
+    /// Run a task action with the given bindings
     ///
     /// The datastore is required for resolving lazy bindings during template substitution.
     /// The output_policy is used to inject JSON schema instructions into prompts for infer/agent.
@@ -218,7 +218,7 @@ impl TaskExecutor {
         }
     }
 
-    /// Get or create a cached rig-core provider (v0.3.1+)
+    /// Get or create a cached rig-core provider
     ///
     /// Uses rig-core's provider clients for LLM inference.
     pub(super) fn get_rig_provider(&self, name: &str) -> Result<RigProvider, NikaError> {

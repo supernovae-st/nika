@@ -1,4 +1,4 @@
-//! ChatWorkflow - DAG wrapper for chat conversations (v0.9.1)
+//! ChatWorkflow - DAG wrapper for chat conversations
 //!
 //! Turns every chat message into a traceable DAG node with stable NodeIndex.
 //! Foundation for @mention references where `@N` references stay valid after deletion.
@@ -334,7 +334,7 @@ impl ChatWorkflow {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.13: Iteration support for TUI sync
+    // Iteration support for TUI sync
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Iterate over all messages in the workflow.
@@ -356,7 +356,7 @@ impl ChatWorkflow {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.13: YAML Export for /export yaml command
+    // YAML Export for /export yaml command
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Export the chat conversation to Nika workflow YAML.
@@ -1145,7 +1145,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Task 2.4: to_yaml() export tests (v0.13)
+    // Task 2.4: to_yaml() export tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

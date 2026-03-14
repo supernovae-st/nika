@@ -1,4 +1,4 @@
-//! Store Module - state management (v0.1)
+//! Store Module - state management
 //!
 //! Thread-safe storage for task execution results.
 //! Uses DashMap for lock-free concurrent access.

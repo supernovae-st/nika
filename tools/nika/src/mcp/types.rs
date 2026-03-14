@@ -1,4 +1,4 @@
-//! MCP Protocol Types (v0.2, v0.5.3: +McpErrorCode)
+//! MCP Protocol Types
 //!
 //! Core types for MCP (Model Context Protocol) integration:
 //! - [`McpConfig`]: Server configuration (name, command, args, env, cwd)
@@ -7,14 +7,14 @@
 //! - [`ContentBlock`]: Content block in tool results (text, image, resource)
 //! - [`ResourceContent`]: Resource content from MCP server
 //! - [`ToolDefinition`]: Tool schema from MCP server
-//! - [`McpErrorCode`]: JSON-RPC error codes (v0.5.3)
+//! - [`McpErrorCode`]: JSON-RPC error codes
 
 use rustc_hash::FxHashMap;
 
 use serde::{Deserialize, Serialize};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MCP JSON-RPC Error Codes (v0.5.3)
+// MCP JSON-RPC Error Codes
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// MCP JSON-RPC error codes per MCP specification.
@@ -830,7 +830,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // McpErrorCode Tests (v0.5.3)
+    // McpErrorCode Tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -907,7 +907,7 @@ mod tests {
     }
 
     // ==========================================================================
-    // Tests for is_retryable() (v0.24 - Bug fix: structured error handling)
+    // Tests for is_retryable()
     // ==========================================================================
 
     #[test]

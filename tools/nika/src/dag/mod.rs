@@ -1,8 +1,8 @@
-//! DAG Module - Directed Acyclic Graph structure (v0.1)
+//! DAG Module - Directed Acyclic Graph structure
 //!
 //! Contains the DAG representation and validation:
 //! - `flow`: Dag built from workflow flows
-//! - `stable`: StableDag wrapper for petgraph::StableGraph (v0.9.0)
+//! - `stable`: StableDag wrapper for petgraph::StableGraph
 //! - `validate`: DAG validation for use: bindings
 //!
 //! The DAG represents task dependencies and execution order.

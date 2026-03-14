@@ -1,4 +1,4 @@
-//! Output Policy - format and validation configuration (v0.2)
+//! Output Policy - format and validation configuration
 //!
 //! Defines how task output should be formatted and validated:
 //! - `OutputFormat`: Text (default) or JSON
@@ -120,10 +120,10 @@ pub enum OutputFormat {
     /// JSON parsed output
     Json,
 
-    /// YAML formatted output (v0.10+)
+    /// YAML formatted output
     Yaml,
 
-    /// Markdown formatted output (v0.10+)
+    /// Markdown formatted output
     Markdown,
 }
 

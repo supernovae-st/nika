@@ -1,4 +1,4 @@
-//! Streaming execution helpers (v0.7.2+)
+//! Streaming execution helpers
 //!
 //! Contains streaming completion helpers for token tracking and real-time
 //! TUI display across all providers.
@@ -22,7 +22,7 @@ use super::RigAgentLoop;
 
 impl RigAgentLoop {
     // =========================================================================
-    // Streaming Helpers (v0.7.2 - Token Tracking Migration)
+    // Streaming Helpers
     // =========================================================================
 
     /// Execute a completion request with streaming, capturing tokens.
@@ -52,7 +52,7 @@ impl RigAgentLoop {
             request_builder = request_builder.preamble(sys.to_string());
         }
 
-        // Apply temperature if specified using native rig-core method (v0.8.0)
+        // Apply temperature if specified using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
             request_builder = request_builder.temperature(f64::from(temp));
         }
@@ -162,7 +162,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Execute agent with tools using streaming for token tracking (v0.24.0: always tracked).
+    /// Execute agent with tools using streaming for token tracking.
     ///
     /// This handles the case where we need both tool calling AND token tracking.
     ///
@@ -190,7 +190,7 @@ impl RigAgentLoop {
         M: rig::completion::CompletionModel + Clone + 'static,
         <M as rig::completion::CompletionModel>::Response: Send,
     {
-        // Inject skills into system prompt if configured (v0.15.4)
+        // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         if tools.is_empty() {
             // No tools - use pure streaming (full token tracking)
@@ -204,20 +204,20 @@ impl RigAgentLoop {
                     .await;
             }
 
-            // CLI mode (no TUI): Use stream_prompt() for token tracking (v0.24.0)
+            // CLI mode (no TUI): Use stream_prompt() for token tracking
             // Even without TUI, we need streaming to extract token usage from FinalResponse
-            // Use preamble with injected skills (v0.15.4)
+            // Use preamble with injected skills
             let mut builder = AgentBuilder::new(model)
                 .preamble(&preamble)
                 .tools(tools)
                 .max_tokens(8192);
 
-            // Apply temperature using native rig-core method (v0.8.0)
+            // Apply temperature using native rig-core method
             if let Some(temp) = self.params.effective_temperature() {
                 builder = builder.temperature(f64::from(temp));
             }
 
-            // Apply tool_choice only if explicitly set (v0.8.0 optimization)
+            // Apply tool_choice only if explicitly set
             // Skipping redundant .tool_choice(Auto) - rig-core uses Auto by default
             if self.params.has_explicit_tool_choice() {
                 let tool_choice = self.params.effective_tool_choice();
@@ -294,7 +294,7 @@ impl RigAgentLoop {
         }
     }
 
-    /// Stream agent execution with REAL-TIME token delivery (v0.8.1)
+    /// Stream agent execution with REAL-TIME token delivery
     ///
     /// Uses rig-core's `stream_prompt()` API which supports streaming
     /// even when tools are present. Sends tokens and tool calls to TUI
@@ -317,7 +317,7 @@ impl RigAgentLoop {
         <M as rig::completion::CompletionModel>::Response: Send,
     {
         // Build agent with tools
-        // Inject skills into system prompt if configured (v0.15.4)
+        // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)

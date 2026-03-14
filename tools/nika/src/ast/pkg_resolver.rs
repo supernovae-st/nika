@@ -1,4 +1,4 @@
-//! Package URI resolver for skill ecosystem (v0.15.2)
+//! Package URI resolver for skill ecosystem
 //!
 //! Parses `pkg:` URIs and resolves them to filesystem paths.
 //!

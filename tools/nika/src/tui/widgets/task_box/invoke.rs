@@ -629,7 +629,7 @@ mod tests {
         assert!(with_params.required_height() >= 5);
     }
 
-    // === Cache Coherency Tests (v0.8.1 PERF) ===
+    // === Cache Coherency Tests ===
 
     #[test]
     fn test_params_cache_populated_on_with_params() {
@@ -735,7 +735,7 @@ mod tests {
         assert!((box_low.pulse_intensity - 0.0).abs() < 0.001);
     }
 
-    // === Compact Mode Tests (v0.11 Phase 2) ===
+    // === Compact Mode Tests ===
 
     #[test]
     fn test_invoke_box_with_render_mode() {

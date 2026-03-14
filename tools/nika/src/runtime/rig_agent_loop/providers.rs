@@ -1,4 +1,4 @@
-//! Provider-specific execution methods (v0.6+)
+//! Provider-specific execution methods
 //!
 //! Contains: run_mock, run_claude, run_openai, run_auto,
 //! run_mistral, run_groq, run_deepseek, run_gemini,
@@ -36,10 +36,10 @@ impl RigAgentLoop {
             "completed": true
         });
 
-        // Check stop conditions (v0.21: uses determine_status for completion detection)
+        // Check stop conditions
         let status = self.determine_status(&final_output.to_string());
 
-        // Build metadata for completion event (v0.4.1)
+        // Build metadata for completion event
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking: None, // Mock mode doesn't have thinking
@@ -58,7 +58,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&response_text);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -84,12 +84,12 @@ impl RigAgentLoop {
     /// This method takes `&mut self` because tools are consumed (moved to rig's AgentBuilder).
     /// The agent loop is designed for single-use execution.
     ///
-    /// ## Extended Thinking (v0.4+)
+    /// ## Extended Thinking
     /// When `extended_thinking: true` is set in AgentParams, this method uses
     /// the streaming API to capture Claude's reasoning process. The thinking
     /// is stored in `AgentTurnMetadata.thinking` for observability.
     ///
-    /// ## Token Tracking (v0.7.2)
+    /// ## Token Tracking
     /// - Without tools: Uses streaming API for accurate token tracking
     /// - With tools: Falls back to agent.prompt() (tokens will be 0)
     /// - With extended_thinking: Uses dedicated streaming path
@@ -120,7 +120,7 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Execute with streaming helper (v0.7.2 - token tracking)
+        // Execute with streaming helper
         // - No tools: Pure streaming with token tracking
         // - With tools: Falls back to agent.prompt() (0 tokens)
         let prompt = self.params.prompt.clone();
@@ -128,10 +128,10 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response (v0.21: uses determine_status for completion detection)
+        // Determine status from response
         let status = self.determine_status(&result.response);
 
-        // Build metadata WITH token tracking (v0.7.2)
+        // Build metadata WITH token tracking
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking: result.thinking,
@@ -150,7 +150,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -197,7 +197,7 @@ impl RigAgentLoop {
             metadata: None,
         });
 
-        // Execute with streaming helper (v0.7.2 - token tracking)
+        // Execute with streaming helper
         // - No tools: Pure streaming with token tracking
         // - With tools: Falls back to agent.prompt() (0 tokens)
         let prompt = self.params.prompt.clone();
@@ -205,10 +205,10 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response (v0.21: uses determine_status for completion detection)
+        // Determine status from response
         let status = self.determine_status(&result.response);
 
-        // Build metadata WITH token tracking (v0.7.2)
+        // Build metadata WITH token tracking
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking: result.thinking,
@@ -226,7 +226,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
 
@@ -243,7 +243,7 @@ impl RigAgentLoop {
         })
     }
 
-    /// Run the agent loop with the best available provider (v0.6: expanded)
+    /// Run the agent loop with the best available provider
     ///
     /// Provider selection order:
     /// 1. Check AgentParams.provider field
@@ -284,7 +284,7 @@ impl RigAgentLoop {
             }
         }
 
-        // Auto-detect based on available API keys (v0.6: expanded detection)
+        // Auto-detect based on available API keys
         // Helper: check env var exists and is non-empty
         let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
 
@@ -366,10 +366,10 @@ impl RigAgentLoop {
         self.run_generic_provider_impl(client, &model_name).await
     }
 
-    /// Generic provider runner implementation (v0.6 + v0.22 retry)
+    /// Generic provider runner implementation
     ///
     /// Uses rig-core's unified ProviderClient + CompletionClient interface.
-    /// Includes retry logic for low confidence responses (v0.22).
+    /// Includes retry logic for low confidence responses.
     async fn run_generic_provider_impl<C>(
         &mut self,
         client: C,
@@ -416,7 +416,7 @@ impl RigAgentLoop {
 
         let mut status = self.determine_status(&result.response);
 
-        // Retry loop for low confidence (v0.22)
+        // Retry loop for low confidence
         while self.should_retry(&status, retry_count) {
             retry_count += 1;
 
@@ -464,7 +464,7 @@ impl RigAgentLoop {
             status = self.determine_status(&result.response);
         }
 
-        // Build metadata WITH token tracking (v0.7.2)
+        // Build metadata WITH token tracking
         let stop_reason = status.as_canonical_str();
         let metadata = AgentTurnMetadata {
             thinking: result.thinking,
@@ -482,7 +482,7 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails (v0.23, updated v0.25)
+        // Check guardrails
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
 

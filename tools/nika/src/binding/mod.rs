@@ -17,7 +17,7 @@
 //!   cfg: settings ?? {"debug": false}   # With object default
 //! ```
 //!
-//! Extended syntax for lazy bindings (v0.5 MVP 8):
+//! Extended syntax for lazy bindings:
 //! ```yaml
 //! use:
 //!   lazy_val:
@@ -70,7 +70,6 @@ pub use template::{
     detect_deprecated_dollar_syntax,
     escape_for_shell,
     extract_refs,
-    // v0.28: New 2-pass template engine
     extract_with_refs,
     parse_template_expr,
     resolve as template_resolve,

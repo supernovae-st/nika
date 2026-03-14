@@ -1,4 +1,4 @@
-//! Lockfile parsing for exact package versions (v0.17+)
+//! Lockfile parsing for exact package versions
 //!
 //! Reads `nika.lock` to resolve exact package versions instead of using "latest".
 //! This ensures reproducible builds and avoids version drift.

@@ -95,7 +95,7 @@ pub type Result<T> = std::result::Result<T, StorageError>;
 /// File info from HuggingFace API.
 #[derive(Debug, Deserialize)]
 struct HfFileInfo {
-    /// Filename (v0.27: HuggingFace uses "path" not "rfilename").
+    /// Filename.
     #[serde(rename = "path")]
     filename: String,
     /// File size in bytes.
@@ -107,7 +107,7 @@ struct HfFileInfo {
 /// LFS metadata from HuggingFace.
 #[derive(Debug, Deserialize)]
 struct HfLfsInfo {
-    /// SHA256 checksum (v0.27: HuggingFace uses "oid" not "sha256").
+    /// SHA256 checksum.
     #[serde(rename = "oid")]
     sha256: String,
 }

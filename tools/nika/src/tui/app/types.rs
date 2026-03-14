@@ -129,7 +129,7 @@ pub enum Action {
     ChatOverlayScrollUp,
     /// Scroll down in chat overlay
     ChatOverlayScrollDown,
-    // ═══ View-Specific Actions (v0.21 TUI Fix) ═══
+    // ═══ View-Specific Actions ═══
     /// Action delegated from a view's handle_key() that needs App-level handling
     ViewSpecific(ViewAction),
 }

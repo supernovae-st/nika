@@ -1,4 +1,4 @@
-//! Resolved Bindings - runtime value resolution (v0.28)
+//! Resolved Bindings - runtime value resolution
 //!
 //! ResolvedBindings holds resolved values from `use:` / `with:` blocks for template resolution.
 //! Supports both eager (immediate) and lazy (deferred) resolution.
@@ -8,7 +8,7 @@
 //! Unified syntax: `alias: task.path [?? default]`
 //! Extended syntax: `alias: {path: task.path, lazy: true}`
 //!
-//! ## New system (with:) — WithSpec + WithEntry (v0.28)
+//! ## New system (with:) — WithSpec + WithEntry
 //!
 //! Rich typed paths with transforms:
 //! ```yaml
@@ -52,9 +52,9 @@ use super::entry::{UseEntry, WiringSpec, WithEntry, WithSpec};
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
 
-/// Lazy binding state - either resolved or pending (v0.28)
+/// Lazy binding state - either resolved or pending
 ///
-/// v0.28: Pending now stores `BindingPath` + optional `TransformExpr` + optional default
+/// Pending now stores `BindingPath` + optional `TransformExpr` + optional default
 /// instead of raw `String` path. This enables typed source dispatch and transform
 /// application during lazy resolution.
 #[derive(Debug, Clone)]
@@ -96,8 +96,8 @@ impl LazyBinding {
 /// Resolved bindings from use:/with: block (alias -> value or pending)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
-/// Supports both eager and lazy bindings (v0.5).
-/// v0.28: Adds `from_with_spec()` for new typed binding system.
+/// Supports both eager and lazy bindings.
+/// Also provides `from_with_spec()` for the typed binding system.
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedBindings {
     /// Alias -> binding mappings (resolved or pending)
@@ -114,7 +114,7 @@ impl ResolvedBindings {
     // Old system: from_wiring_spec (use: block)
     // ═══════════════════════════════════════════════════════════════
 
-    /// Build bindings from use: wiring by resolving paths from datastore (v0.5)
+    /// Build bindings from use: wiring by resolving paths from datastore
     ///
     /// Unified resolution for both syntax styles:
     /// - String: `task.path [?? default]` → eager resolution
@@ -157,10 +157,10 @@ impl ResolvedBindings {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // New system: from_with_spec (with: block, v0.28)
+    // New system: from_with_spec (with: block)
     // ═══════════════════════════════════════════════════════════════
 
-    /// Build bindings from with: spec by resolving typed BindingPaths (v0.28)
+    /// Build bindings from with: spec by resolving typed BindingPaths
     ///
     /// Resolution order per entry:
     /// 1. Dispatch by BindingSource (Task/Input/Context/Env)
@@ -220,7 +220,7 @@ impl ResolvedBindings {
         self.bindings.get(alias).and_then(|b| b.get_value())
     }
 
-    /// Get a resolved value, resolving lazy bindings on demand (v0.28)
+    /// Get a resolved value, resolving lazy bindings on demand
     ///
     /// For eager bindings, returns the pre-resolved value.
     /// For lazy bindings, resolves from datastore on first call.
@@ -261,7 +261,7 @@ impl ResolvedBindings {
         }
     }
 
-    /// Check if a binding is lazy (pending resolution) (v0.5)
+    /// Check if a binding is lazy (pending resolution)
     pub fn is_lazy(&self, alias: &str) -> bool {
         self.bindings
             .get(alias)
@@ -325,7 +325,7 @@ impl ResolvedBindings {
 /// Resolve a single UseEntry to a Value
 ///
 /// Unified resolution logic:
-/// 1. Check for inputs.* path (v0.22 - workflow inputs support)
+/// 1. Check for inputs.* path (workflow inputs support)
 /// 2. Extract task_id from path (first segment)
 /// 3. Get task output from datastore
 /// 4. Resolve remaining path within output
@@ -333,7 +333,7 @@ impl ResolvedBindings {
 fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
     let path = &entry.path;
 
-    // v0.22: Check for inputs.* path first
+    // Check for inputs.* path first
     if path.starts_with("inputs.") {
         let value = datastore.resolve_input_path(path);
         return match value {
@@ -405,10 +405,10 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// New resolution: WithEntry (with: block, v0.28)
+// New resolution: WithEntry (with: block)
 // ═══════════════════════════════════════════════════════════════
 
-/// Resolve a single WithEntry to a Value using typed BindingPath dispatch (v0.28)
+/// Resolve a single WithEntry to a Value using typed BindingPath dispatch
 ///
 /// Resolution pipeline:
 /// 1. Dispatch by BindingSource to get raw value
@@ -1430,7 +1430,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // inputs.* binding support (v0.22, old system)
+    // inputs.* binding support
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

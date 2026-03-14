@@ -528,7 +528,7 @@ pub const WORKFLOW_06_PARALLEL_FOREACH: &str = r##"# ╔════════
 # ║                                                                               ║
 # ║  KEY CONCEPTS:                                                                ║
 # ║  • for_each: Array of items to iterate over                                   ║
-# ║  • for_each: $inputs.items - iterate over workflow inputs (v0.22+)            ║
+# ║  • for_each: $inputs.items - iterate over workflow inputs            ║
 # ║  • as: Variable name for current item                                         ║
 # ║  • concurrency: Max parallel executions (default: 1)                          ║
 # ║  • fail_fast: Stop all on first error (default: true)                         ║
@@ -674,7 +674,7 @@ flows:
 # │ as: item                                                                    │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
-# FROM WORKFLOW INPUTS (v0.22+):
+# FROM WORKFLOW INPUTS:
 # ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ # Define inputs at workflow level                                          │
 # │ inputs:                                                                     │

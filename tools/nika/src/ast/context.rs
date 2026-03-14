@@ -1,4 +1,4 @@
-//! Context configuration for workflow (v0.9)
+//! Context configuration for workflow
 //!
 //! The `context:` block in a workflow allows loading files at workflow start.
 //! Files are loaded into the DataStore and accessible via `{{context.files.alias}}` bindings.
@@ -17,7 +17,7 @@
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 
-/// Context configuration for workflow (v0.9)
+/// Context configuration for workflow
 ///
 /// Defines files to load at workflow start and optional session restoration.
 #[derive(Debug, Clone, Deserialize, Default)]

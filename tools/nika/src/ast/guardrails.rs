@@ -1,4 +1,4 @@
-//! Agent Guardrails Configuration (v0.23, updated v0.25)
+//! Agent Guardrails Configuration
 //!
 //! Guardrails validate agent outputs before accepting them as complete.
 //! They provide additional checks beyond confidence-based routing.
@@ -8,9 +8,9 @@
 //! - **length**: Validates word/character count bounds
 //! - **schema**: Validates JSON output against a JSON Schema
 //! - **regex**: Validates output matches a pattern
-//! - **llm** (v0.25): Uses secondary LLM call for validation
+//! - **llm**: Uses secondary LLM call for validation
 //!
-//! ## Escalation (v0.25)
+//! ## Escalation
 //!
 //! Each guardrail can specify what happens on failure:
 //! - `retry`: Ask the agent to fix the output (default)
@@ -49,7 +49,7 @@ use serde_json::Value as JsonValue;
 use std::sync::OnceLock;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// OnFailure - Escalation behavior (v0.25)
+// OnFailure - Escalation behavior
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Action to take when a guardrail fails.
@@ -95,7 +95,7 @@ pub enum GuardrailConfig {
     /// Regex pattern matching
     Regex(RegexGuardrail),
 
-    /// LLM-based validation using judge prompt (v0.25)
+    /// LLM-based validation using judge prompt
     Llm(LlmGuardrail),
 }
 
@@ -120,7 +120,7 @@ impl GuardrailConfig {
         }
     }
 
-    /// Get the on_failure action for this guardrail (v0.25).
+    /// Get the on_failure action for this guardrail.
     pub fn on_failure(&self) -> OnFailure {
         match self {
             GuardrailConfig::Length(g) => g.on_failure,
@@ -177,7 +177,7 @@ pub struct LengthGuardrail {
     #[serde(default)]
     pub message: Option<String>,
 
-    /// Action to take on failure (v0.25)
+    /// Action to take on failure
     #[serde(default)]
     pub on_failure: OnFailure,
 }
@@ -302,7 +302,7 @@ pub struct SchemaGuardrail {
     #[serde(default)]
     pub message: Option<String>,
 
-    /// Action to take on failure (v0.25)
+    /// Action to take on failure
     #[serde(default)]
     pub on_failure: OnFailure,
 }
@@ -395,11 +395,11 @@ pub struct RegexGuardrail {
     #[serde(default)]
     pub message: Option<String>,
 
-    /// Action to take on failure (v0.25)
+    /// Action to take on failure
     #[serde(default)]
     pub on_failure: OnFailure,
 
-    /// PERF(v0.25.1): Cached compiled regex to avoid recompilation on each check().
+    /// PERF: Cached compiled regex to avoid recompilation on each check().
     /// Stores `Option<Regex>` to handle compilation errors gracefully.
     #[serde(skip)]
     compiled: OnceLock<Option<regex::Regex>>,
@@ -433,7 +433,7 @@ impl Default for RegexGuardrail {
 }
 
 impl RegexGuardrail {
-    /// PERF(v0.25.1): Get or compile the regex pattern once.
+    /// PERF: Get or compile the regex pattern once.
     /// Uses OnceLock for thread-safe lazy initialization.
     ///
     /// Returns None if pattern is invalid (should be caught by validate()).
@@ -460,7 +460,7 @@ impl RegexGuardrail {
     pub fn check(&self, output: &str) -> GuardrailResult {
         let id = self.id.clone().unwrap_or_else(|| "regex".to_string());
 
-        // PERF(v0.25.1): Use cached compiled regex instead of recompiling
+        // PERF: Use cached compiled regex instead of recompiling
         let re = match self.get_compiled() {
             Some(r) => r,
             None => {
@@ -495,7 +495,7 @@ impl RegexGuardrail {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LlmGuardrail (v0.25)
+// LlmGuardrail
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Validates output using a secondary LLM call (judge prompt).
@@ -551,11 +551,11 @@ pub struct LlmGuardrail {
     #[serde(default)]
     pub message: Option<String>,
 
-    /// Action to take on failure (v0.25)
+    /// Action to take on failure
     #[serde(default)]
     pub on_failure: OnFailure,
 
-    /// PERF(v0.25.1): Cached compiled pass_pattern regex.
+    /// PERF: Cached compiled pass_pattern regex.
     /// Stores `Option<Regex>` to handle compilation errors gracefully.
     #[serde(skip)]
     compiled_pass_pattern: OnceLock<Option<regex::Regex>>,
@@ -606,7 +606,7 @@ fn default_judge_temperature() -> f64 {
 }
 
 impl LlmGuardrail {
-    /// PERF(v0.25.1): Get or compile the pass_pattern regex once.
+    /// PERF: Get or compile the pass_pattern regex once.
     /// Returns None if pattern is invalid (should be caught by validate()).
     fn get_compiled_pass_pattern(&self) -> Option<&regex::Regex> {
         self.compiled_pass_pattern
@@ -668,7 +668,7 @@ impl LlmGuardrail {
     pub fn check_judge_response(&self, judge_response: &str) -> GuardrailResult {
         let id = self.id.clone().unwrap_or_else(|| "llm".to_string());
 
-        // PERF(v0.25.1): Use cached compiled regex
+        // PERF: Use cached compiled regex
         let re = match self.get_compiled_pass_pattern() {
             Some(r) => r,
             None => {
@@ -717,7 +717,7 @@ pub struct GuardrailResult {
     /// Error message if failed
     pub message: Option<String>,
 
-    /// Action to take on failure (v0.25)
+    /// Action to take on failure
     pub on_failure: OnFailure,
 }
 
@@ -744,7 +744,7 @@ impl GuardrailResult {
         }
     }
 
-    /// Create a failed result with specific on_failure action (v0.25).
+    /// Create a failed result with specific on_failure action.
     pub fn failed_with_action(
         guardrail_id: String,
         guardrail_type: &str,
@@ -807,12 +807,12 @@ pub fn first_failed_guardrail(results: &[GuardrailResult]) -> Option<&GuardrailR
     results.iter().find(|r| !r.passed)
 }
 
-/// Get all results that require escalation (v0.25).
+/// Get all results that require escalation.
 pub fn escalation_required(results: &[GuardrailResult]) -> Vec<&GuardrailResult> {
     results.iter().filter(|r| r.requires_escalation()).collect()
 }
 
-/// Get all results that should fail immediately (v0.25).
+/// Get all results that should fail immediately.
 pub fn immediate_failures(results: &[GuardrailResult]) -> Vec<&GuardrailResult> {
     results.iter().filter(|r| r.should_fail()).collect()
 }
@@ -830,7 +830,7 @@ pub fn partition_guardrails(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GuardrailChainResult (v0.25)
+// GuardrailChainResult
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Result of chain evaluation with possible early termination.
@@ -896,7 +896,7 @@ pub enum ChainTerminationReason {
     },
 }
 
-/// Run sync guardrails as a chain with early termination support (v0.25).
+/// Run sync guardrails as a chain with early termination support.
 ///
 /// Evaluates guardrails in order. If a guardrail with `on_failure: fail` fails,
 /// evaluation stops immediately and returns with `early_terminated: true`.
@@ -1387,7 +1387,7 @@ message: "Must start with Result:"
     }
 
     // ========================================================================
-    // LlmGuardrail Tests (v0.25)
+    // LlmGuardrail Tests
     // ========================================================================
 
     #[test]
@@ -1552,7 +1552,7 @@ judge_prompt: "Is this valid? Respond PASS or FAIL."
     }
 
     // ========================================================================
-    // OnFailure Enum Tests (v0.25)
+    // OnFailure Enum Tests
     // ========================================================================
 
     #[test]
@@ -1592,7 +1592,7 @@ on_failure: escalate
     }
 
     // ========================================================================
-    // Guardrail Partitioning Tests (v0.25)
+    // Guardrail Partitioning Tests
     // ========================================================================
 
     #[test]
@@ -1685,7 +1685,7 @@ on_failure: escalate
     }
 
     // ========================================================================
-    // Escalation Tests (v0.25)
+    // Escalation Tests
     // ========================================================================
 
     #[test]
@@ -1810,7 +1810,7 @@ on_failure: escalate
     }
 
     // ========================================================================
-    // GuardrailChainResult Tests (v0.25)
+    // GuardrailChainResult Tests
     // ========================================================================
 
     #[test]

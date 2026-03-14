@@ -1,4 +1,4 @@
-//! Syntax Highlighting Module (v0.23)
+//! Syntax Highlighting Module
 //!
 //! Provides tree-sitter based syntax highlighting for YAML workflows.
 //! Inspired by Helix editor's approach - incremental parsing with semantic awareness.

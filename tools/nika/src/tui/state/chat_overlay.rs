@@ -66,7 +66,7 @@ pub struct ChatOverlayState {
     pub partial_response: String,
     /// Current model name for display
     pub current_model: String,
-    /// Edit history for undo/redo (v0.8)
+    /// Edit history for undo/redo
     pub edit_history: EditHistory,
 }
 

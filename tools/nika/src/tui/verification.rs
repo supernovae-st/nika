@@ -1,4 +1,4 @@
-//! Verification Cache Module (v0.8.2)
+//! Verification Cache Module
 //!
 //! TTL-based caching for provider and MCP server verification results.
 //! Prevents redundant API calls when opening the provider selector.
@@ -198,7 +198,7 @@ impl VerificationCache {
             .count()
     }
 
-    /// Check if ANY provider has been verified (v0.8.4)
+    /// Check if ANY provider has been verified
     pub fn has_any_verified_provider(&self) -> bool {
         self.providers
             .values()

@@ -42,7 +42,7 @@ impl ChatView {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
-    /// Convert ChatView state to ChatOverlayState for session persistence (v0.12.0)
+    /// Convert ChatView state to ChatOverlayState for session persistence
     ///
     /// Maps ChatMessage (with full metadata) to ChatOverlayMessage (role + content only)
     /// for saving to .nika/sessions/

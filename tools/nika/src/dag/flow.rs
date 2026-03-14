@@ -190,7 +190,7 @@ impl Dag {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // BUG-004 FIX: Get deepest terminal task for output selection (v0.22.4)
+    // BUG-004 FIX: Get deepest terminal task for output selection
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Compute topological depth for each node (longest path from any root)

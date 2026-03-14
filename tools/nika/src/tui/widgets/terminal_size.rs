@@ -1,4 +1,4 @@
-//! Terminal Size Handling — graceful degradation for small terminals (v0.8)
+//! Terminal Size Handling — graceful degradation for small terminals
 //!
 //! Provides minimum size checking and a fallback overlay when terminal is too small.
 

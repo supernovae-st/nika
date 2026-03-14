@@ -5,7 +5,7 @@
 //!
 //! # Performance
 //!
-//! Uses DashMap for thread-safe caching of resolved packages (v0.17+).
+//! Uses DashMap for thread-safe caching of resolved packages.
 
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
@@ -17,7 +17,7 @@ use thiserror::Error;
 use super::lockfile::Lockfile;
 use super::types::Manifest;
 
-/// Global package resolution cache (v0.17+)
+/// Global package resolution cache
 ///
 /// Thread-safe cache using DashMap to avoid repeated filesystem lookups.
 /// Uses Arc<ResolvedPackage> to minimize memory overhead on cache hits.
@@ -167,14 +167,14 @@ pub fn parse_package_ref(input: &str) -> Result<PackageRef, ResolverError> {
     })
 }
 
-/// Clear the package resolution cache (v0.17+)
+/// Clear the package resolution cache
 ///
 /// Useful for testing or when packages are installed/updated.
 pub fn clear_cache() {
     PACKAGE_CACHE.clear();
 }
 
-/// Invalidate a specific package in the cache (v0.17+)
+/// Invalidate a specific package in the cache
 ///
 /// Removes all cached entries starting with the given package name.
 /// More efficient than clear_cache() when only one package changed.
@@ -191,7 +191,7 @@ pub fn invalidate_package(name: &str) {
     PACKAGE_CACHE.retain(|key, _| !key.starts_with(name));
 }
 
-/// Get cache statistics (v0.17+)
+/// Get cache statistics
 pub fn cache_stats() -> (usize, usize) {
     let size = PACKAGE_CACHE.len();
     let capacity = PACKAGE_CACHE.capacity();
@@ -201,12 +201,12 @@ pub fn cache_stats() -> (usize, usize) {
 /// Resolve a package reference to its filesystem path and manifest.
 ///
 /// This function:
-/// 1. Checks the cache first (v0.17+)
+/// 1. Checks the cache first
 /// 2. Parses the package reference
 /// 3. Looks up the package in `~/.nika/packages/`
 /// 4. If no version specified, finds the latest installed version
 /// 5. Loads and validates the package manifest
-/// 6. Caches the result (v0.17+)
+/// 6. Caches the result
 ///
 /// # Examples
 ///
@@ -218,7 +218,7 @@ pub fn cache_stats() -> (usize, usize) {
 /// println!("Version: {}", pkg.version);
 /// ```
 pub fn resolve_package_path(reference: &str) -> Result<ResolvedPackage, ResolverError> {
-    // Check cache first (v0.17+)
+    // Check cache first
     // Arc clone is cheap (~8 bytes + atomic increment)
     if let Some(cached) = PACKAGE_CACHE.get(reference) {
         return Ok(Arc::unwrap_or_clone(Arc::clone(cached.value())));
@@ -261,7 +261,7 @@ fn resolve_package_path_uncached(reference: &str) -> Result<ResolvedPackage, Res
             v.clone()
         }
         None => {
-            // No version - try lockfile first (v0.17+), then find latest
+            // No version - try lockfile first, then find latest
             if let Ok(lockfile) = Lockfile::load(None) {
                 if let Some(locked_version) = lockfile.find_version(&pkg_ref.full_name()) {
                     // Verify locked version exists
@@ -446,7 +446,7 @@ mod tests {
     }
 
     // ============================================================================
-    // CACHE TESTS (v0.17+)
+    // CACHE TESTS
     // ============================================================================
 
     #[test]

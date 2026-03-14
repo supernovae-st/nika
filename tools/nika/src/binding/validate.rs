@@ -1,4 +1,4 @@
-//! Task ID Validation (v0.1)
+//! Task ID Validation
 //!
 //! Task IDs must follow snake_case convention:
 //! - Start with lowercase letter

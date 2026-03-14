@@ -1,14 +1,14 @@
-//! Event Module - Event Sourcing for workflow execution (v0.4)
+//! Event Module - Event Sourcing for workflow execution
 //!
 //! Provides full audit trail with replay capability.
 //! Key types:
 //! - `Event`: Envelope with id + timestamp + kind
 //! - `EventKind`: 16+ variants across 5 levels (workflow/task/fine-grained/MCP/agent)
 //! - `EventLog`: Thread-safe, append-only log
-//! - `EventEmitter`: Trait for dependency injection (v0.3)
-//! - `NoopEmitter`: Zero-cost no-op for testing (v0.3)
+//! - `EventEmitter`: Trait for dependency injection
+//! - `NoopEmitter`: Zero-cost no-op for testing
 //! - `TraceWriter`: NDJSON file writer for debugging
-//! - `AgentTurnMetadata`: Agent turn response metadata (v0.4.1)
+//! - `AgentTurnMetadata`: Agent turn response metadata
 
 mod emitter;
 mod log;

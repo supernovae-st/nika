@@ -1,4 +1,4 @@
-//! Artifact configuration for file output (v0.18 / schema v0.10)
+//! Artifact configuration for file output
 //!
 //! Provides declarative file persistence for workflow task outputs.
 //! Artifacts are written atomically and tracked in a manifest.
@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 /// Default max artifact size: 100MB
 pub const DEFAULT_MAX_ARTIFACT_SIZE: u64 = 100 * 1024 * 1024;
 
-/// Workflow-level artifact defaults (v0.10)
+/// Workflow-level artifact defaults
 ///
 /// Configures default behavior for all task artifacts.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -75,7 +75,7 @@ fn default_max_size() -> u64 {
 // TASK-LEVEL SPEC
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Task-level artifact specification (v0.10)
+/// Task-level artifact specification
 ///
 /// Supports three forms:
 /// - `artifact: true` — use workflow defaults

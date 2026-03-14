@@ -120,67 +120,67 @@ impl SchemaVersion {
         self.version_number() >= min_version.version_number()
     }
 
-    /// Check if MCP servers are supported (v0.2+).
+    /// Check if MCP servers are supported.
     pub fn supports_mcp(&self) -> bool {
         self.supports(Self::V02)
     }
 
-    /// Check if invoke/agent verbs are supported (v0.2+).
+    /// Check if invoke/agent verbs are supported.
     pub fn supports_invoke_agent(&self) -> bool {
         self.supports(Self::V02)
     }
 
-    /// Check if for_each is supported (v0.3+).
+    /// Check if for_each is supported.
     pub fn supports_for_each(&self) -> bool {
         self.supports(Self::V03)
     }
 
-    /// Check if skills are supported (v0.6+).
+    /// Check if skills are supported.
     pub fn supports_skills(&self) -> bool {
         self.supports(Self::V06)
     }
 
-    /// Check if agent definitions are supported (v0.6+).
+    /// Check if agent definitions are supported.
     pub fn supports_agent_defs(&self) -> bool {
         self.supports(Self::V06)
     }
 
-    /// Check if context files are supported (v0.9+).
+    /// Check if context files are supported.
     pub fn supports_context(&self) -> bool {
         self.supports(Self::V09)
     }
 
-    /// Check if include/DAG fusion is supported (v0.9+).
+    /// Check if include/DAG fusion is supported.
     pub fn supports_include(&self) -> bool {
         self.supports(Self::V09)
     }
 
-    /// Check if inputs are supported (v0.10+).
+    /// Check if inputs are supported.
     pub fn supports_inputs(&self) -> bool {
         self.supports(Self::V10)
     }
 
-    /// Check if artifacts are supported (v0.10+).
+    /// Check if artifacts are supported.
     pub fn supports_artifacts(&self) -> bool {
         self.supports(Self::V10)
     }
 
-    /// Check if retry configuration is supported (v0.3+).
+    /// Check if retry configuration is supported.
     pub fn supports_retry(&self) -> bool {
         self.supports(Self::V03)
     }
 
-    /// Check if with: binding syntax is supported (v0.12+).
+    /// Check if with: binding syntax is supported.
     pub fn supports_with(&self) -> bool {
         self.supports(Self::V12)
     }
 
-    /// Check if imports: syntax is supported (v0.12+).
+    /// Check if imports: syntax is supported.
     pub fn supports_imports(&self) -> bool {
         self.supports(Self::V12)
     }
 
-    /// Check if depends_on: syntax is supported (v0.12+).
+    /// Check if depends_on: syntax is supported.
     pub fn supports_depends_on(&self) -> bool {
         self.supports(Self::V12)
     }

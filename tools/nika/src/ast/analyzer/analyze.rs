@@ -181,7 +181,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 5. Analyze imports (v0.28, replaces include: + skills:)
+    // 5. Analyze imports
     if let Some(ref imports) = raw.imports {
         for import_spanned in &imports.value {
             let import = &import_spanned.value;
@@ -261,7 +261,7 @@ fn analyze_schema(raw: &RawWorkflow, ctx: &mut AnalyzerContext) -> Option<Schema
 fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut AnalyzerContext) {
     let version_str = version.as_str();
 
-    // Check MCP servers (v0.2+)
+    // Check MCP servers
     if let Some(ref mcp) = raw.mcp {
         if !version.supports_mcp() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -273,7 +273,7 @@ fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut A
         }
     }
 
-    // Check context files (v0.9+)
+    // Check context files
     if let Some(ref context) = raw.context {
         if !version.supports_context() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -285,7 +285,7 @@ fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut A
         }
     }
 
-    // Check imports (v0.12+, replaces include: + skills:)
+    // Check imports
     if let Some(ref imports) = raw.imports {
         if !version.supports_imports() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -297,7 +297,7 @@ fn validate_feature_gates(raw: &RawWorkflow, version: SchemaVersion, ctx: &mut A
         }
     }
 
-    // Check inputs (v0.10+)
+    // Check inputs
     if let Some(ref inputs) = raw.inputs {
         if !version.supports_inputs() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -322,7 +322,7 @@ fn validate_task_feature_gates(
     version_str: &str,
     ctx: &mut AnalyzerContext,
 ) {
-    // Check for_each (v0.3+)
+    // Check for_each
     if let Some(ref for_each) = task.for_each {
         if !version.supports_for_each() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -334,7 +334,7 @@ fn validate_task_feature_gates(
         }
     }
 
-    // Check retry (v0.3+)
+    // Check retry
     if let Some(ref retry) = task.retry {
         if !version.supports_retry() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -346,7 +346,7 @@ fn validate_task_feature_gates(
         }
     }
 
-    // Check with: bindings (v0.12+)
+    // Check with: bindings
     if let Some(ref with_refs) = task.with_refs {
         if !version.supports_with() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -358,7 +358,7 @@ fn validate_task_feature_gates(
         }
     }
 
-    // Check depends_on: (v0.12+)
+    // Check depends_on:
     if let Some(ref depends_on) = task.depends_on {
         if !version.supports_depends_on() {
             ctx.add_error(AnalyzeError::unsupported_feature(
@@ -370,7 +370,7 @@ fn validate_task_feature_gates(
         }
     }
 
-    // Check invoke/agent verbs (v0.2+)
+    // Check invoke/agent verbs
     if let Some(ref action) = task.action {
         match action {
             RawTaskAction::Invoke(invoke) => {

@@ -1,4 +1,4 @@
-//! Monitor View - Real-time workflow execution monitoring (v0.13)
+//! Monitor View - Real-time workflow execution monitoring
 //!
 //! Displays 4-panel layout for workflow execution visibility:
 //!
@@ -539,7 +539,7 @@ impl MonitorView {
         frame.render_widget(list, inner_area);
     }
 
-    /// Render Mission Control TaskIO tab (v0.21.2)
+    /// Render Mission Control TaskIO tab
     /// Shows selected task's input and output data
     fn render_mission_task_io(
         &self,
@@ -579,7 +579,7 @@ impl MonitorView {
         frame.render_widget(paragraph, area);
     }
 
-    /// Render Mission Control Output tab (v0.21.2)
+    /// Render Mission Control Output tab
     /// Shows selected task's full output/response
     fn render_mission_output(
         &self,
@@ -606,7 +606,7 @@ impl MonitorView {
         frame.render_widget(paragraph, area);
     }
 
-    /// Render DAG Yaml tab (v0.21.2)
+    /// Render DAG Yaml tab
     /// Shows workflow info (YAML source not stored in state)
     fn render_dag_yaml(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
         // Build workflow summary since raw YAML isn't stored in TuiState
@@ -811,7 +811,7 @@ impl MonitorView {
         }
     }
 
-    /// Render NovaNet FullJson tab (v0.21.2)
+    /// Render NovaNet FullJson tab
     /// Shows full JSON response of selected MCP call
     fn render_novanet_full_json(
         &self,
@@ -887,7 +887,7 @@ impl MonitorView {
             }
         }
 
-        // Build agent turn list with thinking display (v0.11.0)
+        // Build agent turn list with thinking display
         let items: Vec<ListItem> = state
             .agent_turns
             .iter()
@@ -917,7 +917,7 @@ impl MonitorView {
                     Span::styled(tokens, Style::default().fg(theme.status_paused)),
                 ]);
 
-                // Build lines vec - main line plus optional thinking (v0.11.0)
+                // Build lines vec - main line plus optional thinking
                 let mut lines = vec![main_line];
 
                 // Add thinking content if present
@@ -957,7 +957,7 @@ impl MonitorView {
         }
     }
 
-    /// Render Agent Thinking tab (v0.21.2)
+    /// Render Agent Thinking tab
     /// Shows full thinking/reasoning content for selected turn
     fn render_agent_thinking(
         &self,
@@ -989,7 +989,7 @@ impl MonitorView {
         frame.render_widget(paragraph, area);
     }
 
-    /// Render Agent Steps tab (v0.21.2)
+    /// Render Agent Steps tab
     /// Shows step-by-step breakdown of agent reasoning
     fn render_agent_steps(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
         let selected_idx = self.scroll_offset(PanelId::RunnerReasoning);
@@ -1165,7 +1165,7 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
-            // ? falls through to app-level Help mode (v0.21.2 fix)
+            // ? falls through to app-level Help mode
             _ => ViewAction::None,
         }
     }
@@ -1213,7 +1213,7 @@ impl View for MonitorView {
             RenderMode::Full => "F",
         };
 
-        // Token velocity sparkline (v0.13)
+        // Token velocity sparkline
         let sparkline = state.metrics.token_velocity.sparkline_chars();
         let velocity_str = if sparkline.is_empty() {
             String::new()

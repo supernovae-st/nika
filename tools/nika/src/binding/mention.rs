@@ -1,4 +1,4 @@
-//! Mention Module - @reference parsing for Chat-as-DAG (v0.9.2)
+//! Mention Module - @reference parsing for Chat-as-DAG
 //!
 //! Parses @mentions in chat messages and converts them to WiringSpec bindings.
 //!

@@ -1,4 +1,4 @@
-//! Agent Completion Configuration (v0.21)
+//! Agent Completion Configuration
 //!
 //! Defines how agents signal task completion and what validation
 //! is required before accepting the result.

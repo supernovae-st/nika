@@ -3,7 +3,7 @@
 //! Main event loop with 60 FPS rendering.
 //! Handles keyboard input, event processing, and frame rendering.
 //!
-//! # Module Structure (v0.22 refactor)
+//! # Module Structure
 //!
 //! - `mod.rs` - App struct + run_unified event loop
 //! - `types.rs` - Action enum and shared types
@@ -74,13 +74,13 @@ pub struct App {
     /// Note: Used during construction for HomeView initialization
     #[allow(dead_code)]
     pub(crate) standalone_state: Option<StandaloneState>,
-    /// Cosmic theme (v0.9.1+)
+    /// Cosmic theme
     pub(crate) cosmic_theme: CosmicTheme,
     /// Color theme (derived from cosmic_theme for backward compat)
     pub(crate) theme: Theme,
     /// Event receiver from runtime (mpsc - legacy)
     pub(crate) event_rx: Option<mpsc::Receiver<NikaEvent>>,
-    /// Broadcast receiver from runtime (v0.4.1 - preferred)
+    /// Broadcast receiver from runtime
     pub(crate) broadcast_rx: Option<broadcast::Receiver<NikaEvent>>,
     /// Should quit flag
     pub(crate) should_quit: bool,
@@ -92,7 +92,7 @@ pub struct App {
     pub(crate) status_message: Option<(String, std::time::Instant)>,
     /// Retry requested flag (TIER 1.2) - caller should re-run workflow
     pub(crate) retry_requested: bool,
-    /// Launch wizard flag (v0.27 - exits TUI and launches setup wizard)
+    /// Launch wizard flag
     pub(crate) should_launch_wizard: bool,
     // ═══ 4-View Architecture + Navigation 2.0 ═══
     /// Current active view
@@ -106,11 +106,11 @@ pub struct App {
     pub(crate) chat_view: ChatView,
     /// Home view state (file browser)
     pub(crate) home_view: Option<HomeView>,
-    /// Studio view state (v0.21 - unified 3-panel: Browser+Editor+DAG)
+    /// Studio view state
     pub(crate) studio_view: StudioView,
-    /// Settings view state (v0.11 auxiliary)
+    /// Settings view state
     pub(crate) settings_view: SettingsView,
-    /// Monitor view state (v0.11 - workflow execution monitoring)
+    /// Monitor view state
     pub(crate) monitor_view: MonitorView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
@@ -125,31 +125,31 @@ pub struct App {
     // ═══ ChatAgent for full AI interface (Task 5.1) ═══
     /// ChatAgent for handling 5 verb commands in ChatView
     pub(crate) chat_agent: Option<ChatAgent>,
-    // ═══ MCP Client Pool (v0.28) ═══
+    // ═══ MCP Client Pool ═══
     /// Centralized MCP client pool for lazy init, config management, and shutdown.
     /// Replaces the previous mcp_client_cache + mcp_configs pair.
     pub(crate) mcp_pool: McpClientPool,
-    // ═══ Background Task Tracking (v0.7.0) ═══
+    // ═══ Background Task Tracking ═══
     /// AbortHandles for tracked background tasks
     /// Enables proper cancellation on app exit via abort_all()
     pub(crate) background_handles: Arc<Mutex<Vec<AbortHandle>>>,
-    // ═══ Session Persistence (v0.12.0) ═══
+    // ═══ Session Persistence ═══
     /// Current session ID (for save/load)
     pub(crate) session_id: Option<String>,
-    // ═══ TUI Config (v0.12.0) ═══
+    // ═══ TUI Config ═══
     /// Loaded configuration from .nika/config.toml
     /// v0.12.0: Field loaded at startup, full integration in v0.13 (theme/editor settings)
     #[allow(dead_code)]
     pub(crate) config: TuiConfig,
-    // ═══ Performance: Reusable Event Buffer (v0.8.1) ═══
+    // ═══ Performance: Reusable Event Buffer ═══
     /// PERF: Pre-allocated buffer for poll_runtime_events to avoid
     /// allocating a new Vec on every frame (60 FPS = 60 allocations/sec saved)
     pub(crate) event_buffer: Vec<NikaEvent>,
-    // ═══ Connection Verification Cache (v0.8.2) ═══
+    // ═══ Connection Verification Cache ═══
     /// TTL-based cache for provider and MCP server verification results.
     /// Prevents redundant API calls when opening/refreshing the provider selector.
     pub(crate) verification_cache: Arc<Mutex<VerificationCache>>,
-    // ═══ Nika Intro Animation (v0.12.0) ═══
+    // ═══ Nika Intro Animation ═══
     /// Splash screen animation shown on standalone TUI startup
     pub(crate) intro_state: Option<NikaIntroState>,
 }
@@ -184,10 +184,10 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
-        // Load TUI configuration from .nika/config.toml (v0.12.0)
+        // Load TUI configuration from .nika/config.toml
         let config = TuiConfig::load_or_default();
 
-        // Initialize cosmic theme from config (v0.12.0: respects saved theme)
+        // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
             ThemeName::Dark => crate::tui::tokens::CosmicVariant::CosmicDark,
             ThemeName::Light => crate::tui::tokens::CosmicVariant::CosmicLight,
@@ -256,10 +256,10 @@ impl App {
         // Initialize ChatAgent (may fail if no API keys are set, but that's OK)
         let chat_agent = ChatAgent::new().ok();
 
-        // Load TUI configuration from .nika/config.toml (v0.12.0)
+        // Load TUI configuration from .nika/config.toml
         let config = TuiConfig::load_or_default();
 
-        // Initialize cosmic theme from config (v0.12.0: respects saved theme)
+        // Initialize cosmic theme from config
         let theme_variant = match config.tui.theme {
             ThemeName::Dark => crate::tui::tokens::CosmicVariant::CosmicDark,
             ThemeName::Light => crate::tui::tokens::CosmicVariant::CosmicLight,
@@ -339,7 +339,7 @@ impl App {
         self
     }
 
-    /// Set the broadcast receiver from runtime (v0.4.1 - preferred)
+    /// Set the broadcast receiver from runtime
     ///
     /// Use this with `EventLog::new_with_broadcast()` for real-time TUI updates.
     pub fn with_broadcast_receiver(mut self, rx: broadcast::Receiver<NikaEvent>) -> Self {
@@ -403,7 +403,7 @@ impl App {
     /// - Studio (3/s): YAML editor
     /// - Monitor (4/m): Execution monitoring (existing 4-panel view)
     ///
-    /// Returns `Ok(true)` if the wizard should be launched after TUI exit (v0.27)
+    /// Returns `Ok(true)` if the wizard should be launched after TUI exit
     pub async fn run_unified(mut self) -> Result<bool> {
         tracing::info!("TUI (unified) started");
 
@@ -545,7 +545,7 @@ impl App {
 
             // 7. Check quit flag
             if self.should_quit {
-                // Save chat session before quitting (v0.12.0)
+                // Save chat session before quitting
                 self.save_current_session();
                 break;
             }
@@ -554,7 +554,7 @@ impl App {
         // Cancel all background tasks before cleanup
         self.cancel_background_tasks();
 
-        // Save wizard flag before cleanup (v0.27)
+        // Save wizard flag before cleanup
         let launch_wizard = self.should_launch_wizard;
 
         // Cleanup and return wizard flag

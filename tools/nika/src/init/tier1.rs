@@ -65,7 +65,7 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # ├── shell: true vs false (security)
 # ├── cwd: working directory
 # ├── timeout: command timeout (seconds)
-# ├── env: environment variables (v0.22+)
+# ├── env: environment variables
 # ├── use: bindings between tasks
 # └── flows: task dependencies
 #
@@ -137,7 +137,7 @@ tasks:
       cwd: "/tmp"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # ENVIRONMENT VARIABLES (v0.22+): Set custom env vars for the command
+  # ENVIRONMENT VARIABLES: Set custom env vars for the command
   # ─────────────────────────────────────────────────────────────────────────────
   - id: with_env_vars
     exec:
@@ -180,7 +180,7 @@ tasks:
         echo "   • Use full form for cwd, timeouts, shell mode"
         echo "   • shell: false (default) is more secure"
         echo "   • shell: true needed for pipes, redirects, variables"
-        echo "   • env: { KEY: value } sets environment variables (v0.22+)"
+        echo "   • env: { KEY: value } sets environment variables"
       shell: true
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 # FEATURES DEMONSTRATED:
 # ├── fetch: with GET method
 # ├── fetch: with POST and body (string)
-# ├── fetch: with POST and json (auto-serialized) (v0.22+)
+# ├── fetch: with POST and json (auto-serialized)
 # ├── headers: custom HTTP headers
 # ├── timeout: request timeout (seconds)
 # └── use: parsing JSON responses
@@ -396,7 +396,7 @@ tasks:
         echo "   • Use method: GET, POST, PUT, DELETE, PATCH"
         echo "   • Add custom headers: for auth, content-type, etc."
         echo "   • Use body: for request body (string)"
-        echo "   • Use json: for auto-serialized JSON body (v0.22+)"
+        echo "   • Use json: for auto-serialized JSON body"
         echo "   • timeout: prevents hanging on slow endpoints (seconds)"
       shell: true
 

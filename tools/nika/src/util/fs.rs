@@ -1,4 +1,4 @@
-//! Filesystem Utilities - atomic write operations (v0.7.4)
+//! Filesystem Utilities - atomic write operations
 //!
 //! Provides safe, atomic file write operations to prevent data corruption
 //! on crash or interrupt. Uses temp file + rename pattern.

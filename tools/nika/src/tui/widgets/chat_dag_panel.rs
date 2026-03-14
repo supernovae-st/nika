@@ -267,7 +267,7 @@ impl ChatDagPanel {
         self.animation_tick = self.animation_tick.wrapping_add(1);
     }
 
-    /// Set animation tick directly (v0.10.0 - for sync with ChatView.frame)
+    /// Set animation tick directly
     pub fn set_animation_tick(&mut self, tick: u8) {
         self.animation_tick = tick;
     }

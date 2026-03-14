@@ -10,36 +10,28 @@
 //! - NIKA-020-029: DAG errors
 //! - NIKA-030-039: Provider errors
 //! - NIKA-040-049: Template/binding errors
-//! - NIKA-050-059: Path/task/security errors (v0.15: +NIKA-053 BlockedCommand)
+//! - NIKA-050-059: Path/task/security errors
 //! - NIKA-060-069: Output errors
 //! - NIKA-070-079: Use block validation errors
 //! - NIKA-080-089: DAG validation errors
-//! - NIKA-090-099: JSONPath/IO/legacy errors (+NIKA-096 Execution catch-all)
-//! - NIKA-100-109: MCP errors (v0.2, v0.5.1: +validation, v0.5.3: +error_code)
-//! - NIKA-110-119: Agent errors (v0.2)
-//! - NIKA-120-129: Resilience errors (v0.2) [122-124 deprecated in v0.4]
-//! - NIKA-130-139: TUI errors (v0.2)
-//! - NIKA-140-149: AST analysis errors (v0.20 - Phase 2 analyzer)
+//! - NIKA-090-099: JSONPath/IO errors (+NIKA-096 Execution catch-all)
+//! - NIKA-100-109: MCP errors
+//! - NIKA-110-119: Agent errors
+//! - NIKA-120-129: Resilience errors
+//! - NIKA-130-139: TUI errors
+//! - NIKA-140-149: AST analysis errors (Phase 2 analyzer)
 //!
-//! v0.9.x ranges:
+//! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)
-//! - NIKA-210-219: Builtin tool errors (v0.9.3)
+//! - NIKA-210-219: Builtin tool errors
 //! - NIKA-220-229: Reserved (DAG Panel - not implemented)
 //! - NIKA-230-239: Reserved (Session persistence - not implemented)
 //! - NIKA-240-249: Reserved (Animation/Export - not implemented)
-//!
-//! v0.18 ranges:
 //! - NIKA-280-289: Artifact errors (path validation, write, size limits)
-//!
-//! v0.21 ranges:
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
-//!
-//! v0.27 ranges:
 //! - NIKA-400-409: Daemon errors (IPC, PID file, connection)
 //! - NIKA-410-419: IO errors (enhanced with path context)
 //! - NIKA-420-429: Sync errors (editor synchronization)
-//!
-//! v0.6.1: Added miette for fancy error display with source spans
 
 use crate::mcp::types::McpErrorCode;
 use crate::serde_yaml;
@@ -67,7 +59,7 @@ fn format_schema_errors(errors: &[crate::ast::schema_validator::SchemaError]) ->
     )
 }
 
-/// Format structured output validation errors for display (v0.21)
+/// Format structured output validation errors for display
 fn format_validation_errors_short(errors: &[String]) -> String {
     if errors.is_empty() {
         return "no errors".to_string();
@@ -135,7 +127,7 @@ pub enum NikaError {
     HomeDirectoryNotFound,
 
     // ═══════════════════════════════════════════
-    // SCHEMA ERRORS (010-019) - v0.1 compat
+    // SCHEMA ERRORS (010-019)
     // ═══════════════════════════════════════════
     #[error("[NIKA-010] Invalid schema version: expected '{expected}', got '{actual}'")]
     InvalidSchema { expected: String, actual: String },
@@ -208,7 +200,7 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // TEMPLATE/BINDING ERRORS (040-049)
     // ═══════════════════════════════════════════
-    /// Legacy: simple execution error (v0.1 compat)
+    /// Simple execution error
     /// Note: Widely used - consider structured variant for new code
     #[error("[NIKA-096] Execution error: {0}")]
     Execution(String),
@@ -230,7 +222,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // PATH/TASK ERRORS (050-059) - v0.1
+    // PATH/TASK ERRORS (050-059)
     // ═══════════════════════════════════════════
     #[error("[NIKA-050] Invalid path syntax: {path}")]
     InvalidPath { path: String },
@@ -262,7 +254,7 @@ pub enum NikaError {
     BuiltinToolTimeout { tool: String, timeout_secs: u64 },
 
     // ═══════════════════════════════════════════
-    // OUTPUT ERRORS (060-069) - v0.1
+    // OUTPUT ERRORS (060-069)
     // ═══════════════════════════════════════════
     #[error("[NIKA-060] Invalid JSON output: {details}")]
     InvalidJson { details: String },
@@ -274,7 +266,7 @@ pub enum NikaError {
     SerializationError { details: String },
 
     // ═══════════════════════════════════════════
-    // USE BLOCK VALIDATION (070-079) - v0.1
+    // USE BLOCK VALIDATION (070-079)
     // ═══════════════════════════════════════════
     #[error("[NIKA-070] Duplicate alias '{alias}' in use block")]
     DuplicateAlias { alias: String },
@@ -305,7 +297,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // DAG VALIDATION (080-089) - v0.1
+    // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
     #[error("[NIKA-080] use.{alias}.from references unknown task '{from_task}'")]
     UseUnknownTask {
@@ -331,7 +323,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // JSONPATH / IO ERRORS (090-099) - v0.1
+    // JSONPATH / IO ERRORS (090-099)
     // ═══════════════════════════════════════════
     #[error("[NIKA-090] JSONPath '{path}' is not supported in v0.1 (use $.a.b or $.a[0].b)")]
     JsonPathUnsupported { path: String },
@@ -358,7 +350,7 @@ pub enum NikaError {
     YamlParse(#[from] serde_yaml::Error),
 
     // ═══════════════════════════════════════════
-    // MCP ERRORS (100-109) - NEW v0.2
+    // MCP ERRORS (100-109)
     // ═══════════════════════════════════════════
     #[error("[NIKA-100] MCP server '{name}' not connected")]
     #[diagnostic(
@@ -382,7 +374,7 @@ pub enum NikaError {
     McpToolError {
         tool: String,
         reason: String,
-        /// JSON-RPC error code from MCP server (v0.5.3)
+        /// JSON-RPC error code from MCP server
         error_code: Option<McpErrorCode>,
     },
 
@@ -421,7 +413,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // AGENT ERRORS (110-119) - NEW v0.2
+    // AGENT ERRORS (110-119)
     // ═══════════════════════════════════════════
     #[error("[NIKA-110] Agent loop exceeded max turns ({max_turns})")]
     AgentMaxTurns { max_turns: u32 },
@@ -448,7 +440,7 @@ pub enum NikaError {
     ThinkingNotSupported { provider: String },
 
     // ═══════════════════════════════════════════
-    // RESILIENCE ERRORS (120-129) - NEW v0.2
+    // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
     #[error("[NIKA-120] Provider '{provider}' error: {reason}")]
     ProviderError { provider: String, reason: String },
@@ -460,7 +452,7 @@ pub enum NikaError {
     McpToolCallFailed { tool: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // TUI ERRORS (130-139) - NEW v0.2
+    // TUI ERRORS (130-139)
     // ═══════════════════════════════════════════
     #[error("[NIKA-130] TUI error: {reason}")]
     TuiError { reason: String },
@@ -473,13 +465,13 @@ pub enum NikaError {
     ConfigError { reason: String },
 
     // ═══════════════════════════════════════════
-    // STARTUP ERRORS (150-159) - NEW v0.8.4
+    // STARTUP ERRORS (150-159)
     // ═══════════════════════════════════════════
     #[error("[NIKA-150] Startup verification failed in '{phase}': {reason}")]
     StartupError { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // POLICY ERRORS (160-169) - NEW v0.13.1
+    // POLICY ERRORS (160-169)
     // ═══════════════════════════════════════════
     #[error("[NIKA-160] Policy violation: {reason}")]
     #[diagnostic(
@@ -496,7 +488,7 @@ pub enum NikaError {
     BootFailed { phase: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // RUNTIME ERRORS (170-179) - NEW v0.14
+    // RUNTIME ERRORS (170-179)
     // ═══════════════════════════════════════════
     #[error("[NIKA-170] Runtime error: {reason}")]
     #[diagnostic(
@@ -515,13 +507,13 @@ pub enum NikaError {
     DecomposeTimeout { task_id: String, timeout_secs: u64 },
 
     // ═══════════════════════════════════════════
-    // TOOL ERRORS (200-209) - NEW v0.6
+    // TOOL ERRORS (200-209)
     // ═══════════════════════════════════════════
     #[error("[{code}] {message}")]
     ToolError { code: String, message: String },
 
     // ═══════════════════════════════════════════
-    // BUILTIN TOOL ERRORS (210-219) - NEW v0.9.3
+    // BUILTIN TOOL ERRORS (210-219)
     // ═══════════════════════════════════════════
     #[error("[NIKA-210] Builtin tool '{tool}' error: {reason}")]
     #[diagnostic(
@@ -551,7 +543,7 @@ pub enum NikaError {
     AssertionFailed { message: String, condition: String },
 
     // ═══════════════════════════════════════════
-    // CONTEXT ERRORS (250-259) - v0.14.2 (Schema @0.9)
+    // CONTEXT ERRORS (250-259)
     // ═══════════════════════════════════════════
     #[error("[NIKA-250] Failed to load context file '{alias}' from '{path}': {reason}")]
     #[diagnostic(
@@ -565,7 +557,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // PKG URI ERRORS (260-269) - v0.15.2 (Skill Ecosystem)
+    // PKG URI ERRORS (260-269)
     // ═══════════════════════════════════════════
     #[error("[NIKA-260] Invalid pkg: URI '{uri}': {reason}")]
     #[diagnostic(
@@ -582,7 +574,7 @@ pub enum NikaError {
     PackageNotFound { name: String, version: String },
 
     // ═══════════════════════════════════════════
-    // SKILL ERRORS (270-279) - v0.15.4 (Skill Injection)
+    // SKILL ERRORS (270-279)
     // ═══════════════════════════════════════════
     #[error("[NIKA-270] Failed to load skill '{skill}': {reason}")]
     #[diagnostic(
@@ -592,7 +584,7 @@ pub enum NikaError {
     SkillLoadError { skill: String, reason: String },
 
     // ═══════════════════════════════════════════
-    // ARTIFACT ERRORS (280-289) - v0.18 (File Persistence)
+    // ARTIFACT ERRORS (280-289)
     // ═══════════════════════════════════════════
     #[error("[NIKA-280] Artifact path error for '{path}': {reason}")]
     #[diagnostic(
@@ -620,7 +612,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // STRUCTURED OUTPUT ERRORS (300-309) - v0.21
+    // STRUCTURED OUTPUT ERRORS (300-309)
     // ═══════════════════════════════════════════
     #[error(
         "[NIKA-300] Structured output extraction failed for task '{task_id}' at {layer}: {reason}"
@@ -670,7 +662,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // DAEMON ERRORS (400-409) - v0.27 (spn→nika fusion)
+    // DAEMON ERRORS (400-409)
     // ═══════════════════════════════════════════
     #[error("[NIKA-400] Daemon is already running (PID file: {pid_file:?})")]
     #[diagnostic(
@@ -708,7 +700,7 @@ pub enum NikaError {
     DaemonProtocolError { message: String },
 
     // ═══════════════════════════════════════════
-    // IO ERRORS (410-419) - v0.27 (enhanced with path context)
+    // IO ERRORS (410-419)
     // ═══════════════════════════════════════════
     #[error("[NIKA-410] IO error for '{path}' during {operation}: {source}")]
     #[diagnostic(code(nika::io_path_error), help("Check file path and permissions"))]
@@ -720,7 +712,7 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
-    // SYNC ERRORS (420-429) - v0.27 (editor sync)
+    // SYNC ERRORS (420-429)
     // ═══════════════════════════════════════════
     #[error("[NIKA-420] Sync error: {message}")]
     #[diagnostic(
@@ -825,43 +817,43 @@ impl NikaError {
             Self::StartupError { .. } => "NIKA-150",
             // Tool errors (code is dynamic)
             Self::ToolError { .. } => "NIKA-2XX",
-            // Builtin tool errors (v0.9.3)
+            // Builtin tool errors
             Self::BuiltinToolError { .. } => "NIKA-210",
             Self::BuiltinToolNotFound { .. } => "NIKA-211",
             Self::BuiltinInvalidParams { .. } => "NIKA-212",
             Self::AssertionFailed { .. } => "NIKA-213",
-            // Context errors (v0.14.2)
+            // Context errors
             Self::ContextLoadError { .. } => "NIKA-250",
-            // Pkg URI errors (v0.15.2)
+            // Pkg URI errors
             Self::InvalidPkgUri { .. } => "NIKA-260",
-            // Package errors (v0.16.0)
+            // Package errors
             Self::PackageNotFound { .. } => "NIKA-261",
 
-            // Skill errors (v0.15.4)
+            // Skill errors
             Self::SkillLoadError { .. } => "NIKA-270",
-            // Artifact errors (v0.18)
+            // Artifact errors
             Self::ArtifactPathError { .. } => "NIKA-280",
             Self::ArtifactWriteError { .. } => "NIKA-281",
             Self::ArtifactSizeExceeded { .. } => "NIKA-282",
-            // Structured Output errors (v0.21)
+            // Structured Output errors
             Self::StructuredOutputExtractionFailed { .. } => "NIKA-300",
             Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
             Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
             Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
-            // Daemon errors (v0.27)
+            // Daemon errors
             Self::DaemonAlreadyRunning { .. } => "NIKA-400",
             Self::DaemonError { .. } => "NIKA-401",
             Self::DaemonNotRunning => "NIKA-402",
             Self::DaemonConnectionFailed { .. } => "NIKA-403",
             Self::DaemonProtocolError { .. } => "NIKA-404",
-            // IO errors (v0.27)
+            // IO errors
             Self::IoPathError { .. } => "NIKA-410",
             // Sync errors
             Self::SyncError { .. } => "NIKA-420",
-            // Policy errors (v0.13.1)
+            // Policy errors
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
-            // Runtime errors (v0.14)
+            // Runtime errors
             Self::RuntimeError { .. } => "NIKA-170",
             Self::DecomposeTimeout { .. } => "NIKA-171",
         }
@@ -879,7 +871,7 @@ impl NikaError {
                 | Self::Timeout { .. }
                 | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
-                // Structured output errors that can be retried (v0.21)
+                // Structured output errors that can be retried
                 | Self::StructuredOutputExtractionFailed { .. }
                 | Self::StructuredOutputValidationFailed { .. }
                 | Self::StructuredOutputRepairFailed { .. }
@@ -1047,7 +1039,7 @@ impl FixSuggestion for NikaError {
             NikaError::ConfigError { .. } => {
                 Some("Check ~/.config/nika/config.toml for syntax errors")
             }
-            // Startup errors (v0.8.4)
+            // Startup errors
             NikaError::StartupError { .. } => Some(
                 "Check directory permissions and run 'nika init' to create required directories",
             ),
@@ -1055,7 +1047,7 @@ impl FixSuggestion for NikaError {
             NikaError::ToolError { .. } => {
                 Some("Check file path and permissions. Use Read before Edit.")
             }
-            // Builtin tool errors (v0.9.3)
+            // Builtin tool errors
             NikaError::BuiltinToolError { .. } => {
                 Some("Check builtin tool parameters and configuration")
             }
@@ -1066,19 +1058,19 @@ impl FixSuggestion for NikaError {
                 Some("Check the parameter format matches the expected JSON schema")
             }
             NikaError::AssertionFailed { .. } => Some("The condition evaluated to false"),
-            // Context errors (v0.14.2)
+            // Context errors
             NikaError::ContextLoadError { .. } => {
                 Some("Check the file path exists and is readable")
             }
-            // Pkg URI errors (v0.15.2)
+            // Pkg URI errors
             NikaError::InvalidPkgUri { .. } => Some(
                 "Use format: pkg:@scope/name@version/path (e.g., pkg:@supernovae/skills@1.0.0/rust.md)",
             ),
-            // Package errors (v0.16.0)
+            // Package errors
             NikaError::PackageNotFound { .. } => Some(
                 "Check package name and version. Run 'nika pkg list' to see installed packages.",
             ),
-            // Policy errors (v0.13.1)
+            // Policy errors
             NikaError::PolicyViolation { .. } => Some(
                 "This action was blocked by security policy. Check .nika/config.toml policy section.",
             ),
@@ -1088,15 +1080,15 @@ impl FixSuggestion for NikaError {
             NikaError::RuntimeError { .. } => {
                 Some("Check the runtime configuration and system resources.")
             }
-            // Skill errors (v0.15.4)
+            // Skill errors
             NikaError::SkillLoadError { .. } => {
                 Some("Ensure skill file exists and is readable. Check pkg: URI format if using packages.")
             }
-            // Decompose timeout (v0.17.5)
+            // Decompose timeout
             NikaError::DecomposeTimeout { .. } => {
                 Some("Decompose expansion timed out. Try reducing max_items or check MCP server performance.")
             }
-            // Artifact errors (v0.18)
+            // Artifact errors
             NikaError::ArtifactPathError { .. } => {
                 Some("Check the artifact path is within the workflow directory and does not contain path traversal patterns")
             }
@@ -1106,7 +1098,7 @@ impl FixSuggestion for NikaError {
             NikaError::ArtifactSizeExceeded { .. } => {
                 Some("Increase artifacts.max_size in workflow or reduce output size")
             }
-            // Structured Output errors (v0.21)
+            // Structured Output errors
             NikaError::StructuredOutputExtractionFailed { .. } => {
                 Some("Check the LLM response format matches the expected JSON Schema")
             }
@@ -1119,7 +1111,7 @@ impl FixSuggestion for NikaError {
             NikaError::StructuredOutputAllLayersFailed { .. } => {
                 Some("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
             }
-            // Task dependency/lifecycle errors (v0.24)
+            // Task dependency/lifecycle errors
             NikaError::TaskDependencyFailed { .. } => {
                 Some("A dependency task failed. Check upstream task errors.")
             }
@@ -1129,15 +1121,15 @@ impl FixSuggestion for NikaError {
             NikaError::TaskCancelled { .. } => {
                 Some("Task was cancelled. Check workflow execution logs.")
             }
-            // Builtin tool timeout (v0.24)
+            // Builtin tool timeout
             NikaError::BuiltinToolTimeout { .. } => {
                 Some("Builtin tool timed out. Increase timeout or check for deadlocks.")
             }
-            // Duplicate task ID (v0.25)
+            // Duplicate task ID
             NikaError::DuplicateTaskId { .. } => {
                 Some("Each task must have a unique ID. Rename one of the duplicate tasks.")
             }
-            // Daemon errors (v0.27)
+            // Daemon errors
             NikaError::DaemonAlreadyRunning { .. } => {
                 Some("Stop the existing daemon with 'nika daemon stop' or remove the stale PID file")
             }
@@ -1153,11 +1145,11 @@ impl FixSuggestion for NikaError {
             NikaError::DaemonProtocolError { .. } => {
                 Some("This may indicate a version mismatch between client and daemon")
             }
-            // IO errors (v0.27)
+            // IO errors
             NikaError::IoPathError { .. } => {
                 Some("Check file path exists and you have proper permissions")
             }
-            // Sync errors (v0.27)
+            // Sync errors
             NikaError::SyncError { .. } => {
                 Some("Check editor configuration paths and MCP config file")
             }
@@ -1355,7 +1347,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_execution_legacy_error() {
+    fn test_execution_error() {
         let err = NikaError::Execution("command not found".to_string());
         assert_eq!(err.code(), "NIKA-096");
         let msg = err.to_string();
@@ -2219,7 +2211,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // STRUCTURED OUTPUT ERRORS (300-309) - v0.21
+    // STRUCTURED OUTPUT ERRORS (300-309)
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

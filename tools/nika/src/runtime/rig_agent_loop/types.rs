@@ -17,15 +17,15 @@ use crate::ast::ToolChoice as NikaToolChoice;
 pub enum RigAgentStatus {
     /// Agent completed naturally (no more tool calls)
     NaturalCompletion,
-    /// Agent called nika:complete tool explicitly (v0.21)
+    /// Agent called nika:complete tool explicitly
     ExplicitCompletion,
-    /// Agent completed with confidence above threshold (v0.22)
+    /// Agent completed with confidence above threshold
     HighConfidence(f64),
-    /// Agent completed with confidence below threshold (v0.22)
+    /// Agent completed with confidence below threshold
     LowConfidence(f64),
-    /// Agent completed but flagged for review via routing (v0.22)
+    /// Agent completed but flagged for review via routing
     FlaggedForReview(f64),
-    /// Agent escalated to human/other agent via routing (v0.22)
+    /// Agent escalated to human/other agent via routing
     Escalated(f64),
     /// Stop condition matched in output
     StopConditionMet,
@@ -33,11 +33,11 @@ pub enum RigAgentStatus {
     MaxTurnsReached,
     /// Token budget exceeded
     TokenBudgetExceeded,
-    /// Cost budget exceeded (v0.24)
+    /// Cost budget exceeded
     CostLimitReached,
-    /// Duration limit exceeded (v0.24)
+    /// Duration limit exceeded
     DurationLimitReached,
-    /// Partial completion with checkpoint saved (v0.24)
+    /// Partial completion with checkpoint saved
     PartialCompletion,
     /// Agent failed with error
     Failed,
@@ -64,7 +64,7 @@ impl RigAgentStatus {
         }
     }
 
-    /// Check if this status represents successful completion (v0.22)
+    /// Check if this status represents successful completion
     pub fn is_completed(&self) -> bool {
         matches!(
             self,
@@ -76,22 +76,22 @@ impl RigAgentStatus {
         )
     }
 
-    /// Check if this status requires retry (v0.22)
+    /// Check if this status requires retry
     pub fn requires_retry(&self) -> bool {
         matches!(self, Self::LowConfidence(_))
     }
 
-    /// Check if this status was escalated (v0.22)
+    /// Check if this status was escalated
     pub fn is_escalated(&self) -> bool {
         matches!(self, Self::Escalated(_))
     }
 
-    /// Check if this status is flagged for review (v0.22)
+    /// Check if this status is flagged for review
     pub fn is_flagged(&self) -> bool {
         matches!(self, Self::FlaggedForReview(_))
     }
 
-    /// Get confidence value if available (v0.22)
+    /// Get confidence value if available
     pub fn confidence(&self) -> Option<f64> {
         match self {
             Self::HighConfidence(c)
@@ -102,7 +102,7 @@ impl RigAgentStatus {
         }
     }
 
-    /// Check if a resource limit was reached (v0.24)
+    /// Check if a resource limit was reached
     pub fn is_limit_reached(&self) -> bool {
         matches!(
             self,
@@ -113,7 +113,7 @@ impl RigAgentStatus {
         )
     }
 
-    /// Check if this is a partial completion (v0.24)
+    /// Check if this is a partial completion
     pub fn is_partial(&self) -> bool {
         matches!(self, Self::PartialCompletion)
     }
@@ -130,19 +130,19 @@ pub struct RigAgentLoopResult {
     pub final_output: Value,
     /// Total tokens used (if available)
     pub total_tokens: u64,
-    /// Confidence level from nika:complete (v0.22)
+    /// Confidence level from nika:complete
     pub confidence: Option<f64>,
-    /// Number of retries due to low confidence (v0.22)
+    /// Number of retries due to low confidence
     pub retry_count: u32,
-    /// Whether all guardrails passed (v0.23)
+    /// Whether all guardrails passed
     pub guardrails_passed: bool,
-    /// Total cost in USD (v0.24)
+    /// Total cost in USD
     pub cost_usd: f64,
-    /// Partial result if limit reached (v0.24)
+    /// Partial result if limit reached
     pub partial_result: Option<crate::runtime::partial::PartialResult>,
 }
 
-/// Result of guardrail check (v0.25)
+/// Result of guardrail check
 ///
 /// Determines the next action based on guardrail results and their
 /// `on_failure` configuration.
@@ -200,7 +200,7 @@ pub(super) struct StreamingResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ToolChoice Conversion (v0.8.0)
+// ToolChoice Conversion
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Convert Nika's ToolChoice to rig-core's ToolChoice.

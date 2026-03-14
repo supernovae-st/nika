@@ -1,4 +1,4 @@
-//! Edit History - Undo/Redo for text input (v0.8)
+//! Edit History - Undo/Redo for text input
 //!
 //! Provides undo/redo functionality for text editing in the TUI.
 //! Coalesces rapid keystrokes into single undo steps to avoid

@@ -47,7 +47,7 @@ pub struct AnalyzedWorkflow {
     /// Context file configurations
     pub context_files: Vec<AnalyzedContextFile>,
 
-    /// Import specifications (v0.28, replaces include: + skills:)
+    /// Import specifications
     pub imports: Vec<AnalyzedImportSpec>,
 
     /// Input parameters with defaults
@@ -161,7 +161,7 @@ pub struct AnalyzedContextFile {
     pub span: Span,
 }
 
-/// Analyzed import specification (v0.28, replaces include: + skills:).
+/// Analyzed import specification.
 #[derive(Debug, Clone)]
 pub struct AnalyzedImportSpec {
     /// Path to the imported workflow or skill file.

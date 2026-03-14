@@ -2,7 +2,7 @@
 //!
 //! v0.27: Native tab replaced with Native tab (mistral.rs)
 
-/// Native model info for local inference (v0.27 - replaces NativeModelInfo)
+/// Native model info for local inference
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeModelInfo {
     /// Model name (e.g., "llama3.2:1b")
@@ -17,7 +17,7 @@ pub struct NativeModelInfo {
     pub details: NativeModelDetails,
 }
 
-/// Native model details (v0.27 - replaces NativeModelDetails)
+/// Native model details
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NativeModelDetails {
     /// Parameter size (e.g., "1B", "8B")
@@ -271,7 +271,7 @@ impl Default for ProviderModalState {
             visible: false,
             active_tab: ProviderModalTab::Cloud,
             selected_idx: 0,
-            item_count: 6, // Cloud tab has 6 providers by default (v0.27: Ollama removed)
+            item_count: 6, // Cloud tab has 6 providers by default
             download_state: DownloadState::default(),
             key_input_mode: false,
             key_input_buffer: String::new(),
@@ -354,7 +354,7 @@ impl ProviderModalState {
         self.selected_idx = 0; // Reset selection on tab change
                                // Update item_count based on tab
         self.item_count = match tab {
-            ProviderModalTab::Cloud => 6, // 6 cloud providers (v0.27: Ollama removed)
+            ProviderModalTab::Cloud => 6, // 6 cloud providers
             ProviderModalTab::Native => self.native_models.len().max(1), // Dynamic
             ProviderModalTab::Keys => 6,  // 6 API key entries (cloud providers only)
             ProviderModalTab::Config => 6, // 6 config entries (matches ConfigTab::new())
@@ -1068,7 +1068,7 @@ mod tests {
         let mut state = ProviderModalState::default();
         // Default is Cloud tab with item_count = 6
 
-        // Navigation uses 3-column grid layout (v0.27: 2x3 grid, Ollama removed):
+        // Navigation uses 3-column grid layout:
         //   0 1 2  (row 0: Claude, OpenAI, Mistral)
         //   3 4 5  (row 1: Groq, DeepSeek, Gemini)
 
@@ -1083,7 +1083,7 @@ mod tests {
         state.navigate_right();
         assert_eq!(state.selected_idx, 0); // Wraps to start of row
 
-        // Navigate down: 0 -> 3 -> wraps to 0 (v0.27: 2x3 grid, no row 2)
+        // Navigate down: 0 -> 3 -> wraps to 0
         state.navigate_down();
         assert_eq!(state.selected_idx, 3);
         state.navigate_down();
@@ -1101,7 +1101,7 @@ mod tests {
         state.navigate_left();
         assert_eq!(state.selected_idx, 5); // Wraps to end of row
 
-        // Navigate up wrapping: 0 -> wraps to 3 (v0.27: last row with col 0)
+        // Navigate up wrapping: 0 -> wraps to 3
         state.selected_idx = 0;
         state.navigate_up();
         assert_eq!(state.selected_idx, 3); // Wraps: col 0 last is idx 3
@@ -1640,7 +1640,7 @@ mod tests {
         state.start_verification();
         assert!(state.verification_active);
 
-        // Set all 6 cloud providers to connected (v0.27)
+        // Set all 6 cloud providers to connected
         for i in 0..6 {
             state
                 .verification_state

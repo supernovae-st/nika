@@ -1,4 +1,4 @@
-//! Skill Injector - Prepends skill content to agent system prompts (v0.15.4)
+//! Skill Injector - Prepends skill content to agent system prompts
 //!
 //! The SkillInjector loads skill files (both local and pkg: URIs) and caches them
 //! for efficient reuse. When an agent task specifies skills, the injector prepends

@@ -2,7 +2,7 @@
 //!
 //! This module provides the canonical error type for native inference operations.
 //!
-//! # Error Hierarchy (v0.27.1)
+//! # Error Hierarchy
 //!
 //! `NativeError` is the canonical error type for native inference. Other error types
 //! in the native inference module convert into `NativeError`:
@@ -77,18 +77,18 @@ pub enum NativeError {
     #[error("Inference failed: {0}")]
     InferenceFailed(String),
 
-    /// Inference timed out (v0.27 security).
+    /// Inference timed out.
     #[error("Inference timed out after {timeout_secs} seconds")]
     InferenceTimeout {
         /// Timeout in seconds.
         timeout_secs: u64,
     },
 
-    /// Operation was cancelled (v0.27 security).
+    /// Operation was cancelled.
     #[error("Operation was cancelled")]
     Cancelled,
 
-    /// Path traversal attack detected (v0.27 security).
+    /// Path traversal attack detected.
     #[error("Path traversal detected: '{path}' escapes storage directory")]
     PathTraversal {
         /// The invalid path.
@@ -240,7 +240,7 @@ mod tests {
     }
 
     // ========================================================================
-    // From<BackendError> tests (v0.27.1)
+    // From<BackendError> tests
     // ========================================================================
 
     #[test]
@@ -278,7 +278,7 @@ mod tests {
     }
 
     // ========================================================================
-    // From<StorageError> tests (v0.27.1)
+    // From<StorageError> tests
     // ========================================================================
 
     #[test]
@@ -320,7 +320,7 @@ mod tests {
     }
 
     // ========================================================================
-    // From<ModelResolveError> tests (v0.27.1)
+    // From<ModelResolveError> tests
     // ========================================================================
 
     #[test]

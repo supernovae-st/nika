@@ -165,7 +165,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         });
     }
 
-    // View-specific bindings (v0.22 4-Views)
+    // View-specific bindings
     match view {
         TuiView::Chat => {
             if mode == InputMode::Insert {
@@ -175,7 +175,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     description: "Send message",
                     category: KeyCategory::Chat,
                 });
-                // Input editing shortcuts (v0.7.1)
+                // Input editing shortcuts
                 bindings.push(Keybinding {
                     code: KeyCode::Char('/'),
                     modifiers: KeyModifiers::NONE,
@@ -189,7 +189,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                     category: KeyCategory::Chat,
                 });
             }
-            // Ctrl+K/P/T/M/F/R available in all Chat modes (v0.7.0+)
+            // Ctrl+K/P/T/M/F/R available in all Chat modes
             bindings.push(Keybinding {
                 code: KeyCode::Char('k'),
                 modifiers: KeyModifiers::CONTROL,
@@ -228,7 +228,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 description: "Retry failed MCP",
                 category: KeyCategory::Chat,
             });
-            // Cursor navigation shortcuts (v0.7.1)
+            // Cursor navigation shortcuts
             bindings.push(Keybinding {
                 code: KeyCode::Char('a'),
                 modifiers: KeyModifiers::CONTROL,
@@ -259,7 +259,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 description: "Delete word",
                 category: KeyCategory::Chat,
             });
-            // Clipboard shortcuts (v0.7.1)
+            // Clipboard shortcuts
             // Note: Ctrl+C already listed globally as "Copy / Quit (2x)"
             bindings.push(Keybinding {
                 code: KeyCode::Char('v'),
@@ -392,7 +392,7 @@ mod tests {
         assert!(bindings
             .iter()
             .any(|b| b.code == KeyCode::Char('c') && b.modifiers == KeyModifiers::CONTROL));
-        // Ctrl+K/T/M available in Chat (v0.7.0)
+        // Ctrl+K/T/M available in Chat
         assert!(bindings
             .iter()
             .any(|b| b.code == KeyCode::Char('k') && b.modifiers == KeyModifiers::CONTROL));

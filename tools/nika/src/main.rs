@@ -93,7 +93,7 @@ ENVIRONMENT VARIABLES:
     MISTRAL_API_KEY               Mistral
     GROQ_API_KEY                  Groq
     DEEPSEEK_API_KEY              DeepSeek
-    NIKA_MODEL_PATH               Native inference model path (v0.27)
+    NIKA_MODEL_PATH               Native inference model path
 
 TUI VIEWS (in nika ui):
     [e] Explorer   File browser + DAG preview
@@ -229,20 +229,20 @@ enum Commands {
         action: TraceAction,
     },
 
-    /// Manage LLM provider API keys (v0.12.1)
+    /// Manage LLM provider API keys
     #[cfg(feature = "tui")]
     Provider {
         #[command(subcommand)]
         action: ProviderAction,
     },
 
-    /// Manage MCP server connections (v0.12.1)
+    /// Manage MCP server connections
     Mcp {
         #[command(subcommand)]
         action: McpAction,
     },
 
-    /// Manage local LLM models (v0.27)
+    /// Manage local LLM models
     ///
     /// Download, list, and manage GGUF models for native inference.
     /// Models are stored in ~/.nika/models/
@@ -253,7 +253,7 @@ enum Commands {
         action: ModelAction,
     },
 
-    /// Manage installed packages (workflows, skills, schemas) (v0.27)
+    /// Manage installed packages (workflows, skills, schemas)
     ///
     /// List, add, remove, and install packages from the SuperNovae registry.
     /// Packages are stored in ~/.nika/packages/
@@ -263,7 +263,7 @@ enum Commands {
         action: PkgAction,
     },
 
-    /// Sync MCP servers and packages to IDE configurations (v0.27)
+    /// Sync MCP servers and packages to IDE configurations
     ///
     /// Syncs from ~/.nika/mcp.yaml to Claude Code, Cursor, Windsurf, VS Code.
     Sync {
@@ -279,7 +279,7 @@ enum Commands {
         dry_run: bool,
     },
 
-    /// Interactive setup wizard for SuperNovae ecosystem (v0.27)
+    /// Interactive setup wizard for SuperNovae ecosystem
     ///
     /// Configure providers, install tools, and set up IDE integrations.
     Setup {
@@ -287,7 +287,7 @@ enum Commands {
         action: Option<SetupAction>,
     },
 
-    /// Manage the nika daemon for keychain access (v0.27)
+    /// Manage the nika daemon for keychain access
     ///
     /// The daemon provides unified keychain access, eliminating repeated popups.
     /// Binary stays in nika-daemon; these commands proxy to it.
@@ -296,7 +296,7 @@ enum Commands {
         action: DaemonAction,
     },
 
-    /// Backup and restore SuperNovae data (v0.27)
+    /// Backup and restore SuperNovae data
     ///
     /// Creates unified backups of NovaNet schema/seeds, Nika workflows/sessions,
     /// and configuration. Backups are stored in ~/.nika/backups/ as tar.gz archives.
@@ -305,26 +305,26 @@ enum Commands {
         action: BackupAction,
     },
 
-    /// Generate shell completions (v0.13.1)
+    /// Generate shell completions
     Completion {
         /// Shell to generate completions for
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
 
-    /// Manage Nika configuration (v0.13.1)
+    /// Manage Nika configuration
     Config {
         #[command(subcommand)]
         action: ConfigAction,
     },
 
-    /// Manage schema versions and migrations (v0.21+)
+    /// Manage schema versions and migrations
     Schema {
         #[command(subcommand)]
         action: SchemaAction,
     },
 
-    /// Check system health and diagnose issues (v0.13.1)
+    /// Check system health and diagnose issues
     #[command(visible_alias = "d")]
     Doctor {
         /// Run all checks including slow ones (MCP connectivity)
@@ -336,7 +336,7 @@ enum Commands {
         format: String,
     },
 
-    /// Manage the Jobs Daemon for scheduled workflow execution (v0.14.0)
+    /// Manage the Jobs Daemon for scheduled workflow execution
     #[cfg(feature = "jobs")]
     #[command(visible_alias = "j")]
     Jobs {
@@ -344,7 +344,7 @@ enum Commands {
         action: JobsAction,
     },
 
-    /// Create a new workflow from template or wizard (v0.19.3)
+    /// Create a new workflow from template or wizard
     #[command(visible_alias = "n")]
     New {
         /// Workflow name (used for filename)
@@ -398,7 +398,7 @@ enum Commands {
         action: WorkflowAction,
     },
 
-    /// Start Language Server Protocol server (v0.22)
+    /// Start Language Server Protocol server
     ///
     /// Provides IDE integration for .nika.yaml workflow files:
     /// - Diagnostics (syntax errors, validation errors)
@@ -453,7 +453,7 @@ enum TraceAction {
     },
 }
 
-/// Provider management actions (v0.12.1)
+/// Provider management actions
 #[cfg(feature = "tui")]
 #[derive(Subcommand)]
 enum ProviderAction {
@@ -493,7 +493,7 @@ enum ProviderAction {
     },
 }
 
-/// MCP server management actions (v0.27)
+/// MCP server management actions
 ///
 /// Manage MCP servers at global (~/.nika/mcp.yaml), project (.nika/mcp.yaml),
 /// or workflow levels. Supports 48 aliases for common MCP servers.
@@ -589,7 +589,7 @@ enum McpAction {
     },
 }
 
-/// Package management actions (v0.27)
+/// Package management actions
 ///
 /// Manage SuperNovae packages (workflows, skills, schemas) stored in ~/.nika/packages/
 #[derive(Subcommand)]
@@ -669,7 +669,7 @@ enum PkgAction {
     },
 }
 
-/// Sync management actions (v0.27)
+/// Sync management actions
 ///
 /// Sync MCP servers and packages to IDE configurations.
 #[derive(Subcommand)]
@@ -690,7 +690,7 @@ enum SyncAction {
     },
 }
 
-/// Setup wizard actions (v0.27)
+/// Setup wizard actions
 ///
 /// Interactive setup for SuperNovae ecosystem components.
 #[derive(Subcommand)]
@@ -717,7 +717,7 @@ enum SetupAction {
     Windsurf,
 }
 
-/// Daemon management actions (v0.27)
+/// Daemon management actions
 ///
 /// The daemon binary (nika-daemon) is kept external. These commands proxy to it.
 #[derive(Subcommand)]
@@ -753,7 +753,7 @@ enum DaemonAction {
     Uninstall,
 }
 
-/// Backup management actions (v0.27)
+/// Backup management actions
 ///
 /// Proxies to `nika-daemon backup` commands for unified backup/restore.
 #[derive(Subcommand)]
@@ -808,7 +808,7 @@ enum BackupAction {
     },
 }
 
-/// Model management actions (v0.27)
+/// Model management actions
 ///
 /// Model management for local GGUF models.
 #[cfg(feature = "native-inference")]
@@ -869,7 +869,7 @@ enum ModelAction {
     },
 }
 
-/// Configuration management actions (v0.13.1)
+/// Configuration management actions
 #[derive(Subcommand)]
 enum ConfigAction {
     /// List all configuration values
@@ -907,7 +907,7 @@ enum ConfigAction {
     },
 }
 
-/// Schema management actions (v0.21+)
+/// Schema management actions
 #[derive(Subcommand)]
 enum SchemaAction {
     /// Upgrade workflow to latest schema version
@@ -945,7 +945,7 @@ enum SchemaAction {
     },
 }
 
-/// Jobs Daemon management actions (v0.14.0)
+/// Jobs Daemon management actions
 #[cfg(feature = "jobs")]
 #[derive(Subcommand)]
 enum JobsAction {
@@ -1024,9 +1024,9 @@ enum JobsAction {
     /// Reload daemon configuration
     Reload,
 
-    // === Background Job Commands (v0.27) ===
+    // === Background Job Commands ===
     // These proxy to `nika-daemon jobs` for background workflow execution
-    /// Submit a workflow for background execution (v0.27)
+    /// Submit a workflow for background execution
     ///
     /// Returns a job ID that can be used to track status and output.
     Submit {
@@ -1046,13 +1046,13 @@ enum JobsAction {
         priority: i32,
     },
 
-    /// Cancel a running background job (v0.27)
+    /// Cancel a running background job
     Cancel {
         /// Job ID to cancel
         id: String,
     },
 
-    /// Show output from a background job (v0.27)
+    /// Show output from a background job
     Output {
         /// Job ID
         id: String,
@@ -1062,7 +1062,7 @@ enum JobsAction {
         follow: bool,
     },
 
-    /// Clear completed/failed background jobs (v0.27)
+    /// Clear completed/failed background jobs
     Clear {
         /// Clear all jobs including running ones (use with caution)
         #[arg(long)]
@@ -1070,7 +1070,7 @@ enum JobsAction {
     },
 }
 
-/// Workflow management actions (v0.22+)
+/// Workflow management actions
 #[derive(Subcommand)]
 enum WorkflowAction {
     /// Open workflow in interactive editor
@@ -1257,58 +1257,58 @@ async fn main() {
         // Trace commands
         Some(Commands::Trace { action }) => handle_trace_command(action),
 
-        // Provider management (v0.12.1)
+        // Provider management
         #[cfg(feature = "tui")]
         Some(Commands::Provider { action }) => handle_provider_command(action).await,
 
-        // MCP server management (v0.12.1)
+        // MCP server management
         Some(Commands::Mcp { action }) => handle_mcp_command(action).await,
 
-        // Model management (v0.27)
+        // Model management
         #[cfg(feature = "native-inference")]
         Some(Commands::Model { action }) => handle_model_command(action, quiet).await,
 
-        // Package management (v0.27)
+        // Package management
         Some(Commands::Pkg { action }) => handle_pkg_command(action).await,
 
-        // Sync command (v0.27)
+        // Sync command
         Some(Commands::Sync {
             action,
             target,
             dry_run,
         }) => handle_sync_command(action, target, dry_run, quiet).await,
 
-        // Setup wizard (v0.27)
+        // Setup wizard
         Some(Commands::Setup { action }) => handle_setup_command(action, quiet).await,
 
-        // Daemon management (v0.27)
+        // Daemon management
         Some(Commands::Daemon { action }) => handle_daemon_command(action, quiet).await,
 
-        // Backup management (v0.27)
+        // Backup management
         Some(Commands::Backup { action }) => handle_backup_command(action, quiet).await,
 
-        // Shell completion (v0.13.1)
+        // Shell completion
         Some(Commands::Completion { shell }) => {
             clap_complete::generate(shell, &mut Cli::command(), "nika", &mut std::io::stdout());
             Ok(())
         }
 
-        // Configuration management (v0.13.1)
+        // Configuration management
         Some(Commands::Config { action }) => handle_config_command(action, quiet),
 
-        // Schema management (v0.21.x)
+        // Schema management
         Some(Commands::Schema { action }) => handle_schema_command(action, quiet),
 
-        // Doctor command (v0.13.1)
+        // Doctor command
         Some(Commands::Doctor { full, format }) => {
             handle_doctor_command(full, &format, quiet).await
         }
 
-        // Jobs Daemon management (v0.14.0)
+        // Jobs Daemon management
         #[cfg(feature = "jobs")]
         Some(Commands::Jobs { action }) => handle_jobs_command(action, quiet).await,
 
-        // New workflow creation (v0.19.3)
+        // New workflow creation
         Some(Commands::New {
             name,
             wizard,
@@ -1338,7 +1338,7 @@ async fn main() {
 
         Some(Commands::Workflow { action }) => handle_workflow_command(action, quiet).await,
 
-        // LSP Server (v0.22)
+        // LSP Server
         #[cfg(feature = "lsp")]
         Some(Commands::Lsp { mode, port }) => {
             if mode == "stdio" {
@@ -1851,11 +1851,11 @@ fn handle_trace_command(action: TraceAction) -> Result<(), NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PROVIDER COMMAND (v0.12.1)
+// PROVIDER COMMAND
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Get all LLM provider IDs (from nika::core::KNOWN_PROVIDERS).
-/// Replaces hardcoded ALL_PROVIDERS list (v0.27).
+/// Replaces hardcoded ALL_PROVIDERS list.
 #[cfg(feature = "tui")]
 fn llm_provider_ids() -> Vec<&'static str> {
     use nika::core::{ProviderCategory, KNOWN_PROVIDERS};
@@ -1870,13 +1870,13 @@ fn llm_provider_ids() -> Vec<&'static str> {
 #[cfg(feature = "tui")]
 async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError> {
     use colored::Colorize;
-    use nika::core::provider_to_env_var; // v0.27: from nika::core instead of TUI module
+    use nika::core::provider_to_env_var;
     use nika::secrets::{
         mask_api_key, migrate_env_to_keyring, validate_key_format, NikaKeyring,
     };
     use std::io::{self, Write};
 
-    // Get LLM provider IDs from nika::core (v0.27)
+    // Get LLM provider IDs from nika::core
     let all_providers = llm_provider_ids();
 
     match action {
@@ -1932,7 +1932,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
             key,
             prompt,
         } => {
-            // Validate provider name using nika::core (v0.27)
+            // Validate provider name using nika::core
             if !all_providers.contains(&provider.as_str()) {
                 return Err(NikaError::ValidationError {
                     reason: format!(
@@ -2053,7 +2053,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
                 "mistral" => RigProvider::mistral(),
                 "groq" => RigProvider::groq(),
                 "deepseek" => RigProvider::deepseek(),
-                "gemini" => RigProvider::gemini(), // v0.15.0
+                "gemini" => RigProvider::gemini(),
                 "native" => {
                     #[cfg(feature = "native-inference")]
                     {
@@ -2094,7 +2094,7 @@ async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaError
 // INIT COMMAND
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Initialize a new Nika project (v0.22.0)
+/// Initialize a new Nika project
 ///
 /// Creates:
 /// - `.nika/` directory with config, agents, skills, memory, etc.
@@ -2170,7 +2170,7 @@ default = "claude"
     fs::write(&config_path, config_content)?;
     println!("{} Created {}", "✓".green(), config_path.display());
 
-    // Create agents directory with example (v0.13)
+    // Create agents directory with example
     let agents_dir = nika_dir.join("agents");
     fs::create_dir_all(&agents_dir)?;
     println!("{} Created {}", "✓".green(), agents_dir.display());
@@ -2210,7 +2210,7 @@ Structure your responses with:
     fs::write(&example_agent_path, example_agent_content)?;
     println!("{} Created {}", "✓".green(), example_agent_path.display());
 
-    // Create skills directory with example (v0.13)
+    // Create skills directory with example
     let skills_dir = nika_dir.join("skills");
     fs::create_dir_all(&skills_dir)?;
     println!("{} Created {}", "✓".green(), skills_dir.display());
@@ -2252,7 +2252,7 @@ Provide feedback in categories:
     fs::write(&example_skill_path, example_skill_content)?;
     println!("{} Created {}", "✓".green(), example_skill_path.display());
 
-    // Create context directory (v0.13)
+    // Create context directory
     let context_dir = nika_dir.join("context");
     fs::create_dir_all(&context_dir)?;
     println!("{} Created {}", "✓".green(), context_dir.display());
@@ -2276,7 +2276,7 @@ Describe your project here. This context will be available to agents via `memory
     fs::write(&context_path, context_content)?;
     println!("{} Created {}", "✓".green(), context_path.display());
 
-    // Create memory directory (v0.13)
+    // Create memory directory
     let memory_dir = nika_dir.join("memory");
     fs::create_dir_all(&memory_dir)?;
     println!("{} Created {}", "✓".green(), memory_dir.display());
@@ -2291,7 +2291,7 @@ Describe your project here. This context will be available to agents via `memory
     fs::create_dir_all(&cache_dir)?;
     println!("{} Created {}", "✓".green(), cache_dir.display());
 
-    // Create workflows directory (v0.13 - for sub-workflow composition)
+    // Create workflows directory (for sub-workflow composition)
     let workflows_dir = nika_dir.join("workflows");
     fs::create_dir_all(&workflows_dir)?;
     println!("{} Created {}", "✓".green(), workflows_dir.display());
@@ -2360,7 +2360,7 @@ tasks:
         example_subworkflow_path.display()
     );
 
-    // Create user.yaml (v0.13)
+    // Create user.yaml
     let user_path = nika_dir.join("user.yaml");
     let user_content = r#"# Nika User Profile
 # Personalize your AI experience
@@ -2385,7 +2385,7 @@ language: "en-US"
     fs::write(&user_path, user_content)?;
     println!("{} Created {}", "✓".green(), user_path.display());
 
-    // Create memory.yaml (v0.13)
+    // Create memory.yaml
     let memory_config_path = nika_dir.join("memory.yaml");
     let memory_config_content = r#"# Nika Memory Configuration
 # Persistent memory across sessions
@@ -2422,7 +2422,7 @@ scopes:
     fs::write(&memory_config_path, memory_config_content)?;
     println!("{} Created {}", "✓".green(), memory_config_path.display());
 
-    // Create policies.yaml (v0.13)
+    // Create policies.yaml
     let policies_path = nika_dir.join("policies.yaml");
     let policies_content = r#"# Nika Security Policies
 # Control what agents can do
@@ -2559,7 +2559,7 @@ network:
 
     // Print summary
     println!();
-    println!("{}", "Nika project initialized! (v0.22.0)".green().bold());
+    println!("{}", "Nika project initialized!".green().bold());
     println!();
     println!(
         "  Permission mode: {}",
@@ -2664,7 +2664,7 @@ network:
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MCP COMMAND (v0.27)
+// MCP COMMAND
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle MCP server management commands
@@ -3138,7 +3138,7 @@ async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PACKAGE COMMAND HANDLER (v0.27)
+// PACKAGE COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle package management commands.
@@ -3638,7 +3638,7 @@ fn infer_package_type(package: &str) -> Option<&'static str> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SYNC COMMAND HANDLER (v0.27)
+// SYNC COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle sync commands to IDE configurations.
@@ -3811,7 +3811,7 @@ async fn handle_sync_command(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SETUP COMMAND HANDLER (v0.27)
+// SETUP COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle setup wizard commands.
@@ -3993,7 +3993,7 @@ fn setup_ide_helper(ide_name: &str, dir_name: &str, quiet: bool) -> Result<(), N
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DAEMON COMMAND HANDLER (v0.27)
+// DAEMON COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle daemon management commands.
@@ -4198,7 +4198,7 @@ async fn handle_daemon_command(action: DaemonAction, quiet: bool) -> Result<(), 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BACKUP COMMAND HANDLER (v0.27)
+// BACKUP COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle backup commands by proxying to nika-daemon backup.
@@ -4335,7 +4335,7 @@ async fn handle_backup_command(action: BackupAction, quiet: bool) -> Result<(), 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MODEL COMMAND HANDLER (v0.27)
+// MODEL COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Find filename for a given quantization string in a known model.
@@ -4698,7 +4698,7 @@ fn format_size(bytes: u64) -> String {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CONFIG COMMAND HANDLER (v0.13.1)
+// CONFIG COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaError> {
@@ -4897,7 +4897,7 @@ fn handle_config_command(action: ConfigAction, quiet: bool) -> Result<(), NikaEr
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SCHEMA COMMAND HANDLER (v0.21.0)
+// SCHEMA COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle schema subcommands: version, validate, upgrade
@@ -5232,7 +5232,7 @@ fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), NikaEr
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// WORKFLOW COMMAND HANDLER (v0.22+)
+// WORKFLOW COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Handle workflow subcommands: edit, add-task, graph, check
@@ -5904,7 +5904,7 @@ fn find_nika_dir() -> Result<PathBuf, NikaError> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DOCTOR COMMAND HANDLER (v0.13.1)
+// DOCTOR COMMAND HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Diagnostic check result
@@ -6082,7 +6082,7 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
         }
     }
 
-    // Note: Ollama removed in v0.27 — use provider: native with mistral.rs instead
+    // Note: Ollama removed — use provider: native with mistral.rs instead
 
     if !any_found {
         checks.push(DiagnosticCheck::warn(
@@ -6248,7 +6248,7 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) {
 }
 
 // ============================================================================
-// Jobs Daemon Command Handler (v0.14.0)
+// Jobs Daemon Command Handler
 // ============================================================================
 
 #[cfg(feature = "jobs")]
@@ -6616,7 +6616,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
             }
         }
 
-        // === Background Job Commands (v0.27) ===
+        // === Background Job Commands ===
         // These proxy to `nika-daemon jobs` for background workflow execution
         JobsAction::Submit {
             workflow,
@@ -6773,7 +6773,7 @@ async fn handle_jobs_command(action: JobsAction, quiet: bool) -> Result<(), Nika
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// NEW COMMAND - Workflow scaffolding (v0.19.3)
+// NEW COMMAND - Workflow scaffolding
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[allow(clippy::too_many_arguments)]

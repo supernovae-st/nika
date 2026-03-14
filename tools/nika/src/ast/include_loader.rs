@@ -1,4 +1,4 @@
-//! Include Loader - DAG Fusion at Parse Time (v0.17 Schema @0.9)
+//! Include Loader - DAG Fusion at Parse Time
 //!
 //! Loads and merges external workflows into the main DAG.
 //! Tasks from included workflows share the same DataStore as the parent.
@@ -10,7 +10,7 @@
 //!   # Filesystem path
 //!   - path: ./lib/seo-tasks.nika.yaml
 //!     prefix: seo_
-//!   # Package reference (v0.17)
+//!   # Package reference
 //!   - pkg: "@workflows/common"
 //!     prefix: common_
 //! ```
@@ -21,7 +21,7 @@
 //! - Task ID prefixing to prevent collisions
 //! - Flow dependency rewriting for prefixed IDs
 //! - Circular include detection
-//! - Package reference support (v0.17)
+//! - Package reference support
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -120,7 +120,7 @@ fn expand_includes_recursive(
 
         // Resolve the include path (filesystem or package)
         let include_path = if let Some(ref pkg) = include_spec.pkg {
-            // Package reference - resolve via registry (v0.17)
+            // Package reference - resolve via registry
             let resolved =
                 resolver::resolve_package_path(pkg).map_err(|e| NikaError::WorkflowNotFound {
                     path: format!(
@@ -129,7 +129,7 @@ fn expand_includes_recursive(
                     ),
                 })?;
 
-            // Try different filenames based on package type (v0.17+)
+            // Try different filenames based on package type
             // @jobs packages use job.nika.yaml, others use workflow.nika.yaml
             let candidates = if pkg.starts_with("@jobs/") {
                 vec!["job.nika.yaml", "workflow.nika.yaml"]
@@ -296,7 +296,7 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
                 }
             }
 
-            // Also prefix with_spec task references (v0.28)
+            // Also prefix with_spec task references
             if let Some(ref mut with_spec) = new_task.with_spec {
                 use crate::binding::types::BindingSource;
                 for entry in with_spec.values_mut() {
@@ -757,7 +757,7 @@ tasks:
     }
 
     // ============================================================================
-    // SKILL MERGING TESTS (v0.15.1 - Sub-Plan 1: Wire Existing Skills)
+    // SKILL MERGING TESTS
     // ============================================================================
 
     // NOTE: Skills merging tests (test_expand_includes_merges_skills_from_included_workflow,

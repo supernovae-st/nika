@@ -73,7 +73,7 @@ impl ChatView {
             .add_message_with_mentions(&content, WorkflowRole::Assistant);
     }
 
-    /// Add a Nika response with thinking content (v0.5.2+)
+    /// Add a Nika response with thinking content
     pub fn add_nika_message_with_thinking(
         &mut self,
         content: String,
@@ -381,7 +381,7 @@ impl ChatView {
         }
     }
 
-    /// Display an error with recovery suggestions (v0.5.2+)
+    /// Display an error with recovery suggestions
     /// Categorizes errors and provides actionable hints
     pub fn show_error(&mut self, error: &str) {
         let (category, suggestion) = categorize_error(error);

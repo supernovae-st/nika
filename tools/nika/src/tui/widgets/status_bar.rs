@@ -49,7 +49,7 @@ impl KeyHint {
     }
 }
 
-/// LLM Provider indicator (v0.27: 7 providers, Ollama removed)
+/// LLM Provider indicator
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Provider {
     #[default]

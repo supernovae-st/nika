@@ -201,7 +201,7 @@ impl SpawnAgentTool {
             depth: child_depth,
         });
 
-        // If no MCP clients, return placeholder (for backward compatibility with tests)
+        // If no MCP clients, return placeholder (for compatibility with tests)
         if self.mcp_clients.is_empty() {
             return Ok(json!({
                 "status": "spawned",

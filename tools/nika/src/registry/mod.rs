@@ -58,7 +58,7 @@ pub use resolver::{
 // Re-export lockfile
 pub use lockfile::{LockEntry, Lockfile, LockfileError};
 
-// Re-export API client (v0.28)
+// Re-export API client
 pub use api::{
     PackageInfo, RegistryApiError, RegistryClient, SearchResponse, SearchResult, SkillInfo,
     VersionInfo,

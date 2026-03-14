@@ -123,7 +123,7 @@ pub struct RunResponse {
 /// Executes a nested workflow and returns its output.
 /// Useful for workflow composition and modular design.
 ///
-/// Features (v0.14.0):
+/// Features:
 /// - Timeout protection (default: 300s)
 /// - Depth limiting to prevent infinite recursion (max: 10)
 /// - Path canonicalization for security

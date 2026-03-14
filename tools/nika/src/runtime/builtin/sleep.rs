@@ -221,7 +221,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // MAX_SLEEP_DURATION Tests (v0.24 - Bug fix: prevent indefinite blocking)
+    // MAX_SLEEP_DURATION Tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

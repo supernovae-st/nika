@@ -1,9 +1,9 @@
-//! Security Module - Command validation and blocklist (v0.15.0)
+//! Security Module - Command validation and blocklist
 //!
 //! Provides security validation for exec: commands:
 //! - Control character detection (blocks null bytes, escape sequences)
 //! - Blocklist for dangerous command patterns
-//! - Unicode NFKC normalization to prevent confusable bypass (v0.27.1)
+//! - Unicode NFKC normalization to prevent confusable bypass
 //! - Full validation combining both checks
 //!
 //! ## Unicode Confusable Protection
@@ -55,15 +55,15 @@ const BLOCKLIST: &[&str] = &[
     // Python reverse shell
     "python -c \"import socket",
     "python3 -c \"import socket",
-    // Privilege escalation (v0.21.0)
+    // Privilege escalation
     "sudo ",
     "doas ",
     "pkexec ",
-    // Dangerous permission changes (v0.21.0)
+    // Dangerous permission changes
     "chmod 777",
     "chmod -r 777",
     "chmod a+rwx",
-    // Base64 encoded payload execution (v0.21.0)
+    // Base64 encoded payload execution
     "base64 -d |",
     "base64 --decode |",
     "| base64 -d",
@@ -345,7 +345,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Unicode NFKC Normalization Tests (v0.27.1 Security)
+    // Unicode NFKC Normalization Tests
     // =========================================================================
 
     #[test]

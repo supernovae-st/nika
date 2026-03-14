@@ -1,4 +1,4 @@
-//! Logging configuration (v0.18 / schema v0.10)
+//! Logging configuration
 //!
 //! Provides level-filtered logging for workflows and tasks.
 //!
@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 // LOG FORMAT
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Log output format (v0.19.3+)
+/// Log output format
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
@@ -51,7 +51,7 @@ impl std::fmt::Display for LogFormat {
 // LOG CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Logging configuration for workflow or task (v0.10)
+/// Logging configuration for workflow or task
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LogConfig {
     /// Minimum log level
@@ -90,7 +90,7 @@ fn default_true() -> bool {
 // LOG LEVEL
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Log levels (v0.10)
+/// Log levels
 ///
 /// Ordered from most verbose to least:
 /// Trace < Debug < Info < Warn < Error

@@ -25,10 +25,10 @@ use serde::Deserialize;
 use crate::ast::completion::CompletionConfig;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tool Choice (v0.8.0)
+// Tool Choice
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Tool choice behavior for agent execution (v0.8.0)
+/// Tool choice behavior for agent execution
 ///
 /// Controls when the agent uses tools during execution.
 ///
@@ -131,7 +131,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub scope: Option<String>,
 
-    /// Enable extended thinking for Claude models (v0.4+)
+    /// Enable extended thinking for Claude models
     ///
     /// When enabled, the agent captures Claude's reasoning process
     /// in the `thinking` field of AgentTurn events. Only supported
@@ -155,7 +155,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub depth_limit: Option<u32>,
 
-    /// Tool choice behavior (v0.8.0)
+    /// Tool choice behavior
     ///
     /// Controls when the agent uses tools:
     /// - `auto` (default): LLM decides when to use tools
@@ -164,7 +164,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub tool_choice: Option<ToolChoice>,
 
-    /// Model temperature for response randomness (v0.8.0)
+    /// Model temperature for response randomness
     ///
     /// Controls the randomness/creativity of responses:
     /// - 0.0: Deterministic, most focused
@@ -175,7 +175,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub temperature: Option<f32>,
 
-    /// Maximum tokens to generate per turn (v0.18.0)
+    /// Maximum tokens to generate per turn
     ///
     /// Required when using `extended_thinking: true` with Claude.
     /// Must be greater than `thinking_budget`. If not set with extended
@@ -183,7 +183,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub max_tokens: Option<u32>,
 
-    /// Skills to inject into the agent's system prompt (v0.15.4)
+    /// Skills to inject into the agent's system prompt
     ///
     /// List of skill aliases that will be loaded and prepended to
     /// the system prompt before each LLM call. Skills are resolved
@@ -191,7 +191,7 @@ pub struct AgentParams {
     #[serde(default)]
     pub skills: Option<Vec<String>>,
 
-    /// Completion behavior configuration (v0.21)
+    /// Completion behavior configuration
     ///
     /// Controls how the agent signals task completion:
     /// - `mode: explicit` - Agent must call `nika:complete` tool (recommended)
@@ -203,14 +203,14 @@ pub struct AgentParams {
     #[serde(default)]
     pub completion: Option<CompletionConfig>,
 
-    /// Guardrails for validating agent outputs (v0.23)
+    /// Guardrails for validating agent outputs
     ///
     /// Guardrails are checked after the agent signals completion.
     /// If any guardrail fails, the agent is asked to retry.
     #[serde(default)]
     pub guardrails: Vec<crate::ast::guardrails::GuardrailConfig>,
 
-    /// Execution limits for cost control (v0.24)
+    /// Execution limits for cost control
     ///
     /// Limits control resource consumption:
     /// - `max_turns`: Maximum agentic loop iterations
@@ -281,7 +281,7 @@ impl AgentParams {
         }
     }
 
-    /// Get effective tool choice behavior (v0.8.0).
+    /// Get effective tool choice behavior.
     ///
     /// Returns the configured `tool_choice` if set, otherwise returns
     /// `ToolChoice::Auto` (LLM decides when to use tools).
@@ -290,7 +290,7 @@ impl AgentParams {
         self.tool_choice.clone().unwrap_or_default()
     }
 
-    /// Check if tool_choice was explicitly set by the user (v0.8.0).
+    /// Check if tool_choice was explicitly set by the user.
     ///
     /// Returns `true` only if the user explicitly specified `tool_choice` in YAML.
     /// Used to avoid redundant `.tool_choice(Auto)` calls when the default is sufficient.
@@ -310,7 +310,7 @@ impl AgentParams {
         self.tool_choice.is_some()
     }
 
-    /// Get effective temperature (v0.8.0).
+    /// Get effective temperature.
     ///
     /// Returns the configured `temperature` if set, otherwise returns `None`
     /// to use the provider's default.
@@ -319,7 +319,7 @@ impl AgentParams {
         self.temperature
     }
 
-    /// Get effective completion configuration (v0.21).
+    /// Get effective completion configuration.
     ///
     /// Returns the completion config, with backward compatibility:
     /// - If `completion` is set, returns it
@@ -338,7 +338,7 @@ impl AgentParams {
         None
     }
 
-    /// Generate system instruction for completion (v0.21).
+    /// Generate system instruction for completion.
     ///
     /// Returns the auto-generated instruction to append to the system prompt,
     /// or empty string if no special completion instruction is needed.
@@ -408,7 +408,7 @@ impl AgentParams {
             }
         }
 
-        // Validate temperature (v0.8.0)
+        // Validate temperature
         if let Some(temp) = self.temperature {
             if !(0.0..=2.0).contains(&temp) {
                 return Err(format!(
@@ -418,12 +418,12 @@ impl AgentParams {
             }
         }
 
-        // Validate completion config (v0.21)
+        // Validate completion config
         if let Some(ref completion) = self.completion {
             completion.validate()?;
         }
 
-        // Validate limits config (v0.24)
+        // Validate limits config
         if let Some(ref limits) = self.limits {
             limits.validate()?;
         }
@@ -431,14 +431,14 @@ impl AgentParams {
         Ok(())
     }
 
-    /// Get effective limits configuration (v0.24).
+    /// Get effective limits configuration.
     ///
     /// Returns the limits config if set, or a default (no limits) otherwise.
     pub fn effective_limits(&self) -> crate::ast::limits::LimitsConfig {
         self.limits.clone().unwrap_or_default()
     }
 
-    /// Check if any limits are configured (v0.24).
+    /// Check if any limits are configured.
     pub fn has_limits(&self) -> bool {
         self.limits
             .as_ref()
@@ -607,7 +607,7 @@ system: "You are a helpful assistant."
     }
 
     // ========================================================================
-    // Extended Thinking Tests (v0.4+)
+    // Extended Thinking Tests
     // ========================================================================
 
     #[test]
@@ -673,7 +673,7 @@ extended_thinking: false
     }
 
     // ========================================================================
-    // Thinking Budget Tests (v0.4+)
+    // Thinking Budget Tests
     // ========================================================================
 
     #[test]
@@ -715,7 +715,7 @@ thinking_budget: 8192
     }
 
     // ========================================================================
-    // MaxTokens Tests (v0.18.0)
+    // MaxTokens Tests
     // ========================================================================
 
     #[test]
@@ -767,7 +767,7 @@ thinking_budget: 8192
     }
 
     // ========================================================================
-    // ToolChoice Tests (v0.8.0)
+    // ToolChoice Tests
     // ========================================================================
 
     #[test]
@@ -815,7 +815,7 @@ tool_choice: none
     }
 
     // ========================================================================
-    // Temperature Tests (v0.8.0)
+    // Temperature Tests
     // ========================================================================
 
     #[test]
@@ -898,7 +898,7 @@ temperature: 1.5
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // has_explicit_tool_choice Tests (v0.8.0 optimization)
+    // has_explicit_tool_choice Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -967,7 +967,7 @@ tool_choice: none
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Completion Config Tests (v0.21)
+    // Completion Config Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1242,7 +1242,7 @@ completion:
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Limits Config Tests (v0.24)
+    // Limits Config Tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]

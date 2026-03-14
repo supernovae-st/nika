@@ -1,4 +1,4 @@
-//! Unified secrets management (v0.27 - migrated from spn-client).
+//! Unified secrets management.
 //!
 //! ## Architecture
 //!
@@ -70,7 +70,7 @@ mod daemon;
 #[cfg(not(feature = "nika-daemon"))]
 mod fallback;
 
-// Re-export keyring types (v0.28: canonical home, was in tui::widgets::provider_modal)
+// Re-export keyring types
 pub use keyring::{
     mask_api_key, migrate_env_to_keyring, validate_key_format, KeyringError, MigrationReport,
     NikaKeyring,

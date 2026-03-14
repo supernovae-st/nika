@@ -1,13 +1,12 @@
-//! EventLog - Event sourcing implementation (v0.4, updated v0.27)
+//! EventLog - Event sourcing implementation
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
 //! - EventKind: 34 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/structured-output/limits)
 //! - EventLog: thread-safe, append-only log
 //!
-//! ## v0.4.1 Changes
-//! - Added `AgentTurnMetadata` for reasoning capture (thinking, tokens, stop_reason)
-//! - Updated `AgentTurn` variant to include optional metadata
+//! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
+//! `AgentTurn` variant includes optional metadata.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -42,10 +41,10 @@ pub struct ExcludedItem {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// AgentTurnMetadata for Reasoning Capture (v0.4.1)
+// AgentTurnMetadata for Reasoning Capture
 // ═══════════════════════════════════════════════════════════════
 
-/// Agent turn response metadata for observability (v0.4.1)
+/// Agent turn response metadata for observability
 ///
 /// Captures detailed information about each agent turn, including:
 /// - Thinking content (if Claude extended thinking is enabled)
@@ -161,7 +160,7 @@ pub enum EventKind {
         error: String,
         failed_task: Option<Arc<str>>,
     },
-    /// Workflow was cancelled by user (v0.5.2)
+    /// Workflow was cancelled by user
     WorkflowAborted {
         /// Reason for abort (e.g., "User cancelled", "Timeout")
         reason: String,
@@ -170,9 +169,9 @@ pub enum EventKind {
         /// Tasks that were still running when aborted
         running_tasks: Vec<Arc<str>>,
     },
-    /// Workflow execution paused (v0.5.2+)
+    /// Workflow execution paused
     WorkflowPaused,
-    /// Workflow execution resumed (v0.5.2+)
+    /// Workflow execution resumed
     WorkflowResumed,
 
     // ═══════════════════════════════════════════
@@ -234,7 +233,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // CONTEXT ASSEMBLY (v0.2)
+    // CONTEXT ASSEMBLY
     // ═══════════════════════════════════════════
     /// Context assembly event for observability
     ContextAssembled {
@@ -252,7 +251,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // MCP EVENTS (v0.2, enhanced v0.5.2)
+    // MCP EVENTS
     // ═══════════════════════════════════════════
     /// MCP tool call or resource read initiated
     McpInvoke {
@@ -282,19 +281,19 @@ pub enum EventKind {
         #[serde(skip_serializing_if = "Option::is_none")]
         response: Option<Value>,
     },
-    /// MCP server connection established (v0.7.0)
+    /// MCP server connection established
     McpConnected {
         /// Name of the connected MCP server
         server_name: String,
     },
-    /// MCP server connection failed (v0.7.0)
+    /// MCP server connection failed
     McpError {
         /// Name of the MCP server
         server_name: String,
         /// Error description
         error: String,
     },
-    /// MCP operation retry attempt (v0.11.0: now emitted)
+    /// MCP operation retry attempt
     ///
     /// Emitted when MCP tool calls fail with connection errors and are retried.
     /// Use `McpClient::call_tool_with_retry_events()` for observable retry tracking.
@@ -315,7 +314,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // AGENT EVENTS (v0.4)
+    // AGENT EVENTS
     // ═══════════════════════════════════════════
     /// Agent loop started
     AgentStart {
@@ -323,7 +322,7 @@ pub enum EventKind {
         max_turns: u32,
         mcp_servers: Vec<String>,
     },
-    /// Agent turn event with optional metadata (v0.4.1)
+    /// Agent turn event with optional metadata
     ///
     /// When `metadata` is present, it contains:
     /// - Response text
@@ -335,7 +334,7 @@ pub enum EventKind {
         turn_index: u32,
         /// Event kind: "started", "continue", "natural_completion", "stop_condition_met"
         kind: String,
-        /// Turn metadata including response text, tokens, thinking (v0.4.1)
+        /// Turn metadata including response text, tokens, thinking
         #[serde(skip_serializing_if = "Option::is_none")]
         metadata: Option<AgentTurnMetadata>,
     },
@@ -347,7 +346,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // NESTED AGENT EVENTS (v0.5 - MVP 8 Phase 2)
+    // NESTED AGENT EVENTS
     // ═══════════════════════════════════════════
     /// A sub-agent was spawned by a parent agent
     AgentSpawned {
@@ -360,7 +359,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // GUARDRAIL EVENTS (v0.23)
+    // GUARDRAIL EVENTS
     // ═══════════════════════════════════════════
     /// Guardrail check passed
     GuardrailPassed {
@@ -382,7 +381,7 @@ pub enum EventKind {
         /// Error message explaining why it failed
         message: String,
     },
-    /// Guardrail failure requires escalation (v0.25)
+    /// Guardrail failure requires escalation
     ///
     /// Emitted when a guardrail with `on_failure: escalate` fails.
     /// This signals that human intervention or special handling is needed.
@@ -403,7 +402,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // BUILTIN TOOL EVENTS (v0.9.3)
+    // BUILTIN TOOL EVENTS
     // ═══════════════════════════════════════════
     /// Log event emitted by nika:log builtin tool
     Log {
@@ -428,7 +427,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // ARTIFACT EVENTS (v0.18)
+    // ARTIFACT EVENTS
     // ═══════════════════════════════════════════
     /// Artifact successfully written to disk
     ArtifactWritten {
@@ -452,7 +451,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
-    // STRUCTURED OUTPUT EVENTS (v0.21)
+    // STRUCTURED OUTPUT EVENTS
     // ═══════════════════════════════════════════
     /// Structured output extraction attempt at a specific layer
     ///
@@ -491,7 +490,7 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════════════════════════
-    // LIMIT EVENTS (v0.24)
+    // LIMIT EVENTS
     // ═══════════════════════════════════════════════════════════════
     /// Limit reached during agent execution
     ///
@@ -606,7 +605,7 @@ impl EventLog {
         }
     }
 
-    /// Create a new event log with broadcast channel for TUI (v0.4.1)
+    /// Create a new event log with broadcast channel for TUI
     ///
     /// Returns (EventLog, Receiver) tuple. Pass the receiver to TUI App.
     /// P1 Fix: Increase channel capacity from 256 to 512 events (buffer for TUI lag + fast providers).
@@ -1045,7 +1044,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Enhanced event tests (v0.2 - generation_id, token tracking)
+    // Enhanced event tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1210,7 +1209,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // AgentTurnMetadata tests (v0.4.1)
+    // AgentTurnMetadata tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1295,7 +1294,7 @@ mod tests {
         log.emit(EventKind::AgentTurn {
             task_id: "agent_task".into(),
             turn_index: 1,
-            kind: "end_turn".to_string(), // Canonical snake_case (v0.4.1)
+            kind: "end_turn".to_string(), // Canonical snake_case
             metadata: Some(metadata),
         });
 
@@ -1336,7 +1335,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Structured Output events tests (v0.21)
+    // Structured Output events tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1616,7 +1615,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Guardrail events tests (v0.23)
+    // Guardrail events tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -1836,7 +1835,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Limit events tests (v0.24)
+    // Limit events tests
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

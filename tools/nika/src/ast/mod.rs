@@ -75,37 +75,37 @@ mod workflow;
 pub use action::{ExecParams, FetchParams, InferParams, TaskAction};
 // AgentParams + ToolChoice are defined in agent.rs
 pub use agent::{AgentParams, ToolChoice};
-// AgentDef is defined in agent_def.rs (v0.6 - Reusable agent configurations)
+// AgentDef is defined in agent_def.rs
 pub use agent_def::AgentDef;
 // InvokeParams is defined in invoke.rs and re-exported here
 // (also used by action.rs for TaskAction::Invoke variant)
 pub use invoke::InvokeParams;
-// ContextConfig is defined in context.rs (v0.9 - File loading at workflow start)
+// ContextConfig is defined in context.rs
 pub use context::ContextConfig;
-// IncludeSpec is defined in include.rs (v0.9 - DAG fusion)
+// IncludeSpec is defined in include.rs
 pub use include::IncludeSpec;
 pub use output::{OutputFormat, OutputPolicy, SchemaRef};
-// SkillDef + SkillRef are defined in skill_def.rs (v0.6 - Prompt augmentation)
+// SkillDef + SkillRef are defined in skill_def.rs
 pub use skill_def::{SkillDef, SkillRef};
-// PkgUri is defined in pkg_resolver.rs (v0.15.2 - Skill Ecosystem)
+// PkgUri is defined in pkg_resolver.rs
 pub use pkg_resolver::PkgUri;
 pub use workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
-// DecomposeSpec is defined in decompose.rs (v0.5 - Runtime DAG expansion)
+// DecomposeSpec is defined in decompose.rs
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
-// Loader is defined in loader.rs (v0.13 - Multi-format agent/skill loading)
+// Loader is defined in loader.rs
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
-// Import loader is defined in import_loader.rs (v0.28 - Raw-level import expansion)
+// Import loader is defined in import_loader.rs
 pub use import_loader::expand_imports;
-// Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion)
+// Include loader is defined in include_loader.rs
 pub use include_loader::expand_includes;
-// StructuredOutputSpec is defined in structured.rs (v0.21 - JSON Schema validation)
+// StructuredOutputSpec is defined in structured.rs
 pub use structured::StructuredOutputSpec;
-// CompletionConfig is defined in completion.rs (v0.21 - Agent completion behavior)
+// CompletionConfig is defined in completion.rs
 pub use completion::{
     CompletionConfig, CompletionMode, ConfidenceConfig, InstructionConfig, LowConfidenceAction,
     PatternConfig, PatternType, SignalConfig, SignalFields,
 };
-// LimitsConfig is defined in limits.rs (v0.24 - Agent execution limits)
+// LimitsConfig is defined in limits.rs
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
 pub use lower::lower;
 

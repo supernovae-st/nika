@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 // =============================================================================
-// SEMANTIC COLOR CONSTANTS (v0.9.1 - aligned with Theme)
+// SEMANTIC COLOR CONSTANTS
 // =============================================================================
 
 /// Header text - high contrast
@@ -76,7 +76,7 @@ impl ProviderKeyEntry {
     /// v0.12.2: Keyring is checked FIRST, env var is fallback
     /// v0.11.0: Returns Stored for keyring keys, Configured for env var keys
     fn detect_state(provider: &str) -> ApiKeyState {
-        // Priority 1: Check keyring (v0.12.2)
+        // Priority 1: Check keyring
         // v0.11.0: Use Stored variant to indicate secure keyring storage
         if let Ok(key) = NikaKeyring::get(provider) {
             return ApiKeyState::Stored {

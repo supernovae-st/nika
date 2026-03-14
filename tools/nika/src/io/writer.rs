@@ -1,4 +1,4 @@
-//! Artifact Writer - File Persistence for Task Outputs (v0.18)
+//! Artifact Writer - File Persistence for Task Outputs
 //!
 //! The `ArtifactWriter` is the main entry point for writing task outputs to disk.
 //! It combines atomic writes, path security, and template resolution.

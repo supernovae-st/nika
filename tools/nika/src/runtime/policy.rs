@@ -1,4 +1,4 @@
-//! Policy Enforcer - Security policy enforcement (v0.13.1)
+//! Policy Enforcer - Security policy enforcement
 //!
 //! Enforces allow/block rules for:
 //! - Shell commands (exec: verb)
