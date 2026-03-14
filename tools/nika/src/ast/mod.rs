@@ -35,6 +35,7 @@
 pub mod analyzed;
 pub mod analyzer;
 pub mod raw;
+pub mod schema;
 
 // Security - YAML bomb protection (v0.27.1)
 pub mod budget;

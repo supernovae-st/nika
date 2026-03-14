@@ -19,8 +19,9 @@ use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
     AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer,
     AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
-    McpTransport, OutputFormat, SchemaVersion, TaskId, TaskTable,
+    McpTransport, OutputFormat, TaskId, TaskTable,
 };
+use crate::ast::schema::SchemaVersion;
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
     RawTaskAction, RawWorkflow,
