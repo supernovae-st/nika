@@ -216,7 +216,7 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), 
     let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 
     for task in &workflow.tasks {
-        // v0.28: Validate with: bindings if present, otherwise validate use: bindings
+        // Validate with: bindings if present, otherwise validate use: bindings
         if let Some(ref with_spec) = task.with_spec {
             validate_wiring(&task.id, with_spec, &all_task_ids, flow_graph)?;
             validate_template_refs_with(task)?;

@@ -463,7 +463,7 @@ impl Dag {
 
             // BUG-003: Add implicit edges from with: or use: wiring references
             if let Some(ref with_spec) = task.with_spec {
-                // v0.28: with: block — WithEntry.task_id() returns Option<&str>
+                // With: block — WithEntry.task_id() returns Option<&str>
                 let tgt_arc = task_set
                     .get(task.id.as_str())
                     .cloned()
