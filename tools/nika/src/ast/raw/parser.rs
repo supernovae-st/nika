@@ -932,9 +932,11 @@ fn parse_mcp_config(
     let mcp_span = marked_span_to_span(file_id, mcp_map.span());
     let mut config = RawMcpConfig::default();
 
-    // Look for "servers:" mapping inside mcp
-    if let Some(servers_node) = mcp_map.get_node("servers") {
-        let servers_map = match servers_node {
+    // Support both formats:
+    //   Nested: mcp: { servers: { novanet: { command: ... } } }
+    //   Flat:   mcp: { novanet: { command: ... } }
+    let servers_map = if let Some(servers_node) = mcp_map.get_node("servers") {
+        match servers_node {
             Node::Mapping(m) => m,
             _ => {
                 return Err(ParseError {
@@ -943,18 +945,20 @@ fn parse_mcp_config(
                     message: "mcp.servers must be a mapping".to_string(),
                 });
             }
-        };
-
-        // Parse each server entry
-        for (key, value) in servers_map.iter() {
-            let server_name = Spanned::new(
-                key.as_str().to_string(),
-                marked_span_to_span(file_id, key.span()),
-            );
-
-            let server = parse_mcp_server(file_id, value)?;
-            config.servers.insert(server_name, server);
         }
+    } else {
+        // Flat format: entries directly under mcp:
+        mcp_map
+    };
+
+    for (key, value) in servers_map.iter() {
+        let server_name = Spanned::new(
+            key.as_str().to_string(),
+            marked_span_to_span(file_id, key.span()),
+        );
+
+        let server = parse_mcp_server(file_id, value)?;
+        config.servers.insert(server_name, server);
     }
 
     Ok(Some(Spanned::new(config, mcp_span)))
