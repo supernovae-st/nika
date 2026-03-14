@@ -266,9 +266,8 @@ fn find_template_range(text: &str, position: Position) -> Option<Range> {
     None
 }
 
-/// Compute hover information at a position (legacy text-based)
+/// Compute hover information at a position.
 ///
-/// This is the legacy text-based hover computation.
 /// For enhanced semantic hover, use `compute_hover_with_ast`.
 #[cfg(feature = "lsp")]
 pub fn compute_hover(text: &str, position: Position) -> Option<Hover> {

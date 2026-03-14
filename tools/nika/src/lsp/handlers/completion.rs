@@ -72,7 +72,7 @@ pub fn compute_completions_with_ast(
     }
 }
 
-/// Compute completions based on cursor position (legacy text-based)
+/// Compute completions based on cursor position
 #[cfg(feature = "lsp")]
 pub fn compute_completions(text: &str, position: Position) -> Vec<CompletionItem> {
     let context = analyze_completion_context(text, position);

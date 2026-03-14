@@ -64,7 +64,7 @@ pub fn find_definition_with_ast(
     None
 }
 
-/// Find definition location for element at position (legacy text-based)
+/// Find definition location for element at position
 #[cfg(feature = "lsp")]
 pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoDefinitionResponse> {
     let offset = position_to_offset(position, text);
