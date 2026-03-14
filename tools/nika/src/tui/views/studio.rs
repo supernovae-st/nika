@@ -16,7 +16,7 @@
 //!
 //! See: <https://github.com/ratatui/ratatui-textarea> (replaces rhysd/tui-textarea)
 
-use crate::serde_yaml;
+use crate::ast::parse_workflow;
 use camino::Utf8Path;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -1724,7 +1724,7 @@ impl YamlEditorPanel {
 
         // Phase 1: Check YAML syntax validity
         // Note: Using serde_json::Value as target since serde-saphyr doesn't export Value type
-        match serde_yaml::from_str::<serde_json::Value>(&content) {
+        match crate::serde_yaml::from_str::<serde_json::Value>(&content) {
             Ok(_) => {
                 self.validation.yaml_valid = true;
             }
@@ -2418,8 +2418,7 @@ impl YamlEditorPanel {
 
         // Update cache if content changed
         if current_hash != cached_hash {
-            let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
-            *self.cached_workflow.borrow_mut() = workflow.ok();
+            *self.cached_workflow.borrow_mut() = parse_workflow(yaml).ok();
             self.cached_content_hash.set(current_hash);
         }
 

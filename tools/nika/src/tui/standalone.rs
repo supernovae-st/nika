@@ -25,7 +25,7 @@
 //! - `ignore`: .gitignore-aware directory traversal (from ripgrep author)
 //! - `camino`: UTF-8 safe paths
 
-use crate::serde_yaml;
+use crate::ast::parse_workflow;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -442,7 +442,6 @@ impl StandaloneState {
     /// Performs full validation: schema, parsing, DAG, and bindings.
     pub fn validate_selected(&mut self) {
         use crate::ast::schema_validator::WorkflowSchemaValidator;
-        use crate::ast::Workflow;
         use crate::dag::{validate_use_wiring, Dag};
 
         let Some(entry) = self.browser_entries.get(self.browser_index) else {
@@ -487,30 +486,21 @@ impl StandaloneState {
             }
         }
 
-        // Step 3: Parse workflow
-        let workflow: Workflow = match serde_yaml::from_str(&yaml) {
+        // Step 3: Parse and validate workflow (two-phase IR pipeline)
+        let workflow = match parse_workflow(&yaml) {
             Ok(w) => {
-                result.push_str("│ ✓ YAML parsing passed\n");
+                result.push_str("│ ✓ YAML parsing + validation passed\n");
                 w
             }
             Err(e) => {
-                result.push_str(&format!("│ ✗ YAML parsing failed: {}\n", e));
+                result.push_str(&format!("│ ✗ Workflow parsing failed: {}\n", e));
                 result.push_str("╰─\n");
                 self.preview_content = result;
                 return;
             }
         };
 
-        // Step 4: Validate schema version
-        if let Err(e) = workflow.validate_schema() {
-            result.push_str(&format!("│ ✗ Schema version invalid: {}\n", e));
-            result.push_str("╰─\n");
-            self.preview_content = result;
-            return;
-        }
-        result.push_str("│ ✓ Schema version valid\n");
-
-        // Step 5: Build and validate DAG
+        // Step 4: Build and validate DAG
         let flow_graph = match Dag::from_workflow(&workflow) {
             Ok(dag) => dag,
             Err(e) => {

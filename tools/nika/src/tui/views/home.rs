@@ -12,7 +12,7 @@
 //! +---------------------------------------------------------------------------------+
 //! ```
 
-use crate::serde_yaml;
+use crate::ast::parse_workflow;
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -601,8 +601,7 @@ impl HomeView {
 
         // Update cache if content changed
         if current_hash != cached_hash {
-            let workflow: Result<Workflow, _> = serde_yaml::from_str(content);
-            *self.cached_workflow.borrow_mut() = workflow.ok();
+            *self.cached_workflow.borrow_mut() = parse_workflow(content).ok();
             self.cached_content_hash.set(current_hash);
         }
 

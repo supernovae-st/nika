@@ -2,8 +2,7 @@
 //!
 //! Contains MCP server configuration loading from workflow files.
 
-use crate::ast::Workflow;
-use crate::serde_yaml;
+use crate::ast::parse_workflow;
 
 use super::App;
 
@@ -22,7 +21,7 @@ impl App {
             }
         };
 
-        let workflow: Workflow = match serde_yaml::from_str(&yaml_content) {
+        let workflow = match parse_workflow(&yaml_content) {
             Ok(w) => w,
             Err(e) => {
                 tracing::warn!("Failed to parse workflow for MCP init: {}", e);

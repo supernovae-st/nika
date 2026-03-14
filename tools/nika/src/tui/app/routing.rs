@@ -40,7 +40,7 @@
 
 use std::path::PathBuf;
 
-use crate::ast::{expand_includes, Workflow};
+use crate::ast::expand_includes;
 use crate::core::backend::DownloadRequest;
 use crate::core::models::find_model;
 use crate::core::storage::{default_model_dir, HuggingFaceStorage};
@@ -608,14 +608,10 @@ impl App {
             }
         };
 
-        let workflow: Workflow = match crate::serde_yaml::from_str(&yaml_content) {
+        let workflow = match crate::ast::parse_workflow(&yaml_content) {
             Ok(w) => w,
             Err(e) => {
-                let line_info = e
-                    .location()
-                    .map(|l| format!(" (line {})", l.line()))
-                    .unwrap_or_default();
-                self.set_status(&format!("Parse error{}: {}", line_info, e));
+                self.set_status(&format!("Parse error: {}", e));
                 tracing::error!("Failed to parse workflow: {}", e);
                 return;
             }
