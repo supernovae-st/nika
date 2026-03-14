@@ -20,7 +20,7 @@ use zeroize::Zeroizing;
 #[cfg(feature = "native-keychain")]
 use colored::Colorize;
 
-// v0.28: Use nika::core directly instead of tui::providers::env_var
+// Use nika::core directly instead of tui::providers::env_var
 #[cfg(feature = "native-keychain")]
 use crate::core::provider_to_env_var;
 
@@ -284,7 +284,7 @@ pub fn migrate_env_to_keyring() -> MigrationReport {
     let mut report = MigrationReport::default();
 
     for provider in MIGRATEABLE_PROVIDERS {
-        // v0.28: Use core::provider_to_env_var directly instead of tui::providers::env_var
+        // Use core::provider_to_env_var directly instead of tui::providers::env_var
         let env_var = provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY");
 
         match std::env::var(env_var) {

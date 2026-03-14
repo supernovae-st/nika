@@ -92,7 +92,7 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
                 }
             }
             Err(_) => {
-                // v0.22: Do NOT fall back to direct keyring when daemon is available.
+                // Do NOT fall back to direct keyring when daemon is available.
                 // The daemon is the SOLE keychain accessor to prevent macOS popups.
                 // If daemon doesn't have the secret, mark as not found.
                 trace!("{}: not found in daemon", provider_id);
@@ -126,7 +126,7 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // v0.22: Do NOT fall back to direct keyring - daemon is sole accessor
+    // Do NOT fall back to direct keyring - daemon is sole accessor
     None
 }
 
@@ -149,12 +149,12 @@ pub async fn has_secret(provider: &str) -> bool {
         }
     }
 
-    // v0.22: Do NOT fall back to direct keyring - daemon is sole accessor
+    // Do NOT fall back to direct keyring - daemon is sole accessor
     false
 }
 
 /// Fallback-only loading (when daemon completely unavailable).
-/// v0.22: Only checks env vars - NO direct keyring access to prevent popups.
+/// Only checks env vars - NO direct keyring access to prevent popups.
 async fn load_fallback_only() -> SecretsLoadResult {
     let mut result = SecretsLoadResult {
         daemon_available: false,
@@ -170,7 +170,7 @@ async fn load_fallback_only() -> SecretsLoadResult {
             trace!("{}: already in env", provider_id);
             result.from_fallback.push(provider_id.to_string());
         } else {
-            // v0.22: Do NOT fall back to keyring - only env vars when daemon unavailable
+            // Do NOT fall back to keyring - only env vars when daemon unavailable
             result.not_found.push(provider_id.to_string());
         }
     }
