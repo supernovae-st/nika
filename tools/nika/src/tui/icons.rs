@@ -88,7 +88,6 @@ pub mod verb {
 /// LLM Provider icons
 ///
 /// Each provider has a unique icon (no conflicts with verbs).
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 pub mod provider {
     /// Claude (Anthropic) - Brain 🧠
     pub const CLAUDE: &str = "🧠";
@@ -448,7 +447,6 @@ mod tests {
             verb::INVOKE,
             verb::AGENT,
         ];
-        // v0.27: Ollama removed — use provider: native instead
         let provider_icons = [
             provider::CLAUDE,
             provider::OPENAI,

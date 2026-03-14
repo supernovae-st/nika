@@ -3,12 +3,6 @@
 //! Popup for selecting LLM provider and model with streaming indicators.
 //! Inspired by VS Code command palette style.
 //!
-//! ## v0.27: Provider Changes
-//!
-//! - **6 API providers**: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
-//! - **Ollama REMOVED**: Use `provider: native` with mistral.rs instead
-//!
-//! ## Availability Checks
 //!
 //! All providers check for non-empty API key in environment variables.
 
@@ -35,7 +29,6 @@ const UNAVAILABLE_COLOR: Color = Color::Rgb(239, 68, 68); // red
 const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.27: Ollama removed - use provider: native (mistral.rs) for local inference
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Connection verification status
@@ -159,7 +152,6 @@ pub struct ModelInfo {
 impl ProviderInfo {
     /// Create provider info for all supported providers
     ///
-    /// v0.27: 5 API providers (Ollama removed - use `provider: native`)
     /// All providers require non-empty API key in environment.
     pub fn all_providers() -> Vec<ProviderInfo> {
         // Helper to check API key availability with reason
@@ -171,7 +163,6 @@ impl ProviderInfo {
             }
         };
 
-        // v0.27: Ollama REMOVED - use provider: native (mistral.rs) for local inference
         // 6 API providers: Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini
 
         let (claude_available, claude_reason) = check_api_key("ANTHROPIC_API_KEY");
@@ -371,7 +362,6 @@ impl ProviderInfo {
                     },
                 ],
             },
-            // v0.27: Ollama removed - 6 providers total
             // For local inference, use `provider: native` with mistral.rs
         ]
     }
@@ -804,7 +794,6 @@ impl<'a> ProviderSelector<'a> {
                     buf.set_string(status_x, y, "○ Ready", Style::default().fg(AVAILABLE_COLOR));
                 }
                 (VerifyStatus::Unknown, false) => {
-                    // v0.27: All providers need API key (Ollama removed)
                     buf.set_string(
                         status_x,
                         y,
@@ -895,7 +884,6 @@ mod tests {
 
     #[test]
     fn test_provider_info_all_providers() {
-        // v0.27: 6 API providers (Ollama removed)
         let providers = ProviderInfo::all_providers();
         assert_eq!(providers.len(), 6);
         assert_eq!(providers[0].id, "claude");
@@ -968,8 +956,6 @@ mod tests {
         assert!(!state.visible);
     }
 
-    // v0.27: test_provider_ollama_availability_depends_on_server REMOVED
-    // Ollama provider removed in favor of native inference (mistral.rs)
 
     #[test]
     fn test_all_models_have_streaming() {

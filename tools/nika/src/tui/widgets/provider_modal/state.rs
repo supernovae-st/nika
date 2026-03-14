@@ -370,7 +370,6 @@ impl ProviderModalState {
         }
         if self.active_tab == ProviderModalTab::Cloud {
             // 3-column grid (6 items): move up one row, wrap to last row
-            // v0.27: 2x3 grid (2 rows, 6 items), Ollama removed
             if self.selected_idx >= 3 {
                 self.selected_idx -= 3;
             } else {
@@ -524,7 +523,6 @@ impl ProviderModalState {
     }
 
     /// v0.8.9: Sync all verification statuses from provider_statuses
-    /// v0.27: Updated to sync all 6 cloud providers (Ollama removed)
     pub fn sync_all_verification_statuses(&mut self) {
         for i in 0..6 {
             self.sync_verification_status(i);
@@ -561,7 +559,6 @@ impl ProviderModalState {
 
     /// Get Native tab label with model count
     /// v0.8.9: Shows number of available models
-    /// v0.27: Ollama removed
     pub fn native_tab_label(&self) -> String {
         let count = self.native_models.len();
         if count > 0 {
@@ -1570,7 +1567,6 @@ mod tests {
     // v0.8.9: Verification state tests
     #[test]
     fn test_verification_state_default() {
-        // v0.27: Ollama removed
         let state = ProviderModalState::default();
         assert!(!state.verification_active);
         assert_eq!(state.verification_state.entries.len(), 6);

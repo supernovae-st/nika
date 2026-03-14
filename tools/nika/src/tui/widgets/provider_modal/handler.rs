@@ -330,7 +330,6 @@ impl ModalEventHandler {
     }
 
     /// Get currently selected provider name for Keys tab
-    /// v0.27: Ollama removed
     fn selected_provider(state: &ProviderModalState) -> &'static str {
         match state.selected_idx {
             0 => "anthropic",
@@ -350,7 +349,6 @@ impl ModalEventHandler {
     }
 
     /// Get cloud provider name by index
-    /// v0.27: Ollama removed
     fn selected_cloud_provider_by_idx(idx: usize) -> &'static str {
         match idx {
             0 => "anthropic",
@@ -364,7 +362,6 @@ impl ModalEventHandler {
     }
 
     /// Get default model for provider index
-    /// v0.27: Ollama removed
     fn default_model_for_provider(idx: usize) -> &'static str {
         match idx {
             0 => "claude-sonnet-4",

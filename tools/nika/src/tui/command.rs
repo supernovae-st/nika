@@ -105,7 +105,6 @@ pub enum ModelProvider {
     /// DeepSeek (deepseek-chat, etc.)
     DeepSeek,
     /// Native inference via mistral.rs (local GGUF models)
-    /// Note: Ollama removed in v0.27 — use Native instead
     Native,
     /// List available providers
     List,
@@ -1438,7 +1437,6 @@ mod tests {
             ModelProvider::from_name("local"),
             Some(ModelProvider::Native)
         );
-        // Ollama was removed in v0.27 — use native instead
         assert_eq!(ModelProvider::from_name("ollama"), None);
     }
 

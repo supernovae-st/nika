@@ -590,7 +590,6 @@ impl BootSequence {
         if std::env::var("GEMINI_API_KEY").is_ok() {
             providers.push("gemini".to_string());
         }
-        // Note: Ollama removed in v0.27 — use provider: native with mistral.rs instead
 
         if providers.is_empty() {
             warnings.push("No API keys found".into());

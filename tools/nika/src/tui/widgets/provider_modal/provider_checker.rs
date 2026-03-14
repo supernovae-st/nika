@@ -3,7 +3,6 @@
 //! Validates provider connectivity by pinging their APIs.
 //! Uses reqwest with timeouts to prevent hanging.
 //!
-//! v0.27: Ollama removed
 
 use std::time::{Duration, Instant};
 
@@ -310,7 +309,6 @@ mod tests {
         let checker = ProviderChecker::new();
         let results = checker.check_all().await;
         // Should return results for all LLM providers (6 cloud + 1 native = 7)
-        // v0.27: Ollama removed
         assert!(!results.is_empty());
     }
 

@@ -54,7 +54,6 @@ impl App {
     pub(crate) fn spawn_provider_verification(&self) {
         let tx = self.stream_chunk_tx.clone();
         // v0.8.8: Static list of provider IDs (no longer from ProviderSelectorState)
-        // v0.27: Ollama removed — use native instead
         let provider_ids = [
             ("claude", "claude-sonnet-4-6"),
             ("openai", "gpt-4o"),

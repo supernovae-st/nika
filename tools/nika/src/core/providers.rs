@@ -5,7 +5,6 @@
 //! - **MCP providers** (11): Neo4j, GitHub, Slack, Perplexity, Firecrawl, Supadata, etc.
 //! - **Local providers** (1): Native inference (mistral.rs)
 //!
-//! Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 
 use std::fmt;
 
@@ -49,7 +48,7 @@ pub struct Provider {
     pub description: &'static str,
 }
 
-/// All known providers (18 total — Ollama removed in v0.27).
+/// All known providers (18 total).
 ///
 /// ## Categories
 ///
@@ -58,7 +57,7 @@ pub struct Provider {
 /// - **Local (1)**: native (mistral.rs)
 pub static KNOWN_PROVIDERS: &[Provider] = &[
     // ═══════════════════════════════════════════════════════════════════════════
-    // LLM PROVIDERS (6) — Ollama removed v0.27, use provider: native instead
+    // LLM PROVIDERS (6)
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "anthropic",
@@ -116,7 +115,6 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     },
     // ═══════════════════════════════════════════════════════════════════════════
     // MCP PROVIDERS (11)
-    // NOTE: Ollama removed in v0.27 — use provider: native (mistral.rs) instead
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "neo4j",
@@ -310,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_known_providers_count() {
-        // 6 LLM + 11 MCP + 1 Local = 18 total (Ollama removed in v0.27)
+        // 6 LLM + 11 MCP + 1 Local = 18 total
         assert_eq!(KNOWN_PROVIDERS.len(), 18);
     }
 
@@ -320,7 +318,6 @@ mod tests {
         let mcp = providers_by_category(ProviderCategory::Mcp);
         let local = providers_by_category(ProviderCategory::Local);
 
-        // Ollama removed in v0.27 — use provider: native instead
         assert_eq!(llm.len(), 6);
         assert_eq!(mcp.len(), 11);
         assert_eq!(local.len(), 1);
@@ -338,7 +335,6 @@ mod tests {
         let native = find_provider("native").unwrap();
         assert!(!native.requires_key);
 
-        // Ollama was removed in v0.27 — use native instead
         assert!(find_provider("ollama").is_none());
 
         assert!(find_provider("nonexistent").is_none());

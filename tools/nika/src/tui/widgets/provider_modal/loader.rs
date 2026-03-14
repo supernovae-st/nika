@@ -3,7 +3,6 @@
 //! Orchestrates loading of provider statuses and native models
 //! in the background, communicating results via channels.
 //!
-//! v0.27: Ollama removed
 
 use std::sync::Arc;
 use tokio::sync::mpsc;

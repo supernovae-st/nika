@@ -6082,7 +6082,6 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
         }
     }
 
-    // Note: Ollama removed — use provider: native with mistral.rs instead
 
     if !any_found {
         checks.push(DiagnosticCheck::warn(

@@ -171,7 +171,6 @@ pub struct ChatView {
     pub command_palette: CommandPaletteState,
     /// Provider modal state (⌘P - v0.8.8 full management)
     pub provider_modal: ProviderModalState,
-    // NOTE: Ollama client removed in v0.27 — use `provider: native` with mistral.rs instead
     // Native model management is handled via nika commands (nika model list/pull/info)
     /// Inline content for current streaming (MCP calls, infer boxes)
     pub inline_content: Vec<InlineContent>,
@@ -210,7 +209,6 @@ pub struct ChatView {
     /// List state for conversation (ratatui StatefulWidget)
     pub conversation_list_state: ListState,
 
-    // === v0.8 WOW Effects ===
     /// Index of last copied message (for flash effect)
     pub copy_flash_index: Option<usize>,
     /// Frame when copy happened (for flash duration)
@@ -231,7 +229,6 @@ pub struct ChatView {
     /// v0.9.1: Whether NIKA pattern is still visible (before full explosion)
     pub nika_pattern_visible: bool,
 
-    // === v0.8.1 Agent Phase Tracking ===
     /// Current agent execution phase (for real-time status)
     pub agent_phase: AgentPhase,
     /// Phase indicator widget with Matrix effect
@@ -239,7 +236,6 @@ pub struct ChatView {
     /// Tool name currently being invoked (for Invoking phase)
     pub agent_phase_tool: Option<String>,
 
-    // === v0.7.3 Mission Control ===
     /// Context items loaded via @ mentions
     pub context_items: Vec<ContextItem>,
     /// Memory files (CLAUDE.md, session memory)
@@ -251,11 +247,9 @@ pub struct ChatView {
     /// Session metrics for ProStatusBar
     pub session_metrics: SessionMetrics,
 
-    // === v0.7.3 YAML View Toggle ===
     /// Show messages as YAML tasks instead of chat bubbles
     pub show_yaml: bool,
 
-    // === v0.8 Text Selection ===
     /// Text selection state (for copy support)
     pub text_selection: Option<ChatMessageSelection>,
     /// Whether a mouse drag selection is in progress
@@ -264,27 +258,22 @@ pub struct ChatView {
     /// Maps (message_index, line_in_message) -> (start_x, text_content)
     pub line_positions: Vec<ChatLinePosition>,
 
-    // === v0.8.1 Help Overlay ===
     /// Help overlay state (toggle with ? or F1)
     pub help_overlay: HelpOverlayState,
 
-    // === v0.16.4 Edit History (Undo/Redo) ===
     /// Edit history for input field (Ctrl+Z/Ctrl+Y)
     pub edit_history: EditHistory,
 
-    // === v0.16.4 Dynamic Input Height ===
     /// Input scroll offset when content exceeds max visible lines
     pub input_scroll_offset: usize,
     /// Max visible lines for input area (excluding borders)
     pub input_max_lines: usize,
 
-    // === v0.8.1 Smart Auto-Scroll ===
     /// Whether user is "at the bottom" of conversation
     /// When true, new messages auto-scroll. When false (user scrolled up), they don't.
     /// Reset to true when user sends a message or manually scrolls to bottom.
     pub user_at_bottom: bool,
 
-    // === v0.9 Thinking Toggle ===
     /// Set of message IDs with toggled thinking state (differs from default)
     /// Toggle individual messages with 't', toggle all with 'T'
     /// v0.9 FIX: Uses stable message IDs instead of indices for stability
@@ -295,15 +284,12 @@ pub struct ChatView {
     /// v0.9: Counter for generating unique message IDs
     message_id_counter: u64,
 
-    // === v0.9 Phase 2: @ Mention Autocomplete ===
     /// State for the @ mention autocomplete popup
     pub mention_autocomplete: MentionAutocompleteState,
 
-    // === v0.9 Phase 2: MCP Retry ===
     /// Last failed MCP call for retry with Ctrl+R
     pub last_failed_mcp: Option<McpRetryInfo>,
 
-    // === v0.9 Phase 3: Conversation Search (Ctrl+F) ===
     /// Whether search mode is active
     pub search_mode: bool,
     /// Current search query
@@ -313,7 +299,6 @@ pub struct ChatView {
     /// Current search result index (for navigation)
     pub search_current: usize,
 
-    // === v0.9 Phase 3: Smooth Scrolling ===
     /// Current scroll velocity (lines per tick, can be fractional)
     pub scroll_velocity: f32,
     /// Accumulated fractional scroll offset (for sub-line precision)
@@ -321,7 +306,6 @@ pub struct ChatView {
     /// Whether smooth scrolling animation is active
     pub scroll_animating: bool,
 
-    // === v0.10.0: Chat DAG Visualization ===
     /// Whether DAG panel is visible (toggle with Ctrl+D)
     pub show_dag_panel: bool,
     /// DAG nodes (chat messages as graph nodes)
@@ -333,12 +317,10 @@ pub struct ChatView {
     /// Selected DAG node index (for navigation)
     pub dag_selected: Option<usize>,
 
-    // === v0.12.1: TaskBox RenderMode ===
     /// Current render mode for inline TaskBoxes (Compact/Expanded/Full)
     /// Toggle with `m` key when not in input mode
     pub task_box_render_mode: RenderMode,
 
-    // === v0.13: ChatWorkflow DAG (unified execution) ===
     /// Runtime workflow DAG that mirrors chat messages
     /// Used for /export yaml and unified execution with YAML workflows
     pub workflow: ChatWorkflow,
@@ -451,7 +433,6 @@ impl ChatView {
                 }
                 modal
             },
-            // NOTE: Ollama client removed in v0.27 — use `provider: native` with mistral.rs instead
             inline_content: vec![],
             frame: 0,
 

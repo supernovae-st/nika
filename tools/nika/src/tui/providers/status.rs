@@ -136,7 +136,6 @@ impl ProviderStatusCache {
     }
 
     /// Count configured LLM providers (includes "Local" category for native)
-    /// v0.27: Ollama removed
     pub fn llm_configured_count(&self) -> usize {
         self.providers
             .iter()
@@ -159,7 +158,6 @@ impl ProviderStatusCache {
     }
 
     /// Get summary string (e.g., "LLM: 4/7 | MCP: 2/6")
-    /// v0.27: Ollama removed
     pub fn summary(&self) -> String {
         format!(
             "LLM: {}/7 | MCP: {}/6",
@@ -206,7 +204,6 @@ mod tests {
     #[test]
     fn test_cache_summary() {
         let cache = ProviderStatusCache::new();
-        // v0.27: Ollama removed
         assert_eq!(cache.summary(), "LLM: 0/7 | MCP: 0/6");
     }
 }

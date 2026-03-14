@@ -607,7 +607,6 @@ fn handle_select_verb(state: &mut WizardState, key: KeyCode) {
 }
 
 fn handle_select_provider(state: &mut WizardState, key: KeyCode) {
-    // v0.27: Ollama removed — use Provider::Native (mistral.rs) instead
     let providers = [
         Provider::Claude,
         Provider::OpenAI,
@@ -1203,7 +1202,6 @@ fn draw_select_provider(f: &mut Frame, area: Rect, state: &WizardState) {
 
     draw_step_header(f, chunks[0], "Select LLM provider", 7, 11);
 
-    // v0.27: Ollama removed — use Provider::Native (mistral.rs) instead
     let providers = [
         Provider::Claude,
         Provider::OpenAI,

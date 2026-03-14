@@ -246,7 +246,6 @@ impl Verb {
 }
 
 /// LLM provider
-/// Note: Ollama removed in v0.27 — use `provider: native` with mistral.rs instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Provider {
     #[default]

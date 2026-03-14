@@ -1,6 +1,5 @@
 //! Native inference tab - Local model management via mistral.rs
 //!
-//! v0.27: Ollama removed
 
 use ratatui::{
     buffer::Buffer,

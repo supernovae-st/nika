@@ -72,7 +72,6 @@ pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use provider_modal::*;
 // Provider selector types + Verification status + MCP display
-// v0.27: Ollama health check functions removed (native inference via mistral.rs)
 // Note: ProviderSelector/ProviderSelectorState removed in v0.8.8 (replaced by Provider Modal)
 pub use provider_selector::{
     McpServerDisplay, ModelInfo, ProviderInfo, SelectorSection, VerifyStatus,

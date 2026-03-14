@@ -1,6 +1,5 @@
 //! Download progress gauge for model pulls
 //!
-//! v0.27: Ollama removed
 
 use ratatui::{
     buffer::Buffer,

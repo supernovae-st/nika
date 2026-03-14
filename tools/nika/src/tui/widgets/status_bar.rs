@@ -57,7 +57,7 @@ pub enum Provider {
     Claude,
     OpenAI,
     Mistral,
-    Native, // v0.27: Replaces Ollama - local inference via mistral.rs
+    Native,
     Groq,
     DeepSeek,
     Mock,
@@ -693,7 +693,7 @@ mod tests {
         assert_eq!(Provider::Claude.icon(), "🧠");
         assert_eq!(Provider::OpenAI.icon(), "🤖");
         assert_eq!(Provider::Mistral.icon(), "🌬️");
-        assert_eq!(Provider::Native.icon(), "💎"); // v0.27: Native replaces Ollama
+        assert_eq!(Provider::Native.icon(), "💎");
         assert_eq!(Provider::Groq.icon(), "⚡");
         assert_eq!(Provider::DeepSeek.icon(), "🔍");
         assert_eq!(Provider::Mock.icon(), "🧪");
@@ -705,7 +705,7 @@ mod tests {
         assert_eq!(Provider::Claude.name(), "Claude");
         assert_eq!(Provider::OpenAI.name(), "OpenAI");
         assert_eq!(Provider::Mistral.name(), "Mistral");
-        assert_eq!(Provider::Native.name(), "Native"); // v0.27: Native replaces Ollama
+        assert_eq!(Provider::Native.name(), "Native");
         assert_eq!(Provider::Groq.name(), "Groq");
         assert_eq!(Provider::DeepSeek.name(), "DeepSeek");
         assert_eq!(Provider::Mock.name(), "Mock");
