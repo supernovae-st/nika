@@ -6,14 +6,14 @@
 //! Run mock tests: `cargo test --test mcp_real_output_test`
 //! Run real tests: `cargo test --test mcp_real_output_test -- --ignored`
 
-use nika::serde_yaml;
+use nika::ast::parse_workflow as _parse_workflow;
+use nika::ast::Workflow;
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
 use tokio::time::timeout;
 
-use nika::ast::Workflow;
 use nika::event::{Event, EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -22,7 +22,7 @@ use nika::runtime::Runner;
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn parse_workflow(yaml: &str) -> Workflow {
-    serde_yaml::from_str(yaml).expect("Failed to parse workflow")
+    _parse_workflow(yaml).expect("Failed to parse workflow")
 }
 
 async fn run_and_collect_mcp_events(workflow: Workflow, timeout_secs: u64) -> Vec<Event> {

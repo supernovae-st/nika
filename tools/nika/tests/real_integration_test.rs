@@ -11,14 +11,13 @@
 //! - OPENAI_API_KEY for OpenAI tests
 //! - Neo4j running for NovaNet tests
 
-use nika::serde_yaml;
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
 use tokio::time::timeout;
 
-use nika::ast::Workflow;
+use nika::ast::{self, Workflow};
 use nika::event::{Event, EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -27,7 +26,7 @@ use nika::runtime::Runner;
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn parse_workflow(yaml: &str) -> Workflow {
-    serde_yaml::from_str(yaml).expect("Failed to parse workflow")
+    ast::parse_workflow(yaml).expect("Failed to parse workflow")
 }
 
 struct TestResult {

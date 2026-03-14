@@ -3,8 +3,7 @@
 //! Tests YAML deserialization of the `mcp` field in Workflow struct.
 //! This field was added in v0.2 to support inline MCP server configuration.
 
-use nika::serde_yaml;
-use nika::Workflow;
+use nika::ast::parse_workflow;
 
 // ===================================================================
 // V0.2 Workflow with MCP Config Tests
@@ -34,7 +33,7 @@ tasks:
       tool: novanet_generate
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     // Verify basic workflow fields
     assert_eq!(workflow.schema, "nika/workflow@0.2");
@@ -69,7 +68,7 @@ tasks:
       prompt: "Say hello"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     // Verify basic fields
     assert_eq!(workflow.schema, "nika/workflow@0.1");
@@ -101,7 +100,7 @@ tasks:
       tool: ping
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     let mcp = workflow.mcp.expect("mcp field should be present");
     let server = mcp
@@ -140,7 +139,7 @@ tasks:
       tool: test
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     let mcp = workflow.mcp.expect("mcp field should be present");
     assert_eq!(mcp.len(), 2);
@@ -182,7 +181,7 @@ tasks:
       tool: query
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     let mcp = workflow.mcp.expect("mcp should be present");
     let db = mcp.get("database").expect("database should exist");
@@ -211,7 +210,7 @@ tasks:
       prompt: "Say hello"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     let mcp = workflow
         .mcp

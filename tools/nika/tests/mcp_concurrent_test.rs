@@ -3,9 +3,8 @@
 //! These tests verify that multiple concurrent MCP calls work correctly,
 //! testing the OnceCell-based client caching and io_lock synchronization.
 
-use nika::ast::Workflow;
+use nika::ast::parse_workflow;
 use nika::runtime::Runner;
-use nika::serde_yaml;
 
 /// Test that 50 concurrent for_each iterations work without race conditions
 #[tokio::test]
@@ -33,7 +32,7 @@ tasks:
         items_yaml
     );
 
-    let workflow: Workflow = serde_yaml::from_str(&yaml).unwrap();
+    let workflow = parse_workflow(&yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -70,7 +69,7 @@ tasks:
       command: "echo {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -102,7 +101,7 @@ tasks:
       command: "echo {{use.word}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 

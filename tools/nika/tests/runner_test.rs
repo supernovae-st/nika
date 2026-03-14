@@ -6,14 +6,13 @@
 //! - for_each parallelism and concurrency
 //! - Event emission
 
-use nika::ast::Workflow;
+use nika::ast::{self, Workflow};
 use nika::event::EventLog;
 use nika::runtime::Runner;
-use nika::serde_yaml;
 
 /// Helper to create a minimal workflow YAML and parse it
 fn parse_workflow(yaml: &str) -> Workflow {
-    serde_yaml::from_str(yaml).expect("Failed to parse workflow YAML")
+    ast::parse_workflow(yaml).expect("Failed to parse workflow YAML")
 }
 
 // =============================================================================

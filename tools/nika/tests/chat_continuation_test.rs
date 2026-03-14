@@ -18,7 +18,7 @@ use std::sync::Arc;
 use nika::ast::AgentParams;
 use nika::event::EventLog;
 use nika::mcp::McpClient;
-use nika::runtime::{RigAgentLoop, RigAgentStatus};
+use nika::runtime::RigAgentLoop;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Test Helpers

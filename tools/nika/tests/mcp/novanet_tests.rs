@@ -3,8 +3,7 @@
 //! These tests require a running NovaNet MCP server.
 //! Start with: cd novanet && cargo run --bin novanet-mcp
 
-use nika::ast::Workflow;
-use nika::serde_yaml;
+use nika::ast::parse_workflow;
 use std::env;
 use std::path::PathBuf;
 
@@ -53,7 +52,7 @@ tasks:
         entity: "qr-code"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
     assert!(workflow.mcp.is_some());
 }
@@ -87,7 +86,7 @@ tasks:
         depth: 1
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -120,7 +119,7 @@ tasks:
         forms: ["text", "title"]
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -151,7 +150,7 @@ tasks:
         query_type: "node_classes"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -199,7 +198,7 @@ flows:
     target: generate_content
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 2);
     assert!(!workflow.flows.is_empty());
 }
@@ -237,7 +236,7 @@ tasks:
         forms: ["text", "title"]
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert!(workflow.tasks[0].for_each.is_some());
 }
 
@@ -274,7 +273,7 @@ tasks:
     infer: "Generate content for entity: {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     let task = &workflow.tasks[0];
     assert!(task.decompose.is_some());
 }

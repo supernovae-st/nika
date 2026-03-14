@@ -7,11 +7,10 @@
 //! - `cargo nextest run provider_integration -- --ignored`
 //! - Requires ANTHROPIC_API_KEY or OPENAI_API_KEY
 
-use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::env;
 
-use nika::ast::AgentParams;
+use nika::ast::{parse_workflow, AgentParams};
 use nika::event::{EventKind, EventLog};
 use nika::provider::rig::RigProvider;
 use nika::runtime::RigAgentLoop;
@@ -430,7 +429,7 @@ tasks:
 "#;
 
     let workflow: nika::ast::Workflow =
-        serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        parse_workflow(yaml).expect("Failed to parse workflow");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -456,7 +455,7 @@ tasks:
 "#;
 
     let workflow: nika::ast::Workflow =
-        serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+        parse_workflow(yaml).expect("Failed to parse workflow");
 
     assert_eq!(workflow.tasks.len(), 2);
 }

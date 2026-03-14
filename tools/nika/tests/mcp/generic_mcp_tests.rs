@@ -2,8 +2,7 @@
 //!
 //! Tests MCP client functionality with various MCP servers.
 
-use nika::ast::{TaskAction, Workflow};
-use nika::serde_yaml;
+use nika::ast::{parse_workflow, TaskAction};
 use std::env;
 
 /// Check if generic MCP tests are enabled
@@ -36,7 +35,7 @@ tasks:
         arg1: "value1"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert!(workflow.mcp.is_some());
     let mcp = workflow.mcp.as_ref().unwrap();
     assert!(mcp.contains_key("test-server"));
@@ -82,7 +81,7 @@ flows:
     target: combine
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert!(workflow.mcp.is_some());
     let mcp = workflow.mcp.as_ref().unwrap();
     assert_eq!(mcp.len(), 3);
@@ -118,7 +117,7 @@ tasks:
         query: "Rust programming language"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -149,7 +148,7 @@ tasks:
         formats: ["markdown"]
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -177,7 +176,7 @@ tasks:
         path: "/tmp"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -202,7 +201,7 @@ tasks:
 "#;
 
     // Workflow should parse but validation should fail
-    let workflow: Result<Workflow, _> = serde_yaml::from_str(yaml);
+    let workflow = parse_workflow(yaml);
     assert!(workflow.is_ok()); // Parsing succeeds
                                // Runtime validation would catch the invalid server reference
 }
@@ -228,7 +227,7 @@ tasks:
       tool: "test_tool"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     let mcp = workflow.mcp.as_ref().unwrap();
     let server = mcp.get("config-server").unwrap();
     assert_eq!(server.env.get("API_KEY"), Some(&"secret".to_string()));
@@ -263,7 +262,7 @@ tasks:
       max_turns: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     let task = &workflow.tasks[0];
     assert!(matches!(task.action, TaskAction::Agent { .. }));
 }
@@ -298,7 +297,7 @@ tasks:
       max_turns: 5
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     let task = &workflow.tasks[0];
     if let TaskAction::Agent { agent } = &task.action {
         assert_eq!(agent.mcp.len(), 3);

@@ -3,7 +3,6 @@
 //! These tests define the expected behavior of the new rig-based agent loop.
 //! Following TDD: tests are written FIRST, then implementation.
 
-use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -303,7 +302,7 @@ fn test_rig_agent_loop_result_debug() {
 /// Test: Parse a workflow YAML with agent: verb and create RigAgentLoop
 #[test]
 fn test_workflow_yaml_agent_verb_parses_to_agent_params() {
-    use nika::ast::{TaskAction, Workflow};
+    use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
 schema: nika/workflow@0.2
@@ -326,7 +325,7 @@ tasks:
 "#;
 
     // Act: Parse the workflow
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow YAML");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow YAML");
 
     // Assert: Workflow parsed correctly
     assert_eq!(workflow.schema, "nika/workflow@0.2");
@@ -477,7 +476,7 @@ fn test_workflow_max_turns_validation() {
 /// Test: Parse complex workflow with invoke + agent combined
 #[test]
 fn test_workflow_invoke_then_agent_pattern() {
-    use nika::ast::{TaskAction, Workflow};
+    use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
 schema: nika/workflow@0.2
@@ -515,7 +514,7 @@ flows:
 "#;
 
     // Act
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow");
 
     // Assert: Both tasks parsed correctly
     assert_eq!(workflow.tasks.len(), 2);

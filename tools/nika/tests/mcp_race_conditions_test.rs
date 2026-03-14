@@ -33,15 +33,14 @@
 //! | `test_concurrent_cache_access` | Multiple tasks hitting response cache | Cache thread safety |
 //! | `test_concurrent_connect_disconnect` | Connect/disconnect race | State consistency |
 
-use nika::serde_yaml;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use nika::mcp::{McpClient, McpConfig};
+use nika::ast::parse_workflow;
 use nika::runtime::Runner;
-use nika::Workflow;
 use serde_json::json;
 use tokio::sync::Barrier;
 use tokio::task::JoinSet;
@@ -310,7 +309,7 @@ tasks:
       command: "echo MCP call for {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow");
     let mut runner = Runner::new(workflow);
 
     let result = runner.run().await;
@@ -566,7 +565,7 @@ tasks:
     for i in 0..5 {
         let yaml = yaml.to_string();
         handles.spawn(async move {
-            let workflow: Workflow = serde_yaml::from_str(&yaml).expect("Should parse workflow");
+            let workflow = parse_workflow(&yaml).expect("Should parse workflow");
             let mut runner = Runner::new(workflow);
             let result = runner.run().await;
             (i, result.is_ok())

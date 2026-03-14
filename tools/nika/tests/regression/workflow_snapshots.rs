@@ -2,8 +2,7 @@
 //!
 //! Uses insta for snapshot comparison.
 
-use nika::ast::{TaskAction, Workflow};
-use nika::serde_yaml;
+use nika::ast::{parse_workflow, TaskAction};
 use serde_json::json;
 
 // ============================================================================
@@ -20,7 +19,7 @@ tasks:
     exec: "echo hello"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     insta::assert_yaml_snapshot!(
         "simple_workflow_parse",
@@ -67,7 +66,7 @@ flows:
     target: report
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     insta::assert_yaml_snapshot!(
         "complex_workflow_parse",
@@ -96,7 +95,7 @@ tasks:
     exec: "process {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     insta::assert_yaml_snapshot!(
@@ -130,7 +129,7 @@ tasks:
         entity: "test"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     insta::assert_yaml_snapshot!(
         "mcp_workflow",
@@ -157,7 +156,7 @@ tasks:
       depth_limit: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     let is_agent = matches!(&workflow.tasks[0].action, TaskAction::Agent { .. });
 
@@ -182,7 +181,7 @@ tasks:
     exec: "echo"
 "#;
 
-    let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+    let result = parse_workflow(yaml);
 
     match result {
         Err(e) => {
@@ -209,7 +208,7 @@ tasks:
     invalid_field: [this is not valid yaml
 "#;
 
-    let result: Result<Workflow, _> = serde_yaml::from_str(yaml);
+    let result = parse_workflow(yaml);
 
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
@@ -258,7 +257,7 @@ tasks:
       prompt: "Do something"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     let verb_types: Vec<String> = workflow
         .tasks
@@ -296,7 +295,7 @@ tasks:
         default: "fallback"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).unwrap();
+    let workflow = parse_workflow(yaml).unwrap();
 
     insta::assert_yaml_snapshot!(
         "binding_variants",

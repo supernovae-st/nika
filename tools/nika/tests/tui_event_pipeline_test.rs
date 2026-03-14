@@ -7,7 +7,7 @@
 
 #![cfg(feature = "tui")]
 
-use nika::serde_yaml;
+use nika::ast::parse_workflow as _parse_workflow;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
@@ -22,9 +22,7 @@ use nika::runtime::Runner;
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn parse_workflow(yaml: &str) -> Result<Workflow, nika::error::NikaError> {
-    serde_yaml::from_str(yaml).map_err(|e| nika::error::NikaError::ParseError {
-        details: e.to_string(),
-    })
+    _parse_workflow(yaml)
 }
 
 async fn collect_events(mut rx: broadcast::Receiver<Event>, timeout_ms: u64) -> Vec<Event> {

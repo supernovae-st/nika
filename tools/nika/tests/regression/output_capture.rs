@@ -3,8 +3,7 @@
 //! These tests capture and compare actual outputs to detect regressions.
 //! Uses direct command execution for shell tests and workflow parsing for format validation.
 
-use nika::ast::Workflow;
-use nika::serde_yaml;
+use nika::ast::parse_workflow;
 use std::process::Command;
 
 // ============================================================================
@@ -172,7 +171,7 @@ tasks:
       timeout: 5000
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
     assert!(workflow.schema.starts_with("nika/workflow@"));
@@ -200,7 +199,7 @@ tasks:
         Content-Type: "application/json"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -222,7 +221,7 @@ tasks:
       model: claude-sonnet-4-20250514
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -276,7 +275,7 @@ flows:
     target: agent_task
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     // Verify structure
     assert_eq!(workflow.tasks.len(), 5);
@@ -316,7 +315,7 @@ tasks:
     exec: "echo test"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     // Schema should be exactly as specified
     assert_eq!(
@@ -347,7 +346,7 @@ flows:
     target: consumer
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
     assert_eq!(workflow.flows.len(), 1);
@@ -374,7 +373,7 @@ flows:
     target: consumer
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -395,7 +394,7 @@ tasks:
     exec: "echo {{use.item}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     let task = &workflow.tasks[0];
     assert!(task.for_each.is_some());
@@ -421,7 +420,7 @@ flows:
     target: iterate
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
 }

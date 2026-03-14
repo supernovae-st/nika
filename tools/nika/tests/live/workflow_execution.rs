@@ -3,7 +3,7 @@
 //!
 //! These tests execute real workflow files with actual API calls.
 
-use nika::ast::parse_workflow;
+use nika::ast::{parse_workflow, Workflow};
 use std::env;
 use std::path::PathBuf;
 
@@ -17,12 +17,12 @@ fn has_any_provider() -> bool {
     env::var("ANTHROPIC_API_KEY").is_ok() || env::var("OPENAI_API_KEY").is_ok()
 }
 
-/// Parse a workflow file
-fn parse_workflow(filename: &str) -> Workflow {
+/// Parse a workflow file by filename from examples directory
+fn parse_workflow_file(filename: &str) -> Workflow {
     let path = examples_dir().join(filename);
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Failed to read {}: {}", path.display(), e));
-    serde_yaml::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {}: {}", filename, e))
+    parse_workflow(&content).unwrap_or_else(|e| panic!("Failed to parse {}: {}", filename, e))
 }
 
 // ============================================================================
@@ -48,7 +48,7 @@ tasks:
     infer: "Say hello in 3 words"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.schema, "nika/workflow@0.5");
     assert_eq!(workflow.tasks.len(), 1);
 }
@@ -86,7 +86,7 @@ flows:
     target: step3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 3);
     assert!(!workflow.flows.is_empty());
 }
@@ -97,7 +97,7 @@ flows:
 
 #[test]
 fn test_parse_claude_test_workflow() {
-    let workflow = parse_workflow("claude-test.nika.yaml");
+    let workflow = parse_workflow_file("claude-test.nika.yaml");
     assert!(!workflow.tasks.is_empty());
     // Schema version may vary between example files
     assert!(workflow.schema.starts_with("nika/workflow@"));
@@ -105,25 +105,25 @@ fn test_parse_claude_test_workflow() {
 
 #[test]
 fn test_parse_agent_simple_workflow() {
-    let workflow = parse_workflow("agent-simple.nika.yaml");
+    let workflow = parse_workflow_file("agent-simple.nika.yaml");
     assert!(!workflow.tasks.is_empty());
 }
 
 #[test]
 fn test_parse_sequential_thinking_workflow() {
-    let workflow = parse_workflow("sequential-thinking.nika.yaml");
+    let workflow = parse_workflow_file("sequential-thinking.nika.yaml");
     assert!(!workflow.tasks.is_empty());
 }
 
 #[test]
 fn test_parse_research_agent_workflow() {
-    let workflow = parse_workflow("research-agent.nika.yaml");
+    let workflow = parse_workflow_file("research-agent.nika.yaml");
     assert!(!workflow.tasks.is_empty());
 }
 
 #[test]
 fn test_parse_production_test_workflow() {
-    let workflow = parse_workflow("production-test.nika.yaml");
+    let workflow = parse_workflow_file("production-test.nika.yaml");
     assert!(!workflow.tasks.is_empty());
 }
 
@@ -235,7 +235,7 @@ flows:
     target: D
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 4);
 }
 
@@ -279,7 +279,7 @@ flows:
     target: final
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 4);
 }
 
@@ -308,7 +308,7 @@ tasks:
     infer: "Say hello to {{use.name}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     let task = &workflow.tasks[0];
     assert!(task.for_each.is_some());
 }
@@ -347,6 +347,6 @@ flows:
     target: use_data
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 2);
 }

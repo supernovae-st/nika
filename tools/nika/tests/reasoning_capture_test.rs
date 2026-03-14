@@ -8,7 +8,6 @@
 //! 4. EventLog (AgentTurn events)
 //! 5. TUI state (display)
 
-use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
@@ -153,7 +152,7 @@ async fn test_agent_turn_events_emitted_with_thinking_param() {
 
 #[test]
 fn test_workflow_yaml_parses_extended_thinking() {
-    use nika::ast::{TaskAction, Workflow};
+    use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
 schema: nika/workflow@0.3
@@ -172,7 +171,7 @@ tasks:
       format: text
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow");
 
     assert_eq!(workflow.tasks.len(), 1);
 
@@ -191,7 +190,7 @@ tasks:
 
 #[test]
 fn test_workflow_yaml_extended_thinking_false() {
-    use nika::ast::{TaskAction, Workflow};
+    use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
 schema: nika/workflow@0.3
@@ -206,7 +205,7 @@ tasks:
       format: text
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow");
 
     match &workflow.tasks[0].action {
         TaskAction::Agent { agent } => {
@@ -218,7 +217,7 @@ tasks:
 
 #[test]
 fn test_workflow_yaml_without_extended_thinking() {
-    use nika::ast::{TaskAction, Workflow};
+    use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
 schema: nika/workflow@0.3
@@ -232,7 +231,7 @@ tasks:
       format: text
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Should parse workflow");
+    let workflow = parse_workflow(yaml).expect("Should parse workflow");
 
     match &workflow.tasks[0].action {
         TaskAction::Agent { agent } => {

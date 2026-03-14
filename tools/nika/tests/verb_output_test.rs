@@ -6,14 +6,13 @@
 //! Run: `cargo test --test verb_output_test`
 //! Run with API: `cargo test --test verb_output_test -- --ignored`
 
-use nika::serde_yaml;
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
 use tokio::time::timeout;
 
-use nika::ast::Workflow;
+use nika::ast::{self, Workflow};
 use nika::event::{EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -22,7 +21,7 @@ use nika::runtime::Runner;
 // ═══════════════════════════════════════════════════════════════════════════
 
 fn parse_workflow(yaml: &str) -> Workflow {
-    serde_yaml::from_str(yaml).expect("Failed to parse workflow")
+    ast::parse_workflow(yaml).expect("Failed to parse workflow")
 }
 
 async fn run_workflow_and_get_output(workflow: Workflow) -> Option<Arc<Value>> {

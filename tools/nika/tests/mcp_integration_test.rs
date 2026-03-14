@@ -8,10 +8,9 @@
 //! Run manually:
 //! - `cargo nextest run mcp_integration -- --ignored`
 
-use nika::serde_yaml;
 use rustc_hash::FxHashMap;
 
-use nika::ast::{McpConfigInline, Workflow};
+use nika::ast::{parse_workflow, McpConfigInline};
 use nika::event::{EventKind, EventLog};
 
 // ============================================================================
@@ -38,7 +37,7 @@ tasks:
         entity: "qr-code"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert!(workflow.mcp.is_some());
     let mcp = workflow.mcp.as_ref().unwrap();
@@ -78,7 +77,7 @@ tasks:
       max_turns: 10
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     let mcp = workflow.mcp.as_ref().unwrap();
     assert_eq!(mcp.len(), 3);
@@ -107,7 +106,7 @@ tasks:
       tool: external_tool
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     let mcp = workflow.mcp.as_ref().unwrap();
     let external = mcp.get("external").unwrap();
@@ -283,7 +282,7 @@ tasks:
         query: "arcs"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
 }
@@ -346,7 +345,7 @@ tasks:
       max_turns: 15
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 
     let mcp = workflow.mcp.as_ref().unwrap();
@@ -516,7 +515,7 @@ tasks:
         entity: "qr-code"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -533,6 +532,6 @@ tasks:
       tool: novanet_list_tools
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }

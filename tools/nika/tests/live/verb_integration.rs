@@ -3,8 +3,7 @@
 //! Tests each verb (infer, exec, fetch, invoke, agent) by parsing and validating
 //! workflow definitions. Execution tests require API keys.
 
-use nika::ast::Workflow;
-use nika::serde_yaml;
+use nika::ast::parse_workflow;
 use std::env;
 
 /// Check if we have any LLM provider available
@@ -28,7 +27,7 @@ tasks:
     exec: "echo 'hello world'"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -43,7 +42,7 @@ tasks:
       timeout: 5000
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -58,7 +57,7 @@ tasks:
       working_dir: "/tmp"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -77,7 +76,7 @@ tasks:
       method: GET
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -93,7 +92,7 @@ tasks:
       body: '{"name": "test"}'
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -111,7 +110,7 @@ tasks:
         Content-Type: "application/json"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -128,7 +127,7 @@ tasks:
     infer: "Write a haiku about Rust"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -143,7 +142,7 @@ tasks:
       model: "claude-sonnet-4-20250514"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -168,7 +167,7 @@ tasks:
         entity: "qr-code"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
     assert!(workflow.mcp.is_some());
 }
@@ -188,7 +187,7 @@ tasks:
       max_turns: 5
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -209,7 +208,7 @@ tasks:
       depth_limit: 3
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -268,7 +267,7 @@ flows:
     target: step5_agent
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse workflow");
+    let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 5);
     assert_eq!(workflow.flows.len(), 4);
     assert!(workflow.mcp.is_some());
@@ -290,7 +289,7 @@ tasks:
     infer: "Say hello to {{use.name}}"
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     let task = &workflow.tasks[0];
     assert!(task.for_each.is_some());
 }
@@ -315,7 +314,7 @@ flows:
     target: process_items
 "#;
 
-    let workflow: Workflow = serde_yaml::from_str(yaml).expect("Failed to parse");
+    let workflow = parse_workflow(yaml).expect("Failed to parse");
     assert_eq!(workflow.tasks.len(), 2);
 }
 
