@@ -261,8 +261,8 @@ fn test_rig_agent_status_equality() {
         RigAgentStatus::NaturalCompletion
     );
     assert_eq!(
-        RigAgentStatus::StopConditionMet,
-        RigAgentStatus::StopConditionMet
+        RigAgentStatus::ExplicitCompletion,
+        RigAgentStatus::ExplicitCompletion
     );
     assert_eq!(
         RigAgentStatus::MaxTurnsReached,
