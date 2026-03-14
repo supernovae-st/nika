@@ -54,7 +54,7 @@ impl Interner {
 
     /// Intern an already-Arc'd string
     #[inline]
-    #[allow(dead_code)] // Used in tests and future optimization paths
+    #[cfg(test)]
     pub fn intern_arc(&self, s: Arc<str>) -> Arc<str> {
         if let Some(existing) = self.strings.get(&s) {
             return Arc::clone(existing.key());
@@ -87,12 +87,6 @@ pub fn intern(s: &str) -> Arc<str> {
     INTERNER.intern(s)
 }
 
-/// Intern an already-Arc'd string using the global interner
-#[inline]
-#[allow(dead_code)] // Used in tests and future optimization paths
-pub fn intern_arc(s: Arc<str>) -> Arc<str> {
-    INTERNER.intern_arc(s)
-}
 
 #[cfg(test)]
 mod tests {

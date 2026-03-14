@@ -156,12 +156,6 @@ pub fn is_editor_installed(editor: EditorKind) -> bool {
         .unwrap_or(false)
 }
 
-/// Get the parent directory for editor config (for creation).
-#[allow(dead_code)]
-fn get_editor_config_dir(editor: EditorKind) -> Option<PathBuf> {
-    get_editor_config_path(editor).and_then(|p| p.parent().map(|p| p.to_path_buf()))
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // SYNC OPERATIONS
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -2,7 +2,6 @@
 //!
 //! Interactive wizard for setting up Nika and related tools.
 
-use std::io::{self, Write};
 use std::path::PathBuf;
 
 use crate::core::paths::nika_home;
@@ -364,20 +363,6 @@ enabled_editors: []
     })
 }
 
-/// Prompt user for yes/no confirmation.
-#[allow(dead_code)]
-fn prompt_yes_no(question: &str) -> bool {
-    print!("{} [y/N] ", question);
-    io::stdout().flush().ok();
-
-    let mut input = String::new();
-    if io::stdin().read_line(&mut input).is_ok() {
-        let trimmed = input.trim().to_lowercase();
-        trimmed == "y" || trimmed == "yes"
-    } else {
-        false
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TESTS
