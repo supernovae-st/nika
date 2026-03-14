@@ -1093,9 +1093,91 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     }
                                 }
                             } else {
-                                // $alias format (e.g., "$locales")
-                                match bindings.get_resolved(alias, &self.datastore) {
-                                    Ok(value) => value_to_array(&value),
+                                // $alias or $alias.nested.path format (e.g., "$locales", "$step1.items")
+                                // Split on '.' — first segment is the binding alias, rest is nested path
+                                let mut segments = alias.split('.');
+                                let base_alias = segments.next().unwrap();
+
+                                match bindings.get_resolved(base_alias, &self.datastore) {
+                                    Ok(base_value) => {
+                                        // Parse JSON strings (objects and arrays) before traversal
+                                        let parsed_value: Value;
+                                        let working_value: &Value =
+                                            if let Some(s) = base_value.as_str() {
+                                                let trimmed = s.trim();
+                                                if (trimmed.starts_with('{')
+                                                    && trimmed.ends_with('}'))
+                                                    || (trimmed.starts_with('[')
+                                                        && trimmed.ends_with(']'))
+                                                {
+                                                    if let Ok(parsed) =
+                                                        serde_json::from_str::<Value>(trimmed)
+                                                    {
+                                                        parsed_value = parsed;
+                                                        &parsed_value
+                                                    } else {
+                                                        &base_value
+                                                    }
+                                                } else {
+                                                    &base_value
+                                                }
+                                            } else {
+                                                &base_value
+                                            };
+
+                                        // Traverse nested path segments if present
+                                        let mut value_ref: &Value = working_value;
+                                        let mut traversal_failed = false;
+
+                                        for segment in segments {
+                                            let next =
+                                                if let Ok(idx) = segment.parse::<usize>() {
+                                                    value_ref.get(idx)
+                                                } else {
+                                                    value_ref.get(segment)
+                                                };
+
+                                            match next {
+                                                Some(v) => value_ref = v,
+                                                None => {
+                                                    self.datastore.insert(
+                                                        intern(&task.id),
+                                                        TaskResult::failed(
+                                                            format!(
+                                                                "for_each binding '${}': nested path segment '{}' not found",
+                                                                alias, segment
+                                                            ),
+                                                            std::time::Duration::ZERO,
+                                                        ),
+                                                    );
+                                                    traversal_failed = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        if traversal_failed {
+                                            continue;
+                                        }
+
+                                        match value_to_array(value_ref) {
+                                            Some(items) => Some(items),
+                                            None => {
+                                                // Explicit error instead of silent fallback
+                                                self.datastore.insert(
+                                                    intern(&task.id),
+                                                    TaskResult::failed(
+                                                        format!(
+                                                            "for_each binding '${}' resolved to non-array value",
+                                                            alias
+                                                        ),
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                );
+                                                continue;
+                                            }
+                                        }
+                                    }
                                     Err(e) => {
                                         // Binding not found - fail the task
                                         self.datastore.insert(
@@ -1103,7 +1185,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             TaskResult::failed(
                                                 format!(
                                                     "for_each binding '{}' not found: {}",
-                                                    alias, e
+                                                    base_alias, e
                                                 ),
                                                 std::time::Duration::ZERO,
                                             ),
@@ -1599,6 +1681,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 mod tests {
     use super::*;
     use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
+    use crate::binding::UseEntry;
     use std::sync::Arc;
 
     // ═══════════════════════════════════════════════════════════════
@@ -2652,6 +2735,363 @@ mod tests {
         let task_result = runner.datastore.get("nested");
         assert!(task_result.is_some(), "Task result should exist");
         assert!(task_result.unwrap().is_success(), "Task should succeed");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG-005: for_each Pattern 2 ($alias) — nested paths + error
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_nested_path() {
+        use serde_json::json;
+
+        // Step1 produces a JSON object with an "items" field containing an array.
+        // Step2 uses for_each: "$step1.items" to iterate over that nested array.
+        let mut workflow = make_empty_workflow();
+
+        let step1 = Arc::new(Task {
+            id: "step1".to_string(),
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: r#"echo '{"items": ["alpha", "beta", "gamma"], "count": 3}'"#
+                        .to_string(),
+                    shell: Some(true),
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        });
+
+        let mut use_wiring = FxHashMap::default();
+        use_wiring.insert(
+            "step1".to_string(),
+            UseEntry::new("step1"),
+        );
+
+        let step2 = Arc::new(Task {
+            id: "step2".to_string(),
+            for_each: Some(json!("$step1.items")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: Some(use_wiring),
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: Some(vec!["step1".to_string()]),
+            structured: None,
+        });
+
+        workflow.tasks = vec![step1, step2];
+        workflow.flows = vec![Flow {
+            source: FlowEndpoint::Single("step1".to_string()),
+            target: FlowEndpoint::Single("step2".to_string()),
+        }];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+        assert!(
+            task_result.unwrap().is_success(),
+            "step2 should succeed with 3 items from nested path"
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_non_array_errors() {
+        use serde_json::json;
+
+        // Step1 produces a plain string (not an array).
+        // Step2 uses for_each: "$step1" which should FAIL, not silently skip.
+        let mut workflow = make_empty_workflow();
+
+        let step1 = Arc::new(Task {
+            id: "step1".to_string(),
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo not_an_array".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        });
+
+        let mut use_wiring = FxHashMap::default();
+        use_wiring.insert(
+            "step1".to_string(),
+            UseEntry::new("step1"),
+        );
+
+        let step2 = Arc::new(Task {
+            id: "step2".to_string(),
+            for_each: Some(json!("$step1")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: Some(use_wiring),
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: Some(vec!["step1".to_string()]),
+            structured: None,
+        });
+
+        workflow.tasks = vec![step1, step2];
+        workflow.flows = vec![Flow {
+            source: FlowEndpoint::Single("step1".to_string()),
+            target: FlowEndpoint::Single("step2".to_string()),
+        }];
+
+        let mut runner = Runner::new(workflow);
+        let _ = runner.run().await;
+
+        // Workflow completes (individual task failure doesn't abort workflow by default)
+        // but step2 should have FAILED with explicit error, not silently succeed
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+
+        let result = task_result.unwrap();
+        assert!(
+            !result.is_success(),
+            "step2 should FAIL when for_each binding resolves to non-array"
+        );
+        let error_msg = result.error().expect("should have error message");
+        assert!(
+            error_msg.contains("non-array"),
+            "Error should mention 'non-array', got: {}",
+            error_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_json_string_array() {
+        use serde_json::json;
+
+        // Step1 produces a JSON array as a string: '["a","b","c"]'
+        // Step2 uses for_each: "$step1" which should parse the JSON string
+        let mut workflow = make_empty_workflow();
+
+        let step1 = Arc::new(Task {
+            id: "step1".to_string(),
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: r#"echo '["x","y","z"]'"#.to_string(),
+                    shell: Some(true),
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        });
+
+        let mut use_wiring = FxHashMap::default();
+        use_wiring.insert(
+            "step1".to_string(),
+            UseEntry::new("step1"),
+        );
+
+        let step2 = Arc::new(Task {
+            id: "step2".to_string(),
+            for_each: Some(json!("$step1")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: Some(use_wiring),
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: Some(vec!["step1".to_string()]),
+            structured: None,
+        });
+
+        workflow.tasks = vec![step1, step2];
+        workflow.flows = vec![Flow {
+            source: FlowEndpoint::Single("step1".to_string()),
+            target: FlowEndpoint::Single("step2".to_string()),
+        }];
+
+        let mut runner = Runner::new(workflow);
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+        assert!(
+            task_result.unwrap().is_success(),
+            "step2 should succeed — JSON string array should be parsed"
+        );
+    }
+
+    #[tokio::test]
+    async fn for_each_dollar_binding_nested_path_not_found() {
+        use serde_json::json;
+
+        // Step1 produces JSON, step2 references a non-existent nested path.
+        // Should produce explicit error, not silent fallback.
+        let mut workflow = make_empty_workflow();
+
+        let step1 = Arc::new(Task {
+            id: "step1".to_string(),
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: r#"echo '{"data": {"count": 5}}'"#.to_string(),
+                    shell: Some(true),
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: None,
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        });
+
+        let mut use_wiring = FxHashMap::default();
+        use_wiring.insert(
+            "step1".to_string(),
+            UseEntry::new("step1"),
+        );
+
+        let step2 = Arc::new(Task {
+            id: "step2".to_string(),
+            for_each: Some(json!("$step1.data.nonexistent")),
+            for_each_as: Some("item".to_string()),
+            concurrency: None,
+            fail_fast: None,
+            decompose: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo {{use.item}}".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            use_wiring: Some(use_wiring),
+            with_spec: None,
+            output: None,
+            artifact: None,
+            log: None,
+            flow: Some(vec!["step1".to_string()]),
+            structured: None,
+        });
+
+        workflow.tasks = vec![step1, step2];
+        workflow.flows = vec![Flow {
+            source: FlowEndpoint::Single("step1".to_string()),
+            target: FlowEndpoint::Single("step2".to_string()),
+        }];
+
+        let mut runner = Runner::new(workflow);
+        let _ = runner.run().await;
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+
+        let result = task_result.unwrap();
+        assert!(
+            !result.is_success(),
+            "step2 should FAIL when nested path segment doesn't exist"
+        );
+        let error_msg = result.error().expect("should have error message");
+        assert!(
+            error_msg.contains("not found"),
+            "Error should mention path segment not found, got: {}",
+            error_msg
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
