@@ -1,6 +1,6 @@
-//! Nika - DAG workflow runner for AI tasks (v0.1)
+//! Nika - DAG workflow runner for AI tasks
 //!
-//! ## Module Architecture (DDD-Inspired)
+//! ## Module Architecture
 //!
 //! ```text
 //! ┌──────────────────────────────────────────────────────────────┐
@@ -12,8 +12,8 @@
 //! ┌──────────────────────────────────────────────────────────────┐
 //! │                      APPLICATION LAYER                       │
 //! │  runtime/   DAG execution (Runner, TaskExecutor)             │
-//! │  dag/       DAG structure (Dag, validate)              │
-//! │  binding/   Data binding (WiringSpec, ResolvedBindings)       │
+//! │  dag/       DAG structure (Dag, validate)                    │
+//! │  binding/   Data binding (WiringSpec, ResolvedBindings)      │
 //! └──────────────────────────────────────────────────────────────┘
 //!                              │
 //!                              ▼
@@ -21,168 +21,87 @@
 //! │                    INFRASTRUCTURE LAYER                      │
 //! │  store/     State management (DataStore, TaskResult)         │
 //! │  event/     Event sourcing (EventLog, EventKind)             │
-//! │  provider/  LLM abstraction (rig-core v0.31 wrapper)         │
-//! │  util/      Utilities (interner, constants)                  │
+//! │  provider/  LLM abstraction (rig-core wrapper)               │
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
-//!
-//! ## Module Responsibilities
-//!
-//! | Module | Responsibility |
-//! |--------|----------------|
-//! | [`ast`] | YAML parsing → `Workflow`, `Task`, `TaskAction`, `OutputPolicy` |
-//! | [`runtime`] | DAG execution with tokio concurrency |
-//! | [`dag`] | Dependency graph with FxHashMap optimization |
-//! | [`binding`] | Use block system: entry, resolve, template |
-//! | [`store`] | Thread-safe task output storage (DashMap) |
-//! | [`event`] | Event sourcing for audit trail |
-//! | [`provider`] | LLM provider abstraction (rig-core v0.31) |
-//! | [`util`] | String interning, JSONPath parser |
-//! | [`error`] | Error types with fix suggestions |
 
-// ═══════════════════════════════════════════════════════════════
-// YAML PARSING - serde-saphyr (replaces deprecated serde_yaml)
-// Migration: 2026-02-27 - serde_yaml v0.9.34 is deprecated
-// This alias allows all modules to continue using `serde_yaml::` syntax
-// See: docs/plans/2026-02-27-v014-complete-plan.md Section 14.1
-// ═══════════════════════════════════════════════════════════════
+// YAML parsing alias (serde-saphyr replaces deprecated serde_yaml)
 pub use serde_saphyr as serde_yaml;
 
-// ═══════════════════════════════════════════════════════════════
-// v0.19 FOUNDATION - Two-Phase IR Architecture
-// Source tracking for precise error locations (line:col)
-// See: docs/plans/2026-03-04-v0.19-foundation-implementation.md
-// ═══════════════════════════════════════════════════════════════
+// Source tracking for precise error locations
 pub mod source;
 
-// ═══════════════════════════════════════════════════════════════
-// CORE TYPES - Providers, Models, MCP Aliases (v0.27 spn fusion)
-// Zero-dependency definitions for provider/model/MCP management
-// Migrated from spn-core to enable standalone nika operation
-// ═══════════════════════════════════════════════════════════════
-pub mod core;
-
-// ═══════════════════════════════════════════════════════════════
-// DOMAIN MODEL - YAML → Rust types
-// ═══════════════════════════════════════════════════════════════
+// Public modules (used by main.rs, tests, or benches)
 pub mod ast;
-
-// ═══════════════════════════════════════════════════════════════
-// APPLICATION LAYER - Execution logic
-// ═══════════════════════════════════════════════════════════════
 pub mod binding;
+pub mod config;
+pub mod core;
 pub mod dag;
-pub mod runtime;
-
-// ═══════════════════════════════════════════════════════════════
-// INFRASTRUCTURE LAYER - Storage, events, providers
-// ═══════════════════════════════════════════════════════════════
+pub mod error;
 pub mod event;
-pub mod io;
+pub mod init;
 pub mod mcp;
+pub mod new;
 pub mod provider;
 pub mod registry;
+pub mod runtime;
 pub mod store;
 pub mod tools;
+
+// Internal modules (only used within the crate)
+pub(crate) mod backup;
+pub(crate) mod daemon;
+pub(crate) mod io;
+pub(crate) mod setup;
+pub(crate) mod sync;
+pub(crate) mod util;
+
+// Feature-gated modules
 #[cfg(feature = "tui")]
 pub mod tui;
-pub mod util;
-
-// ═══════════════════════════════════════════════════════════════
-// CROSS-CUTTING - Error handling, configuration, secrets
-// ═══════════════════════════════════════════════════════════════
-pub mod backup;
-pub mod config;
-pub mod daemon;
-pub mod error;
 pub mod secrets;
-pub mod setup;
-pub mod sync;
 
-// ═══════════════════════════════════════════════════════════════
-// WORKFLOW SCAFFOLDING - nika new command (v0.19.3)
-// ═══════════════════════════════════════════════════════════════
-pub mod new;
-
-// ═══════════════════════════════════════════════════════════════
-// INIT TEMPLATES - 30 progressive workflow examples (v0.22)
-// Generated by `nika init` command
-// ═══════════════════════════════════════════════════════════════
-pub mod init;
-
-// ═══════════════════════════════════════════════════════════════
-// JOBS DAEMON - Background workflow scheduler (feature-gated)
-// ═══════════════════════════════════════════════════════════════
 #[cfg(feature = "jobs")]
 pub mod jobs;
 
-// ═══════════════════════════════════════════════════════════════
-// LSP SERVER - Language Server Protocol support (feature-gated)
-// v0.22 - IDE integration for .nika.yaml workflow files
-// ═══════════════════════════════════════════════════════════════
 #[cfg(feature = "lsp")]
 pub mod lsp;
 
-// ═══════════════════════════════════════════════════════════════
-// TEST UTILITIES (cfg(test) or cfg(feature = "test-fixtures"))
-// ═══════════════════════════════════════════════════════════════
+// Test utilities
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod test_fixtures;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod test_utils;
 
-// ═══════════════════════════════════════════════════════════════
-// PUBLIC API RE-EXPORTS
-// ═══════════════════════════════════════════════════════════════
+// ── Public API re-exports ────────────────────────────────────
 
-// Source tracking types (v0.19 Foundation)
+// Source tracking
 pub use source::{ByteOffset, FileId, SourceFile, SourceRegistry, Span, Spanned};
 
 // Error types
 pub use error::NikaError;
 
-// Config types
-pub use config::{mask_api_key, NikaConfig};
-
-// AST types (Domain Model)
+// AST types
 pub use ast::{
     AgentParams, ExecParams, FetchParams, Flow, InferParams, InvokeParams, OutputFormat,
     OutputPolicy, Task, TaskAction, Workflow,
 };
 
-// Runtime types (Application Layer)
+// Runtime
 pub use runtime::{Runner, TaskExecutor};
 
-// DAG types
-pub use dag::{validate_use_wiring, validate_with_bindings, Dag};
+// DAG
+pub use dag::{validate_use_wiring, validate_with_bindings, Dag, StableDag};
 
-// StableGraph types (v0.9.0) - Stable NodeIndex after deletion
-pub use dag::{DagEdge, StableDag};
-pub use petgraph::stable_graph::{EdgeIndex as StableEdgeIndex, NodeIndex as StableNodeIndex};
-
-// Binding types
+// Binding
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
 
-// Event types
-pub use event::{
-    calculate_workflow_hash, generate_generation_id, list_traces, Event, EventEmitter, EventKind,
-    EventLog, NoopEmitter, TraceInfo, TraceWriter,
-};
+// Events
+pub use event::{list_traces, Event, EventKind, EventLog};
 
-// Store types
+// Store
 pub use store::{DataStore, TaskResult, TaskStatus};
 
-// MCP types (v0.2)
-pub use mcp::{
-    ContentBlock, McpClient, McpConfig, ResourceContent, ToolCallRequest, ToolCallResult,
-    ToolDefinition,
-};
-
-// Core types (v0.27 spn fusion) - Providers, Models, MCP Aliases
-pub use core::{
-    find_model, find_provider, list_aliases, provider_to_env_var, providers_by_category,
-    resolve_alias, resolve_model, validate_key_format, KnownModel, ModelArchitecture,
-    ModelResolveError, ModelType, Provider, ProviderCategory, Quantization, ResolvedModel,
-    KNOWN_MODELS, KNOWN_PROVIDERS, MCP_ALIASES,
-};
+// MCP
+pub use mcp::{McpClient, McpConfig};
