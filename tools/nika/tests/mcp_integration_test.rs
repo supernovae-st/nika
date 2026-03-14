@@ -25,8 +25,9 @@ workflow: single-mcp-test
 description: "Test single MCP configuration"
 
 mcp:
-  novanet:
-    command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
+  servers:
+    novanet:
+      command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
 
 tasks:
   - id: describe
@@ -52,19 +53,20 @@ workflow: multi-mcp-test
 description: "Test multiple MCP servers"
 
 mcp:
-  novanet:
-    command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
-    args:
-      - "--port"
-      - "8001"
-  perplexity:
-    command: "npx"
-    args:
-      - "@anthropic/perplexity-mcp"
-  firecrawl:
-    command: "npx"
-    args:
-      - "@anthropic/firecrawl-mcp"
+  servers:
+    novanet:
+      command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
+      args:
+        - "--port"
+        - "8001"
+    perplexity:
+      command: "npx"
+      args:
+        - "@anthropic/perplexity-mcp"
+    firecrawl:
+      command: "npx"
+      args:
+        - "@anthropic/firecrawl-mcp"
 
 tasks:
   - id: research
@@ -93,11 +95,12 @@ schema: nika/workflow@0.5
 workflow: mcp-env-test
 
 mcp:
-  external:
-    command: "external-mcp-server"
-    env:
-      API_KEY: "${EXTERNAL_API_KEY}"
-      DEBUG: "true"
+  servers:
+    external:
+      command: "external-mcp-server"
+      env:
+        API_KEY: "${EXTERNAL_API_KEY}"
+        DEBUG: "true"
 
 tasks:
   - id: call
@@ -263,8 +266,9 @@ workflow: introspect-test
 description: "Test novanet_introspect tool"
 
 mcp:
-  novanet:
-    command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
+  servers:
+    novanet:
+      command: "cargo run --manifest-path ../novanet-mcp/Cargo.toml"
 
 tasks:
   - id: get-schema
@@ -285,6 +289,7 @@ tasks:
     let workflow = parse_workflow(yaml).expect("Failed to parse");
 
     assert_eq!(workflow.tasks.len(), 2);
+    assert!(workflow.mcp.is_some());
 }
 
 #[test]
@@ -328,10 +333,11 @@ schema: nika/workflow@0.5
 workflow: multi-mcp-coordination
 
 mcp:
-  novanet:
-    command: "novanet-mcp"
-  search:
-    command: "perplexity-mcp"
+  servers:
+    novanet:
+      command: "novanet-mcp"
+    search:
+      command: "perplexity-mcp"
 
 tasks:
   - id: research-agent

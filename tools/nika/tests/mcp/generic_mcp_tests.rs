@@ -20,11 +20,12 @@ fn test_mcp_config_parsing() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  test-server:
-    command: echo
-    args: ["hello"]
-    env:
-      TEST_VAR: "test_value"
+  servers:
+    test-server:
+      command: echo
+      args: ["hello"]
+      env:
+        TEST_VAR: "test_value"
 
 tasks:
   - id: use_mcp
@@ -44,18 +45,19 @@ tasks:
 #[test]
 fn test_mcp_multiple_servers() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
-  server1:
-    command: echo
-    args: ["server1"]
-  server2:
-    command: echo
-    args: ["server2"]
-  server3:
-    command: echo
-    args: ["server3"]
+  servers:
+    server1:
+      command: echo
+      args: ["server1"]
+    server2:
+      command: echo
+      args: ["server2"]
+    server3:
+      command: echo
+      args: ["server3"]
 
 tasks:
   - id: use_server1
@@ -69,16 +71,11 @@ tasks:
       tool: "tool2"
 
   - id: combine
-    infer: "Combine {{use.s1}} and {{use.s2}}"
-    use:
-      s1: use_server1
-      s2: use_server2
-
-flows:
-  - source: use_server1
-    target: combine
-  - source: use_server2
-    target: combine
+    depends_on: [use_server1, use_server2]
+    infer: "Combine {{with.s1}} and {{with.s2}}"
+    with:
+      s1: $use_server1
+      s2: $use_server2
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
@@ -102,11 +99,12 @@ async fn test_perplexity_mcp_search() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  perplexity:
-    command: npx
-    args: ["-y", "perplexity-mcp"]
-    env:
-      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
+  servers:
+    perplexity:
+      command: npx
+      args: ["-y", "perplexity-mcp"]
+      env:
+        PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY}"
 
 tasks:
   - id: search
@@ -132,11 +130,12 @@ async fn test_firecrawl_mcp_scrape() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  firecrawl:
-    command: npx
-    args: ["-y", "@anthropic/firecrawl-mcp"]
-    env:
-      FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
+  servers:
+    firecrawl:
+      command: npx
+      args: ["-y", "@anthropic/firecrawl-mcp"]
+      env:
+        FIRECRAWL_API_KEY: "${FIRECRAWL_API_KEY}"
 
 tasks:
   - id: scrape
@@ -163,9 +162,10 @@ async fn test_filesystem_mcp() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  fs:
-    command: npx
-    args: ["-y", "@anthropic/filesystem-mcp", "/tmp"]
+  servers:
+    fs:
+      command: npx
+      args: ["-y", "@anthropic/filesystem-mcp", "/tmp"]
 
 tasks:
   - id: list_files
@@ -190,8 +190,9 @@ fn test_mcp_invalid_server_reference() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  real-server:
-    command: echo
+  servers:
+    real-server:
+      command: echo
 
 tasks:
   - id: bad_invoke
@@ -212,13 +213,14 @@ fn test_mcp_env_config() {
 schema: "nika/workflow@0.5"
 
 mcp:
-  config-server:
-    command: node
-    args: ["./server.js"]
-    env:
-      API_KEY: "secret"
-      DEBUG: "true"
-    cwd: "/path/to/server"
+  servers:
+    config-server:
+      command: node
+      args: ["./server.js"]
+      env:
+        API_KEY: "secret"
+        DEBUG: "true"
+      cwd: "/path/to/server"
 
 tasks:
   - id: use_config
@@ -250,9 +252,10 @@ schema: "nika/workflow@0.5"
 provider: claude
 
 mcp:
-  test-server:
-    command: echo
-    args: ["mock"]
+  servers:
+    test-server:
+      command: echo
+      args: ["mock"]
 
 tasks:
   - id: research_agent
@@ -279,15 +282,16 @@ schema: "nika/workflow@0.5"
 provider: claude
 
 mcp:
-  knowledge:
-    command: echo
-    args: ["knowledge"]
-  search:
-    command: echo
-    args: ["search"]
-  files:
-    command: echo
-    args: ["files"]
+  servers:
+    knowledge:
+      command: echo
+      args: ["knowledge"]
+    search:
+      command: echo
+      args: ["search"]
+    files:
+      command: echo
+      args: ["files"]
 
 tasks:
   - id: multi_tool_agent
