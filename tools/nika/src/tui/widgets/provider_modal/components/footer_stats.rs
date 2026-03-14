@@ -1,6 +1,6 @@
 //! Footer Stats Bar for Provider Modal
 //!
-//! v0.8.9: WOW Cosmic Edition
+//! WOW Cosmic Edition
 //! Displays session metrics: provider count, tokens used, MCP status
 
 use ratatui::{

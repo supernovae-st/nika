@@ -1,4 +1,4 @@
-//! Enhanced Tree Widget for Nika TUI v0.20
+//! Enhanced Tree Widget for Nika TUI
 //!
 //! VS Code-like tree view with SuperNovae ecosystem detection.
 //!

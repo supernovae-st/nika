@@ -128,7 +128,7 @@ pub enum ApiKeyState {
     Testing { masked: String },
     /// Key from environment variable (session-based, ephemeral)
     Configured { masked: String },
-    /// Key from system keyring (persisted, secure) - v0.11.0
+    /// Key from system keyring (persisted, secure)
     Stored { masked: String },
     /// Key verified working with latency
     Verified { masked: String, latency_ms: u64 },

@@ -1,8 +1,8 @@
 //! UI components for provider modal
 //!
-//! v0.8.9: Added AnimatedHeader for cosmic WOW effects
-//! v0.8.9: Added FooterStatsBar for session metrics
-//! v0.8.9: Added VerificationEffect for Matrix-style provider checking
+//! AnimatedHeader for cosmic WOW effects
+//! FooterStatsBar for session metrics
+//! VerificationEffect for Matrix-style provider checking
 
 mod animated_header;
 mod download_gauge;

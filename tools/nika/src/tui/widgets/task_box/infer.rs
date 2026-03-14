@@ -3,7 +3,7 @@
 //! LLM text generation box with streaming support.
 //! Shows model, prompt, response, and token metrics.
 //!
-//! v0.17.1: Integrated MatrixDecrypt for streaming text reveal effect.
+//! MatrixDecrypt integration for streaming text reveal effect.
 
 use ratatui::{
     buffer::Buffer,

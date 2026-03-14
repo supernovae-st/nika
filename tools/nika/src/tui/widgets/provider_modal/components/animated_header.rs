@@ -1,6 +1,6 @@
 //! Animated cosmic header for Provider Modal
 //!
-//! v0.8.9: WOW Cosmic Edition
+//! WOW Cosmic Edition
 //! Displays animated star patterns around the modal title
 
 use ratatui::{

@@ -1,8 +1,8 @@
 //! Rich provider card with status, sparkline, and model info
 //!
-//! v0.8.9: Added latency sparkline visualization
-//! v0.8.91: Fixed overflow - truncate error messages to fit card width
-//! v0.9.1: Migrated to semantic color constants (Theme alignment)
+//! Latency sparkline visualization
+//! Truncate error messages to fit card width
+//! Uses semantic color constants (Theme alignment)
 
 use ratatui::{
     buffer::Buffer,
@@ -256,7 +256,7 @@ impl Widget for ProviderCard<'_> {
         let model_style = Style::default().fg(COLOR_TEXT_SECONDARY);
         buf.set_string(inner.x + 1, inner.y, self.model, model_style);
 
-        // Status on the right - v0.8.9: Use Matrix effect during verification
+        // Status on the right - Use Matrix effect during verification
         if let Some(entry) = &self.verify_entry {
             // Show Matrix effect when not complete
             if !entry.is_complete() {

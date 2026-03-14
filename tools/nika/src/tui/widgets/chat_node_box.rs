@@ -3,7 +3,7 @@
 //! Renders individual nodes in the Chat DAG visualization.
 //! Supports User, Assistant, ToolCall, System, and Error node types.
 //!
-//! v0.10.0 - Chat-as-DAG architecture
+//! Chat-as-DAG architecture
 
 use ratatui::{
     buffer::Buffer,

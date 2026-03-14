@@ -1,4 +1,4 @@
-//! Keyring re-exports from `secrets::keyring` (canonical home since v0.28).
+//! Keyring re-exports from `secrets::keyring`.
 //!
 //! This module existed here originally but was moved to `secrets::keyring`
 //! to break the circular dependency: secrets → tui.

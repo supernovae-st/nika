@@ -2,7 +2,7 @@
 //!
 //! Shared animation timing and coordination for Chat DAG widgets.
 //!
-//! v0.10.4 - Animation polish
+//! Animation polish
 
 use std::time::{Duration, Instant};
 

@@ -1,6 +1,6 @@
 //! Matrix Verification Effect for Provider Modal
 //!
-//! v0.8.9: WOW Cosmic Edition
+//! WOW Cosmic Edition
 //! Shows a "decryption" animation while providers are being verified.
 //! Text scrambles with Matrix-style katakana/kanji then reveals the result.
 

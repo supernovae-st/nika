@@ -3,7 +3,7 @@
 //! Combines ChatNodeBox and ChatEdgeLine to render a complete
 //! chat conversation as a directed acyclic graph.
 //!
-//! v0.10.3 - Chat-as-DAG architecture
+//! Chat-as-DAG architecture
 
 use super::{ChatEdgeLine, ChatNodeBox, ChatNodeKind, ChatNodeState, ChatPosition};
 use ratatui::{

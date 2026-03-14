@@ -3,7 +3,7 @@
 //! Displays pending/running/completed tasks in a scrollable list.
 //! Part of the Chat DAG visualization system.
 //!
-//! v0.10.2 - Chat-as-DAG architecture
+//! Chat-as-DAG architecture
 
 use ratatui::{
     buffer::Buffer,

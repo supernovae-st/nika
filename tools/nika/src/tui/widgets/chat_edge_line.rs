@@ -3,7 +3,7 @@
 //! Renders connections between ChatNodeBox widgets in the Chat DAG.
 //! Supports flow animation and binding labels.
 //!
-//! v0.10.1 - Chat-as-DAG architecture
+//! Chat-as-DAG architecture
 
 use ratatui::{
     buffer::Buffer,
