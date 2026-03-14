@@ -1,9 +1,9 @@
 //! # Cosmic Theme Bridge Layer
 //!
-//! Bridges the new `TokenResolver` design system with the legacy `Theme` API.
+//! Bridges the new `TokenResolver` design system with the `Theme` API.
 //!
 //! This module provides `CosmicTheme`, an adapter that wraps `TokenResolver`
-//! while exposing a `Theme`-compatible API for backward compatibility.
+//! while exposing a `Theme`-compatible API.
 //!
 //! ## Architecture
 //!
@@ -29,7 +29,7 @@
 //! // Create with default variant
 //! let mut cosmic = CosmicTheme::new(CosmicVariant::CosmicDark);
 //!
-//! // Get legacy Theme for backward compat
+//! // Get Theme
 //! let theme = cosmic.as_theme();
 //!
 //! // Get resolver for new code
@@ -48,7 +48,7 @@ use super::tokens::{CosmicVariant, TokenResolver};
 // COSMIC THEME ADAPTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Bridge between TokenResolver and legacy Theme API.
+/// Bridge between TokenResolver and Theme API.
 ///
 /// `CosmicTheme` wraps a `TokenResolver` and provides both:
 /// - Legacy `Theme` access via `as_theme()` for existing widgets
@@ -109,7 +109,7 @@ impl CosmicTheme {
         self.variant
     }
 
-    /// Get legacy Theme for backward compatibility.
+    /// Get Theme for existing widgets.
     ///
     /// This creates a `Theme` struct populated from the TokenResolver's
     /// semantic colors. Use this for existing widgets that expect `&Theme`.
@@ -171,7 +171,7 @@ impl CosmicTheme {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl From<ThemeMode> for CosmicVariant {
-    /// Convert legacy ThemeMode to CosmicVariant.
+    /// Convert ThemeMode to CosmicVariant.
     ///
     /// Mapping:
     /// - Dark → CosmicDark
@@ -187,7 +187,7 @@ impl From<ThemeMode> for CosmicVariant {
 }
 
 impl From<CosmicVariant> for ThemeMode {
-    /// Convert CosmicVariant to legacy ThemeMode.
+    /// Convert CosmicVariant to ThemeMode.
     ///
     /// Mapping:
     /// - CosmicDark → Dark
@@ -210,7 +210,6 @@ impl Theme {
     /// Create Theme from TokenResolver (bridge method).
     ///
     /// Maps all 35+ Theme fields from the resolver's semantic colors.
-    /// This enables the adapter pattern for backward compatibility.
     pub fn from_resolver(resolver: &TokenResolver) -> Self {
         let semantic = resolver.semantic();
 
