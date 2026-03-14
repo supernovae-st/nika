@@ -321,8 +321,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 5
-      stop_conditions:
-        - "TASK_COMPLETE"
     output:
       use.ctx: generated_page
 "#;
@@ -343,7 +341,6 @@ tasks:
             assert!(agent.prompt.contains("landing page"));
             assert_eq!(agent.mcp, vec!["novanet".to_string()]);
             assert_eq!(agent.max_turns, Some(5));
-            assert_eq!(agent.stop_conditions, vec!["TASK_COMPLETE".to_string()]);
         }
         _ => panic!("Expected Agent action, got {:?}", task.action),
     }
@@ -366,7 +363,6 @@ async fn test_workflow_multi_locale_generation_pattern() {
             ),
             mcp: vec!["novanet".to_string()],
             max_turns: Some(3),
-            stop_conditions: vec!["GENERATION_COMPLETE".to_string()],
             ..Default::default()
         };
 

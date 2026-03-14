@@ -141,9 +141,6 @@ tasks:
             Return structured JSON matching EntityNative schema.
           mcp: [novanet]
           max_turns: 5
-          stop_conditions:
-            - pattern: "VALIDATION_PASSED"
-              action: complete
         flow: [get_entity_context]
         output:
           use.locale_content: result

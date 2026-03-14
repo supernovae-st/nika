@@ -93,9 +93,6 @@ tasks:
         - firecrawl
       max_turns: 10
       depth_limit: 3
-      stop_conditions:
-        - "research complete"
-        - "sufficient information gathered"
       tools:
         - nika:log
     use:

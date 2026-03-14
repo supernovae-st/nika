@@ -106,11 +106,6 @@ tasks:
 
         Handle errors gracefully - return error object instead of failing.
       max_turns: 3
-      # Stop processing if critical error
-      stop_conditions:
-        - pattern: "CRITICAL_ERROR"
-          action: checkpoint_and_stop
-          message: "Critical error - checkpointing and stopping"
     flow: [fetch_items]
     output:
       use.batch_results: result
@@ -170,11 +165,6 @@ tasks:
     flow: [track_progress]
     output:
       use.continuation: result
-    # Stop condition for completion
-    stop_conditions:
-      - pattern: '"should_continue":\s*false'
-        action: complete
-        message: "All items processed"
 
   # ════════════════════════════════════════════════════════════════════
   # RECURSIVE CONTINUATION: Process next batch

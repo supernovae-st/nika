@@ -16,8 +16,6 @@
 //!     mcp:
 //!       - novanet
 //!     max_turns: 10
-//!     stop_conditions:
-//!       - "GENERATION_COMPLETE"
 //! ```
 
 use serde::Deserialize;
@@ -119,10 +117,6 @@ pub struct AgentParams {
     #[serde(default)]
     pub token_budget: Option<u32>,
 
-    /// Conditions that trigger early stop (if output contains any)
-    #[serde(default)]
-    pub stop_conditions: Vec<String>,
-
     /// Sequences that stop generation (passed to LLM)
     #[serde(default)]
     pub stop_sequences: Vec<String>,
@@ -198,8 +192,7 @@ pub struct AgentParams {
     /// - `mode: natural` - Completes when agent has no more tool calls
     /// - `mode: pattern` - Completes on pattern match
     ///
-    /// When not set, defaults to behavior using
-    /// `stop_conditions` if present, otherwise `natural` mode.
+    /// When not set, defaults to `natural` mode.
     #[serde(default)]
     pub completion: Option<CompletionConfig>,
 
@@ -321,21 +314,9 @@ impl AgentParams {
 
     /// Get effective completion configuration.
     ///
-    /// Returns the completion config, with fallback:
-    /// - If `completion` is set, returns it
-    /// - If `stop_conditions` is set, creates a Pattern-mode config
-    /// - Otherwise, returns None (natural completion mode)
+    /// Returns the completion config if set, otherwise None (natural mode).
     pub fn effective_completion(&self) -> Option<CompletionConfig> {
-        if self.completion.is_some() {
-            return self.completion.clone();
-        }
-
-        // Migrate stop_conditions to completion config
-        if !self.stop_conditions.is_empty() {
-            return CompletionConfig::from_stop_conditions(&self.stop_conditions);
-        }
-
-        None
+        self.completion.clone()
     }
 
     /// Generate system instruction for completion.
@@ -343,19 +324,10 @@ impl AgentParams {
     /// Returns the auto-generated instruction to append to the system prompt,
     /// or empty string if no special completion instruction is needed.
     pub fn completion_system_instruction(&self) -> String {
-        self.effective_completion()
+        self.completion
+            .as_ref()
             .map(|c| c.generate_system_instruction())
             .unwrap_or_default()
-    }
-
-    /// Check if a response triggers a stop condition.
-    ///
-    /// Returns `true` if the content contains any of the configured
-    /// stop conditions (case-sensitive substring match).
-    pub fn should_stop(&self, content: &str) -> bool {
-        self.stop_conditions
-            .iter()
-            .any(|cond| content.contains(cond))
     }
 
     /// Validate agent parameters.
@@ -490,17 +462,6 @@ mcp:
             ..Default::default()
         };
         assert_eq!(params.effective_max_turns(), 20);
-    }
-
-    #[test]
-    fn should_stop_matches() {
-        let params = AgentParams {
-            prompt: "test".to_string(),
-            stop_conditions: vec!["DONE".to_string()],
-            ..Default::default()
-        };
-        assert!(params.should_stop("Task is DONE"));
-        assert!(!params.should_stop("Still working"));
     }
 
     #[test]
@@ -1025,30 +986,11 @@ completion:
 prompt: "Test"
 completion:
   mode: explicit
-stop_conditions:
-  - "LEGACY"
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
 
-        // completion field takes precedence over stop_conditions
         let effective = params.effective_completion().unwrap();
         assert_eq!(effective.mode, crate::ast::CompletionMode::Explicit);
-    }
-
-    #[test]
-    fn test_effective_completion_migrates_stop_conditions() {
-        let yaml = r#"
-prompt: "Test"
-stop_conditions:
-  - "DONE"
-  - "COMPLETE"
-"#;
-        let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
-
-        // When no completion field, stop_conditions should be migrated
-        let effective = params.effective_completion().unwrap();
-        assert_eq!(effective.mode, crate::ast::CompletionMode::Pattern);
-        assert_eq!(effective.patterns.len(), 2);
     }
 
     #[test]
@@ -1058,7 +1000,6 @@ stop_conditions:
             ..Default::default()
         };
 
-        // No completion, no stop_conditions -> None
         assert!(params.effective_completion().is_none());
     }
 

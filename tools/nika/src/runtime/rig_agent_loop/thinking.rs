@@ -1,6 +1,6 @@
 //! Extended thinking, guardrails, and confidence routing
 //!
-//! Contains: check_stop_conditions, check_completion_signal, check_guardrails,
+//! Contains: check_completion_signal, check_guardrails,
 //! determine_status, confidence routing, and run_claude_with_thinking.
 
 use std::sync::Arc;
@@ -24,14 +24,6 @@ use super::types::{GuardrailCheckResult, RigAgentLoopResult, RigAgentStatus};
 use super::RigAgentLoop;
 
 impl RigAgentLoop {
-    /// Check if any stop condition is met in the output
-    pub(crate) fn check_stop_conditions(&self, output: &str) -> bool {
-        self.params
-            .stop_conditions
-            .iter()
-            .any(|cond| output.contains(cond))
-    }
-
     /// Check if output contains explicit completion signal
     ///
     /// This checks for the COMPLETION_MARKER in tool results, indicating the
@@ -129,8 +121,7 @@ impl RigAgentLoop {
     /// 1. Explicit completion via nika:complete tool
     ///    - With confidence: compare against threshold → HighConfidence/LowConfidence
     ///    - Without confidence: ExplicitCompletion
-    /// 2. Stop conditions (StopConditionMet)
-    /// 3. Natural completion (NaturalCompletion)
+    /// 2. Natural completion (NaturalCompletion)
     pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
             // Parse the completion response to extract confidence
@@ -145,8 +136,6 @@ impl RigAgentLoop {
             }
             // No confidence provided, treat as explicit completion
             RigAgentStatus::ExplicitCompletion
-        } else if self.check_stop_conditions(output) {
-            RigAgentStatus::StopConditionMet
         } else {
             RigAgentStatus::NaturalCompletion
         }

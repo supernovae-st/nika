@@ -46,12 +46,6 @@ max_turns: 15
 token_budget: 50000
 temperature: 0.3
 
-# Stop conditions
-stop_conditions:
-  - "RESEARCH_COMPLETE"
-  - "NO_MORE_SOURCES"
-  - "CONFIDENCE_ACHIEVED"
-
 # Optional: Default tools (always included)
 default_tools:
   - web_search

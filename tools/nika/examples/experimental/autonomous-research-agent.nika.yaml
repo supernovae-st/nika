@@ -162,9 +162,6 @@ tasks:
       mcp: [perplexity]
       max_turns: 10
       depth_limit: 2       # Spawned agents can spawn once more
-      stop_conditions:
-        - pattern: "INVESTIGATION_COMPLETE"
-          action: complete
 
     output:
       format: json

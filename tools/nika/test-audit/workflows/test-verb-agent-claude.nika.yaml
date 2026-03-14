@@ -12,8 +12,6 @@ tasks:
 
         End your response with "ANALYSIS_DONE".
       max_turns: 2
-      stop_conditions:
-        - "ANALYSIS_DONE"
 
   - id: process_result
     use:

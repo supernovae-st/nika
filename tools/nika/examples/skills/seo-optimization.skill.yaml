@@ -46,10 +46,6 @@ system_augment: |
 # Optional: Required MCP servers for this skill
 requires_mcp: []
 
-# Optional: Suggested stop conditions when using this skill
-stop_conditions:
-  - "SEO_OPTIMIZED"
-
 # Optional: Validation rules (future feature)
 validation:
   - rule: "title_length <= 60"

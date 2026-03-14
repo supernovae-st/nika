@@ -5,7 +5,7 @@
 //! Features covered:
 //! - agent: Multi-turn agentic loop with tools
 //! - File tools: nika:read, nika:write, nika:edit, nika:glob, nika:grep
-//! - stop_conditions: Automatic agent termination
+//! - completion: Agent completion configuration
 //! - output: JSON Schema validation
 //! - artifact: File persistence
 
@@ -116,14 +116,6 @@ tasks:
       temperature: 0.3                 # 🎯 Lower = more focused
 
       # ─────────────────────────────────────────────────────────────────────────
-      # 🛑 STOP CONDITIONS (array of phrases that trigger stop)
-      # ─────────────────────────────────────────────────────────────────────────
-      stop_conditions:                 # 🏁 Stop when agent says these
-        - "TASK_COMPLETE"
-        - "ANALYSIS COMPLETE"
-        - "I have finished"
-
-      # ─────────────────────────────────────────────────────────────────────────
       # 🧠 SYSTEM PROMPT
       # ─────────────────────────────────────────────────────────────────────────
       system: |
@@ -215,8 +207,6 @@ flows:
 # │     max_turns: 10                  # 🔄 Max iterations                     │
 # │     temperature: 0.5               # 🎲 Creativity level                   │
 # │     system: "You are..."           # 🧠 Persona/role                       │
-# │     stop_conditions:               # 🛑 When to stop (array of phrases)   │
-# │       - "DONE"                                                             │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # FILE TOOLS REFERENCE:
@@ -473,9 +463,6 @@ tasks:
         - nika:read
       max_turns: 5
       temperature: 0.4
-      stop_conditions:
-        - "ANALYSIS_COMPLETE"
-
     # Agent output also validated against schema
     output:
       schema:

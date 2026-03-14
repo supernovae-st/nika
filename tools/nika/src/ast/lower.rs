@@ -206,7 +206,6 @@ fn lower_agent(
         tools: agent.tools,
         max_turns: agent.max_iterations,
         token_budget: None,
-        stop_conditions: Vec::new(),
         stop_sequences: Vec::new(),
         scope: None,
         extended_thinking: None,

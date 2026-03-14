@@ -340,8 +340,6 @@ tasks:
         - nika:write
       max_turns: 5
       temperature: 0.2
-      stop_conditions:
-        - "CODE_FIXED"
     artifact:
       path: ./output/code-review/fixed_code_{{date}}.ts
       format: text
@@ -542,8 +540,6 @@ tasks:
       tools:
         - nika:write
       max_turns: 5
-      stop_conditions:
-        - "EXPORT_COMPLETE"
 
 flows:
   - source: analyze_content
@@ -828,8 +824,6 @@ tasks:
         - nika:glob
         - nika:read
       max_turns: 10
-      stop_conditions:
-        - "SCAN_COMPLETE"
 
   - id: generate_docs
     use:
@@ -855,8 +849,6 @@ tasks:
         - nika:glob
       max_turns: 20
       temperature: 0.3
-      stop_conditions:
-        - "DOCS_COMPLETE"
 
   - id: generate_index
     use:
@@ -878,8 +870,6 @@ tasks:
         - nika:read
         - nika:write
       max_turns: 10
-      stop_conditions:
-        - "INDEX_COMPLETE"
 
 flows:
   - source: scan_project
@@ -955,8 +945,6 @@ tasks:
       tools:
         - nika:write
       max_turns: 3
-      stop_conditions:
-        - "LOAD_COMPLETE"
 
 flows:
   - source: extract
@@ -1002,8 +990,6 @@ tasks:
       max_turns: 15
       depth_limit: 2
       temperature: 0.4
-      stop_conditions:
-        - "RESEARCH_COMPLETE"
     artifact:
       path: ./output/research/summary_{{date}}.txt
       format: text

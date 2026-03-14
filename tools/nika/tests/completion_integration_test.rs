@@ -133,23 +133,6 @@ fn test_agent_params_effective_completion_with_config() {
 }
 
 #[test]
-fn test_agent_params_effective_completion_from_stop_conditions() {
-    let params = AgentParams {
-        prompt: "Test".to_string(),
-        stop_conditions: vec!["DONE".to_string(), "COMPLETE".to_string()],
-        completion: None,
-        ..Default::default()
-    };
-
-    let effective = params.effective_completion();
-    assert!(effective.is_some());
-
-    // Should create pattern-based completion from stop_conditions
-    let config = effective.unwrap();
-    assert_eq!(config.mode, CompletionMode::Pattern);
-}
-
-#[test]
 fn test_agent_params_completion_system_instruction() {
     let params = AgentParams {
         prompt: "Test".to_string(),
@@ -272,24 +255,6 @@ fn test_rig_agent_loop_explicit_completion_status() {
 }
 
 #[test]
-fn test_rig_agent_loop_stop_condition_status() {
-    let params = AgentParams {
-        prompt: "Test".to_string(),
-        stop_conditions: vec!["DONE".to_string()],
-        ..Default::default()
-    };
-    let event_log = EventLog::new();
-    let mcp_clients = FxHashMap::default();
-
-    let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
-
-    // Response with stop condition, no marker
-    let status = agent.determine_status("Task is DONE");
-
-    assert_eq!(status, RigAgentStatus::StopConditionMet);
-}
-
-#[test]
 fn test_rig_agent_loop_natural_completion_status() {
     let params = AgentParams {
         prompt: "Test".to_string(),
@@ -310,7 +275,6 @@ fn test_rig_agent_loop_natural_completion_status() {
 fn test_rig_agent_loop_explicit_takes_priority() {
     let params = AgentParams {
         prompt: "Test".to_string(),
-        stop_conditions: vec!["DONE".to_string()],
         ..Default::default()
     };
     let event_log = EventLog::new();
@@ -318,11 +282,11 @@ fn test_rig_agent_loop_explicit_takes_priority() {
 
     let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
-    // Response with both marker AND stop condition
-    let response = format!("DONE and marker: {}", COMPLETION_MARKER);
+    // Response with completion marker
+    let response = format!("Result with marker: {}", COMPLETION_MARKER);
     let status = agent.determine_status(&response);
 
-    // Explicit completion should take priority
+    // Explicit completion detected
     assert_eq!(status, RigAgentStatus::ExplicitCompletion);
 }
 
@@ -347,10 +311,6 @@ fn test_all_status_canonical_strs() {
     assert_eq!(
         RigAgentStatus::ExplicitCompletion.as_canonical_str(),
         "tool_complete"
-    );
-    assert_eq!(
-        RigAgentStatus::StopConditionMet.as_canonical_str(),
-        "stop_sequence"
     );
     assert_eq!(
         RigAgentStatus::MaxTurnsReached.as_canonical_str(),

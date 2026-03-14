@@ -27,8 +27,6 @@ pub enum RigAgentStatus {
     FlaggedForReview(f64),
     /// Agent escalated to human/other agent via routing
     Escalated(f64),
-    /// Stop condition matched in output
-    StopConditionMet,
     /// Maximum turns reached
     MaxTurnsReached,
     /// Token budget exceeded
@@ -54,7 +52,6 @@ impl RigAgentStatus {
             Self::LowConfidence(_) => "tool_complete_low",
             Self::FlaggedForReview(_) => "tool_complete_flagged",
             Self::Escalated(_) => "escalated",
-            Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
             Self::CostLimitReached => "max_cost",
@@ -72,7 +69,6 @@ impl RigAgentStatus {
                 | Self::ExplicitCompletion
                 | Self::HighConfidence(_)
                 | Self::FlaggedForReview(_) // Accepted, just flagged
-                | Self::StopConditionMet
         )
     }
 

@@ -245,7 +245,7 @@ impl CompletionConfig {
         false
     }
 
-    /// Get the effective completion mode, considering stop_conditions.
+    /// Get the effective completion mode.
     pub fn effective_mode(&self) -> CompletionMode {
         self.mode.clone()
     }
@@ -388,7 +388,7 @@ pub enum PatternType {
     /// Exact string match
     Exact,
 
-    /// Substring match (default for stop_conditions)
+    /// Substring match (default)
     #[default]
     Contains,
 
@@ -538,33 +538,6 @@ pub enum InstructionTone {
     Detailed,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Migration helpers
-// ═══════════════════════════════════════════════════════════════════════════
-
-impl CompletionConfig {
-    /// Create a CompletionConfig from stop_conditions.
-    ///
-    /// This supports workflows using the older
-    /// `stop_conditions: ["DONE"]` syntax.
-    pub fn from_stop_conditions(conditions: &[String]) -> Option<Self> {
-        if conditions.is_empty() {
-            return None;
-        }
-
-        Some(Self {
-            mode: CompletionMode::Pattern,
-            patterns: conditions
-                .iter()
-                .map(|c| PatternConfig {
-                    value: c.clone(),
-                    pattern_type: PatternType::Contains,
-                })
-                .collect(),
-            ..Default::default()
-        })
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tests
@@ -903,33 +876,6 @@ instruction:
         };
         let err = config.validate().unwrap_err();
         assert!(err.contains("Invalid regex"));
-    }
-
-    // ========================================================================
-    // Migration tests
-    // ========================================================================
-
-    #[test]
-    fn migrate_stop_conditions_empty() {
-        let conditions: Vec<String> = vec![];
-        assert!(CompletionConfig::from_stop_conditions(&conditions).is_none());
-    }
-
-    #[test]
-    fn migrate_stop_conditions_single() {
-        let conditions = vec!["DONE".to_string()];
-        let config = CompletionConfig::from_stop_conditions(&conditions).unwrap();
-        assert_eq!(config.mode, CompletionMode::Pattern);
-        assert_eq!(config.patterns.len(), 1);
-        assert_eq!(config.patterns[0].value, "DONE");
-        assert_eq!(config.patterns[0].pattern_type, PatternType::Contains);
-    }
-
-    #[test]
-    fn migrate_stop_conditions_multiple() {
-        let conditions = vec!["DONE".to_string(), "COMPLETE".to_string()];
-        let config = CompletionConfig::from_stop_conditions(&conditions).unwrap();
-        assert_eq!(config.patterns.len(), 2);
     }
 
     // ========================================================================

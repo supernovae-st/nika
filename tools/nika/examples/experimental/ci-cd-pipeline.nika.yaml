@@ -7,7 +7,7 @@
 # - Artifact generation and deployment
 # - Rollback on failure
 #
-# v0.14 features: for_each, stop_conditions, output validation
+# v0.14 features: for_each, output validation
 schema: nika/workflow@0.10
 
 workflow: ci-cd-pipeline
@@ -101,10 +101,6 @@ tasks:
         Return JSON: { "passed": boolean, "reason": string }
       response_format: json
     flow: [aggregate_coverage]
-    stop_conditions:
-      - pattern: '"passed":\s*false'
-        action: fail
-        message: "Coverage gate failed: below 80% threshold"
     output:
       use.coverage_gate_result: result
 
@@ -125,10 +121,6 @@ tasks:
         Return JSON: { "passed": boolean, "score": number, "reason": string }
       response_format: json
     flow: [mutation_testing]
-    stop_conditions:
-      - pattern: '"passed":\s*false'
-        action: fail
-        message: "Mutation gate failed: score below 70%"
 
   # ════════════════════════════════════════════════════════════════════
   # STAGE 4: Build Artifacts
@@ -178,11 +170,6 @@ tasks:
 
         Report deployment status and any issues.
       max_turns: 10
-      stop_conditions:
-        - pattern: "DEPLOYMENT_FAILED"
-          action: fail
-        - pattern: "DEPLOYMENT_SUCCESS"
-          action: complete
     flow: [push_artifacts]
     output:
       use.deployment_results: result

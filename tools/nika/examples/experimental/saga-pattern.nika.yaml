@@ -77,10 +77,6 @@ tasks:
     output:
       use.payment_result: result
       checkpoint: true
-    stop_conditions:
-      - pattern: '"status":\s*"declined"'
-        action: rollback
-        message: "Payment declined - initiating rollback"
 
   - id: compensate_payment
     fetch:
@@ -119,10 +115,6 @@ tasks:
     output:
       use.shipment_result: result
       checkpoint: true
-    stop_conditions:
-      - pattern: '"error":'
-        action: rollback
-        message: "Shipment creation failed - initiating rollback"
 
   - id: compensate_shipment
     fetch:

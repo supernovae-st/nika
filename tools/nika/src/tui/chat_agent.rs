@@ -963,7 +963,6 @@ impl ChatAgent {
             tools: vec![], // No explicit builtin tools filter
             max_turns: Some(max_turns.unwrap_or(10)),
             token_budget: None,
-            stop_conditions: vec![],
             stop_sequences: vec![],
             scope: None,
             extended_thinking: if extended_thinking { Some(true) } else { None },
@@ -1288,7 +1287,6 @@ mod tests {
         }
     }
 
-    // NOTE: Ollama tests removed - native inference via mistral.rs (ADR-008)
 
     #[test]
     fn test_with_overrides_mistral() {
@@ -1615,7 +1613,6 @@ mod tests {
             tools: vec![],
             max_turns: Some(10),
             token_budget: None,
-            stop_conditions: vec![],
             stop_sequences: vec![],
             scope: None,
             extended_thinking: Some(true),

@@ -20,9 +20,6 @@ model: claude-sonnet-4-6
 mcp:
   - novanet
 max_turns: 10
-stop_conditions:
-  - "GENERATION_COMPLETE"
-  - "VALIDATION_PASSED"
 "#;
 
     let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
@@ -32,13 +29,6 @@ stop_conditions:
     assert_eq!(params.model, Some("claude-sonnet-4-6".to_string()));
     assert_eq!(params.mcp, vec!["novanet"]);
     assert_eq!(params.max_turns, Some(10));
-    assert_eq!(params.stop_conditions.len(), 2);
-    assert!(params
-        .stop_conditions
-        .contains(&"GENERATION_COMPLETE".to_string()));
-    assert!(params
-        .stop_conditions
-        .contains(&"VALIDATION_PASSED".to_string()));
 }
 
 // ===============================================================
@@ -58,7 +48,6 @@ prompt: "Simple task"
     assert!(params.model.is_none());
     assert!(params.mcp.is_empty());
     assert!(params.max_turns.is_none());
-    assert!(params.stop_conditions.is_empty());
     assert!(params.scope.is_none());
 }
 
@@ -75,41 +64,7 @@ fn test_agent_params_defaults() {
     assert!(params.mcp.is_empty());
     assert!(params.provider.is_none());
     assert!(params.model.is_none());
-    assert!(params.stop_conditions.is_empty());
     assert!(params.scope.is_none());
-}
-
-// ===============================================================
-// Stop Condition Tests
-// ===============================================================
-
-#[test]
-fn test_agent_should_stop_matches_condition() {
-    let params = AgentParams {
-        prompt: "test".to_string(),
-        stop_conditions: vec!["DONE".to_string(), "COMPLETE".to_string()],
-        ..Default::default()
-    };
-
-    assert!(params.should_stop("Task is DONE"));
-    assert!(params.should_stop("COMPLETE"));
-    assert!(params.should_stop("Work is COMPLETE now"));
-    assert!(!params.should_stop("Still working..."));
-    assert!(!params.should_stop("done")); // Case sensitive
-}
-
-#[test]
-fn test_agent_should_stop_empty_conditions() {
-    let params = AgentParams {
-        prompt: "test".to_string(),
-        stop_conditions: vec![],
-        ..Default::default()
-    };
-
-    // Empty conditions should never trigger stop
-    assert!(!params.should_stop("DONE"));
-    assert!(!params.should_stop("COMPLETE"));
-    assert!(!params.should_stop("anything"));
 }
 
 // ===============================================================

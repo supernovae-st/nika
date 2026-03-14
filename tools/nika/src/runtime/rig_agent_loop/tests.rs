@@ -36,23 +36,6 @@ mod tests {
         assert!(debug.contains("NaturalCompletion"));
     }
 
-    #[test]
-    fn test_check_stop_conditions() {
-        let params = AgentParams {
-            prompt: "Test".to_string(),
-            stop_conditions: vec!["DONE".to_string(), "COMPLETE".to_string()],
-            ..Default::default()
-        };
-        let event_log = EventLog::new();
-        let mcp_clients = FxHashMap::default();
-
-        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
-
-        assert!(agent.check_stop_conditions("Task is DONE"));
-        assert!(agent.check_stop_conditions("COMPLETE!"));
-        assert!(!agent.check_stop_conditions("Still working..."));
-    }
-
     // ========================================================================
     // Completion Detection Tests
     // ========================================================================
@@ -88,7 +71,6 @@ mod tests {
 
         let params = AgentParams {
             prompt: "Test".to_string(),
-            stop_conditions: vec!["DONE".to_string()],
             ..Default::default()
         };
         let event_log = EventLog::new();
@@ -105,29 +87,9 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_status_stop_condition() {
-        let params = AgentParams {
-            prompt: "Test".to_string(),
-            stop_conditions: vec!["DONE".to_string()],
-            ..Default::default()
-        };
-        let event_log = EventLog::new();
-        let mcp_clients = FxHashMap::default();
-
-        let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
-
-        // Stop condition (no completion marker)
-        assert_eq!(
-            agent.determine_status("Task is DONE"),
-            RigAgentStatus::StopConditionMet
-        );
-    }
-
-    #[test]
     fn test_determine_status_natural_completion() {
         let params = AgentParams {
             prompt: "Test".to_string(),
-            stop_conditions: vec!["DONE".to_string()],
             ..Default::default()
         };
         let event_log = EventLog::new();
@@ -143,12 +105,11 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_status_explicit_over_stop_condition() {
+    fn test_determine_status_explicit_over_natural() {
         use crate::runtime::builtin::COMPLETION_MARKER;
 
         let params = AgentParams {
             prompt: "Test".to_string(),
-            stop_conditions: vec!["DONE".to_string()],
             ..Default::default()
         };
         let event_log = EventLog::new();
@@ -156,8 +117,8 @@ mod tests {
 
         let agent = RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
 
-        // When both marker and stop condition present, explicit wins
-        let response = format!("DONE and marker: {}", COMPLETION_MARKER);
+        // When marker present, explicit completion wins over natural
+        let response = format!("Result with marker: {}", COMPLETION_MARKER);
         assert_eq!(
             agent.determine_status(&response),
             RigAgentStatus::ExplicitCompletion

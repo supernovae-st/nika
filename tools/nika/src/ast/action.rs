@@ -1155,27 +1155,6 @@ agent:
     }
 
     #[test]
-    fn test_agent_params_with_stop_conditions() {
-        let yaml = r#"
-agent:
-  prompt: "Test prompt"
-  stop_conditions:
-    - "GENERATION_COMPLETE"
-    - "ERROR"
-"#;
-        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
-        match action {
-            TaskAction::Agent { agent } => {
-                assert_eq!(agent.stop_conditions.len(), 2);
-                assert!(agent
-                    .stop_conditions
-                    .contains(&"GENERATION_COMPLETE".to_string()));
-            }
-            _ => panic!("Expected TaskAction::Agent"),
-        }
-    }
-
-    #[test]
     fn test_agent_params_with_extended_thinking() {
         let yaml = r#"
 agent:
@@ -1223,8 +1202,6 @@ agent:
     - novanet
   max_turns: 10
   token_budget: 10000
-  stop_conditions:
-    - "CONTENT_READY"
   scope: full
   extended_thinking: true
   thinking_budget: 4096
@@ -1242,7 +1219,6 @@ agent:
                 assert_eq!(agent.mcp.len(), 1);
                 assert_eq!(agent.max_turns, Some(10));
                 assert_eq!(agent.token_budget, Some(10000));
-                assert_eq!(agent.stop_conditions.len(), 1);
                 assert_eq!(agent.scope, Some("full".to_string()));
                 assert_eq!(agent.extended_thinking, Some(true));
                 assert_eq!(agent.thinking_budget, Some(4096));
@@ -1400,22 +1376,6 @@ agent:
         match action {
             TaskAction::Agent { agent } => {
                 assert!(agent.mcp.is_empty());
-            }
-            _ => panic!("Expected TaskAction::Agent"),
-        }
-    }
-
-    #[test]
-    fn test_agent_params_empty_stop_conditions() {
-        let yaml = r#"
-agent:
-  prompt: "test"
-  stop_conditions: []
-"#;
-        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
-        match action {
-            TaskAction::Agent { agent } => {
-                assert!(agent.stop_conditions.is_empty());
             }
             _ => panic!("Expected TaskAction::Agent"),
         }

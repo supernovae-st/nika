@@ -872,7 +872,6 @@ async fn test_action_type_helper() {
             mcp: vec![],
             tools: vec![],
             max_turns: None,
-            stop_conditions: vec![],
             stop_sequences: vec![],
             scope: None,
             token_budget: None,
