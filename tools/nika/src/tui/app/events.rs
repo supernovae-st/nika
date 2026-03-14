@@ -18,7 +18,7 @@ use crate::tui::InputMode;
 impl App {
     /// Poll for runtime events from the workflow execution
     ///
-    /// Checks broadcast and legacy mpsc receivers for events,
+    /// Checks broadcast and mpsc receivers for events,
     /// processes them, and updates state accordingly.
     pub(crate) fn poll_runtime_events(&mut self) {
         // Clear buffer for reuse
@@ -40,7 +40,7 @@ impl App {
                 }
             }
         }
-        // Fallback to legacy mpsc receiver
+        // Fallback to mpsc receiver
         if let Some(ref mut rx) = self.event_rx {
             while let Ok(event) = rx.try_recv() {
                 self.event_buffer.push(event);

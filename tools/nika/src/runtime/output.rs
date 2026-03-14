@@ -109,7 +109,7 @@ fn extract_json_from_output(output: &str) -> Result<Value, String> {
 /// Convert execution output to TaskResult, parsing as JSON if output format is json.
 /// Also validates against schema if declared.
 ///
-/// v0.12.1: Empty output with JSON format returns `null` instead of failing.
+/// Empty output with JSON format returns `null` instead of failing.
 /// This enables graceful handling of commands that produce no output.
 pub async fn make_task_result(
     output: String,
@@ -118,7 +118,7 @@ pub async fn make_task_result(
 ) -> TaskResult {
     if let Some(policy) = policy {
         if policy.format == OutputFormat::Json {
-            // v0.12.1: Handle empty output gracefully - return null instead of error
+            // Handle empty output gracefully - return null instead of error
             if output.trim().is_empty() {
                 tracing::debug!(
                     target: "nika::output",
@@ -802,7 +802,7 @@ Enjoy your reading!"#;
             max_retries: None,
         };
 
-        // v0.12.1: Empty output with JSON format returns null
+        // Empty output with JSON format returns null
         let empty_output = "".to_string();
         let result = make_task_result(empty_output, Some(&policy), std::time::Duration::ZERO).await;
 
@@ -820,7 +820,7 @@ Enjoy your reading!"#;
             max_retries: None,
         };
 
-        // v0.12.1: Whitespace-only output also returns null
+        // Whitespace-only output also returns null
         let whitespace_output = "   \n\t  ".to_string();
         let result =
             make_task_result(whitespace_output, Some(&policy), std::time::Duration::ZERO).await;

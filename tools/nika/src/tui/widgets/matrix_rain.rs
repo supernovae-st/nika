@@ -272,7 +272,7 @@ impl MatrixRain {
         self
     }
 
-    /// Alias for with_mascots (backwards compat)
+    /// Alias for with_mascots
     pub fn with_emojis(self, enable: bool) -> Self {
         self.with_mascots(enable)
     }

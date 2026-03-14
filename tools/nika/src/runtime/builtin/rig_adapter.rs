@@ -28,8 +28,8 @@ use crate::event::{EventKind, EventLog};
 /// This allows builtin tools (nika_sleep, nika_log, etc.) to be called
 /// by the LLM during agentic execution.
 ///
-/// v0.12.0: Now supports EventLog emission for `nika_log` and `nika_emit` tools.
-/// v0.12.1: Changed prefix from `nika:` to `nika_` for Anthropic API compatibility.
+/// Supports EventLog emission for `nika_log` and `nika_emit` tools.
+/// Uses `nika_` prefix instead of `nika:` for Anthropic API compatibility.
 pub struct NikaBuiltinToolAdapter {
     /// The wrapped builtin tool
     tool: Arc<dyn BuiltinTool>,
@@ -100,7 +100,7 @@ impl ToolDyn for NikaBuiltinToolAdapter {
                     ToolError::ToolCallError(Box::new(BuiltinToolError(e.to_string())))
                 })?;
 
-            // v0.12.0: Emit events for nika:log and nika:emit
+            // Emit events for nika:log and nika:emit
             if let Some(ref event_log) = self.event_log {
                 match self.tool.name() {
                     "log" => {
@@ -256,7 +256,7 @@ mod tests {
     }
 
     // =========================================================================
-    // v0.12.0: Event Emission Tests
+    // Event Emission Tests
     // =========================================================================
 
     #[tokio::test]

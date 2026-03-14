@@ -76,9 +76,9 @@ pub struct App {
     pub(crate) standalone_state: Option<StandaloneState>,
     /// Cosmic theme
     pub(crate) cosmic_theme: CosmicTheme,
-    /// Color theme (derived from cosmic_theme for backward compat)
+    /// Color theme
     pub(crate) theme: Theme,
-    /// Event receiver from runtime (mpsc - legacy)
+    /// Event receiver from runtime
     pub(crate) event_rx: Option<mpsc::Receiver<NikaEvent>>,
     /// Broadcast receiver from runtime
     pub(crate) broadcast_rx: Option<broadcast::Receiver<NikaEvent>>,
@@ -333,7 +333,7 @@ impl App {
         Ok(())
     }
 
-    /// Set the event receiver from runtime (legacy mpsc)
+    /// Set the event receiver from runtime
     pub fn with_event_receiver(mut self, rx: mpsc::Receiver<NikaEvent>) -> Self {
         self.event_rx = Some(rx);
         self

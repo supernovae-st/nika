@@ -13,14 +13,14 @@
 //! ```yaml
 //! agents:
 //!   researcher:
-//!     from: "@agents/researcher"              # v0.17: From package
+//!     from: "@agents/researcher"              # From package
 //!   local:
-//!     file: ./agents/local.agent.yaml        # Local file (legacy)
+//!     file: ./agents/local.agent.yaml        # Local file
 //!   translator:
 //!     system: "You are a translator..."      # Inline definition
 //!
 //! skills:
-//!   seo: "@prompts/seo-meta"                  # v0.17: From package
+//!   seo: "@prompts/seo-meta"                  # From package
 //!   local: ./skills/seo-writer.skill.md      # Local file
 //! ```
 
@@ -149,7 +149,7 @@ async fn resolve_agent(
 ) -> Result<ResolvedAgent, NikaError> {
     match def {
         AgentDef::From { from } => {
-            // v0.17: Support package references (@agents/name)
+            // Support package references (@agents/name)
             use crate::ast::loader::{load_definition, DefinitionKind};
 
             let source_path: PathBuf = if from.starts_with('@') {
@@ -235,7 +235,7 @@ async fn resolve_agent(
             model,
             max_turns,
             temperature,
-            skills: _, // v0.15.3: agent-level skills handled by skill injector
+            skills: _, // agent-level skills handled by skill injector
         } => Ok(ResolvedAgent {
             system: system.clone(),
             provider: provider.clone(),
@@ -269,7 +269,7 @@ fn default_provider() -> String {
 
 /// Load a skill file content.
 async fn load_skill(name: &str, path: &SkillDef, base_path: &Path) -> Result<String, NikaError> {
-    // v0.17: Support package references (@prompts/name, @skills/name)
+    // Support package references (@prompts/name, @skills/name)
     let file_path: PathBuf = if path.starts_with('@') {
         // Package reference - resolve via registry
         debug!(
@@ -365,7 +365,7 @@ mod tests {
                 model: Some("gpt-4o".to_string()),
                 max_turns: Some(5),
                 temperature: Some(0.7),
-                skills: None, // v0.15.3: agent-level skills
+                skills: None, // agent-level skills
             },
         );
 
@@ -597,7 +597,7 @@ system: "You are a researcher."
                 model: None,
                 max_turns: None,
                 temperature: None,
-                skills: None, // v0.15.3: agent-level skills
+                skills: None, // agent-level skills
             },
         );
 

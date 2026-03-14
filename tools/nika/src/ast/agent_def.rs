@@ -18,7 +18,7 @@
 //!   researcher:
 //!     from: ./agents/researcher           # v0.13: Auto-detect format (folder or file)
 //!   helper:
-//!     file: ./agents/helper.agent.yaml    # Explicit YAML (legacy)
+//!     file: ./agents/helper.agent.yaml    # Explicit YAML
 //!   reviewer:
 //!     from: ./agents/reviewer.md          # Markdown with frontmatter
 //!   translator:
@@ -43,7 +43,7 @@ pub enum AgentDef {
         from: String,
     },
 
-    /// External file reference using `file:` (legacy)
+    /// External file reference using `file:`
     External {
         /// Path to the agent definition file (.agent.yaml)
         file: String,

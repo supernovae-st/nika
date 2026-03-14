@@ -82,7 +82,7 @@ pub async fn process_task_artifacts(
             vec![ArtifactOutput {
                 path: format!("{}.{}", task_id, format.extension()),
                 source: None,
-                template: None, // v0.22: No template for default artifacts
+                template: None,
                 format: Some(*format),
                 mode: workflow_config.map(|c| c.mode),
             }]
@@ -165,7 +165,7 @@ pub async fn process_task_artifacts(
 
 /// Write a single artifact output
 ///
-/// v0.22: Now supports `template:` field - if set, resolves template with bindings
+/// Supports `template:` field - if set, resolves template with bindings
 /// instead of using task output directly.
 async fn write_single_artifact(
     task_id: &str,
@@ -188,7 +188,7 @@ async fn write_single_artifact(
         .or(workflow_config.map(|c| c.mode))
         .unwrap_or(ArtifactMode::Overwrite);
 
-    // v0.22: Determine content source - template or task output
+    // Determine content source - template or task output
     let raw_content: String = if let Some(ref tpl) = output_spec.template {
         // Resolve template with bindings
         debug!(
@@ -517,7 +517,7 @@ mod tests {
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.json".to_string(),
             source: None,
-            template: None, // v0.22: No template
+            template: None,
             format: Some(ArtifactFormat::Json),
             mode: None,
         });
@@ -550,14 +550,14 @@ mod tests {
             ArtifactOutput {
                 path: "raw.txt".to_string(),
                 source: None,
-                template: None, // v0.22
+                template: None,
                 format: Some(ArtifactFormat::Text),
                 mode: None,
             },
             ArtifactOutput {
                 path: "processed.json".to_string(),
                 source: None,
-                template: None, // v0.22
+                template: None,
                 format: Some(ArtifactFormat::Json),
                 mode: None,
             },

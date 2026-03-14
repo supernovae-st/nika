@@ -7,7 +7,7 @@
 //!
 //! - **explicit**: Agent must call `nika:complete` tool (recommended)
 //! - **natural**: Completes when agent has no more tool calls
-//! - **pattern**: Completes when output matches a pattern (legacy)
+//! - **pattern**: Completes when output matches a pattern
 //!
 //! ## Example
 //!
@@ -245,7 +245,7 @@ impl CompletionConfig {
         false
     }
 
-    /// Get the effective completion mode, considering legacy stop_conditions.
+    /// Get the effective completion mode, considering stop_conditions.
     pub fn effective_mode(&self) -> CompletionMode {
         self.mode.clone()
     }
@@ -295,7 +295,7 @@ pub enum CompletionMode {
     /// Completes when agent has no more tool calls (simple tasks)
     Natural,
 
-    /// Completes when output matches a pattern (backward compatibility)
+    /// Completes when output matches a pattern
     Pattern,
 }
 
@@ -388,7 +388,7 @@ pub enum PatternType {
     /// Exact string match
     Exact,
 
-    /// Substring match (default for backward compat with stop_conditions)
+    /// Substring match (default for stop_conditions)
     #[default]
     Contains,
 
@@ -543,9 +543,9 @@ pub enum InstructionTone {
 // ═══════════════════════════════════════════════════════════════════════════
 
 impl CompletionConfig {
-    /// Create a CompletionConfig from legacy stop_conditions.
+    /// Create a CompletionConfig from stop_conditions.
     ///
-    /// This provides backward compatibility with workflows using the old
+    /// This supports workflows using the older
     /// `stop_conditions: ["DONE"]` syntax.
     pub fn from_stop_conditions(conditions: &[String]) -> Option<Self> {
         if conditions.is_empty() {

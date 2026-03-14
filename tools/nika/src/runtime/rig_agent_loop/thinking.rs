@@ -129,7 +129,7 @@ impl RigAgentLoop {
     /// 1. Explicit completion via nika:complete tool
     ///    - With confidence: compare against threshold → HighConfidence/LowConfidence
     ///    - Without confidence: ExplicitCompletion
-    /// 2. Legacy stop conditions (StopConditionMet)
+    /// 2. Stop conditions (StopConditionMet)
     /// 3. Natural completion (NaturalCompletion)
     pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
@@ -312,7 +312,7 @@ impl RigAgentLoop {
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
 
-        // v0.18.0: Use effective_max_tokens (required for extended thinking)
+        // Use effective_max_tokens (required for extended thinking)
         // Claude requires max_tokens > thinking_budget
         let max_tokens = self
             .params
@@ -356,7 +356,7 @@ impl RigAgentLoop {
         let mut input_tokens: u32 = 0;
         let mut output_tokens: u32 = 0;
 
-        // v0.8.5: Per-chunk timeout to prevent hanging streams
+        // Per-chunk timeout to prevent hanging streams
         loop {
             let chunk_result = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
                 Ok(Some(chunk)) => chunk,

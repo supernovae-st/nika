@@ -308,7 +308,7 @@ impl RigAgentLoop {
             return self.run_deepseek().await;
         }
 
-        // v0.15.0: Gemini support
+        // Gemini support
         if has_key("GEMINI_API_KEY") {
             return self.run_gemini().await;
         }
@@ -319,7 +319,7 @@ impl RigAgentLoop {
     }
 
     // =========================================================================
-    // v0.6: Additional Provider Methods
+    // Additional Provider Methods
     // =========================================================================
 
     /// Run with Mistral provider (requires MISTRAL_API_KEY)

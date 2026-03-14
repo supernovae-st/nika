@@ -290,7 +290,7 @@ const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦
 /// DAG visualization widget
 pub struct Dag<'a> {
     nodes: &'a [DagNode],
-    /// Theme for styling (optional for backward compat)
+    /// Theme for styling (optional)
     theme: Option<&'a Theme>,
     /// Selected node for details
     selected: Option<usize>,
@@ -344,7 +344,7 @@ impl<'a> Dag<'a> {
         if let Some(theme) = self.theme {
             status.color(theme)
         } else {
-            // Fallback for backward compatibility
+            // Fallback
             match status {
                 TaskStatus::Queued => DEFAULT_PENDING_COLOR,
                 TaskStatus::Pending => DEFAULT_PENDING_COLOR,
@@ -391,7 +391,7 @@ impl<'a> Dag<'a> {
         if let Some(theme) = self.theme {
             state.chars(self.frame, theme)
         } else {
-            // Fallback for backward compatibility
+            // Fallback
             match state {
                 EdgeState::Inactive => ("│", Color::DarkGray),
                 EdgeState::Active => {
@@ -410,7 +410,7 @@ impl<'a> Dag<'a> {
         if let Some(theme) = self.theme {
             state.flow_indicator(self.frame, theme)
         } else {
-            // Fallback for backward compatibility
+            // Fallback
             match state {
                 EdgeState::Active => {
                     let indicators = ["▼", "▽", "▼", "▽"];

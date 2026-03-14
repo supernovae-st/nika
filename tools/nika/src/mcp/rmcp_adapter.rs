@@ -54,7 +54,7 @@ use crate::util::{CONNECT_TIMEOUT, MCP_CALL_TIMEOUT, RECONNECT_TIMEOUT};
 /// Extract JSON-RPC error code from rmcp ServiceError.
 ///
 /// Uses structured error extraction from rmcp's ServiceError type.
-/// Falls back to regex-based extraction for legacy compatibility.
+/// Falls back to regex-based extraction.
 fn extract_mcp_error_code(error: &ServiceError) -> Option<McpErrorCode> {
     match error {
         ServiceError::McpError(mcp_error) => {
@@ -86,7 +86,7 @@ fn extract_mcp_error_code(error: &ServiceError) -> Option<McpErrorCode> {
 ///
 /// Attempts to find standard JSON-RPC error codes (-32xxx) in error strings.
 /// Used as fallback when structured extraction is not available.
-#[allow(dead_code)] // Kept for legacy compatibility and fallback scenarios
+#[allow(dead_code)] // Kept and fallback scenarios
 fn extract_error_code_from_string(error: &str) -> Option<McpErrorCode> {
     // Look for patterns like "code: -32602" or "(-32602)" or "error -32602"
     let patterns = [r"code:\s*(-?\d+)", r"\((-\d+)\)", r"error\s+(-\d+)"];

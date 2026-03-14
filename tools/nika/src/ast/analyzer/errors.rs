@@ -175,7 +175,7 @@ pub enum AnalyzeErrorKind {
     MissingField,
     /// Invalid template expression
     InvalidTemplate,
-    /// Unknown flow definition (legacy, kept for backwards compat diagnostics)
+    /// Unknown flow definition
     UnknownFlow,
     /// Unknown MCP server
     UnknownMcpServer,

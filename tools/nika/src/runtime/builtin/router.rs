@@ -60,7 +60,7 @@ impl BuiltinToolRouter {
         tools.insert("assert", Arc::new(AssertTool));
         tools.insert("prompt", Arc::new(PromptTool::default()));
         tools.insert("run", Arc::new(RunTool));
-        tools.insert("complete", Arc::new(CompleteTool)); // v0.21
+        tools.insert("complete", Arc::new(CompleteTool));
 
         Self { tools }
     }
@@ -233,8 +233,8 @@ mod tests {
         assert!(router.has_tool("assert"));
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
-        assert!(router.has_tool("complete")); // v0.21
-                                              // new() does NOT include file tools
+        assert!(router.has_tool("complete"));
+        // new() does NOT include file tools
         assert!(!router.has_tool("read"));
         assert!(!router.has_tool("write"));
         assert_eq!(router.tool_names().len(), 7); // 6 core + complete
@@ -252,7 +252,7 @@ mod tests {
         assert!(router.has_tool("assert"));
         assert!(router.has_tool("prompt"));
         assert!(router.has_tool("run"));
-        assert!(router.has_tool("complete")); // v0.21
+        assert!(router.has_tool("complete"));
 
         // 5 file tools
         assert!(router.has_tool("read"));
@@ -439,7 +439,7 @@ mod tests {
             .dispatch("nika:run", r#"{"workflow":"test.nika.yaml"}"#.to_string())
             .await;
 
-        // v0.14.0: Path canonicalization gives "resolve workflow path" error
+        // Path canonicalization gives "resolve workflow path" error
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(

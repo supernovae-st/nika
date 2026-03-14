@@ -165,7 +165,7 @@ impl RigAgentLoop {
 
         // Add builtin nika:* tools
         // If params.tools is non-empty, only add tools that are explicitly requested.
-        // If params.tools is empty, add all core tools for backward compatibility.
+        // If params.tools is empty, add all core tools.
         use super::builtin::{
             AssertTool, CompleteTool, EmitTool, LogTool, NikaBuiltinToolAdapter, PromptTool,
             RunTool, SleepTool,
@@ -176,7 +176,7 @@ impl RigAgentLoop {
         let event_log_arc = Arc::new(event_log.clone());
         let task_id_arc: Arc<str> = task_id.as_str().into();
 
-        // v0.22: Filter builtin tools based on params.tools
+        // Filter builtin tools based on params.tools
         // Extract the nika:* tools from params.tools for filtering
         let requested_nika_tools: Vec<&str> = params
             .tools
@@ -186,7 +186,7 @@ impl RigAgentLoop {
             .collect();
 
         // Helper: check if a tool should be added
-        // If no nika:* tools requested, add all core tools (backward compat)
+        // If no nika:* tools requested, add all core tools
         // Otherwise, only add if explicitly requested
         let should_add = |name: &str| -> bool {
             if requested_nika_tools.is_empty() {
@@ -230,7 +230,7 @@ impl RigAgentLoop {
             ))));
         }
 
-        // v0.22: Add file tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
+        // Add file tools (nika:read, nika:write, nika:edit, nika:glob, nika:grep)
         // File tools require a ToolContext for security boundaries
         // Only add if explicitly requested in params.tools
         let file_tools_requested: Vec<&str> = requested_nika_tools
@@ -342,7 +342,7 @@ impl RigAgentLoop {
     }
 
     // =========================================================================
-    // v0.15.4: Skill Injection
+    // Skill Injection
     // =========================================================================
 
     /// Inject skills into the system prompt

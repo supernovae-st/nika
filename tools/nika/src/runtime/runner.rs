@@ -343,7 +343,7 @@ impl Runner {
             }
         }
 
-        // Fallback: Try any successful final task (for backwards compatibility)
+        // Fallback: Try any successful final task
         let final_tasks = self.flow_graph.get_final_tasks();
         for task_id in final_tasks {
             if let Some(result) = self.datastore.get(&task_id) {
@@ -622,7 +622,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
         let _is_for_each = for_each_binding.is_some();
 
-        // Build bindings from with: or use: (legacy) wiring
+        // Build bindings from with: or use: wiring
         let mut bindings = match if task.with_spec.is_some() {
             ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &datastore)
         } else {

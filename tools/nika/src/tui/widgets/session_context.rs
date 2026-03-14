@@ -51,7 +51,7 @@ pub enum McpStatus {
 }
 
 impl McpStatus {
-    /// Get indicator emoji and default color (for backward compatibility)
+    /// Get indicator emoji and default color
     pub fn indicator(&self) -> (&'static str, Color) {
         match self {
             Self::Hot => ("🟢", DEFAULT_HOT_COLOR),

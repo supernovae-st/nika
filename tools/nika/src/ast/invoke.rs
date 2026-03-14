@@ -35,7 +35,7 @@ use serde::Deserialize;
 pub struct InvokeParams {
     /// MCP server name (must match a key in workflow's `mcp` config)
     ///
-    /// Also accepts `server` as a legacy alias for backwards compatibility.
+    /// Also accepts `server` as an alias.
     /// Optional for builtin tools (nika:* prefix) which don't need MCP.
     #[serde(alias = "server", default)]
     pub mcp: Option<String>,

@@ -110,7 +110,7 @@ impl BuiltinTool for PromptTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // v0.12.1: OpenAI-compatible schema with additionalProperties: false
+        // OpenAI-compatible schema with additionalProperties: false
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -181,7 +181,7 @@ impl BuiltinTool for PromptTool {
                 }
             }
 
-            // v0.10.0: Use HITL handler if provided
+            // Use HITL handler if provided
             if let Some(handler) = &self.handler {
                 let request = HitlRequest::new(&params.message);
                 let request = if let Some(default) = params.default.clone() {
@@ -367,7 +367,7 @@ mod tests {
         assert_eq!(params.default, None);
     }
 
-    // v0.10.0: Tests for HitlHandler integration
+    // Tests for HitlHandler integration
     #[tokio::test]
     async fn test_prompt_with_hitl_handler_calls_handler() {
         use crate::runtime::hitl::{HitlError, HitlResponse};

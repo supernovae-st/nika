@@ -249,7 +249,7 @@ impl ChatView {
     /// v0.9.1: Updated to handle TaskBox::Infer (tokens only) - Matrix effect handles text
     pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u32) {
         // Update TaskBox::Infer token count (if present)
-        // v0.9.1 FIX: Handle Task(TaskBox::Infer) instead of legacy InferStream
+        // v0.9.1 FIX: Handle Task(TaskBox::Infer)
         for content in self.inline_content.iter_mut().rev() {
             match content {
                 InlineContent::Task(TaskBox::Infer(infer)) if infer.state.is_running() => {
@@ -257,7 +257,7 @@ impl ChatView {
                     break;
                 }
                 InlineContent::InferStream(data) => {
-                    // Legacy support - update if still used
+                    // Update if still used
                     data.append_content(chunk);
                     data.update_tokens(tokens_out);
                     break;

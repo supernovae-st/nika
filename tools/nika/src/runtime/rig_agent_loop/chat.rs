@@ -20,7 +20,7 @@ use super::RigAgentLoop;
 
 impl RigAgentLoop {
     // =========================================================================
-    // v0.6: Chat History Management
+    // Chat History Management
     // =========================================================================
 
     /// Add a user/assistant turn to the conversation history

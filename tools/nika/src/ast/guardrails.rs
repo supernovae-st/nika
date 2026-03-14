@@ -796,7 +796,7 @@ pub fn run_sync_guardrails(guardrails: &[GuardrailConfig], output: &str) -> Vec<
         .collect()
 }
 
-/// Run all guardrails against an output (legacy, sync only).
+/// Run all guardrails against an output (sync only).
 /// Check if all guardrails passed.
 pub fn all_guardrails_passed(results: &[GuardrailResult]) -> bool {
     results.iter().all(|r| r.passed)

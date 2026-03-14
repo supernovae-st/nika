@@ -178,7 +178,7 @@ impl TaskExecutor {
         }
 
         // Use infer_stream_with_options when LLM control options are set
-        // Otherwise fall back to infer_stream for backward compatibility.
+        // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
         let has_llm_options =
@@ -199,7 +199,7 @@ impl TaskExecutor {
                     message: e.to_string(),
                 })?
         } else {
-            // Backward compatibility: use original infer_stream
+            // Fallback: use original infer_stream
             provider
                 .infer_stream(&prompt, tx, model)
                 .await
@@ -291,7 +291,7 @@ impl TaskExecutor {
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
-        // Note: Shell escaping is NOT applied by default to preserve backward compatibility.
+        // Note: Shell escaping is NOT applied by default.
         // For values that need shell escaping, use {{use.alias|shell}} syntax.
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 

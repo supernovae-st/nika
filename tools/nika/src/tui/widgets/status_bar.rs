@@ -362,7 +362,7 @@ impl<'a> StatusBar<'a> {
             return self.hints_from_keybindings(keybindings_for_context(self.view, mode));
         }
 
-        // Fallback to static hints (for backwards compatibility)
+        // Fallback to static hints
         match self.view {
             TuiView::Chat => vec![
                 KeyHint::new("Enter", "Send"),

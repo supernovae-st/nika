@@ -136,7 +136,7 @@ pub fn default_model_dir() -> PathBuf {
 
 /// Detect total system RAM in gigabytes.
 ///
-/// This is a re-export of [`crate::util::system::get_total_ram_gb`] for backward
+/// This is a re-export of [`crate::util::system::get_total_ram_gb`] 
 /// compatibility. New code should use `crate::util::system` directly.
 #[must_use]
 pub fn detect_system_ram_gb() -> f64 {

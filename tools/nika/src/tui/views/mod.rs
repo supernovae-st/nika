@@ -282,7 +282,7 @@ impl TuiView {
         }
     }
 
-    /// Toggle to the next view (for backwards compatibility)
+    /// Toggle to the next view
     pub fn toggle(&self) -> Self {
         self.next()
     }

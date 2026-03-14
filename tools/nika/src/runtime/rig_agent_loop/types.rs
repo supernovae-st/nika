@@ -49,17 +49,17 @@ impl RigAgentStatus {
     pub fn as_canonical_str(&self) -> &'static str {
         match self {
             Self::NaturalCompletion => "end_turn",
-            Self::ExplicitCompletion => "tool_complete", // v0.21
-            Self::HighConfidence(_) => "tool_complete_high", // v0.22
-            Self::LowConfidence(_) => "tool_complete_low", // v0.22
-            Self::FlaggedForReview(_) => "tool_complete_flagged", // v0.22 routing
-            Self::Escalated(_) => "escalated",           // v0.22 routing
+            Self::ExplicitCompletion => "tool_complete",
+            Self::HighConfidence(_) => "tool_complete_high",
+            Self::LowConfidence(_) => "tool_complete_low",
+            Self::FlaggedForReview(_) => "tool_complete_flagged",
+            Self::Escalated(_) => "escalated",
             Self::StopConditionMet => "stop_sequence",
             Self::MaxTurnsReached => "max_turns",
             Self::TokenBudgetExceeded => "max_tokens",
-            Self::CostLimitReached => "max_cost", // v0.24
-            Self::DurationLimitReached => "max_duration", // v0.24
-            Self::PartialCompletion => "partial", // v0.24
+            Self::CostLimitReached => "max_cost",
+            Self::DurationLimitReached => "max_duration",
+            Self::PartialCompletion => "partial",
             Self::Failed => "error",
         }
     }

@@ -27,7 +27,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 /// Parameters for nika:emit tool.
-/// v0.12.1: Supports both `payload` (JSON) and `payload_json` (string) for OpenAI compatibility.
+/// Supports both `payload` (JSON) and `payload_json` (string) for OpenAI compatibility.
 #[derive(Debug, Clone, Deserialize)]
 struct EmitParams {
     /// Event name/type.
@@ -84,7 +84,7 @@ impl BuiltinTool for EmitTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // v0.12.1: OpenAI-compatible schema
+        // OpenAI-compatible schema
         // OpenAI strict mode requires additionalProperties: false everywhere
         // To support arbitrary payloads, we use payload_json as a string (JSON-encoded)
         serde_json::json!({
@@ -124,7 +124,7 @@ impl BuiltinTool for EmitTool {
                 });
             }
 
-            // v0.12.1: Get payload from either payload_json (OpenAI) or payload (Claude)
+            // Get payload from either payload_json (OpenAI) or payload (Claude)
             let payload = params.get_payload()?;
 
             // Note: The actual EventLog emission will be handled by the Router
@@ -174,7 +174,7 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["name"].is_object());
-        // v0.12.1: payload_json for OpenAI compatibility
+        // payload_json for OpenAI compatibility
         assert!(schema["properties"]["payload_json"].is_object());
         assert_eq!(schema["additionalProperties"], false);
         assert!(schema["required"]

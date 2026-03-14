@@ -54,7 +54,7 @@ pub use super::dag::VerbType;
 
 use crate::tui::theme::Theme;
 
-// Legacy color constants - kept for StepStatus::indicator() which doesn't have theme access
+// Color constants for StepStatus::indicator() which doesn't have theme access
 // These will be phased out as we migrate to theme-aware methods
 const COLOR_RUNNING: Color = Color::Rgb(245, 158, 11); // Amber-500 (matches theme.status_running)
 const COLOR_SUCCESS: Color = Color::Rgb(16, 185, 129); // Emerald-500 (matches theme.status_success)

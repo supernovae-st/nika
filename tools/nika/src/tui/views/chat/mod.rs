@@ -486,7 +486,7 @@ impl ChatView {
             // v0.9.1: NIKA butterfly pattern + explosion
             rain_opacity: 1.0,                  // Start visible for NIKA pattern
             rain_fading: false,                 // Pattern handles its own fade
-            intro_state: NikaIntroState::new(), // Legacy (kept for compatibility)
+            intro_state: NikaIntroState::new(), 
             explosion_frame: 0,                 // v0.9.1: Start with NIKA pattern visible
             nika_pattern_visible: true,         // v0.9.1: Show NIKA pattern at start
 

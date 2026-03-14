@@ -196,9 +196,9 @@ pub struct AgentParams {
     /// Controls how the agent signals task completion:
     /// - `mode: explicit` - Agent must call `nika:complete` tool (recommended)
     /// - `mode: natural` - Completes when agent has no more tool calls
-    /// - `mode: pattern` - Completes on pattern match (backward compat)
+    /// - `mode: pattern` - Completes on pattern match
     ///
-    /// When not set, defaults to backward-compatible behavior using
+    /// When not set, defaults to behavior using
     /// `stop_conditions` if present, otherwise `natural` mode.
     #[serde(default)]
     pub completion: Option<CompletionConfig>,
@@ -321,16 +321,16 @@ impl AgentParams {
 
     /// Get effective completion configuration.
     ///
-    /// Returns the completion config, with backward compatibility:
+    /// Returns the completion config, with fallback:
     /// - If `completion` is set, returns it
-    /// - If `stop_conditions` is set (legacy), creates a Pattern-mode config
+    /// - If `stop_conditions` is set, creates a Pattern-mode config
     /// - Otherwise, returns None (natural completion mode)
     pub fn effective_completion(&self) -> Option<CompletionConfig> {
         if self.completion.is_some() {
             return self.completion.clone();
         }
 
-        // Backward compatibility: migrate stop_conditions to completion config
+        // Migrate stop_conditions to completion config
         if !self.stop_conditions.is_empty() {
             return CompletionConfig::from_stop_conditions(&self.stop_conditions);
         }

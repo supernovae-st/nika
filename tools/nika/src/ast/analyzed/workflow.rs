@@ -104,7 +104,7 @@ impl AnalyzedWorkflow {
     }
 }
 
-// SchemaVersion is defined in ast::schema and re-exported here for backwards compatibility.
+// SchemaVersion is defined in ast::schema and re-exported here.
 pub use super::super::schema::SchemaVersion;
 
 /// Analyzed MCP server configuration.

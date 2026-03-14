@@ -221,7 +221,7 @@ static GEMINI_PRICING: LazyLock<HashMap<&'static str, ModelPricing>> = LazyLock:
     m.insert("gemini-1.5-flash", ModelPricing::new(0.075, 0.3));
     m.insert("gemini-1.5-flash-latest", ModelPricing::new(0.075, 0.3));
     m.insert("gemini-1.5-flash-8b", ModelPricing::new(0.0375, 0.15));
-    // Gemini 1.0 Pro (legacy)
+    // Gemini 1.0 Pro
     m.insert("gemini-pro", ModelPricing::new(0.5, 1.5));
     m
 });

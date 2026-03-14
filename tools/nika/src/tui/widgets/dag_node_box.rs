@@ -334,7 +334,7 @@ pub struct NodeBox<'a> {
     border_style: BorderStyle,
     /// Progress percentage (0-100) for running tasks
     progress: Option<u8>,
-    /// Theme for colors (optional for backward compatibility)
+    /// Theme for colors (optional)
     theme: Option<&'a Theme>,
 }
 

@@ -212,7 +212,7 @@ pub struct ChatAgent {
     model_override: Option<String>,
     /// Conversation history
     history: Vec<ChatMessage>,
-    /// Optional streaming channel for real-time updates (String for backward compat)
+    /// Optional streaming channel for real-time updates
     streaming_tx: Option<mpsc::Sender<String>>,
     /// Optional streaming channel for token-by-token updates
     stream_chunk_tx: Option<mpsc::Sender<StreamChunk>>,
@@ -355,7 +355,7 @@ impl ChatAgent {
         Ok(agent)
     }
 
-    /// Set streaming channel for real-time updates (legacy String channel)
+    /// Set streaming channel for real-time updates
     pub fn with_streaming(mut self, tx: mpsc::Sender<String>) -> Self {
         self.streaming_tx = Some(tx);
         self
@@ -501,7 +501,7 @@ impl ChatAgent {
         // Start streaming state
         self.streaming_state.start();
 
-        // Send prompt to legacy streaming channel if available
+        // Send prompt to streaming channel if available
         if let Some(tx) = &self.streaming_tx {
             let _ = tx
                 .send(format!("Sending to {}...", self.provider.name()))
@@ -550,7 +550,7 @@ impl ChatAgent {
         // Add assistant message to history
         self.history.push(ChatMessage::assistant(&response));
 
-        // Send completion to legacy streaming channel
+        // Send completion to streaming channel
         if let Some(tx) = &self.streaming_tx {
             let _ = tx.send(response.clone()).await;
         }

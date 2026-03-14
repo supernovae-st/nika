@@ -92,7 +92,7 @@ impl RigAgentLoop {
             match chunk_result {
                 Ok(content) => match content {
                     StreamedAssistantContent::Text(text) => {
-                        // v0.8.1: Send token to TUI for real-time display
+                        // Send token to TUI for real-time display
                         if let Some(ref tx) = self.stream_tx {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Token(
                                 text.text.clone(),
@@ -101,7 +101,7 @@ impl RigAgentLoop {
                         response_parts.push(text.text);
                     }
                     StreamedAssistantContent::ReasoningDelta { reasoning, .. } => {
-                        // v0.8.1: Send thinking content to TUI
+                        // Send thinking content to TUI
                         if let Some(ref tx) = self.stream_tx {
                             let _ = tx.try_send(crate::provider::rig::StreamChunk::Thinking(
                                 reasoning.clone(),
@@ -113,7 +113,7 @@ impl RigAgentLoop {
                         // Final reasoning block - extract text from content blocks
                         for block in reasoning.content {
                             if let ReasoningContent::Text { text, .. } = block {
-                                // v0.8.1: Send thinking to TUI
+                                // Send thinking to TUI
                                 if let Some(ref tx) = self.stream_tx {
                                     let _ = tx.try_send(
                                         crate::provider::rig::StreamChunk::Thinking(text.clone()),
@@ -128,7 +128,7 @@ impl RigAgentLoop {
                         if let Some(usage) = final_resp.token_usage() {
                             input_tokens = usage.input_tokens as u32;
                             output_tokens = usage.output_tokens as u32;
-                            // v0.8.1: Send final metrics to TUI
+                            // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
                                 let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
                                     input_tokens: usage.input_tokens,
@@ -171,7 +171,7 @@ impl RigAgentLoop {
     /// - With tools + TUI: Use `stream_prompt()` with real-time chunk delivery
     /// - With tools + CLI: Use `stream_prompt()` without TUI, still captures tokens
     ///
-    /// **v0.24.0 Fix:** Previously, CLI mode with tools returned 0 tokens. Now all paths
+    /// **Fix:** Previously, CLI mode with tools returned 0 tokens. Now all paths
     /// use `stream_prompt()` which provides token usage via `FinalResponse::usage()`.
     ///
     /// # Type Parameters
@@ -197,7 +197,7 @@ impl RigAgentLoop {
             self.stream_completion_with_tokens(&model, prompt, Some(&preamble))
                 .await
         } else {
-            // v0.8.1: With tools - use REAL streaming if TUI mode (stream_tx set)
+            // With tools - use REAL streaming if TUI mode (stream_tx set)
             if self.stream_tx.is_some() {
                 return self
                     .stream_with_tools_streaming(model, prompt, tools, max_turns)
@@ -226,7 +226,7 @@ impl RigAgentLoop {
 
             let agent = builder.build();
 
-            // v0.24.0: Use stream_prompt() to get token usage via FinalResponse
+            // Use stream_prompt() to get token usage via FinalResponse
             // This consumes the stream without sending to TUI, but captures token counts
             let mut stream: RigStreamingResult<_> = agent
                 .stream_prompt(prompt)
@@ -335,7 +335,7 @@ impl RigAgentLoop {
 
         let agent = builder.build();
 
-        // v0.8.1: STREAMING with stream_prompt()
+        // STREAMING with stream_prompt()
         // Note: multi_turn() sets max tool call rounds (0 = single turn, >0 = multi-turn)
         // The stream is created directly, errors come from individual items
         let mut stream: RigStreamingResult<_> = agent
@@ -349,7 +349,7 @@ impl RigAgentLoop {
         let mut output_tokens = 0u32;
         let mut tool_count = 0u32;
 
-        // v0.8.5: Per-chunk timeout to prevent hanging streams
+        // Per-chunk timeout to prevent hanging streams
         loop {
             let chunk = match timeout(STREAM_CHUNK_TIMEOUT, stream.next()).await {
                 Ok(Some(chunk)) => chunk,
@@ -396,7 +396,7 @@ impl RigAgentLoop {
                         let call_id = format!("agent-{}-{}", self.task_id, tool_count);
                         let tool_name = tool_call.function.name.clone();
 
-                        // v0.8.1: Serialize args once, reuse for TUI and event log
+                        // Serialize args once, reuse for TUI and event log
                         let args_string = serde_json::to_string(&tool_call.function.arguments)
                             .unwrap_or_default();
                         let args_value: Option<Value> = serde_json::from_str(&args_string).ok();

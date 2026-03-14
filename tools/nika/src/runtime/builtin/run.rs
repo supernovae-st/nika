@@ -44,7 +44,7 @@ use std::time::{Duration, Instant};
 tokio::task_local! {
     /// Workflow nesting depth for the current execution context.
     /// Uses task_local! for proper isolation between concurrent workflows.
-    /// v0.14.0: Replaces global AtomicU32 which had race conditions.
+    /// Replaces global AtomicU32 which had race conditions.
     static WORKFLOW_DEPTH: Cell<u32>;
 }
 
@@ -60,7 +60,7 @@ const MAX_ALLOWED_DEPTH: u32 = 10;
 const MAX_TIMEOUT_SECS: u64 = 3600;
 
 /// Parameters for nika_run tool.
-/// v0.14.0: Added timeout_secs, max_depth for production safety.
+/// Includes timeout_secs, max_depth for production safety.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RunParams {
     /// Path to the workflow file to execute.
@@ -140,7 +140,7 @@ impl BuiltinTool for RunTool {
     }
 
     fn parameters_schema(&self) -> serde_json::Value {
-        // v0.14.0: Added timeout_secs and max_depth for production safety
+        // Includes timeout_secs and max_depth for production safety
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -205,11 +205,11 @@ impl BuiltinTool for RunTool {
                 });
             }
 
-            // v0.14.0: Clamp max_depth and timeout to allowed ranges (defense-in-depth)
+            // Clamp max_depth and timeout to allowed ranges (defense-in-depth)
             let max_depth = params.max_depth.min(MAX_ALLOWED_DEPTH);
             let timeout_secs = params.timeout_secs.min(MAX_TIMEOUT_SECS);
 
-            // v0.14.0: Check current depth using task_local! (race-condition-safe)
+            // Check current depth using task_local! (race-condition-safe)
             let depth = current_depth();
             if depth >= max_depth {
                 return Err(NikaError::BuiltinToolError {
@@ -224,7 +224,7 @@ impl BuiltinTool for RunTool {
             let next_depth = depth + 1;
             let timeout_duration = Duration::from_secs(timeout_secs);
 
-            // v0.14.0: Path canonicalization for security
+            // Path canonicalization for security
             let workflow_path = Path::new(&params.workflow);
             let canonical_path =
                 workflow_path
@@ -246,7 +246,7 @@ impl BuiltinTool for RunTool {
                 "Resolved workflow path"
             );
 
-            // v0.14.0: Use tokio::fs for async file I/O (was blocking std::fs)
+            // Use tokio::fs for async file I/O (was blocking std::fs)
             // Wrap file read in timeout to prevent hangs on slow filesystems
             let yaml_content = tokio::time::timeout(
                 Duration::from_secs(30), // 30s timeout for file I/O
@@ -281,7 +281,7 @@ impl BuiltinTool for RunTool {
                 "Executing nested workflow"
             );
 
-            // v0.14.0: Create runner and inject context if provided
+            // Create runner and inject context if provided
             let mut runner = Runner::new(workflow).quiet();
 
             // Inject parent context into child workflow's datastore
@@ -289,7 +289,7 @@ impl BuiltinTool for RunTool {
                 runner = runner.with_initial_context("__parent_context__", context);
             }
 
-            // v0.14.0: Execute with task_local! depth tracking
+            // Execute with task_local! depth tracking
             // WORKFLOW_DEPTH.scope() provides automatic cleanup on panic/cancellation
             let execution_result = WORKFLOW_DEPTH
                 .scope(Cell::new(next_depth), async {
@@ -361,9 +361,9 @@ mod tests {
         let schema = tool.parameters_schema();
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["workflow"].is_object());
-        // v0.12.1: context_json for OpenAI compatibility
+        // context_json for OpenAI compatibility
         assert!(schema["properties"]["context_json"].is_object());
-        // v0.14.0: timeout_secs and max_depth for production safety
+        // timeout_secs and max_depth for production safety
         assert!(schema["properties"]["timeout_secs"].is_object());
         assert!(schema["properties"]["max_depth"].is_object());
         assert_eq!(schema["additionalProperties"], false);
@@ -382,7 +382,7 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        // v0.14.0: Path canonicalization gives "Failed to resolve workflow path" error
+        // Path canonicalization gives "Failed to resolve workflow path" error
         assert!(
             err.to_string().contains("resolve workflow path")
                 || err.to_string().contains("not found")
@@ -528,7 +528,7 @@ tasks:
         assert_eq!(params.workflow, "test.nika.yaml");
         assert!(params.context.is_some());
         assert_eq!(params.context.as_ref().unwrap()["key"], "value");
-        // v0.14.0: defaults
+        // defaults
         assert_eq!(params.timeout_secs, 300);
         assert_eq!(params.max_depth, 3);
     }
@@ -540,7 +540,7 @@ tasks:
 
         assert_eq!(params.workflow, "test.nika.yaml");
         assert!(params.context.is_none());
-        // v0.14.0: defaults applied
+        // defaults applied
         assert_eq!(params.timeout_secs, 300);
         assert_eq!(params.max_depth, 3);
     }
@@ -608,7 +608,7 @@ tasks:
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.14.0: task_local! DEPTH TRACKING TESTS
+    // task_local! DEPTH TRACKING TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
@@ -703,7 +703,7 @@ tasks:
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.14.0: TIMEOUT CLAMPING TESTS
+    // TIMEOUT CLAMPING TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
@@ -737,7 +737,7 @@ tasks:
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v0.14.0: CONTEXT INJECTION TESTS
+    // CONTEXT INJECTION TESTS
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
