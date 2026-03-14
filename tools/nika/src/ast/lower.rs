@@ -1,10 +1,10 @@
-//! Lowering: Analyzed AST -> Legacy AST.
+//! Lowering: Analyzed AST -> Runtime Types.
 //!
-//! Converts the validated [`AnalyzedWorkflow`] into the legacy [`Workflow`]
-//! structure consumed by the runtime engine.
+//! Converts the validated [`AnalyzedWorkflow`] into the runtime [`Workflow`]
+//! structure consumed by the execution engine.
 //!
-//! This is Phase 3 of the AST unification (Option D: Bridge Pattern):
-//! `YAML -> Raw -> Analyzed -> lower() -> Legacy -> Runtime`
+//! Phase 3 of the three-phase pipeline:
+//! `YAML -> Raw -> Analyzed -> lower() -> Workflow -> Runtime`
 
 use std::sync::Arc;
 
@@ -27,7 +27,7 @@ use super::workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Lower an [`AnalyzedWorkflow`] into a legacy [`Workflow`].
+/// Lower an [`AnalyzedWorkflow`] into a runtime [`Workflow`].
 ///
 /// The analyzed workflow is consumed. All `TaskId` references are resolved
 /// back to string names via the embedded [`TaskTable`].
@@ -307,7 +307,7 @@ fn lower_mcp_servers(
                 },
             )),
             McpTransport::Sse => {
-                tracing::warn!(server = %name, "SSE MCP server has no legacy equivalent and will be dropped during lowering");
+                tracing::warn!(server = %name, "SSE MCP server has no runtime equivalent and will be dropped during lowering");
                 None
             }
         })
@@ -354,7 +354,7 @@ fn build_flows(tasks: &[AnalyzedTask], table: &TaskTable) -> Vec<Flow> {
     flows
 }
 
-/// Build per-task dependency list for the legacy `flow` field.
+/// Build per-task dependency list for the runtime `flow` field.
 fn task_dep_names(
     depends: &[TaskId],
     implicit: &[TaskId],

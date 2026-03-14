@@ -1496,10 +1496,10 @@ async fn run_workflow(
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
 
-    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    // Three-phase pipeline: YAML → Raw → Analyzed → Workflow
     let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
+    // Expand includes (DAG fusion)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -1544,10 +1544,10 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
 
-    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    // Three-phase pipeline: YAML → Raw → Analyzed → Workflow
     let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
+    // Expand includes (DAG fusion)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -1583,10 +1583,10 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let schema_validator = WorkflowSchemaValidator::new()?;
     schema_validator.validate_yaml(&yaml)?;
 
-    // Unified pipeline: YAML → Raw → Analyzed → Legacy (v0.28 Bridge Pattern)
+    // Three-phase pipeline: YAML → Raw → Analyzed → Workflow
     let workflow = parse_workflow(&yaml)?;
 
-    // Expand includes (v0.14.2 - DAG fusion, operates on legacy Workflow)
+    // Expand includes (DAG fusion)
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())

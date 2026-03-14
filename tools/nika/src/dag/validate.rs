@@ -29,7 +29,7 @@ use crate::error::NikaError;
 
 use super::flow::Dag;
 
-// Legacy imports for validate_use_wiring shim
+// Imports for runtime Workflow validation (validate_use_wiring)
 use crate::ast::{TaskAction, Workflow};
 use crate::binding::{validate_refs, WiringSpec};
 
@@ -219,20 +219,20 @@ pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), 
         // v0.28: Validate with: bindings if present, otherwise validate use: bindings
         if let Some(ref with_spec) = task.with_spec {
             validate_wiring(&task.id, with_spec, &all_task_ids, flow_graph)?;
-            legacy_validate_template_refs_with(task)?;
+            validate_template_refs_with(task)?;
         } else {
             if let Some(ref wiring) = task.use_wiring {
-                legacy_validate_wiring(&task.id, wiring, &all_task_ids, flow_graph)?;
+                validate_use_wiring_spec(&task.id, wiring, &all_task_ids, flow_graph)?;
             }
-            legacy_validate_template_refs(task)?;
+            validate_use_template_refs(task)?;
         }
     }
 
     Ok(())
 }
 
-/// Legacy: validate a single use: wiring spec.
-fn legacy_validate_wiring(
+/// Validate a single `use:` wiring spec (runtime `Task` type).
+fn validate_use_wiring_spec(
     task_id: &str,
     wiring: &WiringSpec,
     all_task_ids: &FxHashSet<&str>,
@@ -246,8 +246,8 @@ fn legacy_validate_wiring(
     Ok(())
 }
 
-/// Legacy: validate template refs for old Task type (use: block → {{use.alias}}).
-fn legacy_validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
+/// Validate `{{use.alias}}` template refs (runtime `Task` type).
+fn validate_use_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
     let mut declared_aliases: FxHashSet<String> = task
         .use_wiring
         .as_ref()
@@ -263,7 +263,7 @@ fn legacy_validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaErro
         declared_aliases.insert(as_var);
     }
 
-    let templates = legacy_extract_templates(&task.action);
+    let templates = extract_task_templates(&task.action);
     for template in templates {
         validate_refs(&template, &declared_aliases, &task.id)?;
     }
@@ -271,8 +271,8 @@ fn legacy_validate_template_refs(task: &crate::ast::Task) -> Result<(), NikaErro
     Ok(())
 }
 
-/// Legacy Task with with: block → validate {{with.alias}} refs (v0.28).
-fn legacy_validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError> {
+/// Validate `{{with.alias}}` template refs (runtime `Task` type).
+fn validate_template_refs_with(task: &crate::ast::Task) -> Result<(), NikaError> {
     let mut declared_aliases: FxHashSet<String> = task
         .with_spec
         .as_ref()
@@ -288,7 +288,7 @@ fn legacy_validate_template_refs_with(task: &crate::ast::Task) -> Result<(), Nik
         declared_aliases.insert(as_var);
     }
 
-    let templates = legacy_extract_templates(&task.action);
+    let templates = extract_task_templates(&task.action);
     for template in templates {
         validate_with_refs(&template, &declared_aliases, &task.id)?;
     }
@@ -296,8 +296,8 @@ fn legacy_validate_template_refs_with(task: &crate::ast::Task) -> Result<(), Nik
     Ok(())
 }
 
-/// Legacy: extract template strings from old TaskAction.
-fn legacy_extract_templates(action: &TaskAction) -> Vec<String> {
+/// Extract template strings from a runtime `TaskAction`.
+fn extract_task_templates(action: &TaskAction) -> Vec<String> {
     let mut templates = Vec::new();
     match action {
         TaskAction::Infer { infer } => {

@@ -1,47 +1,54 @@
 //! AST Module - Abstract Syntax Tree for YAML workflows
 //!
-//! # Two-Phase IR Architecture (v0.19)
+//! # Three-Phase Pipeline
 //!
-//! Nika uses a two-phase IR similar to rustc:
+//! Nika uses a three-phase pipeline similar to rustc:
 //!
-//! 1. **raw** - Parsed from YAML with full span tracking (line:col)
-//! 2. **analyzed** - Validated, references resolved, ready for execution (planned)
+//! ```text
+//! YAML → raw::parse → analyzer::analyze → lower → Workflow → Runtime
+//! ```
 //!
-//! The existing types (Workflow, Task, etc.) are the "legacy" AST that will
-//! gradually migrate to use the new two-phase architecture.
+//! 1. **raw** — Parsed from YAML with full span tracking (line:col)
+//! 2. **analyzed** — Validated, references resolved, TaskId interning
+//! 3. **runtime types** — `Workflow`, `Task`, etc. consumed by the execution engine
+//!
+//! The `lower` module converts analyzed AST into the runtime types.
 //!
 //! # Modules
 //!
-//! ## New (v0.19 Foundation)
+//! ## Pipeline
 //! - `raw`: Raw AST with `Spanned<T>` fields for precise error locations
+//! - `analyzed`: Validated AST with TaskId interning and semantic checks
+//! - `analyzer`: Validation and transformation (raw → analyzed)
+//! - `lower`: Lowering (analyzed → runtime types)
 //!
-//! ## Legacy (being migrated)
+//! ## Runtime Types
 //! - `workflow`: Workflow, Task, Flow, FlowEndpoint
 //! - `action`: TaskAction, InferParams, ExecParams, FetchParams
-//! - `invoke`: InvokeParams (v0.2 - MCP integration)
-//! - `agent`: AgentParams (v0.2 - Agentic execution)
+//! - `invoke`: InvokeParams (MCP integration)
+//! - `agent`: AgentParams (Agentic execution)
 //! - `output`: OutputPolicy, OutputFormat
-//! - `context`: ContextConfig (v0.9 - File loading at workflow start)
-//! - `agent_def`: AgentDef (v0.6 - Reusable agent configurations)
-//! - `skill_def`: SkillDef, SkillRef (v0.6 - Prompt augmentation)
-//! - `include`: IncludeSpec (v0.9 - DAG fusion)
-//! - `artifact`: ArtifactSpec, ArtifactsConfig (v0.18 - File persistence)
-//! - `logging`: LogConfig, LogLevel (v0.18 - Level-filtered logging)
+//! - `context`: ContextConfig (File loading at workflow start)
+//! - `agent_def`: AgentDef (Reusable agent configurations)
+//! - `skill_def`: SkillDef, SkillRef (Prompt augmentation)
+//! - `include`: IncludeSpec (DAG fusion)
+//! - `artifact`: ArtifactSpec, ArtifactsConfig (File persistence)
+//! - `logging`: LogConfig, LogLevel (Level-filtered logging)
 //!
-//! These types represent the "what" - static structure parsed from YAML.
-//! For runtime execution, see the `runtime` module.
+//! These types represent the "what" — static structure parsed from YAML.
+//! For execution, see the `runtime` module.
 
-// v0.19 Foundation - Two-Phase IR
+// Pipeline stages
 pub mod analyzed;
 pub mod analyzer;
 pub mod lower;
 pub mod raw;
 pub mod schema;
 
-// Security - YAML bomb protection (v0.27.1)
+// Security - YAML bomb protection
 pub mod budget;
 
-// Legacy modules (being migrated)
+// Runtime types (consumed by runner/executor)
 mod action;
 mod agent;
 mod agent_def;
@@ -89,7 +96,7 @@ pub use decompose::{DecomposeSpec, DecomposeStrategy};
 pub use loader::{discover_definitions, load_definition, DefinitionKind, LoadedDefinition};
 // Import loader is defined in import_loader.rs (v0.28 - Raw-level import expansion)
 pub use import_loader::expand_imports;
-// Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion, legacy)
+// Include loader is defined in include_loader.rs (v0.14.2 - DAG fusion)
 pub use include_loader::expand_includes;
 // StructuredOutputSpec is defined in structured.rs (v0.21 - JSON Schema validation)
 pub use structured::StructuredOutputSpec;
@@ -100,23 +107,20 @@ pub use completion::{
 };
 // LimitsConfig is defined in limits.rs (v0.24 - Agent execution limits)
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
-// Lowering: Analyzed AST → Legacy AST (v0.28 - Bridge Pattern Phase 3)
 pub use lower::lower;
 
 // ============================================================================
-// Unified Pipeline: YAML → Raw → Analyzed → Legacy (v0.28 - Bridge Pattern Phase 4)
+// Unified Pipeline: YAML → Raw → Analyzed → Workflow
 // ============================================================================
 
 use crate::error::NikaError;
 use crate::source::FileId;
 
-/// Parse a YAML workflow through the unified two-phase IR pipeline.
+/// Parse a YAML workflow through the three-phase pipeline.
 ///
 /// Pipeline: `YAML → raw::parse → analyzer::analyze → lower → Workflow`
 ///
-/// This replaces the legacy `serde_yaml::from_str::<Workflow>()` path with
-/// the span-tracking, validating two-phase IR pipeline. The returned Workflow
-/// is the legacy type expected by `expand_includes` and `Runner`.
+/// Returns the runtime `Workflow` type consumed by `expand_includes` and `Runner`.
 ///
 /// # Errors
 ///
@@ -139,6 +143,6 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
         }
     })?;
 
-    // Phase 3: Analyzed → Legacy Workflow (for runtime compatibility)
+    // Phase 3: Analyzed → Runtime Workflow
     Ok(lower(analyzed))
 }

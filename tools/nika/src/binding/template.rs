@@ -151,7 +151,7 @@ pub enum TemplateExpr {
 ///   expr := "context." path             → Context
 ///         | "inputs." path              → Input
 ///         | "with." alias_path ("|" t)* → Alias (with. prefix stripped)
-///         | "use." alias_path ("|" t)*  → Alias (use. prefix stripped, legacy)
+///         | "use." alias_path ("|" t)*  → Alias (use. prefix stripped)
 ///         | alias_path ("|" transform)* → Alias
 /// ```
 ///
@@ -193,7 +193,7 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
     }
 
     // Strip "with." or "use." prefix (both resolve to Alias)
-    // "with.data" → alias path "data"; "use.result" → alias path "result" (legacy)
+    // "with.data" → alias path "data"; "use.result" → alias path "result"
     let effective = trimmed
         .strip_prefix("with.")
         .or_else(|| trimmed.strip_prefix("use."))
@@ -568,7 +568,7 @@ pub fn validate_with_refs(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Legacy code below — kept for runtime compat until Phase 9/11
+// use: template engine (runtime Workflow path)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Escape for JSON string context
