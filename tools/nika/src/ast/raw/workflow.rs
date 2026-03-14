@@ -10,12 +10,6 @@ use crate::source::{Span, Spanned};
 ///
 /// All fields preserve source positions via `Spanned<T>`.
 /// This is Phase 1 of the Two-Phase IR - no validation, just structure.
-///
-/// ## v0.28 Breaking Changes
-///
-/// - `include:` removed — replaced by `imports:` with richer syntax.
-/// - `flows:` removed — use `depends_on:` on individual tasks instead.
-/// - `skills:` removed — folded into `imports:` system.
 #[derive(Debug, Clone, Default)]
 pub struct RawWorkflow {
     /// Schema version: "nika/workflow@0.12"
