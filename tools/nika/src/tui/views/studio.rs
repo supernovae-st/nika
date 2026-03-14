@@ -1590,7 +1590,7 @@ impl YamlEditorPanel {
             last_edit_time: None,
             cached_workflow: RefCell::new(None),
             cached_content_hash: Cell::new(0),
-            // v0.9.1: Matrix Rain starts visible and fades
+            // Matrix Rain starts visible and fades
             frame: 0,
             rain_opacity: 1.0,
             rain_fading: true,
@@ -1609,7 +1609,7 @@ impl YamlEditorPanel {
     /// Tick animation frame (called from main loop)
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
-        // v0.9.1: Tick matrix rain fade effect
+        // Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0); // Smooth fade ~2s
         }

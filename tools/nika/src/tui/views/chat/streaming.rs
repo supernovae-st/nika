@@ -16,7 +16,7 @@ impl ChatView {
     pub fn start_streaming(&mut self) {
         self.is_streaming = true;
         self.partial_response.clear();
-        // v0.8 WOW: Reset and start matrix decrypt effect
+        // Reset and start matrix decrypt effect
         self.streaming_decrypt.clear();
     }
 
@@ -24,7 +24,7 @@ impl ChatView {
     pub fn start_streaming_with_verb(&mut self, verb: DecryptVerb) {
         self.is_streaming = true;
         self.partial_response.clear();
-        // v0.8.1 WOW: Reset and configure matrix streaming decrypt
+        // Reset and configure matrix streaming decrypt
         // Parameters tuned for visible chaos → reveal wave effect
         self.streaming_decrypt = StreamingDecrypt::new()
             .with_verb(verb) // Theme colors for revealed text
@@ -36,7 +36,7 @@ impl ChatView {
     /// Append chunk to partial response during streaming
     pub fn append_streaming(&mut self, chunk: &str) {
         self.partial_response.push_str(chunk);
-        // v0.8 WOW: Push to matrix decrypt for reveal effect
+        // Push to matrix decrypt for reveal effect
         if self.matrix_effect_enabled {
             self.streaming_decrypt.push_text(chunk);
         }
@@ -68,7 +68,7 @@ impl ChatView {
     /// Trigger matrix rain effect with fade-out
     /// Call on startup, first message, workflow launch, etc.
     pub fn trigger_rain_effect(&mut self) {
-        self.rain_opacity = 0.6; // v0.9.1: Start subtle
+        self.rain_opacity = 0.6; // Start subtle
         self.rain_fading = true; // Will fade out over ~1.5 seconds
     }
 
@@ -90,7 +90,7 @@ impl ChatView {
         self.agent_phase = AgentPhase::Syncing;
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Syncing);
         self.agent_phase_tool = None;
-        // v0.9.1: Trigger rain effect on agent start
+        // Trigger rain effect on agent start
         self.trigger_rain_effect();
     }
 
@@ -107,7 +107,7 @@ impl ChatView {
         self.agent_phase = AgentPhase::Invoking;
         self.agent_phase_tool = Some(tool.to_string());
         self.phase_indicator = AgentPhaseIndicator::new(AgentPhase::Invoking).with_tool(tool);
-        // v0.9.1: Trigger rain effect on MCP tool call (important action)
+        // Trigger rain effect on MCP tool call (important action)
         self.trigger_rain_effect();
     }
 
@@ -129,7 +129,7 @@ impl ChatView {
     pub fn on_streaming_start(&mut self) {
         self.agent_phase = AgentPhase::Streaming;
         self.phase_indicator.set_phase(AgentPhase::Streaming);
-        // v0.9.1: Trigger rain effect when LLM starts streaming (WOW moment)
+        // Trigger rain effect when LLM starts streaming
         self.trigger_rain_effect();
     }
 

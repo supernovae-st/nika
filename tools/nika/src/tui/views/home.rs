@@ -118,7 +118,7 @@ impl HomeView {
             preview_mode: PreviewMode::Dag,
             frame: 0,
             tree_state,
-            // v0.9.1: Matrix Rain starts visible and fades
+            // Matrix Rain starts visible and fades
             rain_opacity: 1.0,
             rain_fading: true,
             matrix_effect_enabled: true,
@@ -128,7 +128,7 @@ impl HomeView {
     /// Tick animation frame (called from main loop)
     pub fn tick(&mut self) {
         self.frame = self.frame.wrapping_add(1);
-        // v0.9.1: Tick matrix rain fade effect
+        // Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0); // Smooth fade ~2s
         }

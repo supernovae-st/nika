@@ -221,11 +221,11 @@ pub struct ChatView {
     pub rain_opacity: f32,
     /// Whether rain effect is actively fading out
     pub rain_fading: bool,
-    /// v0.9.1: NIKA intro animation state (ASCII art explosion)
+    /// NIKA intro animation state (ASCII art explosion)
     pub intro_state: NikaIntroState,
-    /// v0.9.1: NIKA butterfly explosion animation frame (0=show pattern, 1+=spreading)
+    /// NIKA butterfly explosion animation frame (0=show pattern, 1+=spreading)
     pub explosion_frame: u8,
-    /// v0.9.1: Whether NIKA pattern is still visible (before full explosion)
+    /// Whether NIKA pattern is still visible (before full explosion)
     pub nika_pattern_visible: bool,
 
     /// Current agent execution phase (for real-time status)
@@ -463,12 +463,12 @@ impl ChatView {
                 .with_wave_factor(2.0)
                 .with_initial_chaos(15),
             matrix_effect_enabled: true, // Enable by default
-            // v0.9.1: NIKA butterfly pattern + explosion
+            // NIKA butterfly pattern + explosion
             rain_opacity: 1.0,                  // Start visible for NIKA pattern
             rain_fading: false,                 // Pattern handles its own fade
-            intro_state: NikaIntroState::new(), 
-            explosion_frame: 0,                 // v0.9.1: Start with NIKA pattern visible
-            nika_pattern_visible: true,         // v0.9.1: Show NIKA pattern at start
+            intro_state: NikaIntroState::new(),
+            explosion_frame: 0,                 // Start with NIKA pattern visible
+            nika_pattern_visible: true,         // Show NIKA pattern at start
 
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
@@ -620,19 +620,19 @@ impl ChatView {
         }
         // WOW: Tick flash effects
         self.tick_flash();
-        // v0.8 WOW: Tick matrix decrypt animation (reveal progress)
+        // Tick matrix decrypt animation (reveal progress)
         if self.is_streaming && self.matrix_effect_enabled {
             self.streaming_decrypt.tick();
         }
-        // v0.9.1: Tick intro animation (NIKA ASCII art explosion)
+        // Tick intro animation (NIKA ASCII art explosion)
         // Note: area-dependent tick happens in render() where we have the rect
-        // v0.9.1: Tick matrix rain fade effect
+        // Tick matrix rain fade effect
         if self.rain_fading && self.rain_opacity > 0.0 {
             // Fast fade (0.04 per tick = ~2 seconds to fully fade at 10Hz)
             self.rain_opacity = (self.rain_opacity - 0.04).max(0.0);
         }
 
-        // v0.9.2: Tick NIKA butterfly explosion animation (FAST: 15 frames = ~1.5s)
+        // Tick NIKA butterfly explosion animation (FAST: 15 frames = ~1.5s)
         if self.nika_pattern_visible {
             self.explosion_frame = self.explosion_frame.saturating_add(1);
             // After explosion completes, quick transition to clean UI
@@ -672,7 +672,7 @@ impl View for ChatView {
             .constraints([
                 Constraint::Length(2), // ProStatusBar (2 lines - Claude Code inspired)
                 Constraint::Min(10),   // Main content area
-                Constraint::Length(input_height), // v0.16.4: Dynamic input height (1-10 lines + borders)
+                Constraint::Length(input_height), // Dynamic input height (1-10 lines + borders)
                 Constraint::Length(1),            // Command hints
             ])
             .split(area);
@@ -706,7 +706,7 @@ impl View for ChatView {
         };
 
         if self.matrix_effect_enabled {
-            // v0.9.2: NIKA butterfly pattern + fast explosion (~1.5s total)
+            // NIKA butterfly pattern + fast explosion (~1.5s total)
             // Phase 1: Show NIKA with butterflies (frames 0-2) with quick fade-in
             // Phase 2: Fast wave explosion from center (frames 2-15)
             // Phase 3: Quick fade to clean UI
