@@ -578,17 +578,12 @@ impl App {
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// TEMPORARY: Placeholder implementations (to be moved to submodules)
-// These will be implemented in subsequent files during the refactoring
-// ════════════════════════════════════════════════════════════════════════════════
 // Implementations split into submodules:
 // - lifecycle.rs: spawn_*, cleanup, save_current_session, toggle_theme, set_status
 // - events.rs: poll_runtime_events, handle_unified_key, handle_mouse, handle_ctrl_c
 // - routing.rs: apply_action, switch_to_view, handle_scroll_*
 // - commands.rs: ensure_chat_agent, build_conversation_context, init_mcp_clients
 // - render.rs: render_unified_frame
-// ════════════════════════════════════════════════════════════════════════════════
 
 impl Drop for App {
     fn drop(&mut self) {
