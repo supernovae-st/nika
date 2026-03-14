@@ -25,7 +25,7 @@
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
 
-// YAML parsing alias (serde-saphyr replaces deprecated serde_yaml)
+// YAML parsing alias (serde-saphyr)
 pub use serde_saphyr as serde_yaml;
 
 // Source tracking for precise error locations

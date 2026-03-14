@@ -300,7 +300,7 @@ impl RmcpClientAdapter {
     /// Returns `NikaError::McpNotConnected` if not connected.
     /// Returns `NikaError::McpToolError` if the tool call fails.
     pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolCallResult> {
-        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        // Clone the Peer and release the lock immediately to prevent lock contention
         // during the timeout period (60s). Without this, concurrent call_tool requests
         // would block waiting for the mutex while one request times out.
         let peer = {
@@ -368,7 +368,7 @@ impl RmcpClientAdapter {
     /// Returns `NikaError::McpNotConnected` if not connected.
     /// Returns `NikaError::McpResourceNotFound` if the resource doesn't exist.
     pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent> {
-        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
             let guard = self.service.lock().await;
             let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {
@@ -441,7 +441,7 @@ impl RmcpClientAdapter {
     ///
     /// Returns `NikaError::McpNotConnected` if not connected.
     pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        // FIX: Clone the Peer and release the lock immediately to prevent lock contention
+        // Clone the Peer and release the lock immediately to prevent lock contention
         let peer = {
             let guard = self.service.lock().await;
             let service = guard.as_ref().ok_or_else(|| NikaError::McpNotConnected {

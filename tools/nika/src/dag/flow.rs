@@ -188,7 +188,7 @@ impl Dag {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // BUG-004 FIX: Get deepest terminal task for output selection
+    // Get deepest terminal task for output selection
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Compute topological depth for each node (longest path from any root)
@@ -483,7 +483,7 @@ impl Dag {
                 }
             }
 
-            // BUG-003: Add implicit edges from with: or use: wiring references
+            // Add implicit edges from with: or use: wiring references
             if let Some(ref with_spec) = task.with_spec {
                 // With: block — WithEntry.task_id() returns Option<&str>
                 let tgt_arc = task_set
@@ -680,7 +680,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // DEEPEST TERMINAL TASK SELECTION (BUG-004)
+    // DEEPEST TERMINAL TASK SELECTION
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -817,7 +817,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // DUPLICATE TASK ID DETECTION (BUG-001)
+    // DUPLICATE TASK ID DETECTION
     // ═══════════════════════════════════════════════════════════════
 
     #[test]

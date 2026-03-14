@@ -31,25 +31,18 @@ mod split;
 mod studio;
 mod view_trait;
 mod wizard;
-// Note: workspace.rs is deprecated, StudioView now provides 3-panel layout
-
 // Main view exports
 #[allow(unused_imports)]
 pub use chat::{ChatMode, ChatView, MessageRole};
-// Browse = Home
 #[allow(unused_imports)]
 pub use home::HomeView as BrowseView;
-// Editor = YamlEditorPanel (single-panel editor, embedded in StudioView)
-#[allow(unused_imports)]
-pub use studio::{EditorMode, YamlEditorPanel as EditorView};
-// Runner = Monitor
 #[allow(unused_imports)]
 pub use monitor::MonitorView as RunnerView;
-// Settings stays the same
 pub use settings::SettingsView;
-// Split (Editor + Runner side-by-side)
 #[allow(unused_imports)]
 pub use split::{SplitFocus, SplitRatio, SplitView};
+#[allow(unused_imports)]
+pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 
 // Internal re-exports (original struct names used internally)
 // StudioView is now the 3-panel view (Browser + Editor + DAG)

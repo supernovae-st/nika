@@ -92,10 +92,9 @@ impl Provider {
         }
     }
 
-    /// PERF: Detect provider from model name (called once when model changes, not every frame)
+    /// Detect provider from model name (called once when model changes, not every frame).
     ///
-    /// This method converts the model name to lowercase once and checks provider patterns.
-    /// Previously this logic was inline in app.rs render loop, causing allocations per frame.
+    /// Converts the model name to lowercase once and checks provider patterns.
     pub fn from_model_name(model: &str) -> Self {
         let model_lower = model.to_lowercase();
         if model_lower.contains("claude") {

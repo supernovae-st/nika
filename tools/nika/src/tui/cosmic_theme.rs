@@ -15,8 +15,8 @@
 //!          │
 //!          ▼
 //! ┌──────────────────┐
-//! │      Theme       │ (Legacy API - 306 usages)
-//! │   (Backward)     │
+//! │      Theme       │ (Convenience API)
+//! │                  │
 //! └──────────────────┘
 //! ```
 //!
@@ -51,10 +51,10 @@ use super::tokens::{CosmicVariant, TokenResolver};
 /// Bridge between TokenResolver and Theme API.
 ///
 /// `CosmicTheme` wraps a `TokenResolver` and provides both:
-/// - Legacy `Theme` access via `as_theme()` for existing widgets
+/// - `Theme` access via `as_theme()` for existing widgets
 /// - Direct `TokenResolver` access via `resolver()` for new code
 ///
-/// This enables incremental migration without breaking the 306 existing usages.
+/// This enables incremental adoption without breaking existing usages.
 ///
 /// # Performance
 ///

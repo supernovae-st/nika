@@ -382,7 +382,7 @@ impl StudioView {
         }
 
         // Build tree with caching (rebuild only when cache is empty)
-        // PERF FIX: Track if tree was just rebuilt to avoid per-frame overhead
+        // Track if tree was just rebuilt to avoid per-frame overhead
         let tree_rebuilt = self.cached_tree.is_none();
         let root_node = if let Some(ref cached) = self.cached_tree {
             cached.clone()
@@ -392,7 +392,7 @@ impl StudioView {
             tree
         };
 
-        // PERF FIX: Only update visible_nodes when tree structure changes
+        // Only update visible_nodes when tree structure changes
         // This was being called EVERY frame causing severe performance issues
         if tree_rebuilt {
             self.tree_state.update_visible_nodes(&root_node);
@@ -508,7 +508,7 @@ impl StudioView {
 
         // Try TreeAction navigation first
         if let Some(action) = TreeAction::from_key_event(key) {
-            // PERF FIX: Only update visible_nodes for structure-changing actions
+            // Only update visible_nodes for structure-changing actions
             let needs_update = matches!(
                 action,
                 TreeAction::Toggle | TreeAction::Left | TreeAction::Right
@@ -925,7 +925,7 @@ impl StudioView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Legacy Support: YamlEditorPanel and TextBuffer
+// YamlEditorPanel and TextBuffer
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Validation result

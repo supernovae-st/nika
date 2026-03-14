@@ -171,8 +171,7 @@ impl RigAgentLoop {
     /// - With tools + TUI: Use `stream_prompt()` with real-time chunk delivery
     /// - With tools + CLI: Use `stream_prompt()` without TUI, still captures tokens
     ///
-    /// **Fix:** Previously, CLI mode with tools returned 0 tokens. Now all paths
-    /// use `stream_prompt()` which provides token usage via `FinalResponse::usage()`.
+    /// All paths use `stream_prompt()` which provides token usage via `FinalResponse::usage()`.
     ///
     /// # Type Parameters
     /// - `M`: A rig completion model that supports streaming

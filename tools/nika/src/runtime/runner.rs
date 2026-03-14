@@ -330,11 +330,11 @@ impl Runner {
 
     /// Get the final output (from tasks with no successors)
     ///
-    /// BUG-004 FIX: Now uses `get_deepest_final_task()` to select the
-    /// terminal task with the highest topological depth. This ensures branching
-    /// DAGs return the correct output (e.g., "final" task, not "branch_a").
+    /// Uses `get_deepest_final_task()` to select the terminal task with the
+    /// highest topological depth. This ensures branching DAGs return the correct
+    /// output (e.g., "final" task, not "branch_a").
     fn get_final_output(&self) -> Option<String> {
-        // BUG-004: Use deepest terminal task instead of arbitrary selection
+        // Use deepest terminal task instead of arbitrary selection
         if let Some(deepest_task) = self.flow_graph.get_deepest_final_task() {
             if let Some(result) = self.datastore.get(deepest_task.as_ref()) {
                 if result.is_success() {
@@ -355,10 +355,9 @@ impl Runner {
         None
     }
 
-    /// Write execution trace to .nika/traces/ (FIX: called on ALL exit paths)
+    /// Write execution trace to .nika/traces/ (called on ALL exit paths).
     ///
-    /// BUG FIX (2026-02-21): Previously traces were only written on success.
-    /// Now traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
+    /// Traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
     fn write_trace(&self) {
         if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
             if let Err(e) = trace_writer.write_all(&self.event_log) {
@@ -816,7 +815,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 duration_ms: duration.as_millis() as u64,
                 running_tasks: vec![],
             });
-            self.write_trace(); // FIX: Write trace on abort
+            self.write_trace();
             return Err(NikaError::Execution(
                 "Workflow cancelled before start".to_string(),
             ));
@@ -887,7 +886,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     duration_ms: duration.as_millis() as u64,
                     running_tasks,
                 });
-                self.write_trace(); // FIX: Write trace on abort
+                self.write_trace();
                 return Err(NikaError::Execution(
                     "Workflow cancelled by user".to_string(),
                 ));
@@ -916,7 +915,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             duration_ms: duration.as_millis() as u64,
                             running_tasks,
                         });
-                        self.write_trace(); // FIX: Write trace on abort
+                        self.write_trace();
                         return Err(NikaError::Execution(
                             "Workflow cancelled while paused".to_string(),
                         ));
@@ -1520,7 +1519,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             duration_ms: duration.as_millis() as u64,
                             running_tasks,
                         });
-                        self.write_trace(); // FIX: Write trace on abort
+                        self.write_trace();
                         return Err(NikaError::Execution(
                             "Workflow cancelled during execution".to_string(),
                         ));
@@ -1609,7 +1608,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         error: format!("Task panicked: {}", e),
                                         failed_task: None,
                                     });
-                                    self.write_trace(); // FIX: Write trace on failure
+                                    self.write_trace();
                                     return Err(NikaError::Execution(format!("Task panicked: {}", e)));
                                 }
                             }
@@ -2741,7 +2740,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // BUG-005: for_each Pattern 2 ($alias) — nested paths + error
+    // for_each Pattern 2 ($alias) — nested paths + error
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]

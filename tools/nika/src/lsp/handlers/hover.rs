@@ -674,7 +674,7 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         ```yaml\n\
         provider: claude  # claude, openai, mistral, groq, deepseek, gemini, native\n\
         ```\n\n\
-        Note: Ollama removed in v0.27 \u{2014} use `provider: native` with mistral.rs instead.",
+        Note: For local inference, use `provider: native` with mistral.rs.",
     ),
 ];
 

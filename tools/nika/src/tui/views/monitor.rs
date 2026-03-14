@@ -641,8 +641,7 @@ impl MonitorView {
 
     /// Render DAG Execution panel (Panel 2) using DagAscii widget
     ///
-    /// Replaced custom tree rendering with DagAscii widget
-    /// featuring Sugiyama layout algorithm and real edges.
+    /// Uses DagAscii widget with Sugiyama layout algorithm and real edges.
     /// Tab-aware rendering (Graph | Yaml)
     fn render_dag_panel(
         &self,

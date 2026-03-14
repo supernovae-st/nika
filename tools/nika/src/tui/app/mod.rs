@@ -467,7 +467,7 @@ impl App {
 
             // 3. Update elapsed time and animations
             self.state.tick();
-            self.chat_view.tick(); // FIX: was missing - enables inline MCP/Infer animations
+            self.chat_view.tick(); // Enables inline MCP/Infer animations
             if let Some(ref mut home) = self.home_view {
                 home.tick(); // Enables gradient logo animation + sparkline pulse
             }

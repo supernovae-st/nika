@@ -227,7 +227,7 @@ impl HomeView {
 
     /// Toggle folder open/closed (for directory entries)
     ///
-    /// BUG FIX: Use filtered_indices to map list selection to actual entry index
+    /// Uses filtered_indices to map list selection to actual entry index.
     pub fn toggle_folder(&mut self) {
         if let Some(selected) = self.tree_state.selection_index() {
             // Map list selection index to actual browser_entries index via filtered_indices

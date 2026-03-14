@@ -316,7 +316,7 @@ fn find_task_location_with_ast(
 }
 
 // ============================================================================
-// Text-Based Helper Functions (Legacy)
+// Text-Based Helper Functions
 // ============================================================================
 
 /// Find the location of a task definition by ID (text-based)

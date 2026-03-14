@@ -84,7 +84,7 @@ pub enum Command {
 /// Export format for chat sessions
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum ExportFormat {
-    /// JSON format (default, v0.9)
+    /// JSON format (default)
     #[default]
     Json,
     /// YAML workflow format - exports as runnable .nika.yaml

@@ -1,29 +1,18 @@
 //! # Color Compatibility Module
 //!
-//! Provides const color aliases for easy migration from inline `Color::Rgb()` to the token system.
-//! This module serves as a bridge during the color consolidation process.
+//! Provides const color aliases as alternatives to inline `Color::Rgb()` values.
 //!
 //! ## Usage
 //!
 //! ```rust,ignore
-//! // Before (inline)
-//! let color = Color::Rgb(34, 197, 94);
-//!
-//! // After (with compat)
 //! use crate::tui::tokens::compat::GREEN_500;
 //! let color = GREEN_500;
 //!
-//! // Best (semantic)
+//! // Or use semantic colors directly:
 //! use crate::tui::tokens::colors::ColorPalette;
 //! let palette = ColorPalette::tailwind();
 //! let color = palette.green_500;
 //! ```
-//!
-//! ## Migration Path
-//!
-//! 1. Replace `Color::Rgb(r, g, b)` with const from this module
-//! 2. Eventually migrate to semantic colors via `SemanticColors`
-//! 3. Remove compat imports once migration complete
 
 use ratatui::style::Color;
 

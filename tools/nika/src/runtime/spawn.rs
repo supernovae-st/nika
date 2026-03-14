@@ -213,7 +213,7 @@ impl SpawnAgentTool {
         }
 
         // Build child AgentParams
-        // FIX: Calculate remaining depth from PARENT's current_depth, not child_depth.
+        // Calculate remaining depth from PARENT's current_depth, not child_depth.
         // With depth_limit=3:
         //   - Root (depth=1, max=3): remaining = 3-1 = 2 → child gets max=2
         //   - Child (depth=1, max=2): remaining = 2-1 = 1 → grandchild gets max=1
@@ -560,7 +560,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Depth calculation regression tests (BUG FIX: 2026-02-21)
+    // Depth calculation regression tests
     // =========================================================================
 
     #[test]

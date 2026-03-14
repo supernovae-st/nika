@@ -1,9 +1,6 @@
 //! Jobs Daemon error types.
 //!
 //! Error codes: NIKA-450 to NIKA-529 (Jobs Daemon range)
-//!
-//! Note: Previously used NIKA-200-299 which collided with ToolErrorCode.
-//! NIKA-450+ error codes for jobs.
 
 use std::path::PathBuf;
 use thiserror::Error;
