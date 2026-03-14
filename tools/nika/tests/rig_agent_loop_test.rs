@@ -305,11 +305,12 @@ fn test_workflow_yaml_agent_verb_parses_to_agent_params() {
     use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
-schema: nika/workflow@0.2
+schema: nika/workflow@0.5
 
 mcp:
-  novanet:
-    command: "cargo run --bin novanet-mcp"
+  servers:
+    novanet:
+      command: "cargo run --bin novanet-mcp"
 
 tasks:
   - id: generate_content
@@ -320,15 +321,13 @@ tasks:
       mcp:
         - novanet
       max_turns: 5
-    output:
-      use.ctx: generated_page
 "#;
 
     // Act: Parse the workflow
     let workflow = parse_workflow(yaml).expect("Should parse workflow YAML");
 
     // Assert: Workflow parsed correctly
-    assert_eq!(workflow.schema, "nika/workflow@0.2");
+    assert_eq!(workflow.schema, "nika/workflow@0.5");
     assert_eq!(workflow.tasks.len(), 1);
 
     // Assert: Task has agent verb with correct params
@@ -479,11 +478,12 @@ fn test_workflow_invoke_then_agent_pattern() {
     use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
-schema: nika/workflow@0.2
+schema: nika/workflow@0.5
 
 mcp:
-  novanet:
-    command: "cargo run --bin novanet-mcp"
+  servers:
+    novanet:
+      command: "cargo run --bin novanet-mcp"
 
 tasks:
   - id: fetch_context
@@ -494,23 +494,16 @@ tasks:
         focus_key: "qr-code"
         locale: "fr-FR"
         forms: ["text", "title"]
-    output:
-      use.ctx: entity_context
 
   - id: generate_page
+    depends_on: [fetch_context]
     agent:
       prompt: |
-        Using the context from $entity_context, generate a complete
+        Using the context from fetch_context, generate a complete
         landing page with SEO-optimized content.
       mcp:
         - novanet
       max_turns: 10
-    output:
-      use.ctx: final_page
-
-flows:
-  - source: fetch_context
-    target: generate_page
 "#;
 
     // Act
@@ -530,7 +523,7 @@ flows:
     assert_eq!(workflow.tasks[1].id, "generate_page");
     assert!(matches!(workflow.tasks[1].action, TaskAction::Agent { .. }));
 
-    // Check flows at workflow level (DAG edges)
+    // Check flows at workflow level (DAG edges from depends_on)
     assert_eq!(workflow.flows.len(), 1, "Should have one flow edge");
 }
 
