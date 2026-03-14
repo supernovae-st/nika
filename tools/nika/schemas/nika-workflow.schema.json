@@ -634,23 +634,6 @@
           "type": "string",
           "enum": ["full", "minimal", "debug"],
           "description": "Scope preset for agent capabilities (v0.10+)"
-        },
-        "stop_conditions": {
-          "type": "array",
-          "description": "Structured stop conditions (v0.10+)",
-          "items": {
-            "oneOf": [
-              { "type": "string", "description": "Simple string pattern" },
-              {
-                "type": "object",
-                "required": ["pattern"],
-                "properties": {
-                  "pattern": { "type": "string", "description": "Pattern to match" },
-                  "action": { "type": "string", "enum": ["complete", "fail", "continue"], "description": "Action on match" }
-                }
-              }
-            ]
-          }
         }
       }
     },
