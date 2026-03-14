@@ -27,7 +27,7 @@
 //! - Path canonicalization prevents directory traversal attacks
 //! - Depth limiting prevents infinite recursion (max: 10)
 //! - Timeout prevents runaway workflows
-//! - v0.14.0: task_local! depth tracking prevents race conditions between concurrent workflows
+//! - task_local! depth tracking prevents race conditions between concurrent workflows
 
 use super::BuiltinTool;
 use crate::ast::parse_workflow;

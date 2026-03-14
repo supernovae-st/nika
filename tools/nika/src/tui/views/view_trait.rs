@@ -3,7 +3,7 @@
 //! Each view (Chat, Home, Studio, Monitor) implements this trait
 //! for consistent rendering and input handling.
 //!
-//! v0.9.x: Added lifecycle hooks (`on_enter`, `on_leave`, `tick`) for
+//! Added lifecycle hooks (`on_enter`, `on_leave`, `tick`) for
 //! animation support and view transition handling.
 
 use crossterm::event::KeyEvent;

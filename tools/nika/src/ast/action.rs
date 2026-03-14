@@ -67,9 +67,9 @@ pub struct InferParams {
     pub system: Option<String>,
     /// Expected response format: json, text, markdown
     pub response_format: Option<ResponseFormat>,
-    /// Enable extended thinking for deeper reasoning (Claude only, v0.18.0)
+    /// Enable extended thinking for deeper reasoning (Claude only)
     pub extended_thinking: Option<bool>,
-    /// Token budget for extended thinking (1024-65536, default 4096, Claude only, v0.18.0)
+    /// Token budget for extended thinking (1024-65536, default 4096, Claude only)
     pub thinking_budget: Option<u64>,
 }
 
@@ -151,11 +151,6 @@ impl InferParams {
     /// - `extended_thinking` is true with non-Claude provider
     /// - `thinking_budget` is outside valid range (1024..=65536)
     ///
-    /// # v0.17.5
-    /// Added to prevent confusing LLM errors from empty prompts.
-    ///
-    /// # v0.18.0
-    /// Added extended_thinking and thinking_budget validation.
     pub fn validate(&self) -> Result<(), String> {
         if self.prompt.trim().is_empty() {
             return Err("Infer prompt cannot be empty".to_string());

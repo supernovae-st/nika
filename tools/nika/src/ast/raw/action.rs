@@ -137,7 +137,7 @@ pub struct RawInvokeAction {
     /// MCP tool name: "tool_name" or "server::tool_name"
     pub tool: Spanned<String>,
 
-    /// Tool parameters (validated against MCP schema in v0.20)
+    /// Tool parameters (validated against MCP schema)
     pub params: Option<Spanned<serde_json::Value>>,
 
     /// Optional MCP server to use (if not in tool name)

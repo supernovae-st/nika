@@ -138,8 +138,8 @@ impl App {
             return Action::Continue;
         }
 
-        // 4. View switching - 4-view architecture v0.22
-        // FIX v0.22.2: Allow Alt+1-4 in ANY mode for view switching
+        // 4. View switching - 4-view architecture
+        // Allow Alt+1-4 in ANY mode for view switching
         // This ensures users can always navigate even in Insert/Search mode
         let alt_pressed = modifiers.contains(KeyModifiers::ALT);
         let is_normal = self.input_mode == InputMode::Normal;

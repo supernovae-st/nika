@@ -21,8 +21,7 @@
 //! let native_err: NativeError = backend_err.into();
 //! ```
 //!
-//! v0.27.0: Migrated from spn-native.
-//! v0.27.1: Consolidated as canonical error type with From implementations.
+//! Canonical error type with From implementations.
 
 use crate::core::backend::BackendError;
 use crate::core::models::ModelResolveError;

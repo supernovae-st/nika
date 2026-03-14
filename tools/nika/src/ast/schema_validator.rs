@@ -647,7 +647,7 @@ tasks:
 
 // ========================================================================
 // Test: Builtin invoke tool (nika:*) without mcp passes
-// Fixed: JSON schema v0.10+ supports tool-only invoke for nika:* builtins
+// JSON schema supports tool-only invoke for nika:* builtins
 // ========================================================================
 #[test]
 fn test_builtin_invoke_tool_without_mcp_passes() {

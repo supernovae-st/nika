@@ -3,7 +3,7 @@
 //! Error codes: NIKA-450 to NIKA-529 (Jobs Daemon range)
 //!
 //! Note: Previously used NIKA-200-299 which collided with ToolErrorCode.
-//! Migrated to NIKA-450+ in v0.27.0 to resolve collision.
+//! NIKA-450+ error codes for jobs.
 
 use std::path::PathBuf;
 use thiserror::Error;

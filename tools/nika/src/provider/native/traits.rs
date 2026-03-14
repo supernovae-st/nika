@@ -2,7 +2,6 @@
 //!
 //! Defines the interface for local model inference backends.
 //!
-//! v0.27.0: Migrated from spn-native.
 
 use crate::core::backend::{ChatOptions, ChatResponse, LoadConfig, ModelInfo};
 use crate::provider::native::NativeError;

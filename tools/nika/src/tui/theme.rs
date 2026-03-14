@@ -658,7 +658,7 @@ impl Theme {
 
     /// Create Solarized theme
     ///
-    /// Note: In v0.9.1+, Solarized is mapped to Cosmic Dark as the closest
+    /// Note: Solarized is mapped to Cosmic Dark as the closest
     /// visual match. The original Solarized palette is preserved in the
     /// design system documentation for reference.
     pub fn solarized() -> Self {

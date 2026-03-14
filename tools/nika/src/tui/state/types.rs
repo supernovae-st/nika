@@ -354,7 +354,7 @@ impl TaskState {
 // MCP CALL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// MCP call record (enhanced v0.5.2 with full params/response)
+/// MCP call record with full params/response
 #[derive(Debug, Clone)]
 pub struct McpCall {
     /// Unique call ID for correlation with McpResponse

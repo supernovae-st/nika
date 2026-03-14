@@ -80,11 +80,6 @@ impl InvokeParams {
     /// - `tool` is Some but empty string
     /// - `resource` is Some but empty string
     ///
-    /// # v0.17.5
-    /// Enhanced to validate empty strings, not just presence.
-    ///
-    /// # v0.21.0
-    /// Builtin tools (nika:* prefix) don't require mcp field.
     pub fn validate(&self) -> Result<(), String> {
         // Builtin tools don't require mcp
         // Validate MCP server name is not empty (for non-builtin tools)

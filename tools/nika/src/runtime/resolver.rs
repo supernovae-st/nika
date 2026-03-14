@@ -3,9 +3,9 @@
 //! Resolves external agent definitions and loads skill files at workflow start.
 //! This module handles the loading and resolution of:
 //! - External agent definition files (.agent.yaml)
-//! - Package agent references (@agents/name) - v0.17
-//! - Package prompt references (@prompts/name) - v0.17
-//! - Package skill references (@skills/name) - v0.17
+//! - Package agent references (@agents/name)
+//! - Package prompt references (@prompts/name)
+//! - Package skill references (@skills/name)
 //! - Skill files (.skill.md) for prompt augmentation
 //!
 //! # Example

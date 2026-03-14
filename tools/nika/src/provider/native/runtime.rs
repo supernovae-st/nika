@@ -3,7 +3,6 @@
 //! This module provides the `NativeRuntime` struct which implements
 //! the `InferenceBackend` trait using the mistral.rs library.
 //!
-//! v0.27.0: Migrated from spn-native.
 
 use crate::core::backend::{
     ChatMessage, ChatOptions, ChatResponse, ChatRole, LoadConfig, ModelInfo,

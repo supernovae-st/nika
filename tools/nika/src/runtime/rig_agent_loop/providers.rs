@@ -355,7 +355,7 @@ impl RigAgentLoop {
         self.run_generic_provider_impl(client, &model_name).await
     }
 
-    /// Run with Gemini provider (requires GEMINI_API_KEY) - v0.15.0
+    /// Run with Gemini provider (requires GEMINI_API_KEY)
     pub async fn run_gemini(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         let model_name = self
             .params

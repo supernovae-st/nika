@@ -1,7 +1,6 @@
 //! Native LLM inference module
 //!
 //! This module provides local GGUF model inference via mistral.rs.
-//! v0.27.0: Migrated from spn-native to nika directly.
 //!
 //! # Architecture
 //!

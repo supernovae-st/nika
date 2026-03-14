@@ -99,7 +99,7 @@ fn default_true() -> bool {
 )]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
-    /// Trace messages (most verbose, v0.19.3+)
+    /// Trace messages (most verbose)
     Trace,
 
     /// Debug messages

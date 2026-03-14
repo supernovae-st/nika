@@ -1497,7 +1497,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Track if we've already triggered abort_all for fail_fast
             let mut fail_fast_triggered = false;
 
-            // Wait for all spawned tasks to complete (with cancellation support v0.5.2)
+            // Wait for all spawned tasks to complete (with cancellation support)
             loop {
                 tokio::select! {
                     // Check for cancellation
