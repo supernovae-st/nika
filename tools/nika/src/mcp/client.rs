@@ -61,10 +61,10 @@ use std::sync::Arc;
 
 use crate::error::{NikaError, Result};
 use crate::event::{EventKind, EventLog};
+use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
 use crate::mcp::rmcp_adapter::RmcpClientAdapter;
 use crate::mcp::types::{ContentBlock, McpConfig, ResourceContent, ToolCallResult, ToolDefinition};
 use crate::mcp::validation::{ErrorEnhancer, McpValidator, ValidationConfig, ValidationErrorKind};
-use crate::util::MAX_RECONNECT_ATTEMPTS;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HEALTH CHECK TYPES (v0.8.2)
@@ -766,7 +766,8 @@ impl McpClient {
 
     /// Check if an error indicates a broken connection.
     ///
-    /// Used to determine if a reconnection attempt should be made.
+    /// Used to determine if a reconnection attempt should be made
+    /// before the next retry.
     pub fn is_connection_error(error: &NikaError) -> bool {
         let error_str = error.to_string().to_lowercase();
         error_str.contains("broken pipe")
@@ -775,6 +776,17 @@ impl McpClient {
             || error_str.contains("eof")
             || error_str.contains("stdin not available")
             || error_str.contains("stdout not available")
+    }
+
+    /// Enhance an error with validation context if available.
+    fn enhance_error(&self, tool_name: &str, error: NikaError) -> NikaError {
+        if let Some(ref validator) = self.validator {
+            if validator.config().enhance_errors {
+                let enhancer = ErrorEnhancer::new(validator.cache());
+                return enhancer.enhance(&self.name, tool_name, error);
+            }
+        }
+        error
     }
 
     /// Call an MCP tool with the given parameters.
@@ -883,7 +895,7 @@ impl McpClient {
             return Ok(result);
         }
 
-        // Real mode: use rmcp adapter with retry logic
+        // Real mode: use rmcp adapter with retry via backon (NIKA-103)
         let adapter = self
             .adapter
             .as_ref()
@@ -891,70 +903,46 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = MAX_RECONNECT_ATTEMPTS;
-        let mut last_error: Option<NikaError> = None;
-
-        for attempt in 0..=max_retries {
-            match adapter.call_tool(name, params.clone()).await {
-                Ok(result) => {
-                    // Store successful result in cache
-                    if let Some(ref cache) = self.cache {
-                        cache.put(name, &params, result.clone());
-                        tracing::debug!(
-                            mcp_server = %self.name,
-                            tool = %name,
-                            "Cached MCP tool response"
-                        );
-                    }
-                    return Ok(result);
-                }
-                Err(e) => {
-                    // Enhance error if validator is enabled
-                    let enhanced_error = if let Some(ref validator) = self.validator {
-                        if validator.config().enhance_errors {
-                            let enhancer = ErrorEnhancer::new(validator.cache());
-                            enhancer.enhance(&self.name, name, e)
-                        } else {
-                            e
-                        }
-                    } else {
-                        e
-                    };
-
-                    if Self::is_connection_error(&enhanced_error) && attempt < max_retries {
-                        tracing::warn!(
-                            mcp_server = %self.name,
-                            tool = %name,
-                            attempt = attempt + 1,
-                            error = %enhanced_error,
-                            "Connection error, attempting reconnect"
-                        );
-
-                        if let Err(reconnect_err) = adapter.reconnect().await {
-                            tracing::error!(
+        let result = retry_mcp_call(McpRetryConfig::default(), || {
+            let params = params.clone();
+            async move {
+                match adapter.call_tool(name, params).await {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
+                        let enhanced = self.enhance_error(name, e);
+                        // On connection errors, attempt reconnect for next retry
+                        if Self::is_connection_error(&enhanced) {
+                            tracing::warn!(
                                 mcp_server = %self.name,
-                                error = %reconnect_err,
-                                "Failed to reconnect"
+                                tool = %name,
+                                error = %enhanced,
+                                "Connection error, attempting reconnect"
                             );
-                            last_error = Some(enhanced_error);
-                            break;
+                            if let Err(reconnect_err) = adapter.reconnect().await {
+                                tracing::error!(
+                                    mcp_server = %self.name,
+                                    error = %reconnect_err,
+                                    "Failed to reconnect"
+                                );
+                            }
                         }
-
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        last_error = Some(enhanced_error);
-                        continue;
+                        Err(enhanced)
                     }
-
-                    return Err(enhanced_error);
                 }
             }
-        }
+        })
+        .await?;
 
-        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
-            tool: name.to_string(),
-            reason: "Connection failed after reconnection attempts".to_string(),
-            error_code: None,
-        }))
+        // Store successful result in cache
+        if let Some(ref cache) = self.cache {
+            cache.put(name, &params, result.clone());
+            tracing::debug!(
+                mcp_server = %self.name,
+                tool = %name,
+                "Cached MCP tool response"
+            );
+        }
+        Ok(result)
     }
 
     /// Call an MCP tool with retry event emission (v0.11.0).
@@ -1062,7 +1050,7 @@ impl McpClient {
             return Ok(result);
         }
 
-        // Real mode: use rmcp adapter with retry logic and event emission
+        // Real mode: use rmcp adapter with retry via backon + event emission (NIKA-103)
         let adapter = self
             .adapter
             .as_ref()
@@ -1070,78 +1058,60 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = MAX_RECONNECT_ATTEMPTS;
-        let mut last_error: Option<NikaError> = None;
+        let config = McpRetryConfig::default();
+        let max_attempts = config.max_retries + 1; // total = initial + retries
+        let attempt_counter = std::sync::atomic::AtomicU32::new(0);
 
-        for attempt in 0..=max_retries {
-            match adapter.call_tool(name, params.clone()).await {
-                Ok(result) => {
-                    if let Some(ref cache) = self.cache {
-                        cache.put(name, &params, result.clone());
-                        tracing::debug!(
-                            mcp_server = %self.name,
-                            tool = %name,
-                            "Cached MCP tool response"
-                        );
-                    }
-                    return Ok(result);
-                }
-                Err(e) => {
-                    let enhanced_error = if let Some(ref validator) = self.validator {
-                        if validator.config().enhance_errors {
-                            let enhancer = ErrorEnhancer::new(validator.cache());
-                            enhancer.enhance(&self.name, name, e)
-                        } else {
-                            e
-                        }
-                    } else {
-                        e
-                    };
-
-                    if Self::is_connection_error(&enhanced_error) && attempt < max_retries {
-                        // v0.11.0: Emit McpRetry event
-                        event_log.emit(EventKind::McpRetry {
-                            task_id: Arc::clone(task_id),
-                            server_name: self.name.clone(),
-                            operation: name.to_string(),
-                            attempt: attempt + 1, // 1-based
-                            max_attempts: max_retries + 1,
-                            error: enhanced_error.to_string(),
-                        });
-
-                        tracing::warn!(
-                            mcp_server = %self.name,
-                            tool = %name,
-                            attempt = attempt + 1,
-                            error = %enhanced_error,
-                            "Connection error, attempting reconnect (McpRetry event emitted)"
-                        );
-
-                        if let Err(reconnect_err) = adapter.reconnect().await {
-                            tracing::error!(
+        let result = retry_mcp_call(config, || {
+            let params = params.clone();
+            async {
+                let attempt = attempt_counter.fetch_add(1, Ordering::SeqCst);
+                match adapter.call_tool(name, params).await {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
+                        let enhanced = self.enhance_error(name, e);
+                        if Self::is_connection_error(&enhanced) {
+                            // Emit McpRetry event for TUI observability
+                            event_log.emit(EventKind::McpRetry {
+                                task_id: Arc::clone(task_id),
+                                server_name: self.name.clone(),
+                                operation: name.to_string(),
+                                attempt: attempt + 1,
+                                max_attempts: max_attempts as u32,
+                                error: enhanced.to_string(),
+                            });
+                            tracing::warn!(
                                 mcp_server = %self.name,
-                                error = %reconnect_err,
-                                "Failed to reconnect"
+                                tool = %name,
+                                attempt = attempt + 1,
+                                error = %enhanced,
+                                "Connection error, attempting reconnect (McpRetry event emitted)"
                             );
-                            last_error = Some(enhanced_error);
-                            break;
+                            if let Err(reconnect_err) = adapter.reconnect().await {
+                                tracing::error!(
+                                    mcp_server = %self.name,
+                                    error = %reconnect_err,
+                                    "Failed to reconnect"
+                                );
+                            }
                         }
-
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        last_error = Some(enhanced_error);
-                        continue;
+                        Err(enhanced)
                     }
-
-                    return Err(enhanced_error);
                 }
             }
-        }
+        })
+        .await?;
 
-        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
-            tool: name.to_string(),
-            reason: "Connection failed after reconnection attempts".to_string(),
-            error_code: None,
-        }))
+        // Store successful result in cache
+        if let Some(ref cache) = self.cache {
+            cache.put(name, &params, result.clone());
+            tracing::debug!(
+                mcp_server = %self.name,
+                tool = %name,
+                "Cached MCP tool response"
+            );
+        }
+        Ok(result)
     }
 
     /// Read a resource from the MCP server.
@@ -1170,7 +1140,7 @@ impl McpClient {
             return Ok(self.mock_read_resource(uri));
         }
 
-        // Real mode: use rmcp adapter with retry logic
+        // Real mode: use rmcp adapter with retry via backon (NIKA-103)
         let adapter = self
             .adapter
             .as_ref()
@@ -1178,52 +1148,33 @@ impl McpClient {
                 name: self.name.clone(),
             })?;
 
-        let max_retries = MAX_RECONNECT_ATTEMPTS;
-        let mut last_error: Option<NikaError> = None;
-
-        for attempt in 0..=max_retries {
-            match adapter.read_resource(uri).await {
-                Ok(result) => return Ok(result),
-                Err(e) => {
-                    // Preserve McpResourceNotFound errors - no retry needed
-                    if matches!(&e, NikaError::McpResourceNotFound { .. }) {
-                        return Err(e);
-                    }
-
-                    if Self::is_connection_error(&e) && attempt < max_retries {
-                        tracing::warn!(
-                            mcp_server = %self.name,
-                            uri = %uri,
-                            attempt = attempt + 1,
-                            error = %e,
-                            "Connection error, attempting reconnect"
-                        );
-
-                        if let Err(reconnect_err) = adapter.reconnect().await {
-                            tracing::error!(
+        retry_mcp_call(McpRetryConfig::default(), || {
+            async move {
+                match adapter.read_resource(uri).await {
+                    Ok(result) => Ok(result),
+                    Err(e) => {
+                        // On connection errors, attempt reconnect for next retry
+                        if Self::is_connection_error(&e) {
+                            tracing::warn!(
                                 mcp_server = %self.name,
-                                error = %reconnect_err,
-                                "Failed to reconnect"
+                                uri = %uri,
+                                error = %e,
+                                "Connection error, attempting reconnect"
                             );
-                            last_error = Some(e);
-                            break;
+                            if let Err(reconnect_err) = adapter.reconnect().await {
+                                tracing::error!(
+                                    mcp_server = %self.name,
+                                    error = %reconnect_err,
+                                    "Failed to reconnect"
+                                );
+                            }
                         }
-
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                        last_error = Some(e);
-                        continue;
+                        Err(e)
                     }
-
-                    return Err(e);
                 }
             }
-        }
-
-        Err(last_error.unwrap_or_else(|| NikaError::McpToolError {
-            tool: "resources/read".to_string(),
-            reason: "Connection failed after reconnection attempts".to_string(),
-            error_code: None,
-        }))
+        })
+        .await
     }
 
     /// List all available tools from the MCP server.
@@ -2070,8 +2021,7 @@ mod tests {
             ttl: std::time::Duration::from_secs(300),
             max_entries: 100,
         };
-        let client = McpClient::mock("test_cache_entries")
-            .with_cache(cache_config);
+        let client = McpClient::mock("test_cache_entries").with_cache(cache_config);
 
         // Populate cache via call_tool on mock
         let _ = client
