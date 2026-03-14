@@ -1,14 +1,13 @@
 //! Activity Tracking for Chat View
 //!
 //! Contains activity stack management, token/metrics updates, and command palette.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use std::time::Duration;
 
 use super::{ActivityItem, ActivityTemp, ChatView, CurrentVerb, TurnMetrics};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.8.0: Activity tracking for /exec, /fetch, /agent commands
+// Activity tracking for /exec, /fetch, /agent commands
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -59,7 +58,7 @@ impl ChatView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.7.3: Real-time Streaming Updates
+// Real-time Streaming Updates
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -103,7 +102,7 @@ impl ChatView {
         // Session metrics are already updated incrementally via update_turn_metrics()
         // Just reset turn metrics for the next turn
         self.reset_turn_metrics();
-        // v0.8 FIX: Clear inline boxes and activities on turn completion
+        // Clear inline boxes and activities on turn completion
         self.inline_content.clear();
         self.activity_items.clear();
     }
@@ -124,13 +123,13 @@ impl ChatView {
     }
 
     /// Transition activity from hot to warm
-    /// v0.8.5 FIX: Use .rev() to find the LAST hot activity (most recent)
+    /// Use .rev() to find the LAST hot activity (most recent)
     /// Before: Only first concurrent op transitioned, others stuck forever
     pub(super) fn transition_activity_to_warm(&mut self, verb: &str) {
         if let Some(item) = self
             .activity_items
             .iter_mut()
-            .rev() // v0.8.5: Search from newest to oldest
+            .rev() // Search from newest to oldest
             .find(|i| i.verb == verb && i.temp == ActivityTemp::Hot)
         {
             item.temp = ActivityTemp::Warm;
@@ -139,7 +138,7 @@ impl ChatView {
     }
 
     /// Clear completed (warm) activities older than duration
-    /// v0.8.5 FIX: Also remove stuck Hot items that have been running too long
+    /// Also remove stuck Hot items that have been running too long
     pub fn clear_old_activities(&mut self, max_age_secs: u64) {
         let max_duration = Duration::from_secs(max_age_secs);
 
@@ -150,7 +149,7 @@ impl ChatView {
                     item.duration.map(|d| d < max_duration).unwrap_or(true)
                 }
                 ActivityTemp::Hot => {
-                    // v0.8.5 FIX: Remove stuck hot items (running > max_age = likely hung)
+                    // Remove stuck hot items (running > max_age = likely hung)
                     item.started
                         .map(|s| s.elapsed() < max_duration)
                         .unwrap_or(true)

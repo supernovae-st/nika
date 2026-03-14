@@ -1,7 +1,6 @@
 //! Layout Calculations for Chat View
 //!
 //! Panel area computation and hit-testing helpers for the chat view.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
@@ -15,7 +14,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 /// This must match the layout in ChatView::render() exactly for mouse
 /// hit-testing to work correctly.
 pub fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
-    // v0.12.1: Vertical layout must match render() exactly
+    // Vertical layout must match render() exactly
     // ProStatusBar (2 lines) | main content | input | hints
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -27,7 +26,7 @@ pub fn compute_panel_areas(area: Rect) -> (Rect, Rect, Rect, Rect, Rect) {
         ])
         .split(area);
 
-    // v0.12.1: Horizontal split must match render() - 65%/35%
+    // Horizontal split must match render() - 65%/35%
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])

@@ -1,7 +1,6 @@
 //! Cursor and Input Helpers for Chat View
 //!
 //! Contains cursor movement, clipboard operations, and input height calculation.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use tui_input::InputRequest;
 
@@ -16,24 +15,23 @@ impl ChatView {
     /// Insert character at cursor (delegates to tui-input)
     pub fn insert_char(&mut self, c: char) {
         self.input.handle(InputRequest::InsertChar(c));
-        // v0.16.4: Track mutation in edit history (coalesces rapid keystrokes)
+        // Track mutation in edit history (coalesces rapid keystrokes)
         self.edit_history
             .push(self.input.value(), self.input.cursor());
-        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
-        self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
+        self.update_mode_from_input();
+        self.check_mention_trigger();
     }
 
     /// Delete character before cursor (delegates to tui-input)
     pub fn backspace(&mut self) {
         self.input.handle(InputRequest::DeletePrevChar);
-        // v0.16.4: Track mutation in edit history
         self.edit_history
             .push(self.input.value(), self.input.cursor());
-        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
-        self.check_mention_trigger(); // v0.9 Phase 2: @ mention autocomplete
+        self.update_mode_from_input();
+        self.check_mention_trigger();
     }
 
-    /// v0.8.1: Update chat_mode and current_verb based on input prefix
+    /// Update chat_mode and current_verb based on input prefix
     /// This syncs the mode indicator with what the user is typing
     pub(super) fn update_mode_from_input(&mut self) {
         let input = self.input.value();
@@ -90,13 +88,13 @@ impl ChatView {
 
     /// Delete previous word (Ctrl+Backspace)
     pub fn delete_prev_word(&mut self) {
-        // v0.16.4: Force checkpoint before word deletion (significant edit)
+        // Force checkpoint before word deletion (significant edit)
         self.edit_history
             .checkpoint(self.input.value(), self.input.cursor());
         self.input.handle(InputRequest::DeletePrevWord);
         self.edit_history
             .push(self.input.value(), self.input.cursor());
-        self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+        self.update_mode_from_input();
     }
 
     /// Go to start of input (Home)
@@ -120,7 +118,7 @@ impl ChatView {
     pub fn paste_from_clipboard(&mut self) {
         if let Some(clipboard) = &mut self.clipboard {
             if let Ok(text) = clipboard.get_text() {
-                // v0.16.4: Checkpoint before paste (significant edit)
+                // Checkpoint before paste (significant edit)
                 self.edit_history
                     .checkpoint(self.input.value(), self.input.cursor());
                 for c in text.chars() {
@@ -128,13 +126,13 @@ impl ChatView {
                 }
                 self.edit_history
                     .push(self.input.value(), self.input.cursor());
-                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+                self.update_mode_from_input();
             }
         }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // v0.16.4: Dynamic Input Height Helpers
+    // Dynamic Input Height Helpers
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// Calculate how many lines the input content requires with word wrapping

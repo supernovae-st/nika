@@ -1,7 +1,6 @@
 //! Mouse Handling for Chat View
 //!
 //! Contains mouse event handling and coordinate mapping.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use crossterm::event::{MouseButton, MouseEventKind};
 use ratatui::layout::Rect;
@@ -41,7 +40,7 @@ impl ChatView {
                     true
                 } else {
                     // Clear any existing selection when clicking elsewhere
-                    // v0.8: No panel focus change on click - use Tab only
+                    // No panel focus change on click - use Tab only
                     self.text_selection = None;
                     self.is_selecting = false;
                     self.panel_at_position(x, y, area).is_some() // Return true if within panels
@@ -77,7 +76,6 @@ impl ChatView {
                 }
             }
             // Scroll wheel up - smooth scroll focused panel (no panel switch)
-            // v0.9 Phase 3: Use smooth scrolling with momentum for mouse wheel
             MouseEventKind::ScrollUp => {
                 self.smooth_scroll(-1); // Negative = scroll up (content moves down)
                 true

@@ -1,7 +1,6 @@
 //! Rendering Helpers for Chat View
 //!
 //! Pure rendering functions for the chat view.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;

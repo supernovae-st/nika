@@ -1,7 +1,6 @@
 //! Key Handler Methods for Chat View
 //!
 //! Specialized key event handlers for overlay modes and main key handling.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tui_input::InputRequest;
@@ -91,7 +90,7 @@ impl ChatView {
                                 hint,
                                 example,
                             } => {
-                                // v0.8.2: Show helpful error message
+                                // Show helpful error message
                                 self.add_nika_message(
                                     format!("{}\n{}\n{}", error, hint, example),
                                     None,
@@ -116,7 +115,7 @@ impl ChatView {
                             Command::Mcp { action } => ViewAction::ChatMcp(action),
                             Command::Model { provider } => ViewAction::ChatModelSwitch(provider),
                             Command::Export { format, path } => {
-                                // v0.13: Export chat to JSON or YAML file
+                                // Export chat to JSON or YAML file
                                 let result = match format {
                                     ExportFormat::Json => self.export_session(path.as_deref()),
                                     ExportFormat::Yaml => self.export_session_yaml(path.as_deref()),
@@ -240,7 +239,7 @@ impl ChatView {
                     }
                 }
                 ModalAction::SelectProvider { provider, model } => {
-                    // v0.12.2: Actually switch provider via ChatModelSwitch
+                    // Actually switch provider via ChatModelSwitch
                     use crate::tui::command::ModelProvider;
                     self.provider_modal.visible = false;
                     if let Some(model_provider) = ModelProvider::from_name(provider) {
@@ -266,7 +265,7 @@ impl ChatView {
         ViewAction::None
     }
 
-    /// v0.8.2: Try to autocomplete verb command with Tab
+    /// Try to autocomplete verb command with Tab
     /// Returns Some(new_input) if autocomplete happened, None otherwise
     pub(super) fn try_verb_autocomplete(&self) -> Option<String> {
         let input = self.input.value();

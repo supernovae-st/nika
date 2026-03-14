@@ -1,7 +1,6 @@
 //! Input Rendering for Chat View
 //!
 //! Contains the render_input function for the command input bar.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::{
     layout::Rect,
@@ -29,7 +28,7 @@ impl ChatView {
         let cursor_char = input_value.chars().nth(cursor_pos).unwrap_or(' ');
         let after_cursor: String = input_value.chars().skip(cursor_pos + 1).collect();
 
-        // v0.8 UX: Check if input is focused for cursor animation
+        // UX: Check if input is focused for cursor animation
         let is_focused = self.focused_panel == ChatPanel::Input;
 
         // Build mode indicators for Claude Code-like UX
@@ -67,12 +66,12 @@ impl ChatView {
         spans.push(Span::styled(" │ ", Style::default().fg(theme.text_muted)));
         spans.push(Span::raw("> "));
 
-        // v0.8 WOW: Blinking cursor effect (blinks every ~8 frames = ~500ms at 60fps)
+        // WOW: Blinking cursor effect (blinks every ~8 frames = ~500ms at 60fps)
         let cursor_visible = is_focused && (self.frame / 8) % 2 == 0;
 
         // Input text with cursor and placeholder
         if input_value.is_empty() {
-            // v0.8 WOW: Animated placeholder with typing dots when idle
+            // WOW: Animated placeholder with typing dots when idle
             let dots = match (self.frame / 10) % 4 {
                 0 => "   ",
                 1 => ".  ",
@@ -99,7 +98,7 @@ impl ChatView {
                 Style::default().fg(theme.text_muted),
             ));
         } else {
-            // v0.8.2: Detect verb at start of input for colorized rendering
+            // Detect verb at start of input for colorized rendering
             if let Some((verb_len, verb_color, is_complete, full_verb)) =
                 detect_verb_in_input(input_value)
             {
@@ -132,7 +131,7 @@ impl ChatView {
                     let before_in_verb: String = verb_part.chars().take(cursor_pos).collect();
                     let after_in_verb: String = verb_part.chars().skip(cursor_pos + 1).collect();
 
-                    // v0.8.2: ASCII box with animated emoji for the verb
+                    // ASCII box with animated emoji for the verb
 
                     let emoji = verb_color.icon();
                     spans.extend(render_verb_gradient(
@@ -195,7 +194,7 @@ impl ChatView {
                     spans.push(Span::raw(rest_part));
                 } else {
                     // Cursor is after verb - full gradient on verb
-                    // v0.8.2: ASCII box with animated emoji for the verb
+                    // ASCII box with animated emoji for the verb
 
                     let emoji = verb_color.icon();
                     spans.extend(render_verb_gradient(
@@ -233,7 +232,7 @@ impl ChatView {
                     }
                     spans.push(Span::raw(after_rest));
 
-                    // v0.8.2: Show contextual placeholder when verb is complete and no argument yet
+                    // Show contextual placeholder when verb is complete and no argument yet
                     if is_complete && rest_part.trim().is_empty() {
                         let placeholder = verb_placeholder(&verb_color, self.frame);
                         // Animated color pulse for placeholder
@@ -256,7 +255,7 @@ impl ChatView {
             } else {
                 // No verb detected, render normally
                 spans.push(Span::raw(before_cursor));
-                // v0.8 WOW: Blinking block cursor
+                // WOW: Blinking block cursor
                 if cursor_visible {
                     spans.push(Span::styled(
                         cursor_char.to_string(),
@@ -276,13 +275,13 @@ impl ChatView {
 
         let line = Line::from(spans);
 
-        // v0.16.4: Build block with optional scroll indicator in title
+        // Build block with optional scroll indicator in title
         let total_lines = self.calculate_input_lines(area.width);
         let can_scroll_up = self.input_scroll_offset > 0;
         let can_scroll_down = total_lines > self.input_max_lines
             && self.input_scroll_offset < total_lines.saturating_sub(self.input_max_lines);
 
-        // v0.8 UX: Focus indicators for Input panel (is_focused defined above)
+        // UX: Focus indicators for Input panel (is_focused defined above)
         let mut block = Block::default()
             .borders(Borders::ALL)
             .border_style(theme.border_style(is_focused));

@@ -1,7 +1,6 @@
 //! Chat View Helpers
 //!
 //! Utility functions and helpers for the chat view.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Error Categorization

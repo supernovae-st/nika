@@ -1,7 +1,6 @@
 //! Message Rendering for Chat View
 //!
 //! Contains the large render_messages_v2 function and related helpers.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::{
     layout::Rect,
@@ -27,7 +26,6 @@ use crate::tui::VerbColor;
 impl ChatView {
     /// Render messages v2 with inline MCP/Infer boxes
     pub(super) fn render_messages_v2(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // v0.9 Phase 3: Search bar at top when in search mode
         let (search_area, messages_area) = if self.search_mode {
             use ratatui::layout::{Constraint, Direction, Layout};
             let chunks = Layout::default()
@@ -57,15 +55,15 @@ impl ChatView {
         let infer_box_color = theme.highlight; // Violet-like
         let status_running_color = theme.status_running;
 
-        // v0.8.1 FIX: Calculate content width for word wrapping
+        // Calculate content width for word wrapping
         // area.width - 2 (borders) - 2 ("│ " prefix) = available text width
         let content_width = area.width.saturating_sub(4) as usize;
 
-        // v0.8 FIX: Update visible count based on actual viewport height (minus borders)
+        // Update visible count based on actual viewport height (minus borders)
         let viewport_height = area.height.saturating_sub(2) as usize; // -2 for borders
         self.conversation_scroll.visible = viewport_height;
 
-        // v0.8 Text Selection: Build line positions cache for mouse hit testing
+        // Text Selection: Build line positions cache for mouse hit testing
         self.line_positions.clear();
         let content_start_x = area.x + 3; // "│ " prefix = 2 chars + border
         let mut current_line = 0usize;
@@ -115,11 +113,11 @@ impl ChatView {
             current_line += 1; // Spacing line
         }
 
-        // v0.8 Text Selection: Extract selection state for use in closure
+        // Text Selection: Extract selection state for use in closure
         let selection = self.text_selection.clone();
         let selection_bg = theme.highlight; // Use highlight color for selection background
 
-        // v0.9: Pre-compute thinking visibility for use in closure
+        // Pre-compute thinking visibility for use in closure
         let thinking_visible: Vec<bool> = (0..self.messages.len())
             .map(|i| self.is_thinking_visible(i))
             .collect();
@@ -129,14 +127,14 @@ impl ChatView {
             .iter()
             .enumerate()
             .flat_map(|(idx, msg)| {
-                // v0.8.1 FIX: Skip "Thinking..." placeholder during streaming
+                // Skip "Thinking..." placeholder during streaming
                 // The streaming section shows the Matrix Decrypt effect instead
                 let is_last_message = idx == self.messages.len().saturating_sub(1);
                 if self.is_streaming && is_last_message && msg.content == "Thinking..." {
                     return vec![]; // Don't render placeholder during streaming
                 }
 
-                // v0.8 WOW: Check if this message has the flash effect
+                // WOW: Check if this message has the flash effect
                 let is_flashing = self.copy_flash_index == Some(idx);
 
                 // Color-coded message bubbles based on role
@@ -147,7 +145,7 @@ impl ChatView {
                     MessageRole::Tool => ("🔧 Tool", theme.mcp_traverse),
                 };
 
-                // v0.8 WOW: Flash effect - bright highlight when copied
+                // WOW: Flash effect - bright highlight when copied
                 let color = if is_flashing {
                     theme.highlight
                 } else {
@@ -163,10 +161,10 @@ impl ChatView {
                     MessageRole::Tool => "🔧 Tool ",
                 };
 
-                // v0.9.5 UX: Format timestamp as HH:MM:SS.mmm (with seconds and milliseconds)
+                // UX: Format timestamp as HH:MM:SS.mmm (with seconds and milliseconds)
                 let ts_str = msg.timestamp.format("%H:%M:%S%.3f").to_string();
 
-                // v0.9.5: Dynamic separator at 75% width for visual balance
+                // Dynamic separator at 75% width for visual balance
                 // Leaves breathing room on the right side
                 // PERF: Use static slice instead of .repeat() to avoid allocation
                 let separator_len = (content_width * 75 / 100).saturating_sub(20); // 75% minus prefix+timestamp
@@ -174,8 +172,8 @@ impl ChatView {
                 let separator_bytes = separator_chars * 3; // Each '─' is 3 UTF-8 bytes
                 let dynamic_separator = &SEPARATOR_200[..separator_bytes];
 
-                // v0.8 WOW: Add COPIED indicator when flashing
-                // v0.9.5: Clock emoji before timestamp
+                // WOW: Add COPIED indicator when flashing
+                // Clock emoji before timestamp
                 let mut header_spans = vec![
                     Span::styled(prefix_with_space, style.add_modifier(Modifier::BOLD)),
                     Span::styled(dynamic_separator, Style::default().fg(theme.text_muted)),
@@ -195,14 +193,14 @@ impl ChatView {
                 }
                 let mut lines = vec![ListItem::new(Line::from(header_spans))];
 
-                // v0.8 Text Selection: Check if this message is in the selection range
+                // Text Selection: Check if this message is in the selection range
                 let is_selected = selection.as_ref().is_some_and(|sel| {
                     let (start, end) = sel.normalized();
                     idx >= start.message_index && idx <= end.message_index
                 });
 
-                // v0.8.1 FIX: Wrap message content to fit panel width
-                // v0.9.5: Smart wrap for System message - preserve ASCII art, wrap text
+                // Wrap message content to fit panel width
+                // Smart wrap for System message - preserve ASCII art, wrap text
                 let wrapped_lines: Vec<String> =
                     if idx == 0 && matches!(msg.role, MessageRole::System) {
                         // For System banner: keep ASCII art lines intact, wrap text lines
@@ -247,12 +245,12 @@ impl ChatView {
                         wrap_text(&msg.content, content_width)
                     };
 
-                // v0.8 Text Selection: Track char offset for selection highlighting
+                // Text Selection: Track char offset for selection highlighting
                 let mut char_offset = 0usize;
                 for wrapped_line in &wrapped_lines {
                     let line_len = wrapped_line.chars().count();
 
-                    // v0.8 Text Selection: Apply highlighting if selected
+                    // Text Selection: Apply highlighting if selected
                     let text_style = if is_selected {
                         if let Some(ref sel) = selection {
                             let (start, end) = sel.normalized();
@@ -293,7 +291,7 @@ impl ChatView {
                     char_offset += line_len + 1; // +1 for newline/wrap
                 }
 
-                // v0.9.5: Add colored verb boxes after welcome banner (first System message)
+                // Add colored verb boxes after welcome banner (first System message)
                 // Emoji widths are hardcoded per verb for perfect alignment
                 if idx == 0 && matches!(msg.role, MessageRole::System) {
                     // Empty line before boxes
@@ -539,7 +537,7 @@ impl ChatView {
                     items.push(ListItem::new("")); // spacing
                 }
                 InlineContent::Task(task_box) => {
-                    // v0.12.1: Render TaskBox with verb colors and pulse animation
+                    // Render TaskBox with verb colors and pulse animation
                     let verb_color = task_box.verb_color().rgb();
                     // Calculate pulse intensity for running state (0.0-1.0 sine wave)
                     let pulse_intensity = if task_box.state().is_running() {
@@ -556,7 +554,7 @@ impl ChatView {
                     // Render based on TaskBox variant
                     match task_box {
                         TaskBox::Invoke(invoke) => {
-                            // v0.12.1: RenderMode-aware InvokeBox rendering
+                            // RenderMode-aware InvokeBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
                             let emerald_400 = Color::Rgb(52, 211, 153);
 
@@ -746,7 +744,7 @@ impl ChatView {
                             }
                         }
                         TaskBox::Infer(infer) => {
-                            // v0.12.1: RenderMode-aware InferBox rendering
+                            // RenderMode-aware InferBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
                             let provider_icon = if infer.model.contains("claude") {
                                 "🧠"
@@ -941,7 +939,7 @@ impl ChatView {
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Exec(exec) => {
-                            // v0.12.1: RenderMode-aware ExecBox rendering
+                            // RenderMode-aware ExecBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
                             let exit_display = exec
                                 .exit_code
@@ -1059,7 +1057,7 @@ impl ChatView {
                             items.push(ListItem::new("")); // spacing
                         }
                         TaskBox::Fetch(fetch) => {
-                            // v0.12.1: RenderMode-aware FetchBox rendering
+                            // RenderMode-aware FetchBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
                             let amber_400 = Color::Rgb(251, 191, 36);
 
@@ -1234,7 +1232,7 @@ impl ChatView {
                             }
                         }
                         TaskBox::Agent(agent) => {
-                            // v0.12.1: RenderMode-aware AgentBox rendering
+                            // RenderMode-aware AgentBox rendering
                             let content_color = Color::Rgb(226, 232, 240); // slate-200
                             let amber_400 = Color::Rgb(251, 191, 36);
                             let agent_icon = if agent.is_subagent { "🐤" } else { "🐔" };
@@ -1418,7 +1416,7 @@ impl ChatView {
             }
         }
 
-        // v0.8.1: Show agent phase indicator box when agent is active (not Idle)
+        // Show agent phase indicator box when agent is active (not Idle)
         // This shows real phases (Syncing/Planning/Invoking/Processing/Inferring/Streaming) with Matrix effect
         // IMPORTANT: Show during ALL active phases including Streaming - users want to see activity!
         if self.agent_phase != AgentPhase::Idle {
@@ -1530,11 +1528,11 @@ impl ChatView {
             items.push(ListItem::new("")); // spacing
         }
 
-        // v0.12.1: REMOVED streaming AI bubble - InferBox REPLACES the AI message bubble
+        // REMOVED streaming AI bubble - InferBox REPLACES the AI message bubble
         // The response now displays INSIDE the InferBox widget (Option A)
         // See TaskBox::Infer rendering above which shows partial_response during streaming
 
-        // v0.8 UX: Focus indicators for Conversation panel
+        // UX: Focus indicators for Conversation panel
         let is_focused = self.focused_panel == ChatPanel::Conversation;
         let title = if is_focused {
             " ▸ 💬 CONVERSATION "
@@ -1555,11 +1553,11 @@ impl ChatView {
             .title_style(theme.border_style(is_focused))
             .border_style(theme.border_style(is_focused));
 
-        // v0.8.1 FIX: Update total item count for scroll state BEFORE any scroll operations
+        // Update total item count for scroll state BEFORE any scroll operations
         let total_items = items.len();
         self.conversation_scroll.total = total_items;
 
-        // v0.16.4 FIX: Snap to actual bottom when user was at bottom
+        // Snap to actual bottom when user was at bottom
         // This prevents jump caused by estimated vs actual total mismatch in auto_scroll_to_bottom()
         // The estimated total (messages.len() * 4) differs from actual total (items.len())
         let visible_count = viewport_height;
@@ -1568,7 +1566,7 @@ impl ChatView {
             self.conversation_scroll.cursor = total_items.saturating_sub(1);
         }
 
-        // v0.8.1 FIX (NovaNet pattern): Apply scroll using .skip().take() directly
+        // (NovaNet pattern): Apply scroll using .skip().take() directly
         // This is more reliable than relying on ListState's internal offset mechanism
         let scroll_offset = self.conversation_scroll.offset;
 
@@ -1590,7 +1588,7 @@ impl ChatView {
         let list = List::new(visible_items).block(block);
         frame.render_widget(list, area);
 
-        // v0.8.2 UX: Render custom ScrollIndicator with dynamic arrows
+        // UX: Render custom ScrollIndicator with dynamic arrows
         // Shows △/▲ based on can_scroll state for better visual feedback
         if total_items > visible_count {
             let scrollbar_area = Rect {
@@ -1610,7 +1608,7 @@ impl ChatView {
         }
     }
 
-    /// v0.9 Phase 3: Render search bar when in search mode
+    /// Render search bar when in search mode
     fn render_search_bar(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         use ratatui::widgets::{Block, Borders, Paragraph};
 

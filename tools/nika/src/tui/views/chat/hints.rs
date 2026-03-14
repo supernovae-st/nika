@@ -1,7 +1,6 @@
 //! Verb Hints and Detection
 //!
 //! Input placeholder hints and verb command detection for the chat view.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use crate::tui::theme::VerbColor;
 
@@ -18,7 +17,7 @@ const VERBS: &[(&str, VerbColor)] = &[
     ("agent", VerbColor::Agent),
 ];
 
-/// v0.8.2: Detect verb command at start of input (e.g., "/invoke", "/infer")
+/// Detect verb command at start of input (e.g., "/invoke", "/infer")
 /// Returns (verb_len, verb_color, is_complete, full_verb_name) if found
 pub fn detect_verb_in_input(input: &str) -> Option<(usize, VerbColor, bool, &'static str)> {
     // Must start with /
@@ -54,7 +53,7 @@ pub fn detect_verb_in_input(input: &str) -> Option<(usize, VerbColor, bool, &'st
 // Placeholder Hints
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// v0.8.2: MCP tool examples from NovaNet + common patterns
+/// MCP tool examples from NovaNet + common patterns
 const INVOKE_HINTS: &[&str] = &[
     "novanet:describe {\"entity\": \"qr-code\"}",
     "novanet:generate {\"locale\": \"fr-FR\", \"entity\": \"landing\"}",
@@ -68,7 +67,7 @@ const INVOKE_HINTS: &[&str] = &[
     "github:search_repos {\"query\": \"language:rust stars:>1000\"}",
 ];
 
-/// v0.8.2: Creative & practical LLM prompts
+/// Creative & practical LLM prompts
 const INFER_HINTS: &[&str] = &[
     "Generate a landing page headline for a SaaS product",
     "Summarize this article in 3 bullet points",
@@ -87,7 +86,7 @@ const INFER_HINTS: &[&str] = &[
     "Explain the difference between async and sync",
 ];
 
-/// v0.8.2: Productive shell one-liners
+/// Productive shell one-liners
 const EXEC_HINTS: &[&str] = &[
     "npm run build",
     "cargo test --release",
@@ -111,7 +110,7 @@ const EXEC_HINTS: &[&str] = &[
     "tree -L 2 ./src",
 ];
 
-/// v0.8.2: Fun real APIs that actually work! (no auth required)
+/// Fun real APIs that actually work! (no auth required)
 const FETCH_HINTS: &[&str] = &[
     "https://catfact.ninja/fact",
     "https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current_weather=true",
@@ -132,7 +131,7 @@ const FETCH_HINTS: &[&str] = &[
     "https://api.agify.io?name=thibaut",
 ];
 
-/// v0.8.2: Complex multi-step agentic tasks
+/// Complex multi-step agentic tasks
 const AGENT_HINTS: &[&str] = &[
     "Research competitors and write a market analysis report",
     "Analyze this codebase and suggest 5 improvements",
@@ -151,7 +150,7 @@ const AGENT_HINTS: &[&str] = &[
     "Design a caching strategy for this endpoint",
 ];
 
-/// v0.9.1: Spawned sub-agent task hints
+/// Spawned sub-agent task hints
 const SPAWN_HINTS: &[&str] = &[
     "Delegate: research this topic in depth",
     "Spawn: handle this subtask independently",

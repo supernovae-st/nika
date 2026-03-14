@@ -1,7 +1,6 @@
 //! Chat View Tests
 //!
 //! Unit tests for ChatView functionality.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use super::*;
 use crate::tui::state::ChatOverlayMessageRole;
@@ -419,7 +418,7 @@ fn test_chat_view_start_infer_stream() {
     let mut view = ChatView::new();
     view.start_infer_stream("claude-sonnet-4", 100, 2000);
 
-    // v0.8 FIX: InferStream boxes no longer created - streaming_decrypt handles visual
+    // InferStream boxes no longer created - streaming_decrypt handles visual
     assert_eq!(view.inline_content.len(), 0);
 
     // Should add activity item for Mission Control panel
@@ -434,7 +433,7 @@ fn test_chat_view_append_infer_content() {
     view.append_infer_content("Hello ", 10);
     view.append_infer_content("World!", 20);
 
-    // v0.8 FIX: No InferStream in inline_content - streaming_decrypt handles visual
+    // No InferStream in inline_content - streaming_decrypt handles visual
     assert_eq!(view.inline_content.len(), 0);
 
     // partial_response is used by streaming_decrypt for the matrix reveal effect
@@ -484,7 +483,7 @@ fn test_inline_content_enum() {
 }
 
 // === Scroll Tests (Panel-based scroll system) ===
-// v0.8.1: Updated to test offset-based scrolling (NovaNet pattern)
+// Updated to test offset-based scrolling (NovaNet pattern)
 
 #[test]
 fn test_chat_view_scroll_up() {
@@ -553,7 +552,7 @@ fn test_chat_view_scroll_to_bottom() {
 
 #[test]
 fn test_chat_view_scroll_from_input_panel() {
-    // v0.8.1: Test that scroll works from Input panel (NovaNet pattern)
+    // Test that scroll works from Input panel (NovaNet pattern)
     let mut view = ChatView::new();
     // Default focus is Input panel
     assert_eq!(view.focused_panel, ChatPanel::Input);
@@ -929,7 +928,7 @@ fn test_set_current_verb() {
 
 #[test]
 fn test_update_mode_from_input_agent() {
-    // v0.8.1: Test that typing /agent updates chat_mode and current_verb
+    // Test that typing /agent updates chat_mode and current_verb
     let mut view = ChatView::new();
 
     // Initial state
@@ -954,7 +953,7 @@ fn test_update_mode_from_input_agent() {
 
 #[test]
 fn test_update_mode_from_input_infer() {
-    // v0.8.1: Test that typing /infer updates mode
+    // Test that typing /infer updates mode
     let mut view = ChatView::new();
     view.chat_mode = ChatMode::Agent; // Start in Agent mode
 
@@ -976,7 +975,7 @@ fn test_update_mode_from_input_infer() {
 
 #[test]
 fn test_update_mode_from_input_verb_exec() {
-    // v0.8.1: Test that typing /exec updates current_verb but not chat_mode
+    // Test that typing /exec updates current_verb but not chat_mode
     let mut view = ChatView::new();
 
     // Type "/exec " (the Nika workflow verb, not shell exec)
@@ -998,7 +997,7 @@ fn test_update_mode_from_input_verb_exec() {
 
 #[test]
 fn test_update_mode_from_input_reset_on_clear() {
-    // v0.8.1: Test that clearing input resets current_verb
+    // Test that clearing input resets current_verb
     let mut view = ChatView::new();
 
     // Type "/agent "
@@ -1150,7 +1149,7 @@ fn test_multi_turn_session() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.8.0: Tests for activity tracking methods (exec, fetch, agent)
+// Tests for activity tracking methods (exec, fetch, agent)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1235,7 +1234,7 @@ fn test_multiple_concurrent_activities() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.8 Text Selection Tests
+// Text Selection Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1362,7 +1361,7 @@ fn test_selection_initialization() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.8.2: Provider Switching Tests (Critical Bug Fix)
+// Provider Switching Tests (Critical Bug Fix)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1397,7 +1396,7 @@ fn test_provider_id_matches_model() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.9: Thinking Toggle Tests
+// Thinking Toggle Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1466,7 +1465,7 @@ fn test_is_thinking_visible_respects_default() {
     assert!(!view.is_thinking_visible(1));
 
     // Add message ID to override set -> should be visible (opposite of default=false)
-    // v0.9 FIX: Use message ID instead of index for stability
+    // Use message ID instead of index for stability
     view.thinking_collapsed.insert(msg_id);
     assert!(view.is_thinking_visible(1));
 }
@@ -1517,7 +1516,7 @@ fn test_thinking_toggle_with_collapsed_default() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.9: Export Path Validation Security Tests
+// Export Path Validation Security Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1598,7 +1597,7 @@ fn test_export_default_filename_is_safe() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 2: @ Mention Autocomplete Tests
+// @ Mention Autocomplete Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1811,7 +1810,7 @@ fn test_accept_mention_cursor_position_mid_sentence() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 2: Multi-line Input Tests
+// Multi-line Input Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1861,7 +1860,7 @@ fn test_multiline_input_submit_preserves_newlines() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 2: MCP Retry Tests
+// MCP Retry Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -1928,7 +1927,7 @@ fn test_mcp_retry_overwrites_previous_failure() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 3: Conversation Search Tests
+// Conversation Search Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -2126,7 +2125,7 @@ fn test_search_no_duplicate_when_both_match() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 3: Smooth Scrolling Tests
+// Smooth Scrolling Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -2255,12 +2254,12 @@ fn test_smooth_scroll_animation_converges_to_stop() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.10.0: Chat DAG Panel Integration Tests (WIRING-6)
+// Chat DAG Panel Integration Tests (WIRING-6)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn test_dag_panel_default_shown() {
-    // v0.12: DAG panel is shown by default (toggle with Ctrl+D)
+    // DAG panel is shown by default (toggle with Ctrl+D)
     let view = ChatView::new();
     assert!(view.show_dag_panel);
     // DAG nodes/edges are synced on toggle, so initially empty is OK
@@ -2270,7 +2269,7 @@ fn test_dag_panel_default_shown() {
 #[test]
 fn test_dag_panel_toggle() {
     let mut view = ChatView::new();
-    // v0.12: DAG panel starts visible by default
+    // DAG panel starts visible by default
     assert!(view.show_dag_panel);
 
     view.toggle_dag_panel();
@@ -2355,7 +2354,7 @@ fn test_dag_panel_selected_index() {
 #[test]
 fn test_dag_panel_toggle_syncs_state() {
     let mut view = ChatView::new();
-    // v0.12: DAG panel starts visible by default
+    // DAG panel starts visible by default
     assert!(view.show_dag_panel);
 
     view.add_user_message("First".to_string());
@@ -2440,7 +2439,7 @@ fn test_get_chat_state_preserves_model() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// v0.13: ChatWorkflow Wiring Tests
+// ChatWorkflow Wiring Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]

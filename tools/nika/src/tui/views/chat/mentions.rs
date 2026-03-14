@@ -1,14 +1,13 @@
 //! @ Mention Autocomplete for Chat View
 //!
 //! Contains mention trigger detection, suggestion generation, and acceptance.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use tui_input::InputRequest;
 
 use super::{ChatView, Mention, MentionSuggestion, MentionType};
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 2: @ Mention Autocomplete
+// @ Mention Autocomplete
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -158,7 +157,6 @@ impl ChatView {
             // Update input (using tui-input API)
             // Input::new() places cursor at end, so we need to reposition
             self.input = tui_input::Input::new(new_input.clone());
-            // v0.9 Phase 2 FIX: First go to start, then move to target position
             // This ensures cursor ends up after the inserted mention + space
             self.input.handle(InputRequest::GoToStart);
             let new_cursor = trigger.start + suggestion.insert.len() + 1;

@@ -60,7 +60,7 @@ use crate::tui::widgets::{
     ActivityTemp,
     AgentPhase,
     AgentPhaseIndicator,
-    // v0.10.0: Chat DAG Widgets (node-as-graph visualization)
+    // Chat DAG Widgets (node-as-graph visualization)
     ChatDagPanel,
     ChatModeIndicator,
     ChatNodeKind,
@@ -84,7 +84,6 @@ use crate::tui::widgets::{
     McpServerInfo,
     McpStatus,
     MemoryFile,
-    // v0.9 Phase 2: @ mention autocomplete
     Mention,
     MentionAutocomplete,
     MentionAutocompleteState,
@@ -105,7 +104,7 @@ use crate::tui::widgets::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Submodules (extracted v0.21.2 - Phase A1 refactor)
+// Submodules
 // ═══════════════════════════════════════════════════════════════════════════════
 
 mod activity;
@@ -276,12 +275,12 @@ pub struct ChatView {
 
     /// Set of message IDs with toggled thinking state (differs from default)
     /// Toggle individual messages with 't', toggle all with 'T'
-    /// v0.9 FIX: Uses stable message IDs instead of indices for stability
+    /// Uses stable message IDs instead of indices for stability
     pub thinking_collapsed: std::collections::HashSet<u64>,
     /// Whether thinking sections are expanded by default
     /// false = collapsed by default (show summary), true = expanded by default
     pub thinking_expanded_default: bool,
-    /// v0.9: Counter for generating unique message IDs
+    /// Counter for generating unique message IDs
     message_id_counter: u64,
 
     /// State for the @ mention autocomplete popup
@@ -375,8 +374,8 @@ impl ChatView {
             .mcp_servers
             .push(McpServerInfo::new("novanet"));
 
-        // v0.9.4: Clean welcome banner - verb boxes rendered separately with colors
-        // v0.9.5: Wider text lines (~70 chars), dotted separator for light effect
+        // Clean welcome banner - verb boxes rendered separately with colors
+        // Wider text lines (~70 chars), dotted separator for light effect
         let welcome_banner = r#"
   ███╗   ██╗██╗██╗  ██╗ █████╗
   ████╗  ██║██║██║ ██╔╝██╔══██╗
@@ -396,7 +395,7 @@ impl ChatView {
   Type a message to chat, or /help for commands.
 "#;
 
-        // v0.13: Initialize ChatWorkflow with welcome message for DAG sync
+        // Initialize ChatWorkflow with welcome message for DAG sync
         let mut workflow = ChatWorkflow::new();
         workflow.add_message(welcome_banner, WorkflowRole::System);
 
@@ -426,7 +425,7 @@ impl ChatView {
             command_palette: CommandPaletteState::new(),
             provider_modal: {
                 let mut modal = ProviderModalState::default();
-                // v0.8.8: Set active provider based on detected provider
+                // Set active provider based on detected provider
                 if provider_id != "none" {
                     modal.set_active_provider(&provider_id);
                     modal.set_active_model(&initial_model);
@@ -455,7 +454,7 @@ impl ChatView {
             panel_rects: std::collections::HashMap::new(),
             conversation_list_state: ListState::default(),
 
-            // v0.8.1 WOW Effects - Matrix Streaming Decrypt
+            // WOW Effects - Matrix Streaming Decrypt
             copy_flash_index: None,
             copy_flash_start: 0,
             // Matrix decrypt: chaos emoji → text reveal during streaming
@@ -471,12 +470,11 @@ impl ChatView {
             explosion_frame: 0,                 // v0.9.1: Start with NIKA pattern visible
             nika_pattern_visible: true,         // v0.9.1: Show NIKA pattern at start
 
-            // v0.8.1 Agent Phase Tracking
             agent_phase: AgentPhase::Idle,
             phase_indicator: AgentPhaseIndicator::new(AgentPhase::Idle),
             agent_phase_tool: None,
 
-            // v0.7.3 Mission Control
+            // Mission Control
             context_items: vec![],
             memory_files: Self::detect_memory_files(),
             current_verb: CurrentVerb::None,
@@ -484,55 +482,52 @@ impl ChatView {
             session_metrics: SessionMetrics::new(),
             show_yaml: false,
 
-            // v0.8 Text Selection
+            // Text Selection
             text_selection: None,
             is_selecting: false,
             line_positions: Vec::new(),
 
-            // v0.8.1 Help Overlay
+            // Help Overlay
             help_overlay: HelpOverlayState::new(),
 
-            // v0.16.4 Edit History (Undo/Redo)
+            // Edit History (Undo/Redo)
             edit_history: EditHistory::default(),
 
-            // v0.16.4 Dynamic Input Height
+            // Dynamic Input Height
             input_scroll_offset: 0,
             input_max_lines: 10, // Max visible lines (excluding borders)
 
-            // v0.8.1 Smart Auto-Scroll
+            // Smart Auto-Scroll
             user_at_bottom: true, // Start at bottom
 
-            // v0.9 Thinking Toggle
+            // Thinking Toggle
             thinking_collapsed: std::collections::HashSet::new(),
             thinking_expanded_default: true, // Expanded by default
             message_id_counter: 1,           // Start at 1 (initial message has ID 1)
 
-            // v0.9 Phase 2: @ Mention Autocomplete
             mention_autocomplete: MentionAutocompleteState::new(),
             last_failed_mcp: None,
 
-            // v0.9 Phase 3: Conversation Search (Ctrl+F)
             search_mode: false,
             search_query: String::new(),
             search_results: vec![],
             search_current: 0,
 
-            // v0.9 Phase 3: Smooth Scrolling
             scroll_velocity: 0.0,
             scroll_accumulator: 0.0,
             scroll_animating: false,
 
-            // v0.10.0: Chat DAG Visualization (enabled by default, toggle with Ctrl+D)
+            // Chat DAG Visualization (enabled by default, toggle with Ctrl+D)
             show_dag_panel: true,
             dag_nodes: Vec::new(),
             dag_edges: Vec::new(),
             task_queue: Vec::new(),
             dag_selected: None,
 
-            // v0.12.1: TaskBox RenderMode (default to Expanded for rich inline display)
+            // TaskBox RenderMode (default to Expanded for rich inline display)
             task_box_render_mode: RenderMode::Expanded,
 
-            // v0.13: ChatWorkflow DAG (unified execution)
+            // ChatWorkflow DAG (unified execution)
             workflow,
         }
     }
@@ -603,7 +598,7 @@ impl ChatView {
     // Selection methods extracted to selection.rs
     // MCP tracking methods extracted to mcp_tracking.rs
 
-    /// v0.12.1: Sync DAG if panel is visible (avoid unnecessary work)
+    /// Sync DAG if panel is visible (avoid unnecessary work)
     pub(super) fn maybe_sync_dag(&mut self) {
         if self.show_dag_panel {
             self.sync_dag_from_messages();
@@ -623,7 +618,7 @@ impl ChatView {
                 InlineContent::Task(task_box) => task_box.tick(),
             }
         }
-        // v0.8 WOW: Tick flash effects
+        // WOW: Tick flash effects
         self.tick_flash();
         // v0.8 WOW: Tick matrix decrypt animation (reveal progress)
         if self.is_streaming && self.matrix_effect_enabled {
@@ -647,11 +642,10 @@ impl ChatView {
                 self.rain_fading = true;
             }
         }
-        // v0.8.1: Tick phase indicator animation (icon swap + chaos decay)
+        // Tick phase indicator animation (icon swap + chaos decay)
         self.tick_phase_indicator();
-        // v0.9 Phase 3: Update smooth scroll animation
         self.update_scroll_animation();
-        // v0.8.8: Tick provider modal animation (active indicator cycling)
+        // Tick provider modal animation (active indicator cycling)
         if self.provider_modal.visible {
             self.provider_modal.tick_animation();
         }
@@ -666,7 +660,7 @@ impl Default for ChatView {
 
 impl View for ChatView {
     fn render(&mut self, frame: &mut Frame, area: Rect, _state: &TuiState, theme: &Theme) {
-        // v0.16.4: Calculate dynamic input height and ensure cursor is visible
+        // Calculate dynamic input height and ensure cursor is visible
         let input_height = self.calculate_input_height(area.width);
         let cursor_line = self.get_cursor_line(area.width);
         let total_lines = self.calculate_input_lines(area.width);
@@ -701,7 +695,7 @@ impl View for ChatView {
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .split(chunks[1]);
 
-        // v0.9.1: NIKA Intro + Matrix Rain background effect
+        // NIKA Intro + Matrix Rain background effect
         // Phase 1: NIKA ASCII art appears and explodes
         // Phase 2: Matrix rain fades in then out
         let effect_area = Rect {
@@ -747,13 +741,13 @@ impl View for ChatView {
         // Messages panel with inline MCP/Infer boxes
         self.render_messages_v2(frame, main_chunks[0], theme);
 
-        // v0.10.0: Right panel - DAG Panel or Mission Control (toggle with Ctrl+D)
+        // Right panel - DAG Panel or Mission Control (toggle with Ctrl+D)
         if self.show_dag_panel {
             // DAG visualization panel
             self.render_dag_panel(frame, main_chunks[1], theme);
         } else {
             // Mission Control panel
-            // v0.8.1: Now includes Activity section with hot/warm/queued tasks
+            // Now includes Activity section with hot/warm/queued tasks
             MissionControlPanel::new(&self.session_context.mcp_servers)
                 .context(&self.context_items)
                 .memory(&self.memory_files)
@@ -765,8 +759,8 @@ impl View for ChatView {
                 )
                 .verb(self.current_verb)
                 .metrics(self.turn_metrics.clone())
-                .activities(&self.activity_items) // v0.8.1: Activity items
-                .frame(self.frame) // v0.8.1: Animation frame for spinners
+                .activities(&self.activity_items) // Activity items
+                .frame(self.frame) // Animation frame for spinners
                 .focused(self.focused_panel == ChatPanel::Activity)
                 .render(main_chunks[1], frame.buffer_mut());
         }
@@ -787,8 +781,8 @@ impl View for ChatView {
 
         // 6. Provider Modal overlay (if visible) - ⌘P
         if self.provider_modal.visible {
-            // v0.8.9: Pass &mut for cloud_tab_label caching
-            // v0.9.1: Pass theme for consistent styling
+            // Pass &mut for cloud_tab_label caching
+            // Pass theme for consistent styling
             ProviderModal::new(&mut self.provider_modal, theme).render(area, frame.buffer_mut());
         }
 
@@ -866,7 +860,7 @@ impl View for ChatView {
         }
 
         // Handle mention autocomplete when visible
-        // v0.22.3 FIX: Dismiss on any non-navigation key to prevent input trapping
+        // Dismiss on any non-navigation key to prevent input trapping
         if self.mention_autocomplete.visible {
             match key.code {
                 KeyCode::Tab | KeyCode::Enter => {

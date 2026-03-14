@@ -1,7 +1,6 @@
 //! Session Management for Chat View
 //!
 //! Contains session persistence, model management, and MCP server tracking.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use std::path::Path;
 use std::time::Instant;

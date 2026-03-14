@@ -1,12 +1,11 @@
 //! Conversation Search for Chat View
 //!
 //! Contains Ctrl+F search mode, result navigation, and query handling.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use super::ChatView;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 3: Conversation Search (Ctrl+F)
+// Conversation Search (Ctrl+F)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -38,7 +37,7 @@ impl ChatView {
         let query_lower = self.search_query.to_lowercase();
 
         // Search through all messages
-        // v0.9 FIX: Avoid O(n²) Vec::contains() by checking content OR thinking
+        // Avoid O(n²) Vec::contains() by checking content OR thinking
         for (idx, msg) in self.messages.iter().enumerate() {
             let content_matches = msg.content.to_lowercase().contains(&query_lower);
             let thinking_matches = msg
@@ -81,7 +80,7 @@ impl ChatView {
     }
 
     /// Scroll to the current search result
-    /// v0.16.4 FIX: Uses ensure_cursor_visible() for consistent SCROLL_MARGIN behavior
+    /// Uses ensure_cursor_visible() for consistent SCROLL_MARGIN behavior
     fn scroll_to_search_result(&mut self) {
         if let Some(&msg_idx) = self.search_results.get(self.search_current) {
             // Set cursor to the matching message and ensure it's visible

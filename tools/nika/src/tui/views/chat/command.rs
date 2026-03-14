@@ -1,7 +1,6 @@
 //! Command Handling for Chat View
 //!
 //! Contains submit, system command processing, and history navigation.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use tui_input::{Input, InputRequest};
 
@@ -26,7 +25,7 @@ impl ChatView {
             ParsedInput::System(cmd) => {
                 self.handle_system_command(cmd);
                 self.input.reset();
-                self.update_mode_from_input(); // v0.8.1: Preserve mode after clear
+                self.update_mode_from_input(); // Preserve mode after clear
                 return None;
             }
             ParsedInput::PartialPrefix(_) => {
@@ -51,7 +50,7 @@ impl ChatView {
             self.add_user_message(message.clone());
         }
         self.input.reset();
-        self.update_mode_from_input(); // v0.8.1: Preserve mode after submit
+        self.update_mode_from_input(); // Preserve mode after submit
         Some(message)
     }
 
@@ -121,7 +120,7 @@ impl ChatView {
             if let Some(entry) = self.history.get(i) {
                 self.input = Input::new(entry.clone());
                 self.input.handle(InputRequest::GoToEnd);
-                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+                self.update_mode_from_input(); // Sync mode indicator
             }
         }
     }
@@ -142,13 +141,13 @@ impl ChatView {
                 if let Some(entry) = self.history.get(next_idx) {
                     self.input = Input::new(entry.clone());
                     self.input.handle(InputRequest::GoToEnd);
-                    self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+                    self.update_mode_from_input(); // Sync mode indicator
                 }
             }
             Some(_) => {
                 self.history_index = None;
                 self.input.reset();
-                self.update_mode_from_input(); // v0.8.1: Sync mode indicator
+                self.update_mode_from_input(); // Sync mode indicator
             }
             None => {}
         }

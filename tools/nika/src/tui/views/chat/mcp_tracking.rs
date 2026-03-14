@@ -1,7 +1,6 @@
 //! MCP Call Tracking for Chat View
 //!
 //! Contains methods for tracking MCP tool calls and their lifecycle.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use std::time::Instant;
 
@@ -40,7 +39,7 @@ impl ChatView {
             server_info.last_call = Some(Instant::now());
         }
 
-        // v0.8.2: Auto-scroll when MCP call appears
+        // Auto-scroll when MCP call appears
         self.auto_scroll_to_bottom();
     }
 
@@ -52,16 +51,15 @@ impl ChatView {
         }
         // Move activity from hot to warm
         self.transition_activity_to_warm("invoke");
-        // v0.8.2: Auto-scroll when MCP result arrives
+        // Auto-scroll when MCP result arrives
         self.auto_scroll_to_bottom();
     }
 
     /// Fail an MCP call with error
     ///
-    /// v0.9 Phase 2: Also saves the failed call for retry with Ctrl+R
+    /// Also saves the failed call for retry with Ctrl+R
     pub fn fail_mcp_call(&mut self, error: &str) {
         if let Some(InlineContent::McpCall(data)) = self.inline_content.last_mut() {
-            // v0.9 Phase 2: Save failed MCP call for retry with Ctrl+R
             self.last_failed_mcp = Some(McpRetryInfo {
                 tool: data.tool.clone(),
                 server: data.server.clone(),
@@ -71,7 +69,7 @@ impl ChatView {
             data.error = Some(error.to_string());
             data.status = McpCallStatus::Failed;
         }
-        // v0.8.2: Auto-scroll when MCP error appears
+        // Auto-scroll when MCP error appears
         self.auto_scroll_to_bottom();
     }
 
@@ -87,10 +85,10 @@ impl ChatView {
             execution: None,
             thinking: None,
         });
-        // v0.12.1: Sync DAG when messages change
+        // Sync DAG when messages change
         self.maybe_sync_dag();
 
-        // v0.13: Wire to ChatWorkflow DAG (unified execution)
+        // Wire to ChatWorkflow DAG (unified execution)
         let _ = self
             .workflow
             .add_message_with_mentions(&content, WorkflowRole::Tool);

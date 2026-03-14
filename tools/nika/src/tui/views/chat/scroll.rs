@@ -1,7 +1,6 @@
 //! Scroll and Panel Navigation for Chat View
 //!
 //! Contains panel focus management, scroll control, and smooth scrolling.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use super::{ChatPanel, ChatView, PanelScrollState};
 
@@ -42,12 +41,12 @@ impl ChatView {
 impl ChatView {
     /// Scroll down by one item
     pub fn scroll_down(&mut self) {
-        // v0.8.1: Don't update total here - add_message() and render() handle it
+        // Don't update total here - add_message() and render() handle it
         // This lets tests configure scroll state manually
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_down();
-                // v0.8.1: Check if we reached the bottom
+                // Check if we reached the bottom
                 self.user_at_bottom = self.is_at_bottom();
             }
             ChatPanel::Activity => {
@@ -58,11 +57,11 @@ impl ChatView {
 
     /// Scroll up by one item
     pub fn scroll_up(&mut self) {
-        // v0.8.1: Don't update total here - add_message() and render() handle it
+        // Don't update total here - add_message() and render() handle it
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_up();
-                // v0.8.1: User scrolled up = stop auto-following
+                // User scrolled up = stop auto-following
                 self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
@@ -76,7 +75,7 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_to_top();
-                // v0.8.1: Went to top = stop auto-following
+                // Went to top = stop auto-following
                 self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
@@ -90,7 +89,7 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.scroll_to_bottom();
-                // v0.8.1: Went to bottom = resume auto-following
+                // Went to bottom = resume auto-following
                 self.user_at_bottom = true;
             }
             ChatPanel::Activity => {
@@ -104,7 +103,7 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.page_down();
-                // v0.8.1: Check if we reached the bottom
+                // Check if we reached the bottom
                 self.user_at_bottom = self.is_at_bottom();
             }
             ChatPanel::Activity => {
@@ -118,7 +117,7 @@ impl ChatView {
         match self.focused_panel {
             ChatPanel::Input | ChatPanel::Conversation => {
                 self.conversation_scroll.page_up();
-                // v0.8.1: User scrolled up = stop auto-following
+                // User scrolled up = stop auto-following
                 self.user_at_bottom = false;
             }
             ChatPanel::Activity => {
@@ -139,7 +138,7 @@ impl ChatView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9 Phase 3: Smooth Scrolling
+// Smooth Scrolling
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -158,7 +157,7 @@ impl ChatView {
         self.scroll_velocity += direction as f32 * Self::SCROLL_WHEEL_VELOCITY;
         self.scroll_animating = true;
 
-        // v0.8.1: Update user_at_bottom state based on scroll direction
+        // Update user_at_bottom state based on scroll direction
         if direction < 0 {
             self.user_at_bottom = false; // Scrolling up = stop auto-following
         }

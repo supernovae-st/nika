@@ -1,7 +1,6 @@
 //! Mode and Configuration for Chat View
 //!
 //! Contains mode switching, configuration, and utility methods.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 

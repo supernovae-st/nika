@@ -1,7 +1,7 @@
 //! Streaming Lifecycle for Chat View
 //!
 //! Contains streaming control, rain effects, agent phase handlers,
-//! and thinking management. Extracted from mod.rs as part of Phase A1 refactoring.
+//! and thinking management.
 
 use super::{
     AgentPhase, AgentPhaseIndicator, ChatView, DecryptVerb, MessageRole, StreamingDecrypt,
@@ -40,28 +40,28 @@ impl ChatView {
         if self.matrix_effect_enabled {
             self.streaming_decrypt.push_text(chunk);
         }
-        // v0.8.2: Auto-scroll during streaming to follow new content
+        // Auto-scroll during streaming to follow new content
         self.auto_scroll_to_bottom();
     }
 
     /// Finish streaming and return the full response
     pub fn finish_streaming(&mut self) -> String {
         self.is_streaming = false;
-        // v0.8 WOW: Reveal all remaining text instantly
+        // WOW: Reveal all remaining text instantly
         self.streaming_decrypt.reveal_all();
-        // v0.12.1: Keep TaskBoxes visible after completion (Option A)
+        // Keep TaskBoxes visible after completion (Option A)
         // TaskBox::Infer now REPLACES the AI bubble - don't clear it
         // Old: self.inline_content.clear();
-        // v0.8.1: Reset agent phase
+        // Reset agent phase
         self.on_agent_complete();
-        // v0.8.2: Final auto-scroll after streaming completes
+        // Final auto-scroll after streaming completes
         self.auto_scroll_to_bottom();
         std::mem::take(&mut self.partial_response)
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.9.1: Matrix Rain Effect Triggers
+// Matrix Rain Effect Triggers
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -81,7 +81,7 @@ impl ChatView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.8.1: Agent Phase Event Handlers
+// Agent Phase Event Handlers
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -159,7 +159,7 @@ impl ChatView {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.5.2: Thinking Management
+// Thinking Management
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {

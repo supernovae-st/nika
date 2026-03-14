@@ -1,7 +1,6 @@
 //! DAG Panel for Chat View
 //!
 //! Contains DAG visualization, task queue management, and hints rendering.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -19,7 +18,7 @@ use super::{
 use crate::tui::Theme;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// v0.10.0: Chat DAG Visualization
+// Chat DAG Visualization
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl ChatView {
@@ -60,7 +59,7 @@ impl ChatView {
         self.dag_nodes.clear();
         self.dag_edges.clear();
 
-        // v0.13: Use ChatWorkflow's DAG for proper dependency edges
+        // Use ChatWorkflow's DAG for proper dependency edges
         let messages = self.workflow.all_messages();
 
         for (i, (idx, msg)) in messages.iter().enumerate() {
@@ -85,7 +84,7 @@ impl ChatView {
 
             self.dag_nodes.push(node);
 
-            // v0.13: Use actual DAG edges (includes @N mention references)
+            // Use actual DAG edges (includes @N mention references)
             for dep_idx in self.workflow.get_dependencies(*idx) {
                 if let Some(dep_msg) = self.workflow.get_message_by_index(dep_idx) {
                     self.dag_edges.push(DagEdgeData::new(&dep_msg.id, &msg.id));
@@ -115,7 +114,7 @@ impl ChatView {
         }
     }
 
-    /// v0.12.1: Complete the last running task of a specific verb in the queue
+    /// Complete the last running task of a specific verb in the queue
     pub(super) fn complete_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
         // Find and update the last running task of this verb type
         if let Some(task) = self
@@ -130,7 +129,7 @@ impl ChatView {
         }
     }
 
-    /// v0.12.1: Fail the last running task of a specific verb in the queue
+    /// Fail the last running task of a specific verb in the queue
     pub(super) fn fail_last_running_task(&mut self, verb: ChatTaskVerb, elapsed_ms: u64) {
         // Find and update the last running task of this verb type
         if let Some(task) = self
@@ -155,14 +154,14 @@ impl ChatView {
     }
 
     /// Cycle TaskBox render mode: Compact → Expanded → Full → Compact
-    /// v0.12.1: Toggle with `m` key when not in input mode
+    /// Toggle with `m` key when not in input mode
     pub fn cycle_task_box_render_mode(&mut self) {
         self.task_box_render_mode = self.task_box_render_mode.cycle();
     }
 
     /// Render command hints bar
     pub(super) fn render_hints(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // v0.8.7: Fixed labels to match actual behavior
+        // Fixed labels to match actual behavior
         let hints = Line::from(vec![
             Span::styled(
                 " ⌘K ",

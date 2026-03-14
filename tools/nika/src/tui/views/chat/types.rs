@@ -28,13 +28,13 @@ pub enum MessageRole {
 /// A chat message
 #[derive(Debug, Clone)]
 pub struct ChatMessage {
-    /// v0.9: Stable unique ID for tracking (survives message list mutations)
+    /// Stable unique ID for tracking (survives message list mutations)
     pub id: u64,
     pub role: MessageRole,
     pub content: String,
-    /// v0.9: Display timestamp (HH:MM) for better conversation tracking
+    /// Display timestamp (HH:MM) for better conversation tracking
     pub timestamp: DateTime<Local>,
-    /// v0.8.1: Instant for elapsed time calculations
+    /// Instant for elapsed time calculations
     pub created_at: Instant,
     /// Optional inline execution result
     pub execution: Option<ExecutionResult>,

@@ -1,7 +1,6 @@
 //! Text Selection for Chat View
 //!
 //! Contains text selection, copy, and clipboard operations.
-//! Extracted from mod.rs as part of Phase A1 refactoring.
 
 use super::{ChatPanel, ChatView, MessageRole};
 
@@ -120,7 +119,7 @@ impl ChatView {
         if let Some(ref mut clipboard) = self.clipboard {
             let success = clipboard.set_text(text).is_ok();
             if success {
-                // v0.8 WOW: Trigger flash effect on copied message
+                // WOW: Trigger flash effect on copied message
                 self.copy_flash_index = Some(cursor);
                 self.copy_flash_start = self.frame;
             }
