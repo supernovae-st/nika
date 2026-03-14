@@ -39,6 +39,7 @@ pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Maximum number of MCP reconnection attempts
 /// After this many failed reconnection attempts, the operation fails.
 /// Prevents infinite retry loops on persistently broken connections.
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub const MAX_RECONNECT_ATTEMPTS: u32 = 3;
 
 /// Timeout for decompose expansion (nested BFS traversal)
@@ -50,6 +51,7 @@ pub const DECOMPOSE_TIMEOUT: Duration = Duration::from_secs(120);
 /// Prevents hanging on slow/unresponsive MCP servers during startup.
 /// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
 /// Increased to match component timeouts
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Timeout for streaming chunk delivery (per-chunk, not total stream)
@@ -57,6 +59,7 @@ pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(90);
 pub const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Timeout for entire workflow execution (TUI mode)
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
 
 // ═══════════════════════════════════════════════════════════════
@@ -66,6 +69,7 @@ pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
 /// TTL for cached MCP tool definitions.
 /// After this duration, tool lists should be re-fetched from the server.
 /// 5 minutes balances freshness with avoiding excessive list_tools() calls.
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub const TOOL_CACHE_TTL: Duration = Duration::from_secs(300);
 
 // ═══════════════════════════════════════════════════════════════

@@ -56,6 +56,7 @@ const MAX_PATH_LENGTH: usize = 4096;
 ///
 /// - `NikaError::ArtifactPathError` if the path escapes the workflow boundary
 /// - `NikaError::ArtifactPathError` if the path is too long
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub fn resolve_artifact_dir(
     workflow_dir: &Path,
     configured_dir: Option<&str>,
@@ -228,6 +229,7 @@ fn normalize_path(path: &Path) -> PathBuf {
 ///
 /// Contains the paths and reason for conversion to context-specific error types.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub struct PathBoundaryError {
     /// The base path that was validated against
     pub base_path: PathBuf,
@@ -312,6 +314,7 @@ pub fn validate_canonicalized_boundary(
 /// Validate that a path stays within a base directory boundary
 ///
 /// This is a general-purpose boundary check used by `resolve_artifact_dir`.
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
     let normalized_base = normalize_path(base_path);
     let normalized_target = normalize_path(target_path);

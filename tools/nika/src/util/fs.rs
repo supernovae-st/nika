@@ -16,6 +16,7 @@ use std::path::Path;
 pub const MAX_PREVIEW_SIZE: u64 = 512 * 1024;
 
 /// Maximum file size for @file mentions (1MB)
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub const MAX_FILE_MENTION_SIZE: u64 = 1024 * 1024;
 
 /// Atomically write content to a file using temp+rename pattern.
@@ -62,6 +63,7 @@ pub fn atomic_write(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
 ///
 /// Preferred for TUI operations to avoid blocking the event loop.
 /// Uses fully async operations including error cleanup.
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub async fn atomic_write_async(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
     use tokio::io::AsyncWriteExt;
 

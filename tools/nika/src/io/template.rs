@@ -107,6 +107,7 @@ impl TemplateResolver {
     ///
     /// Returns `NikaError::TemplateError` if the key is empty or if the value
     /// contains path traversal patterns (e.g., `..`, `/`, `\`).
+    #[allow(dead_code)] // API surface from spn fusion — not yet wired
     pub fn with_var(
         mut self,
         key: impl Into<String>,
@@ -151,6 +152,7 @@ impl TemplateResolver {
     }
 
     /// Set a specific timestamp (useful for testing)
+    #[allow(dead_code)] // API surface from spn fusion — not yet wired
     pub fn with_timestamp(mut self, timestamp: DateTime<Local>) -> Self {
         self.timestamp = timestamp;
         self

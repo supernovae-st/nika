@@ -45,6 +45,8 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::timeout;
 
 use crate::error::{NikaError, Result};
+// McpRetryConfig and retry_mcp_call are used in mcp/client.rs, not here
+#[allow(unused_imports)] // Keep import visible for IDE navigation
 use crate::mcp::retry::{retry_mcp_call, McpRetryConfig};
 use crate::mcp::types::{
     ContentBlock, McpConfig, McpErrorCode, ResourceContent, ToolCallResult, ToolDefinition,

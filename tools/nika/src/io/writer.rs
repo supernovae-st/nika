@@ -89,12 +89,14 @@ impl WriteRequest {
     }
 
     /// Add a custom template variable
+    #[allow(dead_code)] // API surface from spn fusion — not yet wired
     pub fn with_var(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.vars.insert(key.into(), value.into());
         self
     }
 
     /// Add multiple template variables
+    #[allow(dead_code)] // API surface from spn fusion — not yet wired
     pub fn with_vars(mut self, vars: HashMap<String, String>) -> Self {
         self.vars.extend(vars);
         self
@@ -138,6 +140,7 @@ impl ArtifactWriter {
     }
 
     /// Get the artifact directory
+    #[allow(dead_code)] // API surface from spn fusion — not yet wired
     pub fn artifact_dir(&self) -> &Path {
         &self.artifact_dir
     }

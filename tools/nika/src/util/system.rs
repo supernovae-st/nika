@@ -123,6 +123,7 @@ pub fn get_available_ram_gb() -> u32 {
 /// }
 /// ```
 #[must_use]
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub fn has_enough_ram_gb(required_gb: f64) -> bool {
     let available = get_total_ram_gb() * RAM_HEADROOM_FACTOR;
     available >= required_gb
@@ -145,6 +146,7 @@ pub fn has_enough_ram_gb(required_gb: f64) -> bool {
 /// }
 /// ```
 #[must_use]
+#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub fn has_enough_ram_bytes(required_bytes: u64) -> bool {
     get_total_ram_bytes()
         .map(|total| (total as f64 * RAM_HEADROOM_FACTOR) as u64 >= required_bytes)

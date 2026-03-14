@@ -14,5 +14,4 @@ pub mod security;
 pub mod template;
 pub mod writer;
 
-// Re-export actively used functions
-pub use atomic::write_atomic;
+// Submodules are pub — consumers use io::atomic::write_atomic directly
