@@ -16,8 +16,8 @@ use super::agent::AgentParams;
 use super::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
     AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry,
-    AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, McpTransport, OutputFormat as AnalyzedOutputFormat,
-    TaskId, TaskTable,
+    AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, McpTransport,
+    OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
 };
 use super::invoke::InvokeParams;
 use super::output::{OutputFormat, OutputPolicy, SchemaRef};
@@ -262,7 +262,12 @@ fn lower_for_each(
             let items = serde_json::from_str(&fe.items)
                 .unwrap_or_else(|_| serde_json::Value::String(fe.items));
             let concurrency = fe.parallel.map(|p| p as usize);
-            (Some(items), Some(fe.as_var), concurrency, Some(fe.fail_fast))
+            (
+                Some(items),
+                Some(fe.as_var),
+                concurrency,
+                Some(fe.fail_fast),
+            )
         }
     }
 }
@@ -301,11 +306,17 @@ fn lower_mcp_servers(
                     cwd: server.cwd,
                 },
             )),
-            // SSE transport has no legacy McpConfigInline equivalent.
-            McpTransport::Sse => None,
+            McpTransport::Sse => {
+                tracing::warn!(server = %name, "SSE MCP server has no legacy equivalent and will be dropped during lowering");
+                None
+            }
         })
         .collect();
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -354,7 +365,11 @@ fn task_dep_names(
         .chain(implicit.iter())
         .filter_map(|id| table.get_name(*id).map(String::from))
         .collect();
-    if deps.is_empty() { None } else { Some(deps) }
+    if deps.is_empty() {
+        None
+    } else {
+        Some(deps)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -591,10 +606,7 @@ mod tests {
                 assert_eq!(agent.max_turns, Some(10));
                 assert_eq!(agent.max_tokens, Some(4096));
                 assert_eq!(agent.provider.as_deref(), Some("claude"));
-                assert_eq!(
-                    agent.skills.as_deref(),
-                    Some(&["writing".to_string()][..])
-                );
+                assert_eq!(agent.skills.as_deref(), Some(&["writing".to_string()][..]));
             }
             _ => panic!("expected Agent action"),
         }
@@ -724,7 +736,10 @@ mod tests {
             span: Span::dummy(),
         };
         let lowered = lower_output(output);
-        assert!(matches!(lowered.format, crate::ast::output::OutputFormat::Json));
+        assert!(matches!(
+            lowered.format,
+            crate::ast::output::OutputFormat::Json
+        ));
         match lowered.schema {
             Some(SchemaRef::Inline(v)) => {
                 assert_eq!(v, serde_json::json!({"type": "object"}))
