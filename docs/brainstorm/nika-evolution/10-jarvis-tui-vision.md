@@ -1,6 +1,6 @@
 # 10 — Nika v0.30 TUI: The Jarvis Vision
 
-> The complete visual design specification for Nika's strategy-mode TUI.
+> The complete visual design specification for Nika's shaka-mode TUI.
 > Every panel, every data point, every color — designed to feel like piloting an AI.
 
 **Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
@@ -9,14 +9,14 @@
 
 ## The Cockpit — Full Screen Layout
 
-**Scenario:** Round 4/8 of `generate-multilingual.nika.yaml`. Generating fr-FR landing page for QR Code AI. Three models active simultaneously. NovaNet connected. Episodes flowing. Strategy making live decisions.
+**Scenario:** Round 4/8 of `generate-multilingual.nika.yaml`. Generating fr-FR landing page for QR Code AI. Three models active simultaneously. NovaNet connected. Records flowing. Shaka making live decisions.
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 🦋 NIKA v0.30                generate-multilingual.nika.yaml                                                ┃
-┃ ┈ Strategy Mode ┈            Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
+┃ ┈ Shaka Mode ┈              Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
 ┣━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃ 🎯 STRATEGY      ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
+┃ 🎯 SHAKA         ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
 ┃ COMMANDER        ┃                                                              ┃  INTELLIGENCE            ┃
 ┃──────────────────┃  ┌────────┐                              ┌──────────┐       ┃──────────────────────────┃
 ┃                  ┃  │🔌 ctx  │─────────────┬───────────────▶│✍️ hero   │       ┃  ◆ Entity: qr-code-ai    ┃
@@ -32,10 +32,10 @@
 ┃  └────────────┘  ┃  └────────┘             │                │ (queued) │       ┃  📚 Knowledge Atoms:     ┃
 ┃                  ┃  ┌────────┐             │                └─────┬────┘       ┃  ┌─ expressions ────────┐┃
 ┃  Models:         ┃  │🧠 mem  │─────────────┘                      │            ┃  │ "code QR" (not "QR   ┃
-┃  ◉ reasoning     ┃  │recall  │        ┌──────────┐          ┌─────▼────┐       ┃  │  code" in French)    ┃
-┃  ◉ main          ┃  │✅ 0.3s │        │🔍research│          │✍️ price  │       ┃  │ "flash code" (alt)   ┃
-┃  ◉ search        ┃  │2 found │───────▶│ Groq     │          │ (queued) │       ┃  │ "générer" > "créer"  ┃
-┃  ○ tactical      ┃  └────────┘        │⏳ 2.3s   │          └─────┬────┘       ┃  └──────────────────────┘┃
+┃  ◉ pythagoras    ┃  │recall  │        ┌──────────┐          ┌─────▼────┐       ┃  │  code" in French)    ┃
+┃  ◉ edison        ┃  │✅ 0.3s │        │🔍research│          │✍️ price  │       ┃  │ "flash code" (alt)   ┃
+┃  ◉ york          ┃  │2 found │───────▶│ Groq     │          │ (queued) │       ┃  │ "générer" > "créer"  ┃
+┃  ○ atlas         ┃  └────────┘        │⏳ 2.3s   │          └─────┬────┘       ┃  └──────────────────────┘┃
 ┃                  ┃                     │████░░░░░ │          ┌─────▼────┐       ┃  ┌─ taboos ─────────────┐┃
 ┃  ── Decisions ── ┃                     └──────────┘          │🔬review  │       ┃  │ ⚠ "gratuit" in heads ┃
 ┃  R1 ✅ get ctx   ┃                           │               │ Claude   │       ┃  │   (implies low qual) ┃
@@ -47,8 +47,8 @@
 ┃  R7 ○ faq        ┃  research ← { locale: "fr-FR", past: EP-recall<2> }         ┃  │ data-driven args     ┃
 ┃  R8 ○ review     ┃                                                              ┃  │ metric > anecdote    ┃
 ┃                  ┃  ── Parallel execution ──                                    ┃  └──────────────────────┘┃
-┃  Thinking:       ┃  🔍 research [Groq/search]    ████░░░░░ 43%                 ┃                          ┃
-┃  "I should run   ┃  ✍️  hero [Claude/main+🧠]     █████░░░░ 55%                 ┃  🔗 Graph Neighbors:    ┃
+┃  Thinking:       ┃  🔍 research [Groq/york]      ████░░░░░ 43%                 ┃                          ┃
+┃  "I should run   ┃  ✍️  hero [Claude/edison+🧠]    █████░░░░ 55%                 ┃  🔗 Graph Neighbors:    ┃
 ┃   hero & research┃                                                              ┃  qr-code-ai             ┃
 ┃   in parallel    ┃  ── Structured Output ──                                     ┃  ├──HAS_NATIVE──▶ fr-FR ┃
 ┃   since they     ┃  hero → schema: { headline: str, subheadline: str,           ┃  ├──HAS_NATIVE──▶ en-US ┃
@@ -56,15 +56,15 @@
 ┃   on each other" ┃  Status: ⏳ Layer 1 (rig extractor) running...               ┃  ├──HAS_KEYWORD─▶ "qr"  ┃
 ┃                  ┃                                                              ┃  └──ENTITY_OF───▶ SaaS  ┃
 ┣━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃ 📦 EPISODES      ┃  🔬 TASK INSPECTOR ─ hero (write_section)                    ┃  📈 METRICS             ┃
+┃ 📦 RECORDS       ┃  🔬 TASK INSPECTOR ─ hero (write_section)                    ┃  📈 METRICS             ┃
 ┃──────────────────┃──────────────────────────────────────────────────────────────┃──────────────────────────┃
 ┃                  ┃                                                              ┃                          ┃
 ┃ ┌─ EP-1 ────────┐┃  Task: hero (write_section template)                        ┃  💰 Cost Breakdown:     ┃
 ┃ │ entity_context ┃  Verb: infer ⚡                                              ┃  ┌──────────────────────┐┃
-┃ │ 500 tok ✅     ┃  Model: Claude claude-sonnet-4-6 (main slot)                ┃  │ reasoning  $0.018    ┃
-┃ │ src: novanet   ┃  Extended Thinking: ON (budget: 16384)                      ┃  │ main       $0.012    ┃
-┃ │ fields: ctx    ┃                                                              ┃  │ search     $0.004    ┃
-┃ └────────────────┘┃  ── with: Bindings (resolved) ──────────────────────       ┃  │ tactical   $0.003    ┃
+┃ │ 500 tok ✅     ┃  Model: Claude claude-sonnet-4-6 (edison slot)                ┃  │ pythagoras $0.018    ┃
+┃ │ src: novanet   ┃  Extended Thinking: ON (budget: 16384)                      ┃  │ edison     $0.012    ┃
+┃ │ fields: ctx    ┃                                                              ┃  │ york       $0.004    ┃
+┃ └────────────────┘┃  ── with: Bindings (resolved) ──────────────────────       ┃  │ atlas      $0.003    ┃
 ┃ ┌─ EP-2 ────────┐┃  │ alias          │ source          │ value preview  │       ┃  │────────────────────│┃
 ┃ │ knowledge      ┃  │────────────────│─────────────────│────────────────│       ┃  │ TOTAL      $0.037   ┃
 ┃ │ 400 tok ✅     ┃  │ entity         │ "$get_ctx"      │ {name: "QR..  │       ┃  └──────────────────────┘┃
@@ -74,16 +74,16 @@
 ┃ ┌─ EP-3 ────────┐┃  Transforms: knowledge | extract(expressions) | first(5)   ┃  │ Total In:   18,420   ┃
 ┃ │ research  ⏳   ┃                                                              ┃  │ Total Out:   4,890   ┃
 ┃ │ ~400 tok       ┃  ── structured: Output Schema ──────────────────────        ┃  │ Thinking:    8,200   ┃
-┃ │ tgt: 400 max   ┃  {                                                          ┃  │ Episodes:    2,200   ┃
+┃ │ tgt: 400 max   ┃  {                                                          ┃  │ Records:     2,200   ┃
 ┃ │ retain: keys   ┃    "headline": { "type": "string" },      ← required       ┃  │────────────────────│┃
 ┃ └────────────────┘┃    "subheadline": { "type": "string" },                    ┃  │ Saved by EP: 74%    ┃
 ┃ ┌─ EP-R1 ←🧠 ──┐┃    "cta_text": { "type": "string" },     ← required       ┃  └──────────────────────┘┃
 ┃ │ RECALLED       ┃    "body": { "type": "string" }           ← required       ┃                          ┃
 ┃ │ past research  ┃  }                                                          ┃  🧠 NovaNet Memory:     ┃
 ┃ │ 280 tok        ┃  Validation: Layer 1 ⏳ │ Layer 2 ○ │ Layer 3 ○ │ L4 ○     ┃  ┌──────────────────────┐┃
-┃ │ 2025-03-12     ┃  Max retries: 3  │  Repair model: tactical                  ┃  │ Recalled: 2 episodes ┃
-┃ │ entity: qr-code┃                                                              ┃  │ Stored:   1 episode  ┃
-┃ └────────────────┘┃  ── episode: Config ───────────────────────────────        ┃  │ Entity: qr-code-ai   ┃
+┃ │ 2025-03-12     ┃  Max retries: 3  │  Repair model: atlas                  ┃  │ Recalled: 2 records  ┃
+┃ │ entity: qr-code┃                                                              ┃  │ Stored:   1 record   ┃
+┃ └────────────────┘┃  ── record: Config ────────────────────────────────        ┃  │ Entity: qr-code-ai   ┃
 ┃ ┌─ EP-R2 ←🧠 ──┐┃  compress: true │ max_tokens: 800 │ retain: [content]       ┃  │ Locales: fr-FR (1/5) ┃
 ┃ │ RECALLED       ┃  persist: novanet │ entity_link: qr-code-ai                  ┃  │ CSR: 0.96 (healthy)  ┃
 ┃ │ fr-FR trends   ┃  confidence_threshold: ─ (no threshold for writing)          ┃  └──────────────────────┘┃
@@ -94,8 +94,8 @@
 ┃                  ┃  │ 5,200 / 8,000 tokens                     65%   │       ┃  threshold ─ ─ ─ 0.85   ┃
 ┃ Total working    ┃  └──────────────────────────────────────────────────┘       ┃                          ┃
 ┃ memory: 2,270tok ┃                                                              ┃  ⏱ Model Utilization:   ┃
-┃ (raw: 8,900tok)  ┃  ── Extended Thinking (live) ───────────────────────        ┃  reasoning ████████ 72% ┃
-┃ Savings: 74%     ┃  │ Let me think about how to write this hero section.       ┃  main      █████░░░ 55% ┃
+┃ (raw: 8,900tok)  ┃  ── Extended Thinking (live) ───────────────────────        ┃  pythagoras████████ 72% ┃
+┃ Savings: 74%     ┃  │ Let me think about how to write this hero section.       ┃  edison    █████░░░ 55% ┃
 ┃                  ┃  │ The entity is QR Code AI, a SaaS for dynamic QR codes.   ┃  search    ████░░░░ 43% ┃
 ┃                  ┃  │ For French B2B audience, I should:                        ┃  tactical  ██░░░░░░ 18% ┃
 ┃                  ┃  │ 1. Use "code QR" not "QR code" (knowledge atom)          ┃                          ┃
@@ -578,7 +578,7 @@ Root branches labeled:
 - "ENTITIES" → Entity, EntityNative, denomination forms
 - "KNOWLEDGE" → expressions, taboos, audience traits, patterns
 - "STRUCTURE" → Page, Block, PageNative, BlockNative
-- "MEMORY" → AgentEpisode persistence, recall pathways
+- "MEMORY" → AgentRecord persistence, recall pathways
 - "SEO" → keywords, metrics, SERP data
 
 The roots should look like neural pathways merging into a circuit board
@@ -749,19 +749,19 @@ MCP connection point.
 ║  "I've cross-referenced         NovaNet: entities, locale atoms,          ║
 ║   the databases..."             knowledge graph with 200+ locales          ║
 ║                                                                            ║
-║  "Based on previous             Episode recall: "2 past episodes found    ║
+║  "Based on previous             Record recall: "2 past records found      ║
 ║   encounters..."                from 2025-03-12 for qr-code/fr-FR"        ║
 ║                                                                            ║
-║  "I'm running diagnostics"      Introspection: nika:cost, nika:episodes,  ║
-║                                 nika:dag_info, nika:strategy_state         ║
+║  "I'm running diagnostics"      Introspection: nika:cost, nika:records,   ║
+║                                 nika:dag_info, nika:shaka                  ║
 ║                                                                            ║
-║  "Shall I deploy the            Strategy: quality ≥ 0.85 → persist        ║
+║  "Shall I deploy the            Shaka: quality ≥ 0.85 → persist           ║
 ║   solution, sir?"               to NovaNet → next locale                   ║
 ║                                                                            ║
 ║  One key difference:                                                       ║
 ║  JARVIS is closed.              NIKA is YAML-first, open, auditable.      ║
 ║  You trust it blindly.          You SEE every decision in the TUI.        ║
-║                                 Every episode. Every binding. Every cost.  ║
+║                                 Every record. Every binding. Every cost.   ║
 ║                                                                            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```

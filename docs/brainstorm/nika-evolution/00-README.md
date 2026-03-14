@@ -1,7 +1,7 @@
 # 🦋 Nika Evolution — Research & Strategy
 
 > Comprehensive research corpus for Nika's next evolution phase.
-> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 9 brainstorm documents produced.
+> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 12 brainstorm documents produced.
 
 **Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
@@ -25,6 +25,10 @@ mindmap
     Guides
       08 v0.30 Complete Guide
       09 Use Cases Cookbook
+      10 JARVIS TUI Vision
+    Reference
+      11 v0.30 Technical Reference
+      12 Vegapunk Naming
 ```
 
 | # | Document | Purpose | Key Output |
@@ -35,9 +39,12 @@ mindmap
 | [04](./04-nika-novanet-overlap.md) | **Nika × NovaNet Overlap** | Boundary rules, synergy opportunities | Golden Rule definition |
 | [05](./05-evolution-roadmap.md) | **Evolution Roadmap** | 6 priorities in 3 waves with full designs | Implementation blueprint |
 | [06](./06-research-synthesis-report.md) | **Research Synthesis** | Complete synthesis from 13 research agents | Unified strategy |
-| [07](./07-slate-deep-integration.md) | **Slate Deep Integration** | Thread/episode/weaving → Nika architecture | Kernel upgrade plan |
+| [07](./07-slate-deep-integration.md) | **Slate Deep Integration** | Thread/record/weaving → Nika architecture | Kernel upgrade plan |
 | [08](./08-nika-030-complete-guide.md) | **v0.30 Complete Guide** | Comprehensive tutorial: Nika + NovaNet + all 6 features | User-facing guide |
 | [09](./09-use-cases-cookbook.md) | **Use Cases Cookbook** | 3 concrete use cases with full YAML workflows | Copy-paste recipes |
+| [10](./10-jarvis-tui-vision.md) | **JARVIS TUI Vision** | Iron Man-inspired TUI design for shaka orchestration | Visual design spec |
+| [11](./11-nika-030-technical-reference.md) | **v0.30 Technical Reference** | Complete technical spec: structs, traits, schemas | API-level reference |
+| [12](./12-vegapunk-naming.md) | **Vegapunk Naming** | One Piece-inspired naming system for Nika v0.30 | Naming spec + codebase impact |
 
 ---
 
@@ -77,8 +84,8 @@ flowchart LR
 > | **KNOWING** things | NovaNet | Knowledge graph, entities, locales, semantics |
 > | **DOING** things | Nika | Workflow execution, DAG, verbs, providers |
 > | **CONNECTING** | MCP | Protocol boundary, zero Cypher in Nika |
-> | **THINKING** | Episodes | Strategy orchestration, model routing, confidence |
-> | **REMEMBERING** | Episodes → NovaNet | Cross-session memory, entity-linked persistence |
+> | **THINKING** | Records | Shaka orchestration, model routing, confidence |
+> | **REMEMBERING** | Records → NovaNet | Cross-session memory, entity-linked persistence |
 
 ---
 
@@ -87,22 +94,22 @@ flowchart LR
 ```mermaid
 flowchart TD
     PM[🎛️ P-MODEL<br/>4-slot model routing]
-    PE[📦 P-EPISODE<br/>Episode compression]
-    PS[🎯 P-STRATEGY<br/>Strategy orchestration]
+    PR[📦 P-RECORD<br/>Record compression]
+    PS[🎯 P-SHAKA<br/>Shaka orchestration]
     PC[📊 P-CONTEXT<br/>Context budgeting]
     PMEM[🧠 P-MEMORY<br/>NovaNet episodic memory]
     PI[🔍 P-INTROSPECT<br/>Runtime introspection]
 
     PM --> PS
-    PE --> PS
-    PE --> PC
+    PR --> PS
+    PR --> PC
     PS --> PMEM
     PC --> PMEM
     PMEM --> PI
 
     subgraph W1["Wave 1 · v0.28 · schema @0.12"]
         PM
-        PE
+        PR
     end
 
     subgraph W2["Wave 2 · v0.29 · schema @0.13"]
@@ -125,17 +132,17 @@ flowchart TD
 
 | Priority | What | Inspired By | Key Rust Change |
 |----------|------|-------------|-----------------|
-| **P-MODEL** | 4-slot model routing (main/tactical/search/reasoning) | Slate cross-model[^2], THREAD[^3] | `model_slots` in `AnalyzedWorkflow` |
-| **P-EPISODE** | LLM compression at task completion boundaries | Slate episodes[^2], Context-Folding[^4] | `Episode` struct in `runtime/` |
-| **P-STRATEGY** | Dynamic tactic dispatch via thread weaving | Slate strategy/tactics[^2], AlphaZero[^5] | Orchestration mode in `runner.rs` |
-| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate dumb zone[^2], Context-Folding[^4] | Budget tracking in `DataStore` |
-| **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate sessions[^2], Memory-R1[^6] | New MCP tools for episode storage |
+| **P-MODEL** | 4-slot model routing (edison/atlas/york/pythagoras) | Slate cross-model[^2], THREAD[^3] | `model_slots` in `AnalyzedWorkflow` |
+| **P-RECORD** | LLM compression at task completion boundaries | Slate episodes[^2], Context-Folding[^4] | `Record` struct in `runtime/` |
+| **P-SHAKA** | Dynamic satellite dispatch via thread weaving | Slate strategy/tactics[^2], AlphaZero[^5] | Orchestration mode in `runner.rs` |
+| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate dumb zone[^2], Context-Folding[^4] | Budget tracking in `Egghead` |
+| **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate sessions[^2], Memory-R1[^6] | New MCP tools for record storage |
 | **P-INTROSPECT** | 6 runtime introspection builtin tools | RLM REPL[^7] | New tools in `runtime/builtin.rs` |
 
 </details>
 
 > [!TIP]
-> **Core Insight** — Nika's DAG IS Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `DataStore` IS RAM.
+> **Core Insight** — Nika's DAG IS Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM.
 > We don't BUILD Slate — we UPGRADE the kernel with 4 additions, then persist via NovaNet.
 
 ---
@@ -225,7 +232,7 @@ All claims verified against actual source code on 2026-03-14:
 
 - **13 research agents** deployed in parallel
 - **12-step ultrathink** sequential analysis (Slate → Nika concept mapping)
-- **9 brainstorm documents** produced (01-features through 09-cookbook)
+- **12 brainstorm documents** produced (01-features through 12-vegapunk-naming)
 - **Full Slate blog** scraped and analyzed (26 academic references in blog)
 
 ---
@@ -239,7 +246,7 @@ All claims verified against actual source code on 2026-03-14:
 ---
 
 [^1]: Verified via `cargo test -- --list | grep "test$" | wc -l` on 2026-03-14. See [01-current-features.md](./01-current-features.md) for full inventory.
-[^2]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with thread-based episodic memory architecture. The "4 model slots" design (main/tactical/search/reasoning) is our proposal, inspired by Slate's cross-model composition support (Sonnet + Codex).
+[^2]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with thread-based episodic memory architecture. The "4 model slots" design (edison/atlas/york/pythagoras) is our proposal, inspired by Slate's cross-model composition support (Sonnet + Codex).
 [^3]: THREAD: Thinking Deeper with Recursive Spawning — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402)
 [^4]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967)
 [^5]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Cited in Slate blog for strategy/tactics separation.

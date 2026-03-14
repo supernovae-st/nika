@@ -105,7 +105,7 @@ flowchart TB
 ### Slate's Model Slots
 
 > [!IMPORTANT]
-> **Attribution note:** Slate configures 4 model slots: **main**, **subagent**, **search**, **reasoning**. Our proposed 4-slot design (P-MODEL) uses **main**, **tactical**, **search**, **reasoning** — renaming "subagent" to "tactical" to better reflect the strategy/tactics separation from THREAD[^2] and AlphaZero[^3]. The slot concept is inspired by Slate; the specific taxonomy is our design.
+> **Attribution note:** Slate configures 4 model slots: **main**, **subagent**, **search**, **reasoning**. Our proposed 4-slot design (P-MODEL) uses **edison**, **atlas**, **york**, **pythagoras** — renaming "subagent" to "atlas" to better reflect the shaka/satellites separation from THREAD[^2] and AlphaZero[^3]. The slot concept is inspired by Slate; the specific taxonomy is our design.
 
 ```mermaid
 flowchart LR
@@ -117,10 +117,10 @@ flowchart LR
     end
 
     subgraph NIKA_SLOTS["Nika's Proposed Slots (P-MODEL)"]
-        NM["main\n(orchestration)"]
-        NT["tactical\n(execution)"]
-        NSE["search\n(retrieval)"]
-        NR["reasoning\n(planning/review)"]
+        NM["edison\n(orchestration)"]
+        NT["atlas\n(execution)"]
+        NSE["york\n(retrieval)"]
+        NR["pythagoras\n(planning/review)"]
     end
 
     SLATE_SLOTS -.->|"inspired by"| NIKA_SLOTS
@@ -151,9 +151,9 @@ flowchart LR
 | Context management | Working memory awareness, episode compression | None — full context carried | P-CONTEXT |
 | Model routing | 4 model slots (main/subagent/search/reasoning) | Single provider per workflow | P-MODEL |
 | Episodic memory | Cross-session persistence (session files) | In-memory only | P-MEMORY |
-| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop | P-STRATEGY |
-| Thread model | One-shot threads with episode compression | Persistent subagents | P-EPISODE |
-| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation | P-STRATEGY |
+| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop | P-SHAKA |
+| Thread model | One-shot threads with episode compression | Persistent subagents | P-RECORD |
+| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation | P-SHAKA |
 | Long-running tasks | Hours to days | Single session | P-MEMORY |
 
 </details>
@@ -171,12 +171,12 @@ flowchart LR
 | Multi-locale | 200+ locales via NovaNet knowledge atoms | English-focused |
 | Observability | 34 event types, NDJSON traces, TUI with DAG view | Basic logging |
 | Cost control | Token tracking per task, budget awareness | No token budgeting |
-| Episode persistence | NovaNet = graph-queryable, entity-linked (future) | Session files only |
+| Record persistence | NovaNet = graph-queryable, entity-linked (future) | Session files only |
 
 </details>
 
 > [!TIP]
-> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `DataStore` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, episodes, strategy mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
+> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
 
 ---
 
@@ -224,7 +224,7 @@ flowchart LR
 |--------|-----------|------|
 | Language | Python | Rust (YAML DSL) |
 | Graph model | StateGraph with conditional edges | DAG with 5 verbs |
-| State | Shared state dict | DataStore + bindings |
+| State | Shared state dict | Egghead + bindings |
 | Checkpointing | Built-in persistence | Event log (replay) |
 | Performance | Python (slow) | Rust + tokio (fast) |
 | MCP | Via langchain-mcp | Native rmcp |
@@ -243,11 +243,11 @@ flowchart LR
 |--------|--------|------|
 | Agent model | Role-based (researcher, writer, etc.) | Verb-based (infer, exec, agent) |
 | Coordination | Sequential/hierarchical | DAG with parallel + for_each |
-| Memory | Short/long-term/entity memory (3 types) | DataStore (session only) |
+| Memory | Short/long-term/entity memory (3 types) | Egghead (session only) |
 | Tools | Custom tool definitions | MCP tools + 11 builtins |
 
 > [!WARNING]
-> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single DataStore. This gap is addressed by P-MEMORY and P-EPISODE in the [Evolution Roadmap](./05-evolution-roadmap.md).
+> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single Egghead. This gap is addressed by P-MEMORY and P-RECORD in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 

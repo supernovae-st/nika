@@ -14,8 +14,8 @@
 3. [How They Work Together](#how-nika--novanet-work-together)
 4. [What's New in v0.30 — The 6 Features](#whats-new-in-v030)
 5. [Feature 1: Model Slots](#feature-1-model-slots)
-6. [Feature 2: Episodes](#feature-2-episodes)
-7. [Feature 3: Strategy Orchestration](#feature-3-strategy-orchestration)
+6. [Feature 2: Records](#feature-2-records)
+7. [Feature 3: Shaka Orchestration](#feature-3-shaka-orchestration)
 8. [Feature 4: Context Budget](#feature-4-context-budget)
 9. [Feature 5: Persistent Memory](#feature-5-persistent-memory-novanet)
 10. [Feature 6: Runtime Introspection](#feature-6-runtime-introspection)
@@ -308,10 +308,10 @@ flowchart TB
 
     subgraph TOMORROW["v0.30 — Target"]
         F1["✨ Model Slots\n4 models per workflow"]
-        F2["✨ Episodes\ncompressed task results"]
-        F3["✨ Strategy Mode\nLLM-driven orchestration"]
+        F2["✨ Records\ncompressed task results"]
+        F3["✨ Shaka Mode\nLLM-driven orchestration"]
         F4["✨ Context Budget\ntoken limits per task"]
-        F5["✨ Persistent Memory\nepisodes stored in NovaNet"]
+        F5["✨ Persistent Memory\nrecords stored in NovaNet"]
         F6["✨ Introspection\n6 new runtime tools"]
     end
 
@@ -332,10 +332,10 @@ flowchart TB
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
 ║  1. MODEL SLOTS    → Use different LLMs for different tasks (save 5-10x $)    ║
-║  2. EPISODES       → Compress task outputs before passing downstream          ║
-║  3. STRATEGY       → Let an LLM decide what tasks to run dynamically          ║
+║  2. RECORDS        → Compress task outputs before passing downstream          ║
+║  3. SHAKA          → Let an LLM decide what tasks to run dynamically          ║
 ║  4. CONTEXT BUDGET → Set token limits so LLMs never get confused              ║
-║  5. MEMORY         → Save episodes to NovaNet for cross-session learning      ║
+║  5. MEMORY         → Save records to NovaNet for cross-session learning       ║
 ║  6. INTROSPECT     → Let agents query the workflow's own runtime state        ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
@@ -345,8 +345,8 @@ flowchart TB
 
 | Wave | Version | Schema | Features | Dependencies |
 |:----:|---------|--------|----------|--------------|
-| 1 | v0.28 | @0.12 | Model Slots + Episodes | None |
-| 2 | v0.29 | @0.13 | Strategy + Context Budget | Wave 1 |
+| 1 | v0.28 | @0.12 | Model Slots + Records | None |
+| 2 | v0.29 | @0.13 | Shaka + Context Budget | Wave 1 |
 | 3 | v0.30 | @0.13 | Memory + Introspection | Wave 1 + 2 |
 
 ---
@@ -381,44 +381,44 @@ tasks:
 schema: nika/workflow@0.12
 
 model_slots:
-  main:                                    # For quality content generation
+  edison:                                    # For quality content generation
     provider: anthropic
     model: claude-sonnet-4-6
     # Cost: ~$0.003/1K tokens
 
-  tactical:                                # For simple formatting, parsing
+  atlas:                                     # For simple formatting, parsing
     provider: deepseek
     model: deepseek-chat
     # Cost: ~$0.0001/1K tokens (30x cheaper!)
 
-  search:                                  # For research, information retrieval
+  york:                                      # For research, information retrieval
     provider: groq
     model: llama-3.3-70b-versatile
     # Cost: ~$0.0003/1K tokens (10x cheaper!)
 
-  reasoning:                               # For complex planning, review
+  pythagoras:                                # For complex planning, review
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
 
-default_model_slot: main
+default_model_slot: edison
 
 tasks:
   - id: research
-    model_slot: search                     # ← Groq: fast & cheap
+    model_slot: york                         # ← Groq: fast & cheap
     infer: "Research QR code trends"
 
   - id: plan
-    model_slot: reasoning                  # ← Claude + thinking: expensive but deep
+    model_slot: pythagoras                   # ← Claude + thinking: expensive but deep
     infer: "Create a content strategy"
 
   - id: write_hero
-    model_slot: main                       # ← Claude: quality content
+    model_slot: edison                       # ← Claude: quality content
     infer: "Write the hero section"
 
   - id: format_output
-    model_slot: tactical                   # ← DeepSeek: trivial task, dirt cheap
+    model_slot: atlas                        # ← DeepSeek: trivial task, dirt cheap
     infer: "Format as HTML"
 ```
 
@@ -446,14 +446,14 @@ tasks:
 │                                         TOTAL  = $0.0247                       │
 │                                                                                 │
 │  Savings: 25% on a simple 4-task workflow                                       │
-│  On a 50-task workflow with many tactical tasks: savings reach 60-80%           │
+│  On a 50-task workflow with many atlas tasks: savings reach 60-80%              │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Feature 2: Episodes
+## Feature 2: Records
 
 ### The Problem
 
@@ -473,14 +473,14 @@ With 10 tasks chained, Task 10 might receive 20,000+ tokens of accumulated conte
 
 ### The Solution
 
-`episode:` compresses a task's output at the completion boundary:
+`record:` compresses a task's output at the completion boundary:
 
 ```yaml
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     infer: "Research QR code trends for 2026"
-    episode:
+    record:
       compress: true              # ← LLM summarizes the output
       max_tokens: 300             # ← Summary must fit in 300 tokens
       retain: [key_findings]      # ← Also extract structured findings
@@ -491,27 +491,27 @@ tasks:
 
 ```mermaid
 flowchart TB
-    EXEC["Task executes\n→ produces 2,500 tokens"] --> CHECK{"episode.compress\n= true?"}
+    EXEC["Task executes\n→ produces 2,500 tokens"] --> CHECK{"record.compress\n= true?"}
 
     CHECK -->|"No"| RAW["Store raw output\n(legacy behavior)"]
-    CHECK -->|"Yes"| COMPRESS["Call tactical LLM:\n'Summarize this in 300 tokens.\nExtract key_findings.'"]
+    CHECK -->|"Yes"| COMPRESS["Call atlas LLM:\n'Summarize this in 300 tokens.\nExtract key_findings.'"]
 
-    COMPRESS --> EPISODE["Episode stored:\n• summary (300 tokens)\n• key_findings: ['dynamic QR', 'AI generation']\n• confidence: 0.92\n• model_used: deepseek\n• tokens_spent: 2,500"]
+    COMPRESS --> RECORD["Record stored:\n• summary (300 tokens)\n• key_findings: ['dynamic QR', 'AI generation']\n• confidence: 0.92\n• model_used: deepseek\n• tokens_spent: 2,500"]
 
-    EPISODE --> DOWNSTREAM["Downstream tasks receive\nthe 300-token episode\nNOT the 2,500-token raw output"]
+    RECORD --> DOWNSTREAM["Downstream tasks receive\nthe 300-token record\nNOT the 2,500-token raw output"]
 
     style EXEC fill:#dbeafe,stroke:#2563eb
     style COMPRESS fill:#fef3c7,stroke:#d97706
-    style EPISODE fill:#dcfce7,stroke:#16a34a
+    style RECORD fill:#dcfce7,stroke:#16a34a
     style DOWNSTREAM fill:#dcfce7,stroke:#16a34a
 ```
 
 ### Before vs After
 
 ```
-v0.27 (raw passing):                    v0.28 (episodes):
+v0.27 (raw passing):                    v0.28 (records):
 ────────────────────                    ─────────────────
-Task A → 2,500 tokens                  Task A → Episode: 300 tokens
+Task A → 2,500 tokens                  Task A → Record: 300 tokens
 Task B gets 2,500                      Task B gets 300
 Task C gets 4,000                      Task C gets 600
 Task D gets 6,000                      Task D gets 900
@@ -522,10 +522,10 @@ Task J gets 20,000 → 💀 DUMB ZONE     Task J gets 3,000 → ✅ SHARP
 Context growth: O(n²)                  Context growth: O(n) bounded
 ```
 
-### Episode Rust Struct
+### Record Rust Struct
 
 ```rust
-pub struct Episode {
+pub struct Record {
     pub task_id: TaskId,
     pub summary: String,            // LLM-compressed (max_tokens limit)
     pub key_findings: Vec<String>,  // Structured extraction (retain field)
@@ -539,7 +539,7 @@ pub struct Episode {
 
 ---
 
-## Feature 3: Strategy Orchestration
+## Feature 3: Shaka Orchestration
 
 ### The Problem
 
@@ -560,39 +560,39 @@ tasks:
 
 ### The Solution
 
-`orchestration: strategy` adds a new execution mode where a **strategy LLM** dynamically dispatches tasks:
+`orchestration: shaka` adds a new execution mode where the **Shaka** dynamically dispatches tasks:
 
 ```yaml
-# v0.29 — The strategy LLM decides what to do
+# v0.29 — The Shaka decides what to do
 schema: nika/workflow@0.13
 
-orchestration: strategy         # ← NEW: enables strategy mode
+orchestration: shaka                   # ← NEW: enables shaka mode
 
 model_slots:
-  reasoning: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
-  main:      { provider: anthropic, model: claude-sonnet-4-6 }
-  search:    { provider: groq,      model: llama-3.3-70b-versatile }
+  pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
+  edison:     { provider: anthropic, model: claude-sonnet-4-6 }
+  york:       { provider: groq,      model: llama-3.3-70b-versatile }
 
-strategy:
+shaka:
   goal: |
     Generate a complete landing page for QR Code AI in French.
     Research trends, write sections, review quality.
     Iterate until quality score >= 0.85.
-  model_slot: reasoning
+  model_slot: pythagoras
   max_rounds: 8
-  episode_budget: 15000
+  record_budget: 15000
 
-# These are TEMPLATES — the strategy LLM dispatches them
+# These are TEMPLATES — the Shaka dispatches them
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     infer: "Research: {{with.topic}}"
-    episode: { compress: true, max_tokens: 300 }
+    record: { compress: true, max_tokens: 300 }
 
   - id: write_section
-    model_slot: main
+    model_slot: edison
     infer: "Write {{with.section}} section"
-    episode: { compress: true, max_tokens: 800 }
+    record: { compress: true, max_tokens: 800 }
     structured:
       schema:
         type: object
@@ -601,9 +601,9 @@ tasks:
         required: [content]
 
   - id: review
-    model_slot: reasoning
+    model_slot: pythagoras
     infer: "Review drafts: {{with.drafts}}"
-    episode: { compress: true, retain: [score, issues] }
+    record: { compress: true, retain: [score, issues] }
     structured:
       schema:
         type: object
@@ -617,41 +617,41 @@ tasks:
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Strategy LLM<br/>(Claude + thinking)
+    participant S as 🎯 Shaka<br/>(Claude + thinking)
     participant R as 🔍 research<br/>(Groq — cheap)
     participant W as ✍️ write_section<br/>(Claude — quality)
     participant V as 🔬 review<br/>(Claude + thinking)
 
     Note over S: Round 1 — "I need to understand the topic first"
     S->>R: dispatch(topic="QR code trends 2026")
-    R-->>S: Episode{key_findings: ["dynamic QR growing 40%"], confidence: 0.91}
+    R-->>S: Record{key_findings: ["dynamic QR growing 40%"], confidence: 0.91}
 
     Note over S: Round 2 — "I have context. Write hero + features in parallel"
     S->>W: dispatch(section="hero")
     S->>W: dispatch(section="features")
     Note right of W: Parallel execution!
-    W-->>S: Episode{content: "Créez des QR codes...", 800 tok}
-    W-->>S: Episode{content: "Fonctionnalités...", 800 tok}
+    W-->>S: Record{content: "Créez des QR codes...", 800 tok}
+    W-->>S: Record{content: "Fonctionnalités...", 800 tok}
 
     Note over S: Round 3 — "Research mentioned testimonials. Let me add that"
     S->>W: dispatch(section="testimonials")
     Note right of W: Dynamic! Not in original YAML
-    W-->>S: Episode{content: "Nos clients...", 800 tok}
+    W-->>S: Record{content: "Nos clients...", 800 tok}
 
     Note over S: Round 4 — "Review everything"
     S->>V: dispatch(drafts=[hero, features, testimonials])
-    V-->>S: Episode{score: 0.72, issues: ["hero needs CTA"]}
+    V-->>S: Record{score: 0.72, issues: ["hero needs CTA"]}
 
     Note over S: Round 5 — "Score 0.72 < 0.85. Fix hero."
     S->>W: dispatch(section="hero", feedback="add CTA button")
-    W-->>S: Episode{content: "hero v2...", 800 tok}
+    W-->>S: Record{content: "hero v2...", 800 tok}
 
     Note over S: Round 6 — "Re-review"
     S->>V: dispatch(drafts=[hero_v2, features, testimonials])
-    V-->>S: Episode{score: 0.91}
+    V-->>S: Record{score: 0.91}
 
     Note over S: ✅ Score 0.91 >= 0.85 — DONE
-    S->>S: Synthesize all episodes → final output
+    S->>S: Synthesize all records → final output
 ```
 
 ### The Two Modes
@@ -668,10 +668,10 @@ sequenceDiagram
 ║  • Predictable, reproducible, deterministic                                   ║
 ║  • Best for: pipelines, batch processing, CI/CD                               ║
 ║                                                                               ║
-║  Mode 2: orchestration: strategy (new in v0.29)                               ║
+║  Mode 2: orchestration: shaka (new in v0.29)                                  ║
 ║  ─────────────────────────────────────────────────────────────                ║
-║  • Tasks are TEMPLATES dispatched by a strategy LLM                           ║
-║  • Strategy decides what to run, when, and with what params                   ║
+║  • Tasks are TEMPLATES dispatched by the Shaka                                ║
+║  • Shaka decides what to run, when, and with what params                      ║
 ║  • Adaptive: adds tasks, retries on low quality, changes approach             ║
 ║  • Best for: content generation, research, complex multi-step reasoning       ║
 ║                                                                               ║
@@ -687,15 +687,15 @@ sequenceDiagram
 
 ### The Problem
 
-Without limits, a task's context can grow unbounded — especially in strategy mode where multiple rounds accumulate episodes:
+Without limits, a task's context can grow unbounded — especially in shaka mode where multiple rounds accumulate records:
 
 ```
-Round 1: research episode      → 300 tokens
-Round 2: write_hero episode    → 800 tokens
-Round 3: write_features episode → 800 tokens
-Round 4: review episode        → 500 tokens
+Round 1: research record       → 300 tokens
+Round 2: write_hero record     → 800 tokens
+Round 3: write_features record → 800 tokens
+Round 4: review record         → 500 tokens
 ...
-Round 8: strategy has 5,000+ tokens of episodes
+Round 8: Shaka has 5,000+ tokens of records
 → LLM starts losing quality
 ```
 
@@ -706,15 +706,15 @@ Round 8: strategy has 5,000+ tokens of episodes
 ```yaml
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     context_budget: 4000          # ← Max 4K tokens in this task's prompt
     infer: "Research QR codes"
-    episode:
+    record:
       compress: true
       max_tokens: 300
 
   - id: write_hero
-    model_slot: main
+    model_slot: edison
     context_budget: 8000          # ← Larger budget for generation
     with:
       trends: "$research"
@@ -727,19 +727,19 @@ tasks:
 ```mermaid
 flowchart TB
     PROMPT["Task prompt\n500 tokens"] --> BUDGET{"context_budget\n= 8000?"}
-    EPISODES["Relevant episodes\n2,400 tokens"] --> BUDGET
+    RECORDS["Relevant records\n2,400 tokens"] --> BUDGET
     CONTEXT["NovaNet context\n3,000 tokens"] --> BUDGET
     FILES["File context\n1,800 tokens"] --> BUDGET
 
     BUDGET -->|"500+2400+3000+1800\n= 7,700 < 8,000"| OK["✅ Within budget\nSend to LLM"]
-    BUDGET -->|"If total > 8,000"| TRIM["⚠️ Over budget\nTruncate oldest episodes\nKeep most relevant"]
+    BUDGET -->|"If total > 8,000"| TRIM["⚠️ Over budget\nTruncate oldest records\nKeep most relevant"]
 
     style OK fill:#dcfce7,stroke:#16a34a
     style TRIM fill:#fef3c7,stroke:#d97706
 ```
 
 **Rules enforced by the runtime:**
-1. Each task receives ONLY: its prompt + relevant episodes + context
+1. Each task receives ONLY: its prompt + relevant records + context
 2. Never raw history from other tasks
 3. Budget enforced by truncation/selection — not rejection
 4. Token count tracked in events for cost monitoring
@@ -753,19 +753,19 @@ flowchart TB
 Today, everything Nika learns during a workflow is **lost** when execution ends:
 
 ```
-Monday:   Workflow researches QR code trends → findings in DataStore → LOST
+Monday:   Workflow researches QR code trends → findings in Egghead → LOST
 Wednesday: Same workflow runs again → starts from zero → pays for research again
 ```
 
 ### The Solution
 
-`episode.persist: novanet` stores episodes in NovaNet's knowledge graph, linked to semantic entities:
+`record.persist: novanet` stores records in NovaNet's knowledge graph, linked to semantic entities:
 
 ```yaml
 tasks:
   - id: research
     infer: "Research QR code trends"
-    episode:
+    record:
       compress: true
       persist: novanet            # ← NEW: save to NovaNet
       entity_link: qr-code        # ← Link to the QR code entity
@@ -777,19 +777,19 @@ tasks:
 flowchart LR
     subgraph SESSION_1["Monday — Session 1"]
         R1["research(qr-code)"]
-        R1 --> E1["Episode:\ntrends, findings"]
-        E1 -->|"novanet_write"| AE1["AgentEpisode\nin NovaNet"]
+        R1 --> E1["Record:\ntrends, findings"]
+        E1 -->|"novanet_write"| AE1["AgentRecord\nin NovaNet"]
     end
 
     subgraph KG["NovaNet Knowledge Graph"]
-        AE1 -->|"EPISODE_OF"| ENT["Entity:\nqr-code"]
+        AE1 -->|"RECORD_OF"| ENT["Entity:\nqr-code"]
         AE1 -->|"FOR_LOCALE"| LOC["Locale:\nfr-FR"]
-        AE1 -->|"PRECEDED_BY"| AE0["Older\nAgentEpisode"]
+        AE1 -->|"PRECEDED_BY"| AE0["Older\nAgentRecord"]
     end
 
     subgraph SESSION_2["Wednesday — Session 2"]
         G1["generate(qr-code)"]
-        AE1 -->|"novanet_search:\npast episodes"| G1
+        AE1 -->|"novanet_search:\npast records"| G1
         G1 --> OUT["Uses Monday's research\nNo need to re-research!"]
     end
 
@@ -801,7 +801,7 @@ flowchart LR
 ### NovaNet Schema Addition
 
 ```
-AgentEpisode (new NodeClass)
+AgentRecord (new NodeClass)
 ├── key: string
 ├── workflow: string
 ├── task_id: string
@@ -811,10 +811,10 @@ AgentEpisode (new NodeClass)
 ├── tokens_spent: integer
 ├── timestamp: datetime
 ├── Arcs:
-│   ├── EPISODE_OF → Entity
+│   ├── RECORD_OF → Entity
 │   ├── FOR_LOCALE → Locale
-│   ├── SIMILAR_TO → AgentEpisode
-│   └── PRECEDED_BY → AgentEpisode
+│   ├── SIMILAR_TO → AgentRecord
+│   └── PRECEDED_BY → AgentRecord
 ```
 
 This means you can query past experience:
@@ -827,7 +827,7 @@ This means you can query past experience:
     server: novanet
     params:
       query: "QR code research"
-      kinds: ["AgentEpisode"]
+      kinds: ["AgentRecord"]
       # Returns: [{summary: "...", confidence: 0.92, timestamp: "2026-03-10"}]
 ```
 
@@ -847,7 +847,7 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
     # - What other tasks produced
     # - How much budget is left
     # - What the DAG looks like
-    # - What previous episodes contain
+    # - What previous records contain
 ```
 
 ### The Solution
@@ -859,9 +859,9 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
   agent:
     prompt: "Generate content, adapting to what came before"
     tools:
-      - nika:episodes         # "What did previous tasks produce?"
+      - nika:records          # "What did previous tasks produce?"
       - nika:threads          # "What tasks are running/completed?"
-      - nika:strategy_state   # "What round are we on? Budget left?"
+      - nika:shaka            # "What round are we on? Budget left?"
       - nika:cost             # "How many tokens/dollars spent so far?"
       - nika:dag_info         # "What tasks come after me?"
       - nika:task_status      # "Did task X succeed?"
@@ -871,12 +871,12 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
 
 | Tool | Returns | Example Use |
 |------|---------|-------------|
-| `nika:episodes` | List of all episodes with summaries and confidence | "Check if research was thorough enough" |
+| `nika:records` | List of all records with summaries and confidence | "Check if research was thorough enough" |
 | `nika:threads` | Active, completed, and pending tasks | "Know what's left to do" |
-| `nika:strategy_state` | Current round, max rounds, budget used/remaining | "Am I running out of budget?" |
+| `nika:shaka` | Current round, max rounds, budget used/remaining | "Am I running out of budget?" |
 | `nika:cost` | Token counts and cost per model slot | "Switch to cheaper model if over budget" |
 | `nika:dag_info` | Predecessors, successors, critical path | "Understand my position in the workflow" |
-| `nika:task_status` | Single task's status and episode | "Check if dependency succeeded" |
+| `nika:task_status` | Single task's status and record | "Check if dependency succeeded" |
 
 ### Example: Cost-Aware Agent
 
@@ -890,7 +890,7 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
       If budget is > 95% spent, stop and output what you have.
     tools:
       - nika:cost
-      - nika:episodes
+      - nika:records
       - nika:write
 ```
 
@@ -959,25 +959,25 @@ tasks:
 
 ```yaml
 schema: nika/workflow@0.13
-orchestration: strategy
+orchestration: shaka
 
 model_slots:
-  reasoning: { provider: anthropic,
+  pythagoras: { provider: anthropic,
     model: claude-sonnet-4-6,
     extended_thinking: true }
-  main: { provider: anthropic,
+  edison: { provider: anthropic,
     model: claude-sonnet-4-6 }
-  search: { provider: groq,
+  york: { provider: groq,
     model: llama-3.3-70b-versatile }
 
-strategy:
+shaka:
   goal: |
     Generate French landing page
     for QR Code AI.
     Quality >= 0.85.
-  model_slot: reasoning
+  model_slot: pythagoras
   max_rounds: 8
-  episode_budget: 15000
+  record_budget: 15000
 
 mcp:
   servers:
@@ -994,24 +994,24 @@ tasks:
         focus_key: "homepage"
         locale: "fr-FR"
         mode: page
-    episode:
+    record:
       compress: true
       max_tokens: 500
 
   - id: research
-    model_slot: search
+    model_slot: york
     context_budget: 4000
     with:
       topic: "$ctx"
     infer: "Research: {{with.topic}}"
-    episode:
+    record:
       compress: true
       max_tokens: 300
       persist: novanet
       entity_link: qr-code
 
   - id: write_section
-    model_slot: main
+    model_slot: edison
     context_budget: 8000
     with:
       section: "$research"
@@ -1024,12 +1024,12 @@ tasks:
           content: { type: string }
           word_count: { type: integer }
         required: [content]
-    episode:
+    record:
       compress: true
       max_tokens: 800
 
   - id: review
-    model_slot: reasoning
+    model_slot: pythagoras
     with:
       drafts: "$write_section"
     infer: "Review: {{with.drafts}}"
@@ -1040,7 +1040,7 @@ tasks:
           score: { type: number }
           issues: { type: array, items: { type: string } }
         required: [score, issues]
-    episode:
+    record:
       compress: true
       retain: [score, issues]
       confidence_threshold: 0.85
@@ -1063,9 +1063,9 @@ tasks:
 
 **Behavior:**
 - 3 models, right tool for each job
-- Strategy adds tasks dynamically
-- Context bounded by episodes + budget
-- Episodes persisted in NovaNet
+- Shaka adds tasks dynamically
+- Context bounded by records + budget
+- Records persisted in NovaNet
 - Quality loop: review → retry if < 0.85
 
 </td>
@@ -1081,11 +1081,11 @@ All 6 features work independently. You can adopt them incrementally:
 | Feature | Works alone? | Requires | Best with |
 |---------|:----------:|----------|-----------|
 | Model Slots | ✅ | Nothing | Any workflow |
-| Episodes | ✅ | Nothing | Multi-step pipelines |
-| Strategy | ❌ | Model Slots + Episodes | Content generation |
-| Context Budget | ✅ | Nothing (better with Episodes) | Long pipelines |
-| Memory | ❌ | Episodes + NovaNet | Cross-session workflows |
-| Introspect | ✅ | Nothing (better with Episodes) | Agent tasks |
+| Records | ✅ | Nothing | Multi-step pipelines |
+| Shaka | ❌ | Model Slots + Records | Content generation |
+| Context Budget | ✅ | Nothing (better with Records) | Long pipelines |
+| Memory | ❌ | Records + NovaNet | Cross-session workflows |
+| Introspect | ✅ | Nothing (better with Records) | Agent tasks |
 
 ### Adoption Path
 
@@ -1094,13 +1094,13 @@ Level 1 — Start here:
   Add model_slots: to save money (zero risk, backward compatible)
 
 Level 2 — Add compression:
-  Add episode: to tasks that pass data downstream
+  Add record: to tasks that pass data downstream
 
 Level 3 — Go adaptive:
-  Switch to orchestration: strategy for complex workflows
+  Switch to orchestration: shaka for complex workflows
 
 Level 4 — Add memory:
-  Add episode.persist: novanet for cross-session learning
+  Add record.persist: novanet for cross-session learning
 ```
 
 ---
@@ -1113,11 +1113,11 @@ Level 4 — Add memory:
 
 ### "Do I need NovaNet to use v0.30?"
 
-**No.** Features 1-4 (model slots, episodes, strategy, context budget) work without NovaNet. Only Feature 5 (persistent memory) requires NovaNet.
+**No.** Features 1-4 (model slots, records, shaka, context budget) work without NovaNet. Only Feature 5 (persistent memory) requires NovaNet.
 
-### "Is strategy mode deterministic?"
+### "Is shaka mode deterministic?"
 
-**No.** The strategy LLM makes decisions dynamically, so two runs may produce different task sequences. Use `orchestration: dag` when you need determinism.
+**No.** The Shaka makes decisions dynamically, so two runs may produce different task sequences. Use `orchestration: dag` when you need determinism.
 
 ### "How is this different from LangGraph?"
 
@@ -1129,18 +1129,18 @@ LangGraph is Python code that defines agent graphs. Nika is YAML that defines wo
 
 ### "How is this different from CrewAI?"
 
-CrewAI is multi-agent with role-based crews. Nika is workflow-first with optional strategy mode. Key differences:
-- Nika's strategy mode is simpler (1 strategist + N tactic templates)
-- Nika episodes are compressed (CrewAI passes full outputs)
+CrewAI is multi-agent with role-based crews. Nika is workflow-first with optional shaka mode. Key differences:
+- Nika's shaka mode is simpler (1 Shaka + N satellite templates)
+- Nika records are compressed (CrewAI passes full outputs)
 - Nika has NovaNet (no competitor has a knowledge graph)
 
 ### "What's the 'dumb zone'?"
 
-The dumb zone (term from Dex Horthy / Slate) is the point where an LLM has so much context that its performance actually **degrades**. Think of it like trying to read a 100-page document while writing — you lose track. Episodes and context budgets prevent this.
+The dumb zone (term from Dex Horthy / Slate) is the point where an LLM has so much context that its performance actually **degrades**. Think of it like trying to read a 100-page document while writing — you lose track. Records and context budgets prevent this.
 
-### "Can I mix DAG and strategy mode?"
+### "Can I mix DAG and shaka mode?"
 
-Not in the same workflow. But you can have a strategy workflow that `include:`s a DAG sub-workflow, or an `agent:` task that calls `nika:run` to execute a DAG workflow.
+Not in the same workflow. But you can have a shaka workflow that `include:`s a DAG sub-workflow, or an `agent:` task that calls `nika:run` to execute a DAG workflow.
 
 ---
 

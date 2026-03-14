@@ -27,7 +27,7 @@ flowchart TB
 
     subgraph RUNTIME["Runtime"]
         EXEC["⚙️ Executor\ntokio tasks, JoinSet,\nCancellationToken, fail_fast"]
-        EXEC --> STORE["📦 DataStore\nDashMap, TaskResult"]
+        EXEC --> STORE["📦 Egghead\nDashMap, TaskResult"]
     end
 
     EXEC --> EVENTS["📊 Event Sourcing\n34 EventKind variants\nNDJSON trace writer"]

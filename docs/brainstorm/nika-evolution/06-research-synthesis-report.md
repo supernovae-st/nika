@@ -55,8 +55,8 @@ flowchart LR
 > | **KNOWING** things | NovaNet | Knowledge graph, entities, locales, semantics |
 > | **DOING** things | Nika | Workflow execution, DAG, verbs, providers |
 > | **CONNECTING** | MCP | Protocol boundary, zero Cypher in Nika (ADR-003) |
-> | **THINKING** | Episodes | Strategy orchestration, model routing, confidence |
-> | **REMEMBERING** | Episodes → NovaNet | Cross-session memory, entity-linked persistence |
+> | **THINKING** | Records | Shaka orchestration, model routing, confidence |
+> | **REMEMBERING** | Records → NovaNet | Cross-session memory, entity-linked persistence |
 
 ### Stats Snapshot
 
@@ -199,7 +199,7 @@ flowchart TB
 <details>
 <summary>Binding & Transform — 3-pass template engine with 30+ operations</summary>
 
-- **Pass 1**: Resolve `{{use.xxx}}` / `{{with.xxx}}` from DataStore
+- **Pass 1**: Resolve `{{use.xxx}}` / `{{with.xxx}}` from Egghead
 - **Pass 2**: Resolve `{{context.files.xxx}}` from LoadedContext
 - **Pass 3**: Resolve `{{inputs.xxx}}` from workflow inputs
 - **Lazy bindings**: `lazy: true` defers resolution until first access
@@ -315,15 +315,15 @@ flowchart LR
     subgraph PRIORITIES["6 Priorities"]
         direction TB
         PM["P-MODEL\n4-slot routing"]
-        PE["P-EPISODE\nCompression"]
-        PS["P-STRATEGY\nDynamic dispatch"]
+        PE["P-RECORD\nCompression"]
+        PS["P-SHAKA\nDynamic dispatch"]
         PC["P-CONTEXT\nBudgets"]
         PMEM["P-MEMORY\nNovaNet persistence"]
         PI["P-INTROSPECT\nRuntime tools"]
     end
 
     TH -->|"per-task routing"| PM
-    TH -->|"strategy/tactics"| PS
+    TH -->|"shaka/satellites"| PS
     CF -->|"fold compression"| PE
     CF -->|"bounded context"| PC
     MR -->|"RL memory"| PMEM
@@ -342,7 +342,7 @@ flowchart LR
 
 | | Low Effort | Medium Effort | High Effort |
 |---|---|---|---|
-| **High Impact** | Per-task model routing (THREAD)[^1] | Episode compression (Context-Folding)[^2] | Strategy orchestration (THREAD + Slate) |
+| **High Impact** | Per-task model routing (THREAD)[^1] | Record compression (Context-Folding)[^2] | Shaka orchestration (THREAD + Slate) |
 | **Medium Impact** | Runtime introspection (RLM)[^3] | Context budgeting (Slate) | Episodic memory + RL (Memory-R1)[^4] |
 | **Low Impact** | — | — | Code sandbox (CodeAct)[^5] |
 
@@ -351,7 +351,7 @@ flowchart LR
 > [!TIP]
 > The literature consistently validates three things Nika already does right:
 > 1. **Hybrid DAG+LLM architecture** — Swarms paper[^6] confirms this outperforms pure-swarm
-> 2. **Reference semantics via DataStore** — RLM paper's core insight, already implemented
+> 2. **Reference semantics via Egghead** — RLM paper's core insight, already implemented
 > 3. **Recursive spawning with depth limits** — THREAD paper's approach, already in `SpawnAgentTool`
 
 ---
@@ -383,19 +383,19 @@ quadrantChart
 ### Slate — The Primary Reference
 
 > [!IMPORTANT]
-> **Core realization**: Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `DataStore` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, episodes, strategy mode, context budgets), then persist via NovaNet.
+> **Core realization**: Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet.
 
 | Where Slate Leads | Where Nika Leads | Priority |
 |---|---|---|
 | Context management (working memory) | YAML-first workflows (reproducible) | P-CONTEXT |
 | 4 model slots | NovaNet knowledge graph (unique) | P-MODEL |
-| Episode compression | 200+ locales (no competitor) | P-EPISODE |
-| Strategy/tactics split | 34-event observability | P-STRATEGY |
+| Record compression | 200+ locales (no competitor) | P-RECORD |
+| Shaka/satellites split | 34-event observability | P-SHAKA |
 | Cross-session memory (files) | 4-layer structured output | P-MEMORY |
-| Adaptive decomposition | Rust performance | P-STRATEGY |
+| Adaptive decomposition | Rust performance | P-SHAKA |
 
 > [!NOTE]
-> **Attribution**: Slate's slots are main/subagent/search/reasoning. Our P-MODEL design uses main/**tactical**/search/reasoning — renaming "subagent" to "tactical" per THREAD[^1] and AlphaZero[^7] strategy/tactics separation.
+> **Attribution**: Slate's slots are main/subagent/search/reasoning. Our P-MODEL design uses edison/**atlas**/york/pythagoras — renaming "subagent" to "atlas" per THREAD[^1] and AlphaZero[^7] shaka/satellites separation.
 
 ### Quick Competitive Matrix
 
@@ -411,7 +411,7 @@ quadrantChart
 | MCP | Native client | Plugin | None | None | Native |
 
 > [!WARNING]
-> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single DataStore. This gap is addressed by P-MEMORY.
+> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single Egghead. This gap is addressed by P-MEMORY.
 
 ---
 
@@ -423,17 +423,17 @@ quadrantChart
 flowchart LR
     subgraph HIGH_LOW["High Impact · Low Effort"]
         G1["G1: No per-task\nmodel routing\n→ P-MODEL"]
-        G6["G6: No confidence\nscoring\n→ P-EPISODE"]
+        G6["G6: No confidence\nscoring\n→ P-RECORD"]
     end
 
     subgraph HIGH_MED["High Impact · Medium Effort"]
-        G2["G2: No context\ncompression\n→ P-EPISODE + P-CONTEXT"]
+        G2["G2: No context\ncompression\n→ P-RECORD + P-CONTEXT"]
     end
 
     subgraph HIGH_HIGH["High Impact · High Effort"]
         G3["G3: No episodic\nmemory\n→ P-MEMORY"]
-        G4["G4: No strategy\n/tactics\n→ P-STRATEGY"]
-        G5["G5: No dynamic\nDAG generation\n→ P-STRATEGY"]
+        G4["G4: No shaka\n/satellites\n→ P-SHAKA"]
+        G5["G5: No dynamic\nDAG generation\n→ P-SHAKA"]
     end
 
     subgraph LOW["Low Priority"]
@@ -451,11 +451,11 @@ flowchart LR
 | Gap | Description | Source | Severity | Priority |
 |-----|-------------|--------|----------|----------|
 | G1 | Single provider per workflow — no per-task model routing | THREAD, Slate | HIGH | P-MODEL |
-| G2 | Full output carried forward — no context compression | Context-Folding, Slate | HIGH | P-EPISODE + P-CONTEXT |
+| G2 | Full output carried forward — no context compression | Context-Folding, Slate | HIGH | P-RECORD + P-CONTEXT |
 | G3 | In-memory session only — no cross-session episodic memory | Slate, CrewAI, Memory-R1 | HIGH | P-MEMORY |
-| G4 | Flat agent loop — no strategy/tactics pattern | THREAD, Slate | HIGH | P-STRATEGY |
-| G5 | Static YAML only — no dynamic DAG generation | RLM, Slate | MEDIUM | P-STRATEGY |
-| G6 | No confidence-based escalation (absorbed into episodes) | THREAD, Slate | MEDIUM | P-EPISODE |
+| G4 | Flat agent loop — no shaka/satellites pattern | THREAD, Slate | HIGH | P-SHAKA |
+| G5 | Static YAML only — no dynamic DAG generation | RLM, Slate | MEDIUM | P-SHAKA |
+| G6 | No confidence-based escalation (absorbed into records) | THREAD, Slate | MEDIUM | P-RECORD |
 | G7 | Agents can't see DAG state — no runtime introspection | RLM | LOW | P-INTROSPECT |
 | G8 | `exec:` is shell-only — no code execution sandbox | CodeAct | LOW | Future |
 | G9 | Parent-child only — no inter-agent protocol | A2A, Swarms | LOW | Future |
@@ -468,8 +468,8 @@ flowchart LR
 > | ID | Debt | Risk |
 > |---|---|---|
 > | D1 | Two binding systems coexist (`use:` + `with:`) | Confusion |
-> | D2 | DataStore has no eviction (unbounded memory growth) | OOM |
-> | D3 | Mixed locking (DashMap + RwLock in DataStore) | Complexity |
+> | D2 | Egghead has no eviction (unbounded memory growth) | OOM |
+> | D3 | Mixed locking (DashMap + RwLock in Egghead) | Complexity |
 > | D4 | Context file loading has no size limits | OOM |
 > | D5 | Env var pollution from boot-time secret injection | Security |
 > | D6 | Limited JSONPath in binding resolution | Expressivity |
@@ -484,8 +484,8 @@ flowchart LR
 flowchart TB
     subgraph S1["Synergy 1: Episodic Memory"]
         direction LR
-        A1["Nika agent\ncompletes task"] --> A2["Compress\ninto episode"]
-        A2 -->|"novanet_write"| A3["AgentEpisode\nin NovaNet"]
+        A1["Nika agent\ncompletes task"] --> A2["Compress\ninto record"]
+        A2 -->|"novanet_write"| A3["AgentRecord\nin NovaNet"]
         A3 -->|"novanet_search"| A4["Future agent\nreuses knowledge"]
     end
 
@@ -547,8 +547,8 @@ flowchart LR
 ```mermaid
 flowchart TD
     PM["P-MODEL\n4-slot model routing"]
-    PE["P-EPISODE\nEpisode compression"]
-    PS["P-STRATEGY\nStrategy orchestration"]
+    PE["P-RECORD\nRecord compression"]
+    PS["P-SHAKA\nShaka orchestration"]
     PC["P-CONTEXT\nContext budgeting"]
     PMEM["P-MEMORY\nNovaNet episodic memory"]
     PI["P-INTROSPECT\nRuntime introspection"]
@@ -584,21 +584,21 @@ flowchart TD
 
 | Priority | What | Source | Wave | Key Rust Change |
 |----------|------|--------|------|-----------------|
-| **P-MODEL** | 4-slot model routing (main/tactical/search/reasoning) | Slate, THREAD[^1] | 1 | `model_slots` in `AnalyzedWorkflow` |
-| **P-EPISODE** | LLM compression at task completion boundaries | Slate, Context-Folding[^2] | 1 | `Episode` struct in `runtime/` |
-| **P-STRATEGY** | Dynamic tactic dispatch via thread weaving | Slate, THREAD[^1], RLM[^3] | 2 | Orchestration mode in `runner.rs` |
-| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate, Context-Folding[^2] | 2 | Budget tracking in `DataStore` |
-| **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate, Memory-R1[^4], CrewAI | 3 | New MCP tools for episode storage |
+| **P-MODEL** | 4-slot model routing (edison/atlas/york/pythagoras) | Slate, THREAD[^1] | 1 | `model_slots` in `AnalyzedWorkflow` |
+| **P-RECORD** | LLM compression at task completion boundaries | Slate, Context-Folding[^2] | 1 | `Record` struct in `runtime/` |
+| **P-SHAKA** | Dynamic satellite dispatch via thread weaving | Slate, THREAD[^1], RLM[^3] | 2 | Orchestration mode in `runner.rs` |
+| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate, Context-Folding[^2] | 2 | Budget tracking in `Egghead` |
+| **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate, Memory-R1[^4], CrewAI | 3 | New MCP tools for record storage |
 | **P-INTROSPECT** | 6 runtime introspection builtin tools | RLM[^3] | 3 | New tools in `runtime/builtin.rs` |
 
 ### Why This Order
 
 ```mermaid
 flowchart LR
-    PM["P-MODEL\n(low effort,\nhigh value)"] --> PS["P-STRATEGY\n(needs model\nslots to route)"]
-    PE["P-EPISODE\n(core primitive)"] --> PS
-    PE --> PC["P-CONTEXT\n(needs episodes\nfor bounded ctx)"]
-    PS --> PMEM["P-MEMORY\n(needs stable\nepisodes)"]
+    PM["P-MODEL\n(low effort,\nhigh value)"] --> PS["P-SHAKA\n(needs model\nslots to route)"]
+    PE["P-RECORD\n(core primitive)"] --> PS
+    PE --> PC["P-CONTEXT\n(needs records\nfor bounded ctx)"]
+    PS --> PMEM["P-MEMORY\n(needs stable\nrecords)"]
     PC --> PMEM
     PMEM --> PI["P-INTROSPECT\n(simple once\nstate tracked)"]
 
@@ -611,7 +611,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> **P-MODEL first** because it's low effort + high value + prerequisite for strategy routing. **P-EPISODE with it** because it's the core primitive everything else depends on. **P-STRATEGY after** because it requires both model slots and episodes. **P-MEMORY last** because it needs cross-project NovaNet schema changes and stable episodes.
+> **P-MODEL first** because it's low effort + high value + prerequisite for shaka routing. **P-RECORD with it** because it's the core primitive everything else depends on. **P-SHAKA after** because it requires both model slots and records. **P-MEMORY last** because it needs cross-project NovaNet schema changes and stable records.
 
 ### After All Priorities: Competitive Position
 
@@ -620,8 +620,8 @@ flowchart TB
     subgraph PARITY["Parity with Slate"]
         direction TB
         C1["4-slot model routing ✅"]
-        C2["Episode compression ✅"]
-        C3["Strategy/tactics ✅"]
+        C2["Record compression ✅"]
+        C3["Shaka/satellites ✅"]
         C4["Context budgeting ✅"]
     end
 
@@ -665,7 +665,7 @@ flowchart TB
 | 3 | Research Slate (Random Labs) | 8 concept analysis |
 | 4 | Research competing runtimes | 5-competitor matrix |
 | 5 | Analyze Nika-NovaNet boundaries | Overlap scorecard (0/6) |
-| 6 | Research agent orchestration patterns | Strategy/tactics design |
+| 6 | Research agent orchestration patterns | Shaka/satellites design |
 | 7 | Audit ALL Nika features (exhaustive) | Feature inventory |
 | 8 | NovaNet MCP tools inventory | 8-tool capability map |
 | 9 | Research agent memory architectures | Memory-R1 findings |
@@ -697,7 +697,7 @@ flowchart TB
 [^4]: Memory-R1: RL-trained agent memory policies — [arXiv:2508.19828](https://arxiv.org/abs/2508.19828) (2025).
 [^5]: CodeAct: Code Actions for LLM Agents — [arXiv:2402.01030](https://arxiv.org/abs/2402.01030) (ICML 2024, Wang et al.). Executable code as unified action space.
 [^6]: From Rule-Based to LLM-Powered: A Comparative Study of Swarm Intelligence — [arXiv:2506.14496](https://arxiv.org/abs/2506.14496) (2025).
-[^7]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Cited for strategy/tactics separation.
+[^7]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Cited for shaka/satellites separation.
 
 ---
 

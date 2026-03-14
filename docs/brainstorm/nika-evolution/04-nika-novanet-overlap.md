@@ -113,7 +113,7 @@ tasks:
 
 | Capability | NovaNet | Nika | Verdict |
 |-----------|---------|------|---------|
-| Persistent state | Neo4j (durable) | DataStore (in-memory) | **Gap in Nika** |
+| Persistent state | Neo4j (durable) | Egghead (in-memory) | **Gap in Nika** |
 | Cross-session | Graph persists forever | Session files only | **Gap in Nika** |
 | Concurrent access | Neo4j transactions | DashMap lock-free | Both handle concurrency |
 
@@ -192,7 +192,7 @@ flowchart LR
 >
 > Nika builds its own episodic memory system (P-MEMORY) that duplicates NovaNet's entity/knowledge storage.
 >
-> **Recommendation:** Nika's episodic memory should USE NovaNet as backend. New `AgentEpisode` NodeClass in NovaNet Org realm. Nika writes episodes via `novanet_write`, reads via `novanet_search`. NovaNet handles persistence, search, and cleanup.
+> **Recommendation:** Nika's episodic memory should USE NovaNet as backend. New `AgentRecord` NodeClass in NovaNet Org realm. Nika writes records via `novanet_write`, reads via `novanet_search`. NovaNet handles persistence, search, and cleanup.
 >
 > **Why:** NovaNet already has durable storage, fulltext search, and quality audit. Building a parallel system in Nika would duplicate all of this.
 
@@ -227,19 +227,19 @@ flowchart LR
 
 ## Synergy Opportunities
 
-### Opportunity 1: Agent Episodes in NovaNet
+### Opportunity 1: Agent Records in NovaNet
 
-Maps to [P-MEMORY](./05-evolution-roadmap.md) and [P-EPISODE](./05-evolution-roadmap.md) in the Evolution Roadmap.
+Maps to [P-MEMORY](./05-evolution-roadmap.md) and [P-RECORD](./05-evolution-roadmap.md) in the Evolution Roadmap.
 
 ```mermaid
 flowchart LR
-    AGENT["Agent executes task"] --> EPISODE["Episode created\n(summary, findings, tools)"]
-    EPISODE -->|"novanet_write"| NN["NovaNet\nAgentEpisode node"]
-    NN -->|"EPISODE_OF arc"| ENT["Entity\n'qr-code'"]
+    AGENT["Agent executes task"] --> RECORD["Record created\n(summary, findings, tools)"]
+    RECORD -->|"novanet_write"| NN["NovaNet\nAgentRecord node"]
+    NN -->|"RECORD_OF arc"| ENT["Entity\n'qr-code'"]
     NN -->|"novanet_search"| FUTURE["Future agent\nreuses knowledge"]
 
     style AGENT fill:#ede9fe,stroke:#7c3aed
-    style EPISODE fill:#fef3c7,stroke:#d97706
+    style RECORD fill:#fef3c7,stroke:#d97706
     style NN fill:#0d9488,color:#fff,stroke:#0d9488
     style ENT fill:#dbeafe,stroke:#2563eb
     style FUTURE fill:#dcfce7,stroke:#16a34a
@@ -257,9 +257,9 @@ tasks:
       episodic_memory: true  # NEW: persist to NovaNet
 
   # Automatically creates:
-  # AgentEpisode node in NovaNet with:
+  # AgentRecord node in NovaNet with:
   #   - task_summary, key_findings, tools_used
-  #   - linked to Entity "qr-code" via EPISODE_OF arc
+  #   - linked to Entity "qr-code" via RECORD_OF arc
   #   - searchable for future similar tasks
 ```
 

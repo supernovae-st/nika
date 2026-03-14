@@ -15,12 +15,12 @@
 4. [DAG Execution Engine](#4-dag-execution-engine)
 5. [Model Routing — 4 Slots](#5-model-routing--4-slots)
 6. [Agent System](#6-agent-system)
-7. [Episode Engine](#7-episode-engine)
-8. [Strategy Orchestration](#8-strategy-orchestration)
+7. [Record Engine](#7-record-engine)
+8. [Shaka Orchestration](#8-shaka-orchestration)
 9. [Context Budget Management](#9-context-budget-management)
 10. [Structured Output Pipeline](#10-structured-output-pipeline)
 11. [NovaNet Integration (MCP)](#11-novanet-integration-mcp)
-12. [Episodic Memory](#12-episodic-memory)
+12. [Persistent Records](#12-persistent-records)
 13. [Runtime Introspection](#13-runtime-introspection)
 14. [Binding System & Data Flow](#14-binding-system--data-flow)
 15. [Artifact System](#15-artifact-system)
@@ -44,7 +44,7 @@ flowchart LR
     AST -->|validate| DAG["DAG Resolution\ncycle detection\ndependency sort"]
     DAG -->|execute| RT["Tokio Runtime\nparallel tasks\nfail_fast"]
     RT -->|trace| NDJSON["Trace File\n.ndjson events"]
-    RT -->|output| RESULT["TaskResults\n+ Episodes\n+ Artifacts"]
+    RT -->|output| RESULT["TaskResults\n+ Records\n+ Artifacts"]
 
     style YAML fill:#fef3c7,stroke:#d97706
     style AST fill:#dbeafe,stroke:#2563eb
@@ -59,7 +59,7 @@ Two execution modes:
 | Mode | Description | YAML field |
 |------|-------------|------------|
 | **dag** (default) | Static DAG — all tasks known at parse time, executed in dependency order | `orchestration: dag` or omitted |
-| **strategy** | Dynamic — a strategy LLM dispatches tactic tasks across rounds | `orchestration: strategy` |
+| **shaka** | Dynamic — a Shaka orchestrator dispatches satellites across rounds | `orchestration: shaka` |
 
 ---
 
@@ -149,7 +149,7 @@ flowchart LR
     EXEC -->|"shlex"| SHELL["OS Process\nshell:false default"]
     FETCH -->|"reqwest"| HTTP["HTTP/S\nGET/POST/PUT/DELETE"]
     INVOKE -->|"rmcp"| MCP_T["MCP Servers\nJSON-RPC 2.0"]
-    AGENT -->|"rig AgentBuilder"| LOOP["Agent Loop\ntools + episodes"]
+    AGENT -->|"rig AgentBuilder"| LOOP["Agent Loop\ntools + records"]
 
     style VERBS fill:#dbeafe,stroke:#2563eb
 ```
@@ -305,14 +305,14 @@ sequenceDiagram
 
 Creates N task instances running in a `tokio::JoinSet` with bounded concurrency.
 
-### DynamicDag (v0.30 — strategy mode)
+### DynamicDag (v0.30 — shaka mode)
 
-In `orchestration: strategy` mode, the DAG is mutable at runtime. The strategy LLM can dispatch new tactic tasks that get inserted into the live DAG.
+In `orchestration: shaka` mode, the DAG is mutable at runtime. The Shaka orchestrator can dispatch new satellites that get inserted into the live DAG.
 
 | DAG Type | When | Mutability |
 |----------|------|------------|
 | `StableDag` | `orchestration: dag` (default) | Immutable after parse |
-| `DynamicDag` | `orchestration: strategy` | Tasks added at runtime by strategy LLM |
+| `DynamicDag` | `orchestration: shaka` | Tasks added at runtime by Shaka orchestrator |
 
 Source: `dag/stable.rs` (existing), `dag/dynamic.rs` (v0.30)
 
@@ -325,23 +325,23 @@ Route different cognitive tasks to different providers/models within a single wo
 ```mermaid
 flowchart LR
     subgraph SLOTS["model_slots:"]
-        MAIN["main\nclaude-sonnet\n$$$$"]
-        TACTICAL["tactical\nllama-3.3-70b\n$"]
-        SEARCH["search\ndeepseek-chat\n$$"]
-        REASONING["reasoning\nclaude + thinking\n$$$$$"]
+        EDISON["edison\nclaude-sonnet\n$$$$"]
+        ATLAS["atlas\nllama-3.3-70b\n$"]
+        YORK["york\ndeepseek-chat\n$$"]
+        PYTHAGORAS["pythagoras\nclaude + thinking\n$$$$$"]
     end
 
     subgraph TASKS["Task Routing"]
-        T1["plan → reasoning"]
-        T2["generate → main"]
-        T3["classify → tactical"]
-        T4["research → search"]
+        T1["plan → pythagoras"]
+        T2["generate → edison"]
+        T3["classify → atlas"]
+        T4["research → york"]
     end
 
-    REASONING -.-> T1
-    MAIN -.-> T2
-    TACTICAL -.-> T3
-    SEARCH -.-> T4
+    PYTHAGORAS -.-> T1
+    EDISON -.-> T2
+    ATLAS -.-> T3
+    YORK -.-> T4
 
     style SLOTS fill:#dbeafe,stroke:#2563eb
     style TASKS fill:#fef3c7,stroke:#d97706
@@ -353,41 +353,41 @@ flowchart LR
 schema: nika/workflow@0.12
 
 model_slots:
-  main:
+  edison:
     provider: anthropic
     model: claude-sonnet-4-6
     # Primary content generation, complex reasoning
 
-  tactical:
+  atlas:
     provider: groq
     model: llama-3.3-70b-versatile
     # Simple decisions, classifications, formatting
 
-  search:
+  york:
     provider: deepseek
     model: deepseek-chat
     # Research, search synthesis, information retrieval
 
-  reasoning:
+  pythagoras:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
     # Strategy, planning, review, critique
 
-default_model_slot: main
+default_model_slot: edison
 
 tasks:
   - id: plan
-    model_slot: reasoning
+    model_slot: pythagoras
     infer: "Create a content plan"
 
   - id: classify
-    model_slot: tactical
+    model_slot: atlas
     infer: "Is this about QR codes? Answer yes/no"
 
   - id: generate
-    model_slot: main
+    model_slot: edison
     infer: "Generate the landing page"
 ```
 
@@ -413,9 +413,9 @@ WITHOUT routing (v0.27):
   200 pages × 5 locales × 5 tasks = 5,000 calls at $$$$ each
 
 WITH routing (v0.30):
-  Planning (5%) → reasoning ($$$$)
-  Generation (35%) → main ($$$$)
-  Classification/formatting (60%) → tactical ($)
+  Planning (5%) → pythagoras ($$$$)
+  Generation (35%) → edison ($$$$)
+  Classification/formatting (60%) → atlas ($)
 
   Result: ~60% cost reduction on same pipeline
 ```
@@ -441,7 +441,7 @@ sequenceDiagram
         Note over LLM: Decide: more tools or done?
     end
     LLM-->>RT: Final response or nika:complete
-    RT->>RT: Compress to Episode
+    RT->>RT: Compress to Record
 ```
 
 ### Tool Inventory
@@ -467,12 +467,12 @@ sequenceDiagram
 
 | Tool | Returns |
 |------|---------|
-| `nika:episodes` | Accumulated episodes `[{task_id, summary, confidence, tokens}]` |
+| `nika:records` | Accumulated records `[{task_id, summary, confidence, tokens}]` |
 | `nika:threads` | Active/completed threads `[{task_id, status, model_slot}]` |
-| `nika:strategy_state` | Strategy progress `{round, max_rounds, budget_used, budget_total}` |
+| `nika:shaka` | Shaka progress `{round, max_rounds, budget_used, budget_total}` |
 | `nika:cost` | Token usage and cost report `{total_tokens, total_cost, per_model}` |
 | `nika:dag_info` | DAG structure `{predecessors, successors, critical_path}` |
-| `nika:task_status` | Individual task status `{task_id, status, episode}` |
+| `nika:task_status` | Individual task status `{task_id, status, record}` |
 
 **+ All MCP tools** from configured servers (NovaNet, Neo4j, GitHub, Slack, etc.)
 
@@ -519,26 +519,26 @@ Source: `runtime/rig_agent_loop/` (7 files), `runtime/builtin/` (13 files), `run
 
 ---
 
-## 7. Episode Engine
+## 7. Record Engine
 
-Episodes are compressed representations of task execution, generated at the natural completion boundary. Downstream tasks receive episodes, not raw output.
+Records are compressed representations of task execution, generated at the natural completion boundary. Downstream tasks receive records, not raw output.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Executing: Task starts
     Executing --> Completed: Task finishes
-    Completed --> Compressing: episode.compress = true
-    Compressing --> EpisodeStored: tactical LLM summarizes
-    Completed --> RawStored: episode.compress = false
+    Completed --> Compressing: record.compress = true
+    Compressing --> RecordStored: atlas LLM summarizes
+    Completed --> RawStored: record.compress = false
 
-    EpisodeStored --> [*]: summary + key_findings + confidence
+    RecordStored --> [*]: summary + key_findings + confidence
     RawStored --> [*]: raw TaskResult (legacy behavior)
 ```
 
-### Episode Data Structure
+### Record Data Structure
 
 ```rust
-pub struct Episode {
+pub struct Record {
     pub task_id: TaskId,
     pub summary: String,           // LLM-compressed summary
     pub key_findings: Vec<String>, // Extracted key points
@@ -555,71 +555,71 @@ pub struct Episode {
 ```yaml
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     infer: "Research QR code trends in 2026"
-    episode:
-      compress: true            # Generate episode summary
+    record:
+      compress: true            # Generate record summary
       retain: [key_findings]    # What to extract from raw output
-      max_tokens: 500           # Episode summary size limit
-      confidence_threshold: 0.8 # Strategy can escalate if below
+      max_tokens: 500           # Record summary size limit
+      confidence_threshold: 0.8 # Shaka can escalate if below
 ```
 
 ### How It Works
 
 1. Task executes normally (any verb)
-2. At completion, if `episode.compress: true`:
-   - The raw output is sent to the **tactical** model slot (cheap, fast)
+2. At completion, if `record.compress: true`:
+   - The raw output is sent to the **atlas** model slot (cheap, fast)
    - The LLM produces a structured summary + key_findings + confidence score
-   - The Episode struct replaces the raw TaskResult for downstream bindings
-3. Downstream tasks referencing this task via `$research` get the episode, not the raw output
+   - The Record struct replaces the raw TaskResult for downstream bindings
+3. Downstream tasks referencing this task via `$research` get the record, not the raw output
 
 ### Impact on Context Growth
 
 ```
-WITHOUT episodes:
+WITHOUT records:
   Task A output: 2,000 tokens
   Task B receives: 2,000 tokens (full A)
   Task C receives: 4,000 tokens (A + B)
   Task D receives: 6,000+ tokens → context degradation
 
-WITH episodes:
-  Task A → Episode: 300 tokens
+WITH records:
+  Task A → Record: 300 tokens
   Task B receives: 300 tokens
-  Task C receives: 600 tokens (A_ep + B_ep)
-  Task D receives: relevant episodes only → always within budget
+  Task C receives: 600 tokens (A_rec + B_rec)
+  Task D receives: relevant records only → always within budget
 ```
 
-Source: `runtime/episode.rs`, `runtime/episode_compress.rs` (v0.28)
+Source: `runtime/record.rs`, `runtime/record_compress.rs` (v0.28)
 
 ---
 
-## 8. Strategy Orchestration
+## 8. Shaka Orchestration
 
-A new execution mode where a strategy LLM dynamically dispatches tactic tasks based on the goal and accumulated episodes.
+A new execution mode where a Shaka orchestrator dynamically dispatches satellites based on the goal and accumulated records.
 
 ```mermaid
 sequenceDiagram
-    participant STR as Strategy LLM (reasoning slot)
-    participant R as research (search slot)
-    participant W as write_section (main slot)
-    participant V as review (reasoning slot)
+    participant STR as Shaka (pythagoras slot)
+    participant R as research (york slot)
+    participant W as write_section (edison slot)
+    participant V as review (pythagoras slot)
 
     Note over STR: Round 1 — Gather information
     STR->>R: dispatch(topic="QR trends 2026")
-    R-->>STR: Episode{summary, confidence: 0.9}
+    R-->>STR: Record{summary, confidence: 0.9}
 
     Note over STR: Round 2 — Generate content (parallel)
     STR->>W: dispatch(section="hero")
     STR->>W: dispatch(section="features")
-    W-->>STR: Episode{content: hero_draft}
-    W-->>STR: Episode{content: features_draft}
+    W-->>STR: Record{content: hero_draft}
+    W-->>STR: Record{content: features_draft}
 
     Note over STR: Round 3 — Review
     STR->>V: dispatch(draft=hero+features)
-    V-->>STR: Episode{issues: [...], score: 0.85}
+    V-->>STR: Record{issues: [...], score: 0.85}
 
     Note over STR: Round 4 — Synthesize
-    STR->>STR: All episodes assembled
+    STR->>STR: All records assembled
     Note over STR: DONE — complete page generated
 ```
 
@@ -629,65 +629,65 @@ sequenceDiagram
 schema: nika/workflow@0.13
 workflow: landing-page-generator
 
-orchestration: strategy        # Enables strategy/tactics mode
+orchestration: shaka              # Enables shaka/satellites mode
 
 model_slots:
-  reasoning: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
-  main: { provider: anthropic, model: claude-sonnet-4-6 }
-  search: { provider: groq, model: llama-3.3-70b-versatile }
-  tactical: { provider: deepseek, model: deepseek-chat }
+  pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
+  edison: { provider: anthropic, model: claude-sonnet-4-6 }
+  york: { provider: groq, model: llama-3.3-70b-versatile }
+  atlas: { provider: deepseek, model: deepseek-chat }
 
-strategy:
+shaka:
   goal: "Generate a complete French landing page for QR Code AI"
-  model_slot: reasoning
+  model_slot: pythagoras
   max_rounds: 10
-  episode_budget: 15000        # Total token budget across all episodes
+  record_budget: 15000            # Total token budget across all records
 
-# Tactic templates — dispatched dynamically by strategy LLM
+# Satellite templates — dispatched dynamically by Shaka orchestrator
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     infer: "Research: {{with.topic}}"
-    episode: { compress: true, max_tokens: 300 }
+    record: { compress: true, max_tokens: 300 }
 
   - id: write_section
-    model_slot: main
+    model_slot: edison
     infer: "Write: {{with.section}} using context: {{with.context}}"
-    episode: { compress: true, retain: [content], max_tokens: 800 }
+    record: { compress: true, retain: [content], max_tokens: 800 }
 
   - id: review
-    model_slot: reasoning
+    model_slot: pythagoras
     infer: "Review and critique: {{with.draft}}"
-    episode: { compress: true, retain: [issues, suggestions] }
+    record: { compress: true, retain: [issues, suggestions] }
 ```
 
-### DAG vs Strategy — When to Use Which
+### DAG vs Shaka — When to Use Which
 
-| Criterion | DAG Mode | Strategy Mode |
-|-----------|----------|---------------|
+| Criterion | DAG Mode | Shaka Mode |
+|-----------|----------|------------|
 | Tasks known at design time | Yes | No — discovered at runtime |
 | Execution order | Fixed by depends_on | Dynamic per round |
-| Stopping condition | All tasks done | Strategy LLM says "DONE" |
+| Stopping condition | All tasks done | Shaka orchestrator says "DONE" |
 | Cost | Predictable | Variable (max_rounds bounds it) |
-| Inter-task data | Raw bindings or episodes | Always episodes |
+| Inter-task data | Raw bindings or records | Always records |
 | Use case | Pipelines, ETL, deterministic flows | Creative generation, research, iterative refinement |
 
 ### Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `StrategyOrchestrator` | `runtime/strategy.rs` | Main loop — sends goal + episodes to strategy LLM, dispatches tactics |
-| `TacticTemplate` | `runtime/tactic.rs` | Parsed task definitions available as tactics |
-| `TacticInstance` | `runtime/tactic.rs` | Concrete instantiation with runtime parameters |
+| `ShakaOrchestrator` | `runtime/shaka.rs` | Main loop — sends goal + records to Shaka, dispatches satellites |
+| `SatelliteTemplate` | `runtime/satellite.rs` | Parsed task definitions available as satellites |
+| `SatelliteInstance` | `runtime/satellite.rs` | Concrete instantiation with runtime parameters |
 | `DynamicDag` | `dag/dynamic.rs` | Mutable DAG that accepts new tasks at runtime |
 
-Source: `runtime/strategy.rs`, `runtime/tactic.rs`, `dag/dynamic.rs` (v0.29)
+Source: `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` (v0.29)
 
 ---
 
 ## 9. Context Budget Management
 
-Working memory awareness at the runtime level. Each task declares its context budget. The runtime enforces this via episode summaries.
+Working memory awareness at the runtime level. Each task declares its context budget. The runtime enforces this via record summaries.
 
 ```mermaid
 flowchart TB
@@ -699,9 +699,9 @@ flowchart TB
     end
 
     subgraph AFTER["With Context Budgets"]
-        A1["Task A → Episode\n300 tokens"] --> A2["Task B\n300 tokens context"]
+        A1["Task A → Record\n300 tokens"] --> A2["Task B\n300 tokens context"]
         A2 --> A3["Task C\n600 tokens"]
-        A3 --> A4["Task D\nrelevant episodes only"]
+        A3 --> A4["Task D\nrelevant records only"]
         A4 --> A5["Always within budget"]
     end
 
@@ -716,27 +716,27 @@ flowchart TB
 ```yaml
 tasks:
   - id: research
-    model_slot: search
+    model_slot: york
     context_budget: 4000        # Max tokens in this task's context
     infer: "Research QR code trends"
-    episode:
+    record:
       compress: true
-      max_tokens: 300           # Episode must fit in 300 tokens
+      max_tokens: 300           # Record must fit in 300 tokens
 
   - id: generate
-    model_slot: main
+    model_slot: edison
     context_budget: 8000        # Larger budget for generation
     with:
-      trends: "$research"       # Receives episode, not raw output
+      trends: "$research"       # Receives record, not raw output
     infer: "Generate landing page based on: {{with.trends}}"
 ```
 
 ### Rules
 
-1. Each task receives ONLY: its prompt + relevant episodes + NovaNet context
+1. Each task receives ONLY: its prompt + relevant records + NovaNet context
 2. Never raw history from other tasks
 3. `context_budget` enforced by runtime (truncate/warn if exceeded)
-4. In strategy mode, the orchestrator selects which episodes to include per round
+4. In shaka mode, the orchestrator selects which records to include per round
 5. Token budget tracked in events for observability
 
 ### Agent Budget Awareness
@@ -745,7 +745,7 @@ Agents can call `nika:get_budget` to check remaining tokens and adapt:
 
 ```
 Agent: "I have 30% budget remaining → I'll simplify my approach"
-Agent: "Budget critical → switching to tactical model"
+Agent: "Budget critical → switching to atlas model"
 Agent: "Insufficient budget for spawn_agent → handling inline"
 ```
 
@@ -777,8 +777,8 @@ flowchart TB
 | Layer | Mechanism | Model Used |
 |-------|-----------|------------|
 | **1 — Validate** | JSON Schema validation against output | None |
-| **2 — Retry** | Re-prompt LLM with validation error | Same as task (main slot) |
-| **3 — Repair** | Separate LLM call to fix invalid JSON | Tactical slot (cheap) |
+| **2 — Retry** | Re-prompt LLM with validation error | Same as task (edison slot) |
+| **3 — Repair** | Separate LLM call to fix invalid JSON | Atlas slot (cheap) |
 | **4 — Fallback** | Task fails with structured error | None |
 
 ### YAML Configuration
@@ -915,30 +915,30 @@ Source: `mcp/` (12 files)
 
 ---
 
-## 12. Episodic Memory
+## 12. Persistent Records
 
-Episodes compressed at task completion don't die with the workflow. Nika persists them in NovaNet's knowledge graph, enabling cross-session learning.
+Records compressed at task completion don't die with the workflow. Nika persists them in NovaNet's knowledge graph, enabling cross-session learning.
 
 ```mermaid
 flowchart LR
     subgraph SESSION1["Session 1"]
-        T1["research(qr-code, fr-FR)"] --> EP1["Episode\ncompressed"]
+        T1["research(qr-code, fr-FR)"] --> EP1["Record\ncompressed"]
     end
 
     EP1 -->|"novanet_write"| KG
 
     subgraph KG["NovaNet Knowledge Graph"]
-        AE["AgentEpisode\nsummary, findings,\nconfidence, tokens"]
-        AE -->|EPISODE_OF| ENT["Entity\nqr-code"]
+        AE["AgentRecord\nsummary, findings,\nconfidence, tokens"]
+        AE -->|RECORD_OF| ENT["Entity\nqr-code"]
         AE -->|FOR_LOCALE| LOC["Locale\nfr-FR"]
-        AE -->|PRECEDED_BY| AE_OLD["Previous\nAgentEpisode"]
+        AE -->|PRECEDED_BY| AE_OLD["Previous\nAgentRecord"]
     end
 
     subgraph SESSION2["Session 2"]
         T2["generate(qr-code, fr-FR)"]
     end
 
-    KG -->|"novanet_search\n(recall episodes)"| T2
+    KG -->|"novanet_search\n(recall records)"| T2
 
     style SESSION1 fill:#dbeafe,stroke:#2563eb
     style KG fill:#dcfce7,stroke:#16a34a
@@ -947,30 +947,30 @@ flowchart LR
 
 ### How It Works
 
-1. Task completes → episode compressed (P-EPISODE)
-2. If `episode.persist: novanet`, the episode is written to NovaNet via `novanet_write`
-3. NovaNet stores it as an `AgentEpisode` node, linked to the relevant Entity and Locale
-4. On next run, Nika calls `novanet_search` to recall relevant episodes
-5. Recalled episodes are injected into the agent's context
+1. Task completes → record compressed (P-RECORD)
+2. If `record.persist: novanet`, the record is written to NovaNet via `novanet_write`
+3. NovaNet stores it as an `AgentRecord` node, linked to the relevant Entity and Locale
+4. On next run, Nika calls `novanet_search` to recall relevant records
+5. Recalled records are injected into the agent's context
 
-### AgentEpisode Node (NovaNet Schema)
+### AgentRecord Node (NovaNet Schema)
 
 ```
-AgentEpisode (NodeClass, org realm, output layer)
+AgentRecord (NodeClass, org realm, output layer)
 ├── key: string                 # Unique identifier
 ├── workflow: string            # Source workflow name
 ├── task_id: string             # Source task
-├── summary: string             # Compressed episode
+├── summary: string             # Compressed record
 ├── key_findings: string[]      # Extracted points
 ├── model_used: string          # Which model produced this
 ├── tokens_spent: integer       # Cost
 ├── confidence: float           # Self-assessed 0.0-1.0
 ├── timestamp: datetime         # When created
 └── Arcs:
-    ├── EPISODE_OF → Entity     # Semantic link
+    ├── RECORD_OF → Entity      # Semantic link
     ├── FOR_LOCALE → Locale     # Locale-specific
-    ├── SIMILAR_TO → AgentEpisode
-    └── PRECEDED_BY → AgentEpisode (temporal chain)
+    ├── SIMILAR_TO → AgentRecord
+    └── PRECEDED_BY → AgentRecord (temporal chain)
 ```
 
 ### Cross-Session Learning
@@ -978,13 +978,13 @@ AgentEpisode (NodeClass, org realm, output layer)
 ```
 Run 1: Agent generates fr-FR content for "qr-code"
   → Tone too formal, user corrects to casual
-  → Episode: "tone was too formal, user preferred casual register"
+  → Record: "tone was too formal, user preferred casual register"
 
-Run 2: Agent receives this episode in context
+Run 2: Agent receives this record in context
   → Adapts tone directly, no repeated mistake
-  → Episode: "casual tone applied successfully, user approved"
+  → Record: "casual tone applied successfully, user approved"
 
-Run 3: Agent has both episodes
+Run 3: Agent has both records
   → Knows the pattern, applies immediately
 ```
 
@@ -996,13 +996,13 @@ Memory is scoped per entity × locale — no cross-locale pollution.
 tasks:
   - id: research
     infer: "Research QR code trends"
-    episode:
+    record:
       compress: true
       persist: novanet          # Store in NovaNet
       entity_link: qr-code     # Link to semantic entity
 ```
 
-Source: `runtime/episodic_memory.rs` (v0.30), `mcp/client.rs`
+Source: `runtime/record_memory.rs` (v0.30), `mcp/client.rs`
 
 ---
 
@@ -1014,12 +1014,12 @@ Source: `runtime/episodic_memory.rs` (v0.30), `mcp/client.rs`
 flowchart TB
     AGENT["Agent running in workflow"]
 
-    AGENT -->|"nika:episodes"| EP["Episodes accumulated\nfrom completed tasks"]
+    AGENT -->|"nika:records"| EP["Records accumulated\nfrom completed tasks"]
     AGENT -->|"nika:threads"| TH["Active/completed threads\nwith status + model_slot"]
-    AGENT -->|"nika:strategy_state"| SS["Strategy progress\nround, budget used/total"]
+    AGENT -->|"nika:shaka"| SS["Shaka progress\nround, budget used/total"]
     AGENT -->|"nika:cost"| CO["Token usage report\ntotal, per-model, per-task"]
     AGENT -->|"nika:dag_info"| DG["DAG structure\npredecessors, successors, path"]
-    AGENT -->|"nika:task_status"| TS["Individual task\nstatus + episode"]
+    AGENT -->|"nika:task_status"| TS["Individual task\nstatus + record"]
 
     style AGENT fill:#dbeafe,stroke:#2563eb
     style EP fill:#fef3c7,stroke:#d97706
@@ -1036,10 +1036,10 @@ Agents make better decisions when they can observe their own state:
 
 | Observation | Agent Decision |
 |-------------|----------------|
-| "30% budget remaining" | Simplify approach, use tactical model |
-| "Previous task failed at confidence 0.4" | Change strategy, retry with more context |
+| "30% budget remaining" | Simplify approach, use atlas model |
+| "Previous task failed at confidence 0.4" | Change approach, retry with more context |
 | "3 sub-agents already spawned" | Don't spawn a 4th, handle inline |
-| "Round 7 of 10 in strategy mode" | Start synthesizing, stop researching |
+| "Round 7 of 10 in shaka mode" | Start synthesizing, stop researching |
 | "DAG critical path has 2 remaining tasks" | Focus on unblocking them |
 
 These tools join the existing 12 builtins, bringing the total to **18 builtin tools**.
@@ -1055,9 +1055,9 @@ The binding system connects task outputs to task inputs.
 ```mermaid
 flowchart LR
     TA["Task A\nuse.ctx: result_a"] -->|"$result_a"| TB["Task B\nwith: { data: '$result_a' }"]
-    TA -->|"episode"| TC["Task C\ngets Episode, not raw"]
+    TA -->|"record"| TC["Task C\ngets Record, not raw"]
 
-    subgraph DATASTORE["DataStore (in-memory)"]
+    subgraph EGGHEAD["Egghead (in-memory)"]
         DS1["result_a: { ... }"]
         DS2["result_b: { ... }"]
     end
@@ -1065,14 +1065,14 @@ flowchart LR
     TA -->|store| DS1
     TB -->|store| DS2
 
-    style DATASTORE fill:#f3e8ff,stroke:#9333ea
+    style EGGHEAD fill:#f3e8ff,stroke:#9333ea
 ```
 
 ### Binding Types
 
 | Syntax | Type | Description |
 |--------|------|-------------|
-| `use.ctx: name` | Store | Store task result in DataStore under `name` |
+| `use.ctx: name` | Store | Store task result in Egghead under `name` |
 | `$name` | Reference | Reference a stored value |
 | `{{use.name}}` | Template | Inline template interpolation |
 | `{{inputs.locale}}` | Input | Access workflow inputs |
@@ -1223,7 +1223,7 @@ Every workflow run produces a NDJSON trace file with structured events.
 | `WorkflowAborted` | User cancelled |
 | `TaskScheduled` | Task queued |
 | `TaskStarted` | Task begins |
-| `TaskCompleted` | Task done (includes episode if compressed) |
+| `TaskCompleted` | Task done (includes record if compressed) |
 | `TaskFailed` | Task failed |
 | `ProviderCalled` | LLM API call made |
 | `ProviderResponded` | LLM response received |
@@ -1239,7 +1239,7 @@ Every workflow run produces a NDJSON trace file with structured events.
 | `TemplateResolved` | Template variables resolved |
 | `ArtifactWritten` | File written |
 | `ArtifactFailed` | File write failed |
-| `EpisodeCreated` | Episode compressed (v0.28) |
+| `RecordCreated` | Record compressed (v0.28) |
 | `BudgetExceeded` | Context budget warning (v0.29) |
 
 ### CLI Trace Commands
@@ -1442,7 +1442,7 @@ flowchart TB
         end
 
         subgraph EXEC_LAYER["Execution Layer"]
-            RUNTIME_M["runtime/ (38 files)\nexecutor, runner, agents\nepisodes, strategy, builtins"]
+            RUNTIME_M["runtime/ (38 files)\nexecutor, runner, agents\nrecords, shaka, builtins"]
             PROVIDER_M["provider/ (7 files)\nrig-core, native/mistral.rs\ncost tracking"]
             BINDING_M["binding/ (9 files)\nlazy, templates, JSONPath\nmentions, transforms"]
         end
@@ -1472,7 +1472,7 @@ flowchart TB
         end
 
         subgraph SUPPORT["Support"]
-            STORE_M["store/ (3 files)\nSQLite datastore\nsessions, traces"]
+            STORE_M["store/ (3 files)\nSQLite egghead\nsessions, traces"]
             SOURCE_M["source/ (3 files)\nspan tracking\nerror reporting"]
             TOOLS_M["tools/ (9 files)\nfile tool impls\nread, write, edit, glob, grep"]
             UTIL_M["util/ (5 files)\nconstants, fs\ninterner, system"]
@@ -1524,10 +1524,10 @@ flowchart TB
 | LSP | Shipped | v0.19+ | `lsp/` |
 | YAML bomb protection | Shipped | v0.27+ | `ast/budget.rs` |
 | **Model routing (4 slots)** | **Planned** | **v0.28** | `ast/raw/model_slot.rs`, `provider/rig.rs` |
-| **Episode engine** | **Planned** | **v0.28** | `runtime/episode.rs`, `runtime/episode_compress.rs` |
-| **Strategy orchestration** | **Planned** | **v0.29** | `runtime/strategy.rs`, `runtime/tactic.rs`, `dag/dynamic.rs` |
+| **Record engine** | **Planned** | **v0.28** | `runtime/record.rs`, `runtime/record_compress.rs` |
+| **Shaka Orchestration** | **Planned** | **v0.29** | `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` |
 | **Context budget management** | **Planned** | **v0.29** | `runtime/context_budget.rs` |
-| **Episodic memory (NovaNet)** | **Planned** | **v0.30** | `runtime/episodic_memory.rs` |
+| **Persistent Records (NovaNet)** | **Planned** | **v0.30** | `runtime/record_memory.rs` |
 | **6 introspection tools** | **Planned** | **v0.30** | `runtime/builtin/` (6 new tools) |
 
 ---
@@ -1542,14 +1542,14 @@ gantt
 
     section Wave 1 (v0.28)
     P-MODEL: 4-slot model routing          :pm, 2026-04-01, 30d
-    P-EPISODE: Episode compression         :pe, 2026-04-01, 30d
+    P-RECORD: Record compression           :pe, 2026-04-01, 30d
 
     section Wave 2 (v0.29)
-    P-STRATEGY: Strategy orchestration     :ps, after pe, 45d
+    P-SHAKA: Shaka orchestration           :ps, after pe, 45d
     P-CONTEXT: Context budgets             :pc, after pe, 30d
 
     section Wave 3 (v0.30)
-    P-MEMORY: NovaNet episodic memory      :pmem, after ps, 30d
+    P-MEMORY: NovaNet persistent records   :pmem, after ps, 30d
     P-INTROSPECT: 6 introspection tools    :pi, after ps, 20d
 ```
 
@@ -1557,10 +1557,10 @@ gantt
 
 ```mermaid
 flowchart LR
-    PM["P-MODEL\n4 slots"] --> PS["P-STRATEGY\nneeds slots for routing"]
-    PE["P-EPISODE\ncompression"] --> PS
-    PE --> PC["P-CONTEXT\nneeds episodes for budgets"]
-    PS --> PMEM["P-MEMORY\nneeds episodes stable"]
+    PM["P-MODEL\n4 slots"] --> PS["P-SHAKA\nneeds slots for routing"]
+    PE["P-RECORD\ncompression"] --> PS
+    PE --> PC["P-CONTEXT\nneeds records for budgets"]
+    PS --> PMEM["P-MEMORY\nneeds records stable"]
     PC --> PMEM
     PMEM --> PI["P-INTROSPECT\nneeds runtime state"]
 

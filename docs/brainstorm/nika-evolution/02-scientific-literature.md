@@ -60,7 +60,7 @@ flowchart LR
 
 | RLM Concept | Nika Equivalent | Gap |
 |-------------|----------------|-----|
-| REPL as working memory | `DataStore` + `use:` bindings | Nika already has this |
+| REPL as working memory | `Egghead` + `use:` bindings | Nika already has this |
 | Recursive sub-LM calls | `spawn_agent` (depth_limit 3-10) | Exists but static DAG |
 | Reference semantics | `$task` implicit output refs | Fully implemented |
 | Task decomposition | `decompose:` modifier | Exists via MCP traversal |
@@ -148,14 +148,14 @@ flowchart TB
 
 | THREAD Concept | Nika Equivalent | Gap |
 |----------------|----------------|-----|
-| Manager thread | `agent:` verb orchestrator | No explicit strategy/tactics split |
+| Manager thread | `agent:` verb orchestrator | No explicit shaka/satellites split |
 | Worker threads | `spawn_agent` sub-agents | Implemented (depth 3-10) |
 | Recursive spawning | `SpawnAgentTool` | Done, but no model routing |
 | Resource allocation | Single `provider:` per workflow | **No per-task model selection** |
 | Context compression | None | **Major gap** |
 
 > [!WARNING]
-> **Three critical gaps:** per-task model routing, context compression, and strategy/tactics separation. These map directly to priorities P-MODEL, P-EPISODE, and P-STRATEGY in the [Evolution Roadmap](./05-evolution-roadmap.md).
+> **Three critical gaps:** per-task model routing, context compression, and shaka/satellites separation. These map directly to priorities P-MODEL, P-RECORD, and P-SHAKA in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
@@ -208,7 +208,7 @@ flowchart LR
 | Context bounds | `max_turns` per agent | Blunt instrument |
 
 > [!TIP]
-> **Verdict:** Nika spawns child agents but doesn't compress their results. Implementing automatic **result folding** (LLM-summarized output from child agents) maps to P-EPISODE in the [Evolution Roadmap](./05-evolution-roadmap.md).
+> **Verdict:** Nika spawns child agents but doesn't compress their results. Implementing automatic **result folding** (LLM-summarized output from child agents) maps to P-RECORD in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
@@ -269,7 +269,7 @@ flowchart TB
     subgraph AXE1["🎛️ Smarter Orchestration"]
         O1["Per-task model routing"]
         O2["Context management"]
-        O3["Strategy/tactics separation"]
+        O3["Shaka/satellites separation"]
     end
 
     subgraph AXE2["⚡ Richer Action Space"]
@@ -279,13 +279,13 @@ flowchart TB
 
     subgraph AXE3["🧠 Persistent Memory"]
         M1["Cross-session knowledge"]
-        M2["Entity-linked episodes"]
+        M2["Entity-linked records"]
         M3["RL-trained recall"]
     end
 
-    AXE1 --> |"P-MODEL\nP-STRATEGY\nP-CONTEXT"| ROADMAP["📍 Evolution Roadmap\ndoc 05"]
+    AXE1 --> |"P-MODEL\nP-SHAKA\nP-CONTEXT"| ROADMAP["📍 Evolution Roadmap\ndoc 05"]
     AXE2 --> |"Future\ncode: verb"| ROADMAP
-    AXE3 --> |"P-MEMORY\nP-EPISODE"| ROADMAP
+    AXE3 --> |"P-MEMORY\nP-RECORD"| ROADMAP
 
     style AXE1 fill:#dbeafe,stroke:#2563eb
     style AXE2 fill:#fef3c7,stroke:#d97706
@@ -298,13 +298,13 @@ flowchart TB
 | | High Impact + Low Effort | High Impact + Medium Effort | High Impact + High Effort |
 |---|---|---|---|
 | **Papers** | THREAD, Context-Folding | RLM, THREAD | CodeAct, Memory-R1 |
-| **Priorities** | Per-task model routing, result compression | Dynamic DAG, strategy/tactics | Code sandbox, episodic memory + RL |
+| **Priorities** | Per-task model routing, result compression | Dynamic DAG, shaka/satellites | Code sandbox, episodic memory + RL |
 
 ### What the Literature Validates
 
 The literature consistently validates three things Nika already does right:
 1. **Hybrid DAG+LLM architecture** — Swarms paper confirms this outperforms pure-swarm
-2. **Reference semantics via DataStore** — RLM paper's core insight, already implemented
+2. **Reference semantics via Egghead** — RLM paper's core insight, already implemented
 3. **Recursive spawning with depth limits** — THREAD paper's approach, already in `SpawnAgentTool`
 
 ---

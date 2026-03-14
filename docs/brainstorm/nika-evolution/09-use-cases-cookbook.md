@@ -20,7 +20,7 @@
 
 **Scenario:** You have a data processing pipeline — scrape web data, analyze it with an LLM, generate a report, send it via API.
 
-**v0.30 features used:** Model Slots, Episodes, Context Budget
+**v0.30 features used:** Model Slots, Records, Context Budget
 
 ### The Workflow
 
@@ -29,13 +29,13 @@
 schema: nika/workflow@0.13
 
 model_slots:
-  main:
+  edison:
     provider: anthropic
     model: claude-sonnet-4-6
-  tactical:
+  atlas:
     provider: deepseek
     model: deepseek-chat
-  search:
+  york:
     provider: groq
     model: llama-3.3-70b-versatile
 
@@ -66,7 +66,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_trends
-    model_slot: search                     # ← Groq: fast, cheap
+    model_slot: york                       # ← Groq: fast, cheap
     context_budget: 6000
     with:
       hn: "$scrape_hackernews"
@@ -84,13 +84,13 @@ tasks:
           sentiment: { type: string }
           themes: { type: array, items: { type: string } }
         required: [topics, sentiment, themes]
-    episode:
+    record:
       compress: true
       max_tokens: 400                      # ← Compressed to 400 tokens
       retain: [topics, sentiment, themes]
 
   - id: analyze_metrics
-    model_slot: tactical                   # ← DeepSeek: very cheap
+    model_slot: atlas                      # ← DeepSeek: very cheap
     context_budget: 4000
     with:
       data: "$get_internal_data"
@@ -105,7 +105,7 @@ tasks:
           changes: { type: array, items: { type: string } }
           anomalies: { type: array, items: { type: string } }
         required: [changes]
-    episode:
+    record:
       compress: true
       max_tokens: 300
       retain: [changes, anomalies]
@@ -115,11 +115,11 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: generate_report
-    model_slot: main                       # ← Claude: quality writing
+    model_slot: edison                     # ← Claude: quality writing
     context_budget: 8000
     with:
-      trends: "$analyze_trends"            # ← Gets 400-token episode, not raw data
-      metrics: "$analyze_metrics"          # ← Gets 300-token episode, not raw data
+      trends: "$analyze_trends"            # ← Gets 400-token record, not raw data
+      metrics: "$analyze_metrics"          # ← Gets 300-token record, not raw data
     infer: |
       Generate a weekly AI intelligence report.
 
@@ -137,7 +137,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: format_html
-    model_slot: tactical                   # ← DeepSeek: simple formatting
+    model_slot: atlas                      # ← DeepSeek: simple formatting
     with:
       report: "$generate_report"
     infer: "Convert this report to clean HTML with inline CSS: {{with.report}}"
@@ -196,8 +196,8 @@ flowchart TB
     end
 
     subgraph ANALYZE["Stage 2: Analyze (cheap models)"]
-        AT["⚡ analyze_trends\n🔍 Groq → Episode 400 tok"]
-        AM["⚡ analyze_metrics\n⚡ DeepSeek → Episode 300 tok"]
+        AT["⚡ analyze_trends\n🔍 Groq → Record 400 tok"]
+        AM["⚡ analyze_metrics\n⚡ DeepSeek → Record 300 tok"]
     end
 
     subgraph GENERATE["Stage 3: Generate (quality model)"]
@@ -237,10 +237,10 @@ flowchart TB
 │  scrape_hackernews   (none)        0         $0                                 │
 │  scrape_reddit       (none)        0         $0                                 │
 │  get_internal_data   (none)        0         $0                                 │
-│  analyze_trends      search/Groq   3K        $0.0009                           │
-│  analyze_metrics     tactical/DS   2K        $0.0002                           │
-│  generate_report     main/Claude   4K        $0.012                            │
-│  format_html         tactical/DS   2K        $0.0002                           │
+│  analyze_trends      york/Groq     3K        $0.0009                           │
+│  analyze_metrics     atlas/DS      2K        $0.0002                           │
+│  generate_report     edison/Claude 4K        $0.012                            │
+│  format_html         atlas/DS      2K        $0.0002                           │
 │  send_email          (none)        0         $0                                 │
 │  save_to_db          (none)        0         $0                                 │
 │  ─────────────────────────────────────────────────                              │
@@ -259,28 +259,28 @@ flowchart TB
 
 **Scenario:** Generate localized landing pages for QR Code AI in 5 languages, using NovaNet's knowledge graph for entity context and cultural intelligence.
 
-**v0.30 features used:** ALL 6 features (Model Slots, Episodes, Strategy, Context Budget, Memory, Introspection)
+**v0.30 features used:** ALL 6 features (Model Slots, Records, Shaka, Context Budget, Memory, Introspection)
 
 ### The Workflow
 
 ```yaml
 # generate-multilingual.nika.yaml — Full v0.30 showcase
 schema: nika/workflow@0.13
-orchestration: strategy
+orchestration: shaka
 
 model_slots:
-  reasoning:
+  pythagoras:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
-  main:
+  edison:
     provider: anthropic
     model: claude-sonnet-4-6
-  search:
+  york:
     provider: groq
     model: llama-3.3-70b-versatile
-  tactical:
+  atlas:
     provider: deepseek
     model: deepseek-chat
 
@@ -290,19 +290,19 @@ mcp:
       command: cargo
       args: ["run", "-p", "novanet-mcp"]
 
-strategy:
+shaka:
   goal: |
     Generate landing pages for QR Code AI in 5 locales: fr-FR, en-US, de-DE, ja-JP, es-ES.
     For each locale:
     1. Get entity context + knowledge atoms from NovaNet
-    2. Check if past episodes exist (reuse research)
+    2. Check if past records exist (reuse research)
     3. Research locale-specific trends
     4. Write 4 sections: hero, features, pricing, FAQ
     5. Review for quality (score >= 0.85)
-    6. Persist episodes for future reuse
-  model_slot: reasoning
+    6. Persist records for future reuse
+  model_slot: pythagoras
   max_rounds: 25
-  episode_budget: 50000
+  record_budget: 50000
 
 tasks:
   # ──────────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: get_entity_context
-    model_slot: tactical
+    model_slot: atlas
     invoke:
       tool: novanet_context
       server: novanet
@@ -318,12 +318,12 @@ tasks:
         focus_key: "{{with.entity_key}}"
         locale: "{{with.locale}}"
         mode: page
-    episode:
+    record:
       compress: true
       max_tokens: 500
 
   - id: get_knowledge
-    model_slot: tactical
+    model_slot: atlas
     invoke:
       tool: novanet_context
       server: novanet
@@ -332,7 +332,7 @@ tasks:
         locale: "{{with.locale}}"
         mode: knowledge
         atom_type: all
-    episode:
+    record:
       compress: true
       max_tokens: 400
       retain: [expressions, taboos, audience_traits]
@@ -341,33 +341,33 @@ tasks:
   # TEMPLATE: Check past experience
   # ──────────────────────────────────────────────────────────
 
-  - id: recall_episodes
-    model_slot: tactical
+  - id: recall_records
+    model_slot: atlas
     invoke:
       tool: novanet_search
       server: novanet
       params:
         query: "{{with.entity_key}} {{with.locale}} research"
-        kinds: ["AgentEpisode"]
+        kinds: ["AgentRecord"]
         limit: 5
-    episode:
+    record:
       compress: true
       max_tokens: 300
 
   # ──────────────────────────────────────────────────────────
-  # TEMPLATE: Research (skip if past episodes are fresh)
+  # TEMPLATE: Research (skip if past records are fresh)
   # ──────────────────────────────────────────────────────────
 
   - id: research_locale
-    model_slot: search
+    model_slot: york
     context_budget: 6000
     with:
       locale: "$get_entity_context.locale"
-      past_episodes: "$recall_episodes"
+      past_records: "$recall_records"
       entity_key: "$get_entity_context.entity_key"
     infer: |
       Research QR code market trends for {{with.locale}}.
-      Past experience (if any): {{with.past_episodes}}
+      Past experience (if any): {{with.past_records}}
       Focus on: local adoption rates, popular use cases, regulatory requirements.
     structured:
       schema:
@@ -377,7 +377,7 @@ tasks:
           market_size: { type: string }
           regulations: { type: array, items: { type: string } }
         required: [key_findings]
-    episode:
+    record:
       compress: true
       max_tokens: 400
       retain: [key_findings, market_size, regulations]
@@ -389,10 +389,10 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: write_section
-    model_slot: main
+    model_slot: edison
     context_budget: 8000
     with:
-      section: "$strategy.current_section"
+      section: "$shaka.current_section"
       locale: "$get_entity_context.locale"
       entity_context: "$get_entity_context"
       knowledge: "$get_knowledge"
@@ -418,7 +418,7 @@ tasks:
           cta_text: { type: string }
           word_count: { type: integer }
         required: [content]
-    episode:
+    record:
       compress: true
       retain: [content]
       max_tokens: 800
@@ -428,7 +428,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: review_page
-    model_slot: reasoning
+    model_slot: pythagoras
     context_budget: 12000
     with:
       locale: "$get_entity_context.locale"
@@ -452,7 +452,7 @@ tasks:
           issues: { type: array, items: { type: string } }
           suggestions: { type: array, items: { type: string } }
         required: [score, issues]
-    episode:
+    record:
       compress: true
       retain: [score, issues, suggestions]
       confidence_threshold: 0.85
@@ -462,7 +462,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: persist_page
-    model_slot: tactical
+    model_slot: atlas
     invoke:
       tool: novanet_write
       server: novanet
@@ -475,18 +475,18 @@ tasks:
           content: "{{with.final_content}}"
           generated_by: nika
           quality_score: "{{with.score}}"
-    episode:
+    record:
       compress: true
       max_tokens: 100
       persist: novanet
       entity_link: qr-code-ai
 ```
 
-### Execution Flow (Strategy Mode)
+### Execution Flow (Shaka Mode)
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Strategy
+    participant S as 🎯 Shaka
     participant CTX as 🔌 NovaNet
     participant R as 🔍 Research
     participant W as ✍️ Writer
@@ -495,25 +495,25 @@ sequenceDiagram
     Note over S: Processing fr-FR first
 
     S->>CTX: get_entity_context(locale="fr-FR")
-    CTX-->>S: Episode: entity context
+    CTX-->>S: Record: entity context
     S->>CTX: get_knowledge(locale="fr-FR")
-    CTX-->>S: Episode: expressions, taboos
+    CTX-->>S: Record: expressions, taboos
 
-    S->>CTX: recall_episodes("qr-code fr-FR")
-    CTX-->>S: Episode: no past episodes
+    S->>CTX: recall_records("qr-code fr-FR")
+    CTX-->>S: Record: no past records
 
     S->>R: research_locale("fr-FR")
-    R-->>S: Episode: {key_findings, confidence: 0.88}
+    R-->>S: Record: {key_findings, confidence: 0.88}
 
     S->>W: write_section("hero", locale="fr-FR")
     S->>W: write_section("features", locale="fr-FR")
     S->>W: write_section("pricing", locale="fr-FR")
     S->>W: write_section("faq", locale="fr-FR")
     Note right of W: All 4 in parallel!
-    W-->>S: 4 Episodes (800 tok each)
+    W-->>S: 4 Records (800 tok each)
 
     S->>V: review_page(locale="fr-FR", sections=...)
-    V-->>S: Episode: {score: 0.91} ✅
+    V-->>S: Record: {score: 0.91} ✅
 
     S->>CTX: persist_page(locale="fr-FR")
 
@@ -539,7 +539,7 @@ sequenceDiagram
 │    taboos:       "Don't use 'gratuit' in headlines (implies low quality)"      │
 │    audience:     "French B2B prefers formal tone, data-driven arguments"       │
 │                                                                                 │
-│  recall_episodes → Past research findings from previous sessions               │
+│  recall_records → Past research findings from previous sessions                │
 │    (or empty if first run — research will be done fresh)                       │
 │                                                                                 │
 │  persist_page → Stores generated PageNative in the graph                       │
@@ -555,29 +555,29 @@ sequenceDiagram
 
 **Scenario:** A coding agent that analyzes a codebase, plans changes, implements them, runs tests, and iterates until tests pass.
 
-**v0.30 features used:** Model Slots, Episodes, Strategy, Context Budget, Introspection
+**v0.30 features used:** Model Slots, Records, Shaka, Context Budget, Introspection
 
 ### The Workflow
 
 ```yaml
-# code-agent.nika.yaml — Coding agent with strategy mode
+# code-agent.nika.yaml — Coding agent with shaka mode
 schema: nika/workflow@0.13
-orchestration: strategy
+orchestration: shaka
 
 model_slots:
-  reasoning:
+  pythagoras:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 32768
-  main:
+  edison:
     provider: anthropic
     model: claude-sonnet-4-6
-  tactical:
+  atlas:
     provider: deepseek
     model: deepseek-chat
 
-strategy:
+shaka:
   goal: |
     Implement the feature described in the user's request.
     Steps:
@@ -587,9 +587,9 @@ strategy:
     4. Run tests
     5. If tests fail: analyze errors, fix, re-test
     6. Done when all tests pass
-  model_slot: reasoning
+  model_slot: pythagoras
   max_rounds: 15
-  episode_budget: 30000
+  record_budget: 30000
 
 context:
   files:
@@ -602,16 +602,16 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: read_files
-    model_slot: tactical
+    model_slot: atlas
     with:
-      files: "$strategy.target_files"
+      files: "$shaka.target_files"
     agent:
       prompt: |
         Read the source files relevant to this task: {{with.files}}
         Summarize what each file does and how they relate.
       tools: [nika:read, nika:glob, nika:grep]
       max_turns: 5
-    episode:
+    record:
       compress: true
       max_tokens: 600
       retain: [file_summaries, dependencies]
@@ -621,7 +621,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: plan
-    model_slot: reasoning
+    model_slot: pythagoras
     context_budget: 10000
     with:
       codebase: "$read_files"
@@ -645,7 +645,7 @@ tasks:
           test_cases: { type: array, items: { type: string } }
           risks: { type: array, items: { type: string } }
         required: [files_to_change, test_cases]
-    episode:
+    record:
       compress: true
       max_tokens: 800
       retain: [files_to_change, test_cases, risks]
@@ -655,10 +655,10 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: implement
-    model_slot: main
+    model_slot: edison
     context_budget: 12000
     with:
-      change_description: "$strategy.current_change"
+      change_description: "$shaka.current_change"
       plan: "$plan"
       relevant_code: "$read_files"
     agent:
@@ -672,7 +672,7 @@ tasks:
         Follow existing code style and patterns.
       tools: [nika:read, nika:write, nika:edit, nika:glob, nika:grep]
       max_turns: 10
-    episode:
+    record:
       compress: true
       max_tokens: 500
       retain: [files_changed, summary]
@@ -685,7 +685,7 @@ tasks:
     exec:
       command: "cargo test 2>&1"
       shell: true
-    episode:
+    record:
       compress: true
       max_tokens: 400
       retain: [pass_count, fail_count, errors]
@@ -695,7 +695,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_failures
-    model_slot: reasoning
+    model_slot: pythagoras
     context_budget: 8000
     with:
       test_output: "$run_tests"
@@ -719,7 +719,7 @@ tasks:
           root_causes: { type: array, items: { type: string } }
           fixes: { type: array, items: { type: string } }
         required: [failures, fixes]
-    episode:
+    record:
       compress: true
       max_tokens: 500
       retain: [failures, root_causes, fixes]
@@ -729,7 +729,7 @@ tasks:
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Strategy<br/>(Claude + thinking)
+    participant S as 🎯 Shaka<br/>(Claude + thinking)
     participant R as 📖 read_files<br/>(DeepSeek)
     participant P as 🗺️ plan<br/>(Claude + thinking)
     participant I as 💻 implement<br/>(Claude)
@@ -738,31 +738,31 @@ sequenceDiagram
 
     Note over S: Round 1 — Understand the codebase
     S->>R: read_files(files=["src/auth/", "src/api/"])
-    R-->>S: Episode{file_summaries: [...], 600 tok}
+    R-->>S: Record{file_summaries: [...], 600 tok}
 
     Note over S: Round 2 — Plan the implementation
-    S->>P: plan(codebase=read_files_episode)
-    P-->>S: Episode{files_to_change: [...], test_cases: [...], 800 tok}
+    S->>P: plan(codebase=read_files_record)
+    P-->>S: Record{files_to_change: [...], test_cases: [...], 800 tok}
 
     Note over S: Round 3 — Implement
     S->>I: implement(change="add auth middleware")
-    I-->>S: Episode{files_changed: ["middleware.rs"], 500 tok}
+    I-->>S: Record{files_changed: ["middleware.rs"], 500 tok}
 
     Note over S: Round 4 — Test
     S->>T: run_tests
-    T-->>S: Episode{pass: 142, fail: 3, errors: [...]}
+    T-->>S: Record{pass: 142, fail: 3, errors: [...]}
 
     Note over S: Round 5 — Tests failed! Analyze.
     S->>A: analyze_failures(test_output=..., changes=...)
-    A-->>S: Episode{fixes: ["missing import in line 45"]}
+    A-->>S: Record{fixes: ["missing import in line 45"]}
 
     Note over S: Round 6 — Fix
     S->>I: implement(change="fix import in middleware.rs")
-    I-->>S: Episode{files_changed: ["middleware.rs"]}
+    I-->>S: Record{files_changed: ["middleware.rs"]}
 
     Note over S: Round 7 — Re-test
     S->>T: run_tests
-    T-->>S: Episode{pass: 145, fail: 0} ✅
+    T-->>S: Record{pass: 145, fail: 0} ✅
 
     Note over S: ✅ All tests pass — DONE
 ```
@@ -771,7 +771,7 @@ sequenceDiagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  SIMPLE AGENT vs STRATEGY CODING AGENT                                          │
+│  SIMPLE AGENT vs SHAKA CODING AGENT                                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  Simple agent (v0.27):                                                          │
@@ -781,10 +781,10 @@ sequenceDiagram
 │  • Can't switch models for different subtasks                                   │
 │  • Everything in one prompt = confused, unfocused                               │
 │                                                                                 │
-│  Strategy coding agent (v0.30):                                                 │
-│  • Strategy LLM PLANS what to do (with extended thinking)                      │
+│  Shaka coding agent (v0.30):                                                    │
+│  • Shaka PLANS what to do (with extended thinking)                             │
 │  • Each task (read, plan, implement, test) has fresh context                   │
-│  • Episodes pass only essential info (not 500 lines of code)                   │
+│  • Records pass only essential info (not 500 lines of code)                    │
 │  • Cheap model reads files (DeepSeek), expensive model plans (Claude)          │
 │  • If tests fail → analyze → fix → re-test (adaptive loop)                    │
 │                                                                                 │
@@ -805,42 +805,42 @@ Quick reference for which YAML fields to use:
 # ══════════════════════════════════════════════════════════════
 
 model_slots:
-  main:      { provider: anthropic, model: claude-sonnet-4-6 }
-  tactical:  { provider: deepseek,  model: deepseek-chat }
-  search:    { provider: groq,      model: llama-3.3-70b-versatile }
-  reasoning: { provider: anthropic, model: claude-sonnet-4-6,
+  edison:     { provider: anthropic, model: claude-sonnet-4-6 }
+  atlas:      { provider: deepseek,  model: deepseek-chat }
+  york:       { provider: groq,      model: llama-3.3-70b-versatile }
+  pythagoras: { provider: anthropic, model: claude-sonnet-4-6,
                extended_thinking: true, thinking_budget: 16384 }
 
-default_model_slot: main
+default_model_slot: edison
 
 tasks:
   - id: my_task
-    model_slot: search              # ← Reference a slot
+    model_slot: york                # ← Reference a slot
 
 # ══════════════════════════════════════════════════════════════
-# FEATURE 2: EPISODES
+# FEATURE 2: RECORDS
 # ══════════════════════════════════════════════════════════════
 
 tasks:
   - id: my_task
     infer: "..."
-    episode:
+    record:
       compress: true                # Enable compression
-      max_tokens: 500               # Max size of compressed episode
+      max_tokens: 500               # Max size of compressed record
       retain: [key_findings]        # Structured extraction
       confidence_threshold: 0.8     # Quality threshold
 
 # ══════════════════════════════════════════════════════════════
-# FEATURE 3: STRATEGY ORCHESTRATION
+# FEATURE 3: SHAKA ORCHESTRATION
 # ══════════════════════════════════════════════════════════════
 
-orchestration: strategy             # At workflow level
+orchestration: shaka                # At workflow level
 
-strategy:
+shaka:
   goal: "What you want to achieve"  # Natural language goal
-  model_slot: reasoning             # Which slot for the strategist
+  model_slot: pythagoras            # Which slot for Shaka
   max_rounds: 10                    # Max dispatch rounds
-  episode_budget: 15000             # Total token budget
+  record_budget: 15000              # Total token budget
 
 # ══════════════════════════════════════════════════════════════
 # FEATURE 4: CONTEXT BUDGET
@@ -858,7 +858,7 @@ tasks:
 tasks:
   - id: my_task
     infer: "..."
-    episode:
+    record:
       compress: true
       persist: novanet              # Store in NovaNet
       entity_link: qr-code          # Link to entity
@@ -872,9 +872,9 @@ tasks:
     agent:
       prompt: "..."
       tools:
-        - nika:episodes             # Past episodes
+        - nika:records              # Past records
         - nika:threads              # Active/completed tasks
-        - nika:strategy_state       # Round, budget
+        - nika:shaka                # Round, budget
         - nika:cost                 # Token/cost report
         - nika:dag_info             # DAG structure
         - nika:task_status          # Single task status
@@ -886,12 +886,12 @@ tasks:
 
 | Dimension | Use Case C (Pipeline) | Use Case A (Multilingual) | Use Case B (Coding) |
 |-----------|:--------------------:|:------------------------:|:-------------------:|
-| Mode | `dag` | `strategy` | `strategy` |
-| Model Slots | 3 (main, tactical, search) | 4 (all) | 3 (reasoning, main, tactical) |
-| Episodes | ✅ compress + retain | ✅ compress + retain + persist | ✅ compress + retain |
+| Mode | `dag` | `shaka` | `shaka` |
+| Model Slots | 3 (edison, atlas, york) | 4 (all) | 3 (pythagoras, edison, atlas) |
+| Records | ✅ compress + retain | ✅ compress + retain + persist | ✅ compress + retain |
 | Context Budget | ✅ per-task | ✅ per-task | ✅ per-task |
 | NovaNet | ❌ not needed | ✅ context + knowledge + persist | ❌ not needed |
-| Memory | ❌ | ✅ persist episodes | ❌ |
+| Memory | ❌ | ✅ persist records | ❌ |
 | Introspection | ❌ | ❌ | ✅ (in agent tasks) |
 | Estimated Cost | $0.013 | $0.50 (5 locales) | $0.10 |
 | Complexity | Low | High | Medium |
