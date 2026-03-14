@@ -380,6 +380,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             });
         }
@@ -439,6 +443,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             });
         }

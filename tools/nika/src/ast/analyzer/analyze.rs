@@ -426,6 +426,10 @@ fn analyze_task(
             .as_ref()
             .map(|f| analyze_for_each(&f.value, f.span)),
         retry: raw.retry.as_ref().map(|r| analyze_retry(&r.value, r.span)),
+        decompose: None,
+        artifact: None,
+        log: None,
+        structured: None,
         span: raw.span,
     };
 

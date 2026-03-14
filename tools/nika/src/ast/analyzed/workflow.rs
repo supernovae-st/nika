@@ -9,6 +9,9 @@ use indexmap::IndexMap;
 
 use super::ids::{TaskId, TaskTable};
 use super::task::AnalyzedTask;
+use crate::ast::agent_def::AgentDef;
+use crate::ast::artifact::ArtifactsConfig;
+use crate::ast::logging::LogConfig;
 use crate::source::Span;
 
 /// An analyzed workflow - validated and ready for execution.
@@ -53,6 +56,15 @@ pub struct AnalyzedWorkflow {
     /// Input parameters with defaults
     pub inputs: IndexMap<String, serde_json::Value>,
 
+    /// Artifact configuration for file persistence
+    pub artifacts: Option<ArtifactsConfig>,
+
+    /// Log configuration
+    pub log: Option<LogConfig>,
+
+    /// Reusable agent definitions (name → config)
+    pub agents: Option<IndexMap<String, AgentDef>>,
+
     /// Span of the entire workflow
     pub span: Span,
 }
@@ -71,6 +83,9 @@ impl Default for AnalyzedWorkflow {
             context_files: Vec::new(),
             imports: Vec::new(),
             inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
             span: Span::dummy(),
         }
     }
@@ -101,6 +116,34 @@ impl AnalyzedWorkflow {
     /// Check if a task exists by name.
     pub fn has_task(&self, name: &str) -> bool {
         self.task_table.get_id(name).is_some()
+    }
+
+    /// Compute a hash of the workflow for trace identification.
+    ///
+    /// Uses xxhash3 for fast hashing. The hash is computed from:
+    /// - Schema version
+    /// - Provider + model
+    /// - Task count and task names
+    ///
+    /// Returns a 16-character hex string (64-bit hash).
+    pub fn compute_hash(&self) -> String {
+        use xxhash_rust::xxh3::xxh3_64;
+
+        let mut input = String::new();
+        input.push_str(self.schema_version.as_str());
+        if let Some(ref provider) = self.provider {
+            input.push_str(provider);
+        }
+        if let Some(ref model) = self.model {
+            input.push_str(model);
+        }
+        input.push_str(&self.tasks.len().to_string());
+        for task in &self.tasks {
+            input.push_str(&task.name);
+        }
+
+        let hash = xxh3_64(input.as_bytes());
+        format!("{:016x}", hash)
     }
 }
 
@@ -209,6 +252,10 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            decompose: None,
+            artifact: None,
+            log: None,
+            structured: None,
             span: Span::dummy(),
         });
 
@@ -225,6 +272,10 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            decompose: None,
+            artifact: None,
+            log: None,
+            structured: None,
             span: Span::dummy(),
         });
 

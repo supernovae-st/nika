@@ -11,6 +11,10 @@
 use indexmap::IndexMap;
 
 use super::ids::TaskId;
+use crate::ast::artifact::ArtifactSpec;
+use crate::ast::decompose::DecomposeSpec;
+use crate::ast::logging::LogConfig;
+use crate::ast::structured::StructuredOutputSpec;
 use crate::binding::WithSpec;
 use crate::source::Span;
 
@@ -71,6 +75,18 @@ pub struct AnalyzedTask {
 
     /// Retry configuration
     pub retry: Option<AnalyzedRetry>,
+
+    /// Decompose modifier for runtime DAG expansion
+    pub decompose: Option<DecomposeSpec>,
+
+    /// Artifact configuration for file persistence
+    pub artifact: Option<ArtifactSpec>,
+
+    /// Per-task log configuration
+    pub log: Option<LogConfig>,
+
+    /// Structured output specification (JSON schema enforcement)
+    pub structured: Option<StructuredOutputSpec>,
 
     /// Span of the task
     pub span: Span,

@@ -96,6 +96,10 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            decompose: None,
+            artifact: None,
+            log: None,
+            structured: None,
             span: crate::source::Span::dummy(),
         };
     }

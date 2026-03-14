@@ -44,6 +44,9 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         context_files: _,
         imports: _,
         inputs,
+        artifacts: _,
+        log: _,
+        agents: _,
         span: _,
     } = analyzed;
 
@@ -405,6 +408,10 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            decompose: None,
+            artifact: None,
+            log: None,
+            structured: None,
             span: Span::dummy(),
         }
     }
@@ -456,6 +463,10 @@ mod tests {
             output: None,
             for_each: None,
             retry: None,
+            decompose: None,
+            artifact: None,
+            log: None,
+            structured: None,
             description: None,
             span: Span::dummy(),
         });

@@ -573,6 +573,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             });
         }
@@ -820,6 +824,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             },
             // Duplicate name — same "fetch" string but different TaskId
@@ -836,6 +844,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             },
             AnalyzedTask {
@@ -851,6 +863,10 @@ mod tests {
                 output: None,
                 for_each: None,
                 retry: None,
+                decompose: None,
+                artifact: None,
+                log: None,
+                structured: None,
                 span: Span::dummy(),
             },
         ];
