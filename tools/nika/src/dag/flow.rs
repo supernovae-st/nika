@@ -30,8 +30,6 @@ pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 ///
 /// Uses `Arc<str>` + FxHashMap + SmallVec for maximum performance.
 ///
-/// ## v0.28
-///
 /// Built from `AnalyzedWorkflow` where dependencies are pre-computed:
 /// - `task.depends_on: Vec<TaskId>` — explicit ordering edges
 /// - `task.implicit_deps: Vec<TaskId>` — auto-extracted from `with:` bindings
