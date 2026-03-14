@@ -1,0 +1,421 @@
+//! Model management subcommand handler
+
+use clap::Subcommand;
+
+use nika::error::NikaError;
+
+/// Model management actions
+///
+/// Model management for local GGUF models.
+#[derive(Subcommand)]
+pub enum ModelAction {
+    /// List downloaded models in ~/.nika/models/
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Download a model from HuggingFace
+    ///
+    /// Supports curated models from KNOWN_MODELS or custom HuggingFace repos.
+    /// Example: nika model pull qwen3:8b
+    /// Example: nika model pull --repo TheBloke/Mistral-7B-v0.1-GGUF --file mistral-7b-v0.1.Q4_K_M.gguf
+    Pull {
+        /// Model name (from KNOWN_MODELS, e.g., qwen3:8b, llama3:8b)
+        name: Option<String>,
+
+        /// HuggingFace repository (e.g., TheBloke/Mistral-7B-v0.1-GGUF)
+        #[arg(long)]
+        repo: Option<String>,
+
+        /// Specific GGUF filename to download
+        #[arg(long)]
+        file: Option<String>,
+
+        /// Quantization level (e.g., Q4_K_M, Q8_0, F16)
+        #[arg(short = 'Q', long)]
+        quant: Option<String>,
+
+        /// Force re-download even if model exists
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Show information about a model
+    ///
+    /// Shows curated model info from KNOWN_MODELS or local file info.
+    Info {
+        /// Model name or path
+        name: String,
+    },
+
+    /// Show status of loaded models
+    Status,
+
+    /// Delete a downloaded model
+    Delete {
+        /// Model name or path (relative to ~/.nika/models/)
+        name: String,
+
+        /// Skip confirmation
+        #[arg(short, long)]
+        force: bool,
+    },
+}
+
+/// Find filename for a given quantization string in a known model.
+/// Returns None if quant string is invalid or not available for this model.
+fn find_filename_for_quant(
+    model: &nika::core::KnownModel,
+    quant_str: &str,
+) -> Option<&'static str> {
+    use nika::core::Quantization;
+    let target = match quant_str.to_uppercase().as_str() {
+        "Q4_K_S" => Quantization::Q4_K_S,
+        "Q4_K_M" => Quantization::Q4_K_M,
+        "Q5_K_S" => Quantization::Q5_K_S,
+        "Q5_K_M" => Quantization::Q5_K_M,
+        "Q6_K" => Quantization::Q6_K,
+        "Q8_0" => Quantization::Q8_0,
+        "F16" => Quantization::F16,
+        _ => return None,
+    };
+    model
+        .quantizations
+        .iter()
+        .find(|(q, _)| *q == target)
+        .map(|(_, f)| *f)
+}
+
+/// Handle model management commands
+pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<(), NikaError> {
+    use colored::Colorize;
+    use nika::core::{find_model, KNOWN_MODELS};
+    use nika::provider::{default_model_dir, DownloadRequest, HuggingFaceStorage, PullProgress};
+
+    let storage =
+        HuggingFaceStorage::new(default_model_dir()).map_err(|e| NikaError::ConfigError {
+            reason: format!("Failed to initialize storage: {}", e),
+        })?;
+
+    match action {
+        ModelAction::List { json } => {
+            let models = storage.list_models().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to list models: {}", e),
+            })?;
+
+            if json {
+                let output: Vec<serde_json::Value> = models
+                    .iter()
+                    .map(|m| {
+                        serde_json::json!({
+                            "name": m.name,
+                            "size": m.size,
+                            "quantization": m.quantization,
+                            "parameters": m.parameters,
+                            "digest": m.digest,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else if models.is_empty() {
+                if !quiet {
+                    println!("{} No models downloaded yet.", "ℹ".cyan());
+                    println!(
+                        "{}",
+                        "Use 'nika model pull <name>' to download a model.".dimmed()
+                    );
+                    println!();
+                    println!("{}", "Available models:".bold());
+                    for model in KNOWN_MODELS.iter().take(5) {
+                        println!("  • {} - {}", model.id.cyan(), model.description);
+                    }
+                    if KNOWN_MODELS.len() > 5 {
+                        println!(
+                            "  {} more available...",
+                            (KNOWN_MODELS.len() - 5).to_string().dimmed()
+                        );
+                    }
+                }
+            } else {
+                println!("{}", "Downloaded Models".bold());
+                println!("{}", "─".repeat(70));
+                for model in &models {
+                    let size_mb = model.size / (1024 * 1024);
+                    let quant = model.quantization.as_deref().unwrap_or("?");
+                    println!(
+                        "  {:30} {:>8} MB  {}",
+                        model.name.cyan(),
+                        size_mb,
+                        quant.dimmed()
+                    );
+                }
+                println!();
+                println!(
+                    "{} models, {} total",
+                    models.len(),
+                    format_size(models.iter().map(|m| m.size).sum())
+                );
+            }
+            Ok(())
+        }
+
+        ModelAction::Pull {
+            name,
+            repo,
+            file,
+            quant,
+            force,
+        } => {
+            // Determine download target - always use passthrough mode (hf_repo + filename)
+            let (hf_repo, hf_file) = match (&name, &repo, &file) {
+                // Named model from KNOWN_MODELS - extract repo/file
+                (Some(model_name), None, None) => {
+                    let model =
+                        find_model(model_name).ok_or_else(|| NikaError::ValidationError {
+                            reason: format!(
+                            "Unknown model: '{}'. Use 'nika model list' to see available models.",
+                            model_name
+                        ),
+                        })?;
+
+                    // Determine filename based on quantization or default
+                    let filename = if let Some(q) = &quant {
+                        find_filename_for_quant(model, q).ok_or_else(|| {
+                            NikaError::ValidationError {
+                                reason: format!(
+                                    "Invalid or unavailable quantization: {}. Available: {:?}",
+                                    q,
+                                    model
+                                        .quantizations
+                                        .iter()
+                                        .map(|(q, _)| format!("{:?}", q))
+                                        .collect::<Vec<_>>()
+                                ),
+                            }
+                        })?
+                    } else {
+                        model.default_file
+                    };
+
+                    (model.hf_repo.to_string(), filename.to_string())
+                }
+                // Custom HF repo (passthrough)
+                (None, Some(hf_repo), Some(hf_file)) => (hf_repo.clone(), hf_file.clone()),
+                // Invalid combination
+                _ => {
+                    return Err(NikaError::ValidationError {
+                        reason: "Specify either a model name OR --repo and --file".to_string(),
+                    });
+                }
+            };
+
+            // Check if already exists
+            let model_path = default_model_dir().join(&hf_file);
+            if model_path.exists() && !force {
+                if !quiet {
+                    println!(
+                        "{} Model already exists: {}",
+                        "ℹ".cyan(),
+                        model_path.display()
+                    );
+                    println!("{}", "Use --force to re-download.".dimmed());
+                }
+                return Ok(());
+            }
+
+            if !quiet {
+                println!(
+                    "{} Downloading {} from {}...",
+                    "⬇".cyan(),
+                    hf_file.bold(),
+                    hf_repo
+                );
+            }
+
+            // Create download request using passthrough mode
+            let request = DownloadRequest {
+                model: None, // Don't use model field - types are incompatible
+                hf_repo: Some(hf_repo),
+                filename: Some(hf_file.clone()),
+                quantization: None, // Quantization already resolved to filename
+                force,
+            };
+
+            // Download with simple progress output
+            let quiet_clone = quiet;
+            storage
+                .download(
+                    &request,
+                    Box::new(move |progress: PullProgress| {
+                        if !quiet_clone && progress.total > 0 {
+                            let pct = (progress.completed * 100) / progress.total;
+                            eprint!(
+                                "\r  Progress: {}% ({} / {} MB)  ",
+                                pct,
+                                progress.completed / (1024 * 1024),
+                                progress.total / (1024 * 1024)
+                            );
+                        }
+                    }),
+                )
+                .await
+                .map_err(|e| NikaError::ConfigError {
+                    reason: format!("Download failed: {}", e),
+                })?;
+
+            if !quiet {
+                eprintln!(); // New line after progress
+            }
+
+            if !quiet {
+                println!("{} Model downloaded: {}", "✓".green(), model_path.display());
+            }
+            Ok(())
+        }
+
+        ModelAction::Info { name } => {
+            // Try KNOWN_MODELS first
+            if let Some(model) = find_model(&name) {
+                println!("{}", format!("Model: {}", model.name).bold());
+                println!("{}", "─".repeat(50));
+                println!("  ID:           {}", model.id);
+                println!("  Description:  {}", model.description);
+                println!("  Repository:   {}", model.hf_repo.cyan());
+                println!("  Parameters:   {}B", model.param_billions);
+                println!("  Min RAM:      {} GB", model.min_ram_gb);
+                println!("  Default File: {}", model.default_file);
+                println!("  Quantizations:");
+                for (quant, filename) in model.quantizations {
+                    let path = default_model_dir().join(filename);
+                    let status = if path.exists() {
+                        "✓ downloaded".green().to_string()
+                    } else {
+                        "not downloaded".dimmed().to_string()
+                    };
+                    println!("    • {:?}: {} ({})", quant, filename, status);
+                }
+            } else {
+                // Try as local file path
+                let path = if name.contains('/') || name.contains('.') {
+                    std::path::PathBuf::from(&name)
+                } else {
+                    default_model_dir().join(&name)
+                };
+
+                if path.exists() {
+                    let metadata = std::fs::metadata(&path)?;
+                    let size_mb = metadata.len() / (1024 * 1024);
+                    let quant = path
+                        .file_name()
+                        .and_then(|f| f.to_str())
+                        .and_then(nika::provider::native::extract_quantization);
+
+                    println!("{}", format!("Model: {}", path.display()).bold());
+                    println!("{}", "─".repeat(50));
+                    println!("  Size:         {} MB", size_mb);
+                    println!(
+                        "  Quantization: {}",
+                        quant.unwrap_or_else(|| "Unknown".to_string())
+                    );
+                } else {
+                    return Err(NikaError::ValidationError {
+                        reason: format!("Model not found: {}", name),
+                    });
+                }
+            }
+            Ok(())
+        }
+
+        ModelAction::Status => {
+            // For now, just show if NativeRuntime would be available
+            // In the future, this could show loaded models in a daemon
+            println!("{}", "Model Status".bold());
+            println!("{}", "─".repeat(50));
+
+            let models = storage.list_models().map_err(|e| NikaError::ConfigError {
+                reason: format!("Failed to list models: {}", e),
+            })?;
+
+            if models.is_empty() {
+                println!("{} No models available for inference.", "ℹ".cyan());
+            } else {
+                println!(
+                    "{} {} models available for inference:",
+                    "✓".green(),
+                    models.len()
+                );
+                for model in models.iter().take(5) {
+                    println!("  • {}", model.name.cyan());
+                }
+                if models.len() > 5 {
+                    println!("  ... and {} more", models.len() - 5);
+                }
+            }
+            println!();
+            println!(
+                "{}",
+                "Use 'provider: native' in workflows for local inference.".dimmed()
+            );
+            Ok(())
+        }
+
+        ModelAction::Delete { name, force } => {
+            // Find the model path
+            let path = if name.contains('/') || name.contains('.') {
+                std::path::PathBuf::from(&name)
+            } else {
+                default_model_dir().join(&name)
+            };
+
+            if !path.exists() {
+                return Err(NikaError::ValidationError {
+                    reason: format!("Model not found: {}", path.display()),
+                });
+            }
+
+            // Confirm deletion
+            if !force && !quiet {
+                println!("{} Delete model: {}?", "⚠".yellow(), path.display());
+                print!("  Type 'yes' to confirm: ");
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+
+                let mut input = String::new();
+                std::io::stdin()
+                    .read_line(&mut input)
+                    .map_err(|e| NikaError::ValidationError {
+                        reason: format!("Failed to read from stdin: {}", e),
+                    })?;
+                if input.trim() != "yes" {
+                    println!("{}", "Cancelled.".dimmed());
+                    return Ok(());
+                }
+            }
+
+            std::fs::remove_file(&path)?;
+
+            if !quiet {
+                println!("{} Model deleted: {}", "✓".green(), path.display());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Format bytes as human-readable size
+fn format_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+
+    if bytes >= GB {
+        format!("{:.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} B", bytes)
+    }
+}
