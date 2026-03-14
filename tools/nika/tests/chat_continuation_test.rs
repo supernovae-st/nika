@@ -393,41 +393,6 @@ async fn test_chat_continue_emits_events() {
     );
 }
 
-#[tokio::test]
-#[ignore = "Requires ANTHROPIC_API_KEY environment variable"]
-async fn test_chat_continue_respects_stop_conditions() {
-    let params = AgentParams {
-        prompt: "Say DONE when asked to stop.".to_string(),
-        mcp: vec![],
-        max_turns: Some(5),
-        stop_conditions: vec!["DONE".to_string()],
-        ..Default::default()
-    };
-
-    let event_log = EventLog::new();
-    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-
-    let mut agent_loop =
-        RigAgentLoop::new("test_stop".to_string(), params, event_log, mcp_clients).unwrap();
-
-    // First turn
-    let r1 = agent_loop.run_claude().await.unwrap();
-    let resp1 = r1.final_output["response"].as_str().unwrap_or("");
-    agent_loop.add_to_history("Say DONE when asked to stop.", resp1);
-
-    // Ask to stop
-    let r2 = agent_loop.chat_continue("Please stop now.").await.unwrap();
-
-    // If response contains DONE, status should be StopConditionMet
-    let resp2 = r2.final_output["response"].as_str().unwrap_or("");
-    if resp2.contains("DONE") {
-        assert_eq!(
-            r2.status,
-            RigAgentStatus::StopConditionMet,
-            "Should detect stop condition"
-        );
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Integration Tests - chat_continue with OpenAI (require OPENAI_API_KEY)

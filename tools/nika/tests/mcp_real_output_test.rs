@@ -659,8 +659,6 @@ tasks:
       mcp:
         - novanet
       max_turns: 5
-      stop_conditions:
-        - "DONE"
 "#,
     );
 
@@ -706,8 +704,6 @@ tasks:
       mcp:
         - perplexity
       max_turns: 5
-      stop_conditions:
-        - "DONE"
 "#,
     );
 

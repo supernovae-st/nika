@@ -145,8 +145,6 @@ tasks:
         Then say COMPLETE.
       model: claude-sonnet-4-6
       max_turns: 3
-      stop_conditions:
-        - "COMPLETE"
 "#,
     );
 
@@ -200,8 +198,6 @@ tasks:
       max_turns: 2
       extended_thinking: true
       thinking_budget: 4096
-      stop_conditions:
-        - "DONE"
 "#,
     );
 
@@ -349,8 +345,6 @@ tasks:
         End with FINISHED.
       model: gpt-4o-mini
       max_turns: 3
-      stop_conditions:
-        - "FINISHED"
 "#,
     );
 
@@ -752,8 +746,6 @@ tasks:
         Turn 3: Say "Three DONE"
       model: claude-sonnet-4-6
       max_turns: 4
-      stop_conditions:
-        - "DONE"
 "#,
     );
 

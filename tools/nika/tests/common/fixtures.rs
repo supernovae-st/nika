@@ -67,7 +67,5 @@ tasks:
       mcp:
         - novanet
       max_turns: 5
-      stop_conditions:
-        - "GENERATION_COMPLETE"
 "#
 }

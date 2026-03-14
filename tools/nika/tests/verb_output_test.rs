@@ -633,8 +633,6 @@ tasks:
       prompt: "Calculate 15 * 7 and say DONE when finished"
       model: claude-sonnet-4-6
       max_turns: 3
-      stop_conditions:
-        - "DONE"
 "#,
     );
 
@@ -666,8 +664,6 @@ tasks:
       prompt: "Say hello and then DONE"
       model: claude-sonnet-4-6
       max_turns: 2
-      stop_conditions:
-        - "DONE"
 "#,
     );
 

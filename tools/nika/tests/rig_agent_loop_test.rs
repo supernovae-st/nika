@@ -394,37 +394,6 @@ async fn test_workflow_multi_locale_generation_pattern() {
     assert_eq!(results.len(), 5, "Should process all 5 locales");
 }
 
-/// Test: Stop conditions are checked in output
-#[tokio::test]
-async fn test_workflow_stop_condition_detection() {
-    let params = AgentParams {
-        prompt: "Generate content until DONE marker".to_string(),
-        mcp: vec![],
-        max_turns: Some(10),
-        stop_conditions: vec!["DONE".to_string(), "COMPLETE".to_string()],
-        ..Default::default()
-    };
-
-    let event_log = EventLog::new();
-    let mcp_clients: FxHashMap<String, Arc<McpClient>> = FxHashMap::default();
-
-    let agent_loop = RigAgentLoop::new(
-        "test_stop_conditions".to_string(),
-        params,
-        event_log,
-        mcp_clients,
-    )
-    .unwrap();
-
-    let result = agent_loop.run_mock().await;
-
-    // Assert: Mock completes (doesn't trigger stop conditions)
-    assert!(result.is_ok());
-    let result = result.unwrap();
-    // Mock returns NaturalCompletion (stop conditions not in mock output)
-    assert_eq!(result.status, RigAgentStatus::NaturalCompletion);
-}
-
 /// Test: MCP client not found for specified server
 #[test]
 fn test_workflow_mcp_server_not_found_error() {
@@ -640,7 +609,6 @@ Focus on high-quality, SEO-optimized French content.
         .to_string(),
         mcp: vec!["novanet".to_string()],
         max_turns: Some(5),
-        stop_conditions: vec!["COMPLETE".to_string()],
         ..Default::default()
     };
 
@@ -684,7 +652,6 @@ async fn test_uc002_multi_locale_pipeline() {
             ),
             mcp: vec!["novanet".to_string()],
             max_turns: Some(3),
-            stop_conditions: vec!["DONE".to_string()],
             ..Default::default()
         };
 
@@ -744,7 +711,6 @@ Steps:
         .to_string(),
         mcp: vec!["novanet".to_string()],
         max_turns: Some(5),
-        stop_conditions: vec!["OPTIMIZED".to_string()],
         ..Default::default()
     };
 
