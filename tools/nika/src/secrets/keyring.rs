@@ -11,11 +11,6 @@
 //! Docker builds disable it since containers don't have OS keychains.
 //! When disabled, fallback implementations return errors for keyring operations.
 //!
-//! ## v0.28 Migration
-//!
-//! Moved from `tui::widgets::provider_modal::keyring` to `secrets::keyring`
-//! to break the circular dependency secrets → tui. The TUI now imports from
-//! this module instead.
 
 use secrecy::SecretString;
 use thiserror::Error;

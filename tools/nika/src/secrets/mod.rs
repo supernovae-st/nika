@@ -28,13 +28,6 @@
 //! └─────────────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! ## v0.27 Migration (spn → nika fusion)
-//!
-//! Provider definitions moved from `spn-client::KNOWN_PROVIDERS` to `nika::core::KNOWN_PROVIDERS`.
-//! The daemon IPC functionality (`spn-client::SpnClient`) remains external.
-//!
-//! ## v0.22 Behavior
-//!
 //! When daemon feature is enabled, Nika will NEVER access the keychain directly.
 //! The daemon is the SOLE keychain accessor. If the daemon doesn't have a secret,
 //! it's marked as "not found" instead of falling back to direct keyring access.
