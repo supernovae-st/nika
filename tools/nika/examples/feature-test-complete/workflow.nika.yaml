@@ -90,16 +90,19 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────
   - id: save_result
     depends_on: [extract_metadata, get_timestamp]
+    with:
+      metadata: $extract_metadata
+      timestamp: $get_timestamp
     infer: |
       Create a JSON summary combining:
-      - Metadata: {{extract_metadata.output}}
-      - Generated at: {{get_timestamp.output}}
+      - Metadata: {{with.metadata}}
+      - Generated at: {{with.timestamp}}
       - Topic: {{inputs.topic}}
       - Locale: {{inputs.locale}}
     provider: claude
     model: claude-3-5-haiku-latest
     artifact:
-      path: "./outputs/result-{{get_timestamp.output}}.json"
+      path: "./outputs/result.json"
       format: json
     description: "Save output as artifact with template path"
 
