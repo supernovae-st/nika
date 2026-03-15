@@ -316,6 +316,7 @@ impl TuiState {
             timeline_version: 0,
             timeline_cache_version: 0,
             ui: UiState::new(),
+            mcp: McpState::new(),
         }
     }
 
