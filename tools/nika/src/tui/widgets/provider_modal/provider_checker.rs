@@ -210,6 +210,7 @@ impl ProviderChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_provider_checker_new() {
@@ -225,6 +226,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_anthropic_no_key() {
         std::env::remove_var("ANTHROPIC_API_KEY");
         let checker = ProviderChecker::new();
@@ -233,6 +235,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_openai_no_key() {
         std::env::remove_var("OPENAI_API_KEY");
         let checker = ProviderChecker::new();
@@ -241,6 +244,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_mistral_no_key() {
         std::env::remove_var("MISTRAL_API_KEY");
         let checker = ProviderChecker::new();
@@ -249,6 +253,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_groq_no_key() {
         std::env::remove_var("GROQ_API_KEY");
         let checker = ProviderChecker::new();
@@ -257,6 +262,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_deepseek_no_key() {
         std::env::remove_var("DEEPSEEK_API_KEY");
         let checker = ProviderChecker::new();
@@ -265,6 +271,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_gemini_no_key() {
         std::env::remove_var("GEMINI_API_KEY");
         let checker = ProviderChecker::new();
@@ -293,6 +300,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_check_unknown_provider_falls_through() {
         // Unknown provider returns Failed "Unknown provider" when key check passes
         // For this test, we verify the behavior by checking that known providers
