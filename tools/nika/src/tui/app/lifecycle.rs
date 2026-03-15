@@ -495,7 +495,6 @@ impl App {
     /// Only works when workflow is in failed state.
     ///
     /// Note: Will be called from routing.rs when Action::RetryWorkflow is handled.
-    #[allow(dead_code)]
     pub(crate) fn retry_workflow(&mut self) {
         if self.state.is_running() {
             self.set_status("⚠ Cannot retry: workflow is still running");

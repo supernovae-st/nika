@@ -72,7 +72,6 @@ pub struct App {
     pub(crate) state: TuiState,
     /// Standalone state (file browser mode)
     /// Note: Used during construction for HomeView initialization
-    #[allow(dead_code)]
     pub(crate) standalone_state: Option<StandaloneState>,
     /// Cosmic theme
     pub(crate) cosmic_theme: CosmicTheme,

@@ -42,7 +42,6 @@ pub struct Dag {
     /// All task IDs (for iteration)
     task_ids: Vec<Arc<str>>,
     /// Quick lookup for task existence (FxHashSet: faster hashing)
-    #[allow(dead_code)]
     task_set: FxHashSet<Arc<str>>,
 }
 
