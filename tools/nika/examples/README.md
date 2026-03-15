@@ -62,7 +62,7 @@ Production-ready workflow patterns for real-world scenarios.
 
 ## Workflow Schema
 
-All workflows use schema `nika/workflow@0.10` (or earlier versions for compatibility).
+All workflows use schema `nika/workflow@0.12` (or earlier versions for compatibility).
 
 **Current Schema Features (v0.10):**
 - `context:` — File loading at workflow start (v0.9+)
@@ -75,7 +75,7 @@ All workflows use schema `nika/workflow@0.10` (or earlier versions for compatibi
 - `spawn_agent` — Nested agent spawning with depth protection (v0.5+)
 
 ```yaml
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: claude  # or openai, mistral, groq, deepseek, gemini
 
 mcp:

@@ -2,7 +2,7 @@
 # Tests: Structured Output, Artifacts, LSP validation, All 5 verbs
 # Location: nika/tools/nika/examples/feature-test-complete/workflow.nika.yaml
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: feature-test-complete
 description: |
   Comprehensive test of Nika v0.21.0 features:

@@ -14,7 +14,7 @@
 # - nika:assert (validation)
 # - nika:read / nika:write (file operations without shell - v0.15.0+)
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: feature-test-demo
 description: |
   Comprehensive Nika feature test workflow.
