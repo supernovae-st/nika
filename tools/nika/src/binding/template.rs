@@ -436,7 +436,15 @@ pub fn resolve_with<'a>(
                         };
                         result.push_str(&display);
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        // Propagate structural errors (depth, parse) immediately;
+                        // only collect "not found" errors for the batch message.
+                        let msg = format!("{}", e);
+                        if msg.contains("exceeds maximum")
+                            || msg.contains("Empty alias path")
+                        {
+                            return Err(e);
+                        }
                         errors.push(path.clone());
                     }
                 }
@@ -971,7 +979,7 @@ pub fn resolve_for_shell<'a>(
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
     }
-    let has_use = template.contains("use.");
+    let has_use = template.contains("use.") || template.contains("with.");
     let has_context = template.contains("context.");
     if !has_use && !has_context {
         return Ok(Cow::Borrowed(template));

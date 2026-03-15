@@ -1062,7 +1062,7 @@ mod tests {
         assert_eq!(ModelProvider::Mistral.env_var(), "MISTRAL_API_KEY");
         assert_eq!(ModelProvider::Groq.env_var(), "GROQ_API_KEY");
         assert_eq!(ModelProvider::DeepSeek.env_var(), "DEEPSEEK_API_KEY");
-        assert_eq!(ModelProvider::Native.env_var(), ""); // Native inference uses local GGUF models
+        assert_eq!(ModelProvider::Native.env_var(), "NIKA_NATIVE_MODEL_PATH");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
