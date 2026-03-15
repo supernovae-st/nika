@@ -12,7 +12,7 @@
 //! - NIKA-040-049: Template/binding errors
 //! - NIKA-050-059: Path/task/security errors
 //! - NIKA-060-069: Output errors
-//! - NIKA-070-079: Use block validation errors
+//! - NIKA-070-079: With block validation errors
 //! - NIKA-080-089: DAG validation errors
 //! - NIKA-090-099: JSONPath/IO errors (+NIKA-096 Execution catch-all)
 //! - NIKA-100-109: MCP errors
@@ -305,7 +305,7 @@ pub enum NikaError {
     },
 
     #[error(
-        "[NIKA-082] use.{alias}.from='{from_task}' creates circular dependency with '{task_id}'"
+        "[NIKA-082] with.{alias}='{from_task}' creates circular dependency with '{task_id}'"
     )]
     UseCircularDep {
         alias: String,
@@ -755,7 +755,7 @@ impl NikaError {
             Self::InvalidJson { .. } => "NIKA-060",
             Self::SchemaFailed { .. } => "NIKA-061",
             Self::SerializationError { .. } => "NIKA-062",
-            // Use block errors
+            // With block errors
             Self::DuplicateAlias { .. } => "NIKA-070",
             Self::UnknownAlias { .. } => "NIKA-071",
             Self::NullValue { .. } => "NIKA-072",
@@ -1479,7 +1479,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // USE BLOCK VALIDATION (070-079)
+    // WITH BLOCK VALIDATION (070-079)
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -1546,7 +1546,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_use_unknown_task_error() {
+    fn test_with_unknown_task_error() {
         let err = NikaError::UseUnknownTask {
             alias: "ctx".to_string(),
             from_task: "undefined".to_string(),
@@ -1559,7 +1559,7 @@ mod tests {
     }
 
     #[test]
-    fn test_use_not_upstream_error() {
+    fn test_with_not_upstream_error() {
         let err = NikaError::UseNotUpstream {
             alias: "ctx".to_string(),
             from_task: "task2".to_string(),
@@ -1571,7 +1571,7 @@ mod tests {
     }
 
     #[test]
-    fn test_use_circular_dep_error() {
+    fn test_with_circular_dep_error() {
         let err = NikaError::UseCircularDep {
             alias: "ctx".to_string(),
             from_task: "task1".to_string(),
