@@ -11,8 +11,8 @@ Language Server Protocol (LSP) implementation for Nika YAML workflows.
 - **Syntax Validation** — Real-time YAML validation for `.nika.yaml` workflows
 - **Autocompletion** — 5 semantic verbs (`infer`, `exec`, `fetch`, `invoke`, `agent`)
 - **MCP Tool Discovery** — Completion for available MCP tools
-- **Task Dependency Validation** — Validates `use:` references and DAG structure
-- **Template Variable Completion** — `{{use.*}}` and `{{inputs.*}}` variables
+- **Task Dependency Validation** — Validates `with:` references and DAG structure
+- **Template Variable Completion** — `{{with.*}}` and `{{inputs.*}}` variables
 - **Go-to-Definition** — Navigate to task definitions
 - **Hover Documentation** — Inline docs for verbs and parameters
 - **Diagnostics** — NIKA error codes with actionable suggestions
@@ -186,9 +186,9 @@ Get real-time error feedback:
 ```yaml
 tasks:
   - id: task1
-    use:
+    with:
       data: nonexistent_task  # Error: Unknown task 'nonexistent_task'
-    infer: "Process {{use.data}}"
+    infer: "Process {{with.data}}"
 ```
 
 ### Hover Documentation
