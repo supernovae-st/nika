@@ -330,7 +330,11 @@ impl ResolvedBindings {
 /// 3. Get task output from datastore
 /// 4. Resolve remaining path within output
 /// 5. Apply default if value is null/missing
-fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &RunContext) -> Result<Value, NikaError> {
+fn resolve_entry(
+    entry: &UseEntry,
+    alias: &str,
+    datastore: &RunContext,
+) -> Result<Value, NikaError> {
     let path = &entry.path;
 
     // Check for inputs.* path first
