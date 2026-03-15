@@ -386,14 +386,13 @@ impl Runner {
     /// - Task action is Infer
     /// - Output format is JSON
     /// - Output has inline schema
-    /// - max_retries > 0
-    ///
-    /// Bridges AnalyzedTask to lowered InferParams for the retry loop.
+    /// - structured.max_retries > 0
     fn get_retry_config(task: &AnalyzedTask) -> Option<(Value, u8, InferParams)> {
         // Must be an infer action
-        if !matches!(&task.action, AnalyzedTaskAction::Infer(_)) {
-            return None;
-        }
+        let infer_action = match &task.action {
+            AnalyzedTaskAction::Infer(infer) => infer,
+            _ => return None,
+        };
 
         // Must have output with JSON format and inline schema
         let output = task.output.as_ref()?;
@@ -404,26 +403,27 @@ impl Runner {
         // Must have inline schema
         let schema = output.schema.as_ref()?.clone();
 
-        // Bridge to lowered OutputPolicy to check max_retries
-        let output_policy = lower_output(output.clone());
-        let max_retries = output_policy.max_retries.unwrap_or(0);
+        // max_retries comes from structured output spec, NOT from output policy
+        let structured = task.structured.as_ref()?;
+        let max_retries = structured.max_retries.unwrap_or(0);
         if max_retries == 0 {
             return None;
         }
 
-        // Bridge infer to lowered InferParams
-        let lowered_action = lower_action(
-            task.action.clone(),
-            task.provider.clone(),
-            task.model.clone(),
-            task.retry.clone(),
-        );
-        let lowered_infer = match lowered_action {
-            TaskAction::Infer { infer } => infer,
-            _ => return None,
+        // Build InferParams directly from analyzed types
+        let infer_params = InferParams {
+            prompt: infer_action.prompt.clone(),
+            provider: task.provider.clone(),
+            model: task.model.clone(),
+            temperature: infer_action.temperature,
+            max_tokens: infer_action.max_tokens,
+            system: infer_action.system.clone(),
+            response_format: None,
+            extended_thinking: None,
+            thinking_budget: None,
         };
 
-        Some((schema, max_retries, lowered_infer))
+        Some((schema, max_retries, infer_params))
     }
 
     /// Execute an infer task with schema validation and retry loop
@@ -1688,31 +1688,41 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
-    use crate::binding::UseEntry;
+    use crate::ast::analyzed::{
+        AnalyzedExecAction, AnalyzedForEach, AnalyzedInferAction, AnalyzedOutput, AnalyzedTask,
+        AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat, TaskId,
+        TaskTable,
+    };
+    use crate::ast::schema::SchemaVersion;
+    use crate::ast::structured::StructuredOutputSpec;
+    use crate::binding::types::{BindingPath, BindingSource};
+    use crate::binding::{WithEntry, WithSpec};
+    use crate::source::Span;
+    use indexmap::IndexMap;
     use serde_json::json;
-    use std::sync::Arc;
     use std::time::Duration;
 
     // ═══════════════════════════════════════════════════════════════
     // QUIET MODE TEST
     // ═══════════════════════════════════════════════════════════════
 
-    fn make_empty_workflow() -> Workflow {
-        Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
+    fn make_empty_workflow() -> AnalyzedWorkflow {
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
             model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
+            task_table: TaskTable::new(),
+            tasks: vec![],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
             artifacts: None,
             log: None,
-            inputs: None,
-            tasks: vec![],
-            flows: vec![],
+            agents: None,
+            span: Span::dummy(),
         }
     }
 
@@ -1780,47 +1790,87 @@ mod tests {
     // FOR_EACH RESULT AGGREGATION TESTS
     // ═══════════════════════════════════════════════════════════════
 
-    #[tokio::test]
-    async fn test_for_each_collects_all_results() {
-        // Create workflow with for_each that runs 3 items
-        let workflow = Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
+    /// Helper to create a workflow with a single for_each exec task
+    fn create_for_each_workflow(
+        task_id: &str,
+        items_json: &str,
+        as_var: &str,
+        command: &str,
+        concurrency: Option<u32>,
+        fail_fast: bool,
+        shell: bool,
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        task_table.insert(task_id);
+        let tid = task_table.get_id(task_id).unwrap();
+
+        let task = AnalyzedTask {
+            id: tid,
+            name: task_id.to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: command.to_string(),
+                shell,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                capture_stdout: true,
+                capture_stderr: false,
+                span: Span::dummy(),
+            }),
+            provider: None,
             model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: Some(AnalyzedForEach {
+                items: items_json.to_string(),
+                as_var: as_var.to_string(),
+                parallel: concurrency,
+                fail_fast,
+                span: Span::dummy(),
+            }),
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            task_table,
+            tasks: vec![task],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
             artifacts: None,
             log: None,
-            inputs: None,
-            tasks: vec![Arc::new(Task {
-                id: "echo_items".to_string(),
-                for_each: Some(serde_json::json!(["a", "b", "c"])),
-                for_each_as: Some("item".to_string()),
-                concurrency: None, // Default sequential
-                fail_fast: None,   // Default true
-                decompose: None,
-                action: TaskAction::Exec {
-                    exec: ExecParams {
-                        command: "echo {{use.item}}".to_string(),
-                        shell: None,
-                        timeout: None,
-                        cwd: None,
-                        env: None,
-                    },
-                },
-                use_wiring: None,
-                with_spec: None,
-                output: None,
-                artifact: None,
-                log: None,
-                flow: None,
-                structured: None,
-            })],
-            flows: vec![],
-        };
+            agents: None,
+            span: Span::dummy(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_for_each_collects_all_results() {
+        let workflow = create_for_each_workflow(
+            "echo_items",
+            r#"["a", "b", "c"]"#,
+            "item",
+            "echo {{use.item}}",
+            None,  // sequential
+            true,  // fail_fast default
+            false, // no shell
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -1830,16 +1880,11 @@ mod tests {
             result.err()
         );
 
-        // The final output should contain results from all 3 iterations
-        // When for_each completes, results should be aggregated
-        // Check datastore has the parent task result
         let parent_result = runner.datastore.get("echo_items");
         assert!(parent_result.is_some(), "Parent task result should exist");
 
         let result = parent_result.unwrap();
         let output = result.output_str();
-        // Should contain all three outputs somehow (either as array or concatenated)
-        // The exact format depends on implementation, but all should be present
         let has_a = output.contains("a") || output.contains("\"a\"");
         let has_b = output.contains("b") || output.contains("\"b\"");
         let has_c = output.contains("c") || output.contains("\"c\"");
@@ -1853,45 +1898,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_for_each_preserves_order() {
-        // Create workflow with for_each that runs 5 items
-        let workflow = Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
-            model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
-            artifacts: None,
-            log: None,
-            inputs: None,
-            tasks: vec![Arc::new(Task {
-                id: "ordered".to_string(),
-                for_each: Some(serde_json::json!(["first", "second", "third"])),
-                for_each_as: Some("x".to_string()),
-                concurrency: None,
-                fail_fast: None,
-                decompose: None,
-                action: TaskAction::Exec {
-                    exec: ExecParams {
-                        command: "echo {{use.x}}".to_string(),
-                        shell: None,
-                        timeout: None,
-                        cwd: None,
-                        env: None,
-                    },
-                },
-                use_wiring: None,
-                with_spec: None,
-                output: None,
-                artifact: None,
-                log: None,
-                flow: None,
-                structured: None,
-            })],
-            flows: vec![],
-        };
+        let workflow = create_for_each_workflow(
+            "ordered",
+            r#"["first", "second", "third"]"#,
+            "x",
+            "echo {{use.x}}",
+            None,
+            true,
+            false,
+        );
 
         let mut runner = Runner::new(workflow);
         runner.run().await.unwrap();
@@ -1899,12 +1914,10 @@ mod tests {
         let parent_result = runner.datastore.get("ordered");
         assert!(parent_result.is_some(), "Parent task result should exist");
 
-        // If stored as array, order should be preserved
         let result = parent_result.unwrap();
         let output = result.output_str();
         if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&output) {
             assert_eq!(arr.len(), 3, "Should have 3 results");
-            // First element should be "first", last should be "third"
             let first = arr[0].as_str().unwrap_or("");
             let last = arr[2].as_str().unwrap_or("");
             assert!(
@@ -1916,7 +1929,6 @@ mod tests {
                 "Last element should contain 'third'"
             );
         }
-        // If not an array, at least verify all are present (parallel execution may reorder)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1924,55 +1936,73 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     /// Helper to create a minimal workflow with exec tasks
-    fn create_exec_workflow(tasks: Vec<(&str, &str)>, flows: Vec<(&str, &str)>) -> Workflow {
-        Workflow {
-            schema: "nika/workflow@0.1".to_string(),
-            provider: "mock".to_string(),
+    fn create_exec_workflow(
+        tasks: Vec<(&str, &str)>,
+        flows: Vec<(&str, &str)>,
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        for (id, _) in &tasks {
+            task_table.insert(id);
+        }
+
+        let analyzed_tasks: Vec<AnalyzedTask> = tasks
+            .into_iter()
+            .map(|(id, cmd)| {
+                let task_id = task_table.get_id(id).unwrap();
+                let depends_on: Vec<_> = flows
+                    .iter()
+                    .filter(|(_, tgt)| *tgt == id)
+                    .filter_map(|(src, _)| task_table.get_id(src))
+                    .collect();
+                AnalyzedTask {
+                    id: task_id,
+                    name: id.to_string(),
+                    description: None,
+                    action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                        command: cmd.to_string(),
+                        shell: false,
+                        working_dir: None,
+                        env: IndexMap::new(),
+                        timeout_ms: None,
+                        capture_stdout: true,
+                        capture_stderr: false,
+                        span: Span::dummy(),
+                    }),
+                    provider: None,
+                    model: None,
+                    with_spec: Default::default(),
+                    depends_on,
+                    implicit_deps: vec![],
+                    output: None,
+                    for_each: None,
+                    retry: None,
+                    decompose: None,
+                    concurrency: None,
+                    fail_fast: None,
+                    artifact: None,
+                    log: None,
+                    structured: None,
+                    span: Span::dummy(),
+                }
+            })
+            .collect();
+
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V01,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
             model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
+            task_table,
+            tasks: analyzed_tasks,
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
             artifacts: None,
             log: None,
-            inputs: None,
-            tasks: tasks
-                .into_iter()
-                .map(|(id, cmd)| {
-                    Arc::new(Task {
-                        id: id.to_string(),
-                        use_wiring: None,
-                        with_spec: None,
-                        output: None,
-                        decompose: None,
-                        for_each: None,
-                        for_each_as: None,
-                        concurrency: None,
-                        fail_fast: None,
-                        action: TaskAction::Exec {
-                            exec: ExecParams {
-                                command: cmd.to_string(),
-                                shell: None,
-                                timeout: None,
-                                cwd: None,
-                                env: None,
-                            },
-                        },
-                        artifact: None,
-                        log: None,
-                        flow: None,
-                        structured: None,
-                    })
-                })
-                .collect(),
-            flows: flows
-                .into_iter()
-                .map(|(src, tgt)| Flow {
-                    source: FlowEndpoint::Single(src.to_string()),
-                    target: FlowEndpoint::Single(tgt.to_string()),
-                })
-                .collect(),
+            agents: None,
+            span: Span::dummy(),
         }
     }
 
@@ -2232,9 +2262,9 @@ mod tests {
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 2, "Both tasks should be ready");
 
-        let ids: Vec<&str> = ready.iter().map(|t| t.id.as_str()).collect();
-        assert!(ids.contains(&"a"), "Task 'a' should be ready");
-        assert!(ids.contains(&"b"), "Task 'b' should be ready");
+        let names: Vec<&str> = ready.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"a"), "Task 'a' should be ready");
+        assert!(names.contains(&"b"), "Task 'b' should be ready");
     }
 
     #[test]
@@ -2248,7 +2278,7 @@ mod tests {
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1, "Only first task should be ready");
-        assert_eq!(ready[0].id, "a", "Task 'a' should be ready");
+        assert_eq!(ready[0].name, "a", "Task 'a' should be ready");
     }
 
     #[test]
@@ -2361,45 +2391,15 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_with_explicit_concurrency() {
-        // Create workflow with for_each that specifies concurrency=2
-        let workflow = Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
-            model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
-            artifacts: None,
-            log: None,
-            inputs: None,
-            tasks: vec![Arc::new(Task {
-                id: "concurrent".to_string(),
-                for_each: Some(serde_json::json!(["a", "b", "c", "d"])),
-                for_each_as: Some("item".to_string()),
-                concurrency: Some(2), // Limit to 2 concurrent
-                fail_fast: None,
-                decompose: None,
-                action: TaskAction::Exec {
-                    exec: ExecParams {
-                        command: "echo {{use.item}}".to_string(),
-                        shell: None,
-                        timeout: None,
-                        cwd: None,
-                        env: None,
-                    },
-                },
-                use_wiring: None,
-                with_spec: None,
-                output: None,
-                artifact: None,
-                log: None,
-                flow: None,
-                structured: None,
-            })],
-            flows: vec![],
-        };
+        let workflow = create_for_each_workflow(
+            "concurrent",
+            r#"["a", "b", "c", "d"]"#,
+            "item",
+            "echo {{use.item}}",
+            Some(2), // Limit to 2 concurrent
+            true,
+            false,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -2409,7 +2409,6 @@ mod tests {
             result.err()
         );
 
-        // Verify all 4 items were processed
         let parent_result = runner.datastore.get("concurrent");
         assert!(parent_result.is_some(), "Parent task result should exist");
 
@@ -2421,103 +2420,38 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_fail_fast_stops_on_first_error() {
-        // Create workflow with for_each where middle item fails
-        let workflow = Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
-            model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
-            artifacts: None,
-            log: None,
-            inputs: None,
-            tasks: vec![Arc::new(Task {
-                id: "failfast".to_string(),
-                for_each: Some(serde_json::json!(["ok1", "FAIL", "ok2", "ok3"])),
-                for_each_as: Some("item".to_string()),
-                concurrency: Some(1), // Sequential to make failure predictable
-                fail_fast: Some(true),
-                decompose: None,
-                action: TaskAction::Exec {
-                    exec: ExecParams {
-                        // Exit with error if item is "FAIL"
-                        command: "test '{{use.item}}' != 'FAIL' && echo {{use.item}}".to_string(),
-                        shell: None,
-                        timeout: None,
-                        cwd: None,
-                        env: None,
-                    },
-                },
-                use_wiring: None,
-                with_spec: None,
-                output: None,
-                artifact: None,
-                log: None,
-                flow: None,
-                structured: None,
-            })],
-            flows: vec![],
-        };
+        let workflow = create_for_each_workflow(
+            "failfast",
+            r#"["ok1", "FAIL", "ok2", "ok3"]"#,
+            "item",
+            "test '{{use.item}}' != 'FAIL' && echo {{use.item}}",
+            Some(1), // Sequential to make failure predictable
+            true,    // fail_fast
+            false,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         // Workflow completes but parent task may be marked as failed
         assert!(result.is_ok() || result.is_err());
-
-        // The important thing is that some iterations may have been skipped
-        // due to fail_fast behavior
     }
 
     #[tokio::test]
     async fn for_each_fail_fast_false_continues_on_error() {
-        // Create workflow with fail_fast=false
-        let workflow = Workflow {
-            schema: "nika/workflow@0.3".to_string(),
-            provider: "mock".to_string(),
-            model: None,
-            mcp: None,
-            context: None,
-            include: None,
-            agents: None,
-            skills: None,
-            artifacts: None,
-            log: None,
-            inputs: None,
-            tasks: vec![Arc::new(Task {
-                id: "continue".to_string(),
-                for_each: Some(serde_json::json!(["ok1", "ok2"])),
-                for_each_as: Some("item".to_string()),
-                concurrency: None,
-                fail_fast: Some(false), // Explicitly disable fail_fast
-                decompose: None,
-                action: TaskAction::Exec {
-                    exec: ExecParams {
-                        command: "echo {{use.item}}".to_string(),
-                        shell: None,
-                        timeout: None,
-                        cwd: None,
-                        env: None,
-                    },
-                },
-                use_wiring: None,
-                with_spec: None,
-                output: None,
-                artifact: None,
-                log: None,
-                flow: None,
-                structured: None,
-            })],
-            flows: vec![],
-        };
+        let workflow = create_for_each_workflow(
+            "continue",
+            r#"["ok1", "ok2"]"#,
+            "item",
+            "echo {{use.item}}",
+            None,
+            false, // Explicitly disable fail_fast
+            false,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
         assert!(result.is_ok(), "Workflow should complete");
 
-        // All items should be processed
         let parent_result = runner.datastore.get("continue");
         assert!(parent_result.is_some());
     }
@@ -2526,13 +2460,25 @@ mod tests {
     // FOR_EACH WITH INPUTS.* SUPPORT
     // ═══════════════════════════════════════════════════════════════
 
+    /// Helper to create a for_each workflow with inputs
+    fn create_for_each_with_inputs(
+        task_id: &str,
+        items_expr: &str,
+        as_var: &str,
+        command: &str,
+        inputs: IndexMap<String, serde_json::Value>,
+        concurrency: Option<u32>,
+    ) -> AnalyzedWorkflow {
+        let mut workflow = create_for_each_workflow(
+            task_id, items_expr, as_var, command, concurrency, true, false,
+        );
+        workflow.inputs = inputs;
+        workflow
+    }
+
     #[tokio::test]
     async fn for_each_with_dollar_inputs_array() {
-        use serde_json::json;
-
-        // Test for_each: $inputs.items resolves from workflow inputs
-        let mut workflow = make_empty_workflow();
-        let mut inputs = FxHashMap::default();
+        let mut inputs = IndexMap::new();
         inputs.insert(
             "items".to_string(),
             json!({
@@ -2540,31 +2486,14 @@ mod tests {
                 "default": ["alpha", "beta", "gamma"]
             }),
         );
-        workflow.inputs = Some(inputs);
-        workflow.tasks = vec![Arc::new(Task {
-            id: "process_items".to_string(),
-            for_each: Some(serde_json::json!("$inputs.items")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        })];
+        let workflow = create_for_each_with_inputs(
+            "process_items",
+            "$inputs.items",
+            "item",
+            "echo {{use.item}}",
+            inputs,
+            None,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -2574,7 +2503,6 @@ mod tests {
             result.err()
         );
 
-        // Should have processed all 3 items
         let task_result = runner.datastore.get("process_items");
         assert!(task_result.is_some(), "Task result should exist");
         assert!(task_result.unwrap().is_success(), "Task should succeed");
@@ -2582,11 +2510,7 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_with_template_inputs() {
-        use serde_json::json;
-
-        // Test for_each: "{{inputs.locales}}" resolves from workflow inputs
-        let mut workflow = make_empty_workflow();
-        let mut inputs = FxHashMap::default();
+        let mut inputs = IndexMap::new();
         inputs.insert(
             "locales".to_string(),
             json!({
@@ -2594,31 +2518,14 @@ mod tests {
                 "default": ["fr-FR", "en-US"]
             }),
         );
-        workflow.inputs = Some(inputs);
-        workflow.tasks = vec![Arc::new(Task {
-            id: "translate".to_string(),
-            for_each: Some(json!("{{inputs.locales}}")),
-            for_each_as: Some("locale".to_string()),
-            concurrency: Some(2),
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo Translating to {{use.locale}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        })];
+        let workflow = create_for_each_with_inputs(
+            "translate",
+            "{{inputs.locales}}",
+            "locale",
+            "echo Translating to {{use.locale}}",
+            inputs,
+            Some(2),
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -2635,11 +2542,7 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_with_inputs_missing_fails_gracefully() {
-        use serde_json::json;
-
-        // Test for_each: $inputs.nonexistent fails with clear error
-        let mut workflow = make_empty_workflow();
-        let mut inputs = FxHashMap::default();
+        let mut inputs = IndexMap::new();
         inputs.insert(
             "other_param".to_string(),
             json!({
@@ -2647,42 +2550,23 @@ mod tests {
                 "default": "test"
             }),
         );
-        workflow.inputs = Some(inputs);
-        workflow.tasks = vec![Arc::new(Task {
-            id: "missing_input".to_string(),
-            for_each: Some(json!("$inputs.nonexistent")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        })];
+        let workflow = create_for_each_with_inputs(
+            "missing_input",
+            "$inputs.nonexistent",
+            "item",
+            "echo {{use.item}}",
+            inputs,
+            None,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
-        // The workflow completes but the task fails
         assert!(result.is_ok(), "Workflow should complete");
 
         let task_result = runner.datastore.get("missing_input");
         assert!(task_result.is_some(), "Task result should exist");
         let tr = task_result.unwrap();
         assert!(!tr.is_success(), "Task should fail due to missing input");
-        // Error message is in status field, not output (TaskResult::failed stores error in status)
         let error_msg = tr.error().expect("Failed task should have error message");
         assert!(
             error_msg.contains("not found"),
@@ -2693,11 +2577,7 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_with_inputs_nested_path() {
-        use serde_json::json;
-
-        // Test for_each: $inputs.data.items with nested input structure
-        let mut workflow = make_empty_workflow();
-        let mut inputs = FxHashMap::default();
+        let mut inputs = IndexMap::new();
         inputs.insert(
             "data".to_string(),
             json!({
@@ -2707,31 +2587,14 @@ mod tests {
                 }
             }),
         );
-        workflow.inputs = Some(inputs);
-        workflow.tasks = vec![Arc::new(Task {
-            id: "nested".to_string(),
-            for_each: Some(json!("$inputs.data.items")),
-            for_each_as: Some("n".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.n}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        })];
+        let workflow = create_for_each_with_inputs(
+            "nested",
+            "$inputs.data.items",
+            "n",
+            "echo {{use.n}}",
+            inputs,
+            None,
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -2750,73 +2613,123 @@ mod tests {
     // for_each Pattern 2 ($alias) — nested paths + error
     // ═══════════════════════════════════════════════════════════════
 
+    /// Helper to create a 2-step workflow where step1 produces output, step2 iterates with for_each
+    fn create_two_step_for_each_workflow(
+        step1_cmd: &str,
+        step1_shell: bool,
+        for_each_items: &str,
+        step2_cmd: &str,
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        task_table.insert("step1");
+        task_table.insert("step2");
+        let tid1 = task_table.get_id("step1").unwrap();
+        let tid2 = task_table.get_id("step2").unwrap();
+
+        let step1 = AnalyzedTask {
+            id: tid1,
+            name: "step1".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: step1_cmd.to_string(),
+                shell: step1_shell,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                capture_stdout: true,
+                capture_stderr: false,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "step1".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task(intern("step1")),
+                segments: vec![],
+            }),
+        );
+
+        let step2 = AnalyzedTask {
+            id: tid2,
+            name: "step2".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: step2_cmd.to_string(),
+                shell: false,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                capture_stdout: true,
+                capture_stderr: false,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec,
+            depends_on: vec![tid1],
+            implicit_deps: vec![],
+            output: None,
+            for_each: Some(AnalyzedForEach {
+                items: for_each_items.to_string(),
+                as_var: "item".to_string(),
+                parallel: None,
+                fail_fast: true,
+                span: Span::dummy(),
+            }),
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            task_table,
+            tasks: vec![step1, step2],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
+            span: Span::dummy(),
+        }
+    }
+
     #[tokio::test]
     async fn for_each_dollar_binding_nested_path() {
-        use serde_json::json;
-
-        // Step1 produces a JSON object with an "items" field containing an array.
-        // Step2 uses for_each: "$step1.items" to iterate over that nested array.
-        let mut workflow = make_empty_workflow();
-
-        let step1 = Arc::new(Task {
-            id: "step1".to_string(),
-            for_each: None,
-            for_each_as: None,
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: r#"echo '{"items": ["alpha", "beta", "gamma"], "count": 3}'"#
-                        .to_string(),
-                    shell: Some(true),
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        });
-
-        let mut use_wiring = FxHashMap::default();
-        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
-
-        let step2 = Arc::new(Task {
-            id: "step2".to_string(),
-            for_each: Some(json!("$step1.items")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: Some(use_wiring),
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: Some(vec!["step1".to_string()]),
-            structured: None,
-        });
-
-        workflow.tasks = vec![step1, step2];
-        workflow.flows = vec![Flow {
-            source: FlowEndpoint::Single("step1".to_string()),
-            target: FlowEndpoint::Single("step2".to_string()),
-        }];
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '{"items": ["alpha", "beta", "gamma"], "count": 3}'"#,
+            true,
+            "$step1.items",
+            "echo {{use.item}}",
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -2836,76 +2749,16 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_dollar_binding_non_array_errors() {
-        use serde_json::json;
-
-        // Step1 produces a plain string (not an array).
-        // Step2 uses for_each: "$step1" which should FAIL, not silently skip.
-        let mut workflow = make_empty_workflow();
-
-        let step1 = Arc::new(Task {
-            id: "step1".to_string(),
-            for_each: None,
-            for_each_as: None,
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo not_an_array".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        });
-
-        let mut use_wiring = FxHashMap::default();
-        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
-
-        let step2 = Arc::new(Task {
-            id: "step2".to_string(),
-            for_each: Some(json!("$step1")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: Some(use_wiring),
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: Some(vec!["step1".to_string()]),
-            structured: None,
-        });
-
-        workflow.tasks = vec![step1, step2];
-        workflow.flows = vec![Flow {
-            source: FlowEndpoint::Single("step1".to_string()),
-            target: FlowEndpoint::Single("step2".to_string()),
-        }];
+        let workflow = create_two_step_for_each_workflow(
+            "echo not_an_array",
+            false,
+            "$step1",
+            "echo {{use.item}}",
+        );
 
         let mut runner = Runner::new(workflow);
         let _ = runner.run().await;
 
-        // Workflow completes (individual task failure doesn't abort workflow by default)
-        // but step2 should have FAILED with explicit error, not silently succeed
         let task_result = runner.datastore.get("step2");
         assert!(task_result.is_some(), "step2 result should exist");
 
@@ -2924,70 +2777,12 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_dollar_binding_json_string_array() {
-        use serde_json::json;
-
-        // Step1 produces a JSON array as a string: '["a","b","c"]'
-        // Step2 uses for_each: "$step1" which should parse the JSON string
-        let mut workflow = make_empty_workflow();
-
-        let step1 = Arc::new(Task {
-            id: "step1".to_string(),
-            for_each: None,
-            for_each_as: None,
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: r#"echo '["x","y","z"]'"#.to_string(),
-                    shell: Some(true),
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        });
-
-        let mut use_wiring = FxHashMap::default();
-        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
-
-        let step2 = Arc::new(Task {
-            id: "step2".to_string(),
-            for_each: Some(json!("$step1")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: Some(use_wiring),
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: Some(vec!["step1".to_string()]),
-            structured: None,
-        });
-
-        workflow.tasks = vec![step1, step2];
-        workflow.flows = vec![Flow {
-            source: FlowEndpoint::Single("step1".to_string()),
-            target: FlowEndpoint::Single("step2".to_string()),
-        }];
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["x","y","z"]'"#,
+            true,
+            "$step1",
+            "echo {{use.item}}",
+        );
 
         let mut runner = Runner::new(workflow);
         let result = runner.run().await;
@@ -3007,70 +2802,12 @@ mod tests {
 
     #[tokio::test]
     async fn for_each_dollar_binding_nested_path_not_found() {
-        use serde_json::json;
-
-        // Step1 produces JSON, step2 references a non-existent nested path.
-        // Should produce explicit error, not silent fallback.
-        let mut workflow = make_empty_workflow();
-
-        let step1 = Arc::new(Task {
-            id: "step1".to_string(),
-            for_each: None,
-            for_each_as: None,
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: r#"echo '{"data": {"count": 5}}'"#.to_string(),
-                    shell: Some(true),
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: None,
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: None,
-            structured: None,
-        });
-
-        let mut use_wiring = FxHashMap::default();
-        use_wiring.insert("step1".to_string(), UseEntry::new("step1"));
-
-        let step2 = Arc::new(Task {
-            id: "step2".to_string(),
-            for_each: Some(json!("$step1.data.nonexistent")),
-            for_each_as: Some("item".to_string()),
-            concurrency: None,
-            fail_fast: None,
-            decompose: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo {{use.item}}".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
-            use_wiring: Some(use_wiring),
-            with_spec: None,
-            output: None,
-            artifact: None,
-            log: None,
-            flow: Some(vec!["step1".to_string()]),
-            structured: None,
-        });
-
-        workflow.tasks = vec![step1, step2];
-        workflow.flows = vec![Flow {
-            source: FlowEndpoint::Single("step1".to_string()),
-            target: FlowEndpoint::Single("step2".to_string()),
-        }];
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '{"data": {"count": 5}}'"#,
+            true,
+            "$step1.data.nonexistent",
+            "echo {{use.item}}",
+        );
 
         let mut runner = Runner::new(workflow);
         let _ = runner.run().await;
@@ -3557,70 +3294,84 @@ mod tests {
     // GET_RETRY_CONFIG TESTS
     // ═══════════════════════════════════════════════════════════════
 
-    /// Helper to create a Task with an infer action and optional output policy
-    fn make_infer_task(id: &str, output: Option<OutputPolicy>) -> Arc<Task> {
-        Arc::new(Task {
-            id: id.to_string(),
-            use_wiring: None,
-            with_spec: None,
+    /// Helper to create an AnalyzedTask with an infer action.
+    ///
+    /// `output` controls the AnalyzedOutput (format + schema).
+    /// `structured` controls the StructuredOutputSpec (max_retries).
+    /// Both must be Some with matching values for retry to qualify.
+    fn make_infer_task(
+        name: &str,
+        output: Option<AnalyzedOutput>,
+        structured: Option<StructuredOutputSpec>,
+    ) -> AnalyzedTask {
+        AnalyzedTask {
+            id: TaskId(0),
+            name: name.to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "test prompt".to_string(),
+                system: None,
+                temperature: None,
+                max_tokens: None,
+                stop: vec![],
+                ..Default::default()
+            }),
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
             output,
-            decompose: None,
             for_each: None,
-            for_each_as: None,
+            retry: None,
+            decompose: None,
             concurrency: None,
             fail_fast: None,
-            action: TaskAction::Infer {
-                infer: InferParams {
-                    prompt: "test prompt".to_string(),
-                    provider: None,
-                    model: None,
-                    temperature: None,
-                    max_tokens: None,
-                    system: None,
-                    response_format: None,
-                    extended_thinking: None,
-                    thinking_budget: None,
-                },
-            },
             artifact: None,
             log: None,
-            flow: None,
-            structured: None,
-        })
+            structured,
+            span: Span::dummy(),
+        }
     }
 
     #[test]
     fn test_get_retry_config_none_for_exec_task() {
-        let task = Arc::new(Task {
-            id: "exec_task".to_string(),
-            use_wiring: None,
-            with_spec: None,
-            output: Some(OutputPolicy {
-                format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(
-                    json!({"type": "object"}),
-                )),
-                max_retries: Some(3),
+        let task = AnalyzedTask {
+            id: TaskId(0),
+            name: "exec_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hi".to_string(),
+                shell: false,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                capture_stdout: true,
+                capture_stderr: false,
+                span: Span::dummy(),
             }),
-            decompose: None,
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(json!({"type": "object"})),
+                span: Span::dummy(),
+            }),
             for_each: None,
-            for_each_as: None,
+            retry: None,
+            decompose: None,
             concurrency: None,
             fail_fast: None,
-            action: TaskAction::Exec {
-                exec: ExecParams {
-                    command: "echo hi".to_string(),
-                    shell: None,
-                    timeout: None,
-                    cwd: None,
-                    env: None,
-                },
-            },
             artifact: None,
             log: None,
-            flow: None,
-            structured: None,
-        });
+            structured: Some(StructuredOutputSpec::with_inline_schema(
+                json!({"type": "object"}),
+            )),
+            span: Span::dummy(),
+        };
         assert!(
             Runner::get_retry_config(&task).is_none(),
             "Exec tasks should never qualify for retry"
@@ -3628,11 +3379,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_retry_config_none_for_no_output_policy() {
-        let task = make_infer_task("no_output", None);
+    fn test_get_retry_config_none_for_no_output() {
+        let task = make_infer_task("no_output", None, None);
         assert!(
             Runner::get_retry_config(&task).is_none(),
-            "No output policy means no retry"
+            "No output means no retry"
         );
     }
 
@@ -3640,13 +3391,14 @@ mod tests {
     fn test_get_retry_config_none_for_text_format() {
         let task = make_infer_task(
             "text_format",
-            Some(OutputPolicy {
-                format: OutputFormat::Text,
-                schema: Some(crate::ast::output::SchemaRef::Inline(
-                    json!({"type": "object"}),
-                )),
-                max_retries: Some(3),
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Text,
+                schema: Some(json!({"type": "object"})),
+                span: Span::dummy(),
             }),
+            Some(StructuredOutputSpec::with_inline_schema(
+                json!({"type": "object"}),
+            )),
         );
         assert!(
             Runner::get_retry_config(&task).is_none(),
@@ -3658,11 +3410,14 @@ mod tests {
     fn test_get_retry_config_none_for_json_no_schema() {
         let task = make_infer_task(
             "json_no_schema",
-            Some(OutputPolicy {
-                format: OutputFormat::Json,
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
                 schema: None,
-                max_retries: Some(3),
+                span: Span::dummy(),
             }),
+            Some(StructuredOutputSpec::with_inline_schema(
+                json!({"type": "object"}),
+            )),
         );
         assert!(
             Runner::get_retry_config(&task).is_none(),
@@ -3671,34 +3426,35 @@ mod tests {
     }
 
     #[test]
-    fn test_get_retry_config_none_for_file_schema() {
+    fn test_get_retry_config_none_for_no_structured() {
         let task = make_infer_task(
-            "file_schema",
-            Some(OutputPolicy {
-                format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::File(
-                    "schema.json".to_string(),
-                )),
-                max_retries: Some(3),
+            "no_structured",
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(json!({"type": "object"})),
+                span: Span::dummy(),
             }),
+            None, // No structured spec → no max_retries
         );
         assert!(
             Runner::get_retry_config(&task).is_none(),
-            "File schemas don't support retry feedback"
+            "No structured spec means no retry"
         );
     }
 
     #[test]
     fn test_get_retry_config_none_for_zero_retries() {
+        let mut structured =
+            StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
+        structured.max_retries = Some(0);
         let task = make_infer_task(
             "zero_retries",
-            Some(OutputPolicy {
-                format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(
-                    json!({"type": "object"}),
-                )),
-                max_retries: Some(0),
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(json!({"type": "object"})),
+                span: Span::dummy(),
             }),
+            Some(structured),
         );
         assert!(
             Runner::get_retry_config(&task).is_none(),
@@ -3708,15 +3464,17 @@ mod tests {
 
     #[test]
     fn test_get_retry_config_none_for_default_retries() {
+        let mut structured =
+            StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
+        structured.max_retries = None; // defaults to 0 via unwrap_or(0)
         let task = make_infer_task(
             "default_retries",
-            Some(OutputPolicy {
-                format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(
-                    json!({"type": "object"}),
-                )),
-                max_retries: None, // defaults to 0
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(json!({"type": "object"})),
+                span: Span::dummy(),
             }),
+            Some(structured),
         );
         assert!(
             Runner::get_retry_config(&task).is_none(),
@@ -3727,13 +3485,16 @@ mod tests {
     #[test]
     fn test_get_retry_config_some_for_valid_config() {
         let schema = json!({"type": "object", "properties": {"name": {"type": "string"}}});
+        let mut structured = StructuredOutputSpec::with_inline_schema(schema.clone());
+        structured.max_retries = Some(3);
         let task = make_infer_task(
             "valid_retry",
-            Some(OutputPolicy {
-                format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(schema.clone())),
-                max_retries: Some(3),
+            Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(schema.clone()),
+                span: Span::dummy(),
             }),
+            Some(structured),
         );
         let result = Runner::get_retry_config(&task);
         assert!(result.is_some(), "Valid config should return Some");
@@ -3925,7 +3686,7 @@ mod tests {
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].id, "a", "Only root task should be ready");
+        assert_eq!(ready[0].name, "a", "Only root task should be ready");
     }
 
     #[test]
@@ -3941,7 +3702,7 @@ mod tests {
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].id, "b", "b should be ready after a succeeds");
+        assert_eq!(ready[0].name, "b", "b should be ready after a succeeds");
     }
 
     #[test]
@@ -3956,7 +3717,7 @@ mod tests {
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1);
-        assert_eq!(ready[0].id, "b", "Completed task should not be returned");
+        assert_eq!(ready[0].name, "b", "Completed task should not be returned");
     }
 
     #[test]
@@ -4029,7 +3790,7 @@ mod tests {
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1, "Only d should be ready");
-        assert_eq!(ready[0].id, "d");
+        assert_eq!(ready[0].name, "d");
 
         // b and c should be dependency-failed
         assert!(runner.datastore.get("b").unwrap().is_dependency_failed());
