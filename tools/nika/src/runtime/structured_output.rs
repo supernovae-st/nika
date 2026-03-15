@@ -167,9 +167,11 @@ impl StructuredOutputEngine {
             };
             self.compiled_schema = Some(schema);
         }
-        self.compiled_schema.as_ref().ok_or_else(|| NikaError::SchemaFailed {
-            details: "Schema compilation produced None (internal error)".to_string(),
-        })
+        self.compiled_schema
+            .as_ref()
+            .ok_or_else(|| NikaError::SchemaFailed {
+                details: "Schema compilation produced None (internal error)".to_string(),
+            })
     }
 
     /// Get the schema reference

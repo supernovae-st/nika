@@ -115,7 +115,6 @@ static INPUTS_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*inputs\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
 });
 
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // New 2-pass template engine with iterative parser
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -191,9 +190,7 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
 
     // Strip "with." prefix to get alias path
     // "with.data" → alias path "data"
-    let effective = trimmed
-        .strip_prefix("with.")
-        .unwrap_or(trimmed);
+    let effective = trimmed.strip_prefix("with.").unwrap_or(trimmed);
 
     // Everything else is an alias (possibly with transforms)
     // Split by | to get alias path and transforms
@@ -433,9 +430,7 @@ pub fn resolve_with<'a>(
                         // Propagate structural errors (depth, parse) immediately;
                         // only collect "not found" errors for the batch message.
                         let msg = format!("{}", e);
-                        if msg.contains("exceeds maximum")
-                            || msg.contains("Empty alias path")
-                        {
+                        if msg.contains("exceeds maximum") || msg.contains("Empty alias path") {
                             return Err(e);
                         }
                         errors.push(path.clone());
@@ -1793,7 +1788,8 @@ mod tests {
 
         // The command structure is preserved, only the value is escaped
         let result =
-            resolve_for_shell("cat {{with.file}} && echo {{with.content}}", &bindings, &ds).unwrap();
+            resolve_for_shell("cat {{with.file}} && echo {{with.content}}", &bindings, &ds)
+                .unwrap();
         assert_eq!(result, "cat 'test.txt' && echo 'Hello; echo pwned'");
     }
 
@@ -2298,7 +2294,12 @@ mod tests {
         bindings.set("query", json!("'; DROP TABLE users; --"));
         let ds = empty_datastore();
 
-        let result = resolve("SELECT * FROM x WHERE name='{{with.query}}'", &bindings, &ds).unwrap();
+        let result = resolve(
+            "SELECT * FROM x WHERE name='{{with.query}}'",
+            &bindings,
+            &ds,
+        )
+        .unwrap();
         // Template resolution does NOT prevent SQL injection - that's the DB layer's job
         // This test documents the behavior
         assert!(result.contains("DROP TABLE"));
@@ -2800,9 +2801,7 @@ mod v028_template_tests {
     fn resolve_alias_rejects_excessive_path_depth() {
         // Test the resolve_alias_path guard directly via resolve_with.
         // Build a deep path that exceeds MAX_PATH_DEPTH segments.
-        let segments: Vec<String> = (0..=MAX_PATH_DEPTH)
-            .map(|i| format!("k{}", i))
-            .collect();
+        let segments: Vec<String> = (0..=MAX_PATH_DEPTH).map(|i| format!("k{}", i)).collect();
         let deep_path = segments.join(".");
 
         // Build a deeply nested JSON value using serde_json::Map
