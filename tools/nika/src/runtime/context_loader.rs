@@ -28,6 +28,7 @@ use globset::GlobBuilder;
 use ignore::WalkBuilder;
 use serde_json::Value;
 
+use crate::ast::analyzed::AnalyzedContextFile;
 use crate::ast::context::ContextConfig;
 use crate::error::NikaError;
 
@@ -123,6 +124,50 @@ pub async fn load_context(
     }
 
     Ok(context)
+}
+
+/// Load context files from AnalyzedWorkflow's context_files vec.
+///
+/// AnalyzedWorkflow stores context as `Vec<AnalyzedContextFile>` instead of
+/// `ContextConfig { files: HashMap<String, String>, session }`. This function
+/// adapts to the analyzed shape.
+///
+/// Each `AnalyzedContextFile` has:
+/// - `path`: file path (may contain globs)
+/// - `alias`: optional alias for the context key (defaults to filename stem)
+/// - `max_bytes`: optional size limit (not yet enforced)
+pub async fn load_context_analyzed(
+    context_files: &[AnalyzedContextFile],
+    base_path: &Path,
+) -> Result<LoadedContext, NikaError> {
+    let mut context = LoadedContext::new();
+
+    for cf in context_files {
+        let alias = cf
+            .alias
+            .clone()
+            .unwrap_or_else(|| path_to_alias(&cf.path));
+
+        let value = if is_glob_pattern(&cf.path) {
+            load_glob_files(&cf.path, base_path).await?
+        } else {
+            let full_path = base_path.join(&cf.path);
+            validate_path_boundary(base_path, &full_path)?;
+            load_single_file(&full_path).await?
+        };
+        context.files.insert(alias, value);
+    }
+
+    Ok(context)
+}
+
+/// Derive an alias from a file path (stem without extension)
+fn path_to_alias(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file")
+        .to_string()
 }
 
 /// Check if a path pattern contains glob characters

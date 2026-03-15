@@ -113,6 +113,7 @@ pub use lower::lower;
 // Unified Pipeline: YAML → Raw → Analyzed → Workflow
 // ============================================================================
 
+use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::error::NikaError;
 use crate::source::FileId;
 
@@ -145,4 +146,34 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
 
     // Phase 3: Analyzed → Runtime Workflow
     Ok(lower(analyzed))
+}
+
+/// Parse a YAML workflow and return the AnalyzedWorkflow directly.
+///
+/// Pipeline: `YAML → raw::parse → analyzer::analyze → AnalyzedWorkflow`
+///
+/// Skips the lowering step. The returned `AnalyzedWorkflow` is consumed
+/// directly by the `Runner`, which handles bridge conversions at the
+/// `TaskExecutor` boundary.
+///
+/// # Errors
+///
+/// - `NikaError::ParseError` — YAML syntax or structural errors (Phase 1)
+/// - `NikaError::ValidationError` — Semantic validation errors (Phase 2)
+pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, NikaError> {
+    // Phase 1: YAML → Raw AST (with span tracking)
+    let raw = raw::parse(yaml, FileId(0)).map_err(|e| NikaError::ParseError {
+        details: format!("[{}] {}", e.kind.code(), e.message),
+    })?;
+
+    // Phase 2: Raw → Analyzed (validation, reference resolution)
+    analyzer::analyze(raw).into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        NikaError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })
 }

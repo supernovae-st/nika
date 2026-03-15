@@ -116,7 +116,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
 // Actions
 // ---------------------------------------------------------------------------
 
-fn lower_action(
+pub(crate) fn lower_action(
     action: AnalyzedTaskAction,
     provider: Option<String>,
     model: Option<String>,
@@ -233,7 +233,7 @@ fn lower_agent(
 // Output
 // ---------------------------------------------------------------------------
 
-fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
+pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
     OutputPolicy {
         format: lower_output_format(output.format),
         schema: output.schema.map(SchemaRef::Inline),
@@ -253,7 +253,7 @@ fn lower_output_format(fmt: AnalyzedOutputFormat) -> OutputFormat {
 // for_each
 // ---------------------------------------------------------------------------
 
-fn lower_for_each(
+pub(crate) fn lower_for_each(
     fe: Option<AnalyzedForEach>,
 ) -> (
     Option<serde_json::Value>,
@@ -294,7 +294,7 @@ fn lower_retry(retry: AnalyzedRetry) -> RetryConfig {
 // MCP servers
 // ---------------------------------------------------------------------------
 
-fn lower_mcp_servers(
+pub(crate) fn lower_mcp_servers(
     servers: IndexMap<String, AnalyzedMcpServer>,
 ) -> Option<FxHashMap<String, McpConfigInline>> {
     if servers.is_empty() {

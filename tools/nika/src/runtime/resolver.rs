@@ -24,6 +24,7 @@
 //!   local: ./skills/seo-writer.skill.md      # Local file
 //! ```
 
+use crate::ast::analyzed::AnalyzedWorkflow;
 use crate::ast::{AgentDef, SkillDef, Workflow};
 use crate::error::NikaError;
 use crate::registry::resolver; // Package resolution
@@ -133,6 +134,34 @@ pub async fn resolve_assets(
         agents = assets.agents.len(),
         skills = assets.skills.len(),
         "Resolved workflow assets"
+    );
+
+    Ok(assets)
+}
+
+/// Resolve agents from an AnalyzedWorkflow.
+///
+/// AnalyzedWorkflow has `agents` but no `skills` (skills are resolved during
+/// analysis and merged via include_loader). This function only resolves agents.
+pub async fn resolve_assets_analyzed(
+    workflow: &AnalyzedWorkflow,
+    base_path: &Path,
+) -> Result<ResolvedAssets, NikaError> {
+    let mut assets = ResolvedAssets::new();
+
+    // Resolve agents
+    if let Some(agents) = &workflow.agents {
+        for (name, def) in agents {
+            let resolved = resolve_agent(name, def, base_path).await?;
+            assets.agents.insert(name.clone(), resolved);
+        }
+    }
+
+    // No skills on AnalyzedWorkflow — resolved during analysis
+
+    debug!(
+        agents = assets.agents.len(),
+        "Resolved workflow assets (analyzed)"
     );
 
     Ok(assets)
