@@ -483,9 +483,8 @@ impl Dag {
                 }
             }
 
-            // Add implicit edges from with: or use: wiring references
+            // Add implicit edges from with: binding references
             if let Some(ref with_spec) = task.with_spec {
-                // With: block — WithEntry.task_id() returns Option<&str>
                 let tgt_arc = task_set
                     .get(task.id.as_str())
                     .cloned()
@@ -494,28 +493,6 @@ impl Dag {
                     let Some(from_task) = entry.task_id() else {
                         continue; // Context/Input/Env/LoopVar — not a task ref
                     };
-                    if from_task == task.id || !task_set.contains(from_task) {
-                        continue;
-                    }
-                    let src_arc = task_set
-                        .get(from_task)
-                        .cloned()
-                        .unwrap_or_else(|| intern(from_task));
-                    insert_edge(
-                        &src_arc,
-                        &tgt_arc,
-                        &mut seen_edges,
-                        &mut adjacency,
-                        &mut predecessors,
-                    );
-                }
-            } else if let Some(ref wiring) = task.use_wiring {
-                let tgt_arc = task_set
-                    .get(task.id.as_str())
-                    .cloned()
-                    .unwrap_or_else(|| intern(&task.id));
-                for entry in wiring.values() {
-                    let from_task = entry.task_id();
                     if from_task == task.id || !task_set.contains(from_task) {
                         continue;
                     }

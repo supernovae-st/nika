@@ -21,9 +21,8 @@ use crate::error::NikaError;
 
 use super::flow::Dag;
 
-// Imports for runtime Workflow validation (validate_use_wiring)
+// Imports for runtime Workflow validation (validate_bindings)
 use crate::ast::{TaskAction, Workflow};
-use crate::binding::{validate_refs, WiringSpec};
 
 /// Validate a workflow's with: bindings against the flow graph.
 ///
@@ -200,64 +199,18 @@ fn validate_from_task(
 // Workflow validation (runtime path)
 // ═══════════════════════════════════════════════════════════════
 
-/// Validate `Workflow` use:/with: bindings against the DAG.
+/// Validate `Workflow` `with:` bindings against the DAG.
 ///
 /// Used by the runtime runner, CLI check command, and TUI standalone.
 /// New code targeting the analyzer pipeline should use `validate_with_bindings()`.
-pub fn validate_use_wiring(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
+pub fn validate_bindings(workflow: &Workflow, flow_graph: &Dag) -> Result<(), NikaError> {
     let all_task_ids: FxHashSet<&str> = workflow.tasks.iter().map(|t| t.id.as_str()).collect();
 
     for task in &workflow.tasks {
-        // Validate with: bindings if present, otherwise validate use: bindings
         if let Some(ref with_spec) = task.with_spec {
             validate_wiring(&task.id, with_spec, &all_task_ids, flow_graph)?;
-            validate_template_refs_with(task)?;
-        } else {
-            if let Some(ref wiring) = task.use_wiring {
-                validate_use_wiring_spec(&task.id, wiring, &all_task_ids, flow_graph)?;
-            }
-            validate_use_template_refs(task)?;
         }
-    }
-
-    Ok(())
-}
-
-/// Validate a single `use:` wiring spec (runtime `Task` type).
-fn validate_use_wiring_spec(
-    task_id: &str,
-    wiring: &WiringSpec,
-    all_task_ids: &FxHashSet<&str>,
-    flow_graph: &Dag,
-) -> Result<(), NikaError> {
-    for (alias, entry) in wiring {
-        let from_task = entry.task_id();
-        validate_task_id(from_task)?;
-        validate_from_task(alias, from_task, task_id, all_task_ids, flow_graph)?;
-    }
-    Ok(())
-}
-
-/// Validate `{{use.alias}}` template refs (runtime `Task` type).
-fn validate_use_template_refs(task: &crate::ast::Task) -> Result<(), NikaError> {
-    let mut declared_aliases: FxHashSet<String> = task
-        .use_wiring
-        .as_ref()
-        .map(|w| w.keys().cloned().collect())
-        .unwrap_or_default();
-
-    // Add for_each loop variable
-    if task.for_each.is_some() {
-        let as_var = task
-            .for_each_as
-            .clone()
-            .unwrap_or_else(|| "item".to_string());
-        declared_aliases.insert(as_var);
-    }
-
-    let templates = extract_task_templates(&task.action);
-    for template in templates {
-        validate_refs(&template, &declared_aliases, &task.id)?;
+        validate_template_refs_with(task)?;
     }
 
     Ok(())
