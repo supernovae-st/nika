@@ -1,5 +1,0 @@
-Line 1: Hello World
-Line 2: This is a test file
-Line 3: For the Nika builtin tools audit
-Line 4: Testing nika:read
-Line 5: Testing nika:edit

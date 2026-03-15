@@ -1,8 +1,0 @@
-# Schema v0.7: Full streaming for all providers
-schema: nika/workflow@0.7
-workflow: v07-streaming-test
-description: "Test schema v0.7 - full streaming support"
-
-tasks:
-  - id: stream_test
-    infer: "List the days of the week, comma-separated"

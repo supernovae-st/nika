@@ -1,9 +1,0 @@
-schema: "nika/workflow@0.12"
-provider: openai
-
-tasks:
-  - id: simple_agent
-    agent:
-      prompt: |
-        Answer with exactly 5 words: Hello, the agent is working!
-      max_turns: 1
