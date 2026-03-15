@@ -22,8 +22,8 @@ include:
     prefix: quality_
 
 invoke_workflow:
-  path: "./workflows/{{use.type}}-generator.nika.yaml"
-  inputs: { topic: "{{use.topic}}" }
+  path: "./workflows/{{with.type}}-generator.nika.yaml"
+  inputs: { topic: "{{with.topic}}" }
   outputs: { content: draft_content }
 ```
 

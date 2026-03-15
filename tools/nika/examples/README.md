@@ -117,16 +117,16 @@ Execute tasks in parallel over an array. Uses **FLAT format** (not nested):
     tool: novanet_generate
     params:
       entity: "qr-code"
-      locale: "{{use.locale}}"
+      locale: "{{with.locale}}"
 ```
 
 Binding expressions are also supported:
 ```yaml
-  for_each: "{{use.items}}"   # Reference to array in context
+  for_each: "{{with.items}}"   # Reference to array in context
   for_each: "$items"          # Alternative binding syntax
 ```
 
-## Data Flow (use: bindings)
+## Data Flow (with: bindings)
 
 Pass data between tasks:
 
@@ -138,12 +138,12 @@ tasks:
       format: json
 
   - id: process_data
-    use:
+    with:
       data: fetch_data           # Reference previous task
     infer:
       prompt: |
         Process this data:
-        {{use.data}}             # Access in prompt
+        {{with.data}}             # Access in prompt
 ```
 
 ## denomination_forms (ADR-033)

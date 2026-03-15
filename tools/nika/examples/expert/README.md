@@ -233,7 +233,7 @@ agent:
   fail_fast: false
 
   artifact:
-    - path: results/{{use.item.id}}.json
+    - path: results/{{with.item.id}}.json
     - path: audit.log
       mode: append  # All iterations append to same log
 ```

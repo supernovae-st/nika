@@ -145,7 +145,7 @@ tasks:
       tool: novanet_generate
       params:
         entity: "qr-code"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
 ```
 
 Each iteration runs via `tokio::spawn` for true concurrency.
@@ -220,7 +220,7 @@ src/
 ├── mcp/          # MCP client (rmcp v0.16)
 ├── provider/     # rig-core provider (RigProvider wrapper)
 ├── event/        # Observability (22 event types)
-├── binding/      # Data flow ({{use.alias}}, {{context.files.*}})
+├── binding/      # Data flow ({{with.alias}}, {{context.files.*}})
 └── tui/          # Terminal UI (6 views, 39 widgets)
 ```
 

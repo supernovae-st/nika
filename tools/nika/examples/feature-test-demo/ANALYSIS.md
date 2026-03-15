@@ -118,7 +118,7 @@ include:
 
 **Original Problem:**
 ```yaml
-use:
+with:
   header: html_builder_agent
   main: html_builder_agent
   footer: html_builder_agent
@@ -126,12 +126,12 @@ use:
 
 **Fix Applied:**
 ```yaml
-use:
+with:
   # for_each results are aggregated as JSON array [header_result, main_result, footer_result]
   sections: html_builder_agent
 ```
 
-**Explanation:** Nika aggregates for_each results as `Value::Array(outputs)` stored under the parent task ID. The prompt now correctly references `{{use.sections}}` as an array and explains the order to the LLM.
+**Explanation:** Nika aggregates for_each results as `Value::Array(outputs)` stored under the parent task ID. The prompt now correctly references `{{with.sections}}` as an array and explains the order to the LLM.
 
 **Status:** ✅ FIXED
 
@@ -146,12 +146,12 @@ use:
 **Fix Applied:**
 ```yaml
 # write_content_md
-use:
+with:
   # for_each results: [md_result, txt_result, json_result] - write all formats
   all_content: content_generation
 
 # write_summary_txt
-use:
+with:
   # for_each results aggregated as JSON array
   all_content: content_generation
 ```
@@ -165,12 +165,12 @@ use:
 **Location:** `content_generation` task (lines 147-149)
 
 ```yaml
-use:
+with:
   research_summary: research_agent
   # format is auto-populated from 'as: format' in for_each
 ```
 
-**Problem:** The prompt uses `{{use.format}}` but `format` is not explicitly in the `use:` block. The comment says it's "auto-populated" but this needs verification.
+**Problem:** The prompt uses `{{with.format}}` but `format` is not explicitly in the `with:` block. The comment says it's "auto-populated" but this needs verification.
 
 **Severity:** 🟡 MEDIUM - May work if runtime auto-populates, needs testing with v0.15.0
 
@@ -266,7 +266,7 @@ self.datastore.insert(parent_id, aggregated_result);
 ### 🟡 Priority 2 (Needs Testing)
 
 #### Verify auto-populated `as` binding
-Test if `{{use.format}}` works without explicit declaration when using `as: format`.
+Test if `{{with.format}}` works without explicit declaration when using `as: format`.
 This requires running with v0.15.0 runtime to validate.
 
 ---
