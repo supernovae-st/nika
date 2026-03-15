@@ -95,7 +95,7 @@ pub enum NikaError {
     #[error("[NIKA-002] Invalid schema version: {version}")]
     #[diagnostic(
         code(nika::invalid_schema_version),
-        help("Use 'nika/workflow@0.9' as the schema version")
+        help("Use 'nika/workflow@0.12' as the schema version")
     )]
     InvalidSchemaVersion { version: String },
 
@@ -870,7 +870,7 @@ impl FixSuggestion for NikaError {
         match self {
             NikaError::ParseError { .. } => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchemaVersion { .. } => {
-                Some("Use 'nika/workflow@0.9' as the schema version")
+                Some("Use 'nika/workflow@0.12' as the schema version")
             }
             NikaError::WorkflowNotFound { .. } => Some("Check the file path exists"),
             NikaError::ValidationError { .. } => Some("Check workflow structure matches schema"),
@@ -882,7 +882,7 @@ impl FixSuggestion for NikaError {
             }
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
             NikaError::InvalidSchema { .. } => {
-                Some("Use 'nika/workflow@0.9' as the schema version")
+                Some("Use 'nika/workflow@0.12' as the schema version")
             }
             NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
             NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),
@@ -1215,7 +1215,7 @@ mod tests {
     #[test]
     fn test_invalid_schema_error() {
         let err = NikaError::InvalidSchema {
-            expected: "nika/workflow@0.9".to_string(),
+            expected: "nika/workflow@0.12".to_string(),
             actual: "nika/workflow@0.1".to_string(),
         };
         assert_eq!(err.code(), "NIKA-010");
