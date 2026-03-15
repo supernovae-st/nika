@@ -266,12 +266,12 @@ pub enum NikaError {
     SerializationError { details: String },
 
     // ═══════════════════════════════════════════
-    // USE BLOCK VALIDATION (070-079)
+    // BINDING VALIDATION (070-079)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-070] Duplicate alias '{alias}' in use block")]
+    #[error("[NIKA-070] Duplicate alias '{alias}' in with: block")]
     DuplicateAlias { alias: String },
 
-    #[error("[NIKA-071] Unknown alias '{{{{use.{alias}}}}}' - not declared in use: block")]
+    #[error("[NIKA-071] Unknown alias '{{{{with.{alias}}}}}' - not declared in with: block")]
     UnknownAlias { alias: String, task_id: String },
 
     #[error("[NIKA-072] Null value at path '{path}' (strict mode)")]
@@ -299,14 +299,14 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-080] use.{alias}.from references unknown task '{from_task}'")]
+    #[error("[NIKA-080] with.{alias} references unknown task '{from_task}'")]
     UseUnknownTask {
         alias: String,
         from_task: String,
         task_id: String,
     },
 
-    #[error("[NIKA-081] use.{alias}.from='{from_task}' is not upstream of task '{task_id}'")]
+    #[error("[NIKA-081] with.{alias}='{from_task}' is not upstream of task '{task_id}'")]
     UseNotUpstream {
         alias: String,
         from_task: String,
