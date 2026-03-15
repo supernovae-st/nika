@@ -276,75 +276,9 @@ impl ChatAgent {
     pub fn with_overrides(provider: Option<&str>, model: Option<&str>) -> Result<Self, NikaError> {
         let mut agent = Self::new()?;
 
-        // Helper to check non-empty env var
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
-
         // Apply provider override
         if let Some(p) = provider {
-            match p.to_lowercase().as_str() {
-                "claude" | "anthropic" => {
-                    if !has_key("ANTHROPIC_API_KEY") {
-                        return Err(NikaError::MissingApiKey {
-                            provider: "Claude".to_string(),
-                        });
-                    }
-                    agent.provider = RigProvider::claude();
-                }
-                "openai" | "gpt" => {
-                    if !has_key("OPENAI_API_KEY") {
-                        return Err(NikaError::MissingApiKey {
-                            provider: "OpenAI".to_string(),
-                        });
-                    }
-                    agent.provider = RigProvider::openai();
-                }
-                "mistral" => {
-                    if !has_key("MISTRAL_API_KEY") {
-                        return Err(NikaError::MissingApiKey {
-                            provider: "Mistral".to_string(),
-                        });
-                    }
-                    agent.provider = RigProvider::mistral();
-                }
-                "groq" => {
-                    if !has_key("GROQ_API_KEY") {
-                        return Err(NikaError::MissingApiKey {
-                            provider: "Groq".to_string(),
-                        });
-                    }
-                    agent.provider = RigProvider::groq();
-                }
-                "deepseek" => {
-                    if !has_key("DEEPSEEK_API_KEY") {
-                        return Err(NikaError::MissingApiKey {
-                            provider: "DeepSeek".to_string(),
-                        });
-                    }
-                    agent.provider = RigProvider::deepseek();
-                }
-                "native" => {
-                    // Native inference via mistral.rs (no API key needed)
-                    #[cfg(feature = "native-inference")]
-                    {
-                        agent.provider = RigProvider::native();
-                    }
-                    #[cfg(not(feature = "native-inference"))]
-                    {
-                        return Err(NikaError::InvalidConfig {
-                            message: "Native inference requires --features native-inference"
-                                .to_string(),
-                        });
-                    }
-                }
-                _ => {
-                    return Err(NikaError::InvalidConfig {
-                        message: format!(
-                            "Unknown provider: '{}'. Use claude, openai, mistral, groq, deepseek, gemini, or native",
-                            p
-                        ),
-                    });
-                }
-            }
+            agent.provider = RigProvider::from_name(p)?;
         }
 
         // Apply model override
@@ -394,68 +328,10 @@ impl ChatAgent {
     /// agent.set_provider(ModelProvider::Claude).unwrap();
     /// ```
     pub fn set_provider(&mut self, provider: ModelProvider) -> Result<(), NikaError> {
-        // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
-
-        match provider {
-            ModelProvider::OpenAI => {
-                if !has_key("OPENAI_API_KEY") {
-                    return Err(NikaError::MissingApiKey {
-                        provider: "OpenAI".to_string(),
-                    });
-                }
-                self.provider = RigProvider::openai();
-            }
-            ModelProvider::Claude => {
-                if !has_key("ANTHROPIC_API_KEY") {
-                    return Err(NikaError::MissingApiKey {
-                        provider: "Claude".to_string(),
-                    });
-                }
-                self.provider = RigProvider::claude();
-            }
-            ModelProvider::Mistral => {
-                if !has_key("MISTRAL_API_KEY") {
-                    return Err(NikaError::MissingApiKey {
-                        provider: "Mistral".to_string(),
-                    });
-                }
-                self.provider = RigProvider::mistral();
-            }
-            ModelProvider::Groq => {
-                if !has_key("GROQ_API_KEY") {
-                    return Err(NikaError::MissingApiKey {
-                        provider: "Groq".to_string(),
-                    });
-                }
-                self.provider = RigProvider::groq();
-            }
-            ModelProvider::DeepSeek => {
-                if !has_key("DEEPSEEK_API_KEY") {
-                    return Err(NikaError::MissingApiKey {
-                        provider: "DeepSeek".to_string(),
-                    });
-                }
-                self.provider = RigProvider::deepseek();
-            }
-            ModelProvider::Native => {
-                // Native inference via mistral.rs (no API key needed)
-                #[cfg(feature = "native-inference")]
-                {
-                    self.provider = RigProvider::native();
-                }
-                #[cfg(not(feature = "native-inference"))]
-                {
-                    return Err(NikaError::InvalidConfig {
-                        message: "Native inference requires --features native-inference"
-                            .to_string(),
-                    });
-                }
-            }
-            ModelProvider::List => {
-                // List doesn't change the provider, just returns info
-            }
+        if matches!(provider, ModelProvider::List) {
+            return Ok(());
         }
+        self.provider = RigProvider::from_name(provider.command_name())?;
         Ok(())
     }
 

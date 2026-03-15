@@ -258,59 +258,45 @@ impl RigAgentLoop {
     /// This is the recommended method for production use.
     pub async fn run_auto(&mut self) -> Result<RigAgentLoopResult, NikaError> {
         // Check explicit provider from params
-        if let Some(ref provider) = self.params.provider {
-            match provider.to_lowercase().as_str() {
-                "claude" | "anthropic" => return self.run_claude().await,
-                "openai" | "gpt" => return self.run_openai().await,
-                "mistral" => return self.run_mistral().await,
-                "groq" => return self.run_groq().await,
-                "deepseek" => return self.run_deepseek().await,
-                "gemini" | "google" => return self.run_gemini().await,
-                "native" | "local" => {
-                    // Native inference (mistral.rs) is only available for infer: tasks, not agent: tasks
-                    // Agent tasks require tool calling which local GGUF models don't support
-                    return Err(NikaError::AgentValidationError {
-                        reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini) for agent tasks.".to_string(),
-                    });
+        if let Some(ref provider_name) = self.params.provider {
+            let resolved = crate::core::find_provider(provider_name).ok_or_else(|| {
+                NikaError::AgentValidationError {
+                    reason: format!(
+                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', or 'gemini'.",
+                        provider_name
+                    ),
                 }
-                other => {
-                    return Err(NikaError::AgentValidationError {
-                        reason: format!(
-                            "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', or 'gemini'.",
-                            other
-                        ),
-                    });
-                }
+            })?;
+            return match resolved.id {
+                "anthropic" => self.run_claude().await,
+                "openai" => self.run_openai().await,
+                "mistral" => self.run_mistral().await,
+                "groq" => self.run_groq().await,
+                "deepseek" => self.run_deepseek().await,
+                "gemini" => self.run_gemini().await,
+                "native" => Err(NikaError::AgentValidationError {
+                    reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini) for agent tasks.".to_string(),
+                }),
+                _ => Err(NikaError::AgentValidationError {
+                    reason: format!("Provider '{}' is not supported for agent: tasks.", resolved.id),
+                }),
+            };
+        }
+
+        // Auto-detect: iterate KNOWN_PROVIDERS in priority order (LLM category only)
+        use crate::core::providers::{ProviderCategory, KNOWN_PROVIDERS};
+        for p in KNOWN_PROVIDERS.iter() {
+            if p.category == ProviderCategory::Llm && p.has_env_key() {
+                return match p.id {
+                    "anthropic" => self.run_claude().await,
+                    "openai" => self.run_openai().await,
+                    "mistral" => self.run_mistral().await,
+                    "groq" => self.run_groq().await,
+                    "deepseek" => self.run_deepseek().await,
+                    "gemini" => self.run_gemini().await,
+                    _ => continue,
+                };
             }
-        }
-
-        // Auto-detect based on available API keys
-        // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
-
-        if has_key("ANTHROPIC_API_KEY") {
-            return self.run_claude().await;
-        }
-
-        if has_key("OPENAI_API_KEY") {
-            return self.run_openai().await;
-        }
-
-        if has_key("MISTRAL_API_KEY") {
-            return self.run_mistral().await;
-        }
-
-        if has_key("GROQ_API_KEY") {
-            return self.run_groq().await;
-        }
-
-        if has_key("DEEPSEEK_API_KEY") {
-            return self.run_deepseek().await;
-        }
-
-        // Gemini support
-        if has_key("GEMINI_API_KEY") {
-            return self.run_gemini().await;
         }
 
         Err(NikaError::AgentValidationError {

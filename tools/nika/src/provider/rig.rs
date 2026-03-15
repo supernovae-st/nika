@@ -156,6 +156,44 @@ pub enum RigProvider {
 }
 
 impl RigProvider {
+    /// Create a RigProvider by name or alias, with env var validation.
+    ///
+    /// Resolves aliases via `core::find_provider()` (e.g., "claude" -> "anthropic"),
+    /// checks that the required env var is set, and returns the appropriate variant.
+    ///
+    /// # Errors
+    ///
+    /// - `NikaError::MissingApiKey` if the provider requires a key and the env var is not set
+    /// - `NikaError::ProviderNotConfigured` if the provider name is unknown
+    pub fn from_name(name: &str) -> Result<Self, crate::error::NikaError> {
+        let provider = crate::core::find_provider(name).ok_or_else(|| {
+            crate::error::NikaError::ProviderNotConfigured {
+                provider: name.to_string(),
+            }
+        })?;
+
+        // Check env var is set (rig-core panics without it)
+        if provider.requires_key && !provider.has_env_key() {
+            return Err(crate::error::NikaError::MissingApiKey {
+                provider: provider.id.to_string(),
+            });
+        }
+
+        match provider.id {
+            "anthropic" => Ok(Self::claude()),
+            "openai" => Ok(Self::openai()),
+            "mistral" => Ok(Self::mistral()),
+            "groq" => Ok(Self::groq()),
+            "deepseek" => Ok(Self::deepseek()),
+            "gemini" => Ok(Self::gemini()),
+            #[cfg(feature = "native-inference")]
+            "native" => Ok(Self::native()),
+            _ => Err(crate::error::NikaError::ProviderNotConfigured {
+                provider: name.to_string(),
+            }),
+        }
+    }
+
     /// Create a Claude provider from environment variable ANTHROPIC_API_KEY
     pub fn claude() -> Self {
         let client = anthropic::Client::from_env();
@@ -486,32 +524,25 @@ impl RigProvider {
     /// Returns None if no provider is available.
     /// Empty env vars are treated as unset.
     pub fn auto() -> Option<Self> {
-        // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
+        use crate::core::providers::{ProviderCategory, KNOWN_PROVIDERS};
 
-        if has_key("ANTHROPIC_API_KEY") {
-            return Some(Self::claude());
-        }
-        if has_key("OPENAI_API_KEY") {
-            return Some(Self::openai());
-        }
-        if has_key("MISTRAL_API_KEY") {
-            return Some(Self::mistral());
-        }
-        if has_key("GROQ_API_KEY") {
-            return Some(Self::groq());
-        }
-        if has_key("DEEPSEEK_API_KEY") {
-            return Some(Self::deepseek());
-        }
-        // Gemini
-        if has_key("GEMINI_API_KEY") {
-            return Some(Self::gemini());
+        // Iterate KNOWN_PROVIDERS in priority order (LLM providers first, then native)
+        for p in KNOWN_PROVIDERS.iter() {
+            if p.category == ProviderCategory::Llm && p.has_env_key() {
+                return match p.id {
+                    "anthropic" => Some(Self::claude()),
+                    "openai" => Some(Self::openai()),
+                    "mistral" => Some(Self::mistral()),
+                    "groq" => Some(Self::groq()),
+                    "deepseek" => Some(Self::deepseek()),
+                    "gemini" => Some(Self::gemini()),
+                    _ => continue,
+                };
+            }
         }
         // Native is opt-in: requires NIKA_NATIVE_MODEL to be set
-        // Note: Model must still be loaded via load_native_model() before inference
         #[cfg(feature = "native-inference")]
-        if has_key("NIKA_NATIVE_MODEL") {
+        if std::env::var("NIKA_NATIVE_MODEL").is_ok_and(|v| !v.trim().is_empty()) {
             return Some(Self::native());
         }
         None
