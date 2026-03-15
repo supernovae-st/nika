@@ -779,11 +779,7 @@ mod tests {
     fn test_model_ids_are_unique() {
         let mut seen = std::collections::HashSet::new();
         for model in KNOWN_MODELS {
-            assert!(
-                seen.insert(model.id),
-                "Duplicate model ID: {}",
-                model.id
-            );
+            assert!(seen.insert(model.id), "Duplicate model ID: {}", model.id);
         }
     }
 
@@ -827,7 +823,10 @@ mod tests {
     #[test]
     fn test_models_by_type_diffusion_empty() {
         let diffusion = models_by_type(ModelType::Diffusion);
-        assert!(diffusion.is_empty(), "No Diffusion models currently defined");
+        assert!(
+            diffusion.is_empty(),
+            "No Diffusion models currently defined"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

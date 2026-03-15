@@ -3591,7 +3591,9 @@ mod tests {
             with_spec: None,
             output: Some(OutputPolicy {
                 format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                schema: Some(crate::ast::output::SchemaRef::Inline(
+                    json!({"type": "object"}),
+                )),
                 max_retries: Some(3),
             }),
             decompose: None,
@@ -3634,7 +3636,9 @@ mod tests {
             "text_format",
             Some(OutputPolicy {
                 format: OutputFormat::Text,
-                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                schema: Some(crate::ast::output::SchemaRef::Inline(
+                    json!({"type": "object"}),
+                )),
                 max_retries: Some(3),
             }),
         );
@@ -3666,7 +3670,9 @@ mod tests {
             "file_schema",
             Some(OutputPolicy {
                 format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::File("schema.json".to_string())),
+                schema: Some(crate::ast::output::SchemaRef::File(
+                    "schema.json".to_string(),
+                )),
                 max_retries: Some(3),
             }),
         );
@@ -3682,7 +3688,9 @@ mod tests {
             "zero_retries",
             Some(OutputPolicy {
                 format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                schema: Some(crate::ast::output::SchemaRef::Inline(
+                    json!({"type": "object"}),
+                )),
                 max_retries: Some(0),
             }),
         );
@@ -3698,7 +3706,9 @@ mod tests {
             "default_retries",
             Some(OutputPolicy {
                 format: OutputFormat::Json,
-                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                schema: Some(crate::ast::output::SchemaRef::Inline(
+                    json!({"type": "object"}),
+                )),
                 max_retries: None, // defaults to 0
             }),
         );
@@ -3764,8 +3774,10 @@ mod tests {
 
     #[test]
     fn test_find_root_failure_returns_first_failed() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![],
+        );
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -3820,8 +3832,10 @@ mod tests {
 
     #[test]
     fn test_get_pending_tasks_all_pending() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![],
+        );
         let runner = Runner::new(workflow);
 
         let pending = runner.get_pending_tasks();
@@ -3833,8 +3847,10 @@ mod tests {
 
     #[test]
     fn test_get_pending_tasks_excludes_completed() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![],
+        );
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -3852,8 +3868,7 @@ mod tests {
 
     #[test]
     fn test_get_pending_tasks_empty_when_all_done() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -3871,8 +3886,7 @@ mod tests {
 
     #[test]
     fn test_get_pending_tasks_excludes_failed() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -3890,8 +3904,7 @@ mod tests {
 
     #[test]
     fn test_get_ready_tasks_no_deps() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow);
 
         let ready = runner.get_ready_tasks();
@@ -3927,8 +3940,7 @@ mod tests {
 
     #[test]
     fn test_get_ready_tasks_skips_already_done() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -3958,10 +3970,7 @@ mod tests {
 
         // First call: b should be marked as DependencyFailed
         let ready = runner.get_ready_tasks();
-        assert!(
-            ready.is_empty(),
-            "No tasks should be ready when dep failed"
-        );
+        assert!(ready.is_empty(), "No tasks should be ready when dep failed");
 
         // Verify b was stored as DependencyFailed
         let b_result = runner.datastore.get("b").expect("b should be in store");
@@ -4023,10 +4032,8 @@ mod tests {
 
     #[test]
     fn test_dependency_failure_emits_events() {
-        let workflow = create_exec_workflow(
-            vec![("a", "echo a"), ("b", "echo b")],
-            vec![("a", "b")],
-        );
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
@@ -4074,8 +4081,10 @@ mod tests {
 
     #[test]
     fn test_all_done_true_with_mixed_outcomes() {
-        let workflow =
-            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![],
+        );
         let runner = Runner::new(workflow);
 
         runner.datastore.insert(
