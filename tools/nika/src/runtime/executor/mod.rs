@@ -31,7 +31,7 @@ use crate::provider::rig::RigProvider;
 use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::PolicyEnforcer;
 use crate::runtime::BuiltinToolRouter;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use crate::tools::{PermissionMode, ToolContext};
 use crate::util::{CONNECT_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
 
@@ -195,7 +195,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         action: &TaskAction,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         debug!("Running task action");

@@ -19,7 +19,7 @@
 //!                              ▼
 //! ┌──────────────────────────────────────────────────────────────┐
 //! │                    INFRASTRUCTURE LAYER                      │
-//! │  store/     State management (DataStore, TaskResult)         │
+//! │  store/     State management (RunContext, TaskResult)         │
 //! │  event/     Event sourcing (EventLog, EventKind)             │
 //! │  provider/  LLM abstraction (rig-core wrapper)               │
 //! └──────────────────────────────────────────────────────────────┘
@@ -94,7 +94,7 @@ pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
 pub use event::{list_traces, Event, EventKind, EventLog};
 
 // Store
-pub use store::{DataStore, TaskResult, TaskStatus};
+pub use store::{RunContext, TaskResult, TaskStatus};
 
 // MCP
 pub use mcp::{McpClient, McpConfig};

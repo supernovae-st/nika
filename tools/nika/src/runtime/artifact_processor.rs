@@ -21,7 +21,7 @@ use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::io::security::DEFAULT_ARTIFACT_DIR;
 use crate::io::writer::{ArtifactWriter, WriteRequest, WriteResult};
 use crate::serde_yaml;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use crate::OutputFormat;
 
 /// Result of processing artifacts for a task
@@ -60,7 +60,7 @@ pub async fn process_task_artifacts(
     base_path: &std::path::Path,
     event_log: Option<&EventLog>,
     bindings: &ResolvedBindings,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> ArtifactProcessResult {
     let mut result = ArtifactProcessResult {
         written: 0,
@@ -174,7 +174,7 @@ async fn write_single_artifact(
     workflow_config: Option<&ArtifactsConfig>,
     writer: &ArtifactWriter,
     bindings: &ResolvedBindings,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<WriteResult, NikaError> {
     // Determine format (task spec > workflow default)
     let format = output_spec
@@ -450,7 +450,7 @@ mod tests {
     async fn test_process_task_artifacts_disabled() {
         let base = tempdir().unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
         let result = process_task_artifacts(
             "task1",
             "output",
@@ -474,7 +474,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
 
         let result = process_task_artifacts(
             "task1",
@@ -512,7 +512,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "output.json".to_string(),
@@ -544,7 +544,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
 
         let spec = ArtifactSpec::Multiple(vec![
             ArtifactOutput {
@@ -640,7 +640,7 @@ mod tests {
         std::fs::create_dir_all(&artifact_dir).unwrap();
 
         // Create datastore with task result that has JSON data
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
         let task_result = TaskResult::success_str(
             r#"{"name": "Alice", "age": 30}"#.to_string(),
             Duration::from_millis(100),
@@ -696,7 +696,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default();
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
 
         // Create artifact spec WITHOUT template
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -732,7 +732,7 @@ mod tests {
         let artifact_dir = base.path().join(".nika/artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
         let bindings = ResolvedBindings::default(); // Empty bindings
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
 
         // Create artifact spec with template that references missing binding
         let spec = ArtifactSpec::Single(ArtifactOutput {

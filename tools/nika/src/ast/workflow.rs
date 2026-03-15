@@ -64,13 +64,13 @@ pub struct Workflow {
     pub mcp: Option<FxHashMap<String, McpConfigInline>>,
     /// Context configuration for file loading at workflow start
     ///
-    /// Files are loaded into the DataStore at workflow start and accessible
+    /// Files are loaded into the RunContext at workflow start and accessible
     /// via `{{context.files.alias}}` bindings.
     pub context: Option<super::context::ContextConfig>,
     /// Include external workflows for DAG fusion
     ///
     /// Included workflows have their tasks merged into the main DAG
-    /// at parse time. They share the same DataStore.
+    /// at parse time. They share the same RunContext.
     pub include: Option<Vec<super::include::IncludeSpec>>,
     /// Reusable agent definitions
     ///

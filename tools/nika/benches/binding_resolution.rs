@@ -5,7 +5,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use nika::binding::{parse_use_entry, ResolvedBindings, UseEntry, WiringSpec};
-use nika::store::{DataStore, TaskResult};
+use nika::store::{RunContext, TaskResult};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
@@ -132,7 +132,7 @@ fn bench_resolved_bindings(c: &mut Criterion) {
     let mut group = c.benchmark_group("resolved_bindings");
 
     // Setup datastore with test data
-    let store = DataStore::new();
+    let store = RunContext::new();
     store.insert(
         Arc::from("weather"),
         TaskResult::success(
@@ -320,7 +320,7 @@ fn bench_binding_access(c: &mut Criterion) {
 fn bench_lazy_resolution(c: &mut Criterion) {
     let mut group = c.benchmark_group("lazy_resolution");
 
-    let store = DataStore::new();
+    let store = RunContext::new();
     store.insert(
         Arc::from("source"),
         TaskResult::success(

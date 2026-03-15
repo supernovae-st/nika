@@ -25,7 +25,7 @@
 use crate::binding::ResolvedBindings;
 use crate::event::EventLog;
 use crate::runtime::TaskExecutor;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use serde_json::{json, Value};
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -110,7 +110,7 @@ pub fn mock_executor_with_mcp_and_events(servers: &[&str]) -> (TaskExecutor, Eve
 
 /// Create test bindings and datastore pair.
 ///
-/// Returns empty `ResolvedBindings` and empty `DataStore`.
+/// Returns empty `ResolvedBindings` and empty `RunContext`.
 /// This is the most common setup for executor tests.
 ///
 /// # Example
@@ -119,8 +119,8 @@ pub fn mock_executor_with_mcp_and_events(servers: &[&str]) -> (TaskExecutor, Eve
 /// let (bindings, store) = test_context();
 /// let result = executor.execute(&task_id, &action, &bindings, &store).await;
 /// ```
-pub fn test_context() -> (ResolvedBindings, DataStore) {
-    (ResolvedBindings::new(), DataStore::new())
+pub fn test_context() -> (ResolvedBindings, RunContext) {
+    (ResolvedBindings::new(), RunContext::new())
 }
 
 /// Create test bindings with pre-populated values.
@@ -145,7 +145,7 @@ pub fn bindings_with(entries: &[(&str, Value)]) -> ResolvedBindings {
 
 /// Create test context with pre-populated bindings.
 ///
-/// Combines `bindings_with` with an empty DataStore.
+/// Combines `bindings_with` with an empty RunContext.
 ///
 /// # Example
 ///
@@ -155,8 +155,8 @@ pub fn bindings_with(entries: &[(&str, Value)]) -> ResolvedBindings {
 ///     ("locale", json!("fr-FR")),
 /// ]);
 /// ```
-pub fn test_context_with(entries: &[(&str, Value)]) -> (ResolvedBindings, DataStore) {
-    (bindings_with(entries), DataStore::new())
+pub fn test_context_with(entries: &[(&str, Value)]) -> (ResolvedBindings, RunContext) {
+    (bindings_with(entries), RunContext::new())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

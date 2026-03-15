@@ -46,7 +46,7 @@ use serde_json::Value;
 
 use super::jsonpath;
 use crate::error::NikaError;
-use crate::store::DataStore;
+use crate::store::RunContext;
 
 use super::entry::{UseEntry, WiringSpec, WithEntry, WithSpec};
 use super::transform::TransformExpr;
@@ -126,7 +126,7 @@ impl ResolvedBindings {
     /// Returns empty bindings if use_wiring is None.
     pub fn from_wiring_spec(
         wiring_spec: Option<&WiringSpec>,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Self, NikaError> {
         let Some(wiring) = wiring_spec else {
             return Ok(Self::new());
@@ -172,7 +172,7 @@ impl ResolvedBindings {
     /// Lazy bindings are stored as PendingWithEntry for later resolution.
     pub fn from_with_spec(
         with_spec: Option<&WithSpec>,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Self, NikaError> {
         let Some(spec) = with_spec else {
             return Ok(Self::new());
@@ -227,7 +227,7 @@ impl ResolvedBindings {
     ///
     /// Note: This doesn't cache the resolution - each call re-resolves.
     /// This is intentional to support changing datastore values.
-    pub fn get_resolved(&self, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
+    pub fn get_resolved(&self, alias: &str, datastore: &RunContext) -> Result<Value, NikaError> {
         match self.bindings.get(alias) {
             Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
             Some(LazyBinding::Pending { path, default }) => {
@@ -330,7 +330,7 @@ impl ResolvedBindings {
 /// 3. Get task output from datastore
 /// 4. Resolve remaining path within output
 /// 5. Apply default if value is null/missing
-fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &DataStore) -> Result<Value, NikaError> {
+fn resolve_entry(entry: &UseEntry, alias: &str, datastore: &RunContext) -> Result<Value, NikaError> {
     let path = &entry.path;
 
     // Check for inputs.* path first
@@ -419,7 +419,7 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
 fn resolve_with_entry(
     entry: &WithEntry,
     alias: &str,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<Value, NikaError> {
     let path_str = entry.source.to_string();
 
@@ -475,7 +475,7 @@ fn resolve_with_entry(
 fn resolve_binding_path(
     binding_path: &BindingPath,
     alias: &str,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Task(task_id) => {
@@ -489,7 +489,7 @@ fn resolve_binding_path(
         }
 
         BindingSource::Input(sub_path) => {
-            // DataStore.resolve_input_path expects "inputs.{sub_path}" format
+            // RunContext.resolve_input_path expects "inputs.{sub_path}" format
             let full_path = format!("inputs.{}", sub_path);
             Ok(datastore.resolve_input_path(&full_path))
         }
@@ -632,14 +632,14 @@ mod tests {
 
     #[test]
     fn from_wiring_spec_none() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let bindings = ResolvedBindings::from_wiring_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
 
     #[test]
     fn from_with_spec_none() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let bindings = ResolvedBindings::from_with_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn resolve_simple_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -665,7 +665,7 @@ mod tests {
 
     #[test]
     fn resolve_entire_task_output() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_on_missing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_on_null() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
@@ -739,7 +739,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_object() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -753,7 +753,7 @@ mod tests {
 
     #[test]
     fn resolve_with_default_array() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -771,7 +771,7 @@ mod tests {
 
     #[test]
     fn resolve_path_not_found_error() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert("x".to_string(), UseEntry::new("missing.path"));
@@ -783,7 +783,7 @@ mod tests {
 
     #[test]
     fn resolve_null_strict_error() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
@@ -803,7 +803,7 @@ mod tests {
 
     #[test]
     fn resolve_jsonpath_array_index() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("data"),
             TaskResult::success(
@@ -1024,7 +1024,7 @@ mod tests {
 
     #[test]
     fn get_does_not_resolve_lazy() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1047,7 +1047,7 @@ mod tests {
 
     #[test]
     fn get_resolved_eager_binding() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1063,7 +1063,7 @@ mod tests {
 
     #[test]
     fn get_resolved_lazy_binding() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "lazy_result"}), Duration::from_secs(1)),
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[test]
     fn get_resolved_nonexistent_binding() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let bindings = ResolvedBindings::new();
         let result = bindings.get_resolved("missing", &store);
         assert!(result.is_err());
@@ -1088,7 +1088,7 @@ mod tests {
 
     #[test]
     fn get_resolved_lazy_with_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         // No task in store - should use default
 
         let mut wiring = WiringSpec::default();
@@ -1104,7 +1104,7 @@ mod tests {
 
     #[test]
     fn get_resolved_re_resolves_on_each_call() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn is_lazy_for_eager_binding() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "test"}), Duration::from_secs(1)),
@@ -1151,7 +1151,7 @@ mod tests {
 
     #[test]
     fn is_lazy_for_lazy_binding() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut wiring = WiringSpec::default();
         wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
 
@@ -1167,7 +1167,7 @@ mod tests {
 
     #[test]
     fn is_lazy_after_resolution() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1195,7 +1195,7 @@ mod tests {
 
     #[test]
     fn iter_only_resolved_bindings() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
@@ -1317,7 +1317,7 @@ mod tests {
 
     #[test]
     fn from_wiring_spec_eager_missing_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut wiring = WiringSpec::default();
         wiring.insert("x".to_string(), UseEntry::new("nonexistent.path"));
 
@@ -1327,7 +1327,7 @@ mod tests {
 
     #[test]
     fn from_wiring_spec_lazy_does_not_fail_on_missing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut wiring = WiringSpec::default();
         wiring.insert("x".to_string(), UseEntry::new_lazy("nonexistent.path"));
 
@@ -1338,7 +1338,7 @@ mod tests {
 
     #[test]
     fn from_wiring_spec_preserves_all_entries() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
@@ -1365,7 +1365,7 @@ mod tests {
 
     #[test]
     fn mixed_eager_and_lazy_workflow() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("quick"),
             TaskResult::success(json!({"result": "fast"}), Duration::from_secs(1)),
@@ -1440,7 +1440,7 @@ mod tests {
     fn resolve_inputs_simple() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1463,7 +1463,7 @@ mod tests {
     fn resolve_inputs_nested_field() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1495,7 +1495,7 @@ mod tests {
 
     #[test]
     fn resolve_inputs_with_default_on_missing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert(
@@ -1509,7 +1509,7 @@ mod tests {
 
     #[test]
     fn resolve_inputs_missing_no_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut wiring = WiringSpec::default();
         wiring.insert("missing".to_string(), UseEntry::new("inputs.missing"));
@@ -1523,7 +1523,7 @@ mod tests {
     fn resolve_inputs_lazy_binding() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1554,7 +1554,7 @@ mod tests {
     fn resolve_inputs_mixed_with_task_outputs() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1585,7 +1585,7 @@ mod tests {
     fn resolve_inputs_array_value() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1610,7 +1610,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_simple() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"title": "Hello"}), Duration::from_secs(1)),
@@ -1628,7 +1628,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_entire_output() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
@@ -1646,7 +1646,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_nested_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(
@@ -1667,7 +1667,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_with_default_on_missing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         // No step1 task in store
 
         let mut spec = WithSpec::default();
@@ -1685,7 +1685,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_with_default_on_null() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
@@ -1706,7 +1706,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_missing_no_default_error() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut spec = WithSpec::default();
         spec.insert(
@@ -1722,7 +1722,7 @@ mod tests {
 
     #[test]
     fn with_spec_task_null_no_default_error() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": null}), Duration::from_secs(1)),
@@ -1748,7 +1748,7 @@ mod tests {
     fn with_spec_input_simple() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -1770,7 +1770,7 @@ mod tests {
     fn with_spec_input_nested() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "config".to_string(),
@@ -1795,7 +1795,7 @@ mod tests {
 
     #[test]
     fn with_spec_input_missing_with_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         // No inputs set
 
         let mut spec = WithSpec::default();
@@ -1820,7 +1820,7 @@ mod tests {
         // Use a known env var
         std::env::set_var("NIKA_TEST_VAR_8A", "test_value_8a");
 
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut spec = WithSpec::default();
         spec.insert(
             "my_var".to_string(),
@@ -1835,7 +1835,7 @@ mod tests {
 
     #[test]
     fn with_spec_env_missing_with_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut spec = WithSpec::default();
         spec.insert(
             "missing_env".to_string(),
@@ -1851,7 +1851,7 @@ mod tests {
 
     #[test]
     fn with_spec_env_missing_no_default_error() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut spec = WithSpec::default();
         spec.insert(
             "missing".to_string(),
@@ -1869,7 +1869,7 @@ mod tests {
     #[test]
     fn with_spec_context_file() {
         use crate::runtime::LoadedContext;
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut ctx = LoadedContext::new();
         ctx.files
             .insert("brand".to_string(), json!("Brand Guidelines v2"));
@@ -1888,7 +1888,7 @@ mod tests {
     #[test]
     fn with_spec_context_session() {
         use crate::runtime::LoadedContext;
-        let store = DataStore::new();
+        let store = RunContext::new();
         let mut ctx = LoadedContext::new();
         ctx.session = Some(json!({"last_run": "2025-01-01"}));
         store.set_context(ctx);
@@ -1908,7 +1908,7 @@ mod tests {
 
     #[test]
     fn with_spec_context_missing_with_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         // No context files loaded
 
         let mut spec = WithSpec::default();
@@ -1930,7 +1930,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_does_not_fail_on_missing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut spec = WithSpec::default();
         let mut entry = WithEntry::simple(BindingPath::parse("$step1.data").unwrap());
@@ -1946,7 +1946,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_resolve_on_demand() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"data": "deferred"}), Duration::from_secs(1)),
@@ -1966,7 +1966,7 @@ mod tests {
 
     #[test]
     fn with_spec_lazy_re_resolves() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
@@ -1998,7 +1998,7 @@ mod tests {
 
     #[test]
     fn with_spec_with_transform() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": "  Hello World  "}), Duration::from_secs(1)),
@@ -2015,7 +2015,7 @@ mod tests {
 
     #[test]
     fn with_spec_transform_with_default_on_null() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": null}), Duration::from_secs(1)),
@@ -2035,7 +2035,7 @@ mod tests {
 
     #[test]
     fn with_spec_transform_chain() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"items": [3, 1, 4, 1, 5, 9]}), Duration::from_secs(1)),
@@ -2057,7 +2057,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_string_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"name": "text"}), Duration::from_secs(1)),
@@ -2074,7 +2074,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_string_invalid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
@@ -2093,7 +2093,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_array_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"items": [1, 2, 3]}), Duration::from_secs(1)),
@@ -2110,7 +2110,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_any_accepts_all() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"val": [1, "mixed"]}), Duration::from_secs(1)),
@@ -2127,7 +2127,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_object_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"cfg": {"debug": true}}), Duration::from_secs(1)),
@@ -2144,7 +2144,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_number_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"temp": 25.5}), Duration::from_secs(1)),
@@ -2161,7 +2161,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_integer_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"count": 42}), Duration::from_secs(1)),
@@ -2178,7 +2178,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_integer_rejects_float() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"val": 3.14}), Duration::from_secs(1)),
@@ -2196,7 +2196,7 @@ mod tests {
 
     #[test]
     fn with_spec_type_boolean_valid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
             TaskResult::success(json!({"flag": true}), Duration::from_secs(1)),
@@ -2219,7 +2219,7 @@ mod tests {
     fn with_spec_mixed_sources() {
         use rustc_hash::FxHashMap;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         // Task output
         store.insert(
@@ -2280,7 +2280,7 @@ mod tests {
 
     #[test]
     fn with_spec_loop_var_errors() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut spec = WithSpec::default();
         spec.insert(

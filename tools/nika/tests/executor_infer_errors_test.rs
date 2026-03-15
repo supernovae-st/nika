@@ -14,7 +14,7 @@ use nika::binding::ResolvedBindings;
 use nika::error::NikaError;
 use nika::event::EventLog;
 use nika::runtime::TaskExecutor;
-use nika::store::DataStore;
+use nika::store::RunContext;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -114,7 +114,7 @@ async fn test_infer_missing_api_key_panics() {
         infer: infer_params("Generate a headline"),
     };
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // This will panic in rig-core when creating the Claude client
     let _ = executor
@@ -161,7 +161,7 @@ async fn test_infer_template_resolution_failure() {
         infer: infer_params("Generate based on: {{use.context}}"),
     };
     let bindings = ResolvedBindings::new(); // Empty - no 'context' binding
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -199,7 +199,7 @@ async fn test_infer_template_multiple_missing_aliases() {
         infer: infer_params("Combine {{use.first}} with {{use.second}} and {{use.third}}"),
     };
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -233,7 +233,7 @@ async fn test_infer_template_nested_path_failure() {
     let mut bindings = ResolvedBindings::new();
     // 'data' exists but doesn't have 'nonexistent' field
     bindings.set("data", json!({"name": "test", "value": 42}));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -267,7 +267,7 @@ async fn test_infer_template_null_value_error() {
     let mut bindings = ResolvedBindings::new();
     // Binding exists but is null
     bindings.set("result", json!(null));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -316,7 +316,7 @@ async fn test_infer_unknown_provider() {
         },
     };
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -363,7 +363,7 @@ async fn test_infer_template_resolution_success() {
 
     let mut bindings = ResolvedBindings::new();
     bindings.set("product", json!("QR Code AI"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // This should succeed if API key is valid
     let result = executor
@@ -407,7 +407,7 @@ async fn test_infer_template_invalid_traversal_on_string() {
     let mut bindings = ResolvedBindings::new();
     // 'name' is a string, can't traverse into it
     bindings.set("name", json!("just a string"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -444,7 +444,7 @@ async fn test_infer_template_invalid_traversal_on_number() {
     let mut bindings = ResolvedBindings::new();
     // 'count' is a number, can't traverse into it
     bindings.set("count", json!(42));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -485,7 +485,7 @@ async fn test_infer_empty_prompt() {
         infer: infer_params(""),
     };
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Empty prompt might succeed or fail depending on provider
     // We mainly want to ensure no panic
@@ -527,7 +527,7 @@ async fn test_infer_whitespace_in_template() {
 
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!("test value"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // This should fail at API call (if key invalid), not template resolution
     // The whitespace in template should be handled
@@ -565,7 +565,7 @@ fn test_template_whitespace_parsing() {
 
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!("resolved_value"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Standard syntax - works
     let template = "Value: {{use.data}}";
@@ -590,7 +590,7 @@ fn test_template_no_whitespace() {
 
     let mut bindings = ResolvedBindings::new();
     bindings.set("value", json!(42));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let template = "Number: {{use.value}}";
     let result = template_resolve(template, &bindings, &datastore);

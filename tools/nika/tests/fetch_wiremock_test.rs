@@ -21,7 +21,7 @@ use nika::ast::{FetchParams, TaskAction};
 use nika::binding::ResolvedBindings;
 use nika::event::EventLog;
 use nika::runtime::TaskExecutor;
-use nika::store::DataStore;
+use nika::store::RunContext;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use wiremock::matchers::{body_json, header, method, path};
@@ -73,8 +73,8 @@ fn fetch_params_with_headers(
 }
 
 /// Create empty bindings and datastore for tests
-fn empty_context() -> (ResolvedBindings, DataStore) {
-    (ResolvedBindings::new(), DataStore::new())
+fn empty_context() -> (ResolvedBindings, RunContext) {
+    (ResolvedBindings::new(), RunContext::new())
 }
 
 // =============================================================================

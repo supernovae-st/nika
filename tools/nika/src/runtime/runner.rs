@@ -23,7 +23,7 @@ use crate::binding::ResolvedBindings;
 use crate::dag::{validate_use_wiring, Dag};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog, TraceWriter};
-use crate::store::{DataStore, TaskResult};
+use crate::store::{RunContext, TaskResult};
 use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
 use super::artifact_processor::process_task_artifacts;
@@ -84,7 +84,7 @@ struct IterationResult {
 pub struct Runner {
     workflow: Workflow,
     flow_graph: Dag,
-    datastore: DataStore,
+    datastore: RunContext,
     executor: TaskExecutor,
     event_log: EventLog,
     /// Unique identifier for this workflow execution (for trace files)
@@ -119,7 +119,7 @@ impl Runner {
                 workflow.tasks.len()
             )
         });
-        let datastore = DataStore::new();
+        let datastore = RunContext::new();
         let executor = TaskExecutor::new(
             &workflow.provider,
             workflow.model.as_deref(),
@@ -419,7 +419,7 @@ impl Runner {
         schema: &Value,
         max_retries: u8,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
         executor: &TaskExecutor,
         event_log: &EventLog,
         start: Instant,
@@ -606,7 +606,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         task: Arc<Task>,
         task_id: Arc<str>,
         parent_task_id: Arc<str>,
-        datastore: DataStore,
+        datastore: RunContext,
         executor: TaskExecutor,
         event_log: EventLog,
         for_each_binding: Option<(String, Value, usize)>, // Added index

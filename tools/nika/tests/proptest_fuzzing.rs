@@ -20,12 +20,12 @@ mod template_fuzzing {
     use super::*;
     use nika::binding::template_resolve;
     use nika::binding::ResolvedBindings;
-    use nika::store::DataStore;
+    use nika::store::RunContext;
     use std::borrow::Cow;
 
     /// Helper to create empty datastore for tests
-    fn empty_datastore() -> DataStore {
-        DataStore::new()
+    fn empty_datastore() -> RunContext {
+        RunContext::new()
     }
 
     prop_compose! {

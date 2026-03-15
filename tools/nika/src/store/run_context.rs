@@ -1,4 +1,4 @@
-//! DataStore - task output storage with DashMap
+//! RunContext - task output storage with DashMap
 //!
 //! Single HashMap design with lock-free concurrent access.
 //! Path resolution unified with jsonpath module.
@@ -157,7 +157,7 @@ impl TaskResult {
 /// Added context storage for workflow `context:` block.
 /// Added inputs storage for workflow `inputs:` block.
 #[derive(Clone, Default)]
-pub struct DataStore {
+pub struct RunContext {
     /// Task results: task_id → TaskResult
     results: Arc<DashMap<Arc<str>, TaskResult>>,
 
@@ -174,7 +174,7 @@ pub struct DataStore {
     inputs: Arc<RwLock<FxHashMap<String, Value>>>,
 }
 
-impl DataStore {
+impl RunContext {
     pub fn new() -> Self {
         Self::default()
     }
@@ -406,7 +406,7 @@ mod tests {
 
     #[test]
     fn insert_and_get_result() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"key": "value"}), Duration::from_secs(1)),
@@ -419,7 +419,7 @@ mod tests {
 
     #[test]
     fn success_str_converts_to_value() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
             TaskResult::success_str("hello", Duration::from_secs(1)),
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn failed_result() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
             TaskResult::failed("oops", Duration::from_secs(1)),
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn resolve_simple_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("weather"),
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn resolve_nested_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("flights"),
             TaskResult::success(
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn resolve_array_index() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("data"),
             TaskResult::success(
@@ -490,7 +490,7 @@ mod tests {
 
     #[test]
     fn resolve_path_not_found() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
             TaskResult::success(json!({"a": 1}), Duration::from_secs(1)),
@@ -508,7 +508,7 @@ mod tests {
     fn concurrent_writes_all_stored() {
         use std::thread;
 
-        let store = DataStore::new();
+        let store = RunContext::new();
         let store_arc = Arc::new(store);
 
         let handles: Vec<_> = (0..100)
@@ -541,7 +541,7 @@ mod tests {
     fn concurrent_reads_during_writes() {
         use std::thread;
 
-        let store = Arc::new(DataStore::new());
+        let store = Arc::new(RunContext::new());
 
         // Pre-populate some data
         for i in 0..50 {
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn overwrite_existing_task() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         // Insert initial value
         store.insert(
@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn contains_and_is_success() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         // Non-existent task
         assert!(!store.contains("nonexistent"));
@@ -639,7 +639,7 @@ mod tests {
 
     #[test]
     fn get_output_returns_arc() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let big_json = json!({
             "large": "data".repeat(1000),
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn resolve_task_only_returns_full_output() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"a": 1, "b": 2}), Duration::from_secs(1)),
@@ -674,7 +674,7 @@ mod tests {
 
     #[test]
     fn resolve_deeply_nested_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("deep"),
             TaskResult::success(
@@ -691,7 +691,7 @@ mod tests {
 
     #[test]
     fn resolve_mixed_array_object_path() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("mixed"),
             TaskResult::success(
@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn empty_task_id_resolves_nothing() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!(1), Duration::from_secs(1)),
@@ -744,7 +744,7 @@ mod tests {
 
     #[test]
     fn clone_is_shallow() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         store.insert(
             Arc::from("task"),
             TaskResult::success(json!({"value": 42}), Duration::from_secs(1)),
@@ -775,13 +775,13 @@ mod tests {
 
     #[test]
     fn test_context_default_is_empty() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         assert!(!store.has_context());
     }
 
     #[test]
     fn test_set_and_get_context_file() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context
@@ -800,7 +800,7 @@ mod tests {
 
     #[test]
     fn test_set_and_get_context_session() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context.session = Some(json!({"focus_areas": ["rust", "ai"]}));
@@ -814,7 +814,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_files() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context.files.insert(
@@ -844,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_session() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context.session = Some(json!({"focus": "rust", "level": 3}));
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn test_resolve_context_path_invalid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context.files.insert("brand".to_string(), json!("content"));
@@ -890,13 +890,13 @@ mod tests {
 
     #[test]
     fn test_inputs_default_is_empty() {
-        let store = DataStore::new();
+        let store = RunContext::new();
         assert!(!store.has_inputs());
     }
 
     #[test]
     fn test_set_and_get_input_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -920,7 +920,7 @@ mod tests {
 
     #[test]
     fn test_get_input_default_without_default() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         // Input without default field
@@ -940,7 +940,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_simple() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -978,7 +978,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_nested() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -1014,7 +1014,7 @@ mod tests {
 
     #[test]
     fn test_resolve_input_path_invalid() {
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(

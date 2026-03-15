@@ -10,7 +10,7 @@ use tracing::{debug, instrument};
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::binding::ResolvedBindings;
 use crate::error::NikaError;
-use crate::store::DataStore;
+use crate::store::RunContext;
 
 use super::TaskExecutor;
 
@@ -28,7 +28,7 @@ impl TaskExecutor {
         &self,
         spec: &DecomposeSpec,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Vec<serde_json::Value>, NikaError> {
         match spec.strategy {
             DecomposeStrategy::Semantic => {
@@ -48,7 +48,7 @@ impl TaskExecutor {
         &self,
         spec: &DecomposeSpec,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Vec<serde_json::Value>, NikaError> {
         use serde_json::{json, Value};
 
@@ -104,7 +104,7 @@ impl TaskExecutor {
         &self,
         spec: &DecomposeSpec,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Vec<serde_json::Value>, NikaError> {
         let source_value = self.resolve_decompose_source(&spec.source, bindings, datastore)?;
 
@@ -135,7 +135,7 @@ impl TaskExecutor {
         &self,
         spec: &DecomposeSpec,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<Vec<serde_json::Value>, NikaError> {
         use serde_json::{json, Value};
         use std::collections::HashSet;
@@ -247,7 +247,7 @@ impl TaskExecutor {
         &self,
         source: &str,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<serde_json::Value, NikaError> {
         if source.starts_with("{{use.") && source.ends_with("}}") {
             // Template syntax: {{use.alias}} - supports lazy bindings

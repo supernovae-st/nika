@@ -1,7 +1,7 @@
 //! Include Loader - DAG Fusion at Parse Time
 //!
 //! Loads and merges external workflows into the main DAG.
-//! Tasks from included workflows share the same DataStore as the parent.
+//! Tasks from included workflows share the same RunContext as the parent.
 //!
 //! # Example
 //!

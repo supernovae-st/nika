@@ -18,7 +18,7 @@
 //! │  • Supports nested paths: {{use.data.field}}                            │
 //! │  • Supports array indexing: {{use.items[0]}} or {{use.items.0}}         │
 //! │  • Supports |shell modifier: {{use.value|shell}}                        │
-//! │  • Lazy bindings resolved on-demand via DataStore                       │
+//! │  • Lazy bindings resolved on-demand via RunContext                       │
 //! │                                                                         │
 //! │  Pass 2: {{context.*}} — Workflow context files                         │
 //! │  ─────────────────────────────────────────────────────────────────────  │
@@ -75,7 +75,7 @@ use serde_json::Value;
 use smallvec::SmallVec;
 
 use crate::error::NikaError;
-use crate::store::DataStore;
+use crate::store::RunContext;
 
 use super::resolve::ResolvedBindings;
 use super::transform::TransformExpr;
@@ -304,7 +304,7 @@ fn resolve_alias_path<'a>(
 pub fn resolve_with<'a>(
     template: &'a str,
     with_values: &FxHashMap<String, Value>,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{") {
@@ -639,7 +639,7 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
 ///
 /// Performance: Zero-clone traversal - uses references until final value_to_string.
 ///
-/// Supports lazy bindings by resolving them on demand via DataStore.
+/// Supports lazy bindings by resolving them on demand via RunContext.
 /// Supports context bindings via {{context.files.alias}} and {{context.session.key}}.
 /// Supports inputs bindings via {{inputs.param}}.
 ///
@@ -651,7 +651,7 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
     // Fast check: must contain `{{` followed eventually by `use.`, `context.`, or `inputs.`
@@ -691,7 +691,7 @@ pub fn resolve<'a>(
         let mut parts = path.split('.');
         let alias = parts.next().unwrap();
 
-        // Get the resolved value for this alias (supports lazy bindings via DataStore)
+        // Get the resolved value for this alias (supports lazy bindings via RunContext)
         match bindings.get_resolved(alias, datastore) {
             Ok(base_value) => {
                 // Zero-clone traversal: use references until we need the final value
@@ -902,7 +902,7 @@ pub fn resolve<'a>(
 pub fn resolve_for_shell<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
-    datastore: &DataStore,
+    datastore: &RunContext,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return if no templates
     if !template.contains("{{") {
@@ -1207,8 +1207,8 @@ mod tests {
     use std::borrow::Cow;
 
     /// Helper to create empty datastore for tests
-    fn empty_datastore() -> DataStore {
-        DataStore::new()
+    fn empty_datastore() -> RunContext {
+        RunContext::new()
     }
 
     #[test]
@@ -1597,8 +1597,8 @@ mod tests {
     use crate::runtime::context_loader::LoadedContext;
 
     /// Helper to create datastore with context for tests
-    fn datastore_with_context() -> DataStore {
-        let store = DataStore::new();
+    fn datastore_with_context() -> RunContext {
+        let store = RunContext::new();
         let mut context = LoadedContext::new();
         context.files.insert(
             "brand".to_string(),
@@ -1872,8 +1872,8 @@ mod tests {
     use rustc_hash::FxHashMap;
 
     /// Helper to create datastore with inputs for tests
-    fn datastore_with_inputs() -> DataStore {
-        let store = DataStore::new();
+    fn datastore_with_inputs() -> RunContext {
+        let store = RunContext::new();
         let mut inputs = FxHashMap::default();
         inputs.insert(
             "topic".to_string(),
@@ -1957,7 +1957,7 @@ mod tests {
     fn resolve_inputs_with_context() {
         let mut bindings = ResolvedBindings::new();
         bindings.set("msg", json!("Test"));
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         // Set both context and inputs
         let mut context = LoadedContext::new();
@@ -2274,7 +2274,7 @@ mod tests {
     fn injection_template_markers_in_context_path() {
         // Even context paths with template-like patterns should be safe
         let bindings = ResolvedBindings::new();
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         // File name that looks like template syntax - but file content is safe
@@ -2291,7 +2291,7 @@ mod tests {
     fn injection_context_value_with_template_syntax() {
         // Context file content with template syntax should NOT be re-evaluated
         let bindings = ResolvedBindings::new();
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context
@@ -2308,7 +2308,7 @@ mod tests {
     fn injection_input_value_with_template_syntax() {
         // Input values with template syntax should NOT be re-evaluated
         let bindings = ResolvedBindings::new();
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut inputs = FxHashMap::default();
         inputs.insert(
@@ -2331,7 +2331,7 @@ mod tests {
         let mut bindings = ResolvedBindings::new();
         // Pass 1: use binding resolves to something with context syntax
         bindings.set("data", json!("{{context.files.secret}}"));
-        let store = DataStore::new();
+        let store = RunContext::new();
 
         let mut context = LoadedContext::new();
         context
@@ -2381,11 +2381,11 @@ mod tests {
 mod v028_template_tests {
     use super::*;
     use crate::runtime::context_loader::LoadedContext;
-    use crate::store::DataStore;
+    use crate::store::RunContext;
     use serde_json::json;
 
-    fn empty_datastore() -> DataStore {
-        DataStore::new()
+    fn empty_datastore() -> RunContext {
+        RunContext::new()
     }
 
     fn make_with(entries: &[(&str, Value)]) -> FxHashMap<String, Value> {

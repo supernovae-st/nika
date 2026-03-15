@@ -16,7 +16,7 @@ use nika::binding::ResolvedBindings;
 use nika::error::NikaError;
 use nika::event::EventLog;
 use nika::runtime::TaskExecutor;
-use nika::store::DataStore;
+use nika::store::RunContext;
 use std::sync::Arc;
 
 /// Helper to create executor with default settings
@@ -42,7 +42,7 @@ async fn run_exec(
     };
     let task_id: Arc<str> = Arc::from(task_id);
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     executor
         .execute(&task_id, &action, &bindings, &datastore, None)
@@ -327,7 +327,7 @@ async fn test_exec_template_missing_binding() {
     };
     let task_id: Arc<str> = Arc::from("template_missing");
     let bindings = ResolvedBindings::new(); // Empty bindings
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let result = executor
         .execute(&task_id, &action, &bindings, &datastore, None)

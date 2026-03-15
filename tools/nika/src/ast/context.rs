@@ -1,7 +1,7 @@
 //! Context configuration for workflow
 //!
 //! The `context:` block in a workflow allows loading files at workflow start.
-//! Files are loaded into the DataStore and accessible via `{{context.files.alias}}` bindings.
+//! Files are loaded into the RunContext and accessible via `{{context.files.alias}}` bindings.
 //!
 //! # Example
 //!

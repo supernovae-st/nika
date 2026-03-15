@@ -1,7 +1,7 @@
 //! Include specification for DAG fusion
 //!
 //! The `include:` block merges tasks from external workflows into the main DAG.
-//! Included tasks share the same DataStore as the parent workflow.
+//! Included tasks share the same RunContext as the parent workflow.
 //!
 //! # Example
 //!

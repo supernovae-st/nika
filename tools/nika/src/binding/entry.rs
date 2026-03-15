@@ -96,7 +96,7 @@ impl UseEntry {
     /// Normalize a binding path by stripping the `$` prefix if present.
     ///
     /// This enables implicit output reference syntax where `$task` is
-    /// syntactic sugar for `task`. The DataStore.resolve_path() function
+    /// syntactic sugar for `task`. The RunContext.resolve_path() function
     /// already handles resolving bare task IDs to their full output.
     ///
     /// # Examples

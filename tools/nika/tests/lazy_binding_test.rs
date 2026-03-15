@@ -9,7 +9,7 @@
 
 use nika::binding::{ResolvedBindings, UseEntry, WiringSpec};
 use nika::serde_yaml;
-use nika::store::{DataStore, TaskResult};
+use nika::store::{RunContext, TaskResult};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
@@ -92,7 +92,7 @@ optional:
 fn test_lazy_binding_not_resolved_initially() {
     // Lazy bindings should NOT fail during from_wiring_spec
     // even if the source task output doesn't exist yet
-    let store = DataStore::new();
+    let store = RunContext::new();
     // Note: "future" task NOT in store
 
     let mut wiring = WiringSpec::default();
@@ -108,7 +108,7 @@ fn test_lazy_binding_not_resolved_initially() {
 
 #[test]
 fn test_lazy_binding_resolved_on_access() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     // Initially empty - task1 hasn't run yet
 
     let mut wiring = WiringSpec::default();
@@ -134,7 +134,7 @@ fn test_lazy_binding_resolved_on_access() {
 
 #[test]
 fn test_lazy_binding_with_path() {
-    let store = DataStore::new();
+    let store = RunContext::new();
 
     let mut wiring = WiringSpec::default();
     wiring.insert("nested".to_string(), UseEntry::new_lazy("task1.data.value"));
@@ -154,7 +154,7 @@ fn test_lazy_binding_with_path() {
 
 #[test]
 fn test_lazy_binding_with_default_on_missing() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     // Task never runs
 
     let mut wiring = WiringSpec::default();
@@ -172,7 +172,7 @@ fn test_lazy_binding_with_default_on_missing() {
 
 #[test]
 fn test_lazy_binding_with_default_on_null() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     store.insert(
         Arc::from("task1"),
         TaskResult::success(json!(null), Duration::from_secs(1)),
@@ -193,7 +193,7 @@ fn test_lazy_binding_with_default_on_null() {
 
 #[test]
 fn test_lazy_binding_error_on_missing_no_default() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     // Task never runs, no default
 
     let mut wiring = WiringSpec::default();
@@ -212,7 +212,7 @@ fn test_lazy_binding_error_on_missing_no_default() {
 
 #[test]
 fn test_mixed_eager_and_lazy_bindings() {
-    let store = DataStore::new();
+    let store = RunContext::new();
 
     // Add output for eager binding source
     store.insert(
@@ -248,7 +248,7 @@ fn test_mixed_eager_and_lazy_bindings() {
 
 #[test]
 fn test_eager_binding_fails_on_missing() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     // No tasks in store
 
     let mut wiring = WiringSpec::default();
@@ -265,7 +265,7 @@ fn test_eager_binding_fails_on_missing() {
 
 #[test]
 fn test_is_lazy_returns_false_for_resolved() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     store.insert(
         Arc::from("task1"),
         TaskResult::success(json!("value"), Duration::from_secs(1)),
@@ -282,7 +282,7 @@ fn test_is_lazy_returns_false_for_resolved() {
 
 #[test]
 fn test_is_lazy_returns_true_for_pending() {
-    let store = DataStore::new();
+    let store = RunContext::new();
     // No tasks
 
     let mut wiring = WiringSpec::default();

@@ -24,7 +24,7 @@ use crate::mcp::McpClient;
 use crate::provider::rig::{InferOptions, StreamChunk};
 use crate::runtime::policy::PolicyDecision;
 use crate::runtime::{BuiltinToolRouter, InferCallback, RigAgentLoop, StructuredOutputEngine};
-use crate::store::DataStore;
+use crate::store::RunContext;
 use crate::util::{EXEC_TIMEOUT, INVOKE_TASK_DEADLINE};
 
 use super::TaskExecutor;
@@ -35,7 +35,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         infer: &InferParams,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         // Validate infer params (empty prompt, invalid temperature)
@@ -286,7 +286,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         params: &ExecParams,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         // Note: Shell escaping is NOT applied by default.
@@ -398,7 +398,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         fetch: &FetchParams,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates
         let url = template_resolve(&fetch.url, bindings, datastore)?;
@@ -607,7 +607,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         invoke: &InvokeParams,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
     ) -> Result<String, NikaError> {
         // Validate invoke params (tool XOR resource)
         invoke.validate()?;
@@ -787,7 +787,7 @@ impl TaskExecutor {
         task_id: &Arc<str>,
         agent: &AgentParams,
         bindings: &ResolvedBindings,
-        datastore: &DataStore,
+        datastore: &RunContext,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         // Resolve {{use.alias}} templates in prompt

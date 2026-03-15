@@ -8,7 +8,7 @@ use super::*;
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
 use crate::ast::{ExecParams, FetchParams, InvokeParams};
 use crate::event::EventKind;
-use crate::store::{DataStore, TaskResult};
+use crate::store::{RunContext, TaskResult};
 use serde_json::json;
 use std::time::Duration;
 
@@ -64,7 +64,7 @@ fn test_executor_is_clone() {
 async fn test_execute_exec_simple_command() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -89,7 +89,7 @@ async fn test_execute_exec_with_template_binding() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("name", json!("world"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -113,7 +113,7 @@ async fn test_execute_exec_with_template_binding() {
 async fn test_execute_exec_command_failure() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Use false command which exists and always returns exit code 1
     let action = TaskAction::Exec {
@@ -149,7 +149,7 @@ async fn test_execute_exec_emits_template_resolved() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone());
     let mut bindings = ResolvedBindings::new();
     bindings.set("greeting", json!("Hello"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -190,7 +190,7 @@ async fn test_execute_exec_emits_template_resolved() {
 async fn test_execute_fetch_invalid_url() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -218,7 +218,7 @@ async fn test_execute_fetch_with_template_url() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("endpoint", json!("httpbin.org/get"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -258,7 +258,7 @@ async fn test_execute_invoke_tool_call() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone());
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -289,7 +289,7 @@ async fn test_execute_invoke_resource_read() {
     let executor = TaskExecutor::new("mock", None, None, event_log);
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -324,7 +324,7 @@ async fn test_execute_invoke_emits_mcp_events() {
     let executor = TaskExecutor::new("mock", None, None, event_log.clone());
     executor.inject_mock_mcp_client("novanet");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -368,7 +368,7 @@ async fn test_execute_invoke_tool_with_template_params() {
     let mut bindings = ResolvedBindings::new();
     bindings.set("entity_key", json!("qr-code"));
     bindings.set("locale_val", json!("en-US"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -399,7 +399,7 @@ async fn test_execute_invoke_tool_with_template_params() {
 async fn test_execute_invoke_validation_error_both_tool_and_resource() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Both tool and resource set (invalid)
     let action = TaskAction::Invoke {
@@ -430,7 +430,7 @@ async fn test_execute_invoke_validation_error_both_tool_and_resource() {
 async fn test_execute_invoke_validation_error_neither_tool_nor_resource() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Neither tool nor resource set (invalid)
     let action = TaskAction::Invoke {
@@ -462,7 +462,7 @@ async fn test_execute_invoke_mcp_not_configured() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     // No inject_mock_mcp_client() - server not configured
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
@@ -497,7 +497,7 @@ async fn test_binding_resolution_single_template() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("key", json!("value123"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -523,7 +523,7 @@ async fn test_binding_resolution_multiple_templates() {
     let mut bindings = ResolvedBindings::new();
     bindings.set("first", json!("hello"));
     bindings.set("second", json!("world"));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -547,7 +547,7 @@ async fn test_binding_resolution_multiple_templates() {
 async fn test_binding_resolution_no_templates() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -572,7 +572,7 @@ async fn test_binding_resolution_json_value() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("data", json!({"id": 42, "name": "test"}));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -599,7 +599,7 @@ async fn test_binding_resolution_datastore_lookup() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("task_output", json!({"result": "success"}));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
     let task_id_prev: Arc<str> = Arc::from("prev_task");
     datastore.insert(
         task_id_prev.clone(),
@@ -633,7 +633,7 @@ async fn test_expand_decompose_static() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["item1", "item2", "item3"]));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -660,7 +660,7 @@ async fn test_expand_decompose_static_with_max_items() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("items", json!(["a", "b", "c", "d", "e"]));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -684,7 +684,7 @@ async fn test_expand_decompose_static_wrong_type() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let mut bindings = ResolvedBindings::new();
     bindings.set("notarray", json!({"key": "value"}));
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
@@ -790,7 +790,7 @@ async fn test_extract_decompose_nodes_empty_nodes() {
 async fn test_error_handling_exec_timeout() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Sleep command longer than timeout
     let action = TaskAction::Exec {
@@ -906,7 +906,7 @@ async fn test_execute_exec_blocked_by_policy() {
     let executor =
         TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -945,7 +945,7 @@ async fn test_execute_exec_allowed_by_policy() {
     let executor =
         TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -976,7 +976,7 @@ async fn test_execute_exec_disabled_by_policy() {
     let executor =
         TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Exec {
         exec: ExecParams {
@@ -1016,7 +1016,7 @@ async fn test_execute_fetch_blocked_by_policy() {
     let executor =
         TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -1055,7 +1055,7 @@ async fn test_execute_fetch_disabled_by_policy() {
     let executor =
         TaskExecutor::with_policy("mock", None, None, EventLog::new(), Some(policy_config));
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
@@ -1143,7 +1143,7 @@ async fn test_run_exec_shell_free_mode_default() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let task_id: Arc<str> = Arc::from("test_shell_free");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Shell-free: semicolon should NOT be interpreted as command separator
     let params = ExecParams {
@@ -1169,7 +1169,7 @@ async fn test_run_exec_shell_true_mode_interprets_metacharacters() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let task_id: Arc<str> = Arc::from("test_shell_true");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Shell mode: && should work as command separator
     let params = ExecParams {
@@ -1193,7 +1193,7 @@ async fn test_run_exec_shell_free_prevents_injection() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let task_id: Arc<str> = Arc::from("test_injection");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // In shell-free mode, injection attempts are harmless
     let params = ExecParams {
@@ -1216,7 +1216,7 @@ async fn test_run_exec_security_validation_blocks_dangerous_commands() {
     let executor = TaskExecutor::new("mock", None, None, EventLog::new());
     let task_id: Arc<str> = Arc::from("test_blocked");
     let bindings = ResolvedBindings::new();
-    let datastore = DataStore::new();
+    let datastore = RunContext::new();
 
     // Blocklisted command should be rejected even in shell-free mode
     let params = ExecParams {
