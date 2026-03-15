@@ -2821,3 +2821,43 @@ fn test_dismiss_error_preserves_other_workflow_state() {
     assert_eq!(state.workflow.task_count, 5);
     assert_eq!(state.workflow.tasks_completed, 3);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P0 Task 1: DirtyFlags render pipeline tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_dirty_flags_cleared_after_render_cycle() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Initially clean
+    assert!(!state.dirty.any());
+
+    // Mark some flags dirty (simulates handle_event())
+    state.dirty.progress = true;
+    state.dirty.dag = true;
+    assert!(state.dirty.any());
+
+    // Simulate render completion
+    state.clear_dirty();
+
+    // All flags cleared
+    assert!(!state.dirty.any());
+    assert!(!state.dirty.progress);
+    assert!(!state.dirty.dag);
+}
+
+#[test]
+fn test_dirty_all_takes_precedence() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    state.dirty.dag = true;
+    assert!(state.dirty.any());
+    assert!(!state.dirty.all);
+
+    state.dirty.mark_all();
+    assert!(state.dirty.all);
+
+    state.clear_dirty();
+    assert!(!state.dirty.any());
+}

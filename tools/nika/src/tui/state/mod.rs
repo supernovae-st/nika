@@ -1779,6 +1779,14 @@ impl TuiState {
         self.dirty.notifications = true;
     }
 
+    /// Clear all dirty flags after render completes
+    ///
+    /// Call this at the end of render_unified_frame() to reset
+    /// dirty state for the next frame.
+    pub fn clear_dirty(&mut self) {
+        self.dirty.clear();
+    }
+
     /// P3 Fix: Dismiss error message
     /// Clears the workflow error message without resetting the entire workflow state
     pub fn dismiss_error(&mut self) -> bool {

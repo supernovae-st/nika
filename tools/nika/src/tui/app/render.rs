@@ -186,6 +186,10 @@ impl App {
                 .map_err(|e| NikaError::TuiError {
                     reason: format!("Failed to draw frame: {}", e),
                 })?;
+
+            // Clear dirty flags after successful render
+            // This prepares for skip-rendering of unchanged panels
+            self.state.clear_dirty();
         }
         Ok(())
     }
