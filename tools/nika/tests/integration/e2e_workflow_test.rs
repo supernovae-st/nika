@@ -32,7 +32,7 @@ use super::helpers::{novanet_config, should_skip_integration_test};
 /// Note: NovaNet MCP may not support resources/read method - this test
 /// verifies the client handles both success and method-not-supported cases.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_read_resource_entity() {
     if should_skip_integration_test() {
         return;
@@ -74,7 +74,7 @@ async fn test_read_resource_entity() {
 
 /// Test reading a class/schema resource from NovaNet.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_read_resource_class() {
     if should_skip_integration_test() {
         return;
@@ -107,7 +107,7 @@ async fn test_read_resource_class() {
 ///
 /// This simulates a typical agent workflow pattern.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_workflow_describe_query_traverse() {
     if should_skip_integration_test() {
         return;
@@ -179,7 +179,7 @@ async fn test_workflow_describe_query_traverse() {
 
 /// Test concurrent tool calls to verify parallel execution.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_concurrent_tool_calls() {
     if should_skip_integration_test() {
         return;
@@ -230,7 +230,7 @@ async fn test_concurrent_tool_calls() {
 
 /// Test that client reconnects after disconnect.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_reconnect_after_disconnect() {
     if should_skip_integration_test() {
         return;
@@ -273,7 +273,7 @@ async fn test_reconnect_after_disconnect() {
 
 /// Test that NovaNet returns valid JSON from all describe targets.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_describe_all_targets_return_valid_json() {
     if should_skip_integration_test() {
         return;
@@ -317,7 +317,7 @@ async fn test_describe_all_targets_return_valid_json() {
 
 /// Test query execution with various Cypher patterns.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_cypher_query_patterns() {
     if should_skip_integration_test() {
         return;
@@ -365,7 +365,7 @@ async fn test_cypher_query_patterns() {
 
 /// Test that invalid Cypher returns proper error.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_invalid_cypher_returns_error() {
     if should_skip_integration_test() {
         return;
@@ -398,7 +398,7 @@ async fn test_invalid_cypher_returns_error() {
 
 /// Test that write operations are blocked.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_write_operations_blocked() {
     if should_skip_integration_test() {
         return;
@@ -436,7 +436,7 @@ async fn test_write_operations_blocked() {
 
 /// Test response time for common operations.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_response_times() {
     if should_skip_integration_test() {
         return;
