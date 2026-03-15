@@ -2861,3 +2861,25 @@ fn test_dirty_all_takes_precedence() {
     state.clear_dirty();
     assert!(!state.dirty.any());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P0 Task 2: DAG cache invalidation tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_dag_version_tracks_timeline() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    let v0 = state.dag_version();
+    // Simulate a task event to bump timeline_version
+    state.handle_event(
+        &crate::event::EventKind::TaskStarted {
+            task_id: std::sync::Arc::from("task1"),
+            verb: std::sync::Arc::from("infer"),
+            inputs: serde_json::json!({}),
+        },
+        100,
+    );
+    let v1 = state.dag_version();
+    assert!(v1 > v0, "dag_version should increase after task event");
+}

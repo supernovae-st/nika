@@ -1779,6 +1779,13 @@ impl TuiState {
         self.dirty.notifications = true;
     }
 
+    /// Get current DAG version for cache invalidation
+    ///
+    /// Uses timeline_version since DAG changes track task changes.
+    pub fn dag_version(&self) -> u32 {
+        self.timeline_version
+    }
+
     /// Clear all dirty flags after render completes
     ///
     /// Call this at the end of render_unified_frame() to reset

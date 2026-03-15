@@ -77,6 +77,12 @@ pub struct MonitorView {
     pub render_mode: RenderMode,
     /// DAG node box mode (Minimal/Expanded)
     pub dag_mode: NodeBoxMode,
+    /// Cached DAG nodes (rebuilt only when dag_cache_version changes)
+    cached_dag_nodes: Vec<NodeBoxData>,
+    /// Cached DAG dependencies (rebuilt only when dag_cache_version changes)
+    cached_dag_deps: HashMap<String, Vec<String>>,
+    /// Version counter for cache invalidation
+    dag_cache_version: u32,
 }
 
 impl MonitorView {
@@ -97,6 +103,9 @@ impl MonitorView {
             selected_task: 0,
             render_mode: RenderMode::Expanded,
             dag_mode: NodeBoxMode::Minimal,
+            cached_dag_nodes: Vec::new(),
+            cached_dag_deps: HashMap::new(),
+            dag_cache_version: 0,
         }
     }
 
@@ -173,6 +182,19 @@ impl MonitorView {
             NodeBoxMode::Minimal => NodeBoxMode::Expanded,
             NodeBoxMode::Expanded => NodeBoxMode::Minimal,
         };
+    }
+
+    /// Refresh DAG cache if version changed
+    ///
+    /// Call this before rendering the DAG panel. Only rebuilds
+    /// if state.dag_version() differs from cached version.
+    pub fn refresh_dag_cache(&mut self, state: &TuiState) {
+        let current_version = state.dag_version();
+        if self.dag_cache_version != current_version {
+            self.cached_dag_nodes = Self::build_dag_nodes(state);
+            self.cached_dag_deps = Self::build_dag_dependencies(state);
+            self.dag_cache_version = current_version;
+        }
     }
 
     /// Get panel index (0-3) for scroll array
@@ -580,9 +602,10 @@ impl MonitorView {
             }
         }
 
-        // Build DAG nodes and dependencies
-        let nodes = Self::build_dag_nodes(state);
-        let deps = Self::build_dag_dependencies(state);
+        // Use cached DAG nodes and dependencies
+        // Cache is refreshed in render() before this method is called
+        let nodes = &self.cached_dag_nodes;
+        let deps = &self.cached_dag_deps;
 
         // Handle empty state
         if nodes.is_empty() {
@@ -596,9 +619,9 @@ impl MonitorView {
         }
 
         // Render DagAscii widget
-        let dag_widget = DagAscii::new(&nodes)
+        let dag_widget = DagAscii::new(nodes)
             .with_theme(theme)
-            .with_dependencies(deps)
+            .with_dependencies(deps.clone())
             .mode(self.dag_mode)
             .frame(self.frame)
             .scroll(0, self.scroll[Self::panel_index(PanelId::RunnerDag)] as u16);
@@ -916,14 +939,7 @@ impl MonitorView {
 
 impl Default for MonitorView {
     fn default() -> Self {
-        Self {
-            focus: PanelId::RunnerMission,
-            scroll: [0; 4],
-            frame: 0,
-            selected_task: 0,
-            render_mode: RenderMode::Expanded,
-            dag_mode: NodeBoxMode::Minimal,
-        }
+        Self::new()
     }
 }
 
@@ -966,6 +982,8 @@ impl View for MonitorView {
             theme,
             self.focus == PanelId::RunnerMission,
         );
+        // Refresh DAG cache before rendering (only rebuilds if version changed)
+        self.refresh_dag_cache(state);
         self.render_dag_panel(
             frame,
             top_panels[1],
