@@ -187,10 +187,9 @@ tasks:
     with:
       # section is auto-populated from 'as: section' in for_each
       research: $research_agent
-      all_content:
-        path: $content_generation
-        lazy: true
-        default: "[]"
+      # TODO: lazy bindings not yet supported in three-phase AST (ADR-006)
+      # Original: { path: $content_generation, lazy: true, default: "[]" }
+      all_content: $content_generation
     output:
       format: json
       schema: ./schemas/html-section.schema.json
