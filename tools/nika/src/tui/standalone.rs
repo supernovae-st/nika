@@ -442,7 +442,7 @@ impl StandaloneState {
     /// Performs full validation: schema, parsing, DAG, and bindings.
     pub fn validate_selected(&mut self) {
         use crate::ast::schema_validator::WorkflowSchemaValidator;
-        use crate::dag::{validate_use_wiring, Dag};
+        use crate::dag::{validate_bindings, Dag};
 
         let Some(entry) = self.browser_entries.get(self.browser_index) else {
             self.preview_content = "No workflow selected".to_string();
@@ -510,7 +510,7 @@ impl StandaloneState {
                 return;
             }
         };
-        if let Err(e) = validate_use_wiring(&workflow, &flow_graph) {
+        if let Err(e) = validate_bindings(&workflow, &flow_graph) {
             result.push_str(&format!("│ ✗ Binding validation failed: {}\n", e));
             result.push_str("╰─\n");
             self.preview_content = result;

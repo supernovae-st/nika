@@ -2622,7 +2622,7 @@ impl YamlHighlight {
                     | "flows"
                     | "mcp"
                     | "servers"
-                    | "use"
+                    | "with"
                     | "params"
                     | "context"
                     | "include"
