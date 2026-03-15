@@ -223,7 +223,193 @@ impl<T: InferenceBackend + 'static> DynInferenceBackend for T {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::backend::{ChatMessage, ChatRole};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
-    // Verify the trait is object-safe
+    /// Mock backend for testing the DynInferenceBackend blanket impl.
+    struct MockBackend {
+        loaded: AtomicBool,
+    }
+
+    impl MockBackend {
+        fn new() -> Self {
+            Self {
+                loaded: AtomicBool::new(false),
+            }
+        }
+
+        fn new_loaded() -> Self {
+            Self {
+                loaded: AtomicBool::new(true),
+            }
+        }
+    }
+
+    impl InferenceBackend for MockBackend {
+        async fn load(
+            &mut self,
+            _model_path: PathBuf,
+            _config: LoadConfig,
+        ) -> Result<(), NativeError> {
+            self.loaded.store(true, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn unload(&mut self) -> Result<(), NativeError> {
+            self.loaded.store(false, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn is_loaded(&self) -> bool {
+            self.loaded.load(Ordering::SeqCst)
+        }
+
+        fn model_info(&self) -> Option<&ModelInfo> {
+            None
+        }
+
+        async fn infer(
+            &self,
+            prompt: &str,
+            _options: ChatOptions,
+        ) -> Result<ChatResponse, NativeError> {
+            if !self.is_loaded() {
+                return Err(NativeError::ModelNotLoaded);
+            }
+            Ok(ChatResponse {
+                message: ChatMessage {
+                    role: ChatRole::Assistant,
+                    content: format!("echo: {prompt}"),
+                },
+                done: true,
+                total_duration: Some(100),
+                eval_count: Some(10),
+                prompt_eval_count: Some(5),
+            })
+        }
+
+        async fn infer_stream(
+            &self,
+            _prompt: &str,
+            _options: ChatOptions,
+        ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+            Ok(futures::stream::once(async { Ok("token".to_string()) }))
+        }
+    }
+
     fn _assert_object_safe(_: &dyn DynInferenceBackend) {}
+
+    #[test]
+    fn is_loaded_dyn_delegates_false() {
+        let backend = MockBackend::new();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+        assert!(!dyn_backend.is_loaded_dyn());
+    }
+
+    #[test]
+    fn is_loaded_dyn_delegates_true() {
+        let backend = MockBackend::new_loaded();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+        assert!(dyn_backend.is_loaded_dyn());
+    }
+
+    #[test]
+    fn model_info_dyn_returns_none_when_not_loaded() {
+        let backend = MockBackend::new();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+        assert!(dyn_backend.model_info_dyn().is_none());
+    }
+
+    #[tokio::test]
+    async fn load_dyn_delegates_to_load() {
+        let mut backend = MockBackend::new();
+        assert!(!backend.is_loaded());
+
+        let result = backend
+            .load_dyn(PathBuf::from("/tmp/model.gguf"), LoadConfig::default())
+            .await;
+        assert!(result.is_ok());
+        assert!(backend.is_loaded_dyn());
+    }
+
+    #[tokio::test]
+    async fn unload_dyn_delegates_to_unload() {
+        let mut backend = MockBackend::new_loaded();
+        assert!(backend.is_loaded());
+
+        let result = backend.unload_dyn().await;
+        assert!(result.is_ok());
+        assert!(!backend.is_loaded_dyn());
+    }
+
+    #[tokio::test]
+    async fn infer_dyn_delegates_with_owned_string() {
+        let backend = MockBackend::new_loaded();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+
+        let result = dyn_backend
+            .infer_dyn("hello world".to_string(), ChatOptions::default())
+            .await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.message.content, "echo: hello world");
+        assert!(response.done);
+    }
+
+    #[tokio::test]
+    async fn infer_dyn_propagates_error_when_not_loaded() {
+        let backend = MockBackend::new();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+
+        let result = dyn_backend
+            .infer_dyn("hello".to_string(), ChatOptions::default())
+            .await;
+        assert!(result.is_err());
+        assert!(
+            matches!(result.unwrap_err(), NativeError::ModelNotLoaded),
+            "expected ModelNotLoaded error"
+        );
+    }
+
+    #[tokio::test]
+    async fn infer_stream_dyn_always_errors() {
+        let backend = MockBackend::new_loaded();
+        let dyn_backend: &dyn DynInferenceBackend = &backend;
+
+        let result = dyn_backend
+            .infer_stream_dyn("hello".to_string(), ChatOptions::default())
+            .await;
+        assert!(result.is_err());
+        match result {
+            Err(NativeError::InvalidConfig(msg)) => {
+                assert!(
+                    msg.contains("Streaming not supported"),
+                    "expected streaming error, got: {msg}"
+                );
+            }
+            Err(other) => panic!("expected InvalidConfig, got: {other}"),
+            Ok(_) => panic!("expected error, got Ok"),
+        }
+    }
+
+    #[tokio::test]
+    async fn boxed_dyn_backend_load_infer_unload() {
+        let mut backend: Box<dyn DynInferenceBackend> = Box::new(MockBackend::new());
+
+        let load_result = backend
+            .load_dyn(PathBuf::from("/tmp/model.gguf"), LoadConfig::default())
+            .await;
+        assert!(load_result.is_ok());
+        assert!(backend.is_loaded_dyn());
+
+        let infer_result = backend
+            .infer_dyn("test prompt".to_string(), ChatOptions::default())
+            .await;
+        assert!(infer_result.is_ok());
+        assert_eq!(infer_result.unwrap().message.content, "echo: test prompt");
+
+        let unload_result = backend.unload_dyn().await;
+        assert!(unload_result.is_ok());
+        assert!(!backend.is_loaded_dyn());
+    }
 }
