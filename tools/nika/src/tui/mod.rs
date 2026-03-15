@@ -148,7 +148,6 @@ pub use state::{
     FRAME_CYCLE,
     FRAME_DIV_GLACIAL,
     FRAME_DIV_NORMAL,
-    TARGET_FPS,
 };
 #[cfg(feature = "tui")]
 pub use theme::{ColorMode, MissionPhase, TaskStatus, Theme, VerbColor};

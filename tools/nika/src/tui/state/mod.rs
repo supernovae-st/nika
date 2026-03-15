@@ -71,13 +71,8 @@ pub use types::{
     WorkflowState,
     // Animation constants
     FRAME_CYCLE,
-    FRAME_DIV_BLINK,
-    FRAME_DIV_FAST,
     FRAME_DIV_GLACIAL,
     FRAME_DIV_NORMAL,
-    FRAME_DIV_SLOW,
-    FRAME_DIV_STANDARD,
-    TARGET_FPS,
 };
 
 // Scroll

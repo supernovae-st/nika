@@ -24,33 +24,11 @@ use super::super::widgets::task_box::TokenVelocity;
 // ═══════════════════════════════════════════════════════════════════════════════
 //
 // These constants define the animation frame standard for the TUI.
-// Some are reserved for future use as widgets migrate to the standard.
-
-/// Target FPS for smooth animations
-#[allow(dead_code)]
-pub const TARGET_FPS: u8 = 60;
-
 /// TuiState.frame modulo (1-second cycle at 60fps)
 pub const FRAME_CYCLE: u8 = 60;
 
-/// Frame divisor for fast spinners (~20 FPS)
-#[allow(dead_code)]
-pub const FRAME_DIV_FAST: u8 = 3;
-
-/// Frame divisor for standard spinners (~15 FPS)
-#[allow(dead_code)]
-pub const FRAME_DIV_STANDARD: u8 = 4;
-
 /// Frame divisor for normal spinners (~10 FPS)
 pub const FRAME_DIV_NORMAL: u8 = 6;
-
-/// Frame divisor for cursor blink (~7.5 FPS)
-#[allow(dead_code)]
-pub const FRAME_DIV_BLINK: u8 = 8;
-
-/// Frame divisor for slow animations (~6 FPS)
-#[allow(dead_code)]
-pub const FRAME_DIV_SLOW: u8 = 10;
 
 /// Frame divisor for very slow animations (~4 FPS)
 pub const FRAME_DIV_GLACIAL: u8 = 15;
