@@ -98,7 +98,6 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
 
     Task {
         id: task.name,
-        use_wiring: None,
         with_spec,
         output,
         decompose: task.decompose,

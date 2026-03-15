@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::binding::{WiringSpec, WithSpec};
+use crate::binding::WithSpec;
 use crate::error::NikaError;
 
 use super::action::TaskAction;
@@ -130,13 +130,9 @@ impl Workflow {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Task {
     pub id: String,
-    /// Explicit data wiring
-    #[serde(default, rename = "use")]
-    pub use_wiring: Option<WiringSpec>,
-    /// Rich typed binding system
+    /// Typed binding system
     ///
-    /// New `with:` block with typed paths, transforms, and source dispatch.
-    /// When present, takes priority over `use:` for binding resolution.
+    /// `with:` block for binding task outputs to local aliases.
     ///
     /// # Example
     ///
@@ -167,7 +163,7 @@ pub struct Task {
     ///       strategy: semantic
     ///       traverse: HAS_CHILD
     ///       source: $entity
-    ///     infer: "Generate for {{use.item}}"
+    ///     infer: "Generate for {{with.item}}"
     /// ```
     #[serde(default)]
     pub decompose: Option<DecomposeSpec>,
@@ -184,14 +180,14 @@ pub struct Task {
     ///     for_each: ["en-US", "fr-FR", "de-DE"]
     ///     as: locale
     ///     exec:
-    ///       command: "echo {{use.locale}}"
+    ///       command: "echo {{with.locale}}"
     /// ```
     #[serde(default)]
     pub for_each: Option<serde_json::Value>,
     /// Variable name for current iteration value
     ///
     /// Defaults to "item" if not specified.
-    /// The value is accessible as `{{use.<as>}}` in templates.
+    /// The value is accessible as `{{with.<as>}}` in templates.
     #[serde(default, rename = "as")]
     pub for_each_as: Option<String>,
     /// Maximum parallel executions for for_each
@@ -956,15 +952,15 @@ infer: "Test"
     }
 
     #[test]
-    fn test_task_with_use_wiring() {
+    fn test_task_with_with_spec() {
         let yaml = r#"
 id: task1
-use:
-  input: previous_task.result
-infer: "Process {{use.input}}"
+with:
+  input: $previous_task.result
+infer: "Process {{with.input}}"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
-        assert!(task.use_wiring.is_some());
+        assert!(task.with_spec.is_some());
     }
 
     #[test]

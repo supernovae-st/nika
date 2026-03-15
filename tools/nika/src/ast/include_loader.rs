@@ -279,20 +279,13 @@ fn merge_workflow(
     Ok(())
 }
 
-/// Prefix a task ID and use_wiring/with_spec references (works with Arc<Task>)
+/// Prefix a task ID and with_spec references (works with Arc<Task>)
 fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
     match prefix {
         Some(prefix) if !prefix.is_empty() => {
             // Clone and modify task ID
             let mut new_task = (*task).clone();
             new_task.id = format!("{}{}", prefix, new_task.id);
-
-            // Also prefix use_wiring references
-            if let Some(ref mut wiring) = new_task.use_wiring {
-                for entry in wiring.values_mut() {
-                    entry.path = prefix_binding_path(&entry.path, prefix);
-                }
-            }
 
             // Also prefix with_spec task references
             if let Some(ref mut with_spec) = new_task.with_spec {
@@ -308,19 +301,6 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
             Arc::new(new_task)
         }
         _ => task, // No prefix, return as-is
-    }
-}
-
-/// Prefix the task ID part of a binding path (e.g., "task.field" -> "prefix_task.field")
-fn prefix_binding_path(path: &str, prefix: &str) -> String {
-    if let Some(dot_pos) = path.find('.') {
-        // Path has field access: "task_id.field" -> "prefix_task_id.field"
-        let task_id = &path[..dot_pos];
-        let rest = &path[dot_pos..];
-        format!("{}{}{}", prefix, task_id, rest)
-    } else {
-        // Path is just task_id: "task_id" -> "prefix_task_id"
-        format!("{}{}", prefix, path)
     }
 }
 
@@ -394,7 +374,6 @@ mod tests {
 
         let task = Arc::new(Task {
             id: "generate".to_string(),
-            use_wiring: None,
             with_spec: None,
             output: None,
             decompose: None,
@@ -425,36 +404,41 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_binding_path() {
-        // Simple task ID
-        assert_eq!(prefix_binding_path("task1", "lib_"), "lib_task1");
-
-        // Task ID with field access
-        assert_eq!(
-            prefix_binding_path("task1.result", "lib_"),
-            "lib_task1.result"
-        );
-
-        // Task ID with nested field access
-        assert_eq!(
-            prefix_binding_path("task1.data.items", "lib_"),
-            "lib_task1.data.items"
-        );
-    }
-
-    #[test]
-    fn test_prefix_task_with_use_wiring() {
+    fn test_prefix_task_with_with_spec() {
         use crate::ast::{InferParams, TaskAction};
-        use crate::binding::{UseEntry, WiringSpec};
+        use crate::binding::{BindingPath, BindingSource, PathSegment, WithEntry, WithSpec};
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("data".to_string(), UseEntry::new("other_task.result"));
-        wiring.insert("config".to_string(), UseEntry::new("config_task"));
+        let mut with_spec: WithSpec = Default::default();
+        with_spec.insert(
+            "data".to_string(),
+            WithEntry {
+                source: BindingPath {
+                    source: BindingSource::Task("other_task".into()),
+                    segments: vec![PathSegment::Field("result".into())],
+                },
+                binding_type: Default::default(),
+                transform: None,
+                default: None,
+                lazy: false,
+            },
+        );
+        with_spec.insert(
+            "config".to_string(),
+            WithEntry {
+                source: BindingPath {
+                    source: BindingSource::Task("config_task".into()),
+                    segments: vec![],
+                },
+                binding_type: Default::default(),
+                transform: None,
+                default: None,
+                lazy: false,
+            },
+        );
 
         let task = Arc::new(Task {
             id: "processor".to_string(),
-            use_wiring: Some(wiring),
-            with_spec: None,
+            with_spec: Some(with_spec),
             output: None,
             decompose: None,
             for_each: None,
@@ -476,10 +460,16 @@ mod tests {
         let prefixed = prefix_task(task, Some("lib_"));
         assert_eq!(prefixed.id, "lib_processor");
 
-        // Check use_wiring paths are prefixed
-        let wiring = prefixed.use_wiring.as_ref().unwrap();
-        assert_eq!(wiring.get("data").unwrap().path, "lib_other_task.result");
-        assert_eq!(wiring.get("config").unwrap().path, "lib_config_task");
+        // Check with_spec task references are prefixed
+        let with = prefixed.with_spec.as_ref().unwrap();
+        let data_entry = with.get("data").unwrap();
+        assert!(
+            matches!(&data_entry.source.source, BindingSource::Task(id) if id.as_ref() == "lib_other_task")
+        );
+        let config_entry = with.get("config").unwrap();
+        assert!(
+            matches!(&config_entry.source.source, BindingSource::Task(id) if id.as_ref() == "lib_config_task")
+        );
     }
 
     #[test]
