@@ -1,12 +1,14 @@
 //! Tests for TaskExecutor
 //!
-//! Covers: construction, exec verb, fetch verb, invoke verb,
+//! Covers: construction, exec verb, fetch verb, invoke verb, infer verb,
 //! binding resolution, decompose, error handling, policy enforcement,
-//! shlex parsing, and shell-free security.
+//! shlex parsing, shell-free security, build_json_schema_instruction,
+//! and get_rig_provider error paths.
 
 use super::*;
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
-use crate::ast::{ExecParams, FetchParams, InvokeParams};
+use crate::ast::output::{OutputFormat, OutputPolicy, SchemaRef};
+use crate::ast::{ExecParams, FetchParams, InferParams, InvokeParams};
 use crate::event::EventKind;
 use crate::store::{RunContext, TaskResult};
 use serde_json::json;
@@ -1233,4 +1235,257 @@ async fn test_run_exec_security_validation_blocks_dangerous_commands() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.to_string().contains("NIKA-053") || err.to_string().contains("blocked"));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BUILD_JSON_SCHEMA_INSTRUCTION TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_build_json_schema_instruction_none_policy() {
+    let result = TaskExecutor::build_json_schema_instruction(None);
+    assert!(result.is_none());
+}
+
+#[test]
+fn test_build_json_schema_instruction_text_format() {
+    let policy = OutputPolicy {
+        format: OutputFormat::Text,
+        schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_none(), "Text format should not produce schema instruction");
+}
+
+#[test]
+fn test_build_json_schema_instruction_json_no_schema() {
+    let policy = OutputPolicy {
+        format: OutputFormat::Json,
+        schema: None,
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_none(), "JSON format without schema should return None");
+}
+
+#[test]
+fn test_build_json_schema_instruction_json_inline_schema() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "age": { "type": "integer" }
+        },
+        "required": ["name", "age"]
+    });
+    let policy = OutputPolicy {
+        format: OutputFormat::Json,
+        schema: Some(SchemaRef::Inline(schema.clone())),
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_some());
+    let instruction = result.unwrap();
+    assert!(instruction.contains("CRITICAL OUTPUT REQUIREMENT"));
+    assert!(instruction.contains("\"name\""));
+    assert!(instruction.contains("\"age\""));
+    assert!(instruction.contains("conforms to this schema"));
+}
+
+#[test]
+fn test_build_json_schema_instruction_json_file_schema() {
+    let policy = OutputPolicy {
+        format: OutputFormat::Json,
+        schema: Some(SchemaRef::File("schemas/user.json".to_string())),
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_some());
+    let instruction = result.unwrap();
+    assert!(instruction.contains("CRITICAL OUTPUT REQUIREMENT"));
+    assert!(instruction.contains("valid JSON"));
+    // File ref produces a generic instruction without schema content
+    assert!(!instruction.contains("conforms to this schema"));
+}
+
+#[test]
+fn test_build_json_schema_instruction_yaml_format() {
+    let policy = OutputPolicy {
+        format: OutputFormat::Yaml,
+        schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_none(), "YAML format should not produce schema instruction");
+}
+
+#[test]
+fn test_build_json_schema_instruction_markdown_format() {
+    let policy = OutputPolicy {
+        format: OutputFormat::Markdown,
+        schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
+        max_retries: None,
+    };
+    let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
+    assert!(result.is_none(), "Markdown format should not produce schema instruction");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GET_RIG_PROVIDER ERROR PATH TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_get_rig_provider_unknown_provider() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.get_rig_provider("nonexistent_provider");
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("nonexistent_provider"),
+        "Error should mention the unknown provider name"
+    );
+}
+
+#[test]
+fn test_get_rig_provider_empty_name() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.get_rig_provider("");
+    assert!(result.is_err(), "Empty provider name should fail");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RUN_INFER MOCK PROVIDER TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_run_infer_mock_basic() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-mock");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Generate a test response".to_string(),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_ok(), "Mock infer should succeed: {:?}", result.err());
+
+    let response = result.unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&response)
+        .expect("Mock response should be valid JSON");
+
+    assert_eq!(parsed["mock"], true);
+    assert_eq!(parsed["task_id"], "test-infer-mock");
+    assert_eq!(parsed["status"], "success");
+    assert!(parsed["items"].is_array());
+}
+
+#[tokio::test]
+async fn test_run_infer_mock_emits_provider_responded() {
+    let event_log = EventLog::new();
+    let executor = TaskExecutor::new("mock", None, None, event_log.clone());
+    let task_id: Arc<str> = Arc::from("test-infer-events");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Hello mock".to_string(),
+        ..Default::default()
+    };
+
+    executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await
+        .expect("Mock infer should succeed");
+
+    let events = event_log.events();
+    let has_provider_responded = events.iter().any(|e| {
+        matches!(
+            &e.kind,
+            EventKind::ProviderResponded { task_id, .. } if task_id.as_ref() == "test-infer-events"
+        )
+    });
+    assert!(has_provider_responded, "Should emit ProviderResponded event");
+}
+
+#[tokio::test]
+async fn test_run_infer_mock_with_json_schema_injection() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-schema");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Generate user data".to_string(),
+        ..Default::default()
+    };
+
+    let policy = OutputPolicy {
+        format: OutputFormat::Json,
+        schema: Some(SchemaRef::Inline(json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" } }
+        }))),
+        max_retries: None,
+    };
+
+    // With output policy, the prompt gets schema instruction appended
+    // but mock still returns its canned response
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, Some(&policy))
+        .await;
+    assert!(result.is_ok(), "Mock infer with schema should succeed");
+}
+
+#[tokio::test]
+async fn test_run_infer_mock_with_task_level_provider() {
+    // Executor default is "claude" but task overrides to "mock"
+    let executor = TaskExecutor::new("claude", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-override");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Test task-level provider override".to_string(),
+        provider: Some("mock".to_string()),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(
+        result.is_ok(),
+        "Task-level mock provider override should succeed: {:?}",
+        result.err()
+    );
+}
+
+#[tokio::test]
+async fn test_run_infer_empty_prompt() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-empty");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "   ".to_string(),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_err(), "Empty prompt should fail validation");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("empty") || err.contains("Empty") || err.contains("prompt"),
+        "Error should mention empty prompt: {}",
+        err
+    );
 }
