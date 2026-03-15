@@ -73,7 +73,7 @@ pub struct DagEdge<'a> {
     pub from: (u16, u16),
     /// Target node position (x, y of top center)
     pub to: (u16, u16),
-    /// Binding label (e.g., "{{use.data}}")
+    /// Binding label (e.g., "{{with.data}}")
     pub binding: Option<String>,
     /// Data preview (shown in grey)
     pub preview: Option<String>,
@@ -590,9 +590,9 @@ mod tests {
 
     #[test]
     fn test_edge_with_binding() {
-        let edge = DagEdge::new((5, 0), (5, 10)).with_binding("{{use.data}}");
+        let edge = DagEdge::new((5, 0), (5, 10)).with_binding("{{with.data}}");
 
-        assert_eq!(edge.binding, Some("{{use.data}}".to_string()));
+        assert_eq!(edge.binding, Some("{{with.data}}".to_string()));
     }
 
     #[test]
@@ -614,13 +614,13 @@ mod tests {
     #[test]
     fn test_edge_builder_chain() {
         let edge = DagEdge::new((0, 0), (10, 10))
-            .with_binding("{{use.result}}")
+            .with_binding("{{with.result}}")
             .with_preview("preview text")
             .with_active(true);
 
         assert_eq!(edge.from, (0, 0));
         assert_eq!(edge.to, (10, 10));
-        assert_eq!(edge.binding, Some("{{use.result}}".to_string()));
+        assert_eq!(edge.binding, Some("{{with.result}}".to_string()));
         assert_eq!(edge.preview, Some("preview text".to_string()));
         assert!(edge.active);
     }
@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn test_edge_render_with_binding_label() {
-        let edge = DagEdge::new((5, 2), (5, 10)).with_binding("{{use.ctx}}");
+        let edge = DagEdge::new((5, 2), (5, 10)).with_binding("{{with.ctx}}");
 
         let mut buffer = Buffer::empty(Rect::new(0, 0, 30, 15));
         edge.render(&mut buffer, Rect::new(0, 0, 30, 15));

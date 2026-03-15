@@ -1741,7 +1741,7 @@ tasks:
     for_each: ["a", "b", "c"]
     as: item
     concurrency: 3
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
         let task = workflow.get_task("parallel").unwrap();
@@ -1758,14 +1758,14 @@ tasks:
 schema: "nika/workflow@0.10"
 tasks:
   - id: parallel
-    for_each: "{{use.items}}"
+    for_each: "{{with.items}}"
     infer: "Process"
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
         let task = workflow.get_task("parallel").unwrap();
 
         let for_each = task.value.for_each.as_ref().unwrap();
-        assert_eq!(for_each.value.items.value, "{{use.items}}");
+        assert_eq!(for_each.value.items.value, "{{with.items}}");
     }
 
     #[test]

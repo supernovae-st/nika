@@ -68,7 +68,7 @@ pub const WORKFLOW_11_CODE_REVIEW: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: code-review-pipeline
 
 # Sample code for review - contains intentional vulnerabilities for detection!
@@ -411,7 +411,7 @@ pub const WORKFLOW_12_LOCALIZATION: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: content-localization-pipeline
 
 inputs:
@@ -584,7 +584,7 @@ pub const WORKFLOW_13_SEO_CONTENT: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: seo-content-generator
 
 inputs:
@@ -805,7 +805,7 @@ pub const WORKFLOW_14_DOCS_GENERATOR: &str = r##"# ╔════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: docs-generator
 
 tasks:
@@ -887,7 +887,7 @@ pub const WORKFLOW_15_ETL: &str = r##"# ╔════════════�
 # ║  Extract, Transform, Load with validation                                     ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: data-etl-pipeline
 
 tasks:
@@ -960,7 +960,7 @@ pub const WORKFLOW_16_RESEARCH: &str = r##"# ╔══════════�
 # ║  Deep research with nested agents                                             ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: research-assistant
 
 inputs:
@@ -1000,7 +1000,7 @@ pub const WORKFLOW_17_PR_REVIEW: &str = r##"# ╔══════════�
 # ║  Automated pull request analysis                                              ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: pr-review-bot
 
 inputs:
@@ -1087,7 +1087,7 @@ pub const WORKFLOW_18_MEETING: &str = r##"# ╔═══════════
 # ║  Extract action items and summaries from meeting notes                        ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: meeting-processor
 
 inputs:
@@ -1166,7 +1166,7 @@ pub const WORKFLOW_19_API_HEALTH: &str = r##"# ╔══════════
 # ║  Monitor multiple endpoints in parallel                                       ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: api-health-checker
 
 tasks:
@@ -1223,7 +1223,7 @@ pub const WORKFLOW_20_KNOWLEDGE_EXTRACT: &str = r##"# ╔═══════�
 # ║  Extract entities and relationships from text                                 ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: knowledge-extractor
 
 inputs:

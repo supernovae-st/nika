@@ -388,14 +388,14 @@ fn create_duplicate_task_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeA
 fn create_invalid_schema_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeActionOrCommand> {
     let edit = TextEdit {
         range: diagnostic.range,
-        new_text: "schema: nika/workflow@0.10".to_string(),
+        new_text: "schema: nika/workflow@0.12".to_string(),
     };
 
     let mut changes = std::collections::HashMap::new();
     changes.insert(uri.clone(), vec![edit]);
 
     Some(CodeActionOrCommand::CodeAction(CodeAction {
-        title: "Update to schema version @0.10".to_string(),
+        title: "Update to schema version @0.12".to_string(),
         kind: Some(CodeActionKind::QUICKFIX),
         diagnostics: Some(vec![diagnostic.clone()]),
         edit: Some(WorkspaceEdit {
@@ -423,7 +423,7 @@ fn create_missing_field_fix(
     let field = if message.contains("'id'") {
         "id: new_task"
     } else if message.contains("'schema'") {
-        "schema: nika/workflow@0.10"
+        "schema: nika/workflow@0.12"
     } else if message.contains("'tasks'") {
         "tasks:\n  - id: step1\n    infer: \"TODO\""
     } else {
@@ -692,7 +692,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_code_actions_for_diagnostics() {
-        let text = "schema: nika/workflow@0.9\ntasks:\n  - id: step1\n    infer: \"test\"";
+        let text = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer: \"test\"";
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
 
         let diagnostic = Diagnostic {
@@ -814,14 +814,14 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_code_actions_with_ast_unknown_task() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
-      input: setp1
+    with:
+      input: $setp1
     infer: "World"
 "#;
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
@@ -883,7 +883,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_code_actions_with_ast_fallback() {
         // Test that it falls back gracefully when AST is not available
-        let text = "schema: nika/workflow@0.9\ntasks:\n  - id: step1\n    infer: \"test\"";
+        let text = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer: \"test\"";
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
         let ast_index = AstIndex::new();
         // Don't parse - simulate AST not being available

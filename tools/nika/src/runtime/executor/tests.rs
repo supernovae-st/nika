@@ -1645,7 +1645,11 @@ async fn test_run_infer_mock_with_template_binding() {
     let result = executor
         .run_infer(&task_id, &infer, &bindings, &datastore, None)
         .await;
-    assert!(result.is_ok(), "Infer with template should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Infer with template should succeed: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]
@@ -1682,7 +1686,11 @@ async fn test_run_infer_mock_with_model_override() {
     let result = executor
         .run_infer(&task_id, &infer, &bindings, &datastore, None)
         .await;
-    assert!(result.is_ok(), "Model override should succeed with mock: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Model override should succeed with mock: {:?}",
+        result.err()
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1785,7 +1793,11 @@ async fn test_extract_decompose_key_from_number_fails() {
     let result = executor.extract_decompose_key(&json!(42));
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("number"), "Should mention the actual type: {}", err);
+    assert!(
+        err.contains("number"),
+        "Should mention the actual type: {}",
+        err
+    );
 }
 
 #[tokio::test]

@@ -594,12 +594,12 @@ tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
+    with:
       data: taks1
-    infer: "Process {{use.data}}"
+    infer: "Process {{with.data}}"
 "#;
-        // "taks1" starts at byte ~95 in this source
-        let err = AnalyzeError::unknown_task(make_span(95, 100), "taks1", Some("task1"));
+        // "taks1" starts at byte ~96 in this source
+        let err = AnalyzeError::unknown_task(make_span(96, 101), "taks1", Some("task1"));
         let output = format_error(&err, source, "workflow.nika.yaml");
 
         // The output should contain the error code and message

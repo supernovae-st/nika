@@ -323,7 +323,7 @@ mod tests {
         let highlighter = TreeSitterHighlighter::new().unwrap();
 
         let yaml = r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 workflow: test
 
 tasks:

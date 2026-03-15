@@ -502,7 +502,7 @@ pub struct Metrics {
 pub struct TemplateResolution {
     /// Task ID where resolution occurred
     pub task_id: String,
-    /// Original template expression (e.g., "{{use.ctx}}")
+    /// Original template expression (e.g., "{{with.ctx}}")
     pub template: String,
     /// Resolved value (truncated for display)
     pub result: String,

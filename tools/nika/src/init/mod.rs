@@ -327,9 +327,9 @@ mod tests {
         let workflows = get_all_workflows();
         for w in &workflows {
             assert!(
-                w.content.contains("schema: \"nika/workflow@0.10\"")
-                    || w.content.contains("schema: 'nika/workflow@0.10'")
-                    || w.content.contains("schema: nika/workflow@0.10"),
+                w.content.contains("schema: \"nika/workflow@0.12\"")
+                    || w.content.contains("schema: 'nika/workflow@0.12'")
+                    || w.content.contains("schema: nika/workflow@0.12"),
                 "Workflow {} should have schema declaration",
                 w.filename
             );

@@ -27,7 +27,7 @@
 //! use nika::source::{SourceRegistry, Span, FileId, Spanned};
 //!
 //! let mut registry = SourceRegistry::new();
-//! let file_id = registry.add_file("workflow.yaml", "schema: \"nika/workflow@0.10\"\nworkflow: test".to_string());
+//! let file_id = registry.add_file("workflow.yaml", "schema: \"nika/workflow@0.12\"\nworkflow: test".to_string());
 //!
 //! // Create a span pointing to "workflow"
 //! let span = Span::new(file_id, 29, 37);

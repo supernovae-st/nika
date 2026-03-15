@@ -96,14 +96,16 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                         ("0.7", "+full streaming for all providers"),
                         ("0.8", "+Studio DX (edit history, sessions, themes)"),
                         ("0.9", "+context: file loading, +include: DAG fusion"),
-                        ("0.10", "+two-phase AST, +analyzer validation (current)"),
+                        ("0.10", "+two-phase AST, +analyzer validation"),
+                        ("0.11", "+native inference (provider: native, mistral.rs)"),
+                        ("0.12", "+with: bindings, +imports, +depends_on (current)"),
                     ];
 
                     for (version, desc) in &versions {
                         if quiet {
                             println!("nika/workflow@{}", version);
                         } else {
-                            let prefix = if *version == "0.10" {
+                            let prefix = if *version == "0.12" {
                                 "→".green()
                             } else {
                                 " ".normal()

@@ -33,7 +33,7 @@ pub const PARTIAL_LOGGING: &str = r##"# ═════════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: logging-setup-partial
 description: "Reusable logging setup tasks"
 
@@ -72,7 +72,7 @@ pub const PARTIAL_ERROR_HANDLING: &str = r##"# ═══════════
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: error-handling-partial
 description: "Standardized error handling tasks"
 
@@ -134,7 +134,7 @@ pub const PARTIAL_VALIDATION: &str = r##"# ════════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: validation-partial
 description: "Input and output validation tasks"
 
@@ -220,7 +220,7 @@ pub const PARTIAL_NOTIFICATION: &str = r##"# ═══════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: notification-partial
 description: "Multi-channel notification tasks"
 
@@ -295,7 +295,7 @@ pub const PARTIAL_QUALITY_CHECK: &str = r##"# ═══════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: quality-check-partial
 description: "Quality assurance check tasks"
 

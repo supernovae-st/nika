@@ -12,12 +12,12 @@
 //! │  3-PASS TEMPLATE RESOLUTION                                    │
 //! ├─────────────────────────────────────────────────────────────────────────┤
 //! │                                                                         │
-//! │  Pass 1: {{use.alias}} — Task output bindings                          │
+//! │  Pass 1: {{with.alias}} — Task output bindings                         │
 //! │  ─────────────────────────────────────────────────────────────────────  │
-//! │  • Resolves task outputs bound via `use:` block                         │
-//! │  • Supports nested paths: {{use.data.field}}                            │
-//! │  • Supports array indexing: {{use.items[0]}} or {{use.items.0}}         │
-//! │  • Supports |shell modifier: {{use.value|shell}}                        │
+//! │  • Resolves task outputs bound via `with:` block                        │
+//! │  • Supports nested paths: {{with.data.field}}                           │
+//! │  • Supports array indexing: {{with.items[0]}} or {{with.items.0}}       │
+//! │  • Supports |shell modifier: {{with.value|shell}}                       │
 //! │  • Lazy bindings resolved on-demand via RunContext                       │
 //! │                                                                         │
 //! │  Pass 2: {{context.*}} — Workflow context files                         │
@@ -41,7 +41,7 @@
 //! template markers in VALUES are NOT re-evaluated. This prevents injection:
 //!
 //! ```yaml
-//! # If {{use.user_input}} resolves to "{{context.files.secret}}"
+//! # If {{with.user_input}} resolves to "{{context.files.secret}}"
 //! # The output is literally "{{context.files.secret}}", NOT the file content
 //! ```
 //!
@@ -51,10 +51,10 @@
 //!
 //! | Pattern | Source | Example |
 //! |---------|--------|---------|
-//! | `{{use.alias}}` | Task `use:` block | `{{use.forecast}}` |
-//! | `{{use.alias.field}}` | Nested JSON access | `{{use.data.name}}` |
-//! | `{{use.alias[N]}}` | Array indexing | `{{use.items[0]}}` |
-//! | `{{use.alias\|shell}}` | Shell-escaped | `{{use.filename\|shell}}` |
+//! | `{{with.alias}}` | Task `with:` block | `{{with.forecast}}` |
+//! | `{{with.alias.field}}` | Nested JSON access | `{{with.data.name}}` |
+//! | `{{with.alias[N]}}` | Array indexing | `{{with.items[0]}}` |
+//! | `{{with.alias\|shell}}` | Shell-escaped | `{{with.filename\|shell}}` |
 //! | `{{context.files.X}}` | Context file | `{{context.files.brand}}` |
 //! | `{{context.session.X}}` | Session data | `{{context.session.focus}}` |
 //! | `{{inputs.param}}` | Input parameter | `{{inputs.topic}}` |
@@ -80,9 +80,21 @@ use crate::store::RunContext;
 use super::resolve::ResolvedBindings;
 use super::transform::TransformExpr;
 
-/// Pre-compiled regex for {{use.alias}} or {{with.alias}} pattern
-/// Supports optional |shell modifier: {{use.alias|shell}}
-/// Also supports bracket notation after preprocessing: {{use.items[0]}} → {{use.items.0}}
+/// Maximum number of template variables allowed per string.
+///
+/// Prevents CPU exhaustion from pathological templates containing thousands of
+/// `{{...}}` blocks that trigger regex backtracking and allocation storms.
+const MAX_TEMPLATE_VARS: usize = 256;
+
+/// Maximum path depth for nested alias traversal (e.g., `a.b.c.d.e`).
+///
+/// Prevents stack/allocation exhaustion from malicious deep paths like
+/// `{{a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z}}`.
+const MAX_PATH_DEPTH: usize = 32;
+
+/// Pre-compiled regex for {{with.alias}} pattern (also accepts legacy {{use.alias}})
+/// Supports optional |shell modifier: {{with.alias|shell}}
+/// Also supports bracket notation after preprocessing: {{with.items[0]}} → {{with.items.0}}
 /// Extended to match both `use.` and `with.` prefixes
 static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\{\{\s*(?:use|with)\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
@@ -231,8 +243,23 @@ fn resolve_alias_path<'a>(
     path: &str,
     with_values: &'a FxHashMap<String, Value>,
 ) -> Result<&'a Value, NikaError> {
+    // Guard against pathologically deep paths
+    let segment_count = path.split('.').count();
+    if segment_count > MAX_PATH_DEPTH {
+        return Err(NikaError::TemplateError {
+            template: path.to_string(),
+            reason: format!(
+                "Path depth {} exceeds maximum of {} segments",
+                segment_count, MAX_PATH_DEPTH
+            ),
+        });
+    }
+
     let mut segments = path.split('.');
-    let alias = segments.next().unwrap();
+    let alias = segments.next().ok_or_else(|| NikaError::TemplateError {
+        template: path.to_string(),
+        reason: "Empty alias path (no segments)".to_string(),
+    })?;
 
     let base = with_values
         .get(alias)
@@ -298,7 +325,7 @@ fn resolve_alias_path<'a>(
 ///
 /// Features:
 /// - Takes `with_values` directly (not `ResolvedBindings`)
-/// - No `use.` prefix needed (`{{title}}` instead of `{{use.title}}`)
+/// - No `with.` prefix needed (`{{title}}` instead of `{{with.title}}`)
 /// - Supports arbitrary transform chains (`{{title | upper | trim}}`)
 /// - Returns empty string for null values (not error)
 pub fn resolve_with<'a>(
@@ -309,6 +336,18 @@ pub fn resolve_with<'a>(
     // Early return with borrowed string (zero alloc)
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
+    }
+
+    // Guard: reject templates with too many variable references
+    let var_count = template.matches("{{").count();
+    if var_count > MAX_TEMPLATE_VARS {
+        return Err(NikaError::TemplateError {
+            template: format!("(template with {} variables)", var_count),
+            reason: format!(
+                "Template contains {} variable references, exceeding the maximum of {}",
+                var_count, MAX_TEMPLATE_VARS
+            ),
+        });
     }
 
     // Normalize bracket notation to dot notation
@@ -559,7 +598,7 @@ pub fn validate_with_refs(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// use: template engine (runtime Workflow path)
+// with:/use: template engine (runtime Workflow path)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Escape for JSON string context
@@ -623,7 +662,7 @@ pub fn escape_for_shell(s: &str) -> String {
 
 /// Normalize bracket notation to dot notation
 ///
-/// Converts `{{use.items[0]}}` to `{{use.items.0}}` for uniform handling.
+/// Converts `{{with.items[0]}}` to `{{with.items.0}}` for uniform handling.
 /// This allows users to use familiar JavaScript-style array indexing.
 fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
     if !template.contains('[') {
@@ -632,7 +671,7 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
     Cow::Owned(BRACKET_RE.replace_all(template, ".$1").to_string())
 }
 
-/// Resolve all {{use.alias}}, {{context.*}}, and {{inputs.*}} templates
+/// Resolve all {{with.alias}}, {{context.*}}, and {{inputs.*}} templates
 ///
 /// Returns Cow::Borrowed when no templates (zero allocation).
 /// Returns Cow::Owned with single-pass resolution when templates exist.
@@ -643,8 +682,8 @@ fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
 /// Supports context bindings via {{context.files.alias}} and {{context.session.key}}.
 /// Supports inputs bindings via {{inputs.param}}.
 ///
-/// Example: `{{use.forecast}}` → resolved value from bindings
-/// Example: `{{use.flight_info.departure}}` → nested access
+/// Example: `{{with.forecast}}` → resolved value from bindings
+/// Example: `{{with.flight_info.departure}}` → nested access
 /// Example: `{{context.files.brand}}` → loaded file content
 /// Example: `{{context.session.focus}}` → session data
 /// Example: `{{inputs.topic}}` → input parameter default value
@@ -666,8 +705,20 @@ pub fn resolve<'a>(
         return Ok(Cow::Borrowed(template));
     }
 
+    // Guard: reject templates with too many variable references
+    let var_count = template.matches("{{").count();
+    if var_count > MAX_TEMPLATE_VARS {
+        return Err(NikaError::TemplateError {
+            template: format!("(template with {} variables)", var_count),
+            reason: format!(
+                "Template contains {} variable references, exceeding the maximum of {}",
+                var_count, MAX_TEMPLATE_VARS
+            ),
+        });
+    }
+
     // Normalize bracket notation to dot notation
-    // {{use.items[0]}} → {{use.items.0}}
+    // {{with.items[0]}} → {{with.items.0}}
     let normalized = normalize_bracket_notation(template);
     let template_str: &str = normalized.as_ref();
 
@@ -686,6 +737,18 @@ pub fn resolve<'a>(
 
         // Copy segment before this match
         result.push_str(&template_str[last_end..m.start()]);
+
+        // Guard: reject pathologically deep alias paths
+        let segment_count = path.split('.').count();
+        if segment_count > MAX_PATH_DEPTH {
+            return Err(NikaError::TemplateError {
+                template: path.to_string(),
+                reason: format!(
+                    "Path depth {} exceeds maximum of {} segments",
+                    segment_count, MAX_PATH_DEPTH
+                ),
+            });
+        }
 
         // Split: first segment is alias, rest is nested path
         let mut parts = path.split('.');
@@ -768,7 +831,7 @@ pub fn resolve<'a>(
     if !errors.is_empty() {
         return Err(NikaError::TemplateError {
             template: errors.join(", "),
-            reason: "Alias(es) not resolved. Did you declare them in 'use:'?".to_string(),
+            reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
         });
     }
 
@@ -897,7 +960,7 @@ pub fn resolve<'a>(
 /// Similar to `resolve`, but shell-escapes all substituted values to prevent
 /// command injection from LLM outputs containing special characters.
 ///
-/// Example: `echo 'Hello {{use.msg}}'` with msg="Nika's test" becomes
+/// Example: `echo 'Hello {{with.msg}}'` with msg="Nika's test" becomes
 ///          `echo 'Hello '\''Nika'\''s test'\'''`
 pub fn resolve_for_shell<'a>(
     template: &'a str,
@@ -987,7 +1050,7 @@ pub fn resolve_for_shell<'a>(
     if !errors.is_empty() {
         return Err(NikaError::TemplateError {
             template: errors.join(", "),
-            reason: "Alias(es) not resolved. Did you declare them in 'use:'?".to_string(),
+            reason: "Alias(es) not resolved. Did you declare them in 'with:'?".to_string(),
         });
     }
 
@@ -1118,7 +1181,7 @@ fn is_in_json_context(template: &str, pos: usize) -> bool {
 /// Extract all alias references from a template (for static validation)
 ///
 /// Returns a Vec of (alias, full_path) tuples.
-/// Example: "{{use.weather.temp}}" → vec![("weather", "weather.temp")]
+/// Example: "{{with.weather.temp}}" → vec![("weather", "weather.temp")]
 pub fn extract_refs(template: &str) -> Vec<(String, String)> {
     USE_RE
         .captures_iter(template)
@@ -1153,7 +1216,7 @@ pub fn validate_refs(
 /// Detect deprecated $alias syntax and return error with migration guidance
 ///
 /// The $alias syntax was never officially supported but appeared in some examples.
-/// Only {{use.alias}} is the valid syntax.
+/// Only {{with.alias}} is the valid syntax.
 ///
 /// Returns Ok(()) if no deprecated syntax found, Err with details if found.
 pub fn detect_deprecated_dollar_syntax(template: &str, task_id: &str) -> Result<(), NikaError> {
@@ -1189,10 +1252,10 @@ pub fn detect_deprecated_dollar_syntax(template: &str, task_id: &str) -> Result<
             }
         }
 
-        // Use full path (e.g., $ctx.locale -> {{use.ctx.locale}})
+        // Use full path (e.g., $ctx.locale -> {{with.ctx.locale}})
         return Err(NikaError::DeprecatedSyntax {
             found: full_match.to_string(),
-            suggestion: format!("{{{{use.{}}}}}", identifier),
+            suggestion: format!("{{{{with.{}}}}}", identifier),
             task_id: task_id.to_string(),
         });
     }
@@ -1217,7 +1280,7 @@ mod tests {
         bindings.set("forecast", json!("Sunny 25C"));
         let ds = empty_datastore();
 
-        let result = resolve("Weather: {{use.forecast}}", &bindings, &ds).unwrap();
+        let result = resolve("Weather: {{with.forecast}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Weather: Sunny 25C");
     }
 
@@ -1227,7 +1290,7 @@ mod tests {
         bindings.set("price", json!(89));
         let ds = empty_datastore();
 
-        let result = resolve("Price: ${{use.price}}", &bindings, &ds).unwrap();
+        let result = resolve("Price: ${{with.price}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Price: $89");
     }
 
@@ -1237,7 +1300,7 @@ mod tests {
         bindings.set("flight_info", json!({"departure": "10:30", "gate": "A12"}));
         let ds = empty_datastore();
 
-        let result = resolve("Depart at {{use.flight_info.departure}}", &bindings, &ds).unwrap();
+        let result = resolve("Depart at {{with.flight_info.departure}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Depart at 10:30");
     }
 
@@ -1248,7 +1311,7 @@ mod tests {
         bindings.set("b", json!("second"));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.a}} and {{use.b}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.a}} and {{with.b}}", &bindings, &ds).unwrap();
         assert_eq!(result, "first and second");
     }
 
@@ -1258,7 +1321,7 @@ mod tests {
         bindings.set("data", json!({"x": 1, "y": 2}));
         let ds = empty_datastore();
 
-        let result = resolve("Full: {{use.data}}", &bindings, &ds).unwrap();
+        let result = resolve("Full: {{with.data}}", &bindings, &ds).unwrap();
         // Object is serialized as JSON
         assert!(result.contains("\"x\":1") || result.contains("\"x\": 1"));
     }
@@ -1269,7 +1332,7 @@ mod tests {
         bindings.set("known", json!("value"));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.unknown}}", &bindings, &ds);
+        let result = resolve("{{with.unknown}}", &bindings, &ds);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("unknown"));
     }
@@ -1280,7 +1343,7 @@ mod tests {
         bindings.set("data", json!({"a": 1}));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.data.nonexistent}}", &bindings, &ds);
+        let result = resolve("{{with.data.nonexistent}}", &bindings, &ds);
         assert!(result.is_err());
     }
 
@@ -1299,7 +1362,7 @@ mod tests {
         let mut bindings = ResolvedBindings::new();
         bindings.set("x", json!("value"));
         let ds = empty_datastore();
-        let result = resolve("Has {{use.x}} template", &bindings, &ds).unwrap();
+        let result = resolve("Has {{with.x}} template", &bindings, &ds).unwrap();
         assert_eq!(result, "Has value template");
         // With templates: should be Cow::Owned
         assert!(matches!(result, Cow::Owned(_)));
@@ -1311,7 +1374,7 @@ mod tests {
         bindings.set("items", json!(["first", "second", "third"]));
         let ds = empty_datastore();
 
-        let result = resolve("Item: {{use.items.0}}", &bindings, &ds).unwrap();
+        let result = resolve("Item: {{with.items.0}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Item: first");
     }
 
@@ -1326,7 +1389,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Bracket notation should work like dot notation
-        let result = resolve("Item: {{use.items[0]}}", &bindings, &ds).unwrap();
+        let result = resolve("Item: {{with.items[0]}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Item: first");
     }
 
@@ -1336,7 +1399,7 @@ mod tests {
         bindings.set("items", json!(["first", "second", "third"]));
         let ds = empty_datastore();
 
-        let result = resolve("Item: {{use.items[1]}}", &bindings, &ds).unwrap();
+        let result = resolve("Item: {{with.items[1]}}", &bindings, &ds).unwrap();
         assert_eq!(result, "Item: second");
     }
 
@@ -1353,7 +1416,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Nested object + bracket notation for array
-        let result = resolve("First item: {{use.data.items[0]}}", &bindings, &ds).unwrap();
+        let result = resolve("First item: {{with.data.items[0]}}", &bindings, &ds).unwrap();
         assert_eq!(result, "First item: one");
     }
 
@@ -1367,7 +1430,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Mix of dot and bracket notation
-        let result = resolve("User: {{use.data.users[0].name}}", &bindings, &ds).unwrap();
+        let result = resolve("User: {{with.data.users[0].name}}", &bindings, &ds).unwrap();
         assert_eq!(result, "User: Alice");
     }
 
@@ -1378,7 +1441,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Multiple bracket notations in one template
-        let result = resolve("{{use.items[0]}} and {{use.items[2]}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.items[0]}} and {{with.items[2]}}", &bindings, &ds).unwrap();
         assert_eq!(result, "a and c");
     }
 
@@ -1386,12 +1449,12 @@ mod tests {
     fn normalize_bracket_notation_unit() {
         // Direct test of the normalization function
         assert_eq!(
-            normalize_bracket_notation("{{use.items[0]}}"),
-            "{{use.items.0}}"
+            normalize_bracket_notation("{{with.items[0]}}"),
+            "{{with.items.0}}"
         );
         assert_eq!(
-            normalize_bracket_notation("{{use.data.items[1].name}}"),
-            "{{use.data.items.1.name}}"
+            normalize_bracket_notation("{{with.data.items[1].name}}"),
+            "{{with.data.items.1.name}}"
         );
         assert_eq!(
             normalize_bracket_notation("no brackets here"),
@@ -1399,8 +1462,8 @@ mod tests {
         );
         // Multiple brackets
         assert_eq!(
-            normalize_bracket_notation("{{use.a[0]}} and {{use.b[2]}}"),
-            "{{use.a.0}} and {{use.b.2}}"
+            normalize_bracket_notation("{{with.a[0]}} and {{with.b[2]}}"),
+            "{{with.a.0}} and {{with.b.2}}"
         );
     }
 
@@ -1414,7 +1477,7 @@ mod tests {
         bindings.set("data", json!(null));
         let ds = empty_datastore();
 
-        let result = resolve("Value: {{use.data}}", &bindings, &ds);
+        let result = resolve("Value: {{with.data}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-072"));
@@ -1427,7 +1490,7 @@ mod tests {
         bindings.set("data", json!({"value": null}));
         let ds = empty_datastore();
 
-        let result = resolve("Value: {{use.data.value}}", &bindings, &ds);
+        let result = resolve("Value: {{with.data.value}}", &bindings, &ds);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
@@ -1438,7 +1501,7 @@ mod tests {
         bindings.set("data", json!("just a string"));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.data.field}}", &bindings, &ds);
+        let result = resolve("{{with.data.field}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));
@@ -1451,7 +1514,7 @@ mod tests {
         bindings.set("price", json!(42));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.price.currency}}", &bindings, &ds);
+        let result = resolve("{{with.price.currency}}", &bindings, &ds);
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-073"));
@@ -1464,21 +1527,21 @@ mod tests {
 
     #[test]
     fn extract_refs_simple() {
-        let refs = extract_refs("Hello {{use.weather}}!");
+        let refs = extract_refs("Hello {{with.weather}}!");
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0], ("weather".to_string(), "weather".to_string()));
     }
 
     #[test]
     fn extract_refs_nested() {
-        let refs = extract_refs("{{use.data.field.sub}}");
+        let refs = extract_refs("{{with.data.field.sub}}");
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0], ("data".to_string(), "data.field.sub".to_string()));
     }
 
     #[test]
     fn extract_refs_multiple() {
-        let refs = extract_refs("{{use.a}} and {{use.b.c}}");
+        let refs = extract_refs("{{with.a}} and {{with.b.c}}");
         assert_eq!(refs.len(), 2);
         assert_eq!(refs[0].0, "a");
         assert_eq!(refs[1].0, "b");
@@ -1494,14 +1557,14 @@ mod tests {
     fn validate_refs_success() {
         let declared: FxHashSet<String> =
             ["weather", "price"].iter().map(|s| s.to_string()).collect();
-        let result = validate_refs("{{use.weather}} costs {{use.price}}", &declared, "task1");
+        let result = validate_refs("{{with.weather}} costs {{with.price}}", &declared, "task1");
         assert!(result.is_ok());
     }
 
     #[test]
     fn validate_refs_unknown_alias() {
         let declared: FxHashSet<String> = ["weather"].iter().map(|s| s.to_string()).collect();
-        let result = validate_refs("{{use.weather}} and {{use.unknown}}", &declared, "task1");
+        let result = validate_refs("{{with.weather}} and {{with.unknown}}", &declared, "task1");
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-071"));
@@ -1519,7 +1582,7 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-075"));
         assert!(err.to_string().contains("$msg"));
-        assert!(err.to_string().contains("{{use.msg}}"));
+        assert!(err.to_string().contains("{{with.msg}}"));
     }
 
     #[test]
@@ -1529,7 +1592,7 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-075"));
         assert!(err.to_string().contains("$ctx.locale"));
-        assert!(err.to_string().contains("{{use.ctx.locale}}"));
+        assert!(err.to_string().contains("{{with.ctx.locale}}"));
     }
 
     #[test]
@@ -1538,7 +1601,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("$data.level1.level2"));
-        assert!(err.to_string().contains("{{use.data.level1.level2}}"));
+        assert!(err.to_string().contains("{{with.data.level1.level2}}"));
     }
 
     #[test]
@@ -1577,15 +1640,15 @@ mod tests {
 
     #[test]
     fn deprecated_dollar_valid_mustache_syntax() {
-        // Valid {{use.alias}} syntax should pass
-        let result = detect_deprecated_dollar_syntax("Process: {{use.msg}}", "task1");
+        // Valid {{with.alias}} syntax should pass
+        let result = detect_deprecated_dollar_syntax("Process: {{with.msg}}", "task1");
         assert!(result.is_ok());
     }
 
     #[test]
     fn deprecated_dollar_mixed_valid_and_invalid() {
         // If both valid and invalid syntax present, should catch the invalid one
-        let result = detect_deprecated_dollar_syntax("{{use.valid}} and $invalid", "task1");
+        let result = detect_deprecated_dollar_syntax("{{with.valid}} and $invalid", "task1");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("$invalid"));
     }
@@ -1655,7 +1718,7 @@ mod tests {
         let ds = datastore_with_context();
 
         let result = resolve(
-            "{{use.greeting}}! Brand: {{context.files.brand}}",
+            "{{with.greeting}}! Brand: {{context.files.brand}}",
             &bindings,
             &ds,
         )
@@ -1761,7 +1824,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Using |shell modifier applies shell escaping
-        let result = resolve("echo {{use.msg|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.msg|shell}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo 'hello world'");
     }
 
@@ -1772,7 +1835,7 @@ mod tests {
         let ds = empty_datastore();
 
         // The |shell modifier escapes single quotes correctly
-        let result = resolve("echo {{use.response|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.response|shell}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo 'Hello from Nika'\\''s v0.5.1!'");
     }
 
@@ -1783,7 +1846,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Shell special characters are safely escaped
-        let result = resolve("echo {{use.content|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.content|shell}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo 'Hello; echo pwned'");
     }
 
@@ -1794,7 +1857,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Without |shell modifier, no escaping happens
-        let result = resolve("echo {{use.msg}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.msg}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo hello world");
     }
 
@@ -1807,7 +1870,7 @@ mod tests {
 
         // Multiple bindings with |shell modifier
         let result = resolve(
-            "cat {{use.file|shell}} && echo {{use.content|shell}}",
+            "cat {{with.file|shell}} && echo {{with.content|shell}}",
             &bindings,
             &ds,
         )
@@ -1821,7 +1884,7 @@ mod tests {
         bindings.set("msg", json!("hello world"));
         let ds = empty_datastore();
 
-        let result = resolve_for_shell("echo {{use.msg}}", &bindings, &ds).unwrap();
+        let result = resolve_for_shell("echo {{with.msg}}", &bindings, &ds).unwrap();
         assert_eq!(result, "echo 'hello world'");
     }
 
@@ -1833,7 +1896,7 @@ mod tests {
 
         // resolve_for_shell escapes ALL bindings
         let result =
-            resolve_for_shell("echo 'Claude said: {{use.response}}'", &bindings, &ds).unwrap();
+            resolve_for_shell("echo 'Claude said: {{with.response}}'", &bindings, &ds).unwrap();
         // The output has escaped quotes
         assert_eq!(
             result,
@@ -1861,7 +1924,7 @@ mod tests {
 
         // The command structure is preserved, only the value is escaped
         let result =
-            resolve_for_shell("cat {{use.file}} && echo {{use.content}}", &bindings, &ds).unwrap();
+            resolve_for_shell("cat {{with.file}} && echo {{with.content}}", &bindings, &ds).unwrap();
         assert_eq!(result, "cat 'test.txt' && echo 'Hello; echo pwned'");
     }
 
@@ -1945,7 +2008,7 @@ mod tests {
         let ds = datastore_with_inputs();
 
         let result = resolve(
-            "{{use.greeting}}! Research {{inputs.topic}}",
+            "{{with.greeting}}! Research {{inputs.topic}}",
             &bindings,
             &ds,
         )
@@ -1977,7 +2040,7 @@ mod tests {
         store.set_inputs(inputs);
 
         let result = resolve(
-            "{{use.msg}}: {{context.files.brand}} - {{inputs.topic}}",
+            "{{with.msg}}: {{context.files.brand}} - {{inputs.topic}}",
             &bindings,
             &store,
         )
@@ -2048,7 +2111,7 @@ mod tests {
         bindings.set("secret", json!("TOP_SECRET"));
         let ds = empty_datastore();
 
-        let result = resolve("User said: {{use.user_input}}", &bindings, &ds).unwrap();
+        let result = resolve("User said: {{with.user_input}}", &bindings, &ds).unwrap();
         // The {{use.secret}} should appear literally, NOT expanded
         assert_eq!(result, "User said: {{use.secret}}");
         assert!(!result.contains("TOP_SECRET"));
@@ -2064,7 +2127,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Even with split template markers, no re-evaluation should occur
-        let result = resolve("{{use.left}}{{use.right}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.left}}{{with.right}}", &bindings, &ds).unwrap();
         assert_eq!(result, "{{use.secret}}");
         assert!(!result.contains("LEAKED"));
     }
@@ -2077,7 +2140,7 @@ mod tests {
         let ds = empty_datastore();
 
         // Template is in a JSON context (inside quotes)
-        let template = r#"{"user": "{{use.name}}"}"#;
+        let template = r#"{"user": "{{with.name}}"}"#;
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // The quotes should be escaped with backslash
@@ -2104,7 +2167,7 @@ mod tests {
         bindings.set("path", json!(r#"C:\Users\admin"#));
         let ds = empty_datastore();
 
-        let template = r#"{"path": "{{use.path}}"}"#;
+        let template = r#"{"path": "{{with.path}}"}"#;
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // Backslashes should be escaped
@@ -2122,7 +2185,7 @@ mod tests {
         bindings.set("text", json!("line1\nline2"));
         let ds = empty_datastore();
 
-        let template = r#"{"text": "{{use.text}}"}"#;
+        let template = r#"{"text": "{{with.text}}"}"#;
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // Raw newline should become \n
@@ -2144,7 +2207,7 @@ mod tests {
         bindings.set("filename", json!("file.txt; rm -rf /"));
         let ds = empty_datastore();
 
-        let result = resolve("cat {{use.filename|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("cat {{with.filename|shell}}", &bindings, &ds).unwrap();
         // With |shell, the dangerous command is wrapped in single quotes
         // This makes the semicolon a literal character, not a command separator
         assert_eq!(result, "cat 'file.txt; rm -rf /'");
@@ -2159,7 +2222,7 @@ mod tests {
         bindings.set("input", json!("`whoami`"));
         let ds = empty_datastore();
 
-        let result = resolve("echo {{use.input|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.input|shell}}", &bindings, &ds).unwrap();
         // Backticks safely quoted
         assert_eq!(result, "echo '`whoami`'");
     }
@@ -2171,7 +2234,7 @@ mod tests {
         bindings.set("input", json!("$(cat /etc/passwd)"));
         let ds = empty_datastore();
 
-        let result = resolve("echo {{use.input|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("echo {{with.input|shell}}", &bindings, &ds).unwrap();
         // Dollar-paren safely quoted
         assert_eq!(result, "echo '$(cat /etc/passwd)'");
     }
@@ -2183,7 +2246,7 @@ mod tests {
         bindings.set("input", json!("$HOME/.ssh/id_rsa"));
         let ds = empty_datastore();
 
-        let result = resolve("cat {{use.input|shell}}", &bindings, &ds).unwrap();
+        let result = resolve("cat {{with.input|shell}}", &bindings, &ds).unwrap();
         // $HOME is literal, not expanded
         assert_eq!(result, "cat '$HOME/.ssh/id_rsa'");
     }
@@ -2195,7 +2258,7 @@ mod tests {
         bindings.set("cmd", json!("echo 'pwned'; rm -rf /"));
         let ds = empty_datastore();
 
-        let result = resolve_for_shell("{{use.cmd}}", &bindings, &ds).unwrap();
+        let result = resolve_for_shell("{{with.cmd}}", &bindings, &ds).unwrap();
         // The entire value is shell-escaped using single-quote escaping
         // The embedded single quote in 'pwned' is escaped as '\''
         assert_eq!(result, "'echo '\\''pwned'\\''; rm -rf /'");
@@ -2211,7 +2274,7 @@ mod tests {
         bindings.set("data", json!("a\tb\rc\x0c"));
         let ds = empty_datastore();
 
-        let template = r#"{"data": "{{use.data}}"}"#;
+        let template = r#"{"data": "{{with.data}}"}"#;
         let result = resolve(template, &bindings, &ds).unwrap();
 
         // Control chars should be escaped
@@ -2226,7 +2289,7 @@ mod tests {
         bindings.set("text", json!(r#"\u0000"#)); // Literal backslash-u
         let ds = empty_datastore();
 
-        let result = resolve("Text: {{use.text}}", &bindings, &ds).unwrap();
+        let result = resolve("Text: {{with.text}}", &bindings, &ds).unwrap();
         // Should appear as literal \u0000, not null byte
         assert_eq!(result, r#"Text: \u0000"#);
     }
@@ -2241,7 +2304,7 @@ mod tests {
         bindings.set("normal", json!("safe"));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.normal}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.normal}}", &bindings, &ds).unwrap();
         assert_eq!(result, "safe");
     }
 
@@ -2253,7 +2316,7 @@ mod tests {
         bindings.set("big", json!(long_string.clone()));
         let ds = empty_datastore();
 
-        let result = resolve("Data: {{use.big}}", &bindings, &ds).unwrap();
+        let result = resolve("Data: {{with.big}}", &bindings, &ds).unwrap();
         assert!(result.starts_with("Data: AAAA"));
         assert_eq!(result.len(), 6 + 100_000); // "Data: " + 100k As
     }
@@ -2265,7 +2328,7 @@ mod tests {
         bindings.set("nested", json!({"a": {"b": {"c": {"d": "deep"}}}}));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.nested}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.nested}}", &bindings, &ds).unwrap();
         // Should be serialized JSON, not crash
         assert!(result.contains("deep"));
     }
@@ -2340,7 +2403,7 @@ mod tests {
         store.set_context(context);
 
         // Template only has use binding, but its value contains context syntax
-        let result = resolve("Result: {{use.data}}", &bindings, &store).unwrap();
+        let result = resolve("Result: {{with.data}}", &bindings, &store).unwrap();
         // The context syntax should NOT be evaluated in pass 2
         assert_eq!(result, "Result: {{context.files.secret}}");
         assert!(!result.contains("CONFIDENTIAL"));
@@ -2353,7 +2416,7 @@ mod tests {
         bindings.set("content", json!("<script>alert('xss')</script>"));
         let ds = empty_datastore();
 
-        let result = resolve("{{use.content}}", &bindings, &ds).unwrap();
+        let result = resolve("{{with.content}}", &bindings, &ds).unwrap();
         // NOTE: Template resolution does NOT escape HTML - that's the consumer's job
         // This test documents the behavior: raw HTML passes through
         assert_eq!(result, "<script>alert('xss')</script>");
@@ -2366,7 +2429,7 @@ mod tests {
         bindings.set("query", json!("'; DROP TABLE users; --"));
         let ds = empty_datastore();
 
-        let result = resolve("SELECT * FROM x WHERE name='{{use.query}}'", &bindings, &ds).unwrap();
+        let result = resolve("SELECT * FROM x WHERE name='{{with.query}}'", &bindings, &ds).unwrap();
         // Template resolution does NOT prevent SQL injection - that's the DB layer's job
         // This test documents the behavior
         assert!(result.contains("DROP TABLE"));
@@ -2839,6 +2902,60 @@ mod v028_template_tests {
         let result =
             resolve_with("Hello {{name}} from {{context.files.brand}}", &with, &ds).unwrap();
         assert_eq!(result, "Hello Alice from SuperNovae");
+    }
+
+    // ─── resource exhaustion guard tests ─────────────────────────────────────
+
+    #[test]
+    fn resolve_with_rejects_excessive_template_vars() {
+        let with = make_with(&[("x", json!("v"))]);
+        let ds = empty_datastore();
+        // Build a template with MAX_TEMPLATE_VARS + 1 references
+        let template: String = (0..=MAX_TEMPLATE_VARS)
+            .map(|_| "{{x}}")
+            .collect::<Vec<_>>()
+            .join(" ");
+        let result = resolve_with(&template, &with, &ds);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            format!("{}", err).contains("exceeding the maximum"),
+            "Expected max vars error, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn resolve_with_accepts_many_vars_under_limit() {
+        let with = make_with(&[("x", json!("v"))]);
+        let ds = empty_datastore();
+        // Just under the limit should succeed
+        let template: String = (0..MAX_TEMPLATE_VARS)
+            .map(|_| "{{x}}")
+            .collect::<Vec<_>>()
+            .join(" ");
+        let result = resolve_with(&template, &with, &ds);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn resolve_alias_rejects_excessive_path_depth() {
+        // Build a deeply nested JSON and a path that exceeds MAX_PATH_DEPTH
+        let deep_path = (0..=MAX_PATH_DEPTH)
+            .map(|i| format!("k{}", i))
+            .collect::<Vec<_>>()
+            .join(".");
+        let with = make_with(&[("k0", json!({"k1": {"k2": "deep"}}))]);
+        let ds = empty_datastore();
+        let template = format!("{{{{{}}}}}", deep_path);
+        let result = resolve_with(&template, &with, &ds);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            format!("{}", err).contains("exceeds maximum"),
+            "Expected path depth error, got: {}",
+            err
+        );
     }
 
     // ─── extract_with_refs tests ────────────────────────────────────────────

@@ -620,7 +620,7 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_document_symbols_basic() {
         let text = r#"
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: my-workflow
 
 tasks:
@@ -645,7 +645,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_document_symbols_mcp() {
         let text = r#"
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 mcp:
   servers:
     novanet:
@@ -665,7 +665,7 @@ mcp:
     #[cfg(feature = "lsp")]
     fn test_document_symbols_context() {
         let text = r#"
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 context:
   files:
     brand: ./brand.md
@@ -736,7 +736,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_document_symbols_with_ast_hierarchical() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test-workflow
 
 tasks:
@@ -766,7 +766,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_document_symbols_with_ast_tasks_have_verb_children() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: generate
@@ -806,7 +806,7 @@ tasks:
     fn test_document_symbols_with_ast_fallback() {
         // When AST has no cached document, falls back to text-based
         let text = r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 workflow: fallback-test
 tasks:
   - id: step1

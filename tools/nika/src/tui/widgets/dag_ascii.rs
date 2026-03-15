@@ -86,7 +86,7 @@ impl<'a> DagAscii<'a> {
     /// Set binding labels for edges
     ///
     /// Format: from_id -> [(to_id, binding_label)]
-    /// The binding label (e.g., "{{use.data}}") is shown on the edge.
+    /// The binding label (e.g., "{{with.data}}") is shown on the edge.
     pub fn with_bindings(mut self, bindings: HashMap<String, Vec<(String, String)>>) -> Self {
         self.bindings = bindings;
         self
@@ -507,11 +507,11 @@ mod tests {
         let mut bindings = HashMap::new();
         bindings.insert(
             "generate".to_string(),
-            vec![("process".to_string(), "{{use.data}}".to_string())],
+            vec![("process".to_string(), "{{with.data}}".to_string())],
         );
 
         let mut previews = HashMap::new();
-        previews.insert("{{use.data}}".to_string(), "Hello world...".to_string());
+        previews.insert("{{with.data}}".to_string(), "Hello world...".to_string());
 
         let widget = DagAscii::new(&nodes)
             .with_dependencies(deps)
@@ -716,14 +716,14 @@ mod tests {
         let mut bindings = HashMap::new();
         bindings.insert(
             "a".to_string(),
-            vec![("b".to_string(), "{{use.data}}".to_string())],
+            vec![("b".to_string(), "{{with.data}}".to_string())],
         );
 
         let widget = DagAscii::new(&nodes).with_bindings(bindings);
 
         assert_eq!(
             widget.find_binding("a", "b"),
-            Some(&"{{use.data}}".to_string())
+            Some(&"{{with.data}}".to_string())
         );
         assert_eq!(widget.find_binding("a", "c"), None);
         assert_eq!(widget.find_binding("x", "y"), None);
@@ -734,15 +734,15 @@ mod tests {
         let nodes = vec![NodeBoxData::new("a", VerbColor::Infer)];
 
         let mut previews = HashMap::new();
-        previews.insert("{{use.data}}".to_string(), "preview text".to_string());
+        previews.insert("{{with.data}}".to_string(), "preview text".to_string());
 
         let widget = DagAscii::new(&nodes).with_previews(previews);
 
         assert_eq!(
-            widget.get_preview("{{use.data}}"),
+            widget.get_preview("{{with.data}}"),
             Some(&"preview text".to_string())
         );
-        assert_eq!(widget.get_preview("{{use.other}}"), None);
+        assert_eq!(widget.get_preview("{{with.other}}"), None);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

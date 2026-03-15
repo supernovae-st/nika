@@ -286,7 +286,7 @@ impl WizardState {
 
             let verb_name = self.verb.name();
             self.preview_yaml = format!(
-                r#"schema: "nika/workflow@0.10"
+                r#"schema: "nika/workflow@0.12"
 provider: {}
 {}{}
 tasks:

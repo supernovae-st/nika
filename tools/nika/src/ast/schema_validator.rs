@@ -512,7 +512,7 @@ tasks:
     fn test_valid_decompose_spec_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: expand_entities
     decompose:
@@ -520,7 +520,7 @@ tasks:
       traverse: HAS_CHILD
       source: "$entity"
       max_items: 10
-    infer: "Generate for {{use.item}}"
+    infer: "Generate for {{with.item}}"
 "#;
         let result = validator.validate_yaml(yaml);
         assert!(
@@ -537,14 +537,14 @@ tasks:
     fn test_invalid_decompose_strategy_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: expand_entities
     decompose:
       strategy: invalid_strategy
       traverse: HAS_CHILD
       source: "$entity"
-    infer: "Generate for {{use.item}}"
+    infer: "Generate for {{with.item}}"
 "#;
         let result = validator.validate_yaml(yaml);
         assert!(result.is_err(), "Invalid decompose strategy should fail");

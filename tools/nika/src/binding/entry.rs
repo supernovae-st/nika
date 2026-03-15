@@ -23,10 +23,10 @@ use crate::error::NikaError;
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingType};
 
-/// Wiring spec - map of alias to entry (YAML `use:` block)
+/// Wiring spec - map of alias to entry (YAML `with:` block)
 pub type WiringSpec = FxHashMap<String, UseEntry>;
 
-/// Unified use entry - supports both string and extended object syntax
+/// Unified with entry - supports both string and extended object syntax
 ///
 /// String syntax: `task.path [?? default]`
 /// - path: "task.field.subfield" or "task" for entire output

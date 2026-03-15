@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn test_diagnostics_engine_valid_workflow() {
         let mut engine = DiagnosticsEngine::new();
-        let yaml = r#"schema: nika/workflow@0.10
+        let yaml = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -426,7 +426,7 @@ tasks:
     #[test]
     fn test_diagnostics_engine_duplicate_task() {
         let mut engine = DiagnosticsEngine::new();
-        let yaml = r#"schema: nika/workflow@0.10
+        let yaml = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -444,7 +444,7 @@ tasks:
     #[test]
     fn test_diagnostics_engine_parse_error() {
         let mut engine = DiagnosticsEngine::new();
-        let yaml = "schema: nika/workflow@0.10\ntasks: [unclosed";
+        let yaml = "schema: nika/workflow@0.12\ntasks: [unclosed";
 
         engine.analyze(yaml);
         assert!(engine.has_errors());
@@ -473,7 +473,7 @@ tasks:
     #[test]
     fn test_diagnostics_engine_caching() {
         let mut engine = DiagnosticsEngine::new();
-        let yaml = r#"schema: nika/workflow@0.10
+        let yaml = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1
@@ -489,7 +489,7 @@ tasks:
         assert!(!changed2);
 
         // Different content
-        let changed3 = engine.analyze("schema: nika/workflow@0.10\n");
+        let changed3 = engine.analyze("schema: nika/workflow@0.12\n");
         assert!(changed3);
     }
 
@@ -498,7 +498,7 @@ tasks:
         // This would require multiple diagnostics on the same line
         // which is harder to construct, so we test basic functionality
         let mut engine = DiagnosticsEngine::new();
-        let yaml = r#"schema: nika/workflow@0.10
+        let yaml = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1

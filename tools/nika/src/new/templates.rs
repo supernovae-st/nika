@@ -40,7 +40,7 @@ fn simple_infer(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Simple text generation with LLM"
 
@@ -60,7 +60,7 @@ tasks:
   - id: display
     description: "Display the result"
     with:
-      content: generate
+      content: $generate
     exec:
       command: |
         echo "Generated content:"
@@ -86,7 +86,7 @@ fn simple_exec(name: &str) -> String {
 # Requirements:
 #   - None (no API keys needed)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Shell command invocation workflow"
 
@@ -114,8 +114,8 @@ tasks:
   - id: summary
     description: "Create summary"
     with:
-      info: system_info
-      files: list_files
+      info: $system_info
+      files: $list_files
     exec:
       command: |
         echo "=== Workflow Complete ==="
@@ -141,7 +141,7 @@ fn simple_fetch(name: &str) -> String {
 # Requirements:
 #   - Internet connection
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "HTTP request workflow"
 
@@ -169,8 +169,8 @@ tasks:
   - id: display
     description: "Display results"
     with:
-      zen: get_zen
-      user: get_user
+      zen: $get_zen
+      user: $get_user
     exec:
       command: |
         echo "GitHub Zen: {{{{with.zen}}}}"
@@ -198,7 +198,7 @@ fn api_pipeline(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - Internet connection
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "API data processing pipeline"
 
@@ -224,7 +224,7 @@ tasks:
   - id: analyze
     description: "Analyze fetched data"
     with:
-      posts: fetch_data
+      posts: $fetch_data
     infer:
       prompt: |
         Analyze these blog posts and provide a summary:
@@ -256,7 +256,7 @@ tasks:
   - id: generate_report
     description: "Generate markdown report"
     with:
-      analysis: analyze
+      analysis: $analyze
     infer:
       prompt: |
         Create a brief markdown report based on this analysis:
@@ -291,7 +291,7 @@ fn blog_generator(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Blog content generation pipeline"
 
@@ -351,7 +351,7 @@ tasks:
   - id: outline
     description: "Create article outline"
     with:
-      research: research
+      research: $research
     infer:
       prompt: |
         Based on this research, create a detailed blog post outline:
@@ -375,8 +375,8 @@ tasks:
   - id: write
     description: "Write the article"
     with:
-      research: research
-      outline: outline
+      research: $research
+      outline: $outline
     infer:
       prompt: |
         Write a complete blog post following this outline:
@@ -403,7 +403,7 @@ tasks:
   - id: metadata
     description: "Generate SEO metadata"
     with:
-      article: write
+      article: $write
     infer:
       prompt: |
         Generate SEO metadata for this article:
@@ -452,7 +452,7 @@ fn code_review(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Code review assistant"
 
@@ -483,7 +483,7 @@ tasks:
   - id: analyze
     description: "Analyze code quality"
     with:
-      code: read_code
+      code: $read_code
     infer:
       prompt: |
         Perform a comprehensive code review on this code:
@@ -535,8 +535,8 @@ tasks:
   - id: report
     description: "Generate review report"
     with:
-      analysis: analyze
-      code: read_code
+      analysis: $analyze
+      code: $read_code
     infer:
       prompt: |
         Create a markdown code review report based on:
@@ -572,7 +572,7 @@ fn agent_research(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - PERPLEXITY_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Research agent with MCP web search"
 
@@ -642,7 +642,7 @@ tasks:
   - id: synthesize
     description: "Synthesize findings into report"
     with:
-      research: research
+      research: $research
     infer:
       prompt: |
         Create a summary from this research:
@@ -676,7 +676,7 @@ fn agent_browser(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - Playwright MCP server
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Browser automation agent"
 
@@ -734,7 +734,7 @@ tasks:
   - id: report
     description: "Generate automation report"
     with:
-      result: browse
+      result: $browse
     exec:
       command: |
         echo "=== Browser Automation Report ==="
@@ -764,7 +764,7 @@ fn mcp_integration(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - FIRECRAWL_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "MCP server integration example"
 
@@ -796,7 +796,7 @@ tasks:
   - id: analyze_content
     description: "Analyze scraped content"
     with:
-      page: scrape_page
+      page: $scrape_page
     infer:
       prompt: |
         Analyze this webpage content:
@@ -830,7 +830,7 @@ tasks:
   - id: save_analysis
     description: "Save analysis to file"
     with:
-      analysis: analyze_content
+      analysis: $analyze_content
     invoke:
       server: filesystem
       tool: write_file
@@ -857,7 +857,7 @@ fn multi_provider(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - OPENAI_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Multi-provider LLM workflow"
 
@@ -897,8 +897,8 @@ tasks:
   - id: compare
     description: "Compare responses"
     with:
-      claude: claude_response
-      openai: openai_response
+      claude: $claude_response
+      openai: $openai_response
     infer:
       prompt: |
         Compare these two AI responses:
@@ -938,9 +938,9 @@ tasks:
   - id: final_answer
     description: "Generate synthesized answer"
     with:
-      comparison: compare
-      claude: claude_response
-      openai: openai_response
+      comparison: $compare
+      claude: $claude_response
+      openai: $openai_response
     infer:
       prompt: |
         Create the best possible answer by synthesizing insights from both AI responses:
@@ -973,7 +973,7 @@ fn data_pipeline(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - Internet connection
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "ETL data pipeline with fetch, transform, and load"
 
@@ -1011,7 +1011,7 @@ tasks:
   - id: transform
     description: "Transform and enrich data"
     with:
-      raw_data: extract
+      raw_data: $extract
     infer:
       prompt: |
         Transform this raw data into a clean, enriched format:
@@ -1054,7 +1054,7 @@ tasks:
   - id: load
     description: "Load data to output"
     with:
-      data: transform
+      data: $transform
     exec:
       command: |
         echo "Data pipeline complete!"
@@ -1080,7 +1080,7 @@ fn morning_briefing(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Daily digest with news, weather, and tasks"
 
@@ -1174,9 +1174,9 @@ tasks:
   - id: compile
     description: "Compile morning briefing"
     with:
-      datetime: get_datetime
-      weather: weather
-      news: news
+      datetime: $get_datetime
+      weather: $weather
+      news: $news
     infer:
       prompt: |
         Create a friendly morning briefing email based on:
@@ -1220,7 +1220,7 @@ fn git_changelog(name: &str) -> String {
 #   - ANTHROPIC_API_KEY environment variable
 #   - Git repository
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Git commit analysis and changelog generation"
 
@@ -1269,8 +1269,8 @@ tasks:
   - id: analyze
     description: "Analyze commit patterns"
     with:
-      log: git_log
-      stats: diff_stats
+      log: $git_log
+      stats: $diff_stats
     infer:
       prompt: |
         Analyze these git commits and categorize them:
@@ -1326,7 +1326,7 @@ tasks:
   - id: changelog
     description: "Generate formatted changelog"
     with:
-      analysis: analyze
+      analysis: $analyze
     infer:
       prompt: |
         Generate a professional changelog from this analysis:
@@ -1364,7 +1364,7 @@ fn parallel_translation(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "Multi-language translation with for_each"
 
@@ -1435,7 +1435,7 @@ tasks:
   - id: compile
     description: "Compile translation summary"
     with:
-      translations: translate
+      translations: $translate
     infer:
       prompt: |
         Create a translation summary report from:
@@ -1471,7 +1471,7 @@ fn agent_qa_tester(name: &str) -> String {
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: {name}
 description: "QA testing agent with test generation"
 
@@ -1536,7 +1536,7 @@ tasks:
   - id: generate_tests
     description: "Generate comprehensive test cases"
     with:
-      analysis: analyze_feature
+      analysis: $analyze_feature
     agent:
       prompt: |
         You are a QA Engineer. Generate test cases for this feature:
@@ -1594,8 +1594,8 @@ tasks:
   - id: report
     description: "Generate test report"
     with:
-      analysis: analyze_feature
-      tests: generate_tests
+      analysis: $analyze_feature
+      tests: $generate_tests
     infer:
       prompt: |
         Create a professional QA test plan document:
@@ -1767,7 +1767,7 @@ mod tests {
             let content = generate_template(*template, "test");
             // Basic YAML validation - should contain schema
             assert!(
-                content.contains("schema: \"nika/workflow@0.10\""),
+                content.contains("schema: \"nika/workflow@0.12\""),
                 "Template {} missing schema",
                 template.name()
             );

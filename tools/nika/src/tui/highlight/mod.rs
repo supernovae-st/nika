@@ -89,7 +89,7 @@ pub enum HighlightCapture {
     Verb,
     /// Nika-specific: task IDs
     TaskId,
-    /// Nika-specific: template expressions ({{use.x}})
+    /// Nika-specific: template expressions ({{with.x}})
     Template,
     /// Nika-specific: MCP server names
     McpServer,

@@ -277,7 +277,7 @@ mod tests {
     use super::*;
 
     const SAMPLE_SOURCE: &str =
-        "schema: \"nika/workflow@0.10\"\nworkflow: test\ntasks:\n  - id: foo\n";
+        "schema: \"nika/workflow@0.12\"\nworkflow: test\ntasks:\n  - id: foo\n";
 
     #[test]
     fn test_source_file_line_col() {
@@ -305,7 +305,7 @@ mod tests {
             SAMPLE_SOURCE.to_string(),
         );
 
-        assert_eq!(file.line_text(1), Some("schema: \"nika/workflow@0.10\""));
+        assert_eq!(file.line_text(1), Some("schema: \"nika/workflow@0.12\""));
         assert_eq!(file.line_text(2), Some("workflow: test"));
         assert_eq!(file.line_text(3), Some("tasks:"));
         assert_eq!(file.line_text(4), Some("  - id: foo"));

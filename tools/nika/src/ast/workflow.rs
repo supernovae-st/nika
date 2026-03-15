@@ -241,7 +241,7 @@ pub struct Task {
     /// ```yaml
     /// - id: process
     ///   depends_on: [fetch_data, validate]
-    ///   infer: "Process {{use.data}}"
+    ///   infer: "Process {{with.data}}"
     /// ```
     #[serde(default, alias = "depends_on")]
     pub flow: Option<Vec<String>>,
@@ -294,7 +294,7 @@ impl Task {
                 }
                 return Ok(());
             }
-            // Accept binding expressions (e.g., "{{use.items}}", "$items")
+            // Accept binding expressions (e.g., "{{with.items}}", "$items")
             if let Some(s) = for_each.as_str() {
                 if s.contains("{{") || s.starts_with('$') {
                     return Ok(());
@@ -509,7 +509,7 @@ for_each: ["en-US", "fr-FR", "de-DE"]
 as: locale
 concurrency: 3
 fail_fast: false
-infer: "Generate for {{use.locale}}"
+infer: "Generate for {{with.locale}}"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
 
@@ -524,7 +524,7 @@ infer: "Generate for {{use.locale}}"
         let yaml = r#"
 id: test_task
 for_each: ["a", "b"]
-infer: "Test {{use.item}}"
+infer: "Test {{with.item}}"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
 
@@ -555,7 +555,7 @@ decompose:
   strategy: semantic
   traverse: HAS_CHILD
   source: "$entity"
-infer: "Generate for {{use.item}}"
+infer: "Generate for {{with.item}}"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse task");
 
@@ -594,7 +594,7 @@ infer: "Test"
     fn test_validate_for_each_with_binding_expression_template() {
         let yaml = r#"
 id: test
-for_each: "{{use.items}}"
+for_each: "{{with.items}}"
 infer: "Test"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
@@ -1080,7 +1080,7 @@ infer: "Test"
 id: test
 for_each: ["en-US", "fr-FR"]
 as: locale
-infer: "Generate {{use.locale}}"
+infer: "Generate {{with.locale}}"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
         assert_eq!(task.for_each_var(), "locale");

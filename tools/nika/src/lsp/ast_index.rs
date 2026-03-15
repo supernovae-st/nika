@@ -396,7 +396,7 @@ mod tests {
     fn test_ast_index_parse_simple_workflow() {
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -417,7 +417,7 @@ tasks:
     fn test_ast_index_get_task_names() {
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -439,7 +439,7 @@ tasks:
     fn test_ast_index_invalidate() {
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = "schema: nika/workflow@0.10\n";
+        let text = "schema: nika/workflow@0.12\n";
 
         index.parse_document(&uri, text, 1);
         assert!(index.get(&uri).is_some());
@@ -477,7 +477,7 @@ tasks:
     fn test_get_node_at_position_schema() {
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -494,7 +494,7 @@ tasks:
 
         // Check schema value was parsed correctly
         let schema_value = &cached.raw.as_ref().unwrap().schema.value;
-        assert_eq!(schema_value, "nika/workflow@0.10");
+        assert_eq!(schema_value, "nika/workflow@0.12");
 
         // Note: Position-based lookup for schema may fail due to degenerate spans
         // in marked_yaml (start == end for scalars). This is a known limitation.
@@ -506,7 +506,7 @@ tasks:
     fn test_get_node_at_position_task() {
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:

@@ -66,7 +66,7 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # ├── cwd: working directory
 # ├── timeout: command timeout (seconds)
 # ├── env: environment variables
-# ├── use: bindings between tasks
+# ├── with: bindings between tasks
 # └── flows: task dependencies
 #
 # PREREQUISITES: None! Works out of the box.
@@ -75,7 +75,7 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: exec-basics
 description: "Learn shell command execution - no API keys needed!"
 
@@ -103,9 +103,9 @@ tasks:
   - id: show_system_info
     # Bind outputs from previous tasks
     with:
-      date_result: get_date      # Output of get_date task
-      user_result: get_user      # Output of get_user task
-      files_result: list_files   # Output of list_files task
+      date_result: $get_date      # Output of get_date task
+      user_result: $get_user      # Output of get_user task
+      files_result: $list_files   # Output of list_files task
     # Full form with explicit options
     exec:
       # The command to run
@@ -166,10 +166,10 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────────
   - id: summary
     with:
-      sys_info: show_system_info
-      cwd_demo: with_cwd
-      env_demo: with_env_vars
-      secure: secure_command
+      sys_info: $show_system_info
+      cwd_demo: $with_cwd
+      env_demo: $with_env_vars
+      secure: $secure_command
     exec:
       command: |
         echo ""
@@ -255,7 +255,7 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 # ├── fetch: with POST and json (auto-serialized)
 # ├── headers: custom HTTP headers
 # ├── timeout: request timeout (seconds)
-# └── use: parsing JSON responses
+# └── with: parsing JSON responses
 #
 # PREREQUISITES: None! Uses httpbin.org (free public API)
 #
@@ -263,7 +263,7 @@ pub const WORKFLOW_02_FETCH_HTTP: &str = r##"# ═══════════
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: fetch-http
 description: "Learn HTTP requests - GET, POST, headers, JSON parsing"
 
@@ -308,8 +308,8 @@ tasks:
   - id: post_data
     with:
       # Reference results from previous tasks
-      my_ip: simple_get
-      json_data: get_json
+      my_ip: $simple_get
+      json_data: $get_json
     fetch:
       url: "https://httpbin.org/post"
       method: POST
@@ -359,12 +359,12 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────────
   - id: display_results
     with:
-      ip_result: simple_get
-      json_result: get_json
-      headers_result: get_headers
-      post_result: post_data
-      post_json_result: post_json_auto
-      auth_result: with_auth_header
+      ip_result: $simple_get
+      json_result: $get_json
+      headers_result: $get_headers
+      post_result: $post_data
+      post_json_result: $post_json_auto
+      auth_result: $with_auth_header
     exec:
       command: |
         echo "══════════════════════════════════════════════════════════════"
@@ -492,7 +492,7 @@ pub const WORKFLOW_03_BUILTINS_CORE: &str = r##"# ══════════
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: builtins-core
 description: "Learn Nika's core builtin tools - log, sleep, emit, assert"
 

@@ -183,7 +183,7 @@ fn top_level_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "schema".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("schema: nika/workflow@0.10".to_string()),
+            insert_text: Some("schema: nika/workflow@0.12".to_string()),
             documentation: Some(Documentation::String(
                 "Required. Schema version for this workflow.".to_string(),
             )),
@@ -814,7 +814,7 @@ tasks:
 
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -864,7 +864,7 @@ tasks:
 
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
@@ -897,7 +897,7 @@ tasks:
 
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 mcp:
@@ -955,14 +955,14 @@ tasks:
 
         let index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 
 tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
+    with:
       result:
 "#;
 

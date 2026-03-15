@@ -231,7 +231,7 @@ Describe your project here. This context will be available to agents via `memory
 #           task: summarize
 #           input: "{{with.content}}"
 
-schema: "nika/workflow@0.6"
+schema: "nika/workflow@0.12"
 workflow: helpers
 description: "Reusable helper workflows for common tasks"
 

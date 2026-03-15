@@ -55,7 +55,7 @@ pub const WORKFLOW_21_MORNING_BRIEFING: &str = r##"# ═════════
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: morning-briefing
 description: "Your personalized morning briefing with weather, news, and schedule"
 
@@ -249,7 +249,7 @@ pub const WORKFLOW_22_SOCIAL_MEDIA: &str = r##"# ══════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: social-media-planner
 description: "Generate a week of platform-optimized social media content"
 
@@ -451,7 +451,7 @@ pub const WORKFLOW_23_COMPETITOR_SPY: &str = r##"# ═════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: competitor-analysis
 description: "Automated competitive intelligence and analysis"
 
@@ -669,7 +669,7 @@ pub const WORKFLOW_24_EMAIL_COMPOSER: &str = r##"# ═════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: email-composer
 description: "Compose perfect emails for any situation"
 
@@ -872,7 +872,7 @@ pub const WORKFLOW_25_MEAL_PLANNER: &str = r##"# ══════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: meal-planner
 description: "Plan a week of meals with recipes and grocery list"
 
@@ -1084,7 +1084,7 @@ pub const WORKFLOW_26_TRAVEL_PLANNER: &str = r##"# ═════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: travel-planner
 description: "Create a comprehensive travel itinerary"
 
@@ -1373,7 +1373,7 @@ pub const WORKFLOW_27_PARTY_PLANNER: &str = r##"# ══════════
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: party-planner
 description: "Plan a complete birthday party"
 
@@ -1712,7 +1712,7 @@ pub const WORKFLOW_28_PODCAST_NOTES: &str = r##"# ══════════
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: podcast-show-notes
 description: "Convert podcast transcript to full content package"
 
@@ -2067,7 +2067,7 @@ pub const WORKFLOW_29_PRODUCT_REVIEW: &str = r##"# ═════════�
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: product-review-analyzer
 description: "Analyze reviews to make better buying decisions"
 
@@ -2365,7 +2365,7 @@ pub const WORKFLOW_30_NEWSLETTER: &str = r##"# ═══════════
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: newsletter-curator
 description: "Auto-curate topic newsletters"
 

@@ -60,7 +60,7 @@ pub const WORKFLOW_08_AGENT_BASIC: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: agent-file-explorer
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -278,7 +278,7 @@ pub const WORKFLOW_09_STRUCTURED_OUTPUT: &str = r##"# ╔═══════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: structured-output-artifacts
 
 # ─────────────────────────────────────────────────────────────────────────────────

@@ -1,16 +1,16 @@
 //! Binding Module - Data binding between tasks.
 //!
-//! Handles both `use:` and `with:` block systems for data binding:
+//! Handles `with:` block data binding (also supports legacy `use:`):
 //! - `entry`: YAML types (WiringSpec/UseEntry + WithSpec/WithEntry)
 //! - `resolve`: Runtime resolution (ResolvedBindings) with lazy support
-//! - `template`: Template substitution (`{{use.alias}}` / `{{with.alias}}`)
+//! - `template`: Template substitution (`{{with.alias}}`)
 //! - `jsonpath`: RFC 9535 JSONPath via serde_json_path
 //! - `types`: Core types (BindingPath, BindingSource, PathSegment, BindingType)
 //! - `transform`: 27 built-in transforms with pipe chains
 //!
-//! Unified `use:` syntax (eager resolution):
+//! Unified `with:` syntax (eager resolution):
 //! ```yaml
-//! use:
+//! with:
 //!   forecast: weather.summary           # Simple path
 //!   temp: weather.data.temp ?? 20       # With numeric default
 //!   name: user.name ?? "Anonymous"      # With string default (quoted)
@@ -19,7 +19,7 @@
 //!
 //! Extended syntax for lazy bindings:
 //! ```yaml
-//! use:
+//! with:
 //!   lazy_val:
 //!     path: future.result
 //!     lazy: true                        # Deferred resolution
@@ -31,7 +31,7 @@
 //!
 //! Data flow:
 //! ```text
-//! YAML `use:` block → WiringSpec (entry)
+//! YAML `with:` block → WiringSpec (entry)
 //!                          ↓
 //!                  ┌───────┴───────┐
 //!                  ▼               ▼

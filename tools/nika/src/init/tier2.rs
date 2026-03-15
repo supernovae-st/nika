@@ -60,7 +60,7 @@ pub const WORKFLOW_04_INFER_BASICS: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: infer-basics
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ pub const WORKFLOW_05_DAG_PATTERNS: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: dag-patterns-masterclass
 
 tasks:
@@ -535,7 +535,7 @@ pub const WORKFLOW_06_PARALLEL_FOREACH: &str = r##"# ╔════════
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: parallel-foreach-localization
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -748,7 +748,7 @@ pub const WORKFLOW_07_CONTEXT_INCLUDE: &str = r##"# ╔════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: context-include-demo
 
 # ═══════════════════════════════════════════════════════════════════════════════

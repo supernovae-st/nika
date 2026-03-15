@@ -127,7 +127,7 @@ mod tests {
         for i in 0..55 {
             agent.add_template_resolution(TemplateResolution {
                 task_id: format!("task_{}", i),
-                template: "{{use.x}}".to_string(),
+                template: "{{with.x}}".to_string(),
                 result: "value".to_string(),
                 timestamp_ms: i as u64,
             });

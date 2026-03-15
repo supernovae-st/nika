@@ -66,9 +66,9 @@ pub fn compute_hover_with_ast(
             // Provide task-specific documentation
             let docs = format!(
                 "## Task: `{}`\n\n\
-                Task identifier used in `use:` bindings and `flows:`.\n\n\
+                Task identifier used in `with:` bindings and `flows:`.\n\n\
                 ```yaml\n\
-                use:\n  result: {}\n\
+                with:\n  result: ${}\n\
                 ```",
                 task_id, task_id
             );
@@ -562,9 +562,9 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         "## `schema:` - Workflow Schema Version\n\n\
         Declares the Nika workflow schema version.\n\n\
         ```yaml\n\
-        schema: nika/workflow@0.10\n\
+        schema: nika/workflow@0.12\n\
         ```\n\n\
-        **Current version:** `@0.10` (Two-Phase AST)",
+        **Current version:** `@0.12`",
     ),
     (
         "workflow",
@@ -584,7 +584,7 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
             infer: \"Generate content\"\n\
           - id: step2\n\
             with:\n\
-              input: step1\n\
+              input: $step1\n\
             infer: \"Process: {{with.input}}\"\n\
         ```",
     ),
@@ -613,7 +613,7 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         Binds outputs from other tasks to local aliases.\n\n\
         ```yaml\n\
         with:\n\
-          result: step1        # Bind step1's output\n\
+          result: $step1       # Bind step1's output\n\
           lazy_val:            # Lazy binding\n\
             path: future_task\n\
             lazy: true\n\
@@ -701,7 +701,7 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_field_hover() {
-        let hover = check_field_hover("schema: nika/workflow@0.10", 0);
+        let hover = check_field_hover("schema: nika/workflow@0.12", 0);
         assert!(hover.is_some());
         let h = hover.unwrap();
         if let HoverContents::Markup(m) = h.contents {
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_template_hover() {
-        let hover = check_template_hover("  prompt: \"Process {{use.result}}\"", 22);
+        let hover = check_template_hover("  prompt: \"Process {{with.result}}\"", 22);
         assert!(hover.is_some());
         let h = hover.unwrap();
         if let HoverContents::Markup(m) = h.contents {
@@ -755,7 +755,7 @@ mod tests {
     fn test_compute_hover_with_ast_within_task() {
         let ast_index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1
@@ -826,7 +826,7 @@ tasks:
     fn test_compute_hover_with_ast_task() {
         let ast_index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: my_task
@@ -861,7 +861,7 @@ tasks:
     fn test_compute_hover_with_ast_fallback() {
         let ast_index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let text = r#"schema: nika/workflow@0.10
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1

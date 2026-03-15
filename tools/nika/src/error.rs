@@ -914,7 +914,7 @@ impl FixSuggestion for NikaError {
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
             NikaError::BindingError { .. } => Some("Check binding syntax and source task output"),
-            NikaError::TemplateError { .. } => Some("Use {{use.alias}} format with use: block"),
+            NikaError::TemplateError { .. } => Some("Use {{with.alias}} format with with: block"),
             NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
             NikaError::TaskNotFound { .. } => {
                 Some("Verify task_id exists and has run successfully")
@@ -932,9 +932,9 @@ impl FixSuggestion for NikaError {
             NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON"),
             NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
             NikaError::SerializationError { .. } => Some("Check data structure is serializable"),
-            NikaError::DuplicateAlias { .. } => Some("Use unique alias names in use: block"),
+            NikaError::DuplicateAlias { .. } => Some("Use unique alias names in with: block"),
             NikaError::UnknownAlias { .. } => {
-                Some("Declare the alias in use: block before referencing")
+                Some("Declare the alias in with: block before referencing")
             }
             NikaError::NullValue { .. } => {
                 Some("Provide a default value or ensure non-null output")
@@ -942,7 +942,7 @@ impl FixSuggestion for NikaError {
             NikaError::InvalidTraversal { .. } => {
                 Some("Check the path - accessing field on non-object")
             }
-            NikaError::TemplateParse { .. } => Some("Check template syntax: {{use.alias}}"),
+            NikaError::TemplateParse { .. } => Some("Check template syntax: {{with.alias}}"),
             NikaError::DeprecatedSyntax { suggestion, .. } => Some(suggestion.as_str()),
             NikaError::UseUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
             NikaError::UseNotUpstream { .. } => {
@@ -990,7 +990,7 @@ impl FixSuggestion for NikaError {
             NikaError::McpSchemaError { .. } => Some("Check MCP server's tool schema definitions"),
             // Binding errors (decompose)
             NikaError::BindingNotFound { .. } => {
-                Some("Verify the binding alias exists in use: block or task outputs")
+                Some("Verify the binding alias exists in with: block or task outputs")
             }
             NikaError::BindingTypeMismatch { .. } => {
                 Some("Check binding value type matches expected type")
@@ -1361,8 +1361,8 @@ mod tests {
     #[test]
     fn test_template_error_with_path() {
         let err = NikaError::TemplateError {
-            template: "{{use.result}}".to_string(),
-            reason: "alias not in use block".to_string(),
+            template: "{{with.result}}".to_string(),
+            reason: "alias not in with block".to_string(),
         };
         assert_eq!(err.code(), "NIKA-041");
         let msg = err.to_string();

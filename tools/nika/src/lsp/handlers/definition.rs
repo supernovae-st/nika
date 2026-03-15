@@ -456,8 +456,8 @@ tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
-      input: step1
+    with:
+      input: $step1
     infer: "World"
 "#;
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
@@ -542,14 +542,14 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_definition_with_ast_task_reference() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
-      input: step1
+    with:
+      input: $step1
     infer: "World"
 "#;
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
@@ -571,7 +571,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_task_location_with_ast_uses_spans() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: generate
@@ -619,7 +619,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_template_definition_with_ast_dollar_syntax() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: data
@@ -645,7 +645,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_definition_with_ast_no_match() {
-        let text = r#"schema: nika/workflow@0.9
+        let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: step1

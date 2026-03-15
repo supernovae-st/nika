@@ -2744,7 +2744,7 @@ mod tests {
         let mut view = YamlEditorPanel::new();
 
         // Valid Nika workflow YAML
-        let valid_yaml = r#"schema: "nika/workflow@0.5"
+        let valid_yaml = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello world""#;
@@ -2762,7 +2762,7 @@ tasks:
         let mut view = YamlEditorPanel::new();
 
         // Invalid Nika workflow - missing required 'tasks' field
-        let invalid_yaml = r#"schema: "nika/workflow@0.5"
+        let invalid_yaml = r#"schema: "nika/workflow@0.12"
 unknown_field: "should fail""#;
 
         view.buffer = TextBuffer::from_content(invalid_yaml);

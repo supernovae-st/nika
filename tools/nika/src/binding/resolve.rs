@@ -1,9 +1,9 @@
 //! Resolved Bindings - runtime value resolution
 //!
-//! ResolvedBindings holds resolved values from `use:` / `with:` blocks for template resolution.
+//! ResolvedBindings holds resolved values from `with:` blocks for template resolution.
 //! Supports both eager (immediate) and lazy (deferred) resolution.
 //!
-//! ## Old system (use:) — WiringSpec + UseEntry
+//! ## Legacy system (use:) — WiringSpec + UseEntry
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //! Extended syntax: `alias: {path: task.path, lazy: true}`
@@ -93,7 +93,7 @@ impl LazyBinding {
     }
 }
 
-/// Resolved bindings from use:/with: block (alias -> value or pending)
+/// Resolved bindings from with: block (alias -> value or pending)
 ///
 /// Uses FxHashMap for faster hashing on small string keys.
 /// Supports both eager and lazy bindings.

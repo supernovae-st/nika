@@ -147,7 +147,7 @@ mod tests {
     fn test_insert_and_get() {
         let mut store = DocumentStore::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let content = "schema: nika/workflow@0.9".to_string();
+        let content = "schema: nika/workflow@0.12".to_string();
 
         store.insert(uri.clone(), content.clone());
 

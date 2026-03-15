@@ -29,6 +29,16 @@ use crate::util::{EXEC_TIMEOUT, INVOKE_TASK_DEADLINE};
 
 use super::TaskExecutor;
 
+/// Estimate token count from character length using ceiling division.
+///
+/// Uses ~4 chars/token heuristic. Ceiling division ensures non-empty strings
+/// always produce at least 1 token (fixes off-by-one where `len / 4 == 0`
+/// for strings shorter than 4 characters).
+#[inline]
+fn estimate_tokens(char_len: usize) -> u32 {
+    char_len.div_ceil(4) as u32
+}
+
 impl TaskExecutor {
     pub(super) async fn run_infer(
         &self,
@@ -75,12 +85,12 @@ impl TaskExecutor {
                 obj.iter()
                     .map(|(alias, value)| ContextSource {
                         node: alias.clone(),
-                        tokens: (value.to_string().len() / 4) as u32, // Rough estimate: ~4 chars/token
+                        tokens: estimate_tokens(value.to_string().len()),
                     })
                     .collect()
             })
             .unwrap_or_default();
-        let total_tokens = (prompt.len() / 4) as u32;
+        let total_tokens = estimate_tokens(prompt.len());
 
         self.event_log.emit(EventKind::ContextAssembled {
             task_id: Arc::clone(task_id),
@@ -132,8 +142,8 @@ impl TaskExecutor {
             self.event_log.emit(EventKind::ProviderResponded {
                 task_id: Arc::clone(task_id),
                 request_id: Some("mock-request".to_string()),
-                input_tokens: prompt.len() as u32 / 4,
-                output_tokens: mock_response_str.len() as u32 / 4,
+                input_tokens: estimate_tokens(prompt.len()),
+                output_tokens: estimate_tokens(mock_response_str.len()),
                 cache_read_tokens: 0,
                 ttft_ms: Some(0),
                 finish_reason: "mock".to_string(),
@@ -160,7 +170,7 @@ impl TaskExecutor {
 
         // POLICY CHECK: token budget
         // Estimate tokens for budget check (actual usage tracked after call)
-        let estimated_tokens = (prompt.len() / 4) as u64; // ~4 chars per token
+        let estimated_tokens = estimate_tokens(prompt.len()) as u64;
         {
             let policy = self.policy_enforcer.read();
             let decision = policy.check_token_spend(estimated_tokens);
@@ -819,13 +829,10 @@ impl TaskExecutor {
         // POLICY CHECK: token budget
         // Estimate tokens for budget check - use token_budget from agent params if set,
         // otherwise estimate from prompt length
-        let estimated_tokens: u64 =
-            resolved_agent
-                .token_budget
-                .map(u64::from)
-                .unwrap_or_else(|| {
-                    (resolved_agent.prompt.len() / 4) as u64 // ~4 chars per token
-                });
+        let estimated_tokens: u64 = resolved_agent
+            .token_budget
+            .map(u64::from)
+            .unwrap_or_else(|| estimate_tokens(resolved_agent.prompt.len()) as u64);
         {
             let policy = self.policy_enforcer.read();
             let decision = policy.check_token_spend(estimated_tokens);

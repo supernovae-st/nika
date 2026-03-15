@@ -85,7 +85,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_extract_task_ids_no_tasks() {
-        let text = "schema: nika/workflow@0.10\nworkflow: test\n";
+        let text = "schema: nika/workflow@0.12\nworkflow: test\n";
         let ids = extract_task_ids(text);
         assert!(ids.is_empty());
     }

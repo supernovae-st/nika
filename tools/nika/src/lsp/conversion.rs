@@ -18,7 +18,7 @@ use crate::source::Span;
 ///
 /// ```ignore
 /// let span = Span { start: 8, end: 25, file_id: FileId(0) };
-/// let range = span_to_range(&span, "schema: nika/workflow@0.9\ntasks:");
+/// let range = span_to_range(&span, "schema: nika/workflow@0.12\ntasks:");
 /// assert_eq!(range.start.line, 0);
 /// assert_eq!(range.start.character, 8);
 /// ```
@@ -176,13 +176,13 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_span_to_range() {
-        let source = "schema: nika/workflow@0.9\ntasks:";
-        let span = Span::new(FileId(0), 8, 25);
+        let source = "schema: nika/workflow@0.12\ntasks:";
+        let span = Span::new(FileId(0), 8, 26);
         let range = span_to_range(&span, source);
         assert_eq!(range.start.line, 0);
         assert_eq!(range.start.character, 8);
         assert_eq!(range.end.line, 0);
-        assert_eq!(range.end.character, 25);
+        assert_eq!(range.end.character, 26);
     }
 
     #[test]
@@ -260,8 +260,8 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_roundtrip_offset_position() {
-        let source = "schema: nika/workflow@0.9\ntasks:\n  - id: step1";
-        for offset in [0, 5, 10, 26, 35, 45] {
+        let source = "schema: nika/workflow@0.12\ntasks:\n  - id: step1";
+        for offset in [0, 5, 10, 27, 36, 46] {
             if offset <= source.len() {
                 let pos = offset_to_position(offset, source);
                 let back = position_to_offset(pos, source);
