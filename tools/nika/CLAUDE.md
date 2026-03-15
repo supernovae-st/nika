@@ -15,7 +15,7 @@ tools/nika/src/
 ├── error.rs          # NikaError with codes (40+ variants)
 ├── core/             # Zero-dep definitions
 │   ├── providers.rs  # KNOWN_PROVIDERS (18: 6 LLM + 11 MCP + 1 Local)
-│   ├── models.rs     # KNOWN_MODELS (16 curated for native inference)
+│   ├── models.rs     # KNOWN_MODELS (15 curated for native inference)
 │   └── mcp_aliases.rs # MCP_ALIASES (48 server shortcuts)
 ├── ast/              # Three-phase YAML parsing
 │   ├── raw/          # Phase 1: YAML → Raw AST (spans preserved)
