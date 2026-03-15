@@ -605,7 +605,7 @@ fn create_expand_exec_action(line: &str, line_num: u32, uri: &Url) -> Option<Cod
     }))
 }
 
-/// Create action to add use: block
+/// Create action to add with: block for data binding
 #[cfg(feature = "lsp")]
 fn create_add_use_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand {
     let edit = TextEdit {
@@ -619,14 +619,14 @@ fn create_add_use_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand 
                 character: 0,
             },
         },
-        new_text: "    use:\n      input: $previous_task\n".to_string(),
+        new_text: "    with:\n      input: $previous_task\n".to_string(),
     };
 
     let mut changes = std::collections::HashMap::new();
     changes.insert(uri.clone(), vec![edit]);
 
     CodeActionOrCommand::CodeAction(CodeAction {
-        title: "Add use: block for data binding".to_string(),
+        title: "Add with: block for data binding".to_string(),
         kind: Some(CodeActionKind::REFACTOR),
         diagnostics: None,
         edit: Some(WorkspaceEdit {
