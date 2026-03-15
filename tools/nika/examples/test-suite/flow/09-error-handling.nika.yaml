@@ -1,16 +1,17 @@
 # Test: flow/09-error-handling
-# Tests: Error handling in DAG execution
-# Expected: Errors are handled, dependent tasks skip
+# Tests: DAG with error-handling-style dependencies
+# Expected: All tasks succeed (no actual error triggered)
+# Note: This tests DAG parsing only — the "risky" task always succeeds
 
 schema: "nika/workflow@0.12"
 workflow: test-flow-error-handling
-description: "Test error handling in flow"
+description: "Test error-handling DAG shape (parse only)"
 
 provider: claude
 
 tasks:
   - id: risky_task
-    description: "Task that might fail"
+    description: "Task labeled risky (always succeeds)"
     exec: "echo 'Risky operation'"
 
   - id: dependent_task

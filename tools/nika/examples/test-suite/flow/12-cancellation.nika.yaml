@@ -1,16 +1,17 @@
 # Test: flow/12-cancellation
-# Tests: Task cancellation with fail_fast
-# Expected: First failure cancels remaining tasks
+# Tests: for_each with fail_fast flag (parse validation)
+# Expected: All items succeed — fail_fast never triggers
+# Note: To test actual cancellation, an item must fail (e.g., exec: "exit 1")
 
 schema: "nika/workflow@0.12"
 workflow: test-flow-cancellation
-description: "Test fail_fast cancellation"
+description: "Test fail_fast parsing (all items succeed)"
 
 provider: claude
 
 tasks:
   - id: parallel_with_failure
-    description: "Parallel tasks where one fails"
+    description: "Parallel tasks (all succeed — fail_fast not exercised)"
     for_each: ["success1", "success2", "success3"]
     as: item
     concurrency: 3

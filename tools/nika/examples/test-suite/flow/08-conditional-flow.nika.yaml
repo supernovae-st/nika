@@ -1,10 +1,11 @@
 # Test: flow/08-conditional-flow
-# Tests: Conditional execution based on task results
-# Expected: Flow continues based on conditions
+# Tests: DAG ordering with conditional-style data flow
+# Expected: Tasks execute in correct dependency order
+# Note: This tests DAG parsing only — no runtime conditional logic
 
 schema: "nika/workflow@0.12"
 workflow: test-flow-conditional
-description: "Test conditional flow execution"
+description: "Test conditional-style DAG ordering (parse only)"
 
 provider: claude
 
@@ -14,7 +15,7 @@ tasks:
     exec: "echo 'true'"
 
   - id: on_true
-    description: "Execute if true"
+    description: "Execute after check (always runs — no actual conditional)"
     with:
       result: check_condition
     exec: "echo 'Condition was true'"
