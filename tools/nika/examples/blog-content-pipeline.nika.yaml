@@ -18,7 +18,7 @@
 #   - FIRECRAWL_API_KEY
 #   - NEWSAPI_KEY (optional)
 
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 workflow: blog-content-pipeline
 description: "Enterprise blog content generation pipeline with multi-platform support"
 
@@ -167,10 +167,10 @@ tasks:
   - id: research_topics
     description: "Deep research on selected topic"
     with:
-      calendar: check_calendar
-      trends: get_trends
-      web_trends: web_search
-      competitor_insights: scrape_competitors
+      calendar: $check_calendar
+      trends: $get_trends
+      web_trends: $web_search
+      competitor_insights: $scrape_competitors
     agent:
       prompt: |
         Based on these inputs, select the BEST blog topic:
@@ -231,7 +231,7 @@ tasks:
   - id: generate_outline
     description: "Generate detailed article outline"
     with:
-      research: research_topics
+      research: $research_topics
     infer:
       prompt: |
         Create a detailed blog post outline based on this research:
@@ -259,8 +259,8 @@ tasks:
   - id: generate_metadata
     description: "Generate SEO metadata"
     with:
-      research: research_topics
-      outline: generate_outline
+      research: $research_topics
+      outline: $generate_outline
     infer:
       prompt: |
         Based on research and outline, generate SEO metadata:
@@ -310,9 +310,9 @@ tasks:
   - id: write_article
     description: "Multi-turn agent writes article with refinement"
     with:
-      research: research_topics
-      outline: generate_outline
-      metadata: generate_metadata
+      research: $research_topics
+      outline: $generate_outline
+      metadata: $generate_metadata
     agent:
       prompt: |
         You are an expert technical content writer.
@@ -355,8 +355,8 @@ tasks:
   - id: render_platforms
     description: "Adapt article for different platforms"
     with:
-      article: write_article
-      metadata: generate_metadata
+      article: $write_article
+      metadata: $generate_metadata
     for_each:
       - name: blog
         format: markdown
@@ -398,9 +398,9 @@ tasks:
   - id: validate_content
     description: "Validate content quality and SEO"
     with:
-      article: write_article
-      platforms: render_platforms
-      metadata: generate_metadata
+      article: $write_article
+      platforms: $render_platforms
+      metadata: $generate_metadata
     infer:
       prompt: |
         Perform comprehensive quality check:
@@ -462,9 +462,9 @@ tasks:
   - id: prepare_publication
     description: "Prepare final publication package"
     with:
-      article: write_article
-      metadata: generate_metadata
-      validation: validate_content
+      article: $write_article
+      metadata: $generate_metadata
+      validation: $validate_content
     infer:
       prompt: |
         Create final publication package summary:
@@ -486,8 +486,8 @@ tasks:
   - id: save_and_notify
     description: "Save content and generate report"
     with:
-      package: prepare_publication
-      validation: validate_content
+      package: $prepare_publication
+      validation: $validate_content
     exec: |
       echo "=== BLOG CONTENT PIPELINE COMPLETE ==="
       echo "Quality Score: {{with.validation.overall_score}}/100"

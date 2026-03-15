@@ -7,7 +7,7 @@
 # Run from nika tools directory:
 #   cd tools/nika && cargo run -- run examples/test-invoke-file-tools.nika.yaml
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-invoke-file-tools
 description: "Verify file tools work in invoke: tasks"
 
@@ -23,7 +23,7 @@ tasks:
   # Test 2: Write a file via invoke: (NOT agent:)
   - id: write_via_invoke
     with:
-      file_path: get_paths
+      file_path: $get_paths
     invoke:
       tool: nika:write
       params:
@@ -33,7 +33,7 @@ tasks:
   # Test 3: Read the file back via invoke:
   - id: read_via_invoke
     with:
-      file_path: get_paths
+      file_path: $get_paths
     invoke:
       tool: nika:read
       params:
@@ -48,7 +48,7 @@ tasks:
   # Test 5: Actually run the glob
   - id: glob_result
     with:
-      dir: glob_via_invoke
+      dir: $glob_via_invoke
     invoke:
       tool: nika:glob
       params:
@@ -58,8 +58,8 @@ tasks:
   # Test 6: Log the result
   - id: log_result
     with:
-      content: read_via_invoke
-      files: glob_result
+      content: $read_via_invoke
+      files: $glob_result
     invoke:
       tool: nika:log
       params:

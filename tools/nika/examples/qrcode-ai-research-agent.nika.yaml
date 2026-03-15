@@ -16,7 +16,7 @@
 #   - NovaNet MCP server running
 #   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: qrcode-ai-research-agent
 description: "AI-driven research agent for QR Code AI content strategy"
 
@@ -124,7 +124,7 @@ tasks:
   - id: generate_brief
     description: "Generate content strategy brief"
     with:
-      research: research_orchestrator
+      research: $research_orchestrator
     infer:
       prompt: |
         Based on this research analysis:
@@ -160,7 +160,7 @@ tasks:
   - id: output_summary
     description: "Output generation summary"
     with:
-      brief: generate_brief
+      brief: $generate_brief
     exec: |
       echo "=== Content Strategy Brief Generated ==="
       echo "Output: ./research/{{date}}/content-strategy-brief.md"

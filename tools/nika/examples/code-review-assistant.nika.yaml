@@ -20,7 +20,7 @@
 #   - GITHUB_TOKEN (optional)
 #   - FIRECRAWL_API_KEY (optional)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: code-review-assistant
 description: "Comprehensive code review with parallel file analysis"
 
@@ -100,7 +100,7 @@ tasks:
   - id: pr_context_text
     description: "Generate PR context summary"
     with:
-      pr_meta: pr_metadata
+      pr_meta: $pr_metadata
     infer:
       prompt: |
         Based on this PR metadata (or use placeholder if not available):
@@ -134,7 +134,7 @@ tasks:
   - id: parse_files
     description: "Parse changed files list into array"
     with:
-      file_list: changed_files
+      file_list: $changed_files
     infer:
       prompt: |
         Parse this list of changed files into a JSON array of file paths:
@@ -148,9 +148,9 @@ tasks:
   - id: file_reviews
     description: "Review each file in parallel"
     with:
-      files: parse_files
-      diff: full_diff
-      docs: documentation_refs
+      files: $parse_files
+      diff: $full_diff
+      docs: $documentation_refs
     for_each: "{{with.files}}"
     as: filepath
     concurrency: 5
@@ -189,11 +189,11 @@ tasks:
   - id: comprehensive_review
     description: "Agent-driven comprehensive review"
     with:
-      files_reviewed: file_reviews
-      diff_stats: diff_stats
-      commits: commit_history
-      pr_context: pr_context_text
-      full_diff: full_diff
+      files_reviewed: $file_reviews
+      diff_stats: $diff_stats
+      commits: $commit_history
+      pr_context: $pr_context_text
+      full_diff: $full_diff
     catch:
       - on: timeout
         then:
@@ -287,9 +287,9 @@ tasks:
   - id: review_report
     description: "Generate final review report"
     with:
-      comprehensive: comprehensive_review
-      files: parse_files
-      diff_info: diff_stats
+      comprehensive: $comprehensive_review
+      files: $parse_files
+      diff_info: $diff_stats
     exec: |
       cat << 'EOF'
       ================================================================================

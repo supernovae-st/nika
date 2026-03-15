@@ -1,7 +1,7 @@
 # Test: Binding chain with implicit output syntax ($task)
 # Purpose: Verify $step1 → step2 → $step2.result chains work correctly
 # Features tested: implicit output ($task), nested field access ($task.field), default values (??)
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 provider: mock
 
@@ -19,7 +19,7 @@ tasks:
   # Step 3: Chain with explicit syntax for comparison
   - id: validate_data
     with:
-      processed: process_data  # Explicit syntax (no $)
+      processed: $process_data  # Explicit syntax (now requires $)
     infer: "Validate: {{with.processed}}"
 
   # Step 4: Use implicit syntax with nested field access
@@ -27,7 +27,7 @@ tasks:
     with:
       # Both syntaxes should produce equivalent results
       implicit_ref: $validate_data
-      explicit_ref: validate_data
+      explicit_ref: $validate_data
     infer: |
       Compare references:
       Implicit: {{with.implicit_ref}}

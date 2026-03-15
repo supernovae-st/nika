@@ -4,7 +4,7 @@
 # The `$task` prefix is syntactic sugar that normalizes to `task` during parsing.
 # Both forms are equivalent - use whichever reads better in context.
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 provider: mock
 
@@ -23,7 +23,7 @@ tasks:
   - id: create_outline
     with:
       title: $generate_title      # Implicit syntax
-      expanded: expand_title      # Explicit syntax (no $)
+      expanded: $expand_title      # Both forms now require $
     infer: |
       Create an outline for:
       Title: {{with.title}}

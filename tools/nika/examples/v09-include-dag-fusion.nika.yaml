@@ -14,7 +14,7 @@
 # Run with: cargo run -- run examples/v09-include-dag-fusion.nika.yaml
 # ============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: content-with-seo
 description: "Content generation with included SEO tasks"
 
@@ -76,7 +76,7 @@ tasks:
         {{with.content}}
       response_format: json
     with:
-      content: generate_content
+      content: $generate_content
     output:
       format: json
       max_retries: 3
@@ -104,9 +104,9 @@ tasks:
   - id: assemble_page
     description: "Assemble final page with SEO elements"
     with:
-      seo_title: seo_generate_title
-      seo_meta: seo_generate_meta
-      content: generate_content
+      seo_title: $seo_generate_title
+      seo_meta: $seo_generate_meta
+      content: $generate_content
     infer: |
       Assemble a complete HTML page with:
 

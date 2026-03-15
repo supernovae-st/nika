@@ -9,7 +9,7 @@
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: production-test-suite
 description: "Test all 5 Nika verbs with real API calls"
 
@@ -49,8 +49,8 @@ tasks:
   - id: test_infer_claude
     description: "Test infer verb with Claude API"
     with:
-      exec_result: test_exec
-      fetch_result: test_fetch
+      exec_result: $test_exec
+      fetch_result: $test_fetch
     infer:
       prompt: |
         You are being tested. Respond with EXACTLY this JSON and nothing else:
@@ -92,7 +92,7 @@ tasks:
   - id: test_agent
     description: "Test agent verb with multi-turn reasoning"
     with:
-      previous_tests: test_infer_claude
+      previous_tests: $test_infer_claude
     agent:
       prompt: |
         You are a test agent. Do exactly this:
@@ -122,11 +122,11 @@ tasks:
   - id: final_report
     description: "Generate test report"
     with:
-      exec: test_exec
-      fetch: test_fetch
-      infer: test_infer_claude
-      for_each: test_for_each
-      agent: test_agent
+      exec: $test_exec
+      fetch: $test_fetch
+      infer: $test_infer_claude
+      for_each: $test_for_each
+      agent: $test_agent
     exec: |
       echo "=== PRODUCTION TEST SUITE COMPLETE ==="
       echo "All 5 verbs tested successfully with REAL APIs"

@@ -11,7 +11,7 @@
 #   - NovaNet MCP server running (cargo run in tools/novanet-mcp)
 #   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: invoke-novanet
 description: "Direct MCP tool invocation pipeline"
 
@@ -46,7 +46,7 @@ tasks:
   - id: entity_context
     description: "Assemble context for QR Code entity"
     with:
-      graph_schema: schema
+      graph_schema: $schema
     invoke:
       server: novanet
       tool: novanet_assemble
@@ -64,7 +64,7 @@ tasks:
   - id: traverse_native
     description: "Traverse to native content"
     with:
-      ctx: entity_context
+      ctx: $entity_context
     invoke:
       server: novanet
       tool: novanet_traverse
@@ -81,8 +81,8 @@ tasks:
   - id: generate_content
     description: "Generate hero content from context"
     with:
-      ctx: entity_context
-      native: traverse_native
+      ctx: $entity_context
+      native: $traverse_native
     infer:
       prompt: |
         Generate a compelling product description for the hero section.

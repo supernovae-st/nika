@@ -13,7 +13,7 @@
 #   - PERPLEXITY_API_KEY
 #   - FIRECRAWL_API_KEY
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: brainstorm-agent
 description: "Research-driven brainstorming with web search and content analysis"
 
@@ -106,7 +106,7 @@ tasks:
   - id: brainstorm
     description: "Generate ideas based on research"
     with:
-      research: research
+      research: $research
     infer:
       prompt: |
         Based on the following research brief, generate creative ideas.
@@ -176,7 +176,7 @@ tasks:
   - id: refine
     description: "Deep dive on top idea"
     with:
-      ideas: brainstorm
+      ideas: $brainstorm
     infer:
       prompt: |
         Take the #1 ranked idea from the brainstorm and develop it further.

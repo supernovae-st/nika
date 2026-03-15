@@ -7,7 +7,7 @@
 #
 # The test uses absolute paths constructed at runtime via exec: to work around this.
 
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-invoke-builtin-tools
 description: "Verify builtin tools work in invoke: tasks without MCP server"
 
@@ -21,7 +21,7 @@ tasks:
   # Test 2: Create the test directory
   - id: create_dir
     with:
-      dir: get_path
+      dir: $get_path
     exec:
       command: "mkdir -p {{with.dir}}"
       shell: true

@@ -1,7 +1,7 @@
 # Test: Artifact system with binding integration
 # Purpose: Verify artifact persistence works with binding references
 # Features tested: artifacts, io::atomic, io::template, binding chains, output policy
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 provider: mock
 

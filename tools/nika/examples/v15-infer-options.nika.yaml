@@ -2,7 +2,7 @@
 # Tests temperature, system prompt, and max_tokens parameters
 # Run with: ANTHROPIC_API_KEY=... nika examples/v15-infer-options.nika.yaml
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -27,7 +27,7 @@ tasks:
   # Test 3: System prompt for persona
   - id: marketing_copy
     with:
-      tagline: creative_tagline
+      tagline: $creative_tagline
     infer:
       prompt: "Expand this tagline into a marketing paragraph: {{with.tagline}}"
       system: "You are an expert marketing copywriter specializing in tech products. Write in an engaging, professional tone."
@@ -54,11 +54,11 @@ tasks:
 
   - id: comparison
     with:
-      creative: creative_tagline
-      precise: precise_description
-      marketing: marketing_copy
-      default: default_infer
-      full: full_options
+      creative: $creative_tagline
+      precise: $precise_description
+      marketing: $marketing_copy
+      default: $default_infer
+      full: $full_options
     exec: "echo 'All infer option tests completed. Compare outputs above.'"
 
 flows:

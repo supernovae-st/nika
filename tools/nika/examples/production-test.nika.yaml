@@ -3,7 +3,7 @@
 # Tests real OpenAI integration with Nika v0.5.
 # Run with: cargo run -- run examples/production-test.nika.yaml
 #
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: openai
 
 tasks:
@@ -18,7 +18,7 @@ tasks:
   # Step 2: Agent test with tool calling
   - id: agent_test
     with:
-      context: simple_infer
+      context: $simple_infer
     agent:
       prompt: |
         You received this insight about QR codes: {{with.context}}

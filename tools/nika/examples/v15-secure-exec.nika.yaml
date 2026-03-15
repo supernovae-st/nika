@@ -2,7 +2,7 @@
 # Tests the new shell-free execution mode with shlex parsing
 # Run with: nika examples/v15-secure-exec.nika.yaml
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -47,11 +47,11 @@ tasks:
 
   - id: summary
     with:
-      files: list_files
-      safe: safe_echo
-      pipeline: pipeline_example
-      args: echo_args
-      quoted: quoted_echo
+      files: $list_files
+      safe: $safe_echo
+      pipeline: $pipeline_example
+      args: $echo_args
+      quoted: $quoted_echo
     exec: "echo 'All secure exec tests completed successfully'"
 
 flows:

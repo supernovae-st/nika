@@ -1,7 +1,7 @@
 # Test: Mixed syntax equivalence ($task vs task)
 # Purpose: Verify that $task and task produce identical results
 # Features tested: implicit output ($task), explicit output (task), mixed references
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 provider: mock
 
@@ -19,14 +19,14 @@ tasks:
   # Step 2B: Use explicit syntax (parallel with 2A)
   - id: explicit_consumer
     with:
-      data: source_data  # Explicit syntax - no $ prefix
+      data: $source_data  # All bindings now require $ prefix
     infer: "Process with explicit: {{with.data}}"
 
   # Step 3: Compare results - both should be identical
   - id: compare_results
     with:
       implicit_result: $implicit_consumer
-      explicit_result: explicit_consumer
+      explicit_result: $explicit_consumer
     infer: |
       Compare results from both syntaxes:
       - Implicit (via implicit_consumer): {{with.implicit_result}}
@@ -39,9 +39,9 @@ tasks:
     with:
       # Mix both syntaxes in same use block
       from_implicit: $source_data
-      from_explicit: source_data
+      from_explicit: $source_data
       result_implicit: $compare_results
-      result_explicit: compare_results
+      result_explicit: $compare_results
     infer: |
       Mixed syntax test:
       Source via $: {{with.from_implicit}}
@@ -55,7 +55,7 @@ tasks:
       # Single $ should be stripped
       single_dollar: $mixed_references
       # Explicit form for comparison
-      no_dollar: mixed_references
+      no_dollar: $mixed_references
     infer: |
       Edge case verification:
       - Implicit syntax resolves to: {{with.single_dollar}}

@@ -1,7 +1,7 @@
 # Test: for_each parallelism with implicit output references
 # Purpose: Verify parallel execution works with $task shorthand
 # Features tested: for_each, concurrency, implicit output ($task), as variable, fail_fast
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 provider: mock
 
@@ -48,7 +48,7 @@ tasks:
     concurrency: 2
     with:
       locales_result: $aggregate_results  # Implicit
-      items_result: process_items_parallel  # Explicit (no $)
+      items_result: $process_items_parallel  # Now requires $
     infer: |
       Category: {{with.category}}
       Locales: {{with.locales_result}}

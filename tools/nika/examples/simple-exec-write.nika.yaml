@@ -9,7 +9,7 @@
 # Output:
 #   /tmp/nika-output.txt
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: simple-exec-write
 description: "Execute a command and save output to filesystem"
 
@@ -24,6 +24,6 @@ tasks:
   - id: save_to_file
     description: "Save timestamp to file"
     with:
-      timestamp: get_date
+      timestamp: $get_date
     exec: "echo 'Workflow executed at: {{with.timestamp}}' > /tmp/nika-output.txt && echo 'Saved to /tmp/nika-output.txt'"
     flow: [get_date]

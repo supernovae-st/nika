@@ -16,7 +16,7 @@
 #   - ANTHROPIC_API_KEY
 #   - NovaNet MCP server running (optional)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: qrcode-ai-seo-sprint
 description: "Generate SEO-optimized blog posts for QR Code AI"
 
@@ -68,7 +68,7 @@ tasks:
   - id: generate_posts
     description: "Generate SEO blog posts for each keyword"
     with:
-      keyword_list: define_keywords
+      keyword_list: $define_keywords
     for_each: "{{with.keyword_list}}"
     as: kw
     concurrency: 3
@@ -123,7 +123,7 @@ tasks:
   - id: validate_seo
     description: "Validate SEO quality of generated posts"
     with:
-      posts: generate_posts
+      posts: $generate_posts
     exec: |
       echo "=== SEO Validation Report ==="
       echo "Posts generated: {{with.posts | length}}"
@@ -139,8 +139,8 @@ tasks:
   - id: summary
     description: "Generate executive summary"
     with:
-      validation: validate_seo
-      posts: generate_posts
+      validation: $validate_seo
+      posts: $generate_posts
     infer:
       prompt: |
         Summarize this SEO content sprint:

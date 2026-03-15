@@ -16,7 +16,7 @@
 #   - NovaNet MCP server running
 #   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: qrcode-ai-multilang
 description: "Generate QR Code AI landing pages for multiple locales"
 
@@ -93,8 +93,8 @@ tasks:
   - id: generate_hero_fr
     description: "Generate French hero section"
     with:
-      entity: get_entity
-      content: generate_locales
+      entity: $get_entity
+      content: $generate_locales
     infer:
       prompt: |
         Tu es un copywriter expert pour QR Code AI.
@@ -141,8 +141,8 @@ tasks:
   - id: log_output
     description: "Output generation summary"
     with:
-      hero: generate_hero_fr
-      locales: generate_locales
+      hero: $generate_hero_fr
+      locales: $generate_locales
     exec: |
       echo "=== QR Code AI Landing Page Generated ==="
       echo "Hero (FR): {{with.hero | to_yaml}}"

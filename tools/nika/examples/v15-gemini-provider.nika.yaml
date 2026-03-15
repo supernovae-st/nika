@@ -2,7 +2,7 @@
 # Tests the new Gemini provider integration via rig-core
 # Run with: GEMINI_API_KEY=... nika examples/v15-gemini-provider.nika.yaml
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: gemini
 
 tasks:
@@ -18,7 +18,7 @@ tasks:
   # Test Gemini with system prompt
   - id: generate_description
     with:
-      tagline: generate_tagline
+      tagline: $generate_tagline
     infer:
       prompt: "Write a 2-sentence product description using this tagline: {{with.tagline}}"
       system: "You are a marketing copywriter. Be concise and impactful."

@@ -2,7 +2,7 @@
 # Tests JSON Schema validation with automatic retry and repair
 # Run with: ANTHROPIC_API_KEY=... nika examples/v21-structured-output.nika.yaml
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-structured-output
 description: Test 4-layer structured output defense system (v0.21)
 provider: claude
@@ -124,9 +124,9 @@ tasks:
   # Test 4: Summary combining results
   - id: summary
     with:
-      person: generate_person
-      keywords: generate_keywords
-      product: generate_product
+      person: $generate_person
+      keywords: $generate_keywords
+      product: $generate_product
     infer:
       prompt: |
         Summarize the structured outputs:

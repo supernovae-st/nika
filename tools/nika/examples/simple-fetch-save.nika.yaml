@@ -9,7 +9,7 @@
 # Output:
 #   /tmp/nika-api-result.json
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: simple-fetch-save
 description: "Fetch data from an API and save to filesystem"
 
@@ -28,6 +28,6 @@ tasks:
   - id: save_json
     description: "Save fetched JSON to file"
     with:
-      data: fetch_data
+      data: $fetch_data
     exec: "echo '{{with.data}}' > /tmp/nika-api-result.json && echo 'Saved to /tmp/nika-api-result.json'"
     flow: [fetch_data]

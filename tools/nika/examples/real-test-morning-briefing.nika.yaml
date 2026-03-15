@@ -19,7 +19,7 @@
 #   - PERPLEXITY_API_KEY
 #   - FIRECRAWL_API_KEY
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: morning-tech-briefing
 description: "Daily tech briefing with multi-source research"
 
@@ -148,9 +148,9 @@ tasks:
     concurrency: 3
     fail_fast: false
     with:
-      ai: research_ai_news
-      rust: research_rust_news
-      startup: research_startup_news
+      ai: $research_ai_news
+      rust: $research_rust_news
+      startup: $research_startup_news
     infer:
       prompt: |
         Generate a brief 2-3 bullet point summary for the topic: {{with.topic}}
@@ -173,8 +173,8 @@ tasks:
   - id: synthesize_scraped_content
     description: "Synthesize scraped content"
     with:
-      hn: scrape_hn_frontpage
-      tc: scrape_techcrunch
+      hn: $scrape_hn_frontpage
+      tc: $scrape_techcrunch
     infer:
       prompt: |
         Analyze these scraped tech news sources and extract the TOP 5 stories:
@@ -195,8 +195,8 @@ tasks:
   - id: check_system_health
     description: "Check system health"
     with:
-      system: system_context
-      github: fetch_github_status
+      system: $system_context
+      github: $fetch_github_status
     infer:
       prompt: |
         Provide a quick system status check:
@@ -219,10 +219,10 @@ tasks:
   - id: morning_briefing_agent
     description: "Generate morning briefing"
     with:
-      system_health: check_system_health
-      top_stories: synthesize_scraped_content
-      topic_summaries: generate_topic_summaries
-      hn_ids: fetch_hacker_news_top
+      system_health: $check_system_health
+      top_stories: $synthesize_scraped_content
+      topic_summaries: $generate_topic_summaries
+      hn_ids: $fetch_hacker_news_top
     agent:
       prompt: |
         You are a Morning Tech Briefing Assistant.
@@ -270,8 +270,8 @@ tasks:
   - id: save_briefing
     description: "Save briefing to file"
     with:
-      briefing: morning_briefing_agent
-      timestamp: system_context
+      briefing: $morning_briefing_agent
+      timestamp: $system_context
     exec: |
       echo "=== MORNING BRIEFING GENERATED ==="
       echo "Timestamp: {{with.timestamp.timestamp}}"
