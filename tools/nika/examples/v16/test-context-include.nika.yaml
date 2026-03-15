@@ -7,7 +7,7 @@ workflow: test-context-loading
 # Note: Paths are relative to workflow file location
 context:
   files:
-    readme: context/brand.md
+    readme: ../context/brand.md
 
 tasks:
   # Test 1: Use context file content
