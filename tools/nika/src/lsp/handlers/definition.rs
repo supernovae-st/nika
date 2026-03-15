@@ -77,7 +77,7 @@ pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoD
 
     let line = lines[line_idx];
 
-    // Check for task reference in use: block
+    // Check for task reference in with: block
     if let Some(response) = find_task_reference_definition(text, line, &uri) {
         return Some(response);
     }
@@ -96,7 +96,7 @@ pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoD
     None
 }
 
-/// Find definition for task reference in use: block
+/// Find definition for task reference in with: block
 #[cfg(feature = "lsp")]
 fn find_task_reference_definition(
     text: &str,
@@ -105,7 +105,7 @@ fn find_task_reference_definition(
 ) -> Option<GotoDefinitionResponse> {
     let trimmed = line.trim();
 
-    // Pattern: "alias: task_id" in use: block
+    // Pattern: "alias: task_id" in with: block
     if let Some(colon_pos) = trimmed.find(':') {
         let value = trimmed[colon_pos + 1..].trim();
 
@@ -200,7 +200,7 @@ fn find_task_reference_definition_with_ast(
 ) -> Option<GotoDefinitionResponse> {
     let trimmed = line.trim();
 
-    // Pattern: "alias: task_id" in use: block
+    // Pattern: "alias: task_id" in with: block
     if let Some(colon_pos) = trimmed.find(':') {
         let value = trimmed[colon_pos + 1..].trim();
 
@@ -488,7 +488,7 @@ tasks:
   - id: generate
     infer: "Generate"
   - id: process
-    use:
+    with:
       input: $generate
     infer: "Process"
 "#;
@@ -552,7 +552,7 @@ tasks:
         // Parse document into AST index
         ast_index.parse_document(&uri, text, 0);
 
-        // Position on "step1" in the use: block (line 7, after "input: ")
+        // Position on "step1" in the with: block (line 7, after "input: ")
         let position = Position {
             line: 7,
             character: 12,

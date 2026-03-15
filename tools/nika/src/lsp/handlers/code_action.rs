@@ -495,9 +495,9 @@ fn create_refactoring_actions(text: &str, range: Range, uri: &Url) -> Vec<CodeAc
         }
     }
 
-    // Add use: block refactoring
+    // Add with: block refactoring
     if trimmed.starts_with("- id:") {
-        actions.push(create_add_use_block_action(range.start.line, uri));
+        actions.push(create_add_with_block_action(range.start.line, uri));
     }
 
     actions
@@ -607,7 +607,7 @@ fn create_expand_exec_action(line: &str, line_num: u32, uri: &Url) -> Option<Cod
 
 /// Create action to add with: block for data binding
 #[cfg(feature = "lsp")]
-fn create_add_use_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand {
+fn create_add_with_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand {
     let edit = TextEdit {
         range: Range {
             start: Position {

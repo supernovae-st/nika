@@ -13,7 +13,7 @@
 //! │                      APPLICATION LAYER                       │
 //! │  runtime/   DAG execution (Runner, TaskExecutor)             │
 //! │  dag/       DAG structure (Dag, validate)                    │
-//! │  binding/   Data binding (WiringSpec, ResolvedBindings)      │
+//! │  binding/   Data binding (WithSpec, ResolvedBindings)        │
 //! └──────────────────────────────────────────────────────────────┘
 //!                              │
 //!                              ▼

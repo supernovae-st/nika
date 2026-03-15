@@ -41,7 +41,7 @@ pub struct ChatEdgeLine {
     from: ChatPosition,
     /// Target position
     to: ChatPosition,
-    /// Binding label (e.g., "use.ctx")
+    /// Binding label (e.g., "with.ctx")
     label: Option<String>,
     /// Whether data is actively flowing
     active: bool,
@@ -372,9 +372,9 @@ mod tests {
     #[test]
     fn test_chat_edge_line_with_label() {
         let edge = ChatEdgeLine::new(ChatPosition::new(10, 5), ChatPosition::new(10, 10))
-            .with_label("use.ctx");
+            .with_label("with.ctx");
 
-        assert_eq!(edge.label(), Some("use.ctx"));
+        assert_eq!(edge.label(), Some("with.ctx"));
     }
 
     // --- Properties tests ---
