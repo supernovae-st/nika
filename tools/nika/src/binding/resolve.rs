@@ -64,7 +64,7 @@ pub enum LazyBinding {
         path: String,
         default: Option<Value>,
     },
-    /// Pending resolution (new system) — stores typed BindingPath + transforms
+    /// Pending typed resolution — stores BindingPath + transforms
     PendingWithEntry {
         source: BindingPath,
         binding_type: BindingType,
@@ -109,7 +109,7 @@ impl ResolvedBindings {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Old system: from_wiring_spec (with: block)
+    // String-path resolution: from_wiring_spec (UseEntry / WiringSpec)
     // ═══════════════════════════════════════════════════════════════
 
     /// Build bindings from with: wiring by resolving paths from datastore
@@ -155,7 +155,7 @@ impl ResolvedBindings {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // New system: from_with_spec (with: block)
+    // Typed resolution: from_with_spec (WithEntry / WithSpec)
     // ═══════════════════════════════════════════════════════════════
 
     /// Build bindings from with: spec by resolving typed BindingPaths
@@ -229,7 +229,7 @@ impl ResolvedBindings {
         match self.bindings.get(alias) {
             Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
             Some(LazyBinding::Pending { path, default }) => {
-                // Old system: resolve via UseEntry
+                // String-path: resolve via UseEntry
                 let entry = UseEntry {
                     path: path.clone(),
                     default: default.clone(),
@@ -243,7 +243,7 @@ impl ResolvedBindings {
                 default,
                 transform,
             }) => {
-                // New system: resolve via WithEntry
+                // Typed: resolve via WithEntry
                 let entry = WithEntry {
                     source: source.clone(),
                     binding_type: *binding_type,
@@ -317,7 +317,7 @@ impl ResolvedBindings {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Old resolution: UseEntry (use: block)
+// String-path resolution: UseEntry (simple path bindings)
 // ═══════════════════════════════════════════════════════════════
 
 /// Resolve a single UseEntry to a Value
@@ -407,7 +407,7 @@ fn split_path(path: &str) -> (&str, Option<&str>) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// New resolution: WithEntry (with: block)
+// Typed resolution: WithEntry (BindingPath dispatch + transforms)
 // ═══════════════════════════════════════════════════════════════
 
 /// Resolve a single WithEntry to a Value using typed BindingPath dispatch
@@ -647,7 +647,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Old system: from_wiring_spec tests (use: block)
+    // String-path resolution tests (UseEntry / WiringSpec)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
