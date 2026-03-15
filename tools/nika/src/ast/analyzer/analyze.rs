@@ -681,7 +681,7 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .as_ref()
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
-        parallel: raw.parallel.as_ref().map(|s| s.value),
+        parallel: Some(raw.parallel.as_ref().map(|s| s.value).unwrap_or(1)),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
         span,
     }
