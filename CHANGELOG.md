@@ -69,7 +69,7 @@ Removed the deprecated `use_wiring` field from `Task` struct and all consumers:
 ║  • Ollama provider REMOVED — use `provider: native` with mistral.rs           ║
 ║  • spn CLI deprecated — shows warning directing to nika                       ║
 ║                                                                               ║
-║  Tests: 6,157 passing | Zero clippy warnings | ARMADA CI green                ║
+║  Tests: 5,640 passing | Zero clippy warnings | ARMADA CI green                ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
