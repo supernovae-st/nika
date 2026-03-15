@@ -66,7 +66,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
 
                         // Parse and show details if it's a valid nika schema
                         if let Some(version) = schema.strip_prefix("nika/workflow@") {
-                            let latest = "0.10";
+                            let latest = "0.12";
                             if version == latest {
                                 println!("  {} You're on the latest schema version", "✓".green());
                             } else {
@@ -274,7 +274,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
             all,
             backup,
         } => {
-            let target_version = target.as_deref().unwrap_or("0.10");
+            let target_version = target.as_deref().unwrap_or("0.12");
 
             if all {
                 // Upgrade all .nika.yaml files in directory
