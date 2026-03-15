@@ -5,7 +5,7 @@
 # Features tested:
 #   - for_each: array iteration
 #   - concurrency: parallel execution
-#   - novanet_generate: locale-specific context assembly
+#   - novanet_context: locale-specific context assembly
 #   - Aggregation of parallel results
 #
 # Usage:
@@ -54,7 +54,7 @@ tasks:
     fail_fast: false
     invoke:
       server: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "entity:{{inputs.entity}}"
         locale: "{{with.locale}}"

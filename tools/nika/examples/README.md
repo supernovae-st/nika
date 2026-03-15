@@ -99,7 +99,7 @@ tasks:
 | `infer:` | LLM text generation | `infer: "Summarize this text"` |
 | `exec:` | Shell command | `exec: "npm run build"` |
 | `fetch:` | HTTP request | `fetch: { url: "...", method: "GET" }` |
-| `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_generate }` |
+| `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_context }` |
 | `agent:` | Multi-turn agentic loop | `agent: { goal: "...", max_turns: 5 }` |
 
 ## for_each Parallelism (v0.3+)
@@ -114,7 +114,7 @@ Execute tasks in parallel over an array. Uses **FLAT format** (not nested):
   fail_fast: true                         # Stop on first error (default: true)
   invoke:
     mcp: novanet
-    tool: novanet_generate
+    tool: novanet_context
     params:
       entity: "qr-code"
       locale: "{{with.locale}}"
@@ -151,7 +151,7 @@ tasks:
 NovaNet returns prescriptive naming forms for entities:
 
 ```yaml
-# After novanet_generate, response includes:
+# After novanet_context, response includes:
 # denomination_forms:
 #   qr-code:
 #     text: "code QR"         # Use in prose

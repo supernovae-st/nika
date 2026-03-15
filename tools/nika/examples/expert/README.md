@@ -134,14 +134,14 @@ Features:
 **MCP Tools Used**:
 - `novanet_introspect` - Schema discovery
 - `novanet_describe` - Entity details
-- `novanet_traverse` - Relationship mapping
-- `novanet_atoms` - Knowledge retrieval
-- `novanet_generate` - Context assembly (ADR-033)
+- `novanet_search` - Relationship mapping (mode: walk)
+- `novanet_context` - Knowledge retrieval (mode: knowledge)
+- `novanet_context` - Context assembly (mode: block, ADR-033)
 
 **DAG Pattern**: Knowledge graph driven
 
 ```
-introspect ──> describe ──> traverse ──> atoms ──> assemble ──> generate ──> validate ──> report
+introspect ──> describe ──> search(walk) ──> context(knowledge) ──> context(block) ──> generate ──> validate ──> report
                               │           │          │
                               └───────────┴──────────┘
                                      (for_each: locales)

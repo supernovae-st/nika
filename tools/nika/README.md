@@ -142,10 +142,11 @@ tasks:
     as: locale
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
-        entity: "qr-code"
+        focus_key: "entity:qr-code"
         locale: "{{with.locale}}"
+        mode: block
 ```
 
 Each iteration runs via `tokio::spawn` for true concurrency.
@@ -160,7 +161,7 @@ tasks:
     agent:
       prompt: |
         Analyze "qr-code" using NovaNet tools.
-        Use novanet_describe and novanet_traverse.
+        Use novanet_describe and novanet_search.
         Say "DONE" when complete.
       mcp:
         - novanet
@@ -174,7 +175,7 @@ tasks:
 | `infer:` | LLM generation | `infer: "Summarize this"` |
 | `exec:` | Shell command | `exec: { command: "echo hello" }` |
 | `fetch:` | HTTP request | `fetch: { url: "https://..." }` |
-| `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_generate }` |
+| `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_context }` |
 | `agent:` | Autonomous loop | `agent: { prompt: "...", mcp: [...] }` |
 
 ## MCP Integration

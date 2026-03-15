@@ -115,13 +115,13 @@ tasks:
 
     invoke:
       server: novanet
-      tool: novanet_traverse
+      tool: novanet_search
       params:
+        query: "{{inputs.entity_key}}"
+        mode: walk
         start_key: "{{inputs.entity_key}}"
         max_depth: 2
         direction: both
-        arc_families: [semantic, localization, ownership]
-        target_kinds: [Entity, Page, Block]
 
     output:
       format: json
@@ -145,11 +145,11 @@ tasks:
 
     invoke:
       server: novanet
-      tool: novanet_atoms
+      tool: novanet_context
       params:
+        focus_key: "{{inputs.entity_key}}"
         locale: "{{with.locale}}"
-        atom_type: all
-        limit: 50
+        mode: knowledge
 
     output:
       format: json
@@ -189,7 +189,7 @@ tasks:
 
     invoke:
       server: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "{{inputs.entity_key}}"
         locale: "{{with.locale}}"
@@ -558,9 +558,9 @@ tasks:
       echo "NovaNet MCP Tools Used:"
       echo "  • novanet_introspect  - Schema discovery"
       echo "  • novanet_describe    - Entity details"
-      echo "  • novanet_traverse    - Relationship mapping"
-      echo "  • novanet_atoms       - Knowledge retrieval"
-      echo "  • novanet_generate    - Context assembly (ADR-033)"
+      echo "  • novanet_search      - Relationship mapping (mode: walk)"
+      echo "  • novanet_context     - Knowledge retrieval (mode: knowledge)"
+      echo "  • novanet_context     - Context assembly (mode: block, ADR-033)"
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
@@ -589,7 +589,7 @@ tasks:
 #                    ▼                                    │
 #            assemble_context                             │
 #            (for_each: locales)                          │
-#            [novanet_generate]                           │
+#            [novanet_context]                            │
 #                    │                                    │
 #                    ▼                                    │
 #         generate_native_content ◄───────────────────────┘
