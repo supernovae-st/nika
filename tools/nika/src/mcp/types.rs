@@ -526,6 +526,7 @@ mod tests {
     use super::*;
     use crate::serde_yaml;
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
 
     // ═══════════════════════════════════════════════════════════════
     // McpConfig Tests
@@ -957,6 +958,7 @@ mod tests {
     // ==========================================================================
 
     #[test]
+    #[serial]
     fn test_expand_env_vars_command() {
         std::env::set_var("NIKA_TEST_BIN", "/usr/local/bin");
         let config = McpConfig::new("test", "$NIKA_TEST_BIN/server")
@@ -968,6 +970,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_expand_env_vars_args() {
         std::env::set_var("NIKA_TEST_CONFIG", "/etc/mcp");
         let config = McpConfig::new("test", "server")
@@ -980,6 +983,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_expand_env_vars_env_values() {
         std::env::set_var("NIKA_TEST_ROOT", "/var/lib");
         let config = McpConfig::new("test", "server")
@@ -1006,6 +1010,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_expand_env_vars_curly_brace_syntax() {
         std::env::set_var("NIKA_TEST_PATH", "/opt/mcp");
         let config = McpConfig::new("test", "${NIKA_TEST_PATH}/server")
@@ -1030,6 +1035,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_expand_env_vars_cwd() {
         std::env::set_var("NIKA_TEST_DIR", "/home/user/projects");
         let config = McpConfig::new("test", "server")
