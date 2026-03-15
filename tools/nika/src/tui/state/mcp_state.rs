@@ -9,7 +9,7 @@ use super::types::{ContextAssembly, McpCall};
 ///
 /// Tracks MCP tool calls, sequence numbers, selection state,
 /// and context assembly progress.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct McpState {
     /// MCP call log
     pub calls: Vec<McpCall>,
@@ -19,17 +19,6 @@ pub struct McpState {
     pub selected_idx: Option<usize>,
     /// Current context assembly
     pub context_assembly: ContextAssembly,
-}
-
-impl Default for McpState {
-    fn default() -> Self {
-        Self {
-            calls: Vec::new(),
-            seq: 0,
-            selected_idx: None,
-            context_assembly: ContextAssembly::default(),
-        }
-    }
 }
 
 impl McpState {

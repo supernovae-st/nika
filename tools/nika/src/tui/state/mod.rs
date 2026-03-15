@@ -35,12 +35,14 @@
 // SUBMODULES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+mod agent_state;
 mod cache;
 mod chat_overlay;
+mod mcp_state;
 mod notification;
+mod notification_state;
 mod scroll;
 mod settings;
-mod mcp_state;
 mod types;
 mod ui;
 
@@ -97,7 +99,9 @@ pub use chat_overlay::{ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlaySt
 pub use cache::JsonFormatCache;
 
 // Domain slices (P1 decomposition)
+pub use agent_state::AgentState;
 pub use mcp_state::McpState;
+pub use notification_state::NotificationState;
 pub use ui::UiState;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -260,6 +264,10 @@ pub struct TuiState {
     pub ui: UiState,
     /// MCP call tracking state (calls, selection, context assembly)
     pub mcp: McpState,
+    /// Agent execution tracking (turns, streaming, spawned agents)
+    pub agent: AgentState,
+    /// Notification management (system alerts, dismissal)
+    pub notifs: NotificationState,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -317,6 +325,8 @@ impl TuiState {
             timeline_cache_version: 0,
             ui: UiState::new(),
             mcp: McpState::new(),
+            agent: AgentState::new(),
+            notifs: NotificationState::new(),
         }
     }
 
