@@ -724,6 +724,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             match result {
                 Ok(output) => {
                     // Structured output validation via 4-layer engine
+                    // TODO: Wire InferCallback here for Layer 3 & 4 LLM retry/repair.
+                    //       Currently only Layers 1 & 2 (parse + schema) work in this path.
+                    //       The executor/verbs.rs path correctly wires with_infer_callback().
                     let final_output = if let Some(ref structured_spec) = task.structured {
                         let mut engine = StructuredOutputEngine::new(
                             structured_spec.clone(),
