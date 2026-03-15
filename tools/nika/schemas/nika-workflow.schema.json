@@ -203,8 +203,8 @@
             },
             {
               "type": "string",
-              "pattern": "^\\{\\{(use|inputs|context)\\.[a-z][a-z0-9_.]*\\}\\}$",
-              "description": "Template binding to an array (e.g., {{use.items}}, {{inputs.locales}})"
+              "pattern": "^\\{\\{(with|use|inputs|context)\\.[a-z][a-z0-9_.]*\\}\\}$",
+              "description": "Template binding to an array (e.g., {{with.items}}, {{inputs.locales}})"
             }
           ],
           "description": "Array to iterate over in parallel (v0.3+)"
@@ -336,7 +336,7 @@
           "properties": {
             "prompt": {
               "type": "string",
-              "description": "LLM prompt (supports {{use.alias}} templates)"
+              "description": "LLM prompt (supports {{with.alias}} templates)"
             },
             "provider": {
               "type": "string",
@@ -397,7 +397,7 @@
           "properties": {
             "command": {
               "type": "string",
-              "description": "Shell command to execute (supports {{use.alias}} templates)"
+              "description": "Shell command to execute (supports {{with.alias}} templates)"
             },
             "shell": {
               "type": "boolean",
@@ -856,7 +856,7 @@
             },
             "template": {
               "type": "string",
-              "description": "Template string to render with {{use.*}} bindings (v0.22+)"
+              "description": "Template string to render with {{with.*}} bindings (v0.22+)"
             },
             "format": {
               "type": "string",
