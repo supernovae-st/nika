@@ -555,6 +555,7 @@ impl View for SettingsView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     // ═══════════════════════════════════════════════════════════════════════════════
     // SettingsView Basic Tests
@@ -846,6 +847,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_refresh_data_with_env_var() {
         use std::env;
 
