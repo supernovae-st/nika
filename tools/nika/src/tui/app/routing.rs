@@ -539,6 +539,7 @@ impl App {
         // Switch view
         let old_view = self.current_view;
         self.current_view = view;
+        self.state.dirty.mark_all(); // Force full redraw on view switch
 
         // Set appropriate input mode
         self.input_mode = match view {

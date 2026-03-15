@@ -2830,7 +2830,10 @@ fn test_dismiss_error_preserves_other_workflow_state() {
 fn test_dirty_flags_cleared_after_render_cycle() {
     let mut state = TuiState::new("test.nika.yaml");
 
-    // Initially clean
+    // TuiState::new() starts with dirty.all = true (first frame needs full redraw)
+    assert!(state.dirty.all);
+    // Clear initial dirty flags (simulates first render completion)
+    state.clear_dirty();
     assert!(!state.dirty.any());
 
     // Mark some flags dirty (simulates handle_event())
@@ -2850,6 +2853,9 @@ fn test_dirty_flags_cleared_after_render_cycle() {
 #[test]
 fn test_dirty_all_takes_precedence() {
     let mut state = TuiState::new("test.nika.yaml");
+
+    // Clear initial dirty.all from constructor
+    state.clear_dirty();
 
     state.dirty.dag = true;
     assert!(state.dirty.any());

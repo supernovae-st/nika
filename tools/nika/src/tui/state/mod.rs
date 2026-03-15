@@ -292,7 +292,11 @@ impl TuiState {
             notifications: Vec::new(),
             max_notifications: 10,
             status_messages: StatusQueue::new(),
-            dirty: DirtyFlags::default(),
+            dirty: {
+                let mut d = DirtyFlags::default();
+                d.mark_all(); // First frame needs full redraw
+                d
+            },
             json_cache: JsonFormatCache::new(),
             cached_timeline_entries: Vec::new(),
             timeline_version: 0,
