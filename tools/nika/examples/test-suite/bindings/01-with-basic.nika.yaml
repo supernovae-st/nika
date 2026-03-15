@@ -1,10 +1,10 @@
-# Test: bindings/01-use-basic
-# Tests: Basic use: binding from task output
+# Test: bindings/01-with-basic
+# Tests: Basic with: binding from task output
 # Expected: Task output is available via {{with.alias}}
 
 schema: "nika/workflow@0.12"
-workflow: test-bindings-use-basic
-description: "Test basic use: binding pattern"
+workflow: test-bindings-with-basic
+description: "Test basic with: binding pattern"
 
 provider: claude
 

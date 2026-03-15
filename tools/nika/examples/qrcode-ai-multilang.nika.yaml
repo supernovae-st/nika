@@ -5,7 +5,7 @@
 # Features:
 # - invoke: verb for MCP tool calling
 # - for_each: parallel execution across locales
-# - use: bindings for data flow
+# - with: bindings for data flow
 # - Full NovaNet MCP integration
 #
 # Usage:

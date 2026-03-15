@@ -28,9 +28,9 @@ Tests data flow and binding patterns:
 
 | File | Feature |
 |------|---------|
-| `01-use-basic` | Basic `use:` binding from task output |
-| `02-use-nested` | Nested object access in bindings |
-| `03-use-jsonpath` | JSONPath expressions |
+| `01-with-basic` | Basic `with:` binding from task output |
+| `02-with-nested` | Nested object access in bindings |
+| `03-with-jsonpath` | JSONPath expressions |
 | `04-context-loading` | Context file loading at workflow start |
 | `05-inputs` | Workflow inputs binding |
 | `06-for-each-basic` | Basic `for_each` iteration |

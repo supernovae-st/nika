@@ -1,4 +1,4 @@
-# Test: bindings/03-use-jsonpath
+# Test: bindings/03-with-jsonpath
 # Tests: JSONPath expressions in bindings
 # Expected: Complex JSONPath queries work
 
