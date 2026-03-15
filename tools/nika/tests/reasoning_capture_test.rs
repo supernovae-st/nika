@@ -283,18 +283,6 @@ fn test_tui_state_agent_turn_state_without_thinking() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn test_thinking_not_supported_error_code() {
-    use nika::error::NikaError;
-
-    let error = NikaError::ThinkingNotSupported {
-        provider: "openai".to_string(),
-    };
-
-    assert!(error.to_string().contains("NIKA-117"));
-    assert!(error.to_string().contains("openai"));
-}
-
-#[test]
 fn test_thinking_capture_failed_error_code() {
     use nika::error::NikaError;
 

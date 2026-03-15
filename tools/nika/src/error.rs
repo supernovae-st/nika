@@ -29,9 +29,6 @@
 //! - NIKA-240-249: Reserved (Animation/Export - not implemented)
 //! - NIKA-280-289: Artifact errors (path validation, write, size limits)
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
-//! - NIKA-400-409: Daemon errors (IPC, PID file, connection)
-//! - NIKA-410-419: IO errors (enhanced with path context)
-//! - NIKA-420-429: Sync errors (editor synchronization)
 
 use crate::mcp::types::McpErrorCode;
 use crate::serde_yaml;
@@ -129,9 +126,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // SCHEMA ERRORS (010-019)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-010] Invalid schema version: expected '{expected}', got '{actual}'")]
-    InvalidSchema { expected: String, actual: String },
-
     #[error("[NIKA-011] Task '{task_id}' failed: {reason}")]
     TaskFailed { task_id: String, reason: String },
 
@@ -246,13 +240,6 @@ pub enum NikaError {
     #[error("[NIKA-056] Invalid default value '{raw}': {reason}")]
     InvalidDefault { raw: String, reason: String },
 
-    #[error("[NIKA-057] Builtin tool '{tool}' timed out after {timeout_secs} seconds")]
-    #[diagnostic(
-        code(nika::builtin_tool_timeout),
-        help("Builtin tools have a maximum execution time to prevent workflow blocking")
-    )]
-    BuiltinToolTimeout { tool: String, timeout_secs: u64 },
-
     // ═══════════════════════════════════════════
     // OUTPUT ERRORS (060-069)
     // ═══════════════════════════════════════════
@@ -319,9 +306,6 @@ pub enum NikaError {
 
     #[error("[NIKA-091] JSONPath '{path}' matched nothing in output")]
     JsonPathNoMatch { path: String, task_id: String },
-
-    #[error("[NIKA-092] Cannot apply JSONPath to non-JSON output from task '{task_id}'")]
-    JsonPathNonJson { path: String, task_id: String },
 
     #[error("[NIKA-093] IO error: {0}")]
     IoError(#[from] std::io::Error),
@@ -404,17 +388,8 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // AGENT ERRORS (110-119)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-110] Agent loop exceeded max turns ({max_turns})")]
-    AgentMaxTurns { max_turns: u32 },
-
-    #[error("[NIKA-112] Invalid tool name format: {name}")]
-    InvalidToolName { name: String },
-
     #[error("[NIKA-113] Agent validation failed: {reason}")]
     AgentValidationError { reason: String },
-
-    #[error("[NIKA-114] Feature not implemented: {feature}. {suggestion}")]
-    NotImplemented { feature: String, suggestion: String },
 
     #[error("[NIKA-115] Agent execution failed for task '{task_id}': {reason}")]
     AgentExecutionError { task_id: String, reason: String },
@@ -422,15 +397,9 @@ pub enum NikaError {
     #[error("[NIKA-116] Extended thinking capture failed: {reason}")]
     ThinkingCaptureFailed { reason: String },
 
-    #[error("[NIKA-117] Extended thinking not supported for provider '{provider}'")]
-    ThinkingNotSupported { provider: String },
-
     // ═══════════════════════════════════════════
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-120] Provider '{provider}' error: {reason}")]
-    ProviderError { provider: String, reason: String },
-
     #[error("[NIKA-121] Operation '{operation}' timed out after {duration_ms}ms")]
     Timeout { operation: String, duration_ms: u64 },
 
@@ -476,13 +445,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // RUNTIME ERRORS (170-179)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-170] Runtime error: {reason}")]
-    #[diagnostic(
-        code(nika::runtime_error),
-        help("Check the runtime configuration and system resources")
-    )]
-    RuntimeError { reason: String },
-
     #[error(
         "[NIKA-171] Decompose expansion timed out for task '{task_id}': exceeded {timeout_secs}s"
     )]
@@ -507,15 +469,6 @@ pub enum NikaError {
         help("Check builtin tool parameters and configuration")
     )]
     BuiltinToolError { tool: String, reason: String },
-
-    #[error("[NIKA-211] Builtin tool '{tool}' not found")]
-    #[diagnostic(
-        code(nika::builtin_tool_not_found),
-        help(
-            "Valid builtin tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run"
-        )
-    )]
-    BuiltinToolNotFound { tool: String },
 
     #[error("[NIKA-212] Builtin tool '{tool}' invalid parameters: {reason}")]
     #[diagnostic(
@@ -646,66 +599,6 @@ pub enum NikaError {
         attempts: u32,
         final_errors: Vec<String>,
     },
-
-    // ═══════════════════════════════════════════
-    // DAEMON ERRORS (400-409)
-    // ═══════════════════════════════════════════
-    #[error("[NIKA-400] Daemon is already running (PID file: {pid_file:?})")]
-    #[diagnostic(
-        code(nika::daemon_already_running),
-        help("Stop the existing daemon with 'nika daemon stop' or remove the stale PID file")
-    )]
-    DaemonAlreadyRunning { pid_file: std::path::PathBuf },
-
-    #[error("[NIKA-401] Daemon error: {message}")]
-    #[diagnostic(
-        code(nika::daemon_error),
-        help("Check daemon logs or restart with 'nika daemon start'")
-    )]
-    DaemonError { message: String },
-
-    #[error("[NIKA-402] Daemon not running")]
-    #[diagnostic(
-        code(nika::daemon_not_running),
-        help("Start the daemon with 'nika daemon start'")
-    )]
-    DaemonNotRunning,
-
-    #[error("[NIKA-403] Daemon connection failed: {message}")]
-    #[diagnostic(
-        code(nika::daemon_connection_failed),
-        help("Ensure the daemon is running and the socket path is correct")
-    )]
-    DaemonConnectionFailed { message: String },
-
-    #[error("[NIKA-404] Daemon protocol error: {message}")]
-    #[diagnostic(
-        code(nika::daemon_protocol_error),
-        help("This may indicate a version mismatch between client and daemon")
-    )]
-    DaemonProtocolError { message: String },
-
-    // ═══════════════════════════════════════════
-    // IO ERRORS (410-419)
-    // ═══════════════════════════════════════════
-    #[error("[NIKA-410] IO error for '{path}' during {operation}: {source}")]
-    #[diagnostic(code(nika::io_path_error), help("Check file path and permissions"))]
-    IoPathError {
-        path: std::path::PathBuf,
-        operation: String,
-        #[source]
-        source: std::io::Error,
-    },
-
-    // ═══════════════════════════════════════════
-    // SYNC ERRORS (420-429)
-    // ═══════════════════════════════════════════
-    #[error("[NIKA-420] Sync error: {message}")]
-    #[diagnostic(
-        code(nika::sync_error),
-        help("Check editor configuration paths and MCP config")
-    )]
-    SyncError { message: String },
 }
 
 impl NikaError {
@@ -720,7 +613,6 @@ impl NikaError {
             Self::SchemaValidationFailed { .. } => "NIKA-005",
             Self::HomeDirectoryNotFound => "NIKA-006",
             // Schema errors
-            Self::InvalidSchema { .. } => "NIKA-010",
             Self::TaskFailed { .. } => "NIKA-011",
             Self::TaskTimeout { .. } => "NIKA-012",
             // DAG errors
@@ -748,7 +640,6 @@ impl NikaError {
             Self::BlockedCommand { .. } => "NIKA-053",
             Self::InvalidTaskId { .. } => "NIKA-055",
             Self::InvalidDefault { .. } => "NIKA-056",
-            Self::BuiltinToolTimeout { .. } => "NIKA-057",
             // Output errors
             Self::InvalidJson { .. } => "NIKA-060",
             Self::SchemaFailed { .. } => "NIKA-061",
@@ -766,7 +657,6 @@ impl NikaError {
             // JSONPath/IO errors
             Self::JsonPathUnsupported { .. } => "NIKA-090",
             Self::JsonPathNoMatch { .. } => "NIKA-091",
-            Self::JsonPathNonJson { .. } => "NIKA-092",
             Self::IoError(_) => "NIKA-093",
             Self::JsonError(_) => "NIKA-094",
             Self::YamlParse(_) => "NIKA-095",
@@ -782,15 +672,10 @@ impl NikaError {
             Self::McpSchemaError { .. } => "NIKA-108",
             Self::McpTimeout { .. } => "NIKA-109",
             // Agent errors
-            Self::AgentMaxTurns { .. } => "NIKA-110",
-            Self::InvalidToolName { .. } => "NIKA-112",
             Self::AgentValidationError { .. } => "NIKA-113",
-            Self::NotImplemented { .. } => "NIKA-114",
             Self::AgentExecutionError { .. } => "NIKA-115",
             Self::ThinkingCaptureFailed { .. } => "NIKA-116",
-            Self::ThinkingNotSupported { .. } => "NIKA-117",
             // Resilience errors
-            Self::ProviderError { .. } => "NIKA-120",
             Self::Timeout { .. } => "NIKA-121",
             Self::McpToolCallFailed { .. } => "NIKA-125",
             // TUI errors
@@ -803,7 +688,6 @@ impl NikaError {
             Self::ToolError { .. } => "NIKA-2XX",
             // Builtin tool errors
             Self::BuiltinToolError { .. } => "NIKA-210",
-            Self::BuiltinToolNotFound { .. } => "NIKA-211",
             Self::BuiltinInvalidParams { .. } => "NIKA-212",
             Self::AssertionFailed { .. } => "NIKA-213",
             // Context errors
@@ -824,21 +708,10 @@ impl NikaError {
             Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
             Self::StructuredOutputRepairFailed { .. } => "NIKA-302",
             Self::StructuredOutputAllLayersFailed { .. } => "NIKA-303",
-            // Daemon errors
-            Self::DaemonAlreadyRunning { .. } => "NIKA-400",
-            Self::DaemonError { .. } => "NIKA-401",
-            Self::DaemonNotRunning => "NIKA-402",
-            Self::DaemonConnectionFailed { .. } => "NIKA-403",
-            Self::DaemonProtocolError { .. } => "NIKA-404",
-            // IO errors
-            Self::IoPathError { .. } => "NIKA-410",
-            // Sync errors
-            Self::SyncError { .. } => "NIKA-420",
             // Policy errors
             Self::PolicyViolation { .. } => "NIKA-160",
             Self::BootFailed { .. } => "NIKA-161",
             // Runtime errors
-            Self::RuntimeError { .. } => "NIKA-170",
             Self::DecomposeTimeout { .. } => "NIKA-171",
         }
     }
@@ -851,7 +724,6 @@ impl NikaError {
                 | Self::McpNotConnected { .. }
                 | Self::ProviderApiError { .. }
                 | Self::McpToolError { .. }
-                | Self::ProviderError { .. }
                 | Self::Timeout { .. }
                 | Self::McpTimeout { .. }
                 | Self::McpToolCallFailed { .. }
@@ -860,8 +732,6 @@ impl NikaError {
                 | Self::StructuredOutputValidationFailed { .. }
                 | Self::StructuredOutputRepairFailed { .. }
         )
-        // Note: BuiltinToolTimeout is NOT recoverable
-        // because it indicates a resource exhaustion issue that won't be fixed by retrying
     }
 }
 
@@ -881,9 +751,6 @@ impl FixSuggestion for NikaError {
                 Some("Set NIKA_HOME environment variable to specify Nika home directory")
             }
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
-            NikaError::InvalidSchema { .. } => {
-                Some("Use 'nika/workflow@0.12' as the schema version")
-            }
             NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
             NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),
             NikaError::CycleDetected { .. } => {
@@ -940,9 +807,6 @@ impl FixSuggestion for NikaError {
             NikaError::JsonPathNoMatch { .. } => {
                 Some("Check the path exists in source task output")
             }
-            NikaError::JsonPathNonJson { .. } => {
-                Some("Ensure source task has output: { format: json }")
-            }
             NikaError::IoError(_) => Some("Check file path and permissions"),
             NikaError::JsonError(_) => Some("Check JSON syntax"),
             // MCP errors
@@ -983,29 +847,16 @@ impl FixSuggestion for NikaError {
                 Some("Check binding value type matches expected type")
             }
             // Agent errors
-            NikaError::AgentMaxTurns { .. } => Some("Increase max_turns or simplify the task"),
-            NikaError::InvalidToolName { .. } => {
-                Some("Tool names must be mcp_server.tool_name format")
-            }
             NikaError::AgentValidationError { .. } => {
                 Some("Check agent prompt is not empty and max_turns is valid (1-100)")
             }
             NikaError::AgentExecutionError { .. } => {
                 Some("Check LLM provider API key and network connectivity")
             }
-            NikaError::NotImplemented { .. } => {
-                Some("This feature is planned for a future release")
-            }
             NikaError::ThinkingCaptureFailed { .. } => {
                 Some("Check Claude API response and streaming connection")
             }
-            NikaError::ThinkingNotSupported { .. } => {
-                Some("Extended thinking is only supported with Claude provider")
-            }
             // Resilience errors
-            NikaError::ProviderError { .. } => {
-                Some("Check provider configuration and network connectivity")
-            }
             NikaError::Timeout { .. } => Some("Increase timeout or check for slow operations"),
             NikaError::McpTimeout { .. } => {
                 Some("MCP server is slow or unresponsive. Check network and server health.")
@@ -1031,9 +882,6 @@ impl FixSuggestion for NikaError {
             NikaError::BuiltinToolError { .. } => {
                 Some("Check builtin tool parameters and configuration")
             }
-            NikaError::BuiltinToolNotFound { .. } => Some(
-                "Valid tools: nika:sleep, nika:log, nika:emit, nika:assert, nika:prompt, nika:run",
-            ),
             NikaError::BuiltinInvalidParams { .. } => {
                 Some("Check the parameter format matches the expected JSON schema")
             }
@@ -1056,9 +904,6 @@ impl FixSuggestion for NikaError {
             ),
             NikaError::BootFailed { .. } => {
                 Some("Boot sequence failed. Run 'nika doctor' to diagnose.")
-            }
-            NikaError::RuntimeError { .. } => {
-                Some("Check the runtime configuration and system resources.")
             }
             // Skill errors
             NikaError::SkillLoadError { .. } => {
@@ -1101,37 +946,9 @@ impl FixSuggestion for NikaError {
             NikaError::TaskCancelled { .. } => {
                 Some("Task was cancelled. Check workflow execution logs.")
             }
-            // Builtin tool timeout
-            NikaError::BuiltinToolTimeout { .. } => {
-                Some("Builtin tool timed out. Increase timeout or check for deadlocks.")
-            }
             // Duplicate task ID
             NikaError::DuplicateTaskId { .. } => {
                 Some("Each task must have a unique ID. Rename one of the duplicate tasks.")
-            }
-            // Daemon errors
-            NikaError::DaemonAlreadyRunning { .. } => {
-                Some("Stop the existing daemon with 'nika daemon stop' or remove the stale PID file")
-            }
-            NikaError::DaemonError { .. } => {
-                Some("Check daemon logs or restart with 'nika daemon start'")
-            }
-            NikaError::DaemonNotRunning => {
-                Some("Start the daemon with 'nika daemon start'")
-            }
-            NikaError::DaemonConnectionFailed { .. } => {
-                Some("Ensure the daemon is running and the socket path is correct")
-            }
-            NikaError::DaemonProtocolError { .. } => {
-                Some("This may indicate a version mismatch between client and daemon")
-            }
-            // IO errors
-            NikaError::IoPathError { .. } => {
-                Some("Check file path exists and you have proper permissions")
-            }
-            // Sync errors
-            NikaError::SyncError { .. } => {
-                Some("Check editor configuration paths and MCP config file")
             }
         }
     }
@@ -1211,18 +1028,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
     // SCHEMA ERRORS (010-019)
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_invalid_schema_error() {
-        let err = NikaError::InvalidSchema {
-            expected: "nika/workflow@0.12".to_string(),
-            actual: "nika/workflow@0.1".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-010");
-        let msg = err.to_string();
-        assert!(msg.contains("0.9"));
-        assert!(msg.contains("0.1"));
-    }
 
     #[test]
     fn test_task_failed_error() {
@@ -1607,17 +1412,6 @@ mod tests {
     }
 
     #[test]
-    fn test_jsonpath_non_json_error() {
-        let err = NikaError::JsonPathNonJson {
-            path: "$.field".to_string(),
-            task_id: "text_task".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-092");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-092]"));
-    }
-
-    #[test]
     fn test_io_error_from_std() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
         let err: NikaError = io_err.into();
@@ -1788,25 +1582,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_agent_max_turns_error() {
-        let err = NikaError::AgentMaxTurns { max_turns: 10 };
-        assert_eq!(err.code(), "NIKA-110");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-110]"));
-        assert!(msg.contains("10"));
-    }
-
-    #[test]
-    fn test_invalid_tool_name_error() {
-        let err = NikaError::InvalidToolName {
-            name: "invalid-format".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-112");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-112]"));
-    }
-
-    #[test]
     fn test_agent_validation_error() {
         let err = NikaError::AgentValidationError {
             reason: "empty prompt".to_string(),
@@ -1814,17 +1589,6 @@ mod tests {
         assert_eq!(err.code(), "NIKA-113");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-113]"));
-    }
-
-    #[test]
-    fn test_not_implemented_error() {
-        let err = NikaError::NotImplemented {
-            feature: "dynamic schema validation".to_string(),
-            suggestion: "Use static schema for now".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-114");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-114]"));
     }
 
     #[test]
@@ -1848,30 +1612,9 @@ mod tests {
         assert!(msg.contains("[NIKA-116]"));
     }
 
-    #[test]
-    fn test_thinking_not_supported_error() {
-        let err = NikaError::ThinkingNotSupported {
-            provider: "openai".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-117");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-117]"));
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // RESILIENCE ERRORS (120-129)
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_provider_error() {
-        let err = NikaError::ProviderError {
-            provider: "claude".to_string(),
-            reason: "API key invalid".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-120");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-120]"));
-    }
 
     #[test]
     fn test_timeout_error() {
@@ -2027,15 +1770,6 @@ mod tests {
             tool: "x".into(),
             reason: "y".into(),
             error_code: None,
-        };
-        assert!(err.is_recoverable());
-    }
-
-    #[test]
-    fn test_is_recoverable_provider_error() {
-        let err = NikaError::ProviderError {
-            provider: "x".into(),
-            reason: "y".into(),
         };
         assert!(err.is_recoverable());
     }
