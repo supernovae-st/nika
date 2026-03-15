@@ -3833,7 +3833,6 @@ dependencies = [
  "marked-yaml",
  "miette",
  "mistralrs",
- "nika",
  "nix 0.29.0",
  "nucleo",
  "openssl",
@@ -3875,7 +3874,6 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-yaml",
  "tui-input",
- "tui-tree-widget",
  "unicode-normalization",
  "unicode-width 0.2.2",
  "url",
@@ -7421,17 +7419,6 @@ checksum = "79c1ee964298f136020f5f69e0e601f4d3a1f610a7baf1af9fcb96152e8a2c45"
 dependencies = [
  "crossterm 0.29.0",
  "ratatui",
- "unicode-width 0.2.2",
-]
-
-[[package]]
-name = "tui-tree-widget"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deca119555009eee2e0cfb9c020f39f632444dc4579918d5fc009d51d75dff92"
-dependencies = [
- "ratatui-core",
- "ratatui-widgets",
  "unicode-width 0.2.2",
 ]
 
