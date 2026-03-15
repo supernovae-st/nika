@@ -271,9 +271,7 @@ impl MonitorView {
             self.cached_mcp_response_json = call
                 .response
                 .as_ref()
-                .map(|v| {
-                    serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string())
-                })
+                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
                 .unwrap_or_else(|| "No response".to_string());
         } else {
             self.cached_mcp_response_json = String::new();

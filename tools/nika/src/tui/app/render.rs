@@ -109,8 +109,7 @@ impl App {
                     // Ratatui's differential rendering handles incremental updates
                     if state.dirty.all {
                         frame.render_widget(Clear, size);
-                        let bg =
-                            Paragraph::new("").style(Style::default().bg(theme.background));
+                        let bg = Paragraph::new("").style(Style::default().bg(theme.background));
                         frame.render_widget(bg, size);
                     }
 
