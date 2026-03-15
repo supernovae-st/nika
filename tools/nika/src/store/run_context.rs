@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use serde_json::Value;
 
 use super::context::LoadedContext;
@@ -156,10 +156,10 @@ impl TaskResult {
 ///
 /// Added context storage for workflow `context:` block.
 /// Added inputs storage for workflow `inputs:` block.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RunContext {
     /// Task results: task_id → TaskResult
-    results: Arc<DashMap<Arc<str>, TaskResult>>,
+    results: Arc<DashMap<Arc<str>, TaskResult, FxBuildHasher>>,
 
     /// Context loaded at workflow start
     ///
@@ -172,6 +172,16 @@ pub struct RunContext {
     /// Contains input definitions from the `inputs:` block.
     /// Accessible via `{{inputs.param}}` bindings.
     inputs: Arc<RwLock<FxHashMap<String, Value>>>,
+}
+
+impl Default for RunContext {
+    fn default() -> Self {
+        Self {
+            results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
+            context: Arc::default(),
+            inputs: Arc::default(),
+        }
+    }
 }
 
 impl RunContext {
