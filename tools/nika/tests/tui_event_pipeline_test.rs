@@ -7,13 +7,13 @@
 
 #![cfg(feature = "tui")]
 
-use nika::ast::parse_workflow as _parse_workflow;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
 use tokio::time::timeout;
 
-use nika::ast::Workflow;
+use nika::ast::analyzed::AnalyzedWorkflow;
+use nika::ast::parse_analyzed;
 use nika::event::{Event, EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -21,8 +21,8 @@ use nika::runtime::Runner;
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn parse_workflow(yaml: &str) -> Result<Workflow, nika::error::NikaError> {
-    _parse_workflow(yaml)
+fn parse_workflow(yaml: &str) -> Result<AnalyzedWorkflow, nika::error::NikaError> {
+    parse_analyzed(yaml)
 }
 
 async fn collect_events(mut rx: broadcast::Receiver<Event>, timeout_ms: u64) -> Vec<Event> {

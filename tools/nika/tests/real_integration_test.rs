@@ -17,7 +17,8 @@ use std::time::Duration;
 use serde_json::Value;
 use tokio::time::timeout;
 
-use nika::ast::{self, Workflow};
+use nika::ast::analyzed::AnalyzedWorkflow;
+use nika::ast::parse_analyzed;
 use nika::event::{Event, EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -25,8 +26,8 @@ use nika::runtime::Runner;
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn parse_workflow(yaml: &str) -> Workflow {
-    ast::parse_workflow(yaml).expect("Failed to parse workflow")
+fn parse_workflow(yaml: &str) -> AnalyzedWorkflow {
+    parse_analyzed(yaml).expect("Failed to parse workflow")
 }
 
 struct TestResult {
@@ -35,7 +36,7 @@ struct TestResult {
     error: Option<String>,
 }
 
-async fn run_workflow_full(workflow: Workflow, timeout_secs: u64) -> TestResult {
+async fn run_workflow_full(workflow: AnalyzedWorkflow, timeout_secs: u64) -> TestResult {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
     let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });

@@ -6,8 +6,8 @@
 //! Run mock tests: `cargo test --test mcp_real_output_test`
 //! Run real tests: `cargo test --test mcp_real_output_test -- --ignored`
 
-use nika::ast::parse_workflow as _parse_workflow;
-use nika::ast::Workflow;
+use nika::ast::analyzed::AnalyzedWorkflow;
+use nika::ast::parse_analyzed;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,11 +21,11 @@ use nika::runtime::Runner;
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn parse_workflow(yaml: &str) -> Workflow {
-    _parse_workflow(yaml).expect("Failed to parse workflow")
+fn parse_workflow(yaml: &str) -> AnalyzedWorkflow {
+    parse_analyzed(yaml).expect("Failed to parse workflow")
 }
 
-async fn run_and_collect_mcp_events(workflow: Workflow, timeout_secs: u64) -> Vec<Event> {
+async fn run_and_collect_mcp_events(workflow: AnalyzedWorkflow, timeout_secs: u64) -> Vec<Event> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
     let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
@@ -53,7 +53,7 @@ async fn run_and_collect_mcp_events(workflow: Workflow, timeout_secs: u64) -> Ve
 }
 
 async fn run_workflow_and_get_task_output(
-    workflow: Workflow,
+    workflow: AnalyzedWorkflow,
     task_id: &str,
     timeout_secs: u64,
 ) -> Option<Arc<Value>> {

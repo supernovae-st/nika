@@ -12,7 +12,8 @@ use std::time::Duration;
 use serde_json::Value;
 use tokio::time::timeout;
 
-use nika::ast::{self, Workflow};
+use nika::ast::analyzed::AnalyzedWorkflow;
+use nika::ast::parse_analyzed;
 use nika::event::{EventKind, EventLog};
 use nika::runtime::Runner;
 
@@ -20,11 +21,11 @@ use nika::runtime::Runner;
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-fn parse_workflow(yaml: &str) -> Workflow {
-    ast::parse_workflow(yaml).expect("Failed to parse workflow")
+fn parse_workflow(yaml: &str) -> AnalyzedWorkflow {
+    parse_analyzed(yaml).expect("Failed to parse workflow")
 }
 
-async fn run_workflow_and_get_output(workflow: Workflow) -> Option<Arc<Value>> {
+async fn run_workflow_and_get_output(workflow: AnalyzedWorkflow) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
     let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });
@@ -55,7 +56,7 @@ async fn run_workflow_and_get_output(workflow: Workflow) -> Option<Arc<Value>> {
     final_output
 }
 
-async fn run_workflow_and_get_task_output(workflow: Workflow, task_id: &str) -> Option<Arc<Value>> {
+async fn run_workflow_and_get_task_output(workflow: AnalyzedWorkflow, task_id: &str) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
     let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });

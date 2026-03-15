@@ -38,7 +38,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use nika::ast::parse_workflow;
+use nika::ast::parse_analyzed;
 use nika::mcp::{McpClient, McpConfig};
 use nika::runtime::Runner;
 use serde_json::json;
@@ -309,7 +309,7 @@ tasks:
       command: "echo MCP call for {{use.item}}"
 "#;
 
-    let workflow = parse_workflow(yaml).expect("Should parse workflow");
+    let workflow = parse_analyzed(yaml).expect("Should parse workflow");
     let mut runner = Runner::new(workflow);
 
     let result = runner.run().await;
@@ -565,7 +565,7 @@ tasks:
     for i in 0..5 {
         let yaml = yaml.to_string();
         handles.spawn(async move {
-            let workflow = parse_workflow(&yaml).expect("Should parse workflow");
+            let workflow = parse_analyzed(&yaml).expect("Should parse workflow");
             let mut runner = Runner::new(workflow);
             let result = runner.run().await;
             (i, result.is_ok())
