@@ -181,7 +181,7 @@
           "pattern": "^[a-z][a-z0-9_-]*$",
           "description": "Unique task identifier (lowercase alphanumeric with underscores/hyphens)"
         },
-        "use": {
+        "with": {
           "$ref": "#/$defs/WiringSpec",
           "description": "Data wiring from previous task outputs"
         },
