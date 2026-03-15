@@ -493,42 +493,6 @@ impl ProviderSelectorState {
         }
     }
 
-    // === Aliases for chat.rs compatibility ===
-
-    /// Alias for hide() - close the selector
-    pub fn close(&mut self) {
-        self.hide();
-    }
-
-    /// Alias for up()
-    pub fn move_up(&mut self) {
-        self.up();
-    }
-
-    /// Alias for down()
-    pub fn move_down(&mut self) {
-        self.down();
-    }
-
-    /// Alias for current_provider()
-    pub fn selected_provider(&self) -> &ProviderInfo {
-        self.current_provider()
-    }
-
-    /// Get the currently highlighted model (always returns the highlighted model, not just in model_mode)
-    pub fn selected_model(&self) -> Option<&ModelInfo> {
-        let provider = &self.providers[self.selected_provider];
-        if provider.models.is_empty() {
-            None
-        } else {
-            Some(
-                &provider.models[self
-                    .selected_model
-                    .min(provider.models.len().saturating_sub(1))],
-            )
-        }
-    }
-
     /// Enter model selection mode
     pub fn enter_model_mode(&mut self) {
         self.model_mode = true;

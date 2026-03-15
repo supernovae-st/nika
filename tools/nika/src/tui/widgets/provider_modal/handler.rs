@@ -54,7 +54,7 @@ pub enum ModalAction {
     },
     /// Test API key for a provider
     TestApiKey { provider: &'static str },
-    /// Save API key for a provider (old, for compatibility)
+    /// Save API key for a provider (without testing)
     SaveApiKey { provider: &'static str, key: String },
     /// Save API key and then test it (recommended flow)
     SaveAndTestApiKey { provider: &'static str, key: String },
