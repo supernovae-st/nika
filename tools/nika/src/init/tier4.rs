@@ -150,7 +150,7 @@ tasks:
   # Find relevant nodes in the graph
 
   - id: search_entities
-    use:
+    with:
       schema: $describe_schema
     invoke:
       mcp: novanet
@@ -167,7 +167,7 @@ tasks:
   # Explore what's connected to the found entity
 
   - id: traverse_entity
-    use:
+    with:
       results: $search_entities
     invoke:
       mcp: novanet
@@ -201,7 +201,7 @@ tasks:
   # This is the MAIN tool - assembles context for content generation
 
   - id: generate_context
-    use:
+    with:
       traversal: $traverse_entity
       atoms: $get_locale_atoms
     invoke:
@@ -220,7 +220,7 @@ tasks:
   # Now use the assembled context with an LLM
 
   - id: generate_content
-    use:
+    with:
       context: $generate_context
     infer:
       prompt: |
@@ -230,7 +230,7 @@ tasks:
         ═══════════════════════════════════════════════════════════════════
         KNOWLEDGE CONTEXT FROM NOVANET:
         ═══════════════════════════════════════════════════════════════════
-        {{use.context}}
+        {{with.context}}
 
         ═══════════════════════════════════════════════════════════════════
 
@@ -252,7 +252,7 @@ tasks:
   # Always check before writing to the graph
 
   - id: check_write
-    use:
+    with:
       content: $generate_content
     invoke:
       mcp: novanet
@@ -263,7 +263,7 @@ tasks:
         key: "landing-qr-code:fr-FR"
         properties:
           locale: fr-FR
-          content: "{{use.content}}"
+          content: "{{with.content}}"
           generated_at: "2024-01-01T00:00:00Z"
 
   # ───────────────────────────────────────────────────────────────────────────────
@@ -272,7 +272,7 @@ tasks:
   # Persist the generated content
 
   - id: write_content
-    use:
+    with:
       check_result: $check_write
       content: $generate_content
     invoke:
@@ -285,7 +285,7 @@ tasks:
         locale: fr-FR              # Auto-creates FOR_LOCALE arc
         properties:
           locale: fr-FR
-          content: "{{use.content}}"
+          content: "{{with.content}}"
           generated_at: "2024-01-01T00:00:00Z"
 
   # ───────────────────────────────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ tasks:
   # Check data quality after writing
 
   - id: audit_quality
-    use:
+    with:
       write_result: $write_content
     invoke:
       mcp: novanet
@@ -356,7 +356,7 @@ flows:
 # │     tool: tool_name              # Which tool to call                     │
 # │     params:                      # Tool parameters                        │
 # │       param1: value1                                                      │
-# │       param2: "{{use.binding}}"  # Can use bindings                      │
+# │       param2: "{{with.binding}}"  # Can use bindings                      │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # NOVANET TOOL SELECTION (see mcp-tool-selection.md):

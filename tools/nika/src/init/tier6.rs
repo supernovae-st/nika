@@ -128,7 +128,7 @@ tasks:
 
   - id: compile_briefing
     description: "Synthesize all data into a briefing"
-    use:
+    with:
       weather: $get_weather
       news: $get_news
       schedule: $get_schedule
@@ -139,13 +139,13 @@ tasks:
         Create a comprehensive yet concise morning briefing using this data:
 
         WEATHER:
-        {{use.weather}}
+        {{with.weather}}
 
         NEWS HEADLINES:
-        {{use.news}}
+        {{with.news}}
 
         TODAY'S SCHEDULE:
-        {{use.schedule}}
+        {{with.schedule}}
 
         Structure the briefing with:
         1. 🌤️ Weather at a glance (2-3 sentences)
@@ -164,13 +164,13 @@ tasks:
 
   - id: format_output
     description: "Create beautifully formatted final output"
-    use:
+    with:
       briefing: $compile_briefing
     infer:
       prompt: |
         Format this morning briefing with beautiful ASCII art styling:
 
-        {{use.briefing}}
+        {{with.briefing}}
 
         Add:
         - A nice header with date and location ({{inputs.location}})
@@ -321,7 +321,7 @@ tasks:
 
   - id: generate_posts
     description: "Generate platform-specific posts for each day"
-    use:
+    with:
       strategy: $content_strategy
     # Generate content for each day in parallel
     for_each: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -329,8 +329,8 @@ tasks:
     concurrency: 7  # All days generated simultaneously
     infer:
       prompt: |
-        Create social media posts for {{use.day}} based on this strategy:
-        {{use.strategy}}
+        Create social media posts for {{with.day}} based on this strategy:
+        {{with.strategy}}
 
         Brand: {{inputs.brand_name}}
         Tone: {{inputs.tone}}
@@ -354,7 +354,7 @@ tasks:
 
         Output as JSON:
         {
-          "day": "{{use.day}}",
+          "day": "{{with.day}}",
           "linkedin": {"post": "...", "hashtags": [...]},
           "twitter": {"post": "...", "hashtags": [...]},
           "instagram": {"caption": "...", "hashtags": [...]}
@@ -369,13 +369,13 @@ tasks:
 
   - id: compile_calendar
     description: "Create the final content calendar"
-    use:
+    with:
       posts: $generate_posts
     infer:
       prompt: |
         Create a beautiful, actionable content calendar from this data:
 
-        {{use.posts}}
+        {{with.posts}}
 
         Format as a markdown document with:
 
@@ -509,7 +509,7 @@ tasks:
 
   - id: analyze_competitor
     description: "Deep dive analysis of each competitor"
-    use:
+    with:
       framework: $define_analysis
     for_each:
       - name: "Zapier"
@@ -524,11 +524,11 @@ tasks:
       prompt: |
         Perform a detailed competitive analysis of:
 
-        Competitor: {{use.competitor.name}}
-        Website: {{use.competitor.website}}
+        Competitor: {{with.competitor.name}}
+        Website: {{with.competitor.website}}
 
         Using this analysis framework:
-        {{use.framework}}
+        {{with.framework}}
 
         Analyze based on your knowledge (this is a demo - in production
         you would fetch real data):
@@ -549,13 +549,13 @@ tasks:
 
   - id: swot_comparison
     description: "Create comparative SWOT analysis"
-    use:
+    with:
       analyses: $analyze_competitor
     infer:
       prompt: |
         Create a comparative SWOT analysis based on:
 
-        {{use.analyses}}
+        {{with.analyses}}
 
         Our company: {{inputs.your_company}}
 
@@ -583,13 +583,13 @@ tasks:
 
   - id: strategic_recs
     description: "Generate strategic recommendations"
-    use:
+    with:
       swot: $swot_comparison
     infer:
       prompt: |
         Based on this competitive analysis:
 
-        {{use.swot}}
+        {{with.swot}}
 
         Generate strategic recommendations for {{inputs.your_company}}:
 
@@ -723,13 +723,13 @@ tasks:
 
   - id: draft_email
     description: "Create the initial email draft"
-    use:
+    with:
       analysis: $analyze_context
     infer:
       prompt: |
         Write an email based on this analysis:
 
-        {{use.analysis}}
+        {{with.analysis}}
 
         Email details:
         - From: {{inputs.your_name}}
@@ -753,13 +753,13 @@ tasks:
 
   - id: refine_tone
     description: "Perfect the tone and polish"
-    use:
+    with:
       draft: $draft_email
     infer:
       prompt: |
         Review and refine this email draft:
 
-        {{use.draft}}
+        {{with.draft}}
 
         Desired tone: {{inputs.tone}}
 
@@ -777,13 +777,13 @@ tasks:
 
   - id: add_variations
     description: "Create alternative versions"
-    use:
+    with:
       polished: $refine_tone
     infer:
       prompt: |
         Based on this polished email:
 
-        {{use.polished}}
+        {{with.polished}}
 
         Create 2 alternative versions:
 
@@ -918,13 +918,13 @@ tasks:
 
   - id: plan_menu
     description: "Create the weekly menu overview"
-    use:
+    with:
       guidelines: $analyze_preferences
     infer:
       prompt: |
         Create a weekly meal plan following these guidelines:
 
-        {{use.guidelines}}
+        {{with.guidelines}}
 
         For each day (Monday-Sunday), suggest:
         - 🌅 Breakfast (quick, 10-15 min)
@@ -955,18 +955,18 @@ tasks:
 
   - id: generate_recipes
     description: "Generate detailed recipes for each day"
-    use:
+    with:
       menu: $plan_menu
     for_each: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     as: day
     concurrency: 7
     infer:
       prompt: |
-        Generate detailed recipes for {{use.day}} based on this menu:
+        Generate detailed recipes for {{with.day}} based on this menu:
 
-        {{use.menu}}
+        {{with.menu}}
 
-        Find {{use.day}}'s meals and create recipes with:
+        Find {{with.day}}'s meals and create recipes with:
 
         For EACH meal (breakfast, lunch, dinner):
         - 🍽️ Recipe name
@@ -984,13 +984,13 @@ tasks:
 
   - id: generate_grocery
     description: "Create consolidated grocery list"
-    use:
+    with:
       recipes: $generate_recipes
     infer:
       prompt: |
         Create a consolidated grocery list from these recipes:
 
-        {{use.recipes}}
+        {{with.recipes}}
 
         Servings: {{inputs.servings}}
 
@@ -1138,14 +1138,14 @@ tasks:
   # Parallel research phase
   - id: research_dest
     description: "Research destination highlights"
-    use:
+    with:
       analysis: $analyze_trip
     infer:
       prompt: |
         Research {{inputs.destination}} for a {{inputs.trip_duration}} trip.
 
         Trip focus:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Cover:
 
@@ -1173,7 +1173,7 @@ tasks:
 
   - id: local_insights
     description: "Gather cultural tips and local knowledge"
-    use:
+    with:
       analysis: $analyze_trip
     infer:
       prompt: |
@@ -1210,7 +1210,7 @@ tasks:
 
   - id: create_itinerary
     description: "Build day-by-day itinerary"
-    use:
+    with:
       research: $research_dest
       insights: $local_insights
     infer:
@@ -1218,10 +1218,10 @@ tasks:
         Create a detailed {{inputs.trip_duration}} itinerary for {{inputs.destination}}.
 
         Research:
-        {{use.research}}
+        {{with.research}}
 
         Local Insights:
-        {{use.insights}}
+        {{with.insights}}
 
         Focus on: {{inputs.interests}}
         Travel style: {{inputs.travel_style}}
@@ -1259,7 +1259,7 @@ tasks:
 
   - id: add_logistics
     description: "Add packing list, budget, and checklists"
-    use:
+    with:
       itinerary: $create_itinerary
       insights: $local_insights
     infer:
@@ -1267,10 +1267,10 @@ tasks:
         Complete the travel planning with logistics:
 
         Itinerary:
-        {{use.itinerary}}
+        {{with.itinerary}}
 
         Local insights:
-        {{use.insights}}
+        {{with.insights}}
 
         Generate:
 
@@ -1424,12 +1424,12 @@ tasks:
 
   - id: generate_theme
     description: "Create theme ideas"
-    use:
+    with:
       analysis: $analyze_party
     infer:
       prompt: |
         Generate party theme ideas for:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Interests: {{inputs.special_interests}}
 
@@ -1454,12 +1454,12 @@ tasks:
   # Parallel planning phase
   - id: plan_food
     description: "Plan food and treats"
-    use:
+    with:
       theme: $generate_theme
     infer:
       prompt: |
         Plan party food matching this theme:
-        {{use.theme}}
+        {{with.theme}}
 
         Requirements:
         - Guests: {{inputs.guest_count}} kids
@@ -1492,12 +1492,12 @@ tasks:
 
   - id: plan_activities
     description: "Plan games and activities"
-    use:
+    with:
       theme: $generate_theme
     infer:
       prompt: |
         Plan party activities for:
-        {{use.theme}}
+        {{with.theme}}
 
         Details:
         - Age: {{inputs.age}} year olds
@@ -1541,12 +1541,12 @@ tasks:
 
   - id: plan_decor
     description: "Plan decorations"
-    use:
+    with:
       theme: $generate_theme
     infer:
       prompt: |
         Plan decorations for:
-        {{use.theme}}
+        {{with.theme}}
 
         Venue: {{inputs.venue_type}}
         Budget allocation: ~25% of ${{inputs.budget}}
@@ -1582,7 +1582,7 @@ tasks:
 
   - id: compile_party_kit
     description: "Compile complete party planning kit"
-    use:
+    with:
       theme: $generate_theme
       food: $plan_food
       activities: $plan_activities
@@ -1591,10 +1591,10 @@ tasks:
       prompt: |
         Compile the complete party planning kit:
 
-        THEME: {{use.theme}}
-        FOOD: {{use.food}}
-        ACTIVITIES: {{use.activities}}
-        DECORATIONS: {{use.decor}}
+        THEME: {{with.theme}}
+        FOOD: {{with.food}}
+        ACTIVITIES: {{with.activities}}
+        DECORATIONS: {{with.decor}}
 
         Create:
 
@@ -1771,12 +1771,12 @@ tasks:
   # Parallel content generation
   - id: create_notes
     description: "Create show notes with timestamps"
-    use:
+    with:
       analysis: $analyze_episode
     infer:
       prompt: |
         Create detailed show notes from:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Format:
 
@@ -1817,12 +1817,12 @@ tasks:
 
   - id: find_clips
     description: "Identify quotable moments for clips"
-    use:
+    with:
       analysis: $analyze_episode
     infer:
       prompt: |
         From this analysis:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Find the 5 best moments for short video/audio clips:
 
@@ -1846,12 +1846,12 @@ tasks:
 
   - id: generate_seo
     description: "Generate SEO content"
-    use:
+    with:
       analysis: $analyze_episode
     infer:
       prompt: |
         Generate SEO content for:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Show: {{inputs.show_name}}
         Episode: {{inputs.episode_number}}
@@ -1886,7 +1886,7 @@ tasks:
 
   - id: generate_social
     description: "Create social media content"
-    use:
+    with:
       clips: $find_clips
       notes: $create_notes
     infer:
@@ -1894,10 +1894,10 @@ tasks:
         Create social media content:
 
         Clips identified:
-        {{use.clips}}
+        {{with.clips}}
 
         Show notes:
-        {{use.notes}}
+        {{with.notes}}
 
         Generate:
 
@@ -1928,7 +1928,7 @@ tasks:
 
   - id: compile_package
     description: "Compile complete content package"
-    use:
+    with:
       notes: $create_notes
       clips: $find_clips
       seo: $generate_seo
@@ -1946,22 +1946,22 @@ tasks:
         ---
 
         ## 📋 SHOW NOTES
-        {{use.notes}}
+        {{with.notes}}
 
         ---
 
         ## 🎬 VIDEO CLIPS
-        {{use.clips}}
+        {{with.clips}}
 
         ---
 
         ## 🔍 SEO CONTENT
-        {{use.seo}}
+        {{with.seo}}
 
         ---
 
         ## 📱 SOCIAL MEDIA
-        {{use.social}}
+        {{with.social}}
 
         ---
 
@@ -2123,22 +2123,22 @@ tasks:
 
   - id: analyze_reviews
     description: "Analyze reviews from multiple sources"
-    use:
+    with:
       context: $gather_context
     for_each: ["Amazon Reviews", "Reddit Discussions", "YouTube Reviews"]
     as: source
     concurrency: 3
     infer:
       prompt: |
-        Simulate analyzing {{inputs.product_name}} reviews from {{use.source}}.
+        Simulate analyzing {{inputs.product_name}} reviews from {{with.source}}.
 
         Analysis context:
-        {{use.context}}
+        {{with.context}}
 
         Note: In production, this would fetch real reviews via API.
         For demo, simulate a realistic analysis based on your knowledge.
 
-        For {{use.source}}, provide:
+        For {{with.source}}, provide:
 
         📊 OVERVIEW
         - Typical sentiment (positive/mixed/negative)
@@ -2155,7 +2155,7 @@ tasks:
         - Issue 2: [complaint + severity + frequency]
 
         💡 UNIQUE INSIGHTS
-        - Things only {{use.source}} reveals
+        - Things only {{with.source}} reveals
 
         🎯 RELEVANCE TO YOUR PRIORITIES
         - How well it addresses {{inputs.your_priorities}}
@@ -2167,13 +2167,13 @@ tasks:
 
   - id: synthesize_verdict
     description: "Create weighted verdict"
-    use:
+    with:
       analyses: $analyze_reviews
     infer:
       prompt: |
         Synthesize all review analyses into a verdict:
 
-        {{use.analyses}}
+        {{with.analyses}}
 
         Your priorities: {{inputs.your_priorities}}
         Your deal-breakers: {{inputs.deal_breakers}}
@@ -2212,12 +2212,12 @@ tasks:
 
   - id: find_alternatives
     description: "Identify alternatives to consider"
-    use:
+    with:
       verdict: $synthesize_verdict
     infer:
       prompt: |
         Based on this analysis:
-        {{use.verdict}}
+        {{with.verdict}}
 
         Priorities: {{inputs.your_priorities}}
         Budget: ${{inputs.price}} (willing to go ±30%)
@@ -2251,7 +2251,7 @@ tasks:
 
   - id: final_recommendation
     description: "Generate final buy/skip recommendation"
-    use:
+    with:
       verdict: $synthesize_verdict
       alternatives: $find_alternatives
     infer:
@@ -2259,10 +2259,10 @@ tasks:
         Generate final recommendation:
 
         Verdict:
-        {{use.verdict}}
+        {{with.verdict}}
 
         Alternatives:
-        {{use.alternatives}}
+        {{with.alternatives}}
 
         Use case: {{inputs.use_case}}
 
@@ -2437,7 +2437,7 @@ tasks:
 
   - id: curate_content
     description: "Curate content for each section"
-    use:
+    with:
       theme: $define_edition
     for_each:
       - name: "Top News"
@@ -2461,12 +2461,12 @@ tasks:
       prompt: |
         Curate content for newsletter section:
 
-        Section: {{use.section.name}}
-        Description: {{use.section.description}}
-        Items needed: {{use.section.items}}
+        Section: {{with.section.name}}
+        Description: {{with.section.description}}
+        Items needed: {{with.section.items}}
 
         Edition theme:
-        {{use.theme}}
+        {{with.theme}}
 
         Topic: {{inputs.topic}}
         Audience: {{inputs.audience}}
@@ -2499,7 +2499,7 @@ tasks:
 
   - id: write_intro
     description: "Write engaging introduction"
-    use:
+    with:
       theme: $define_edition
       sections: $curate_content
     infer:
@@ -2507,10 +2507,10 @@ tasks:
         Write the newsletter introduction:
 
         Theme:
-        {{use.theme}}
+        {{with.theme}}
 
         Curated sections preview:
-        {{use.sections}}
+        {{with.sections}}
 
         Newsletter: {{inputs.newsletter_name}} #{{inputs.edition_number}}
         Audience: {{inputs.audience}}
@@ -2544,7 +2544,7 @@ tasks:
 
   - id: compile_newsletter
     description: "Compile final newsletter"
-    use:
+    with:
       intro: $write_intro
       sections: $curate_content
       theme: $define_edition
@@ -2553,13 +2553,13 @@ tasks:
         Compile the complete newsletter:
 
         Introduction:
-        {{use.intro}}
+        {{with.intro}}
 
         Curated sections:
-        {{use.sections}}
+        {{with.sections}}
 
         Theme guidance:
-        {{use.theme}}
+        {{with.theme}}
 
         Format the complete newsletter:
 

@@ -133,7 +133,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: security_review
-    use:
+    with:
       structure: $parse_code
     infer:
       prompt: |
@@ -143,7 +143,7 @@ tasks:
         {{inputs.code_to_review}}
         ```
 
-        Code structure: {{use.structure}}
+        Code structure: {{with.structure}}
 
         Check for:
         1. SQL/Command injection vulnerabilities
@@ -175,7 +175,7 @@ tasks:
           risk_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: performance_review
-    use:
+    with:
       structure: $parse_code
     infer:
       prompt: |
@@ -185,7 +185,7 @@ tasks:
         {{inputs.code_to_review}}
         ```
 
-        Code structure: {{use.structure}}
+        Code structure: {{with.structure}}
 
         Check for:
         1. Unnecessary re-renders or recomputations
@@ -216,7 +216,7 @@ tasks:
           perf_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: style_review
-    use:
+    with:
       structure: $parse_code
     infer:
       prompt: |
@@ -251,7 +251,7 @@ tasks:
           style_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: logic_review
-    use:
+    with:
       structure: $parse_code
     infer:
       prompt: |
@@ -291,7 +291,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: synthesize_report
-    use:
+    with:
       security: $security_review
       performance: $performance_review
       style: $style_review
@@ -300,10 +300,10 @@ tasks:
       prompt: |
         Synthesize these code review findings into an executive summary:
 
-        🔒 SECURITY: {{use.security}}
-        ⚡ PERFORMANCE: {{use.performance}}
-        🎨 STYLE: {{use.style}}
-        🧠 LOGIC: {{use.logic}}
+        🔒 SECURITY: {{with.security}}
+        ⚡ PERFORMANCE: {{with.performance}}
+        🎨 STYLE: {{with.style}}
+        🧠 LOGIC: {{with.logic}}
 
         Create a prioritized action plan with:
         1. Must-fix issues (blockers)
@@ -321,13 +321,13 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: generate_fixes
-    use:
+    with:
       report: $synthesize_report
     agent:
       prompt: |
         Based on this code review report, generate fixed code:
 
-        {{use.report}}
+        {{with.report}}
 
         Original code:
         ```typescript
@@ -460,27 +460,27 @@ tasks:
         notes: "Use vosotros, warm tone, family focus"
     as: target
     concurrency: 4
-    use:
+    with:
       analysis: $analyze_content
     infer:
       prompt: |
-        Localize this content for {{use.target.language}} ({{use.target.locale}}):
+        Localize this content for {{with.target.language}} ({{with.target.locale}}):
 
         SOURCE:
         {{inputs.source_content}}
 
         LOCALIZATION ANALYSIS:
-        {{use.analysis}}
+        {{with.analysis}}
 
         LOCALE GUIDELINES:
-        {{use.target.notes}}
+        {{with.target.notes}}
 
         Output a JSON object with the same structure as the source,
         but fully localized for the target audience.
       temperature: 0.4
       max_tokens: 600
       system: |
-        You are a native {{use.target.language}} speaker and professional localizer.
+        You are a native {{with.target.language}} speaker and professional localizer.
         Focus on cultural adaptation, not just translation.
     output:
       schema:
@@ -499,13 +499,13 @@ tasks:
                 description: { type: string }
 
   - id: quality_check
-    use:
+    with:
       localizations: $localize
     infer:
       prompt: |
         Review these localizations for quality:
 
-        {{use.localizations}}
+        {{with.localizations}}
 
         For each locale, check:
         1. Natural language usage (sounds native?)
@@ -521,14 +521,14 @@ tasks:
       format: text
 
   - id: export_files
-    use:
+    with:
       localizations: $localize
       quality: $quality_check
     agent:
       prompt: |
         Export each localization to its own JSON file:
 
-        {{use.localizations}}
+        {{with.localizations}}
 
         Create files:
         - ./output/localization/fr-FR.json
@@ -621,7 +621,7 @@ tasks:
           lsi: { type: array, items: { type: string }, maxItems: 10 }
 
   - id: content_outline
-    use:
+    with:
       keywords: $keyword_research
     infer:
       prompt: |
@@ -629,7 +629,7 @@ tasks:
         "{{inputs.topic}}"
 
         Target: {{inputs.word_count}} words
-        Keywords: {{use.keywords}}
+        Keywords: {{with.keywords}}
 
         Structure:
         1. H1 (include primary keyword)
@@ -642,7 +642,7 @@ tasks:
       max_tokens: 600
 
   - id: generate_meta
-    use:
+    with:
       keywords: $keyword_research
       outline: $content_outline
     infer:
@@ -650,7 +650,7 @@ tasks:
         Generate SEO meta tags:
 
         Topic: {{inputs.topic}}
-        Keywords: {{use.keywords}}
+        Keywords: {{with.keywords}}
 
         Create:
         1. Title tag (50-60 chars, primary keyword near start)
@@ -678,7 +678,7 @@ tasks:
               description: { type: string }
 
   - id: generate_schema
-    use:
+    with:
       keywords: $keyword_research
       outline: $content_outline
     infer:
@@ -686,7 +686,7 @@ tasks:
         Generate JSON-LD schema markup for this article:
 
         Topic: {{inputs.topic}}
-        Outline: {{use.outline}}
+        Outline: {{with.outline}}
 
         Create Schema.org structured data for:
         1. Article schema
@@ -706,17 +706,17 @@ tasks:
           breadcrumbs: { type: object }
 
   - id: generate_content
-    use:
+    with:
       keywords: $keyword_research
       outline: $content_outline
     infer:
       prompt: |
         Write the full article content following this outline:
 
-        {{use.outline}}
+        {{with.outline}}
 
         Keywords to naturally incorporate:
-        {{use.keywords}}
+        {{with.keywords}}
 
         Guidelines:
         - {{inputs.word_count}} words target
@@ -732,7 +732,7 @@ tasks:
         Write naturally while strategically placing keywords.
 
   - id: assemble_page
-    use:
+    with:
       meta: $generate_meta
       schema_markup: $generate_schema
       content: $generate_content
@@ -740,9 +740,9 @@ tasks:
       prompt: |
         Assemble the final HTML page with all components:
 
-        META: {{use.meta}}
-        SCHEMA: {{use.schema_markup}}
-        CONTENT: {{use.content}}
+        META: {{with.meta}}
+        SCHEMA: {{with.schema_markup}}
+        CONTENT: {{with.content}}
 
         Output a complete HTML document with:
         1. Proper head section (meta, title, schema)
@@ -826,13 +826,13 @@ tasks:
       max_turns: 10
 
   - id: generate_docs
-    use:
+    with:
       files: $scan_project
     agent:
       prompt: |
         Generate documentation for each file found:
 
-        {{use.files}}
+        {{with.files}}
 
         For each file:
         1. Extract function/class signatures
@@ -851,7 +851,7 @@ tasks:
       temperature: 0.3
 
   - id: generate_index
-    use:
+    with:
       docs: $generate_docs
     agent:
       prompt: |
@@ -899,26 +899,26 @@ tasks:
         Accept: application/json
 
   - id: validate
-    use:
+    with:
       raw_data: $extract
     infer:
       prompt: |
         Validate this data for consistency:
-        {{use.raw_data}}
+        {{with.raw_data}}
 
         Check: required fields, data types, value ranges
       temperature: 0.1
 
   - id: transform
-    use:
+    with:
       validated: $validate
       data: $extract
     infer:
       prompt: |
         Transform this data:
-        {{use.data}}
+        {{with.data}}
 
-        Validation results: {{use.validated}}
+        Validation results: {{with.validated}}
 
         Apply transformations:
         1. Normalize field names to camelCase
@@ -933,12 +933,12 @@ tasks:
           type: object
 
   - id: load
-    use:
+    with:
       transformed: $transform
     agent:
       prompt: |
         Load this data to output files:
-        {{use.transformed}}
+        {{with.transformed}}
 
         Create: ./output/etl/data_{{date}}.json
         Say LOAD_COMPLETE when done.
@@ -1036,7 +1036,7 @@ tasks:
       max_tokens: 300
 
   - id: review_changes
-    use:
+    with:
       analysis: $analyze_diff
     for_each:
       - aspect: correctness
@@ -1049,24 +1049,24 @@ tasks:
     concurrency: 3
     infer:
       prompt: |
-        Review this change for {{use.review.aspect}}:
+        Review this change for {{with.review.aspect}}:
 
         {{inputs.pr_diff}}
 
-        Focus: {{use.review.prompt}}
+        Focus: {{with.review.prompt}}
       temperature: 0.2
       max_tokens: 300
 
   - id: generate_review
-    use:
+    with:
       analysis: $analyze_diff
       reviews: $review_changes
     infer:
       prompt: |
         Generate a PR review comment:
 
-        Analysis: {{use.analysis}}
-        Detailed reviews: {{use.reviews}}
+        Analysis: {{with.analysis}}
+        Detailed reviews: {{with.reviews}}
 
         Format as GitHub review comment with:
         - Summary
@@ -1138,12 +1138,12 @@ tasks:
           followups: { type: array, items: { type: string } }
 
   - id: generate_summary
-    use:
+    with:
       extracted: $extract_info
     infer:
       prompt: |
         Create an executive summary:
-        {{use.extracted}}
+        {{with.extracted}}
 
         Format for email with:
         - TL;DR (2 sentences)
@@ -1184,17 +1184,17 @@ tasks:
     as: endpoint
     concurrency: 3
     fetch:
-      url: "{{use.endpoint.url}}"
+      url: "{{with.endpoint.url}}"
       method: GET
       timeout: 5000
 
   - id: analyze_results
-    use:
+    with:
       checks: $check_endpoints
     infer:
       prompt: |
         Analyze these health check results:
-        {{use.checks}}
+        {{with.checks}}
 
         Provide:
         1. Overall system status (healthy/degraded/down)
@@ -1259,12 +1259,12 @@ tasks:
                 attributes: { type: object }
 
   - id: extract_relations
-    use:
+    with:
       entities: $extract_entities
     infer:
       prompt: |
         Extract relationships between these entities:
-        {{use.entities}}
+        {{with.entities}}
 
         Original text: {{inputs.text}}
 
@@ -1288,15 +1288,15 @@ tasks:
                 target: { type: string }
 
   - id: build_graph
-    use:
+    with:
       entities: $extract_entities
       relations: $extract_relations
     infer:
       prompt: |
         Create a knowledge graph representation:
 
-        Entities: {{use.entities}}
-        Relations: {{use.relations}}
+        Entities: {{with.entities}}
+        Relations: {{with.relations}}
 
         Output as Cypher CREATE statements for Neo4j.
       temperature: 0.1
