@@ -172,7 +172,7 @@ impl Runner {
     ///
     /// Used by nika_run to pass parent context to child workflows.
     /// The context is stored as a successful task result under the given key,
-    /// making it accessible via `use: alias: <key>.result` in the child workflow.
+    /// making it accessible via `with: alias: <key>.result` in the child workflow.
     ///
     /// # Example
     ///
@@ -181,7 +181,7 @@ impl Runner {
     /// // context: { "entity": "qr-code", "locale": "fr-FR" }
     ///
     /// // Child workflow can access via:
-    /// // use:
+    /// // with:
     /// //   parent: __parent_context__.result
     /// ```
     pub fn with_initial_context(self, key: &str, context: Value) -> Self {

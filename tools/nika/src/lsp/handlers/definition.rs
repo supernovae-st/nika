@@ -1,7 +1,7 @@
 //! Go to Definition Handler
 //!
 //! Provides definition lookup for Nika workflow elements:
-//! - Task references in `use:` bindings → task definition
+//! - Task references in `with:` bindings → task definition
 //! - Template variables → binding declaration
 //! - Include paths → included file
 //!

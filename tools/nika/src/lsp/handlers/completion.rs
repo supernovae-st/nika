@@ -30,7 +30,7 @@ pub enum CompletionContext {
     TaskField,
     /// After a verb keyword (infer:, exec:, etc.)
     VerbValue(String),
-    /// Inside a use: block (binding references)
+    /// Inside a with: block (binding references)
     UseBinding,
     /// Inside mcp: block
     McpServer,
@@ -497,7 +497,7 @@ fn verb_value_completions(verb: &str) -> Vec<CompletionItem> {
     }
 }
 
-/// Completions for use: block (binding references)
+/// Completions for with: block (binding references)
 #[cfg(feature = "lsp")]
 fn binding_completions(text: &str) -> Vec<CompletionItem> {
     // Extract task IDs from the text

@@ -146,7 +146,7 @@ pub const CONTEXT_TERMINOLOGY: &str = r##"# Technical Terminology
 | Task | A single unit of work in a workflow | "This task runs an LLM inference" |
 | Verb | The action type (infer, exec, fetch, invoke, agent) | "The infer verb generates content" |
 | DAG | Directed Acyclic Graph - task dependencies | "The DAG ensures correct execution order" |
-| Binding | Data passed between tasks via use: | "Use bindings to share data" |
+| Binding | Data passed between tasks via with: | "Use bindings to share data" |
 | MCP | Model Context Protocol | "MCP tools extend agent capabilities" |
 
 ## AI/ML Terms
