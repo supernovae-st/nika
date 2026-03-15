@@ -52,9 +52,11 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────
   - id: extract_metadata
     depends_on: [generate_outline]
+    with:
+      outline: $generate_outline
     infer: |
       Analyze this outline and extract metadata:
-      {{generate_outline.output}}
+      {{with.outline}}
 
       Extract: title suggestion, estimated read time, difficulty level.
     provider: claude

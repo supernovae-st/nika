@@ -346,7 +346,7 @@ tasks:
       echo "Quality Score: {{with.assessment.overall_score}}/100"
       echo "Status: {{with.assessment.approval_status}}"
       echo ""
-      echo "Artifacts written to: ./output/{{date}}/{{workflow_name}}/"
+      echo "Artifacts written to: ./output/"
       echo "  - context/entity.json"
       echo "  - context/locales.json"
       echo "  - content/{locale}/landing-page.json"

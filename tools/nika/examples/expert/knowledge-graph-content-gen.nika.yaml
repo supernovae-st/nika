@@ -487,7 +487,6 @@ tasks:
 
         **Entity**: {{with.entity.name}}
         **Entity Key**: {{inputs.entity_key}}
-        **Generated**: {{date}}
 
         ## Executive Summary
         - Locales generated: {{inputs.target_locales | length}}
