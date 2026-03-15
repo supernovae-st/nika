@@ -4,7 +4,7 @@
 //! Called after successful task completion when `artifact:` is configured.
 //!
 //! Supports template-based artifacts via the `template:` field
-//! which supports `{{use.*}}` bindings for dynamic content generation.
+//! which supports `{{with.*}}` bindings for dynamic content generation.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -656,7 +656,7 @@ mod tests {
             path: "report.md".to_string(),
             source: None,
             template: Some(
-                "# Report\n\nUser: {{use.data.name}}, Age: {{use.data.age}}".to_string(),
+                "# Report\n\nUser: {{with.data.name}}, Age: {{with.data.age}}".to_string(),
             ),
             format: Some(ArtifactFormat::Text),
             mode: None,

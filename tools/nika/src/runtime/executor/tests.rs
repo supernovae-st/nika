@@ -95,7 +95,7 @@ async fn test_execute_exec_with_template_binding() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.name}}".to_string(),
+            command: "echo {{with.name}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -155,7 +155,7 @@ async fn test_execute_exec_emits_template_resolved() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.greeting}}".to_string(),
+            command: "echo {{with.greeting}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -224,7 +224,7 @@ async fn test_execute_fetch_with_template_url() {
 
     let action = TaskAction::Fetch {
         fetch: FetchParams {
-            url: "https://{{use.endpoint}}".to_string(),
+            url: "https://{{with.endpoint}}".to_string(),
             method: "GET".to_string(),
             headers: rustc_hash::FxHashMap::default(),
             body: None,
@@ -377,8 +377,8 @@ async fn test_execute_invoke_tool_with_template_params() {
             mcp: Some("novanet".to_string()),
             tool: Some("novanet_generate".to_string()),
             params: Some(json!({
-                "entity": "{{use.entity_key}}",
-                "locale": "{{use.locale_val}}"
+                "entity": "{{with.entity_key}}",
+                "locale": "{{with.locale_val}}"
             })),
             resource: None,
             timeout: None,
@@ -503,7 +503,7 @@ async fn test_binding_resolution_single_template() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.key}}".to_string(),
+            command: "echo {{with.key}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -529,7 +529,7 @@ async fn test_binding_resolution_multiple_templates() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.first}} {{use.second}}".to_string(),
+            command: "echo {{with.first}} {{with.second}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -578,7 +578,7 @@ async fn test_binding_resolution_json_value() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.data}}".to_string(),
+            command: "echo {{with.data}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -610,7 +610,7 @@ async fn test_binding_resolution_datastore_lookup() {
 
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.task_output}}".to_string(),
+            command: "echo {{with.task_output}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,
@@ -640,7 +640,7 @@ async fn test_expand_decompose_static() {
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
         traverse: "HAS_CHILD".to_string(),
-        source: "{{use.items}}".to_string(),
+        source: "{{with.items}}".to_string(),
         max_items: None,
         max_depth: None,
         mcp_server: None,
@@ -667,7 +667,7 @@ async fn test_expand_decompose_static_with_max_items() {
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
         traverse: "HAS_CHILD".to_string(),
-        source: "{{use.items}}".to_string(),
+        source: "{{with.items}}".to_string(),
         max_items: Some(2),
         max_depth: None,
         mcp_server: None,
@@ -691,7 +691,7 @@ async fn test_expand_decompose_static_wrong_type() {
     let spec = DecomposeSpec {
         strategy: DecomposeStrategy::Static,
         traverse: "HAS_CHILD".to_string(),
-        source: "{{use.notarray}}".to_string(),
+        source: "{{with.notarray}}".to_string(),
         max_items: None,
         max_depth: None,
         mcp_server: None,

@@ -249,9 +249,9 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
     ) -> Result<serde_json::Value, NikaError> {
-        if source.starts_with("{{use.") && source.ends_with("}}") {
-            // Template syntax: {{use.alias}} - supports lazy bindings
-            let alias = &source[6..source.len() - 2];
+        if source.starts_with("{{with.") && source.ends_with("}}") {
+            // Template syntax: {{with.alias}} - supports lazy bindings
+            let alias = &source[7..source.len() - 2];
             bindings.get_resolved(alias, datastore)
         } else if let Some(alias) = source.strip_prefix('$') {
             if alias.contains('.') {

@@ -41,7 +41,7 @@ impl TaskExecutor {
         // Validate infer params (empty prompt, invalid temperature)
         infer.validate()?;
 
-        // Resolve {{use.alias}} templates
+        // Resolve {{with.alias}} templates
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
 
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
@@ -288,9 +288,9 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates
+        // Resolve {{with.alias}} templates
         // Note: Shell escaping is NOT applied by default.
-        // For values that need shell escaping, use {{use.alias|shell}} syntax.
+        // For values that need shell escaping, use {{with.alias|shell}} syntax.
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
         // SECURITY CHECK: validate command for control characters and blocklist
@@ -400,7 +400,7 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates
+        // Resolve {{with.alias}} templates
         let url = template_resolve(&fetch.url, bindings, datastore)?;
 
         // POLICY CHECK: fetch verb
@@ -599,7 +599,7 @@ impl TaskExecutor {
     ///
     /// # Template Resolution
     ///
-    /// Templates like `{{use.variable}}` in params are resolved before calling the MCP tool.
+    /// Templates like `{{with.variable}}` in params are resolved before calling the MCP tool.
     /// This enables for_each iterations to pass dynamic values to MCP tools.
     #[instrument(skip(self, bindings, datastore), fields(mcp = ?invoke.mcp))]
     pub(super) async fn run_invoke(
@@ -617,7 +617,7 @@ impl TaskExecutor {
         let start_time = Instant::now();
 
         // Resolve templates FIRST, then emit event with resolved params
-        // This fixes the bug where TUI showed literal {{use.topic}} instead of resolved values
+        // This fixes the bug where TUI showed literal {{with.topic}} instead of resolved values
         let resolved_params = if let Some(ref original_params) = invoke.params {
             let params_str = serde_json::to_string(original_params)
                 .map_err(|e| NikaError::Execution(format!("Failed to serialize params: {}", e)))?;
@@ -790,7 +790,7 @@ impl TaskExecutor {
         datastore: &RunContext,
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
-        // Resolve {{use.alias}} templates in prompt
+        // Resolve {{with.alias}} templates in prompt
         let mut resolved_prompt =
             template_resolve(&agent.prompt, bindings, datastore)?.into_owned();
 
