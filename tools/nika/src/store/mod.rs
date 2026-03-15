@@ -6,7 +6,7 @@
 //! Key types:
 //! - `RunContext`: Central storage for task results
 //! - `TaskResult`: Execution result with status and output
-//! - `TaskStatus`: Success or failure status
+//! - `TaskOutcome`: Success or failure status
 //! - `LoadedContext`: Loaded workflow context files
 
 pub mod context;
@@ -14,4 +14,4 @@ mod run_context;
 
 // Re-export all public types
 pub use context::LoadedContext;
-pub use run_context::{RunContext, TaskResult, TaskStatus};
+pub use run_context::{RunContext, TaskResult, TaskOutcome};

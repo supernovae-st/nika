@@ -20,7 +20,7 @@ use crate::binding::jsonpath;
 
 /// Task execution status
 #[derive(Debug, Clone)]
-pub enum TaskStatus {
+pub enum TaskOutcome {
     Success,
     Failed(String),
     /// Task cannot run because a dependency failed
@@ -43,7 +43,7 @@ pub struct TaskResult {
     /// Execution duration
     pub duration: Duration,
     /// Success or failure status
-    pub status: TaskStatus,
+    pub status: TaskOutcome,
 }
 
 impl TaskResult {
@@ -52,7 +52,7 @@ impl TaskResult {
         Self {
             output: Arc::new(output.into()),
             duration,
-            status: TaskStatus::Success,
+            status: TaskOutcome::Success,
         }
     }
 
@@ -61,7 +61,7 @@ impl TaskResult {
         Self {
             output: Arc::new(Value::String(output.into())),
             duration,
-            status: TaskStatus::Success,
+            status: TaskOutcome::Success,
         }
     }
 
@@ -70,7 +70,7 @@ impl TaskResult {
         Self {
             output: Arc::new(Value::Null),
             duration,
-            status: TaskStatus::Failed(error.into()),
+            status: TaskOutcome::Failed(error.into()),
         }
     }
 
@@ -82,7 +82,7 @@ impl TaskResult {
         Self {
             output: Arc::new(Value::Null),
             duration: Duration::ZERO,
-            status: TaskStatus::DependencyFailed {
+            status: TaskOutcome::DependencyFailed {
                 dependency: dependency.into(),
             },
         }
@@ -95,7 +95,7 @@ impl TaskResult {
         Self {
             output: Arc::new(Value::Null),
             duration: Duration::ZERO,
-            status: TaskStatus::Skipped {
+            status: TaskOutcome::Skipped {
                 reason: reason.into(),
             },
         }
@@ -103,30 +103,30 @@ impl TaskResult {
 
     /// Check if task succeeded
     pub fn is_success(&self) -> bool {
-        matches!(self.status, TaskStatus::Success)
+        matches!(self.status, TaskOutcome::Success)
     }
 
     /// Check if task failed due to a dependency failure
     pub fn is_dependency_failed(&self) -> bool {
-        matches!(self.status, TaskStatus::DependencyFailed { .. })
+        matches!(self.status, TaskOutcome::DependencyFailed { .. })
     }
 
     /// Check if task was skipped
     pub fn is_skipped(&self) -> bool {
-        matches!(self.status, TaskStatus::Skipped { .. })
+        matches!(self.status, TaskOutcome::Skipped { .. })
     }
 
     /// Check if task is in a terminal state (not pending)
     ///
     /// Returns true for Success, Failed, DependencyFailed, and Skipped.
     pub fn is_terminal(&self) -> bool {
-        true // All TaskStatus variants are terminal states
+        true // All TaskOutcome variants are terminal states
     }
 
     /// Get the failed dependency name if this is a DependencyFailed result
     pub fn failed_dependency(&self) -> Option<&str> {
         match &self.status {
-            TaskStatus::DependencyFailed { dependency } => Some(dependency),
+            TaskOutcome::DependencyFailed { dependency } => Some(dependency),
             _ => None,
         }
     }
@@ -134,10 +134,10 @@ impl TaskResult {
     /// Get error message if failed
     pub fn error(&self) -> Option<&str> {
         match &self.status {
-            TaskStatus::Failed(e) => Some(e),
-            TaskStatus::DependencyFailed { dependency } => Some(dependency),
-            TaskStatus::Skipped { reason } => Some(reason),
-            TaskStatus::Success => None,
+            TaskOutcome::Failed(e) => Some(e),
+            TaskOutcome::DependencyFailed { dependency } => Some(dependency),
+            TaskOutcome::Skipped { reason } => Some(reason),
+            TaskOutcome::Success => None,
         }
     }
 
@@ -214,7 +214,7 @@ impl RunContext {
         self.get(task_id).is_some_and(|r| {
             matches!(
                 r.status,
-                TaskStatus::Failed(_) | TaskStatus::DependencyFailed { .. }
+                TaskOutcome::Failed(_) | TaskOutcome::DependencyFailed { .. }
             )
         })
     }

@@ -94,7 +94,7 @@ pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
 pub use event::{list_traces, Event, EventKind, EventLog};
 
 // Store
-pub use store::{RunContext, TaskResult, TaskStatus};
+pub use store::{RunContext, TaskOutcome, TaskResult};
 
 // MCP
 pub use mcp::{McpClient, McpConfig};

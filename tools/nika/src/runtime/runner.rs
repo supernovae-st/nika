@@ -320,7 +320,7 @@ impl Runner {
         for task in &self.workflow.tasks {
             if let Some(result) = self.datastore.get(&task.id) {
                 // Only consider actual failures, not dependency failures
-                if matches!(result.status, crate::store::TaskStatus::Failed(_)) {
+                if matches!(result.status, crate::store::TaskOutcome::Failed(_)) {
                     return Some(task.id.clone());
                 }
             }
