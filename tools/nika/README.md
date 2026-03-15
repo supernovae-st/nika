@@ -219,9 +219,9 @@ src/
 │   └── rig_agent_loop.rs # RigAgentLoop with rig::AgentBuilder
 ├── mcp/          # MCP client (rmcp v0.16)
 ├── provider/     # rig-core provider (RigProvider wrapper)
-├── event/        # Observability (22 event types)
+├── event/        # Observability (34 event types)
 ├── binding/      # Data flow ({{with.alias}}, {{context.files.*}})
-└── tui/          # Terminal UI (6 views, 39 widgets)
+└── tui/          # Terminal UI (4 views, 40+ widgets)
 ```
 
 ## Commands

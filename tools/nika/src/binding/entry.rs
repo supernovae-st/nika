@@ -1159,7 +1159,8 @@ tags: 'meta.tags ?? ["default"]'
         assert_eq!(entry.path, "generate.content");
 
         // Pattern: Agent result access
-        let entry: BindingEntry = serde_yaml::from_str("\"$research_agent.findings.summary\"").unwrap();
+        let entry: BindingEntry =
+            serde_yaml::from_str("\"$research_agent.findings.summary\"").unwrap();
         assert_eq!(entry.path, "research_agent.findings.summary");
 
         // Pattern: Lazy binding with default for optional task output

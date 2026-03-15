@@ -19,7 +19,7 @@
 
 use crate::binding::{
     has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, text_to_bindings,
-    Mention, MentionResolutionError, ResolvedMention, BindingSpec,
+    BindingSpec, Mention, MentionResolutionError, ResolvedMention,
 };
 use crate::dag::StableDag;
 use chrono::{DateTime, Utc};

@@ -58,8 +58,8 @@ mod validate;
 
 // Re-export public types
 pub use entry::{
-    parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry, WithEntryParseError,
-    WithSpec,
+    parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry,
+    WithEntryParseError, WithSpec,
 };
 pub use mention::{
     has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention,
@@ -67,10 +67,9 @@ pub use mention::{
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
-    escape_for_shell, extract_refs, extract_with_refs,
-    parse_template_expr, resolve as template_resolve,
-    resolve_for_shell as template_resolve_for_shell, resolve_with as template_resolve_with,
-    validate_refs, validate_with_refs, TemplateExpr,
+    escape_for_shell, extract_refs, extract_with_refs, parse_template_expr,
+    resolve as template_resolve, resolve_for_shell as template_resolve_for_shell,
+    resolve_with as template_resolve_with, validate_refs, validate_with_refs, TemplateExpr,
 };
 pub use transform::{TransformError, TransformExpr, TransformOp, TransformParseError};
 pub use types::{BindingPath, BindingPathError, BindingSource, BindingType, PathSegment};

@@ -126,16 +126,16 @@ impl ResolvedBindings {
         binding_spec: Option<&BindingSpec>,
         datastore: &RunContext,
     ) -> Result<Self, NikaError> {
-        let Some(bindings) = binding_spec else {
+        let Some(spec) = binding_spec else {
             return Ok(Self::new());
         };
 
-        let mut bindings = Self::new();
+        let mut resolved = Self::new();
 
-        for (alias, entry) in bindings {
+        for (alias, entry) in spec {
             if entry.is_lazy() {
                 // Lazy binding - defer resolution
-                bindings.bindings.insert(
+                resolved.bindings.insert(
                     alias.clone(),
                     LazyBinding::Pending {
                         path: entry.path.clone(),
@@ -145,13 +145,13 @@ impl ResolvedBindings {
             } else {
                 // Eager binding - resolve immediately
                 let value = resolve_entry(entry, alias, datastore)?;
-                bindings
+                resolved
                     .bindings
                     .insert(alias.clone(), LazyBinding::Resolved(value));
             }
         }
 
-        Ok(bindings)
+        Ok(resolved)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1379,7 +1379,10 @@ mod tests {
 
         let mut spec = BindingSpec::default();
         spec.insert("quick_bind".to_string(), BindingEntry::new("quick.result"));
-        spec.insert("slow_bind".to_string(), BindingEntry::new_lazy("slow.result"));
+        spec.insert(
+            "slow_bind".to_string(),
+            BindingEntry::new_lazy("slow.result"),
+        );
 
         let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
@@ -1484,7 +1487,10 @@ mod tests {
         store.set_inputs(inputs);
 
         let mut spec = BindingSpec::default();
-        spec.insert("theme".to_string(), BindingEntry::new("inputs.config.theme"));
+        spec.insert(
+            "theme".to_string(),
+            BindingEntry::new("inputs.config.theme"),
+        );
         spec.insert(
             "deep".to_string(),
             BindingEntry::new("inputs.config.nested.deep"),

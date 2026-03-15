@@ -5,7 +5,7 @@
 //!
 //! See: docs/plans/tui-gap-remediation-v2.md
 
-use nika::binding::{ResolvedBindings, BindingEntry, BindingSpec};
+use nika::binding::{BindingEntry, BindingSpec, ResolvedBindings};
 use nika::store::RunContext;
 use pretty_assertions::assert_eq;
 
@@ -183,11 +183,17 @@ fn test_lazy_circular_pattern_no_deadlock_after_execution() {
 
     // Task A's bindings (references B)
     let mut spec_a = BindingSpec::default();
-    spec_a.insert("from_b".to_string(), BindingEntry::new_lazy("task_b.result"));
+    spec_a.insert(
+        "from_b".to_string(),
+        BindingEntry::new_lazy("task_b.result"),
+    );
 
     // Task B's bindings (references A)
     let mut spec_b = BindingSpec::default();
-    spec_b.insert("from_a".to_string(), BindingEntry::new_lazy("task_a.result"));
+    spec_b.insert(
+        "from_a".to_string(),
+        BindingEntry::new_lazy("task_a.result"),
+    );
 
     // Act: Create bindings for both
     let bindings_a = ResolvedBindings::from_binding_spec(Some(&spec_a), &store).unwrap();
@@ -234,11 +240,17 @@ fn test_lazy_circular_pattern_partial_execution_error() {
 
     // Task A's bindings (references B)
     let mut spec_a = BindingSpec::default();
-    spec_a.insert("from_b".to_string(), BindingEntry::new_lazy("task_b.result"));
+    spec_a.insert(
+        "from_b".to_string(),
+        BindingEntry::new_lazy("task_b.result"),
+    );
 
     // Task B's bindings (references A)
     let mut spec_b = BindingSpec::default();
-    spec_b.insert("from_a".to_string(), BindingEntry::new_lazy("task_a.result"));
+    spec_b.insert(
+        "from_a".to_string(),
+        BindingEntry::new_lazy("task_a.result"),
+    );
 
     // Act: Create bindings
     let bindings_a = ResolvedBindings::from_binding_spec(Some(&spec_a), &store).unwrap();
@@ -452,7 +464,10 @@ fn test_lazy_binding_preserves_pending_state() {
     let store = RunContext::new();
 
     let mut spec = BindingSpec::default();
-    spec.insert("pending".to_string(), BindingEntry::new_lazy("future.result"));
+    spec.insert(
+        "pending".to_string(),
+        BindingEntry::new_lazy("future.result"),
+    );
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 

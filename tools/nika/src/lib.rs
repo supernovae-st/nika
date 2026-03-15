@@ -87,7 +87,7 @@ pub use runtime::{Runner, TaskExecutor};
 pub use dag::{validate_bindings, Dag, StableDag};
 
 // Binding
-pub use binding::{validate_task_id, ResolvedBindings, BindingEntry, BindingSpec};
+pub use binding::{validate_task_id, BindingEntry, BindingSpec, ResolvedBindings};
 
 // Events
 pub use event::{list_traces, Event, EventKind, EventLog};

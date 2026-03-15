@@ -337,7 +337,7 @@ pub fn mentions_to_bindings(resolved: &ResolvedMention) -> BindingSpec {
         }
     }
 
-    wiring
+    spec
 }
 
 /// Convert all mentions in text to BindingSpec.

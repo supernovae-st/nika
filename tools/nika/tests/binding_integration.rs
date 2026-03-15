@@ -3,7 +3,7 @@
 //! Tests the full pipeline: YAML → BindingSpec → ResolvedBindings → template resolution
 
 use nika::binding::{
-    parse_binding_entry, template_resolve, validate_task_id, ResolvedBindings, BindingSpec,
+    parse_binding_entry, template_resolve, validate_task_id, BindingSpec, ResolvedBindings,
 };
 use nika::serde_yaml;
 use nika::store::{RunContext, TaskResult};
@@ -100,7 +100,10 @@ fn full_workflow_nested_path() {
 #[test]
 fn full_workflow_multiple_aliases() {
     let mut spec = BindingSpec::default();
-    spec.insert("city".to_string(), parse_binding_entry("weather.city").unwrap());
+    spec.insert(
+        "city".to_string(),
+        parse_binding_entry("weather.city").unwrap(),
+    );
     spec.insert(
         "temp".to_string(),
         parse_binding_entry("weather.temp ?? 20").unwrap(),

@@ -32,7 +32,7 @@ tools/nika/src/
 │   ├── rig.rs        # RigProvider (6 cloud providers via rig-core v0.32)
 │   └── native/       # NativeRuntime (mistral.rs for GGUF models)
 ├── binding/          # Data flow ({{with.alias}})
-├── event/            # NDJSON trace (22 event variants)
+├── event/            # NDJSON trace (34 event variants)
 ├── secrets/          # Keychain + daemon IPC
 ├── tui/              # 4-view Terminal UI
 └── lsp/              # Language Server Protocol (feature-gated)

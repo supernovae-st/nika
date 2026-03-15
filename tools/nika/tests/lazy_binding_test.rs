@@ -7,7 +7,7 @@
 //! - Breaking circular dependency detection false positives
 //! - Supporting dynamic workflow patterns
 
-use nika::binding::{ResolvedBindings, BindingEntry, BindingSpec};
+use nika::binding::{BindingEntry, BindingSpec, ResolvedBindings};
 use nika::serde_yaml;
 use nika::store::{RunContext, TaskResult};
 use serde_json::json;
@@ -96,7 +96,10 @@ fn test_lazy_binding_not_resolved_initially() {
     // Note: "future" task NOT in store
 
     let mut spec = BindingSpec::default();
-    spec.insert("lazy_val".to_string(), BindingEntry::new_lazy("future.result"));
+    spec.insert(
+        "lazy_val".to_string(),
+        BindingEntry::new_lazy("future.result"),
+    );
 
     // This should succeed because lazy bindings defer resolution
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store);
@@ -113,7 +116,10 @@ fn test_lazy_binding_resolved_on_access() {
 
     let mut spec = BindingSpec::default();
     // Note: path "task1.result" expects task1 output to have a "result" field
-    spec.insert("lazy_val".to_string(), BindingEntry::new_lazy("task1.result"));
+    spec.insert(
+        "lazy_val".to_string(),
+        BindingEntry::new_lazy("task1.result"),
+    );
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
@@ -137,7 +143,10 @@ fn test_lazy_binding_with_path() {
     let store = RunContext::new();
 
     let mut spec = BindingSpec::default();
-    spec.insert("nested".to_string(), BindingEntry::new_lazy("task1.data.value"));
+    spec.insert(
+        "nested".to_string(),
+        BindingEntry::new_lazy("task1.data.value"),
+    );
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
@@ -197,7 +206,10 @@ fn test_lazy_binding_error_on_missing_no_default() {
     // Task never runs, no default
 
     let mut spec = BindingSpec::default();
-    spec.insert("strict".to_string(), BindingEntry::new_lazy("missing.result"));
+    spec.insert(
+        "strict".to_string(),
+        BindingEntry::new_lazy("missing.result"),
+    );
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
@@ -286,7 +298,10 @@ fn test_is_lazy_returns_true_for_pending() {
     // No tasks
 
     let mut spec = BindingSpec::default();
-    spec.insert("pending".to_string(), BindingEntry::new_lazy("future.result"));
+    spec.insert(
+        "pending".to_string(),
+        BindingEntry::new_lazy("future.result"),
+    );
 
     let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
