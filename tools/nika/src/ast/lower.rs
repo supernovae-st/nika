@@ -512,18 +512,20 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             capture_stderr: false,
             span: Span::dummy(),
         }),
-        TaskAction::Fetch { fetch } => {
-            AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
-                url: fetch.url.clone(),
-                method: HttpMethod::parse(&fetch.method).unwrap_or_default(),
-                headers: fetch.headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-                body: fetch.body.clone(),
-                json: fetch.json.clone(),
-                timeout_ms: fetch.timeout,
-                follow_redirects: fetch.follow_redirects.unwrap_or(true),
-                span: Span::dummy(),
-            })
-        }
+        TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+            url: fetch.url.clone(),
+            method: HttpMethod::parse(&fetch.method).unwrap_or_default(),
+            headers: fetch
+                .headers
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            body: fetch.body.clone(),
+            json: fetch.json.clone(),
+            timeout_ms: fetch.timeout,
+            follow_redirects: fetch.follow_redirects.unwrap_or(true),
+            span: Span::dummy(),
+        }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
             server: invoke.mcp.clone(),
             tool: invoke.tool.clone().unwrap_or_default(),

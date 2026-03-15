@@ -56,7 +56,10 @@ async fn run_workflow_and_get_output(workflow: AnalyzedWorkflow) -> Option<Arc<V
     final_output
 }
 
-async fn run_workflow_and_get_task_output(workflow: AnalyzedWorkflow, task_id: &str) -> Option<Arc<Value>> {
+async fn run_workflow_and_get_task_output(
+    workflow: AnalyzedWorkflow,
+    task_id: &str,
+) -> Option<Arc<Value>> {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
     let mut runner = Runner::with_event_log(workflow, event_log);
     let handle = tokio::spawn(async move { runner.run().await });

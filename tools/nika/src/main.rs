@@ -707,7 +707,12 @@ async fn run_workflow(
     println!(
         "{} Using provider: {} | model: {}",
         "→".cyan(),
-        workflow.provider.as_deref().unwrap_or("(auto)").cyan().bold(),
+        workflow
+            .provider
+            .as_deref()
+            .unwrap_or("(auto)")
+            .cyan()
+            .bold(),
         workflow.model.as_deref().unwrap_or("(default)").cyan()
     );
 

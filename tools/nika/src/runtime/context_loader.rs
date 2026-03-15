@@ -143,10 +143,7 @@ pub async fn load_context_analyzed(
     let mut context = LoadedContext::new();
 
     for cf in context_files {
-        let alias = cf
-            .alias
-            .clone()
-            .unwrap_or_else(|| path_to_alias(&cf.path));
+        let alias = cf.alias.clone().unwrap_or_else(|| path_to_alias(&cf.path));
 
         let value = if is_glob_pattern(&cf.path) {
             load_glob_files(&cf.path, base_path).await?

@@ -18,7 +18,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
 use crate::ast::analyzed::{
-    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat,
+    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
+    OutputFormat as AnalyzedOutputFormat,
 };
 use crate::ast::lower::{lower_action, lower_mcp_servers, lower_output};
 use crate::ast::output::OutputPolicy;
@@ -647,10 +648,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
 
         // Build bindings from with: spec (always present in AnalyzedTask)
-        let mut bindings = match ResolvedBindings::from_with_spec(
-            Some(&task.with_spec),
-            &datastore,
-        ) {
+        let mut bindings = match ResolvedBindings::from_with_spec(Some(&task.with_spec), &datastore)
+        {
             Ok(b) => b,
             Err(e) => {
                 let duration = start.elapsed();
@@ -686,7 +685,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             task.model.clone(),
             task.retry.clone(),
         );
-        let lowered_output = task.output.as_ref().map(|o: &AnalyzedOutput| lower_output(o.clone()));
+        let lowered_output = task
+            .output
+            .as_ref()
+            .map(|o: &AnalyzedOutput| lower_output(o.clone()));
 
         // Check if task qualifies for schema validation retry
         let retry_config = Self::get_retry_config(&task);
@@ -851,24 +853,24 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let loaded_context =
                 load_context_analyzed(&self.workflow.context_files, &base_path).await?;
             self.datastore.set_context(loaded_context);
-            debug!(
-                "Loaded {} context files",
-                self.workflow.context_files.len()
-            );
+            debug!("Loaded {} context files", self.workflow.context_files.len());
         }
 
         // Load inputs if workflow has inputs
         if !self.workflow.inputs.is_empty() {
-            let inputs_map: rustc_hash::FxHashMap<String, serde_json::Value> =
-                self.workflow.inputs.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            let inputs_map: rustc_hash::FxHashMap<String, serde_json::Value> = self
+                .workflow
+                .inputs
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
             self.datastore.set_inputs(inputs_map);
             debug!("Loaded {} input parameters", self.workflow.inputs.len());
         }
 
         // Resolve agents
         if self.workflow.agents.is_some() {
-            self.resolved_assets =
-                resolve_assets_analyzed(&self.workflow, &base_path).await?;
+            self.resolved_assets = resolve_assets_analyzed(&self.workflow, &base_path).await?;
             debug!(
                 agents = self.resolved_assets.agents.len(),
                 skills = self.resolved_assets.skills.len(),
@@ -1083,9 +1085,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                     if for_each.is_binding() {
                         // Binding reference ($alias, {{use.alias}}, {{inputs.xxx}})
-                        let bindings =
-                            ResolvedBindings::from_with_spec(Some(&task.with_spec), &self.datastore)
-                                .unwrap_or_default();
+                        let bindings = ResolvedBindings::from_with_spec(
+                            Some(&task.with_spec),
+                            &self.datastore,
+                        )
+                        .unwrap_or_default();
 
                         if let Some(alias) = items_str.strip_prefix('$') {
                             // Check for $inputs.xxx format first (workflow inputs)
@@ -1338,12 +1342,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     if !items.is_empty() {
                         // Get concurrency settings from analyzed for_each
                         let fe = task.for_each.as_ref();
-                        let concurrency = fe
-                            .and_then(|f| f.parallel)
-                            .unwrap_or(1) as usize;
-                        let fail_fast = fe
-                            .map(|f| f.fail_fast)
-                            .unwrap_or(true);
+                        let concurrency = fe.and_then(|f| f.parallel).unwrap_or(1) as usize;
+                        let fail_fast = fe.map(|f| f.fail_fast).unwrap_or(true);
 
                         debug!(
                             task_id = %task.name,
@@ -1359,10 +1359,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         let cancelled = Arc::new(AtomicBool::new(false));
 
                         // Spawn one execution per item in the array
-                        let var_name = fe
-                            .map(|f| f.as_var.as_str())
-                            .unwrap_or("item")
-                            .to_string();
+                        let var_name = fe.map(|f| f.as_var.as_str()).unwrap_or("item").to_string();
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
                             if fail_fast && cancelled.load(Ordering::Relaxed) {
@@ -2470,7 +2467,13 @@ mod tests {
         concurrency: Option<u32>,
     ) -> AnalyzedWorkflow {
         let mut workflow = create_for_each_workflow(
-            task_id, items_expr, as_var, command, concurrency, true, false,
+            task_id,
+            items_expr,
+            as_var,
+            command,
+            concurrency,
+            true,
+            false,
         );
         workflow.inputs = inputs;
         workflow
@@ -3444,8 +3447,7 @@ mod tests {
 
     #[test]
     fn test_get_retry_config_none_for_zero_retries() {
-        let mut structured =
-            StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
+        let mut structured = StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
         structured.max_retries = Some(0);
         let task = make_infer_task(
             "zero_retries",
@@ -3464,8 +3466,7 @@ mod tests {
 
     #[test]
     fn test_get_retry_config_none_for_default_retries() {
-        let mut structured =
-            StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
+        let mut structured = StructuredOutputSpec::with_inline_schema(json!({"type": "object"}));
         structured.max_retries = None; // defaults to 0 via unwrap_or(0)
         let task = make_infer_task(
             "default_retries",
