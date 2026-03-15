@@ -748,10 +748,10 @@ impl ProviderModalState {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Session Stats Wiring Methods
+    // Session Stats Methods
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Set session token count (wired from ChatView.total_tokens())
+    /// Set session token count (from ChatView.total_tokens())
     pub fn set_session_tokens(&mut self, tokens: u64) {
         self.session_tokens = tokens;
     }

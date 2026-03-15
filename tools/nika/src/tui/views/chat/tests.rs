@@ -2254,7 +2254,7 @@ fn test_smooth_scroll_animation_converges_to_stop() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Chat DAG Panel Integration Tests (WIRING-6)
+// Chat DAG Panel Integration Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -2439,7 +2439,7 @@ fn test_get_chat_state_preserves_model() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ChatWorkflow Wiring Tests
+// ChatWorkflow Binding Tests
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]

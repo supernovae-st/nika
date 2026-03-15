@@ -832,7 +832,7 @@ mod tests {
         // For depth=1, no suffix is shown
     }
 
-    // === TokenVelocity wiring tests ===
+    // === TokenVelocity tests ===
 
     #[test]
     fn test_agent_box_has_velocity() {

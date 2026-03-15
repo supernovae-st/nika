@@ -773,7 +773,7 @@ mod tests {
         assert!((box_.pulse_intensity - 0.0).abs() < 0.001);
     }
 
-    // === TokenVelocity wiring tests ===
+    // === TokenVelocity tests ===
 
     #[test]
     fn test_infer_box_has_velocity() {
