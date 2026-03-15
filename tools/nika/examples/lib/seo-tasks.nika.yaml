@@ -41,7 +41,7 @@ tasks:
   - id: generate_meta
     description: "Generate SEO-optimized meta description"
     with:
-      keywords: analyze_keywords
+      keywords: $analyze_keywords
     infer: |
       Generate an SEO-optimized meta description (max 155 characters)
       using these keywords:
@@ -59,7 +59,7 @@ tasks:
   - id: generate_title
     description: "Generate SEO-optimized title tag"
     with:
-      keywords: analyze_keywords
+      keywords: $analyze_keywords
     infer: |
       Generate an SEO-optimized title tag (max 60 characters)
       using these keywords:
