@@ -55,42 +55,6 @@ pub fn atomic_write(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
     })
 }
 
-/// Async version of atomic_write using tokio.
-///
-/// Preferred for TUI operations to avoid blocking the event loop.
-/// Uses fully async operations including error cleanup.
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub async fn atomic_write_async(path: impl AsRef<Path>, content: &[u8]) -> io::Result<()> {
-    use tokio::io::AsyncWriteExt;
-
-    let path = path.as_ref();
-    let temp_path = path.with_extension("tmp.nika");
-
-    // Create parent directories (idempotent, no TOCTOU race)
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-
-    // Write to temp file
-    let mut file = tokio::fs::File::create(&temp_path).await?;
-    file.write_all(content).await?;
-    file.flush().await?;
-    file.sync_all().await?; // Ensure data hits disk
-
-    // Atomic rename with async cleanup on error
-    match tokio::fs::rename(&temp_path, path).await {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            // Async cleanup to avoid blocking the executor
-            let temp_clone = temp_path.clone();
-            tokio::spawn(async move {
-                let _ = tokio::fs::remove_file(temp_clone).await;
-            });
-            Err(e)
-        }
-    }
-}
-
 /// Check if a file size is within preview limits.
 ///
 /// Returns `Ok(size)` if within limits, or `Err(actual_size)` if too large.
@@ -175,18 +139,6 @@ mod tests {
 
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(content, "second");
-    }
-
-    #[tokio::test]
-    async fn test_atomic_write_async() {
-        let temp = TempDir::new().unwrap();
-        let path = temp.path().join("async_test.txt");
-
-        atomic_write_async(&path, b"async content").await.unwrap();
-
-        assert!(path.exists());
-        let content = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(content, "async content");
     }
 
     #[test]
