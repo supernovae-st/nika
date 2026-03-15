@@ -77,7 +77,11 @@ mod tests {
     use super::*;
     use crate::ast::analyzed::AnalyzedWorkflow;
 
-    fn make_workflow(tasks: &[&str], provider: Option<&str>, model: Option<&str>) -> AnalyzedWorkflow {
+    fn make_workflow(
+        tasks: &[&str],
+        provider: Option<&str>,
+        model: Option<&str>,
+    ) -> AnalyzedWorkflow {
         let mut wf = AnalyzedWorkflow::default();
         for name in tasks {
             wf.task_table.insert(name);
@@ -89,7 +93,11 @@ mod tests {
 
     #[test]
     fn from_workflow_roundtrip() {
-        let wf = make_workflow(&["step1", "step2", "step3"], Some("anthropic"), Some("claude-sonnet-4-6"));
+        let wf = make_workflow(
+            &["step1", "step2", "step3"],
+            Some("anthropic"),
+            Some("claude-sonnet-4-6"),
+        );
         let ctx = RuntimeContext::from_workflow(&wf);
 
         assert_eq!(ctx.task_count(), 3);

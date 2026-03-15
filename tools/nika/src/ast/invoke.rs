@@ -102,12 +102,9 @@ impl InvokeParams {
         }
 
         match (&self.tool, &self.resource) {
-            (Some(tool), Some(_)) if !tool.trim().is_empty() => {
-                Err(NikaError::ValidationError {
-                    reason: "'tool' and 'resource' are mutually exclusive - specify only one"
-                        .into(),
-                })
-            }
+            (Some(tool), Some(_)) if !tool.trim().is_empty() => Err(NikaError::ValidationError {
+                reason: "'tool' and 'resource' are mutually exclusive - specify only one".into(),
+            }),
             (Some(tool), None) if tool.trim().is_empty() => Err(NikaError::ValidationError {
                 reason: "'tool' name cannot be empty".into(),
             }),
@@ -211,7 +208,10 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("mutually exclusive"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("mutually exclusive"));
     }
 
     #[test]
@@ -225,7 +225,10 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("must be specified"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must be specified"));
     }
 
     // =========================================================================

@@ -814,8 +814,7 @@ impl TaskExecutor {
         };
 
         // Validate agent params
-        resolved_agent
-            .validate()?;
+        resolved_agent.validate()?;
 
         // POLICY CHECK: token budget
         // Estimate tokens for budget check - use token_budget from agent params if set,

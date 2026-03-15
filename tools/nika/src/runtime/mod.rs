@@ -50,6 +50,7 @@ pub use builtin::{
     RunTool,
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
+pub use context::RuntimeContext;
 pub use context_loader::{load_context, LoadedContext};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
@@ -58,7 +59,6 @@ pub use resolver::{
     resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,
 };
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
-pub use context::RuntimeContext;
 pub use runner::Runner;
 pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};

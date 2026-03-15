@@ -399,10 +399,7 @@ impl AgentParams {
         if let Some(temp) = self.temperature {
             if !(0.0..=2.0).contains(&temp) {
                 return Err(NikaError::ValidationError {
-                    reason: format!(
-                        "temperature must be between 0.0 and 2.0, got {}",
-                        temp
-                    ),
+                    reason: format!("temperature must be between 0.0 and 2.0, got {}", temp),
                 });
             }
         }
@@ -623,7 +620,9 @@ extended_thinking: false
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.to_string().contains("extended_thinking only supported for claude"));
+        assert!(err
+            .to_string()
+            .contains("extended_thinking only supported for claude"));
     }
 
     #[test]
@@ -838,7 +837,9 @@ temperature: 0.7
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.to_string().contains("temperature must be between 0.0 and 2.0"));
+        assert!(err
+            .to_string()
+            .contains("temperature must be between 0.0 and 2.0"));
     }
 
     #[test]
@@ -849,7 +850,9 @@ temperature: 0.7
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.to_string().contains("temperature must be between 0.0 and 2.0"));
+        assert!(err
+            .to_string()
+            .contains("temperature must be between 0.0 and 2.0"));
     }
 
     #[test]
