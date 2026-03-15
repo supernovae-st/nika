@@ -771,6 +771,331 @@ mod tests {
         assert_eq!(ModelArchitecture::Phi4.to_string(), "Phi-4");
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // UNIQUE IDS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_model_ids_are_unique() {
+        let mut seen = std::collections::HashSet::new();
+        for model in KNOWN_MODELS {
+            assert!(
+                seen.insert(model.id),
+                "Duplicate model ID: {}",
+                model.id
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FIND_MODEL EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_find_model_case_sensitive() {
+        assert!(find_model("Qwen3:8b").is_none());
+        assert!(find_model("QWEN3:8B").is_none());
+        assert!(find_model("qwen3:8b").is_some());
+    }
+
+    #[test]
+    fn test_find_model_empty_string() {
+        assert!(find_model("").is_none());
+    }
+
+    #[test]
+    fn test_find_model_all_known_ids() {
+        for model in KNOWN_MODELS {
+            assert!(
+                find_model(model.id).is_some(),
+                "find_model should find: {}",
+                model.id
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MODELS_BY_TYPE EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_models_by_type_audio_empty() {
+        let audio = models_by_type(ModelType::Audio);
+        assert!(audio.is_empty(), "No Audio models currently defined");
+    }
+
+    #[test]
+    fn test_models_by_type_diffusion_empty() {
+        let diffusion = models_by_type(ModelType::Diffusion);
+        assert!(diffusion.is_empty(), "No Diffusion models currently defined");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MODEL TYPE DISPLAY COMPLETENESS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_model_type_display_all() {
+        assert_eq!(ModelType::Audio.to_string(), "Audio");
+        assert_eq!(ModelType::Diffusion.to_string(), "Diffusion");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // QUANTIZATION EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_quantization_display_all() {
+        assert_eq!(Quantization::F16.to_string(), "F16");
+        assert_eq!(Quantization::Q8_0.to_string(), "Q8_0");
+        assert_eq!(Quantization::Q6_K.to_string(), "Q6_K");
+        assert_eq!(Quantization::Q5_K_M.to_string(), "Q5_K_M");
+        assert_eq!(Quantization::Q5_K_S.to_string(), "Q5_K_S");
+        assert_eq!(Quantization::Q4_K_M.to_string(), "Q4_K_M");
+        assert_eq!(Quantization::Q4_K_S.to_string(), "Q4_K_S");
+        assert_eq!(Quantization::Q4_0.to_string(), "Q4_0");
+        assert_eq!(Quantization::Q3_K_S.to_string(), "Q3_K_S");
+        assert_eq!(Quantization::Q3_K_M.to_string(), "Q3_K_M");
+        assert_eq!(Quantization::Q3_K_L.to_string(), "Q3_K_L");
+        assert_eq!(Quantization::Q2_K.to_string(), "Q2_K");
+        assert_eq!(Quantization::IQ2_XS.to_string(), "IQ2_XS");
+        assert_eq!(Quantization::IQ3_XS.to_string(), "IQ3_XS");
+        assert_eq!(Quantization::IQ4_NL.to_string(), "IQ4_NL");
+    }
+
+    #[test]
+    fn test_quantization_memory_multiplier_ordering() {
+        // F16 > Q8 > Q6 > Q5 > Q4 > Q3 > Q2
+        assert!(Quantization::F16.memory_multiplier() > Quantization::Q8_0.memory_multiplier());
+        assert!(Quantization::Q8_0.memory_multiplier() > Quantization::Q6_K.memory_multiplier());
+        assert!(Quantization::Q6_K.memory_multiplier() > Quantization::Q5_K_M.memory_multiplier());
+        assert!(
+            Quantization::Q5_K_M.memory_multiplier() > Quantization::Q4_K_M.memory_multiplier()
+        );
+        assert!(
+            Quantization::Q4_K_M.memory_multiplier() > Quantization::Q3_K_M.memory_multiplier()
+        );
+        assert!(Quantization::Q3_K_M.memory_multiplier() > Quantization::Q2_K.memory_multiplier());
+    }
+
+    #[test]
+    fn test_quantization_quality_rating_bounds() {
+        // All quality ratings should be 1-5
+        let all_quants = [
+            Quantization::F16,
+            Quantization::Q8_0,
+            Quantization::Q6_K,
+            Quantization::Q5_K_M,
+            Quantization::Q5_K_S,
+            Quantization::Q4_K_M,
+            Quantization::Q4_K_S,
+            Quantization::Q4_0,
+            Quantization::Q3_K_S,
+            Quantization::Q3_K_M,
+            Quantization::Q3_K_L,
+            Quantization::Q2_K,
+            Quantization::IQ2_XS,
+            Quantization::IQ3_XS,
+            Quantization::IQ4_NL,
+        ];
+        for q in &all_quants {
+            let rating = q.quality_rating();
+            assert!(
+                (1..=5).contains(&rating),
+                "{} has quality_rating {} outside 1-5",
+                q,
+                rating
+            );
+        }
+    }
+
+    #[test]
+    fn test_quantization_memory_multiplier_positive() {
+        let all_quants = [
+            Quantization::F16,
+            Quantization::Q8_0,
+            Quantization::Q6_K,
+            Quantization::Q5_K_M,
+            Quantization::Q5_K_S,
+            Quantization::Q4_K_M,
+            Quantization::Q4_K_S,
+            Quantization::Q4_0,
+            Quantization::Q3_K_S,
+            Quantization::Q3_K_M,
+            Quantization::Q3_K_L,
+            Quantization::Q2_K,
+            Quantization::IQ2_XS,
+            Quantization::IQ3_XS,
+            Quantization::IQ4_NL,
+        ];
+        for q in &all_quants {
+            assert!(
+                q.memory_multiplier() > 0.0,
+                "{} has non-positive memory_multiplier",
+                q
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ARCHITECTURE DISPLAY COMPLETENESS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_architecture_display_all_variants() {
+        // Ensure Display is implemented for all variants without panic
+        let all_archs = [
+            ModelArchitecture::Mistral,
+            ModelArchitecture::Mixtral,
+            ModelArchitecture::Llama,
+            ModelArchitecture::Llama4,
+            ModelArchitecture::Phi2,
+            ModelArchitecture::Phi3,
+            ModelArchitecture::Phi4,
+            ModelArchitecture::Qwen2,
+            ModelArchitecture::Qwen3,
+            ModelArchitecture::Gemma,
+            ModelArchitecture::Gemma2,
+            ModelArchitecture::Starcoder2,
+            ModelArchitecture::DeepSeek,
+            ModelArchitecture::DeepSeekV2,
+            ModelArchitecture::DeepSeekV3,
+            ModelArchitecture::Cohere,
+            ModelArchitecture::Dbrx,
+            ModelArchitecture::Yi,
+            ModelArchitecture::Falcon,
+            ModelArchitecture::Bloom,
+            ModelArchitecture::Mpt,
+            ModelArchitecture::Internlm2,
+            ModelArchitecture::LLaVA,
+            ModelArchitecture::LLaVANext,
+            ModelArchitecture::Qwen2VL,
+            ModelArchitecture::Phi3V,
+            ModelArchitecture::Idefics2,
+            ModelArchitecture::Pixtral,
+            ModelArchitecture::Bert,
+            ModelArchitecture::Nomic,
+            ModelArchitecture::Jina,
+            ModelArchitecture::Unknown,
+        ];
+        for arch in &all_archs {
+            let s = arch.to_string();
+            assert!(!s.is_empty(), "Architecture {:?} has empty display", arch);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTO_SELECT_QUANTIZATION EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_auto_select_quantization_zero_ram() {
+        let model = find_model("qwen3:8b").unwrap();
+        // With 0 RAM, should fall back to last quantization
+        let quant = auto_select_quantization(model, 0);
+        // Should pick the last in the list (smallest)
+        let last_quant = model.quantizations.last().unwrap().0;
+        assert_eq!(quant, last_quant);
+    }
+
+    #[test]
+    fn test_auto_select_quantization_single_quant_model() {
+        // qwen3:1.7b has only Q8_0
+        let model = find_model("qwen3:1.7b").unwrap();
+        assert_eq!(model.quantizations.len(), 1);
+        let quant = auto_select_quantization(model, 32);
+        assert_eq!(quant, Quantization::Q8_0);
+    }
+
+    #[test]
+    fn test_auto_select_quantization_huge_ram() {
+        let model = find_model("qwen3:8b").unwrap();
+        // With 256GB RAM, should pick first (highest quality) quantization
+        let quant = auto_select_quantization(model, 256);
+        let first_quant = model.quantizations.first().unwrap().0;
+        assert_eq!(quant, first_quant);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RESOLVE_MODEL ERROR PATHS
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolve_model_unknown_id() {
+        let err = resolve_model("nonexistent:model", None).unwrap_err();
+        match err {
+            ModelResolveError::UnknownModel { id } => {
+                assert_eq!(id, "nonexistent:model");
+            }
+            other => panic!("Expected UnknownModel, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_resolve_model_unavailable_quantization() {
+        // qwen3:1.7b only has Q8_0 — request F16 should fail
+        let err = resolve_model("qwen3:1.7b", Some(Quantization::F16)).unwrap_err();
+        match err {
+            ModelResolveError::QuantizationNotAvailable {
+                quantization,
+                model_id,
+            } => {
+                assert_eq!(quantization, Quantization::F16);
+                assert_eq!(model_id, "qwen3:1.7b");
+            }
+            other => panic!("Expected QuantizationNotAvailable, got: {:?}", other),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ERROR DISPLAY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_model_resolve_error_display() {
+        let err = ModelResolveError::UnknownModel {
+            id: "foo".to_string(),
+        };
+        assert_eq!(err.to_string(), "Unknown model: foo");
+
+        let err = ModelResolveError::QuantizationNotAvailable {
+            quantization: Quantization::F16,
+            model_id: "bar".to_string(),
+        };
+        assert_eq!(err.to_string(), "Quantization F16 not available for bar");
+
+        let err = ModelResolveError::HomeDirectoryNotFound;
+        assert_eq!(err.to_string(), "Cannot determine home directory");
+
+        let err = ModelResolveError::ModelNotDownloaded {
+            model_id: "baz".to_string(),
+        };
+        assert!(err.to_string().contains("nika model pull baz"));
+
+        let err = ModelResolveError::NoSnapshotsFound {
+            model_id: "qux".to_string(),
+        };
+        assert_eq!(err.to_string(), "No snapshots found for qux");
+
+        let err = ModelResolveError::ModelFileNotFound {
+            path: PathBuf::from("/tmp/model.gguf"),
+            model_id: "quux".to_string(),
+        };
+        assert!(err.to_string().contains("/tmp/model.gguf"));
+        assert!(err.to_string().contains("nika model pull quux"));
+
+        let err = ModelResolveError::SnapshotsDirReadError {
+            path: PathBuf::from("/tmp/snapshots"),
+            message: "permission denied".to_string(),
+        };
+        assert!(err.to_string().contains("/tmp/snapshots"));
+        assert!(err.to_string().contains("permission denied"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // KNOWN_MODEL DATA INVARIANTS
+    // ═══════════════════════════════════════════════════════════════════════════
+
     #[test]
     fn test_all_models_have_valid_data() {
         for model in KNOWN_MODELS {
