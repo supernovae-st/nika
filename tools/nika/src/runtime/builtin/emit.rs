@@ -36,7 +36,6 @@ struct EmitParams {
     #[serde(default)]
     payload_json: Option<String>,
     /// Event payload as direct JSON (for Claude and other providers).
-    /// Deprecated: Use payload_json for OpenAI compatibility.
     #[serde(default)]
     payload: Option<Value>,
 }

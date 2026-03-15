@@ -287,15 +287,6 @@ pub enum NikaError {
     #[error("[NIKA-074] Template parse error at position {position}: {details}")]
     TemplateParse { position: usize, details: String },
 
-    #[error(
-        "[NIKA-075] Deprecated syntax '{found}' in task '{task_id}'. Use '{suggestion}' instead"
-    )]
-    DeprecatedSyntax {
-        found: String,
-        suggestion: String,
-        task_id: String,
-    },
-
     // ═══════════════════════════════════════════
     // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
@@ -770,7 +761,6 @@ impl NikaError {
             Self::NullValue { .. } => "NIKA-072",
             Self::InvalidTraversal { .. } => "NIKA-073",
             Self::TemplateParse { .. } => "NIKA-074",
-            Self::DeprecatedSyntax { .. } => "NIKA-075",
             // DAG validation errors
             Self::UseUnknownTask { .. } => "NIKA-080",
             Self::UseNotUpstream { .. } => "NIKA-081",
@@ -943,7 +933,6 @@ impl FixSuggestion for NikaError {
                 Some("Check the path - accessing field on non-object")
             }
             NikaError::TemplateParse { .. } => Some("Check template syntax: {{with.alias}}"),
-            NikaError::DeprecatedSyntax { suggestion, .. } => Some(suggestion.as_str()),
             NikaError::UseUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
             NikaError::UseNotUpstream { .. } => {
                 Some("Add a flow from the source task to this task")
