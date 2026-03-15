@@ -1976,13 +1976,13 @@ mod tests {
     fn injection_template_syntax_not_reevaluated() {
         // Value contains template syntax - should NOT be re-evaluated
         let mut bindings = ResolvedBindings::new();
-        bindings.set("user_input", json!("{{use.secret}}"));
+        bindings.set("user_input", json!("{{with.secret}}"));
         bindings.set("secret", json!("TOP_SECRET"));
         let ds = empty_datastore();
 
         let result = resolve("User said: {{with.user_input}}", &bindings, &ds).unwrap();
-        // The {{use.secret}} should appear literally, NOT expanded
-        assert_eq!(result, "User said: {{use.secret}}");
+        // The {{with.secret}} should appear literally, NOT expanded recursively
+        assert_eq!(result, "User said: {{with.secret}}");
         assert!(!result.contains("TOP_SECRET"));
     }
 
@@ -1990,14 +1990,14 @@ mod tests {
     fn injection_nested_template_attack() {
         // Attempt to construct template syntax via concatenation
         let mut bindings = ResolvedBindings::new();
-        bindings.set("left", json!("{{use."));
+        bindings.set("left", json!("{{with."));
         bindings.set("right", json!("secret}}"));
         bindings.set("secret", json!("LEAKED"));
         let ds = empty_datastore();
 
         // Even with split template markers, no re-evaluation should occur
         let result = resolve("{{with.left}}{{with.right}}", &bindings, &ds).unwrap();
-        assert_eq!(result, "{{use.secret}}");
+        assert_eq!(result, "{{with.secret}}");
         assert!(!result.contains("LEAKED"));
     }
 
@@ -2228,12 +2228,12 @@ mod tests {
         let mut context = LoadedContext::new();
         context
             .files
-            .insert("brand".to_string(), json!("Brand: {{use.secret}}"));
+            .insert("brand".to_string(), json!("Brand: {{with.secret}}"));
         store.set_context(context);
 
         let result = resolve("{{context.files.brand}}", &bindings, &store).unwrap();
         // Template syntax in the VALUE should appear literally
-        assert_eq!(result, "Brand: {{use.secret}}");
+        assert_eq!(result, "Brand: {{with.secret}}");
     }
 
     #[test]
@@ -2247,14 +2247,14 @@ mod tests {
             "topic".to_string(),
             json!({
                 "type": "string",
-                "default": "Learn about {{use.secret}}"
+                "default": "Learn about {{with.secret}}"
             }),
         );
         store.set_inputs(inputs);
 
         let result = resolve("{{inputs.topic}}", &bindings, &store).unwrap();
         // Template syntax in input default should appear literally
-        assert_eq!(result, "Learn about {{use.secret}}");
+        assert_eq!(result, "Learn about {{with.secret}}");
     }
 
     #[test]
