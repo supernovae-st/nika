@@ -315,8 +315,8 @@ fn test_mcp_invoke_creates_call_record() {
         100,
     );
 
-    assert_eq!(state.mcp_calls.len(), 1);
-    let call = &state.mcp_calls[0];
+    assert_eq!(state.mcp.calls.len(), 1);
+    let call = &state.mcp.calls[0];
     assert_eq!(call.call_id, "call-001");
     assert_eq!(call.server, "novanet");
     assert_eq!(call.tool, Some("novanet_describe".to_string()));
@@ -356,7 +356,7 @@ fn test_mcp_response_updates_call_record() {
         350,
     );
 
-    let call = &state.mcp_calls[0];
+    let call = &state.mcp.calls[0];
     assert!(call.completed);
     assert_eq!(call.output_len, Some(1024));
     assert_eq!(call.duration_ms, Some(250));
@@ -393,7 +393,7 @@ fn test_mcp_error_response() {
         200,
     );
 
-    let call = &state.mcp_calls[0];
+    let call = &state.mcp.calls[0];
     assert!(call.is_error);
 }
 
@@ -416,10 +416,10 @@ fn test_multiple_mcp_calls_sequenced() {
         );
     }
 
-    assert_eq!(state.mcp_calls.len(), 3);
-    assert_eq!(state.mcp_calls[0].seq, 0);
-    assert_eq!(state.mcp_calls[1].seq, 1);
-    assert_eq!(state.mcp_calls[2].seq, 2);
+    assert_eq!(state.mcp.calls.len(), 3);
+    assert_eq!(state.mcp.calls[0].seq, 0);
+    assert_eq!(state.mcp.calls[1].seq, 1);
+    assert_eq!(state.mcp.calls[2].seq, 2);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -439,8 +439,8 @@ fn test_agent_start_initializes_state() {
         100,
     );
 
-    assert_eq!(state.agent_max_turns, Some(10));
-    assert!(state.agent_turns.is_empty()); // Turns start on AgentTurn events
+    assert_eq!(state.agent.max_turns, Some(10));
+    assert!(state.agent.turns.is_empty()); // Turns start on AgentTurn events
 }
 
 #[test]
@@ -466,8 +466,8 @@ fn test_agent_turn_creates_turn_record() {
         200,
     );
 
-    assert_eq!(state.agent_turns.len(), 1);
-    assert_eq!(state.agent_turns[0].index, 0);
+    assert_eq!(state.agent.turns.len(), 1);
+    assert_eq!(state.agent.turns[0].index, 0);
 }
 
 #[test]
@@ -502,7 +502,7 @@ fn test_agent_turn_with_metadata() {
         500,
     );
 
-    let turn = &state.agent_turns[0];
+    let turn = &state.agent.turns[0];
     assert!(turn.thinking.is_some());
     assert_eq!(turn.thinking.as_ref().unwrap(), "Let me analyze this...");
     assert_eq!(turn.tokens, Some(600)); // input + output
@@ -543,7 +543,7 @@ fn test_agent_complete_clears_turns() {
     );
 
     // Agent turns should still exist until task completes
-    assert!(!state.agent_turns.is_empty());
+    assert!(!state.agent.turns.is_empty());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -578,11 +578,11 @@ fn test_context_assembled_updates_state() {
         100,
     );
 
-    assert_eq!(state.context_assembly.sources.len(), 2);
-    assert_eq!(state.context_assembly.excluded.len(), 1);
-    assert_eq!(state.context_assembly.total_tokens, 700);
-    assert_eq!(state.context_assembly.budget_used_pct, 70.0);
-    assert!(!state.context_assembly.truncated);
+    assert_eq!(state.mcp.context_assembly.sources.len(), 2);
+    assert_eq!(state.mcp.context_assembly.excluded.len(), 1);
+    assert_eq!(state.mcp.context_assembly.total_tokens, 700);
+    assert_eq!(state.mcp.context_assembly.budget_used_pct, 70.0);
+    assert!(!state.mcp.context_assembly.truncated);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -722,8 +722,8 @@ fn test_slow_task_triggers_warning() {
     );
 
     // Should have a warning notification
-    assert!(!state.notifications.is_empty());
-    let notification = &state.notifications[0];
+    assert!(!state.notifs.items.is_empty());
+    let notification = &state.notifs.items[0];
     assert!(notification.message.contains("15.0s"));
 }
 
@@ -757,7 +757,7 @@ fn test_very_slow_task_triggers_alert() {
         35000,
     );
 
-    assert!(!state.notifications.is_empty());
-    let notification = &state.notifications[0];
+    assert!(!state.notifs.items.is_empty());
+    let notification = &state.notifs.items[0];
     assert!(notification.message.contains("35.0s"));
 }

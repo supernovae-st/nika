@@ -17,7 +17,7 @@ tasks:
     for_each: ["a", "b"]
     as: item
     concurrency: 2
-    infer: "Echo: {{use.item}}"
+    infer: "Echo: {{with.item}}"
 
 flows:
   - source: test_v09_features
