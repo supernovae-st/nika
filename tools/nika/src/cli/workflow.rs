@@ -333,7 +333,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 }
             }
 
-            // Check for unused tasks (not referenced in flows or use blocks)
+            // Check for unused tasks (not referenced in flows or with blocks)
             if suggest {
                 let mut referenced: std::collections::HashSet<&str> =
                     std::collections::HashSet::new();
