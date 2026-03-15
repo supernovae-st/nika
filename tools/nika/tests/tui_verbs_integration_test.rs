@@ -23,7 +23,7 @@ mod infer_tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires ANTHROPIC_API_KEY"]
     async fn test_infer_claude_simple() {
         if std::env::var("ANTHROPIC_API_KEY").is_err() {
             eprintln!("SKIP: ANTHROPIC_API_KEY not set");
@@ -44,7 +44,7 @@ mod infer_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires ANTHROPIC_API_KEY"]
     async fn test_infer_claude_streaming_tokens_arrive() {
         if std::env::var("ANTHROPIC_API_KEY").is_err() {
             eprintln!("SKIP: ANTHROPIC_API_KEY not set");
@@ -99,7 +99,7 @@ mod infer_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires OPENAI_API_KEY"]
     async fn test_infer_openai_simple() {
         if std::env::var("OPENAI_API_KEY").is_err() {
             eprintln!("SKIP: OPENAI_API_KEY not set");
@@ -120,7 +120,7 @@ mod infer_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires OPENAI_API_KEY"]
     async fn test_infer_openai_streaming_tokens_arrive() {
         if std::env::var("OPENAI_API_KEY").is_err() {
             eprintln!("SKIP: OPENAI_API_KEY not set");
@@ -165,7 +165,7 @@ mod exec_tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore] // Requires API key
+    #[ignore = "requires ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_exec_echo_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("echo HELLO_NIKA").await;
@@ -181,7 +181,7 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires API key
+    #[ignore = "requires ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_exec_pwd_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("pwd").await;
@@ -193,7 +193,7 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires API key
+    #[ignore = "requires ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_exec_failing_command_returns_error() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.exec_command("exit 42").await;
@@ -204,7 +204,7 @@ mod exec_tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires API key
+    #[ignore = "requires ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_exec_pipe_command() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent
@@ -227,7 +227,7 @@ mod fetch_tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires network + ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_fetch_httpbin_get() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.fetch("https://httpbin.org/get", "GET").await;
@@ -243,7 +243,7 @@ mod fetch_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires network + ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_fetch_json_api() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent
@@ -257,7 +257,7 @@ mod fetch_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires network + ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_fetch_post_httpbin() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         // Note: ChatAgent.fetch() doesn't support body yet - just tests POST method works
@@ -275,7 +275,7 @@ mod fetch_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires network + ANTHROPIC_API_KEY (ChatAgent)"]
     async fn test_fetch_404_returns_status() {
         let agent = ChatAgent::new().expect("Failed to create ChatAgent");
         let result = agent.fetch("https://httpbin.org/status/404", "GET").await;
@@ -294,7 +294,7 @@ mod invoke_tests {
     use nika::mcp::{McpClient, McpConfig};
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires MCP server"]
     async fn test_invoke_echo_tool() {
         // Create a simple echo MCP server for testing
         // This test requires a mock or real MCP server
@@ -311,7 +311,7 @@ mod invoke_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires MCP server"]
     async fn test_invoke_list_tools_from_mock() {
         let client = McpClient::mock("test-mock");
 
@@ -340,7 +340,7 @@ mod agent_tests {
     use std::sync::Arc;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires ANTHROPIC_API_KEY or OPENAI_API_KEY"]
     async fn test_agent_simple_prompt_completes() {
         if std::env::var("ANTHROPIC_API_KEY").is_err() && std::env::var("OPENAI_API_KEY").is_err() {
             eprintln!("SKIP: No API key set");
@@ -371,7 +371,7 @@ mod agent_tests {
     }
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires ANTHROPIC_API_KEY or OPENAI_API_KEY"]
     async fn test_agent_with_mock_mcp_tools() {
         if std::env::var("ANTHROPIC_API_KEY").is_err() && std::env::var("OPENAI_API_KEY").is_err() {
             eprintln!("SKIP: No API key set");
@@ -410,7 +410,7 @@ mod e2e_streaming_tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore]
+    #[ignore = "requires ANTHROPIC_API_KEY"]
     async fn test_chat_agent_uses_streaming_when_channel_set() {
         if std::env::var("ANTHROPIC_API_KEY").is_err() {
             eprintln!("SKIP: ANTHROPIC_API_KEY not set");
