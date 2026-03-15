@@ -108,7 +108,7 @@ pub use ui::UiState;
 // IMPORTS FOR TuiState
 // ═══════════════════════════════════════════════════════════════════════════════
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -143,20 +143,6 @@ pub struct TuiState {
     pub current_task: Option<String>,
     /// Task execution order (for timeline)
     pub task_order: Vec<String>,
-
-    // ═══════════════════════════════════════════
-    // AGENT TRACKING
-    // ═══════════════════════════════════════════
-    /// Agent turns for current agent task
-    pub agent_turns: Vec<AgentTurnState>,
-    /// Streaming buffer for live output
-    pub streaming_buffer: String,
-    /// Max turns for current agent
-    pub agent_max_turns: Option<u32>,
-    /// Spawned sub-agents
-    pub spawned_agents: Vec<SpawnedAgent>,
-    /// Recent template resolutions (for observability)
-    pub recent_templates: VecDeque<TemplateResolution>,
 
     // ═══════════════════════════════════════════
     // UI STATE
@@ -274,11 +260,6 @@ impl TuiState {
             tasks: HashMap::new(),
             current_task: None,
             task_order: Vec::new(),
-            agent_turns: Vec::new(),
-            streaming_buffer: String::new(),
-            agent_max_turns: None,
-            spawned_agents: Vec::new(),
-            recent_templates: VecDeque::new(),
             focus: PanelId::Progress,
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
@@ -479,9 +460,9 @@ impl TuiState {
                 // Check task_type to avoid clearing during parallel workflows
                 if let Some(task) = self.tasks.get(task_id.as_ref()) {
                     if task.task_type.as_deref() == Some("agent") {
-                        self.agent_turns.clear();
-                        self.streaming_buffer.clear();
-                        self.agent_max_turns = None;
+                        self.agent.turns.clear();
+                        self.agent.streaming_buffer.clear();
+                        self.agent.max_turns = None;
                     }
                 }
                 // TIER 4.1: Mark progress and dag dirty
@@ -633,10 +614,10 @@ impl TuiState {
                 result,
             } => {
                 // Keep last 10 resolutions
-                if self.recent_templates.len() >= 10 {
-                    self.recent_templates.pop_front();
+                if self.agent.recent_templates.len() >= 10 {
+                    self.agent.recent_templates.pop_front();
                 }
-                self.recent_templates.push_back(TemplateResolution {
+                self.agent.recent_templates.push_back(TemplateResolution {
                     task_id: task_id.to_string(),
                     template: template.clone(),
                     result: result.clone(),
@@ -650,9 +631,9 @@ impl TuiState {
             // AGENT EVENTS
             // ═══════════════════════════════════════════
             EventKind::AgentStart { max_turns, .. } => {
-                self.agent_turns.clear();
-                self.streaming_buffer.clear();
-                self.agent_max_turns = Some(*max_turns);
+                self.agent.turns.clear();
+                self.agent.streaming_buffer.clear();
+                self.agent.max_turns = Some(*max_turns);
                 // TIER 4.1: Mark reasoning panel dirty
                 self.dirty.reasoning = true;
             }
@@ -678,14 +659,14 @@ impl TuiState {
                     response_text,
                 };
                 // Update or add turn
-                if let Some(existing) = self.agent_turns.iter_mut().find(|t| t.index == *turn_index)
+                if let Some(existing) = self.agent.turns.iter_mut().find(|t| t.index == *turn_index)
                 {
                     existing.status = kind.clone();
                     existing.tokens = tokens;
                     existing.thinking = turn.thinking;
                     existing.response_text = turn.response_text;
                 } else {
-                    self.agent_turns.push(turn);
+                    self.agent.turns.push(turn);
                 }
                 // TIER 4.1: Mark reasoning panel dirty
                 self.dirty.reasoning = true;
@@ -693,7 +674,7 @@ impl TuiState {
 
             EventKind::AgentComplete { turns, .. } => {
                 // Update metrics
-                if let Some(last_turn) = self.agent_turns.last() {
+                if let Some(last_turn) = self.agent.turns.last() {
                     if let Some(tokens) = last_turn.tokens {
                         self.metrics.token_history.push(tokens);
                     }
@@ -709,7 +690,7 @@ impl TuiState {
                 depth,
             } => {
                 // Track spawned sub-agent
-                self.spawned_agents.push(SpawnedAgent {
+                self.agent.spawned_agents.push(SpawnedAgent {
                     parent_task_id: parent_task_id.to_string(),
                     child_task_id: child_task_id.to_string(),
                     depth: *depth,
@@ -1211,7 +1192,7 @@ impl TuiState {
     ///
     /// Returns true if the task_id appears as a child in spawned_agents.
     pub fn is_subagent(&self, task_id: &str) -> bool {
-        self.spawned_agents
+        self.agent.spawned_agents
             .iter()
             .any(|s| s.child_task_id == task_id)
     }
@@ -1640,12 +1621,12 @@ impl TuiState {
             }
             PanelId::Agent => {
                 // Return agent turns or thinking content
-                if self.agent_turns.is_empty() {
+                if self.agent.turns.is_empty() {
                     return None;
                 }
 
                 let mut content = String::from("# Agent Turns\n\n");
-                for turn in &self.agent_turns {
+                for turn in &self.agent.turns {
                     content.push_str(&format!("## Turn {}\n", turn.index + 1));
                     if let Some(ref thinking) = turn.thinking {
                         content.push_str("### Thinking\n");
@@ -1724,7 +1705,7 @@ impl TuiState {
         self.current_task = None;
 
         // Clear agent turns
-        self.agent_turns.clear();
+        self.agent.turns.clear();
 
         // Reset metrics
         self.metrics = Metrics::default();

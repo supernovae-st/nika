@@ -849,7 +849,8 @@ impl MonitorView {
 
         // Build agent turn list with thinking display
         let items: Vec<ListItem> = state
-            .agent_turns
+            .agent
+            .turns
             .iter()
             .enumerate()
             .map(|(i, turn)| {
@@ -927,7 +928,7 @@ impl MonitorView {
         theme: &Theme,
     ) {
         let selected_idx = self.scroll_offset(PanelId::RunnerReasoning);
-        let turn = state.agent_turns.get(selected_idx);
+        let turn = state.agent.turns.get(selected_idx);
 
         let content = if let Some(turn) = turn {
             if let Some(ref thinking) = turn.thinking {
@@ -953,7 +954,7 @@ impl MonitorView {
     /// Shows step-by-step breakdown of agent reasoning
     fn render_agent_steps(&self, frame: &mut Frame, area: Rect, state: &TuiState, theme: &Theme) {
         let selected_idx = self.scroll_offset(PanelId::RunnerReasoning);
-        let turn = state.agent_turns.get(selected_idx);
+        let turn = state.agent.turns.get(selected_idx);
 
         let content = if let Some(turn) = turn {
             let mut steps = format!("─── Turn {} Steps ───\n", turn.index + 1);
@@ -1529,7 +1530,7 @@ mod tests {
         use crate::tui::AgentTurnState;
 
         let mut state = TuiState::new("test");
-        state.agent_turns.push(AgentTurnState {
+        state.agent.turns.push(AgentTurnState {
             index: 0,
             status: "Thinking...".to_string(),
             tokens: Some(100),
@@ -1539,8 +1540,8 @@ mod tests {
         });
 
         // Verify the thinking content is present in state
-        assert!(state.agent_turns[0].thinking.is_some());
-        let thinking = state.agent_turns[0].thinking.as_ref().unwrap();
+        assert!(state.agent.turns[0].thinking.is_some());
+        let thinking = state.agent.turns[0].thinking.as_ref().unwrap();
         assert_eq!(thinking, "This is a short thinking string");
         assert!(thinking.len() <= 100); // Should not be truncated
     }
@@ -1551,7 +1552,7 @@ mod tests {
 
         let mut state = TuiState::new("test");
         let long_thinking = "A".repeat(150); // 150 characters
-        state.agent_turns.push(AgentTurnState {
+        state.agent.turns.push(AgentTurnState {
             index: 0,
             status: "Thinking...".to_string(),
             tokens: Some(100),
@@ -1561,7 +1562,7 @@ mod tests {
         });
 
         // Verify the thinking content is long enough to require truncation
-        let thinking = state.agent_turns[0].thinking.as_ref().unwrap();
+        let thinking = state.agent.turns[0].thinking.as_ref().unwrap();
         assert!(thinking.len() > 100);
 
         // Test truncation logic matches render_agent_panel
