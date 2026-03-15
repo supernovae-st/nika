@@ -594,7 +594,7 @@ const RESERVED_FIELDS: &[&str] = &[
     "skills",
     "provider",
     "id",
-    "use",
+    "with",
     "for_each",
     "as",
     "concurrency",

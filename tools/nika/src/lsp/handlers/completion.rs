@@ -131,7 +131,7 @@ fn analyze_completion_context(text: &str, position: Position) -> CompletionConte
             let task_indent = lines[i].len() - lines[i].trim_start().len();
             if indent > task_indent {
                 // Check for specific contexts
-                if prefix.trim().starts_with("use") {
+                if prefix.trim().starts_with("with") {
                     return CompletionContext::UseBinding;
                 }
                 if line_contains_verb(prefix) {
@@ -279,9 +279,9 @@ fn task_field_completions() -> Vec<CompletionItem> {
             ..Default::default()
         },
         CompletionItem {
-            label: "use".to_string(),
+            label: "with".to_string(),
             kind: Some(CompletionItemKind::PROPERTY),
-            insert_text: Some("use:\n  ${1:alias}: ${2:task-id}".to_string()),
+            insert_text: Some("with:\n  ${1:alias}: ${2:task-id}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
                 "Bind outputs from previous tasks.".to_string(),

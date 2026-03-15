@@ -605,18 +605,18 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         ```",
     ),
     (
-        "use",
-        "## `use:` - Data Bindings\n\n\
+        "with",
+        "## `with:` - Data Bindings\n\n\
         Binds outputs from other tasks to local aliases.\n\n\
         ```yaml\n\
-        use:\n\
+        with:\n\
           result: step1        # Bind step1's output\n\
           lazy_val:            # Lazy binding\n\
             path: future_task\n\
             lazy: true\n\
             default: \"fallback\"\n\
         ```\n\n\
-        Access via `{{use.alias}}` in prompts.",
+        Access via `{{with.alias}}` in prompts.",
     ),
     (
         "for_each",
