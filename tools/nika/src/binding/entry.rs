@@ -1,4 +1,4 @@
-//! Wiring Spec - YAML types for explicit data wiring
+//! Binding Spec — YAML types for explicit data binding
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //!

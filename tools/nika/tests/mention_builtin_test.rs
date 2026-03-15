@@ -1,6 +1,4 @@
-//! Binding Tests: Data Flow & Bindings
-//!
-//! Consolidated from: wiring_checkpoint_2 (@mention bindings) + wiring_checkpoint_3 (builtin tools)
+//! Binding Tests: @mention + BuiltinToolRouter
 //!
 //! Verifies: @mentions convert to BindingSpec, builtin tools route correctly.
 
@@ -12,7 +10,7 @@ use nika::runtime::builtin::BuiltinToolRouter;
 use nika::runtime::chat_workflow::{ChatWorkflow, Role};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// @mention Parsing (was WIRING-2)
+// @mention Parsing
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -101,7 +99,7 @@ fn parallel_marker() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ChatWorkflow + @mention Integration (was WIRING-2)
+// ChatWorkflow + @mention Integration
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -192,7 +190,7 @@ fn mixed_mentions() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BuiltinToolRouter (was WIRING-3)
+// BuiltinToolRouter
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -273,14 +271,14 @@ async fn dispatch_log() {
     let result = router
         .dispatch(
             "nika:log",
-            r#"{"level": "info", "message": "WIRING test"}"#.to_string(),
+            r#"{"level": "info", "message": "Binding test"}"#.to_string(),
         )
         .await;
 
     let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
     assert_eq!(response["logged"], true);
     assert_eq!(response["level"], "info");
-    assert_eq!(response["message"], "WIRING test");
+    assert_eq!(response["message"], "Binding test");
 }
 
 #[tokio::test]
@@ -373,10 +371,10 @@ async fn dispatch_run_validation() {
     writeln!(
         temp_file,
         r#"schema: nika/workflow@0.12
-workflow: wiring-test
+workflow: binding-test
 tasks:
   - id: hello
-    exec: "echo wiring""#
+    exec: "echo binding""#
     )
     .unwrap();
 
