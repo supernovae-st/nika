@@ -352,12 +352,6 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                                 referenced.insert(task_ref);
                             }
                         }
-                    } else if let Some(ref use_block) = task.use_wiring {
-                        for entry in use_block.values() {
-                            if let Some(task_ref) = entry.path.split('.').next() {
-                                referenced.insert(task_ref);
-                            }
-                        }
                     }
                 }
                 for task in &workflow.tasks {

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use nika::ast::schema_validator::WorkflowSchemaValidator;
 use nika::ast::{expand_includes, parse_workflow, TaskAction};
-use nika::dag::{validate_use_wiring, Dag};
+use nika::dag::{validate_bindings, Dag};
 use nika::error::NikaError;
 use nika::mcp::validation::{McpValidator, ValidationConfig};
 use nika::mcp::{McpClient, McpConfig};
@@ -745,7 +745,7 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
 
     let flow_graph = Dag::from_workflow(&workflow)?;
     flow_graph.detect_cycles()?;
-    validate_use_wiring(&workflow, &flow_graph)?;
+    validate_bindings(&workflow, &flow_graph)?;
 
     println!("{} Workflow '{}' is valid", "✓".green(), file);
     println!("  Provider: {}", workflow.provider);
@@ -778,7 +778,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
 
     let flow_graph = Dag::from_workflow(&workflow)?;
     flow_graph.detect_cycles()?;
-    validate_use_wiring(&workflow, &flow_graph)?;
+    validate_bindings(&workflow, &flow_graph)?;
 
     // Phase 3: MCP parameter validation (strict mode)
     println!(

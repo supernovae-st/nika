@@ -85,7 +85,7 @@ pub use ast::{
 pub use runtime::{Runner, TaskExecutor};
 
 // DAG
-pub use dag::{validate_use_wiring, validate_with_bindings, Dag, StableDag};
+pub use dag::{validate_bindings, validate_with_bindings, Dag, StableDag};
 
 // Binding
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
