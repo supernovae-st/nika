@@ -1403,7 +1403,7 @@ The parser works EXACTLY as designed:
 | Binding resolution (3) | <1us | 450ns | ✅ Pass |
 | Binding resolution (10) | <1us | **1.508us** | ⚠️ Slight |
 | for_each 100 items | <500ms | 344us | ✅ Pass |
-| DataStore get | <10ns | 6ns | ✅ Pass |
+| RunContext get | <10ns | 6ns | ✅ Pass |
 
 > 📊 **8/11 benchmarks within targets.** The slight misses are in linear scaling
 > scenarios. Not a concern for real-world usage.

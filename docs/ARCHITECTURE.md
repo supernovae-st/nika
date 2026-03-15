@@ -33,7 +33,7 @@ Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
-│  │   DataStore     │  ← Task results for downstream             │
+│  │   RunContext     │  ← Task results for downstream             │
 │  └─────────────────┘                                            │
 │                                                                 │
 │  TUI: 4 Views (Chat, Home, Studio, Monitor)                    │
@@ -232,7 +232,7 @@ flows:
    - Parallel when no dependencies
    - Wait for upstream completion
    - Substitute {{use.alias}} templates
-6. Store results in DataStore
+6. Store results in RunContext
 7. Return final outputs
 ```
 

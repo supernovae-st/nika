@@ -131,7 +131,7 @@ id_to_node: FxHashMap<String, NodeIndex>,
 pub struct ChatWorkflow {
     pub workflow: Workflow,
     pub dag: Dag,
-    pub store: DataStore,
+    pub store: RunContext,
 }
 ```
 

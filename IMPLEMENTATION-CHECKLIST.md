@@ -18,7 +18,7 @@ Quick reference for ensuring spec-code alignment during development.
 
 - [ ] Thread safety review:
   - [ ] Confirm `EventLog` design for concurrent access
-  - [ ] Confirm `DataStore` supports Arc<Mutex<>>
+  - [ ] Confirm `RunContext` supports Arc<Mutex<>>
   - [ ] Document ChatWorkflow locking strategy
 
 - [ ] Architecture decision:
@@ -131,7 +131,7 @@ Quick reference for ensuring spec-code alignment during development.
 ```rust
 pub trait BuiltinTool: ToolDyn {
     fn event_log(&self) -> &EventLog;
-    fn data_store(&self) -> &DataStore;
+    fn data_store(&self) -> &RunContext;
     fn category(&self) -> BuiltinCategory { BuiltinCategory::ControlFlow }
 }
 ```
@@ -285,7 +285,7 @@ For each new module, verify imports are correct:
 // src/runtime/chat_workflow.rs
 use crate::dag::Dag;
 use crate::event::EventLog;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use parking_lot::Mutex;
 use petgraph::stable_graph::{StableGraph, NodeIndex};
 ```

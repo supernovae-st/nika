@@ -1768,7 +1768,7 @@ let result = provider.infer("prompt", None).await?;
 - Output formatting (text/json) with optional JSON Schema validation
 - Provider support: Claude, OpenAI, Mock
 - Structured error codes (NIKA-0xx)
-- Lock-free DataStore with DashMap
+- Lock-free RunContext with DashMap
 - Event logging for execution tracing
 
 ### Commands

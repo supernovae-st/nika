@@ -575,7 +575,7 @@ mod tests {
 ```rust
 use crate::ast::{Workflow, Task};
 use crate::dag::Dag;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use crate::event::EventLog;
 use crate::error::Result;
 use std::sync::Arc;
@@ -585,7 +585,7 @@ use serde_json::json;
 /// Shared mutable state for a chat session
 pub struct ChatWorkflow {
     dag: Dag,
-    store: DataStore,
+    store: RunContext,
     log: EventLog,
     message_counter: u32,
 }
@@ -600,7 +600,7 @@ impl ChatWorkflowHandle {
         Self {
             inner: Arc::new(Mutex::new(ChatWorkflow {
                 dag: Dag::new(),
-                store: DataStore::new(),
+                store: RunContext::new(),
                 log: EventLog::new(),
                 message_counter: 0,
             })),

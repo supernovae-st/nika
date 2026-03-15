@@ -69,7 +69,7 @@ tools/nika/src/
 ├── provider/         # LLM providers (rig-core + native)
 │   ├── rig.rs        # ✅ RigProvider + NikaMcpTool (rig-core v0.32)
 │   └── native/       # ✅ NativeRuntime (mistral.rs, v0.26.0)
-└── store/            # DataStore
+└── store/            # RunContext (task results + context + inputs)
 ```
 
 ## Unified Secrets Management (v0.20.1)
@@ -1289,13 +1289,13 @@ cargo bench --bench task_execution
 | YAML parsing (100 tasks) | <500µs | ~340µs |
 | DAG validation (10 nodes) | <1µs | ~800ns |
 | Binding resolution (3 entries) | <1µs | ~450ns |
-| DataStore get | <10ns | ~6ns |
+| RunContext get | <10ns | ~6ns |
 
 Benchmarks are in `benches/`:
 - `workflow_parsing.rs` — YAML parsing, schema validation
 - `dag_validation.rs` — Dag construction, cycle detection
 - `binding_resolution.rs` — UseEntry parsing, lazy binding resolution
-- `task_execution.rs` — DataStore operations, TaskResult creation
+- `task_execution.rs` — RunContext operations, TaskResult creation
 
 ## TUI Enhancements (v0.5.1)
 

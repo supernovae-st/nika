@@ -26,7 +26,7 @@ The v0.9.x plans (Chat-as-DAG architecture) are **well-designed and architectura
 
 ✅ **Foundation already exists for all v0.9.x features:**
 - `EventLog` (src/event/log.rs) exists for event sourcing
-- `DataStore` (src/store/mod.rs) exists for data flow
+- `RunContext` (src/store/mod.rs) exists for data flow
 - `ChatAgent` (src/tui/chat_agent.rs) provides LLM interface
 - rig-core v0.31 already in Cargo.toml (supports 6 providers)
 

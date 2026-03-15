@@ -300,7 +300,7 @@ impl Dag {
 pub struct ChatWorkflow {
     pub workflow: Workflow,
     pub dag: Dag,
-    pub store: DataStore,
+    pub store: RunContext,
     pub log: EventLog,
     pub message_counter: u32,
 }
@@ -310,7 +310,7 @@ impl ChatWorkflow {
         Self {
             workflow: Workflow { ... },
             dag: Dag::new(),
-            store: DataStore::new(),
+            store: RunContext::new(),
             log: EventLog::new(),
             message_counter: 0,
         }
@@ -359,7 +359,7 @@ pub struct ChatSession {
 
 pub struct ChatWorkflow {
     pub dag: Dag,
-    pub store: DataStore,
+    pub store: RunContext,
     pub log: EventLog,
     pub message_counter: u32,
     // NO workflow: Workflow (store in DAG instead)
@@ -376,7 +376,7 @@ impl ChatSession {
         Self {
             workflow: Arc::new(Mutex::new(ChatWorkflow {
                 dag: Dag::new(),
-                store: DataStore::new(),
+                store: RunContext::new(),
                 log: EventLog::new(),
                 message_counter: 0,
             })),
@@ -465,7 +465,7 @@ impl ChatSession {
 ```rust
 pub struct ChatWorkflow {
     pub dag: Dag,
-    pub store: DataStore,
+    pub store: RunContext,
     pub log: EventLog,
     pub message_counter: u32,
     pub context_store: ContextStore,  // NEW - from v0.9.1 Sprint 2

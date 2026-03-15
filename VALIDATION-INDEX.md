@@ -136,7 +136,7 @@ pub trait ToolDyn: Send + Sync {
 ```
 ✅ src/dag/flow.rs              - Custom FxHashMap implementation
 ✅ src/event/log.rs             - Event sourcing system (22 variants)
-✅ src/store/mod.rs             - DataStore for task outputs
+✅ src/store/mod.rs             - RunContext for task outputs
 ✅ src/binding/mod.rs           - Data binding system (entry, resolve, template)
 ✅ src/tui/chat_agent.rs        - LLM interface (3,000+ LOC)
 ✅ src/tui/views/chat.rs        - Chat TUI view

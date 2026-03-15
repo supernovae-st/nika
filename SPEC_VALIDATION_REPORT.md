@@ -47,7 +47,7 @@ The SPEC.md file provides a clear, concise specification for Nika v0.1 (schema `
   - ✅ Flow (line 208)
   - ✅ UseWiring (line 275)
   - ✅ OutputPolicy (line 342)
-  - ✅ DataStore (line 374)
+  - ✅ RunContext (line 374)
   - ✅ TaskResult (line 377)
 
 - [x] Edge cases documented: **Section 10: Strict Mode**
@@ -195,7 +195,7 @@ Actual codebase has 354+ lines of error codes with ranges up to NIKA-300+.
 ```
 ast/ → Workflow, Task, TaskAction, Output
 application/ → Runner, TaskExecutor, Dag
-infrastructure/ → DataStore, TaskResult, provider/
+infrastructure/ → RunContext, TaskResult, provider/
 ```
 
 **Actual architecture (v0.20.1)**:
