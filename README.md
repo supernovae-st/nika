@@ -82,7 +82,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 │ │  └────┬─────┘    │   │ │  9 │       thinking: true                            │  │
 │ │       │          │   │ │ 10 │                                                 │  │
 │ │  ┌────▼────┐ ┌───▼──┐│ │ 11 │   - id: analyze                                │  │
-│ │  │ analyze │ │ eval ││ │ 12 │     use: { papers: @1 }                         │  │
+│ │  │ analyze │ │ eval ││ │ 12 │     with: { papers: @1 }                        │  │
 │ │  └────┬────┘ └───┬──┘│ │ 13 │     infer: "Summarize findings"                 │  │
 │ │       │          │   │ └──────────────────────────────────────────────────────┘  │
 │ │  ┌────▼──────────▼──┐│ ┌─ 💬 Chat DAG ────────────────────────────────────────┐  │
@@ -448,7 +448,7 @@ tasks:
 
   # Step 2: AI reviews the code
   - id: review
-    use:
+    with:
       diff: get_diff  # 👈 Reference previous task
     infer:
       prompt: |
@@ -458,7 +458,7 @@ tasks:
         3. ✨ Improvements
 
         ```diff
-        {{use.diff}}
+        {{with.diff}}
         ```
 
         Format as markdown with severity levels.
@@ -497,7 +497,7 @@ flowchart TB
         StableDag["🔗 StableGraph DAG<br/><i>petgraph stable_graph</i>"]
         Executor["⚡ Task Executor<br/><i>5 verbs + for_each</i>"]
         BuiltinTools["🔧 Builtin Tools<br/><i>6 nika:* tools</i>"]
-        Binding["🔗 Binding System<br/><i>{{use.alias}} + @mentions</i>"]
+        Binding["🔗 Binding System<br/><i>{{with.alias}} + @mentions</i>"]
 
         Parser --> StableDag
         StableDag --> Executor
@@ -590,9 +590,9 @@ flowchart TB
 │  │   └── validation/        Tool parameter validation                          │
 │  │                                                                             │
 │  ├── 🔗 binding/ ─────────── Data flow (3,325 LOC)                            │
-│  │   ├── entry.rs           UseEntry with lazy flag                            │
+│  │   ├── entry.rs           BindingEntry with lazy flag                        │
 │  │   ├── resolve.rs         LazyBinding resolution                             │
-│  │   └── template.rs        {{use.alias}} interpolation                        │
+│  │   └── template.rs        {{with.alias}} interpolation                       │
 │  │                                                                             │
 │  ├── 📊 event/ ──────────── Observability (1,732 LOC)                         │
 │  │   ├── log.rs             EventLog (22 variants)                             │
@@ -633,7 +633,7 @@ sequenceDiagram
     D->>E: Schedule tasks
 
     loop For each task in topological order
-        E->>B: Resolve {{use.alias}}
+        E->>B: Resolve {{with.alias}}
         B-->>E: Interpolated values
 
         alt infer: verb
@@ -772,13 +772,13 @@ mindmap
 **With templating**:
 ```yaml
 - id: deploy
-  use:
+  with:
     env: staging
     tag: v1.2.3
   exec:
     command: |
-      kubectl apply -f {{use.env}}.yaml
-      echo "Deployed {{use.tag}} ✅"
+      kubectl apply -f {{with.env}}.yaml
+      echo "Deployed {{with.tag}} ✅"
     timeout: 60
 ```
 
@@ -786,7 +786,7 @@ mindmap
 </tr>
 </table>
 
-> ⚠️ **Security tip:** Always validate inputs when using `{{use.*}}` in commands!
+> ⚠️ **Security tip:** Always validate inputs when using `{{with.*}}` in commands!
 
 ### 🛰️ `fetch` — HTTP Requests
 
@@ -796,7 +796,7 @@ mindmap
     url: "https://api.weather.com/v1/current"
     method: GET
     headers:
-      Authorization: "Bearer {{use.api_key}}"
+      Authorization: "Bearer {{with.api_key}}"
       Content-Type: "application/json"
     query:
       city: "Paris"
@@ -809,8 +809,8 @@ mindmap
     url: "https://api.example.com/submit"
     method: POST
     body:
-      name: "{{use.user_name}}"
-      data: "{{use.processed_data}}"
+      name: "{{with.user_name}}"
+      data: "{{with.processed_data}}"
     retry:
       max_attempts: 3
       backoff_ms: 1000
@@ -840,14 +840,14 @@ tasks:
         forms: ["text", "title", "description"]
 
   - id: save_file
-    use:
+    with:
       content: generate_content
     invoke:
       mcp: filesystem
       tool: write_file
       params:
         path: "/output/content.json"
-        content: "{{use.content}}"
+        content: "{{with.content}}"
 ```
 
 ### 🤖 `agent` — Agentic Loops
@@ -1333,7 +1333,7 @@ tasks:
 
   # 3️⃣ AI analyzes the code
   - id: security_review
-    use:
+    with:
       diff: get_diff
     infer:
       prompt: |
@@ -1346,7 +1346,7 @@ tasks:
         - Secrets exposure
 
         ```diff
-        {{use.diff}}
+        {{with.diff}}
         ```
 
         Format: JSON with severity (critical/high/medium/low)
@@ -1354,7 +1354,7 @@ tasks:
 
   # 4️⃣ Check for bugs
   - id: bug_review
-    use:
+    with:
       diff: get_diff
     infer:
       prompt: |
@@ -1367,12 +1367,12 @@ tasks:
         - Race conditions
 
         ```diff
-        {{use.diff}}
+        {{with.diff}}
         ```
 
   # 5️⃣ Suggest improvements
   - id: improvement_review
-    use:
+    with:
       diff: get_diff
     infer:
       prompt: |
@@ -1385,12 +1385,12 @@ tasks:
         - Documentation
 
         ```diff
-        {{use.diff}}
+        {{with.diff}}
         ```
 
   # 6️⃣ Compile final report
   - id: compile_report
-    use:
+    with:
       security: security_review
       bugs: bug_review
       improvements: improvement_review
@@ -1402,25 +1402,25 @@ tasks:
         Create a comprehensive markdown report combining:
 
         **Files Changed:**
-        {{use.files}}
+        {{with.files}}
 
         **Security Findings:**
-        {{use.security}}
+        {{with.security}}
 
         **Bug Analysis:**
-        {{use.bugs}}
+        {{with.bugs}}
 
         **Improvements:**
-        {{use.improvements}}
+        {{with.improvements}}
 
         Format as a professional PR review comment.
 
   # 7️⃣ Post to GitHub (optional)
   - id: post_comment
-    use:
+    with:
       report: compile_report
     exec: |
-      gh pr comment --body "{{use.report}}"
+      gh pr comment --body "{{with.report}}"
 
 flows:
   - source: get_files
@@ -1458,13 +1458,13 @@ tasks:
     for_each: ["en-US", "fr-FR", "de-DE", "ja-JP", "es-ES", "pt-BR"]
     as: locale
     concurrency: 6  # 🚀 All in parallel!
-    use:
+    with:
       context: get_context
     infer:
       prompt: |
-        📝 Generate marketing content for locale: {{use.locale}}
+        📝 Generate marketing content for locale: {{with.locale}}
 
-        Context: {{use.context}}
+        Context: {{with.context}}
 
         Create:
         1. Headline (max 60 chars)
@@ -1472,18 +1472,18 @@ tasks:
         3. Description (max 300 chars)
         4. CTA button text
 
-        Adapt tone and cultural references for {{use.locale}}.
+        Adapt tone and cultural references for {{with.locale}}.
         Format as JSON.
 
   # 3️⃣ Validate all outputs
   - id: validate_outputs
-    use:
+    with:
       content: generate_content
     agent:
       prompt: |
         ✅ Validate all generated content:
 
-        {{use.content}}
+        {{with.content}}
 
         Check:
         - Character limits respected
@@ -1549,7 +1549,7 @@ tasks:
 
   # 📊 Post-processing
   - id: format_report
-    use:
+    with:
       research: orchestrator
     infer:
       prompt: |
@@ -1564,7 +1564,7 @@ tasks:
         - Recommendations
         - Appendix with raw data
 
-        Research: {{use.research}}
+        Research: {{with.research}}
 
 flows:
   - source: orchestrator
@@ -1604,48 +1604,48 @@ tasks:
       Format as JSON.
 
   - id: write_intro
-    use: { outline: outline }
+    with: { outline: outline }
     infer: |
       Write an engaging introduction based on:
-      {{use.outline}}
+      {{with.outline}}
 
       Hook the reader in the first sentence.
       ~200 words.
 
   - id: write_body
-    use: { outline: outline }
+    with: { outline: outline }
     infer: |
       Write the main body sections based on:
-      {{use.outline}}
+      {{with.outline}}
 
       Include examples and code snippets.
       ~600 words.
 
   - id: write_conclusion
-    use: { outline: outline }
+    with: { outline: outline }
     infer: |
       Write a compelling conclusion based on:
-      {{use.outline}}
+      {{with.outline}}
 
       Include a call-to-action.
       ~150 words.
 
   - id: assemble
-    use:
+    with:
       intro: write_intro
       body: write_body
       conclusion: write_conclusion
     exec: |
       cat << 'EOF'
-      {{use.intro}}
+      {{with.intro}}
 
       ---
 
-      {{use.body}}
+      {{with.body}}
 
       ---
 
-      {{use.conclusion}}
+      {{with.conclusion}}
       EOF
 
 flows:
@@ -1929,7 +1929,7 @@ Nika provides 6 `nika:*` tools for workflow control:
 
 2. **Use lazy bindings:**
    ```yaml
-   use:
+   with:
      ctx:
        path: expensive_task.result
        lazy: true  # Only resolve when accessed
