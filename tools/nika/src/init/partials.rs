@@ -82,7 +82,7 @@ tasks:
     infer:
       prompt: |
         Analyze the following result for errors:
-        {{use.previous_result}}
+        {{with.previous_result}}
 
         Return JSON:
         {
@@ -101,13 +101,13 @@ tasks:
       tool: nika:log
       params:
         level: error
-        message: "Error occurred: {{use.error_details}}"
+        message: "Error occurred: {{with.error_details}}"
 
   - id: recover
     description: "Attempt error recovery"
     infer:
       prompt: |
-        An error occurred: {{use.error_details}}
+        An error occurred: {{with.error_details}}
 
         Suggest recovery steps:
         1. What can we try to recover?
@@ -144,7 +144,7 @@ tasks:
     infer:
       prompt: |
         Validate the following inputs:
-        {{use.inputs}}
+        {{with.inputs}}
 
         Check for:
         1. Required fields present
@@ -167,9 +167,9 @@ tasks:
     infer:
       prompt: |
         Validate the following outputs:
-        {{use.outputs}}
+        {{with.outputs}}
 
-        Expected schema: {{use.expected_schema}}
+        Expected schema: {{with.expected_schema}}
 
         Check for:
         1. Schema compliance
@@ -192,7 +192,7 @@ tasks:
     infer:
       prompt: |
         Sanitize the following data:
-        {{use.raw_data}}
+        {{with.raw_data}}
 
         Actions:
         1. Remove any PII
@@ -231,10 +231,10 @@ tasks:
       prompt: |
         Create a notification message:
 
-        Event type: {{use.event_type}}
-        Details: {{use.details}}
-        Recipient: {{use.recipient}}
-        Channel: {{use.channel}}
+        Event type: {{with.event_type}}
+        Details: {{with.details}}
+        Recipient: {{with.recipient}}
+        Channel: {{with.channel}}
 
         Format appropriately for the channel:
         - Slack: Use markdown, emojis
@@ -252,7 +252,7 @@ tasks:
       tool: nika:log
       params:
         level: info
-        message: "[SLACK] {{use.formatted_message}}"
+        message: "[SLACK] {{with.formatted_message}}"
 
   - id: send_email
     description: "Send email notification (placeholder)"
@@ -261,7 +261,7 @@ tasks:
       tool: nika:log
       params:
         level: info
-        message: "[EMAIL] {{use.formatted_message}}"
+        message: "[EMAIL] {{with.formatted_message}}"
 
   - id: completion_summary
     description: "Create completion summary notification"
@@ -269,10 +269,10 @@ tasks:
       prompt: |
         Create a completion summary:
 
-        Workflow: {{use.workflow_name}}
-        Duration: {{use.duration}}
-        Status: {{use.status}}
-        Results: {{use.results}}
+        Workflow: {{with.workflow_name}}
+        Duration: {{with.duration}}
+        Status: {{with.status}}
+        Results: {{with.results}}
 
         Create a brief, informative summary suitable for notification.
         Include key metrics and any action items.
@@ -306,7 +306,7 @@ tasks:
       prompt: |
         Review this content for grammar and spelling:
 
-        {{use.content}}
+        {{with.content}}
 
         Check for:
         1. Spelling errors
@@ -329,9 +329,9 @@ tasks:
       prompt: |
         Analyze the tone of this content:
 
-        {{use.content}}
+        {{with.content}}
 
-        Target tone: {{use.target_tone}}
+        Target tone: {{with.target_tone}}
 
         Evaluate:
         1. Does it match target tone?
@@ -354,7 +354,7 @@ tasks:
       prompt: |
         Identify factual claims in this content:
 
-        {{use.content}}
+        {{with.content}}
 
         List any claims that should be fact-checked:
         1. Statistics and numbers
@@ -374,7 +374,7 @@ tasks:
 
   - id: final_score
     description: "Calculate final quality score"
-    use:
+    with:
       grammar: $check_grammar
       tone: $check_tone
       factual: $check_factual
@@ -382,9 +382,9 @@ tasks:
       prompt: |
         Calculate final quality score:
 
-        Grammar check: {{use.grammar}}
-        Tone check: {{use.tone}}
-        Factual check: {{use.factual}}
+        Grammar check: {{with.grammar}}
+        Tone check: {{with.tone}}
+        Factual check: {{with.factual}}
 
         Weighted scores:
         - Grammar: 40%

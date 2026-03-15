@@ -163,7 +163,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: verify_output
-    use:
+    with:
       agent_result: $explore_agent
     exec:
       command: "cat ./agent-demo/ANALYSIS.md 2>/dev/null || echo 'No analysis file found'"
@@ -174,7 +174,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: cleanup
-    use:
+    with:
       verification: $verify_output
     exec:
       command: "rm -rf ./agent-demo"
@@ -379,13 +379,13 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: generate_marketing
-    use:
+    with:
       product: $generate_product
     infer:
       prompt: |
         Create marketing content for this product:
 
-        {{use.product}}
+        {{with.product}}
 
         Generate social media posts for different platforms.
       temperature: 0.6
@@ -439,7 +439,7 @@ tasks:
   # Even agents can have structured output requirements
 
   - id: analyze_agent
-    use:
+    with:
       product: $generate_product
       marketing: $generate_marketing
     agent:
@@ -447,10 +447,10 @@ tasks:
         Analyze the product and marketing content:
 
         PRODUCT:
-        {{use.product}}
+        {{with.product}}
 
         MARKETING:
-        {{use.marketing}}
+        {{with.marketing}}
 
         Your analysis should:
         1. Check message consistency across platforms
@@ -506,7 +506,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: final_report
-    use:
+    with:
       product: $generate_product
       marketing: $generate_marketing
       analysis: $analyze_agent
@@ -515,13 +515,13 @@ tasks:
         Create a final executive summary combining all our work:
 
         PRODUCT DATA:
-        {{use.product}}
+        {{with.product}}
 
         MARKETING CONTENT:
-        {{use.marketing}}
+        {{with.marketing}}
 
         QUALITY ANALYSIS:
-        {{use.analysis}}
+        {{with.analysis}}
 
         Summarize everything in a brief executive report.
       temperature: 0.3

@@ -130,7 +130,7 @@ tasks:
   # This task waits for all three to complete, then synthesizes them
 
   - id: combine_results
-    use:
+    with:
       creative: $creative_tagline    # Bind creative output
       technical: $technical_tagline  # Bind technical output
       balanced: $balanced_tagline    # Bind balanced output
@@ -138,11 +138,11 @@ tasks:
       prompt: |
         I generated three taglines for an AI coffee shop with different styles:
 
-        🎨 CREATIVE (temp=0.9): {{use.creative}}
+        🎨 CREATIVE (temp=0.9): {{with.creative}}
 
-        🔬 TECHNICAL (temp=0.1): {{use.technical}}
+        🔬 TECHNICAL (temp=0.1): {{with.technical}}
 
-        ⚖️ BALANCED (temp=0.5): {{use.balanced}}
+        ⚖️ BALANCED (temp=0.5): {{with.balanced}}
 
         Analyze these three approaches and recommend which would work best
         for different audiences (tech enthusiasts, general public, investors).
@@ -278,11 +278,11 @@ tasks:
   # Three parallel research streams, all starting from the same topic
 
   - id: research_fundamentals
-    use:
+    with:
       topic: $define_topic
     infer:
       prompt: |
-        Research the fundamentals of: {{use.topic}}
+        Research the fundamentals of: {{with.topic}}
 
         Provide:
         1. Core concept explanation (2-3 sentences)
@@ -295,11 +295,11 @@ tasks:
       system: You are a technical educator who explains complex topics simply.
 
   - id: find_examples
-    use:
+    with:
       topic: $define_topic
     infer:
       prompt: |
-        Find 3 real-world examples or use cases for: {{use.topic}}
+        Find 3 real-world examples or use cases for: {{with.topic}}
 
         For each example, provide:
         • Company/Project name
@@ -312,11 +312,11 @@ tasks:
       system: You are a tech journalist with deep industry knowledge.
 
   - id: analyze_trends
-    use:
+    with:
       topic: $define_topic
     infer:
       prompt: |
-        Analyze current trends and future outlook for: {{use.topic}}
+        Analyze current trends and future outlook for: {{with.topic}}
 
         Include:
         • Current adoption status (emerging/growing/mature)
@@ -334,23 +334,23 @@ tasks:
   # All three research streams converge here
 
   - id: synthesize_research
-    use:
+    with:
       topic: $define_topic
       fundamentals: $research_fundamentals
       examples: $find_examples
       trends: $analyze_trends
     infer:
       prompt: |
-        Synthesize this research on "{{use.topic}}" into a coherent brief:
+        Synthesize this research on "{{with.topic}}" into a coherent brief:
 
         📚 FUNDAMENTALS:
-        {{use.fundamentals}}
+        {{with.fundamentals}}
 
         💡 REAL-WORLD EXAMPLES:
-        {{use.examples}}
+        {{with.examples}}
 
         📈 TRENDS & OUTLOOK:
-        {{use.trends}}
+        {{with.trends}}
 
         Create a 3-paragraph executive summary that weaves these together.
         Highlight the most compelling points from each section.
@@ -363,15 +363,15 @@ tasks:
   # Two independent content streams running in parallel
 
   - id: write_blog_post
-    use:
+    with:
       topic: $define_topic
       research: $synthesize_research
     infer:
       prompt: |
-        Write a short blog post intro (150 words max) about: {{use.topic}}
+        Write a short blog post intro (150 words max) about: {{with.topic}}
 
         Using this research:
-        {{use.research}}
+        {{with.research}}
 
         Structure:
         - Hook/attention grabber
@@ -384,15 +384,15 @@ tasks:
       system: You are a tech blogger with a knack for making complex topics accessible.
 
   - id: create_social_posts
-    use:
+    with:
       topic: $define_topic
       research: $synthesize_research
     infer:
       prompt: |
-        Create 3 social media posts about: {{use.topic}}
+        Create 3 social media posts about: {{with.topic}}
 
         Based on:
-        {{use.research}}
+        {{with.research}}
 
         Format:
         1. Twitter/X (280 chars) - punchy, includes hashtags
@@ -410,19 +410,19 @@ tasks:
   # All branches converge for the final deliverable
 
   - id: final_content_package
-    use:
+    with:
       topic: $define_topic
       blog: $write_blog_post
       social: $create_social_posts
     infer:
       prompt: |
-        Create a final content package summary for: "{{use.topic}}"
+        Create a final content package summary for: "{{with.topic}}"
 
         📝 BLOG INTRO:
-        {{use.blog}}
+        {{with.blog}}
 
         📱 SOCIAL POSTS:
-        {{use.social}}
+        {{with.social}}
 
         Now provide:
         1. ✅ Content checklist (what's ready to publish)
@@ -482,7 +482,7 @@ flows:
 #
 # BINDING SYNTAX:
 # $task_id        → Reference another task's output
-# {{use.alias}}   → Template interpolation in prompts
+# {{with.alias}}   → Template interpolation in prompts
 #
 # RUN THIS WORKFLOW:
 # nika run workflows/tier-2-llm/05-dag-patterns.nika.yaml
@@ -585,26 +585,26 @@ tasks:
     as: lang                          # 🏷️ Variable name for each item
     concurrency: 3                    # ⚡ Max 3 parallel LLM calls
     fail_fast: true                   # 🛑 Stop all if one fails
-    use:
+    with:
       source: $source_content
     infer:
       prompt: |
-        Localize this product description for {{use.lang.name}} ({{use.lang.locale}}):
+        Localize this product description for {{with.lang.name}} ({{with.lang.locale}}):
 
         SOURCE TEXT:
-        {{use.source}}
+        {{with.source}}
 
         LOCALIZATION GUIDELINES:
-        • Style: {{use.lang.style}}
+        • Style: {{with.lang.style}}
         • Keep the same meaning but adapt culturally
-        • Use natural {{use.lang.name}} expressions
+        • Use natural {{with.lang.name}} expressions
         • Maintain approximately the same length
 
         Output ONLY the localized text, nothing else.
       temperature: 0.4
       max_tokens: 150
       system: |
-        You are a native {{use.lang.name}} speaker and professional localizer.
+        You are a native {{with.lang.name}} speaker and professional localizer.
         You understand cultural nuances and marketing copy.
 
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -613,7 +613,7 @@ tasks:
   # Analyze all localizations together
 
   - id: quality_check
-    use:
+    with:
       source: $source_content
       localizations: $localize_content  # 📦 All 5 results as array
     infer:
@@ -621,10 +621,10 @@ tasks:
         Review these localizations of our product description:
 
         📄 ORIGINAL (English):
-        {{use.source}}
+        {{with.source}}
 
         🌍 LOCALIZATIONS:
-        {{use.localizations}}
+        {{with.localizations}}
 
         Provide a brief quality assessment:
         1. ✅ Which localizations captured the tone best?
@@ -653,7 +653,7 @@ flows:
 # BASIC SYNTAX:
 # ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ for_each: ["a", "b", "c"]     # Simple string array                        │
-# │ as: item                       # Access via {{use.item}}                    │
+# │ as: item                       # Access via {{with.item}}                    │
 # │ concurrency: 2                 # Run 2 at a time                           │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
@@ -665,7 +665,7 @@ flows:
 # │   - name: Bob                                                               │
 # │     role: designer                                                          │
 # │ as: person                                                                  │
-# │ # Access: {{use.person.name}}, {{use.person.role}}                         │
+# │ # Access: {{with.person.name}}, {{with.person.role}}                         │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
 # FROM BINDING:
@@ -686,7 +686,7 @@ flows:
 # │   - id: translate                                                           │
 # │     for_each: $inputs.locales                           │
 # │     as: locale                                                              │
-# │     infer: "Translate to {{use.locale}}"                                   │
+# │     infer: "Translate to {{with.locale}}"                                   │
 # └─────────────────────────────────────────────────────────────────────────────┘
 #
 # CONCURRENCY GUIDE:
@@ -829,13 +829,13 @@ tasks:
   # This task uses files loaded from context
 
   - id: generate_content
-    use:
+    with:
       validation: $validate_topic
     infer:
       prompt: |
         Generate blog content using our brand guidelines and style.
 
-        VALIDATION STATUS: {{use.validation}}
+        VALIDATION STATUS: {{with.validation}}
 
         ═══════════════════════════════════════════════════════════════════
         BRAND GUIDELINES (from context/brand.md):
@@ -867,13 +867,13 @@ tasks:
   # ───────────────────────────────────────────────────────────────────────────────
 
   - id: format_output
-    use:
+    with:
       content: $generate_content
     infer:
       prompt: |
         Format this content for publishing:
 
-        {{use.content}}
+        {{with.content}}
 
         Add:
         1. A catchy headline

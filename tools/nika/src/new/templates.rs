@@ -59,13 +59,13 @@ tasks:
 
   - id: display
     description: "Display the result"
-    use:
+    with:
       content: generate
     exec:
       command: |
         echo "Generated content:"
         echo "=================="
-        echo "{{{{use.content}}}}"
+        echo "{{{{with.content}}}}"
       shell: true
     flow: [generate]
 "#
@@ -113,7 +113,7 @@ tasks:
 
   - id: summary
     description: "Create summary"
-    use:
+    with:
       info: system_info
       files: list_files
     exec:
@@ -168,15 +168,15 @@ tasks:
 
   - id: display
     description: "Display results"
-    use:
+    with:
       zen: get_zen
       user: get_user
     exec:
       command: |
-        echo "GitHub Zen: {{{{use.zen}}}}"
+        echo "GitHub Zen: {{{{with.zen}}}}"
         echo ""
-        echo "User: {{{{use.user.login}}}}"
-        echo "Name: {{{{use.user.name}}}}"
+        echo "User: {{{{with.user.login}}}}"
+        echo "Name: {{{{with.user.name}}}}"
       shell: true
     flow: [get_zen, get_user]
 "#
@@ -223,13 +223,13 @@ tasks:
 
   - id: analyze
     description: "Analyze fetched data"
-    use:
+    with:
       posts: fetch_data
     infer:
       prompt: |
         Analyze these blog posts and provide a summary:
 
-        {{{{use.posts | to_yaml}}}}
+        {{{{with.posts | to_yaml}}}}
 
         Return JSON with:
         - total_posts: number of posts
@@ -255,13 +255,13 @@ tasks:
 
   - id: generate_report
     description: "Generate markdown report"
-    use:
+    with:
       analysis: analyze
     infer:
       prompt: |
         Create a brief markdown report based on this analysis:
 
-        {{{{use.analysis | to_yaml}}}}
+        {{{{with.analysis | to_yaml}}}}
 
         Include:
         - Summary statistics
@@ -350,13 +350,13 @@ tasks:
 
   - id: outline
     description: "Create article outline"
-    use:
+    with:
       research: research
     infer:
       prompt: |
         Based on this research, create a detailed blog post outline:
 
-        {{{{use.research | to_yaml}}}}
+        {{{{with.research | to_yaml}}}}
 
         Create an outline with:
         - Compelling title
@@ -374,17 +374,17 @@ tasks:
 
   - id: write
     description: "Write the article"
-    use:
+    with:
       research: research
       outline: outline
     infer:
       prompt: |
         Write a complete blog post following this outline:
 
-        {{{{use.outline}}}}
+        {{{{with.outline}}}}
 
         Research context:
-        {{{{use.research | to_yaml}}}}
+        {{{{with.research | to_yaml}}}}
 
         Requirements:
         - Engaging, professional tone
@@ -402,13 +402,13 @@ tasks:
 
   - id: metadata
     description: "Generate SEO metadata"
-    use:
+    with:
       article: write
     infer:
       prompt: |
         Generate SEO metadata for this article:
 
-        {{{{use.article | truncate: 500}}}}
+        {{{{with.article | truncate: 500}}}}
 
         Return JSON with:
         - seo_title (55-60 chars)
@@ -482,14 +482,14 @@ tasks:
 
   - id: analyze
     description: "Analyze code quality"
-    use:
+    with:
       code: read_code
     infer:
       prompt: |
         Perform a comprehensive code review on this code:
 
         ```
-        {{{{use.code}}}}
+        {{{{with.code}}}}
         ```
 
         Analyze for:
@@ -534,7 +534,7 @@ tasks:
 
   - id: report
     description: "Generate review report"
-    use:
+    with:
       analysis: analyze
       code: read_code
     infer:
@@ -542,7 +542,7 @@ tasks:
         Create a markdown code review report based on:
 
         Analysis:
-        {{{{use.analysis | to_yaml}}}}
+        {{{{with.analysis | to_yaml}}}}
 
         Include:
         - Overall summary
@@ -641,13 +641,13 @@ tasks:
 
   - id: synthesize
     description: "Synthesize findings into report"
-    use:
+    with:
       research: research
     infer:
       prompt: |
         Create a summary from this research:
 
-        {{{{use.research | to_yaml}}}}
+        {{{{with.research | to_yaml}}}}
 
         Format as a professional brief with:
         - Summary (3-5 sentences)
@@ -733,16 +733,16 @@ tasks:
 
   - id: report
     description: "Generate automation report"
-    use:
+    with:
       result: browse
     exec:
       command: |
         echo "=== Browser Automation Report ==="
-        echo "URL: {{{{use.result.url}}}}"
-        echo "Title: {{{{use.result.title}}}}"
+        echo "URL: {{{{with.result.url}}}}"
+        echo "Title: {{{{with.result.title}}}}"
         echo ""
         echo "Summary:"
-        echo "{{{{use.result.content_summary}}}}"
+        echo "{{{{with.result.content_summary}}}}"
       shell: true
     flow: [browse]
 "#
@@ -795,13 +795,13 @@ tasks:
 
   - id: analyze_content
     description: "Analyze scraped content"
-    use:
+    with:
       page: scrape_page
     infer:
       prompt: |
         Analyze this webpage content:
 
-        {{{{use.page.markdown | truncate: 2000}}}}
+        {{{{with.page.markdown | truncate: 2000}}}}
 
         Extract:
         - Top 5 story headlines
@@ -829,14 +829,14 @@ tasks:
 
   - id: save_analysis
     description: "Save analysis to file"
-    use:
+    with:
       analysis: analyze_content
     invoke:
       server: filesystem
       tool: write_file
       params:
         path: "analysis-output.json"
-        content: "{{{{use.analysis | to_json}}}}"
+        content: "{{{{with.analysis | to_json}}}}"
     flow: [analyze_content]
 "#
     )
@@ -896,7 +896,7 @@ tasks:
 
   - id: compare
     description: "Compare responses"
-    use:
+    with:
       claude: claude_response
       openai: openai_response
     infer:
@@ -904,10 +904,10 @@ tasks:
         Compare these two AI responses:
 
         Claude's response:
-        {{{{use.claude}}}}
+        {{{{with.claude}}}}
 
         OpenAI's response:
-        {{{{use.openai}}}}
+        {{{{with.openai}}}}
 
         Analyze:
         1. Key similarities
@@ -937,7 +937,7 @@ tasks:
 
   - id: final_answer
     description: "Generate synthesized answer"
-    use:
+    with:
       comparison: compare
       claude: claude_response
       openai: openai_response
@@ -946,7 +946,7 @@ tasks:
         Create the best possible answer by synthesizing insights from both AI responses:
 
         Comparison analysis:
-        {{{{use.comparison | to_yaml}}}}
+        {{{{with.comparison | to_yaml}}}}
 
         Original question: {{{{inputs.question}}}}
 
@@ -1010,14 +1010,14 @@ tasks:
   # Transform: Clean and enrich data
   - id: transform
     description: "Transform and enrich data"
-    use:
+    with:
       raw_data: extract
     infer:
       prompt: |
         Transform this raw data into a clean, enriched format:
 
         Raw Data:
-        {{{{use.raw_data | to_yaml}}}}
+        {{{{with.raw_data | to_yaml}}}}
 
         Requirements:
         1. Clean any malformed entries
@@ -1053,12 +1053,12 @@ tasks:
   # Load: Save processed data
   - id: load
     description: "Load data to output"
-    use:
+    with:
       data: transform
     exec:
       command: |
         echo "Data pipeline complete!"
-        echo "Records processed: {{{{use.data.stats.total_records}}}}"
+        echo "Records processed: {{{{with.data.stats.total_records}}}}"
         echo "Output saved to artifacts directory"
       shell: true
     flow: [transform]
@@ -1173,7 +1173,7 @@ tasks:
   # Compile briefing
   - id: compile
     description: "Compile morning briefing"
-    use:
+    with:
       datetime: get_datetime
       weather: weather
       news: news
@@ -1181,13 +1181,13 @@ tasks:
       prompt: |
         Create a friendly morning briefing email based on:
 
-        Date: {{{{use.datetime}}}}
+        Date: {{{{with.datetime}}}}
 
         Weather:
-        {{{{use.weather | to_yaml}}}}
+        {{{{with.weather | to_yaml}}}}
 
         News Headlines:
-        {{{{use.news | to_yaml}}}}
+        {{{{with.news | to_yaml}}}}
 
         Format as a professional but warm morning email.
         Include:
@@ -1268,7 +1268,7 @@ tasks:
   # Analyze commits
   - id: analyze
     description: "Analyze commit patterns"
-    use:
+    with:
       log: git_log
       stats: diff_stats
     infer:
@@ -1276,10 +1276,10 @@ tasks:
         Analyze these git commits and categorize them:
 
         Commit Log (hash|subject|author|date):
-        {{{{use.log}}}}
+        {{{{with.log}}}}
 
         Diff Statistics:
-        {{{{use.stats}}}}
+        {{{{with.stats}}}}
 
         Categorize each commit as:
         - feat: New features
@@ -1325,13 +1325,13 @@ tasks:
   # Generate changelog
   - id: changelog
     description: "Generate formatted changelog"
-    use:
+    with:
       analysis: analyze
     infer:
       prompt: |
         Generate a professional changelog from this analysis:
 
-        {{{{use.analysis | to_yaml}}}}
+        {{{{with.analysis | to_yaml}}}}
 
         Format: {{{{inputs.output_format}}}}
 
@@ -1404,7 +1404,7 @@ tasks:
     concurrency: 6
     infer:
       prompt: |
-        Translate the following text from {{{{inputs.source_lang}}}} to {{{{use.target_lang}}}}.
+        Translate the following text from {{{{inputs.source_lang}}}} to {{{{with.target_lang}}}}.
 
         Source text:
         "{{{{inputs.source_text}}}}"
@@ -1428,19 +1428,19 @@ tasks:
           notes:
             type: string
     artifact:
-      path: "{{{{use.target_lang | lowercase}}}}.json"
+      path: "{{{{with.target_lang | lowercase}}}}.json"
     flow: [setup]
 
   # Compile all translations
   - id: compile
     description: "Compile translation summary"
-    use:
+    with:
       translations: translate
     infer:
       prompt: |
         Create a translation summary report from:
 
-        {{{{use.translations | to_yaml}}}}
+        {{{{with.translations | to_yaml}}}}
 
         Include:
         - Source text and language
@@ -1535,14 +1535,14 @@ tasks:
   # Generate test cases using agent
   - id: generate_tests
     description: "Generate comprehensive test cases"
-    use:
+    with:
       analysis: analyze_feature
     agent:
       prompt: |
         You are a QA Engineer. Generate test cases for this feature:
 
         Feature Analysis:
-        {{{{use.analysis | to_yaml}}}}
+        {{{{with.analysis | to_yaml}}}}
 
         Test Types Required: {{{{inputs.test_types | to_yaml}}}}
 
@@ -1593,7 +1593,7 @@ tasks:
   # Generate test report
   - id: report
     description: "Generate test report"
-    use:
+    with:
       analysis: analyze_feature
       tests: generate_tests
     infer:
@@ -1601,10 +1601,10 @@ tasks:
         Create a professional QA test plan document:
 
         Feature Analysis:
-        {{{{use.analysis | to_yaml}}}}
+        {{{{with.analysis | to_yaml}}}}
 
         Generated Test Cases:
-        {{{{use.tests | to_yaml}}}}
+        {{{{with.tests | to_yaml}}}}
 
         Include:
         1. Executive Summary

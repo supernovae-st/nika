@@ -229,7 +229,7 @@ Describe your project here. This context will be available to agents via `memory
 #         params:
 #           workflow: .nika/workflows/helpers.nika.yaml
 #           task: summarize
-#           input: "{{use.content}}"
+#           input: "{{with.content}}"
 
 schema: "nika/workflow@0.6"
 workflow: helpers
@@ -241,7 +241,7 @@ tasks:
       prompt: |
         Summarize the following content in 3 bullet points:
 
-        {{use.input}}
+        {{with.input}}
       model: claude-sonnet-4-20250514
     output:
       format: text
@@ -249,9 +249,9 @@ tasks:
   - id: translate
     infer:
       prompt: |
-        Translate the following text to {{use.target_language | default: "French"}}:
+        Translate the following text to {{with.target_language | default: "French"}}:
 
-        {{use.input}}
+        {{with.input}}
       model: claude-sonnet-4-20250514
     output:
       format: text
@@ -261,8 +261,8 @@ tasks:
       prompt: |
         Review the following code for bugs, security issues, and improvements:
 
-        ```{{use.language | default: "rust"}}
-        {{use.code}}
+        ```{{with.language | default: "rust"}}
+        {{with.code}}
         ```
 
         Provide:

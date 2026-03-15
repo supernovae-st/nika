@@ -102,7 +102,7 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────────
   - id: show_system_info
     # Bind outputs from previous tasks
-    use:
+    with:
       date_result: get_date      # Output of get_date task
       user_result: get_user      # Output of get_user task
       files_result: list_files   # Output of list_files task
@@ -114,11 +114,11 @@ tasks:
         echo "        SYSTEM INFORMATION"
         echo "═══════════════════════════════════════"
         echo ""
-        echo "📅 Date: {{use.date_result}}"
-        echo "👤 User: {{use.user_result}}"
+        echo "📅 Date: {{with.date_result}}"
+        echo "👤 User: {{with.user_result}}"
         echo ""
         echo "📁 Files:"
-        echo "{{use.files_result}}"
+        echo "{{with.files_result}}"
       # shell: true allows pipes, redirects, and variables
       # WARNING: Only use shell: true when you need shell features!
       # shell: false (default) is more secure
@@ -165,7 +165,7 @@ tasks:
   # FINAL SUMMARY
   # ─────────────────────────────────────────────────────────────────────────────
   - id: summary
-    use:
+    with:
       sys_info: show_system_info
       cwd_demo: with_cwd
       env_demo: with_env_vars
@@ -306,7 +306,7 @@ tasks:
   # POST WITH JSON BODY (String Method)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: post_data
-    use:
+    with:
       # Reference results from previous tasks
       my_ip: simple_get
       json_data: get_json
@@ -318,7 +318,7 @@ tasks:
         Content-Type: "application/json"
         Accept: "application/json"
       # Body as JSON string (old method - still works)
-      body: '{"message": "Hello from Nika!", "ip": "{{use.my_ip}}", "nested": {"key": "value", "number": 42}}'
+      body: '{"message": "Hello from Nika!", "ip": "{{with.my_ip}}", "nested": {"key": "value", "number": 42}}'
 
   # ─────────────────────────────────────────────────────────────────────────────
   # POST WITH JSON (Auto-serialized)
@@ -358,7 +358,7 @@ tasks:
   # DISPLAY ALL RESULTS
   # ─────────────────────────────────────────────────────────────────────────────
   - id: display_results
-    use:
+    with:
       ip_result: simple_get
       json_result: get_json
       headers_result: get_headers
@@ -372,22 +372,22 @@ tasks:
         echo "══════════════════════════════════════════════════════════════"
         echo ""
         echo "📡 GET /ip:"
-        echo "{{use.ip_result}}"
+        echo "{{with.ip_result}}"
         echo ""
         echo "📦 GET /json:"
-        echo "{{use.json_result}}" | head -5
+        echo "{{with.json_result}}" | head -5
         echo ""
         echo "📋 GET /headers (with custom headers):"
-        echo "{{use.headers_result}}" | head -5
+        echo "{{with.headers_result}}" | head -5
         echo ""
         echo "📤 POST /post (with body: string):"
-        echo "{{use.post_result}}" | head -8
+        echo "{{with.post_result}}" | head -8
         echo ""
         echo "🆕 POST /post (with json: auto-serialized):"
-        echo "{{use.post_json_result}}" | head -8
+        echo "{{with.post_json_result}}" | head -8
         echo ""
         echo "🔐 GET /bearer (with auth):"
-        echo "{{use.auth_result}}"
+        echo "{{with.auth_result}}"
         echo ""
         echo "══════════════════════════════════════════════════════════════"
         echo "✅ All fetch examples completed successfully!"
