@@ -1006,6 +1006,7 @@ impl ChatAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     // ═══════════════════════════════════════════════════════════════════════
     // StreamingState tests
@@ -1141,6 +1142,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_chat_agent_initial_state() {
         // Set a dummy key for the test (ensures at least one provider is available)
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
@@ -1161,6 +1163,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_chat_agent_with_claude_fallback() {
         // This test verifies Claude fallback logic.
         // Due to parallel test execution, we can't reliably remove OPENAI_API_KEY.
@@ -1178,6 +1181,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn test_set_provider_openai() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1189,6 +1193,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_provider_claude() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         std::env::set_var("ANTHROPIC_API_KEY", "test-key-for-unit-test");
@@ -1205,6 +1210,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_provider_missing_key() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1229,6 +1235,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_provider_list_does_not_change() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1246,6 +1253,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn test_set_provider_mistral() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
@@ -1260,6 +1268,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_provider_groq() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         std::env::set_var("GROQ_API_KEY", "test-key-for-unit-test");
@@ -1274,6 +1283,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_provider_deepseek() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
         std::env::set_var("DEEPSEEK_API_KEY", "test-key-for-unit-test");
@@ -1288,6 +1298,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_with_overrides_mistral() {
         std::env::set_var("MISTRAL_API_KEY", "test-key-for-unit-test");
 
@@ -1299,6 +1310,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_with_overrides_invalid_provider() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1314,6 +1326,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn test_history_starts_empty() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1322,6 +1335,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_clear_history() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1339,6 +1353,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_with_history() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1358,6 +1373,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_take_history() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1374,6 +1390,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_set_history() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1397,6 +1414,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
+    #[serial]
     async fn test_exec_command_echo() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1408,6 +1426,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_exec_command_with_args() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1419,6 +1438,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_exec_command_failure() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1432,6 +1452,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_exec_command_pipe() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1449,6 +1470,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[test]
+    #[serial]
     fn test_streaming_state_access() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1463,6 +1485,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
+    #[serial]
     async fn test_with_streaming_channel() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1480,6 +1503,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
+    #[serial]
     async fn test_invoke_unknown_server() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1503,6 +1527,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_invoke_no_servers_configured() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1553,6 +1578,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
+    #[serial]
     async fn test_run_agent_no_servers_configured() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
@@ -1577,6 +1603,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_run_agent_empty_goal_validation() {
         std::env::set_var("OPENAI_API_KEY", "test-key-for-unit-test");
 
