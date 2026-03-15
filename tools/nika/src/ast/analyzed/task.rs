@@ -497,7 +497,7 @@ mod tests {
     #[test]
     fn test_analyzed_for_each_is_binding() {
         let for_each = AnalyzedForEach {
-            items: "{{use.items}}".to_string(),
+            items: "{{with.items}}".to_string(),
             ..Default::default()
         };
         assert!(for_each.is_binding());
@@ -524,7 +524,7 @@ mod tests {
         assert!(for_each.is_array());
 
         let for_each = AnalyzedForEach {
-            items: "{{use.items}}".to_string(),
+            items: "{{with.items}}".to_string(),
             ..Default::default()
         };
         assert!(!for_each.is_array());
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(items[0], serde_json::Value::String("a".to_string()));
 
         let for_each = AnalyzedForEach {
-            items: "{{use.items}}".to_string(),
+            items: "{{with.items}}".to_string(),
             ..Default::default()
         };
         assert!(for_each.parse_items().is_none());

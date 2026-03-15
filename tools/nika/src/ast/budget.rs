@@ -443,10 +443,10 @@ tasks:
       temperature: 0.7
 
   - id: step2
-    use:
+    with:
       headline: step1
     infer:
-      prompt: "Expand on this headline: {{use.headline}}"
+      prompt: "Expand on this headline: {{with.headline}}"
 
   - id: step3
     exec:

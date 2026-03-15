@@ -398,7 +398,7 @@ tasks:
       format: json
 
   - id: generate
-    use:
+    with:
       schema: describe
     invoke:
       mcp: novanet
@@ -563,13 +563,13 @@ tasks:
     infer: "Hello"
 
   - id: step2
-    use:
+    with:
       eager: step1
       lazy_val:
         path: step1.result
         lazy: true
         default: "fallback"
-    infer: "Using {{use.eager}} and {{use.lazy_val}}"
+    infer: "Using {{with.eager}} and {{with.lazy_val}}"
 "#;
         let result = validator.validate_yaml(yaml);
         assert!(
@@ -589,10 +589,10 @@ tasks:
 schema: "nika/workflow@0.5"
 tasks:
   - id: process
-    for_each: "{{use.items}}"
+    for_each: "{{with.items}}"
     as: item
     concurrency: 5
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 "#;
         let result = validator.validate_yaml(yaml);
         assert!(

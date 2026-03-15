@@ -13,7 +13,7 @@
 //!       strategy: semantic
 //!       traverse: HAS_CHILD
 //!       source: $entity
-//!     infer: "Generate for {{use.item}}"
+//!     infer: "Generate for {{with.item}}"
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ pub struct DecomposeSpec {
     pub strategy: DecomposeStrategy,
     /// Arc name to traverse (e.g., "HAS_CHILD", "HAS_NATIVE")
     pub traverse: String,
-    /// Source binding expression (e.g., "$entity", "{{use.entity_key}}")
+    /// Source binding expression (e.g., "$entity", "{{with.entity_key}}")
     pub source: String,
     /// MCP server to use for traversal (defaults to "novanet")
     #[serde(default)]
@@ -92,14 +92,14 @@ source: $entity
         let yaml = r#"
 strategy: nested
 traverse: HAS_NATIVE
-source: "{{use.entity_key}}"
+source: "{{with.entity_key}}"
 mcp_server: custom_mcp
 max_items: 10
 "#;
         let spec: DecomposeSpec = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(spec.strategy, DecomposeStrategy::Nested);
         assert_eq!(spec.traverse, "HAS_NATIVE");
-        assert_eq!(spec.source, "{{use.entity_key}}");
+        assert_eq!(spec.source, "{{with.entity_key}}");
         assert_eq!(spec.mcp_server(), "custom_mcp");
         assert_eq!(spec.max_items, Some(10));
     }
