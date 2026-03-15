@@ -15,7 +15,7 @@ tasks:
 
   - id: on_true
     description: "Execute if true"
-    use:
+    with:
       result: check_condition
     exec: "echo 'Condition was true'"
     flow: [check_condition]

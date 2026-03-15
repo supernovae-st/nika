@@ -15,4 +15,4 @@ tasks:
     as: task
     concurrency: 3
     fail_fast: true
-    exec: "echo 'Parallel: {{use.task}}'"
+    exec: "echo 'Parallel: {{with.task}}'"

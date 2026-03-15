@@ -1,6 +1,6 @@
 # Test: bindings/01-use-basic
 # Tests: Basic use: binding from task output
-# Expected: Task output is available via {{use.alias}}
+# Expected: Task output is available via {{with.alias}}
 
 schema: "nika/workflow@0.10"
 workflow: test-bindings-use-basic
@@ -15,7 +15,7 @@ tasks:
 
   - id: consumer
     description: "Consumer task that uses source output"
-    use:
+    with:
       message: source
-    exec: "echo 'Received: {{use.message}}'"
+    exec: "echo 'Received: {{with.message}}'"
     flow: [source]

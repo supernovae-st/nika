@@ -19,9 +19,9 @@ tasks:
 
   - id: iterate_list
     description: "Iterate over produced list"
-    use:
+    with:
       colors: produce_list
-    for_each: "{{use.colors}}"
+    for_each: "{{with.colors}}"
     as: color
-    exec: "echo 'Color: {{use.color}}'"
+    exec: "echo 'Color: {{with.color}}'"
     flow: [produce_list]

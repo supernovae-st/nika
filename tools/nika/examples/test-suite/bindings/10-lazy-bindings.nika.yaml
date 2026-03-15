@@ -14,10 +14,10 @@ tasks:
 
   - id: late_task
     description: "Task with lazy binding"
-    use:
+    with:
       data:
         path: early_task
         lazy: true
         default: "fallback"
-    infer: "Using data: {{use.data}}"
+    infer: "Using data: {{with.data}}"
     flow: [early_task]

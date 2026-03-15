@@ -1,6 +1,6 @@
 # Test: bindings/09-template-resolution
 # Tests: Template resolution with multiple bindings
-# Expected: Multiple {{use.x}} templates resolve correctly
+# Expected: Multiple {{with.x}} templates resolve correctly
 
 schema: "nika/workflow@0.10"
 workflow: test-bindings-template
@@ -20,9 +20,9 @@ tasks:
 
   - id: combine
     description: "Combine multiple bindings"
-    use:
+    with:
       a: step1
       b: step2
       c: step3
-    infer: "Combine: {{use.a}}, {{use.b}}, {{use.c}}"
+    infer: "Combine: {{with.a}}, {{with.b}}, {{with.c}}"
     flow: [step1, step2, step3]

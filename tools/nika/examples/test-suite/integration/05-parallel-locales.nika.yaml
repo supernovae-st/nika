@@ -57,7 +57,7 @@ tasks:
       tool: novanet_generate
       params:
         focus_key: "entity:{{inputs.entity}}"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         mode: block
         token_budget: 4000
     output:
@@ -70,16 +70,16 @@ tasks:
     as: locale
     concurrency: 4
     fail_fast: false
-    use:
+    with:
       contexts: generate_per_locale
     infer:
       prompt: |
-        Generate a compelling headline for locale: {{use.locale}}
+        Generate a compelling headline for locale: {{with.locale}}
 
-        Available context: {{use.contexts}}
+        Available context: {{with.contexts}}
 
         Output a JSON object:
-        {"locale": "{{use.locale}}", "headline": "your headline here"}
+        {"locale": "{{with.locale}}", "headline": "your headline here"}
       temperature: 0.4
       max_tokens: 100
     output:
@@ -97,12 +97,12 @@ tasks:
   # Step 3: Aggregate results
   - id: aggregate_results
     description: "Aggregate all locale results"
-    use:
+    with:
       headlines: generate_headlines
     infer:
       prompt: |
         Summarize the headlines generated for each locale:
-        {{use.headlines}}
+        {{with.headlines}}
 
         Output a JSON object with:
         - total_locales: number of locales processed
@@ -127,11 +127,11 @@ tasks:
   # Step 4: Verify completion
   - id: verify_completion
     description: "Verify all locales processed"
-    use:
+    with:
       result: aggregate_results
     exec:
       command: |
-        echo '{{use.result}}' | jq -e '
+        echo '{{with.result}}' | jq -e '
           .total_locales >= 4 and .status == "success"
         '
       shell: true

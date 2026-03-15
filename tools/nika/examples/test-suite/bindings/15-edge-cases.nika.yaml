@@ -26,7 +26,7 @@ tasks:
 
   - id: handle_edges
     description: "Handle all edge cases"
-    use:
+    with:
       special: special_chars
       empty: empty_output
       nullish: null_like

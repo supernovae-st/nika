@@ -1,6 +1,6 @@
 # Test: mcp/05-params-templating
 # Tests: Template resolution in MCP parameters
-# Expected: {{use.x}} templates resolve in params
+# Expected: {{with.x}} templates resolve in params
 
 schema: "nika/workflow@0.10"
 workflow: test-mcp-params-template
@@ -20,12 +20,12 @@ tasks:
 
   - id: use_template
     description: "Use template in MCP params"
-    use:
+    with:
       val: get_value
     invoke:
       mcp: templated
       tool: nika:log
       params:
         level: info
-        message: "Value is: {{use.val}}"
+        message: "Value is: {{with.val}}"
     flow: [get_value]

@@ -22,9 +22,9 @@ tasks:
 
   - id: combine_all
     description: "Combine outputs from different verb types"
-    use:
+    with:
       exec_data: from_exec
       infer_data: from_infer
       fetch_data: from_fetch
-    infer: "Processing: exec={{use.exec_data}}, infer={{use.infer_data}}"
+    infer: "Processing: exec={{with.exec_data}}, infer={{with.infer_data}}"
     flow: [from_exec, from_infer, from_fetch]

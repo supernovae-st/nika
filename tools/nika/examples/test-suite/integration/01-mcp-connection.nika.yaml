@@ -42,11 +42,11 @@ tasks:
   # Test 2: Verify schema has expected structure
   - id: verify_schema_structure
     description: "Verify schema contains node_classes"
-    use:
+    with:
       schema: describe_schema
     exec:
       command: |
-        echo '{{use.schema}}' | jq -e '
+        echo '{{with.schema}}' | jq -e '
           .node_classes | length > 0
         '
       shell: true
@@ -67,11 +67,11 @@ tasks:
   # Test 4: Verify stats response
   - id: verify_stats
     description: "Verify stats contains node counts"
-    use:
+    with:
       stats: describe_stats
     exec:
       command: |
-        echo '{{use.stats}}' | jq -e '
+        echo '{{with.stats}}' | jq -e '
           has("total_nodes") or has("node_count") or type == "object"
         '
       shell: true

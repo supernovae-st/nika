@@ -19,7 +19,7 @@ tasks:
 
   - id: use_nested
     description: "Access nested fields from JSON"
-    use:
+    with:
       data: produce_json
-    infer: "Process user data: {{use.data}}"
+    infer: "Process user data: {{with.data}}"
     flow: [produce_json]

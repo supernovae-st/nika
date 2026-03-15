@@ -13,31 +13,31 @@ tasks:
     exec: "echo 'Source data'"
 
   - id: worker1
-    use:
+    with:
       data: source
-    exec: "echo 'Worker 1: {{use.data}}'"
+    exec: "echo 'Worker 1: {{with.data}}'"
     flow: [source]
 
   - id: worker2
-    use:
+    with:
       data: source
-    exec: "echo 'Worker 2: {{use.data}}'"
+    exec: "echo 'Worker 2: {{with.data}}'"
     flow: [source]
 
   - id: worker3
-    use:
+    with:
       data: source
-    exec: "echo 'Worker 3: {{use.data}}'"
+    exec: "echo 'Worker 3: {{with.data}}'"
     flow: [source]
 
   - id: worker4
-    use:
+    with:
       data: source
-    exec: "echo 'Worker 4: {{use.data}}'"
+    exec: "echo 'Worker 4: {{with.data}}'"
     flow: [source]
 
   - id: worker5
-    use:
+    with:
       data: source
-    exec: "echo 'Worker 5: {{use.data}}'"
+    exec: "echo 'Worker 5: {{with.data}}'"
     flow: [source]

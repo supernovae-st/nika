@@ -13,21 +13,21 @@ tasks:
     exec: "echo 'root-data'"
 
   - id: branch_a
-    use:
+    with:
       input: root
-    exec: "echo 'A: {{use.input}}'"
+    exec: "echo 'A: {{with.input}}'"
     flow: [root]
 
   - id: branch_b
-    use:
+    with:
       input: root
-    exec: "echo 'B: {{use.input}}'"
+    exec: "echo 'B: {{with.input}}'"
     flow: [root]
 
   - id: merge
     description: "Merge data from branches"
-    use:
+    with:
       from_a: branch_a
       from_b: branch_b
-    infer: "Merged: {{use.from_a}} and {{use.from_b}}"
+    infer: "Merged: {{with.from_a}} and {{with.from_b}}"
     flow: [branch_a, branch_b]

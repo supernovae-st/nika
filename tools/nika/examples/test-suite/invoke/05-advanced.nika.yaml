@@ -26,7 +26,7 @@ tasks:
 
   - id: second_call
     description: "Second MCP tool call using first result"
-    use:
+    with:
       prev: first_call
     invoke:
       mcp: builtin
@@ -58,7 +58,7 @@ tasks:
 
   - id: final_call
     description: "Final call after parallel completion"
-    use:
+    with:
       a: parallel_call_a
       b: parallel_call_b
     invoke:

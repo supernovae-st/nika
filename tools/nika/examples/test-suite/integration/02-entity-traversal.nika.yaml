@@ -76,11 +76,11 @@ tasks:
   # Test 4: Verify traversal found nodes
   - id: verify_traversal
     description: "Verify traversal returned results"
-    use:
+    with:
       nodes: traverse_entity
     exec:
       command: |
-        echo '{{use.nodes}}' | jq -e '
+        echo '{{with.nodes}}' | jq -e '
           type == "object" and (
             has("nodes") or has("results") or has("data") or . != null
           )

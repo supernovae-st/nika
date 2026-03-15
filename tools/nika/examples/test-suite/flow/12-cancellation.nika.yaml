@@ -15,4 +15,4 @@ tasks:
     as: item
     concurrency: 3
     fail_fast: true
-    exec: "echo '{{use.item}}'"
+    exec: "echo '{{with.item}}'"

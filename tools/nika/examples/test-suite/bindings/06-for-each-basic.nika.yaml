@@ -13,4 +13,4 @@ tasks:
     description: "Process each item in array"
     for_each: ["apple", "banana", "cherry"]
     as: fruit
-    exec: "echo 'Processing {{use.fruit}}'"
+    exec: "echo 'Processing {{with.fruit}}'"

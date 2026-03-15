@@ -50,14 +50,14 @@ tasks:
   # Step 2: Generate hero section content
   - id: generate_hero
     description: "Generate hero section from context"
-    use:
+    with:
       ctx: assemble_context
     infer:
       prompt: |
         Generate a hero section for a QR Code AI landing page in French.
 
         CONTEXT FROM NOVANET:
-        {{use.ctx}}
+        {{with.ctx}}
 
         RULES:
         - Use denomination_forms EXACTLY as provided (no paraphrasing)
@@ -97,11 +97,11 @@ tasks:
   # Step 3: Validate output structure
   - id: validate_hero
     description: "Validate generated hero content"
-    use:
+    with:
       hero: generate_hero
     exec:
       command: |
-        echo '{{use.hero}}' | jq -e '
+        echo '{{with.hero}}' | jq -e '
           .headline != null and
           .description != null and
           .cta != null and
@@ -114,12 +114,12 @@ tasks:
   # Step 4: Log success
   - id: log_success
     description: "Log successful generation"
-    use:
+    with:
       hero: generate_hero
     invoke:
       server: novanet
       tool: nika:log
       params:
         level: info
-        message: "Content generation successful: {{use.hero.headline}}"
+        message: "Content generation successful: {{with.hero.headline}}"
     flow: [validate_hero]
