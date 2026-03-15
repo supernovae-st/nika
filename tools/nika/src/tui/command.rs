@@ -569,40 +569,37 @@ impl ModelProvider {
         }
     }
 
-    /// Get the environment variable name required for this provider
+    /// Get the environment variable name required for this provider.
+    ///
+    /// Delegates to `core::KNOWN_PROVIDERS` as the single source of truth.
     pub fn env_var(&self) -> &'static str {
-        match self {
-            ModelProvider::OpenAI => "OPENAI_API_KEY",
-            ModelProvider::Claude => "ANTHROPIC_API_KEY",
-            ModelProvider::Mistral => "MISTRAL_API_KEY",
-            ModelProvider::Groq => "GROQ_API_KEY",
-            ModelProvider::DeepSeek => "DEEPSEEK_API_KEY",
-            ModelProvider::Native => "", // Native inference uses local GGUF models, no env var required
-            ModelProvider::List => "",
-        }
+        crate::core::find_provider(self.command_name())
+            .map(|p| p.env_var)
+            .unwrap_or("")
     }
 
-    /// Check if the provider is available (env var is set and non-empty)
+    /// Check if the provider is available (env var is set and non-empty).
     pub fn is_available(&self) -> bool {
         match self {
             ModelProvider::List => true,
-            ModelProvider::Native => true, // Native inference is always available when feature enabled
-            _ => std::env::var(self.env_var()).is_ok_and(|v| !v.is_empty()),
+            _ => crate::core::find_provider(self.command_name())
+                .map(|p| !p.requires_key || p.has_env_key())
+                .unwrap_or(false),
         }
     }
 
-    /// Convert provider name string to ModelProvider enum
+    /// Convert provider name string to ModelProvider enum.
     ///
-    /// Used by Provider Modal SelectProvider action to switch providers.
-    /// Returns None for invalid provider names.
+    /// Uses `core::find_provider()` for alias resolution, then maps to the enum variant.
     pub fn from_name(name: &str) -> Option<Self> {
-        match name.to_lowercase().as_str() {
-            "claude" | "anthropic" => Some(ModelProvider::Claude),
-            "openai" | "gpt" => Some(ModelProvider::OpenAI),
+        let provider = crate::core::find_provider(name)?;
+        match provider.id {
+            "anthropic" => Some(ModelProvider::Claude),
+            "openai" => Some(ModelProvider::OpenAI),
             "mistral" => Some(ModelProvider::Mistral),
             "groq" => Some(ModelProvider::Groq),
             "deepseek" => Some(ModelProvider::DeepSeek),
-            "native" | "local" => Some(ModelProvider::Native),
+            "native" => Some(ModelProvider::Native),
             _ => None,
         }
     }

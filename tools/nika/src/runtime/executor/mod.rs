@@ -218,79 +218,26 @@ impl TaskExecutor {
         }
     }
 
-    /// Get or create a cached rig-core provider
+    /// Get or create a cached rig-core provider.
     ///
-    /// Uses rig-core's provider clients for LLM inference.
+    /// Resolves provider names and aliases via [`RigProvider::from_name()`],
+    /// which uses `core::find_provider()` as the single source of truth.
     pub(super) fn get_rig_provider(&self, name: &str) -> Result<RigProvider, NikaError> {
         use dashmap::mapref::entry::Entry;
 
         match self.rig_provider_cache.entry(name.to_string()) {
             Entry::Occupied(e) => Ok(e.get().clone()),
             Entry::Vacant(e) => {
-                // Check env var BEFORE constructor (rig-core panics without it)
-                let provider = match name {
-                    "claude" | "anthropic" => {
-                        if std::env::var("ANTHROPIC_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "anthropic".to_string(),
-                            });
-                        }
-                        RigProvider::claude()
-                    }
-                    "openai" | "gpt" => {
-                        if std::env::var("OPENAI_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "openai".to_string(),
-                            });
-                        }
-                        RigProvider::openai()
-                    }
-                    "mistral" => {
-                        if std::env::var("MISTRAL_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "mistral".to_string(),
-                            });
-                        }
-                        RigProvider::mistral()
-                    }
-                    "groq" => {
-                        if std::env::var("GROQ_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "groq".to_string(),
-                            });
-                        }
-                        RigProvider::groq()
-                    }
-                    "deepseek" | "deep-seek" => {
-                        if std::env::var("DEEPSEEK_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "deepseek".to_string(),
-                            });
-                        }
-                        RigProvider::deepseek()
-                    }
-                    "gemini" | "google" => {
-                        if std::env::var("GEMINI_API_KEY").is_err() {
-                            return Err(NikaError::MissingApiKey {
-                                provider: "gemini".to_string(),
-                            });
-                        }
-                        RigProvider::gemini()
-                    }
-                    // Native local inference (requires native-inference feature)
-                    // Note: Model must be loaded separately via load_native_model()
-                    #[cfg(feature = "native-inference")]
-                    "native" | "local" => RigProvider::native(),
-                    _ => {
-                        return Err(NikaError::ProviderNotConfigured {
-                            provider: name.to_string(),
-                        });
-                    }
-                };
+                let provider = RigProvider::from_name(name)?;
                 e.insert(provider.clone());
                 Ok(provider)
             }
         }
+    }
+
+    /// Get the default provider name.
+    pub fn default_provider(&self) -> &str {
+        &self.default_provider
     }
 
     /// Get or create an MCP client for a named server

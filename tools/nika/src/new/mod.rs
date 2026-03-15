@@ -284,21 +284,17 @@ impl Provider {
     }
 
     pub fn env_var(&self) -> &'static str {
-        match self {
-            Self::Claude => "ANTHROPIC_API_KEY",
-            Self::OpenAI => "OPENAI_API_KEY",
-            Self::Mistral => "MISTRAL_API_KEY",
-            Self::Groq => "GROQ_API_KEY",
-            Self::DeepSeek => "DEEPSEEK_API_KEY",
-            Self::Gemini => "GEMINI_API_KEY",
-            Self::Native => "NIKA_NATIVE_MODEL_PATH",
-        }
+        // Delegate to core::find_provider for the canonical env var name
+        crate::core::find_provider(self.name())
+            .map(|p| p.env_var)
+            .unwrap_or("ANTHROPIC_API_KEY")
     }
 
     pub fn from_name(name: &str) -> Option<Self> {
-        match name.to_lowercase().as_str() {
-            "claude" | "anthropic" => Some(Self::Claude),
-            "openai" | "gpt" => Some(Self::OpenAI),
+        let provider = crate::core::find_provider(name)?;
+        match provider.id {
+            "anthropic" => Some(Self::Claude),
+            "openai" => Some(Self::OpenAI),
             "mistral" => Some(Self::Mistral),
             "groq" => Some(Self::Groq),
             "deepseek" => Some(Self::DeepSeek),
@@ -409,7 +405,7 @@ impl NewWorkflowConfig {
         ));
 
         // Schema and metadata
-        yaml.push_str("schema: \"nika/workflow@0.10\"\n");
+        yaml.push_str("schema: \"nika/workflow@0.12\"\n");
         yaml.push_str(&format!("workflow: {}\n", self.name));
         yaml.push_str(&format!("description: \"{}\"\n\n", description));
 
@@ -674,7 +670,7 @@ mod tests {
         let config = NewWorkflowConfig::default();
         let yaml = config.generate();
 
-        assert!(yaml.contains("schema: \"nika/workflow@0.10\""));
+        assert!(yaml.contains("schema: \"nika/workflow@0.12\""));
         assert!(yaml.contains("workflow: my-workflow"));
         assert!(yaml.contains("provider: claude"));
         assert!(yaml.contains("infer:"));
@@ -817,7 +813,7 @@ mod tests {
     fn test_all_templates_generate() {
         for template in Template::ALL {
             let content = template.content("test-workflow");
-            assert!(content.contains("schema: \"nika/workflow@0.10\""));
+            assert!(content.contains("schema: \"nika/workflow@0.12\""));
             assert!(content.contains("workflow: test-workflow"));
         }
     }
