@@ -76,6 +76,16 @@ pub trait View {
     /// Default: no-op
     #[allow(dead_code, unused_variables)]
     fn tick(&mut self, state: &mut TuiState) {}
+
+    /// Whether this view needs background ticking even when inactive
+    ///
+    /// Override to return true for views that need updates while
+    /// inactive (e.g., streaming content, background operations).
+    ///
+    /// Default: false (only tick when active)
+    fn needs_background_tick(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
@@ -240,5 +250,19 @@ mod tests {
         // After leave, ticks can still happen (view still exists)
         view.tick(&mut state);
         assert_eq!(view.tick_count, 11);
+    }
+
+    #[test]
+    fn test_needs_background_tick_default_is_false() {
+        let view = MockView::new();
+        // Default implementation should return false
+        assert!(!view.needs_background_tick());
+    }
+
+    #[test]
+    fn test_needs_background_tick_on_hooks_view_is_false() {
+        let view = MockViewWithHooks::new();
+        // MockViewWithHooks also uses default (false)
+        assert!(!view.needs_background_tick());
     }
 }

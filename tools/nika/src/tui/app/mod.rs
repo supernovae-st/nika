@@ -467,13 +467,26 @@ impl App {
 
             // 3. Update elapsed time and animations
             self.state.tick();
-            self.chat_view.tick(); // Enables inline MCP/Infer animations
-            if let Some(ref mut home) = self.home_view {
-                home.tick(); // Enables gradient logo animation + sparkline pulse
+
+            // PERF: Only tick the active view (saves ~3 view ticks per frame)
+            match self.current_view {
+                TuiView::Studio => self.studio_view.tick(&mut self.state),
+                TuiView::Runner => self.monitor_view.tick(&mut self.state),
+                TuiView::Chat => self.chat_view.tick(),
+                TuiView::Settings => self.settings_view.tick(&mut self.state),
             }
-            self.studio_view.tick(&mut self.state);
-            self.monitor_view.tick(&mut self.state);
-            self.settings_view.tick(&mut self.state);
+            // HomeView only exists in browse mode — tick only when visible
+            // (rain_fading animation needs ticking even briefly after transition)
+            if let Some(ref mut home) = self.home_view {
+                if home.rain_fading {
+                    home.tick();
+                }
+            }
+            // Background tick: ChatView needs ticking for streaming animations
+            // even when user is on a different view
+            if self.current_view != TuiView::Chat && self.chat_view.is_streaming {
+                self.chat_view.tick();
+            }
 
             if let Some(ref mut intro) = self.intro_state {
                 if !intro.is_done() {
