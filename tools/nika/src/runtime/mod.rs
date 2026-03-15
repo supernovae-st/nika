@@ -64,7 +64,7 @@ pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
 
 pub use boot::{
-    BootContext, BootPhase, BootSequence, EditorConfig, NikaConfig, PhaseResult, PolicyConfig,
+    BootContext, BootPhase, BootSequence, EditorConfig, BootstrapConfig, PhaseResult, PolicyConfig,
     ProviderConfig, SessionConfig, ToolsConfig, TraceConfig,
 };
 pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};

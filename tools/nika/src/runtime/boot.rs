@@ -91,7 +91,7 @@ pub struct BootContext {
     /// Root .nika/ directory
     pub nika_dir: Option<PathBuf>,
     /// Parsed configuration
-    pub config: Option<NikaConfig>,
+    pub config: Option<BootstrapConfig>,
     /// Loaded memory context
     pub memory: Option<HashMap<String, serde_json::Value>>,
     /// Secrets loading result
@@ -108,7 +108,7 @@ pub struct BootContext {
 
 /// Nika configuration from config.toml
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct NikaConfig {
+pub struct BootstrapConfig {
     #[serde(default)]
     pub tools: ToolsConfig,
     #[serde(default)]
@@ -426,7 +426,7 @@ impl BootSequence {
         let config_path = nika_dir.join("config.toml");
         if !config_path.exists() {
             // Use defaults
-            ctx.config = Some(NikaConfig::default());
+            ctx.config = Some(BootstrapConfig::default());
             warnings.push("config.toml not found, using defaults".into());
             return PhaseResult {
                 phase: BootPhase::ConfigValidation,
@@ -439,7 +439,7 @@ impl BootSequence {
 
         // Parse config
         match tokio::fs::read_to_string(&config_path).await {
-            Ok(content) => match toml::from_str::<NikaConfig>(&content) {
+            Ok(content) => match toml::from_str::<BootstrapConfig>(&content) {
                 Ok(config) => {
                     ctx.config = Some(config);
                     PhaseResult {
@@ -452,7 +452,7 @@ impl BootSequence {
                 }
                 Err(e) => {
                     warnings.push(format!("Config parse error: {}", e));
-                    ctx.config = Some(NikaConfig::default());
+                    ctx.config = Some(BootstrapConfig::default());
                     PhaseResult {
                         phase: BootPhase::ConfigValidation,
                         success: true, // Proceed with defaults
@@ -464,7 +464,7 @@ impl BootSequence {
             },
             Err(e) => {
                 warnings.push(format!("Config read error: {}", e));
-                ctx.config = Some(NikaConfig::default());
+                ctx.config = Some(BootstrapConfig::default());
                 PhaseResult {
                     phase: BootPhase::ConfigValidation,
                     success: true,
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = NikaConfig::default();
+        let config = BootstrapConfig::default();
         assert_eq!(config.tools.permission, "plan");
         assert_eq!(config.provider.default, "claude");
         assert_eq!(config.editor.theme, "solarized");
