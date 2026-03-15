@@ -8,6 +8,8 @@
 
 use serde::Deserialize;
 
+use crate::error::NikaError;
+
 /// Invoke action - MCP integration
 ///
 /// Used to call MCP server tools or read MCP resources.
@@ -80,16 +82,20 @@ impl InvokeParams {
     /// - `tool` is Some but empty string
     /// - `resource` is Some but empty string
     ///
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Builtin tools don't require mcp
         // Validate MCP server name is not empty (for non-builtin tools)
         if !self.is_builtin_tool() {
             match &self.mcp {
                 None => {
-                    return Err("'mcp' server name is required for non-builtin tools".to_string())
+                    return Err(NikaError::ValidationError {
+                        reason: "'mcp' server name is required for non-builtin tools".into(),
+                    })
                 }
                 Some(mcp) if mcp.trim().is_empty() => {
-                    return Err("'mcp' server name cannot be empty".to_string());
+                    return Err(NikaError::ValidationError {
+                        reason: "'mcp' server name cannot be empty".into(),
+                    });
                 }
                 _ => {}
             }
@@ -97,18 +103,25 @@ impl InvokeParams {
 
         match (&self.tool, &self.resource) {
             (Some(tool), Some(_)) if !tool.trim().is_empty() => {
-                Err("'tool' and 'resource' are mutually exclusive - specify only one".to_string())
+                Err(NikaError::ValidationError {
+                    reason: "'tool' and 'resource' are mutually exclusive - specify only one"
+                        .into(),
+                })
             }
-            (Some(tool), None) if tool.trim().is_empty() => {
-                Err("'tool' name cannot be empty".to_string())
-            }
+            (Some(tool), None) if tool.trim().is_empty() => Err(NikaError::ValidationError {
+                reason: "'tool' name cannot be empty".into(),
+            }),
             (None, Some(resource)) if resource.trim().is_empty() => {
-                Err("'resource' URI cannot be empty".to_string())
+                Err(NikaError::ValidationError {
+                    reason: "'resource' URI cannot be empty".into(),
+                })
             }
-            (Some(_), Some(_)) => {
-                Err("'tool' and 'resource' are mutually exclusive - specify only one".to_string())
-            }
-            (None, None) => Err("either 'tool' or 'resource' must be specified".to_string()),
+            (Some(_), Some(_)) => Err(NikaError::ValidationError {
+                reason: "'tool' and 'resource' are mutually exclusive - specify only one".into(),
+            }),
+            (None, None) => Err(NikaError::ValidationError {
+                reason: "either 'tool' or 'resource' must be specified".into(),
+            }),
             _ => Ok(()),
         }
     }
@@ -198,7 +211,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("mutually exclusive"));
+        assert!(result.unwrap_err().to_string().contains("mutually exclusive"));
     }
 
     #[test]
@@ -212,7 +225,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("must be specified"));
+        assert!(result.unwrap_err().to_string().contains("must be specified"));
     }
 
     // =========================================================================
@@ -230,7 +243,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("mcp"));
+        assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
     #[test]
@@ -244,7 +257,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("mcp"));
+        assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
     #[test]
@@ -258,7 +271,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("tool"));
+        assert!(result.unwrap_err().to_string().contains("tool"));
     }
 
     #[test]
@@ -272,7 +285,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("tool"));
+        assert!(result.unwrap_err().to_string().contains("tool"));
     }
 
     #[test]
@@ -286,7 +299,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("resource"));
+        assert!(result.unwrap_err().to_string().contains("resource"));
     }
 
     #[test]
@@ -300,7 +313,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("resource"));
+        assert!(result.unwrap_err().to_string().contains("resource"));
     }
 
     // =========================================================================
@@ -347,7 +360,7 @@ resource: entity://qr-code/fr-FR
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("mcp"));
+        assert!(result.unwrap_err().to_string().contains("mcp"));
     }
 
     #[test]

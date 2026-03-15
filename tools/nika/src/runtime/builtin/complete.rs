@@ -69,14 +69,16 @@ pub struct CompleteParams {
 
 impl CompleteParams {
     /// Validate the parameters.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Validate confidence range if provided
         if let Some(conf) = self.confidence {
             if !(0.0..=1.0).contains(&conf) {
-                return Err(format!(
-                    "confidence must be between 0.0 and 1.0, got {}",
-                    conf
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "confidence must be between 0.0 and 1.0, got {}",
+                        conf
+                    ),
+                });
             }
         }
 
@@ -195,12 +197,12 @@ impl BuiltinTool for CompleteTool {
                 })?;
 
             // Validate parameters
-            params
-                .validate()
-                .map_err(|e| NikaError::BuiltinInvalidParams {
+            params.validate().map_err(|e| {
+                NikaError::BuiltinInvalidParams {
                     tool: "nika:complete".into(),
-                    reason: e,
-                })?;
+                    reason: e.to_string(),
+                }
+            })?;
 
             tracing::debug!(
                 target: "nika_complete",

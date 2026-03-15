@@ -67,7 +67,7 @@ fn test_agent_params_validate_zero_depth_limit_fails() {
         ..Default::default()
     };
     let err = params.validate().unwrap_err();
-    assert!(err.contains("depth_limit must be > 0"));
+    assert!(err.to_string().contains("depth_limit must be > 0"));
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn test_agent_params_validate_excessive_depth_limit_fails() {
         ..Default::default()
     };
     let err = params.validate().unwrap_err();
-    assert!(err.contains("depth_limit cannot exceed"));
+    assert!(err.to_string().contains("depth_limit cannot exceed"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -59,8 +59,6 @@ pub type InferCallback = Arc<
 >;
 
 /// Layer names for event tracking
-#[allow(dead_code)] // Layer 1 not yet implemented - requires compile-time types
-const LAYER_1_NAME: &str = "rig_extractor";
 const LAYER_2_NAME: &str = "provider_native";
 const LAYER_3_NAME: &str = "retry_with_feedback";
 const LAYER_4_NAME: &str = "llm_repair";

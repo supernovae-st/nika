@@ -15,10 +15,6 @@ use std::path::Path;
 /// Maximum file size for preview operations (512KB)
 pub const MAX_PREVIEW_SIZE: u64 = 512 * 1024;
 
-/// Maximum file size for @file mentions (1MB)
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub const MAX_FILE_MENTION_SIZE: u64 = 1024 * 1024;
-
 /// Atomically write content to a file using temp+rename pattern.
 ///
 /// This ensures data integrity even on crash/interrupt:

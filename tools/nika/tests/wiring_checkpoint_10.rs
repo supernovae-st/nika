@@ -12,7 +12,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 #[allow(deprecated)]
 use nika::tui::{
-    ChatView, HelpView, MonitorView, SettingsView, StudioView, TuiState, TuiView, View, ViewAction,
+    ChatView, MonitorView, SettingsView, StudioView, TuiState, TuiView, View, ViewAction,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -44,13 +44,7 @@ fn wiring_10_settings_view_constructs() {
     // SettingsView constructed successfully
 }
 
-#[test]
-#[allow(deprecated)]
-fn wiring_10_help_view_constructs() {
-    // Help view still exists for backwards compat but is merged into Settings
-    let _view = HelpView::new();
-    // HelpView constructed successfully (merged into Settings)
-}
+// HelpView was removed — merged into SettingsView
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 2: TuiView enum variants (v0.22 4-Views)
@@ -220,7 +214,7 @@ fn wiring_10_views_implement_trait() {
     assert_view(&MonitorView::new()); // RunnerView (deprecated alias)
     assert_view(&ChatView::new());
     assert_view(&SettingsView::new());
-    assert_view(&HelpView::new()); // Deprecated, merged into Settings
+    // HelpView removed — merged into SettingsView
 }
 
 #[test]

@@ -114,9 +114,7 @@ fn expand_includes_recursive(
     // Process each include
     for include_spec in includes {
         // Validate that exactly one of path/pkg is specified
-        include_spec
-            .validate()
-            .map_err(|e| NikaError::ValidationError { reason: e })?;
+        include_spec.validate()?;
 
         // Resolve the include path (filesystem or package)
         let include_path = if let Some(ref pkg) = include_spec.pkg {

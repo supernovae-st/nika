@@ -106,53 +106,6 @@ pub fn get_available_ram_gb() -> u32 {
     (get_total_ram_gb() * RAM_HEADROOM_FACTOR) as u32
 }
 
-/// Check if the system has enough RAM for a given requirement.
-///
-/// # Arguments
-///
-/// * `required_gb` - Required RAM in gigabytes
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use nika::util::system::has_enough_ram_gb;
-///
-/// // Check if we have at least 4 GB available (with headroom)
-/// if has_enough_ram_gb(4.0) {
-///     println!("Sufficient RAM for model");
-/// }
-/// ```
-#[must_use]
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub fn has_enough_ram_gb(required_gb: f64) -> bool {
-    let available = get_total_ram_gb() * RAM_HEADROOM_FACTOR;
-    available >= required_gb
-}
-
-/// Check if the system has enough RAM in bytes.
-///
-/// # Arguments
-///
-/// * `required_bytes` - Required RAM in bytes
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use nika::util::system::has_enough_ram_bytes;
-///
-/// // Check if we have at least 4 GB (in bytes)
-/// if has_enough_ram_bytes(4 * 1024 * 1024 * 1024) {
-///     println!("Sufficient RAM");
-/// }
-/// ```
-#[must_use]
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub fn has_enough_ram_bytes(required_bytes: u64) -> bool {
-    get_total_ram_bytes()
-        .map(|total| (total as f64 * RAM_HEADROOM_FACTOR) as u64 >= required_bytes)
-        .unwrap_or(false)
-}
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -195,34 +148,6 @@ mod tests {
         );
         // Should be at least 1 GB on any modern system
         assert!(available >= 1, "Available RAM should be >= 1 GB");
-    }
-
-    #[test]
-    fn test_has_enough_ram_gb() {
-        // Should have at least 1 GB on any modern system
-        assert!(
-            has_enough_ram_gb(1.0),
-            "Modern systems should have at least 1 GB"
-        );
-        // Should NOT have 1000 TB
-        assert!(
-            !has_enough_ram_gb(1_000_000.0),
-            "Should not have 1000 TB RAM"
-        );
-    }
-
-    #[test]
-    fn test_has_enough_ram_bytes() {
-        // Should have at least 1 GB in bytes
-        assert!(
-            has_enough_ram_bytes(1_000_000_000),
-            "Should have at least 1 GB"
-        );
-        // Should NOT have 1 PB
-        assert!(
-            !has_enough_ram_bytes(1_000_000_000_000_000),
-            "Should not have 1 PB"
-        );
     }
 
     #[test]

@@ -29,6 +29,8 @@
 use regex::Regex;
 use serde::Deserialize;
 
+use crate::error::NikaError;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Constants
 // ═══════════════════════════════════════════════════════════════════════════
@@ -251,28 +253,32 @@ impl CompletionConfig {
     }
 
     /// Validate the completion configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Pattern mode requires at least one pattern
         if self.mode == CompletionMode::Pattern && self.patterns.is_empty() {
-            return Err(
-                "completion.mode: pattern requires at least one pattern definition".to_string(),
-            );
+            return Err(NikaError::ValidationError {
+                reason: "completion.mode: pattern requires at least one pattern definition".into(),
+            });
         }
 
         // Validate confidence threshold
         if let Some(conf) = &self.confidence {
             if conf.threshold < 0.0 || conf.threshold > 1.0 {
-                return Err(format!(
-                    "confidence.threshold must be between 0.0 and 1.0, got {}",
-                    conf.threshold
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "confidence.threshold must be between 0.0 and 1.0, got {}",
+                        conf.threshold
+                    ),
+                });
             }
         }
 
         // Validate regex patterns
         for pattern in &self.patterns {
             if pattern.pattern_type == PatternType::Regex && Regex::new(&pattern.value).is_err() {
-                return Err(format!("Invalid regex pattern: {}", pattern.value));
+                return Err(NikaError::ValidationError {
+                    reason: format!("Invalid regex pattern: {}", pattern.value),
+                });
             }
         }
 
@@ -848,7 +854,7 @@ instruction:
             ..Default::default()
         };
         let err = config.validate().unwrap_err();
-        assert!(err.contains("confidence.threshold"));
+        assert!(err.to_string().contains("confidence.threshold"));
     }
 
     #[test]
@@ -874,7 +880,7 @@ instruction:
             ..Default::default()
         };
         let err = config.validate().unwrap_err();
-        assert!(err.contains("Invalid regex"));
+        assert!(err.to_string().contains("Invalid regex"));
     }
 
     // ========================================================================

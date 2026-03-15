@@ -22,9 +22,7 @@ async fn execute_invoke(
     client: &McpClient,
 ) -> Result<serde_json::Value, NikaError> {
     // Validate the invoke params first
-    invoke
-        .validate()
-        .map_err(|e| NikaError::ValidationError { reason: e })?;
+    invoke.validate()?;
 
     if let Some(tool) = &invoke.tool {
         // Tool call path

@@ -71,7 +71,6 @@ impl ChatView {
         self.rain_opacity = 0.6; // Start subtle
         self.rain_fading = true; // Will fade out over ~1.5 seconds
     }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

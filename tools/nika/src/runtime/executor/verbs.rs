@@ -39,9 +39,7 @@ impl TaskExecutor {
         output_policy: Option<&OutputPolicy>,
     ) -> Result<String, NikaError> {
         // Validate infer params (empty prompt, invalid temperature)
-        infer
-            .validate()
-            .map_err(|e| NikaError::ValidationError { reason: e })?;
+        infer.validate()?;
 
         // Resolve {{use.alias}} templates
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
@@ -612,9 +610,7 @@ impl TaskExecutor {
         datastore: &DataStore,
     ) -> Result<String, NikaError> {
         // Validate invoke params (tool XOR resource)
-        invoke
-            .validate()
-            .map_err(|e| NikaError::ValidationError { reason: e })?;
+        invoke.validate()?;
 
         // Generate unique call_id for correlation
         let call_id = Uuid::new_v4().to_string();
@@ -819,8 +815,7 @@ impl TaskExecutor {
 
         // Validate agent params
         resolved_agent
-            .validate()
-            .map_err(|e| NikaError::AgentValidationError { reason: e })?;
+            .validate()?;
 
         // POLICY CHECK: token budget
         // Estimate tokens for budget check - use token_budget from agent params if set,

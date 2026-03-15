@@ -27,6 +27,8 @@
 
 use serde::Deserialize;
 
+use crate::error::NikaError;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LimitsConfig
 // ═══════════════════════════════════════════════════════════════════════════
@@ -88,13 +90,15 @@ impl LimitsConfig {
     }
 
     /// Validate the limits configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Cost must be non-negative
         if self.max_cost_usd < 0.0 {
-            return Err(format!(
-                "limits.max_cost_usd must be non-negative, got {}",
-                self.max_cost_usd
-            ));
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "limits.max_cost_usd must be non-negative, got {}",
+                    self.max_cost_usd
+                ),
+            });
         }
 
         // Validate on_limit_reached
@@ -136,7 +140,7 @@ impl Default for OnLimitReachedConfig {
 
 impl OnLimitReachedConfig {
     /// Validate the on_limit_reached configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Escalate action requires save_progress to be useful
         if self.action == LimitAction::Escalate && !self.save_progress {
             // Just a warning, not an error
@@ -428,8 +432,8 @@ on_limit_reached:
             ..Default::default()
         };
         let err = config.validate().unwrap_err();
-        assert!(err.contains("max_cost_usd"));
-        assert!(err.contains("non-negative"));
+        assert!(err.to_string().contains("max_cost_usd"));
+        assert!(err.to_string().contains("non-negative"));
     }
 
     #[test]

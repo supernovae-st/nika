@@ -21,6 +21,7 @@
 use serde::Deserialize;
 
 use crate::ast::completion::CompletionConfig;
+use crate::error::NikaError;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tool Choice
@@ -338,23 +339,31 @@ impl AgentParams {
     /// - `prompt` is empty
     /// - `max_turns` is 0 or exceeds 100
     /// - `token_budget` is 0
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         if self.prompt.is_empty() {
-            return Err("Agent prompt cannot be empty".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "Agent prompt cannot be empty".into(),
+            });
         }
 
         if let Some(max) = self.max_turns {
             if max == 0 {
-                return Err("max_turns must be > 0".to_string());
+                return Err(NikaError::ValidationError {
+                    reason: "max_turns must be > 0".into(),
+                });
             }
             if max > MAX_ALLOWED_TURNS {
-                return Err(format!("max_turns cannot exceed {}", MAX_ALLOWED_TURNS));
+                return Err(NikaError::ValidationError {
+                    reason: format!("max_turns cannot exceed {}", MAX_ALLOWED_TURNS),
+                });
             }
         }
 
         if let Some(budget) = self.token_budget {
             if budget == 0 {
-                return Err("token_budget must be > 0".to_string());
+                return Err(NikaError::ValidationError {
+                    reason: "token_budget must be > 0".into(),
+                });
             }
         }
 
@@ -362,10 +371,12 @@ impl AgentParams {
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
                 if provider != "claude" {
-                    return Err(format!(
-                        "extended_thinking only supported for claude provider, got '{}'",
-                        provider
-                    ));
+                    return Err(NikaError::ValidationError {
+                        reason: format!(
+                            "extended_thinking only supported for claude provider, got '{}'",
+                            provider
+                        ),
+                    });
                 }
             }
         }
@@ -373,20 +384,26 @@ impl AgentParams {
         // Validate depth_limit (MVP 8 Phase 2)
         if let Some(depth) = self.depth_limit {
             if depth == 0 {
-                return Err("depth_limit must be > 0".to_string());
+                return Err(NikaError::ValidationError {
+                    reason: "depth_limit must be > 0".into(),
+                });
             }
             if depth > MAX_DEPTH_LIMIT {
-                return Err(format!("depth_limit cannot exceed {}", MAX_DEPTH_LIMIT));
+                return Err(NikaError::ValidationError {
+                    reason: format!("depth_limit cannot exceed {}", MAX_DEPTH_LIMIT),
+                });
             }
         }
 
         // Validate temperature
         if let Some(temp) = self.temperature {
             if !(0.0..=2.0).contains(&temp) {
-                return Err(format!(
-                    "temperature must be between 0.0 and 2.0, got {}",
-                    temp
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "temperature must be between 0.0 and 2.0, got {}",
+                        temp
+                    ),
+                });
             }
         }
 
@@ -606,7 +623,7 @@ extended_thinking: false
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.contains("extended_thinking only supported for claude"));
+        assert!(err.to_string().contains("extended_thinking only supported for claude"));
     }
 
     #[test]
@@ -821,7 +838,7 @@ temperature: 0.7
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.contains("temperature must be between 0.0 and 2.0"));
+        assert!(err.to_string().contains("temperature must be between 0.0 and 2.0"));
     }
 
     #[test]
@@ -832,7 +849,7 @@ temperature: 0.7
             ..Default::default()
         };
         let err = params.validate().unwrap_err();
-        assert!(err.contains("temperature must be between 0.0 and 2.0"));
+        assert!(err.to_string().contains("temperature must be between 0.0 and 2.0"));
     }
 
     #[test]
@@ -1090,7 +1107,7 @@ completion:
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         let err = params.validate().unwrap_err();
-        assert!(err.contains("Invalid regex pattern"));
+        assert!(err.to_string().contains("Invalid regex pattern"));
     }
 
     #[test]
@@ -1321,8 +1338,8 @@ limits:
 "#;
         let params: AgentParams = serde_yaml::from_str(yaml).unwrap();
         let err = params.validate().unwrap_err();
-        assert!(err.contains("max_cost_usd"));
-        assert!(err.contains("non-negative"));
+        assert!(err.to_string().contains("max_cost_usd"));
+        assert!(err.to_string().contains("non-negative"));
     }
 
     #[test]

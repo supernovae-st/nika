@@ -221,5 +221,4 @@ mod tests {
         assert_eq!(truncate_str("abcd", 3), "abc"); // max_chars <= 3: no room for "..."
         assert_eq!(truncate_str("abcde", 4), "a...");
     }
-
 }

@@ -14,12 +14,11 @@
 //! # Example
 //!
 //! ```ignore
-//! use nika::io::security::{validate_artifact_path, resolve_artifact_dir};
+//! use nika::io::security::validate_artifact_path;
 //! use std::path::Path;
 //!
-//! let workflow_dir = Path::new("/project");
-//! let artifacts_dir = resolve_artifact_dir(workflow_dir, Some("./output"))?;
-//! validate_artifact_path(&artifacts_dir, Path::new("task1/output.json"))?;
+//! let artifacts_dir = Path::new("/project/.nika/artifacts");
+//! validate_artifact_path(artifacts_dir, Path::new("task1/output.json"))?;
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -31,57 +30,6 @@ pub const DEFAULT_ARTIFACT_DIR: &str = ".nika/artifacts";
 
 /// Maximum path length to prevent resource exhaustion attacks
 const MAX_PATH_LENGTH: usize = 4096;
-
-/// Resolve the artifact output directory from workflow configuration
-///
-/// If `configured_dir` is provided, it's resolved relative to the workflow directory.
-/// Otherwise, the default `.nika/artifacts` is used.
-///
-/// # Security
-///
-/// - The resolved directory must be within the workflow directory boundary
-/// - Symlinks are followed and validated against the canonical boundary
-/// - Relative paths with `..` components are rejected if they escape the boundary
-///
-/// # Arguments
-///
-/// * `workflow_dir` - The workflow's root directory (absolute path)
-/// * `configured_dir` - Optional configured directory from `artifacts.dir`
-///
-/// # Returns
-///
-/// The absolute path to the artifact directory, or an error if validation fails.
-///
-/// # Errors
-///
-/// - `NikaError::ArtifactPathError` if the path escapes the workflow boundary
-/// - `NikaError::ArtifactPathError` if the path is too long
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub fn resolve_artifact_dir(
-    workflow_dir: &Path,
-    configured_dir: Option<&str>,
-) -> Result<PathBuf, NikaError> {
-    let dir_str = configured_dir.unwrap_or(DEFAULT_ARTIFACT_DIR);
-
-    // Validate path length
-    if dir_str.len() > MAX_PATH_LENGTH {
-        return Err(NikaError::ArtifactPathError {
-            path: dir_str.to_string(),
-            reason: format!(
-                "Path exceeds maximum length of {} characters",
-                MAX_PATH_LENGTH
-            ),
-        });
-    }
-
-    // Resolve the directory path
-    let resolved = workflow_dir.join(dir_str);
-
-    // Validate the resolved path stays within workflow boundary
-    validate_path_boundary(workflow_dir, &resolved)?;
-
-    Ok(resolved)
-}
 
 /// Validate that an artifact output path stays within the artifact directory boundary
 ///
@@ -229,9 +177,9 @@ fn normalize_path(path: &Path) -> PathBuf {
 ///
 /// Contains the paths and reason for conversion to context-specific error types.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
 pub struct PathBoundaryError {
     /// The base path that was validated against
+    #[allow(dead_code)] // Populated for error context, read by Display impl indirectly
     pub base_path: PathBuf,
     /// The target path that failed validation
     pub target_path: PathBuf,
@@ -311,66 +259,11 @@ pub fn validate_canonicalized_boundary(
     Ok(())
 }
 
-/// Validate that a path stays within a base directory boundary
-///
-/// This is a general-purpose boundary check used by `resolve_artifact_dir`.
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-fn validate_path_boundary(base_path: &Path, target_path: &Path) -> Result<(), NikaError> {
-    let normalized_base = normalize_path(base_path);
-    let normalized_target = normalize_path(target_path);
-
-    if !normalized_target.starts_with(&normalized_base) {
-        return Err(NikaError::ArtifactPathError {
-            path: target_path.display().to_string(),
-            reason: format!(
-                "Path '{}' is outside allowed boundary '{}'",
-                target_path.display(),
-                base_path.display()
-            ),
-        });
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
-
-    #[test]
-    fn test_resolve_artifact_dir_default() {
-        let workflow_dir = PathBuf::from("/project");
-        let result = resolve_artifact_dir(&workflow_dir, None);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), PathBuf::from("/project/.nika/artifacts"));
-    }
-
-    #[test]
-    fn test_resolve_artifact_dir_custom() {
-        let workflow_dir = PathBuf::from("/project");
-        let result = resolve_artifact_dir(&workflow_dir, Some("output"));
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), PathBuf::from("/project/output"));
-    }
-
-    #[test]
-    fn test_resolve_artifact_dir_nested() {
-        let workflow_dir = PathBuf::from("/project");
-        let result = resolve_artifact_dir(&workflow_dir, Some("build/artifacts"));
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), PathBuf::from("/project/build/artifacts"));
-    }
-
-    #[test]
-    fn test_resolve_artifact_dir_path_traversal() {
-        let workflow_dir = PathBuf::from("/project");
-        let result = resolve_artifact_dir(&workflow_dir, Some("../outside"));
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, NikaError::ArtifactPathError { .. }));
-    }
 
     #[test]
     fn test_validate_artifact_path_simple() {

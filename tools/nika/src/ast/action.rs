@@ -26,6 +26,7 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::ast::{AgentParams, InvokeParams};
+use crate::error::NikaError;
 
 /// Expected response format for infer tasks
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
@@ -151,17 +152,18 @@ impl InferParams {
     /// - `extended_thinking` is true with non-Claude provider
     /// - `thinking_budget` is outside valid range (1024..=65536)
     ///
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         if self.prompt.trim().is_empty() {
-            return Err("Infer prompt cannot be empty".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "Infer prompt cannot be empty".into(),
+            });
         }
 
         if let Some(temp) = self.temperature {
             if !(0.0..=2.0).contains(&temp) {
-                return Err(format!(
-                    "temperature must be between 0.0 and 2.0, got {}",
-                    temp
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!("temperature must be between 0.0 and 2.0, got {}", temp),
+                });
             }
         }
 
@@ -169,10 +171,12 @@ impl InferParams {
         if self.extended_thinking == Some(true) {
             if let Some(ref provider) = self.provider {
                 if provider != "claude" {
-                    return Err(format!(
-                        "extended_thinking only supported for claude provider, got '{}'",
-                        provider
-                    ));
+                    return Err(NikaError::ValidationError {
+                        reason: format!(
+                            "extended_thinking only supported for claude provider, got '{}'",
+                            provider
+                        ),
+                    });
                 }
             }
             // If provider is None, will inherit workflow default (validation deferred to runtime)
@@ -181,10 +185,12 @@ impl InferParams {
         // Validate thinking_budget range
         if let Some(budget) = self.thinking_budget {
             if !(1024..=65536).contains(&budget) {
-                return Err(format!(
-                    "thinking_budget must be between 1024 and 65536, got {}",
-                    budget
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "thinking_budget must be between 1024 and 65536, got {}",
+                        budget
+                    ),
+                });
             }
         }
 
@@ -268,6 +274,29 @@ impl<'de> Deserialize<'de> for ExecParams {
     }
 }
 
+impl ExecParams {
+    /// Validate exec parameters
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if:
+    /// - `command` is empty or whitespace-only
+    /// - `timeout` is zero
+    pub fn validate(&self) -> Result<(), NikaError> {
+        if self.command.trim().is_empty() {
+            return Err(NikaError::ValidationError {
+                reason: "Exec command cannot be empty".into(),
+            });
+        }
+        if self.timeout == Some(0) {
+            return Err(NikaError::ValidationError {
+                reason: "Exec timeout must be greater than 0".into(),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Configuration for retry behavior with exponential backoff
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]
 pub struct RetryConfig {
@@ -327,6 +356,41 @@ pub struct FetchParams {
     /// Defaults to true if not specified
     #[serde(default)]
     pub follow_redirects: Option<bool>,
+}
+
+impl FetchParams {
+    /// Validate fetch parameters
+    ///
+    /// # Errors
+    ///
+    /// Returns an error string if:
+    /// - `url` is empty or whitespace-only
+    /// - `method` is not a valid HTTP method
+    /// - `timeout` is zero
+    pub fn validate(&self) -> Result<(), NikaError> {
+        if self.url.trim().is_empty() {
+            return Err(NikaError::ValidationError {
+                reason: "Fetch URL cannot be empty".into(),
+            });
+        }
+        let valid_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+        let method_upper = self.method.to_uppercase();
+        if !valid_methods.contains(&method_upper.as_str()) {
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "Invalid HTTP method '{}', expected one of: {}",
+                    self.method,
+                    valid_methods.join(", ")
+                ),
+            });
+        }
+        if self.timeout == Some(0) {
+            return Err(NikaError::ValidationError {
+                reason: "Fetch timeout must be greater than 0".into(),
+            });
+        }
+        Ok(())
+    }
 }
 
 fn default_method() -> String {
@@ -507,7 +571,7 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
+        assert!(result.unwrap_err().to_string().contains("empty"));
     }
 
     #[test]
@@ -518,7 +582,7 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("empty"));
+        assert!(result.unwrap_err().to_string().contains("empty"));
     }
 
     #[test]
@@ -530,7 +594,7 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("temperature"));
+        assert!(result.unwrap_err().to_string().contains("temperature"));
     }
 
     #[test]
@@ -542,7 +606,7 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("temperature"));
+        assert!(result.unwrap_err().to_string().contains("temperature"));
     }
 
     #[test]

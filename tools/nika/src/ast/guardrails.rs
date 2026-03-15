@@ -48,6 +48,8 @@ use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use std::sync::OnceLock;
 
+use crate::error::NikaError;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // OnFailure - Escalation behavior
 // ═══════════════════════════════════════════════════════════════════════════
@@ -136,7 +138,7 @@ impl GuardrailConfig {
     }
 
     /// Validate the guardrail configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         match self {
             GuardrailConfig::Length(g) => g.validate(),
             GuardrailConfig::Schema(g) => g.validate(),
@@ -184,34 +186,38 @@ pub struct LengthGuardrail {
 
 impl LengthGuardrail {
     /// Validate the guardrail configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // At least one constraint should be set
         if self.min_words.is_none()
             && self.max_words.is_none()
             && self.min_chars.is_none()
             && self.max_chars.is_none()
         {
-            return Err(
-                "length guardrail requires at least one of: min_words, max_words, min_chars, max_chars".to_string()
-            );
+            return Err(NikaError::ValidationError {
+                reason: "length guardrail requires at least one of: min_words, max_words, min_chars, max_chars".into(),
+            });
         }
 
         // min should be <= max
         if let (Some(min), Some(max)) = (self.min_words, self.max_words) {
             if min > max {
-                return Err(format!(
-                    "length guardrail: min_words ({}) > max_words ({})",
-                    min, max
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "length guardrail: min_words ({}) > max_words ({})",
+                        min, max
+                    ),
+                });
             }
         }
 
         if let (Some(min), Some(max)) = (self.min_chars, self.max_chars) {
             if min > max {
-                return Err(format!(
-                    "length guardrail: min_chars ({}) > max_chars ({})",
-                    min, max
-                ));
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "length guardrail: min_chars ({}) > max_chars ({})",
+                        min, max
+                    ),
+                });
             }
         }
 
@@ -309,10 +315,12 @@ pub struct SchemaGuardrail {
 
 impl SchemaGuardrail {
     /// Validate the guardrail configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Verify json_schema is an object
         if !self.json_schema.is_object() {
-            return Err("schema guardrail: json_schema must be an object".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "schema guardrail: json_schema must be an object".into(),
+            });
         }
         Ok(())
     }
@@ -445,14 +453,13 @@ impl RegexGuardrail {
     }
 
     /// Validate the guardrail configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Verify pattern is a valid regex (also caches it for later use)
         match self.get_compiled() {
             Some(_) => Ok(()),
-            None => Err(format!(
-                "regex guardrail: invalid pattern '{}'",
-                self.pattern
-            )),
+            None => Err(NikaError::ValidationError {
+                reason: format!("regex guardrail: invalid pattern '{}'", self.pattern),
+            }),
         }
     }
 
@@ -615,36 +622,46 @@ impl LlmGuardrail {
     }
 
     /// Validate the guardrail configuration.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         // Validate judge_prompt is not empty
         if self.judge_prompt.trim().is_empty() {
-            return Err("llm guardrail: judge_prompt cannot be empty".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "llm guardrail: judge_prompt cannot be empty".into(),
+            });
         }
 
         // Validate pass_pattern is not empty
         if self.pass_pattern.trim().is_empty() {
-            return Err("llm guardrail: pass_pattern cannot be empty".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "llm guardrail: pass_pattern cannot be empty".into(),
+            });
         }
 
         // Validate pass_pattern is a valid regex (also caches it)
         if self.get_compiled_pass_pattern().is_none() {
-            return Err(format!(
-                "llm guardrail: invalid pass_pattern '{}'",
-                self.pass_pattern
-            ));
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "llm guardrail: invalid pass_pattern '{}'",
+                    self.pass_pattern
+                ),
+            });
         }
 
         // Validate max_tokens is reasonable
         if self.max_tokens == 0 {
-            return Err("llm guardrail: max_tokens must be > 0".to_string());
+            return Err(NikaError::ValidationError {
+                reason: "llm guardrail: max_tokens must be > 0".into(),
+            });
         }
 
         // Validate temperature is in range
         if !(0.0..=2.0).contains(&self.temperature) {
-            return Err(format!(
-                "llm guardrail: temperature must be 0.0-2.0, got {}",
-                self.temperature
-            ));
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "llm guardrail: temperature must be 0.0-2.0, got {}",
+                    self.temperature
+                ),
+            });
         }
 
         Ok(())

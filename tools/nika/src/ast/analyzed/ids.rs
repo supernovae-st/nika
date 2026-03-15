@@ -32,78 +32,6 @@ impl fmt::Display for TaskId {
     }
 }
 
-/// Interned MCP server identifier.
-///
-/// MCP servers configured in the `mcp:` section are identified by index.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct McpServerId(pub u32);
-
-impl McpServerId {
-    /// Create a new MCP server ID.
-    pub const fn new(index: u32) -> Self {
-        Self(index)
-    }
-
-    /// Get the raw index.
-    pub const fn index(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for McpServerId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "mcp#{}", self.0)
-    }
-}
-
-/// A string table for interning.
-///
-/// Maps indices to their string values. Uses a HashMap for O(1) lookup
-/// during interning, and a Vec for O(1) reverse lookup by index.
-#[derive(Debug, Clone, Default)]
-pub struct StringTable {
-    /// The interned strings (index → string).
-    strings: Vec<String>,
-    /// Reverse lookup (string → index) for O(1) interning.
-    index: FxHashMap<String, u32>,
-}
-
-impl StringTable {
-    /// Create a new empty string table.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Intern a string, returning its index. O(1) operation.
-    ///
-    /// If the string is already interned, returns the existing index.
-    pub fn intern(&mut self, s: &str) -> u32 {
-        if let Some(&idx) = self.index.get(s) {
-            idx
-        } else {
-            let idx = self.strings.len() as u32;
-            self.strings.push(s.to_string());
-            self.index.insert(s.to_string(), idx);
-            idx
-        }
-    }
-
-    /// Get a string by its index.
-    pub fn get(&self, idx: u32) -> Option<&str> {
-        self.strings.get(idx as usize).map(|s| s.as_str())
-    }
-
-    /// Get the number of interned strings.
-    pub fn len(&self) -> usize {
-        self.strings.len()
-    }
-
-    /// Check if the table is empty.
-    pub fn is_empty(&self) -> bool {
-        self.strings.is_empty()
-    }
-}
-
 /// Task name lookup table.
 ///
 /// Bidirectional mapping between task names and TaskIds.
@@ -186,25 +114,6 @@ mod tests {
         let id = TaskId::new(42);
         assert_eq!(id.index(), 42);
         assert_eq!(format!("{}", id), "task#42");
-    }
-
-    #[test]
-    fn test_string_table() {
-        let mut table = StringTable::new();
-        assert!(table.is_empty());
-
-        let idx1 = table.intern("hello");
-        let idx2 = table.intern("world");
-        let idx3 = table.intern("hello"); // duplicate
-
-        assert_eq!(idx1, 0);
-        assert_eq!(idx2, 1);
-        assert_eq!(idx3, 0); // same as idx1
-
-        assert_eq!(table.get(0), Some("hello"));
-        assert_eq!(table.get(1), Some("world"));
-        assert_eq!(table.get(99), None);
-        assert_eq!(table.len(), 2);
     }
 
     #[test]

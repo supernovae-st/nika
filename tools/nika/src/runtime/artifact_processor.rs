@@ -94,7 +94,7 @@ pub async fn process_task_artifacts(
     };
 
     // Resolve artifact directory
-    let artifact_dir = resolve_artifact_dir(workflow_config, base_path);
+    let artifact_dir = resolve_artifact_dir(workflow_config, base_path).await;
 
     // Get max size from workflow config
     let max_size = workflow_config
@@ -329,7 +329,7 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
 ///
 /// Creates the directory if it doesn't exist and canonicalizes the path
 /// to avoid macOS symlink issues (e.g., /var -> /private/var).
-fn resolve_artifact_dir(
+async fn resolve_artifact_dir(
     workflow_config: Option<&ArtifactsConfig>,
     base_path: &std::path::Path,
 ) -> PathBuf {
@@ -339,9 +339,9 @@ fn resolve_artifact_dir(
 
     let artifact_dir = base_path.join(dir_str);
 
-    // Create directory if it doesn't exist
+    // Create directory if it doesn't exist (non-blocking)
     if !artifact_dir.exists() {
-        if let Err(e) = std::fs::create_dir_all(&artifact_dir) {
+        if let Err(e) = tokio::fs::create_dir_all(&artifact_dir).await {
             tracing::warn!(
                 path = %artifact_dir.display(),
                 error = %e,
@@ -428,21 +428,21 @@ mod tests {
         assert!(formatted.contains("key"));
     }
 
-    #[test]
-    fn test_resolve_artifact_dir_default() {
+    #[tokio::test]
+    async fn test_resolve_artifact_dir_default() {
         let base = PathBuf::from("/project");
-        let dir = resolve_artifact_dir(None, &base);
+        let dir = resolve_artifact_dir(None, &base).await;
         assert_eq!(dir, PathBuf::from("/project/.nika/artifacts"));
     }
 
-    #[test]
-    fn test_resolve_artifact_dir_custom() {
+    #[tokio::test]
+    async fn test_resolve_artifact_dir_custom() {
         let base = PathBuf::from("/project");
         let config = ArtifactsConfig {
             dir: Some("output".to_string()),
             ..Default::default()
         };
-        let dir = resolve_artifact_dir(Some(&config), &base);
+        let dir = resolve_artifact_dir(Some(&config), &base).await;
         assert_eq!(dir, PathBuf::from("/project/output"));
     }
 

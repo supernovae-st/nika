@@ -65,15 +65,9 @@ impl Interner {
     }
 
     /// Number of interned strings
-    #[allow(dead_code)] // API surface from spn fusion — not yet wired
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.strings.len()
-    }
-
-    /// Check if empty
-    #[allow(dead_code)] // API surface from spn fusion — not yet wired
-    pub fn is_empty(&self) -> bool {
-        self.strings.is_empty()
     }
 }
 

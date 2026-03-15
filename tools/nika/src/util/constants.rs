@@ -36,41 +36,14 @@ pub const INVOKE_TASK_DEADLINE: Duration = Duration::from_secs(300);
 /// Prevents indefinite hanging when MCP servers become unresponsive.
 pub const RECONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Maximum number of MCP reconnection attempts
-/// After this many failed reconnection attempts, the operation fails.
-/// Prevents infinite retry loops on persistently broken connections.
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub const MAX_RECONNECT_ATTEMPTS: u32 = 3;
-
 /// Timeout for decompose expansion (nested BFS traversal)
 /// Prevents silent hangs during graph traversal
 /// Set higher than MCP_CALL_TIMEOUT to allow multiple MCP calls in BFS loop
 pub const DECOMPOSE_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// Timeout for complete MCP server initialization (connect + list_tools + overhead)
-/// Prevents hanging on slow/unresponsive MCP servers during startup.
-/// Should be > CONNECT_TIMEOUT + MCP_CALL_TIMEOUT to allow sequential operations.
-/// Increased to match component timeouts
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub const MCP_INIT_TIMEOUT: Duration = Duration::from_secs(90);
-
 /// Timeout for streaming chunk delivery (per-chunk, not total stream)
 /// If no chunk arrives within this time, the stream is considered stalled.
 pub const STREAM_CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
-
-/// Timeout for entire workflow execution (TUI mode)
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub const WORKFLOW_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
-
-// ═══════════════════════════════════════════════════════════════
-// MCP Cache TTL
-// ═══════════════════════════════════════════════════════════════
-
-/// TTL for cached MCP tool definitions.
-/// After this duration, tool lists should be re-fetched from the server.
-/// 5 minutes balances freshness with avoiding excessive list_tools() calls.
-#[allow(dead_code)] // API surface from spn fusion — not yet wired
-pub const TOOL_CACHE_TTL: Duration = Duration::from_secs(300);
 
 // ═══════════════════════════════════════════════════════════════
 // HTTP Client Limits
@@ -94,26 +67,9 @@ mod tests {
         assert!(INFER_TIMEOUT.as_secs() > 0);
         assert!(CONNECT_TIMEOUT.as_secs() > 0);
         assert!(MCP_CALL_TIMEOUT.as_secs() > 0);
-        assert!(MCP_INIT_TIMEOUT.as_secs() > 0);
         assert!(STREAM_CHUNK_TIMEOUT.as_secs() > 0);
-        assert!(WORKFLOW_TIMEOUT.as_secs() > 0);
         assert!(DECOMPOSE_TIMEOUT.as_secs() > 0);
         assert!(INVOKE_TASK_DEADLINE.as_secs() > 0);
-    }
-
-    #[test]
-    fn mcp_init_timeout_is_longer_than_call_timeout() {
-        // Init timeout should be > call timeout to allow for connect + list_tools
-        assert!(MCP_INIT_TIMEOUT > MCP_CALL_TIMEOUT);
-        assert!(MCP_INIT_TIMEOUT > CONNECT_TIMEOUT);
-    }
-
-    #[test]
-    fn workflow_timeout_is_longest() {
-        // Workflow execution can run for a long time
-        assert!(WORKFLOW_TIMEOUT > INFER_TIMEOUT);
-        assert!(WORKFLOW_TIMEOUT > EXEC_TIMEOUT);
-        assert!(WORKFLOW_TIMEOUT > FETCH_TIMEOUT);
     }
 
     #[test]
@@ -166,11 +122,6 @@ mod tests {
         assert!(RECONNECT_TIMEOUT >= CONNECT_TIMEOUT);
     }
 
-    #[test]
-    fn max_reconnect_attempts_is_3() {
-        assert_eq!(MAX_RECONNECT_ATTEMPTS, 3);
-    }
-
     // ═══════════════════════════════════════════════════════════════
     // Invoke task deadline tests
     // ═══════════════════════════════════════════════════════════════
@@ -186,11 +137,5 @@ mod tests {
         // 5 minutes > 60 seconds means at least 4 retries possible
         assert!(INVOKE_TASK_DEADLINE > MCP_CALL_TIMEOUT);
         assert!(INVOKE_TASK_DEADLINE.as_secs() >= MCP_CALL_TIMEOUT.as_secs() * 4);
-    }
-
-    #[test]
-    fn invoke_task_deadline_equals_workflow_timeout() {
-        // Task deadline matches workflow timeout for consistency
-        assert_eq!(INVOKE_TASK_DEADLINE, WORKFLOW_TIMEOUT);
     }
 }

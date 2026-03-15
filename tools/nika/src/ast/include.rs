@@ -17,6 +17,8 @@
 
 use serde::Deserialize;
 
+use crate::error::NikaError;
+
 /// Include specification for DAG fusion
 ///
 /// Merges tasks from an external workflow into the main DAG at parse time.
@@ -43,10 +45,14 @@ pub struct IncludeSpec {
 
 impl IncludeSpec {
     /// Validate that exactly one of `path` or `pkg` is specified
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), NikaError> {
         match (&self.path, &self.pkg) {
-            (None, None) => Err("Include spec must have either 'path' or 'pkg'".to_string()),
-            (Some(_), Some(_)) => Err("Include spec cannot have both 'path' and 'pkg'".to_string()),
+            (None, None) => Err(NikaError::ValidationError {
+                reason: "Include spec must have either 'path' or 'pkg'".into(),
+            }),
+            (Some(_), Some(_)) => Err(NikaError::ValidationError {
+                reason: "Include spec cannot have both 'path' and 'pkg'".into(),
+            }),
             _ => Ok(()),
         }
     }

@@ -485,7 +485,7 @@ fn resolve_binding_path(
             };
 
             // Navigate path segments through the value
-            navigate_segments(&output, &binding_path.segments)
+            navigate_segments(&output, &binding_path.segments).map(|opt| opt.cloned())
         }
 
         BindingSource::Input(sub_path) => {
@@ -526,24 +526,27 @@ fn resolve_binding_path(
 /// Navigate a sequence of PathSegments through a JSON value
 ///
 /// Returns `Ok(None)` if a segment doesn't match (missing field, out-of-bounds index).
-fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Option<Value>, NikaError> {
+fn navigate_segments<'a>(
+    value: &'a Value,
+    segments: &[PathSegment],
+) -> Result<Option<&'a Value>, NikaError> {
     if segments.is_empty() {
-        return Ok(Some(value.clone()));
+        return Ok(Some(value));
     }
 
-    let mut current = value.clone();
+    let mut current = value;
     for segment in segments {
         match segment {
             PathSegment::Field(name) => match current {
-                Value::Object(ref map) => match map.get(name.as_ref()) {
-                    Some(v) => current = v.clone(),
+                Value::Object(map) => match map.get(name.as_ref()) {
+                    Some(v) => current = v,
                     None => return Ok(None),
                 },
                 _ => return Ok(None),
             },
             PathSegment::Index(idx) => match current {
-                Value::Array(ref arr) => match arr.get(*idx) {
-                    Some(v) => current = v.clone(),
+                Value::Array(arr) => match arr.get(*idx) {
+                    Some(v) => current = v,
                     None => return Ok(None),
                 },
                 _ => return Ok(None),
@@ -2301,7 +2304,7 @@ mod tests {
     #[test]
     fn navigate_segments_empty() {
         let value = json!({"hello": "world"});
-        let result = navigate_segments(&value, &[]).unwrap();
+        let result = navigate_segments(&value, &[]).unwrap().cloned();
         assert_eq!(result, Some(json!({"hello": "world"})));
     }
 
@@ -2309,7 +2312,7 @@ mod tests {
     fn navigate_segments_field() {
         let value = json!({"name": "Nika"});
         let segments = vec![PathSegment::Field(Arc::from("name"))];
-        let result = navigate_segments(&value, &segments).unwrap();
+        let result = navigate_segments(&value, &segments).unwrap().cloned();
         assert_eq!(result, Some(json!("Nika")));
     }
 
@@ -2321,7 +2324,7 @@ mod tests {
             PathSegment::Field(Arc::from("b")),
             PathSegment::Field(Arc::from("c")),
         ];
-        let result = navigate_segments(&value, &segments).unwrap();
+        let result = navigate_segments(&value, &segments).unwrap().cloned();
         assert_eq!(result, Some(json!(42)));
     }
 
@@ -2332,7 +2335,7 @@ mod tests {
             PathSegment::Field(Arc::from("items")),
             PathSegment::Index(1),
         ];
-        let result = navigate_segments(&value, &segments).unwrap();
+        let result = navigate_segments(&value, &segments).unwrap().cloned();
         assert_eq!(result, Some(json!("b")));
     }
 
@@ -2344,7 +2347,7 @@ mod tests {
             PathSegment::Index(1),
             PathSegment::Field(Arc::from("name")),
         ];
-        let result = navigate_segments(&value, &segments).unwrap();
+        let result = navigate_segments(&value, &segments).unwrap().cloned();
         assert_eq!(result, Some(json!("second")));
     }
 

@@ -77,7 +77,7 @@ fn test_agent_validate_empty_prompt() {
 
     let result = params.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("prompt"));
+    assert!(result.unwrap_err().to_string().contains("prompt"));
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn test_agent_validate_zero_max_turns() {
 
     let result = params.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("max_turns"));
+    assert!(result.unwrap_err().to_string().contains("max_turns"));
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn test_agent_validate_excessive_max_turns() {
 
     let result = params.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("100"));
+    assert!(result.unwrap_err().to_string().contains("100"));
 }
 
 #[test]

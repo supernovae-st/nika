@@ -112,7 +112,7 @@ resource: entity://qr-code/fr-FR
     // Validation should fail
     let result = params.validate();
     assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.unwrap_err().to_string();
     assert!(
         err.contains("mutually exclusive") || err.contains("both"),
         "Error should mention mutual exclusivity: {}",
@@ -136,7 +136,7 @@ mcp: novanet
     // Validation should fail
     let result = params.validate();
     assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.unwrap_err().to_string();
     assert!(
         err.contains("tool") || err.contains("resource"),
         "Error should mention required fields: {}",

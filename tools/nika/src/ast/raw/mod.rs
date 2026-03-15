@@ -63,18 +63,6 @@ pub use parser::{parse, ParseError, ParseErrorKind};
 pub use task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
 pub use workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
 
-use crate::source::{Span, Spanned};
-
-/// Helper to create a spanned value with a dummy span (for testing).
-pub fn spanned_dummy<T>(value: T) -> Spanned<T> {
-    Spanned::dummy(value)
-}
-
-/// Helper to create a spanned value.
-pub fn spanned<T>(value: T, span: Span) -> Spanned<T> {
-    Spanned::new(value, span)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

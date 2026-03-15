@@ -49,10 +49,7 @@ use crate::tui::focus::PanelId;
 use crate::tui::state::TuiState;
 use crate::tui::theme::{MissionPhase, TaskStatus, Theme, VerbColor};
 use crate::tui::unicode::truncate_to_width;
-use crate::tui::widgets::{
-    task_box::RenderMode,
-    DagAscii, NodeBoxData, NodeBoxMode,
-};
+use crate::tui::widgets::{task_box::RenderMode, DagAscii, NodeBoxData, NodeBoxMode};
 
 /// Monitor View state
 ///

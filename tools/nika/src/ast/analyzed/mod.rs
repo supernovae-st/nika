@@ -60,7 +60,7 @@ mod ids;
 mod task;
 mod workflow;
 
-pub use ids::{McpServerId, StringTable, TaskId, TaskTable};
+pub use ids::{TaskId, TaskTable};
 pub use task::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
     AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedOutput, AnalyzedRetry, AnalyzedTask,
