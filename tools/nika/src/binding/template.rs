@@ -214,13 +214,13 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
 /// - Number/Bool: to_string()
 /// - Array/Object: JSON-serialize (lossless for LLMs)
 /// - Null: empty string
-fn value_to_display(value: &Value) -> String {
+fn value_to_display(value: &Value) -> Cow<'_, str> {
     match value {
-        Value::String(s) => s.clone(),
-        Value::Null => String::new(),
-        Value::Bool(b) => b.to_string(),
-        Value::Number(n) => n.to_string(),
-        other => other.to_string(), // JSON representation for objects/arrays
+        Value::String(s) => Cow::Borrowed(s.as_str()),
+        Value::Null => Cow::Borrowed(""),
+        Value::Bool(b) => Cow::Owned(b.to_string()),
+        Value::Number(n) => Cow::Owned(n.to_string()),
+        other => Cow::Owned(other.to_string()), // JSON representation for objects/arrays
     }
 }
 
@@ -393,7 +393,7 @@ pub fn resolve_with<'a>(
                         } else if is_in_json_context(template_str, m.start()) {
                             escape_for_json(&value_to_display(&final_value)).into_owned()
                         } else {
-                            value_to_display(&final_value)
+                            value_to_display(&final_value).into_owned()
                         };
                         result.push_str(&display);
                     }
@@ -1594,7 +1594,7 @@ mod tests {
     // Context binding tests
     // ─────────────────────────────────────────────────────────────
 
-    use crate::runtime::context_loader::LoadedContext;
+    use crate::store::LoadedContext;
 
     /// Helper to create datastore with context for tests
     fn datastore_with_context() -> RunContext {
@@ -2380,8 +2380,7 @@ mod tests {
 #[cfg(test)]
 mod v028_template_tests {
     use super::*;
-    use crate::runtime::context_loader::LoadedContext;
-    use crate::store::RunContext;
+    use crate::store::{LoadedContext, RunContext};
     use serde_json::json;
 
     fn empty_datastore() -> RunContext {
