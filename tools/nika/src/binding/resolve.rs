@@ -111,10 +111,10 @@ impl ResolvedBindings {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Old system: from_wiring_spec (use: block)
+    // Old system: from_wiring_spec (with: block)
     // ═══════════════════════════════════════════════════════════════
 
-    /// Build bindings from use: wiring by resolving paths from datastore
+    /// Build bindings from with: wiring by resolving paths from datastore
     ///
     /// Unified resolution for both syntax styles:
     /// - String: `task.path [?? default]` → eager resolution
@@ -123,7 +123,7 @@ impl ResolvedBindings {
     /// Lazy bindings are stored as Pending and resolved on first access.
     /// Eager bindings are resolved immediately and fail if source is missing.
     ///
-    /// Returns empty bindings if use_wiring is None.
+    /// Returns empty bindings if wiring_spec is None.
     pub fn from_wiring_spec(
         wiring_spec: Option<&WiringSpec>,
         datastore: &RunContext,
