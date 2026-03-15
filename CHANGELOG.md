@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance (P0: TUI Quick Wins)
+
+5 targeted optimizations reducing per-frame rendering overhead:
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  ⚡ P0: TUI PERFORMANCE QUICK WINS                                           ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  1. DirtyFlags → render pipeline   Skip unchanged panels                     ║
+║  2. DAG cache in MonitorView       Build once, invalidate on change          ║
+║  3. JSON cache in MonitorView      Format once, cache response strings       ║
+║  4. Active-view-only ticking       1 view tick/frame instead of 4            ║
+║  5. Conditional Clear              Ratatui differential rendering enabled    ║
+║                                                                               ║
+║  Tests: 5,026 passing | Zero clippy warnings                                ║
+║  Commits: 5 granular perf(tui) commits                                      ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+- **DirtyFlags in render pipeline** — Views skip re-rendering when their data hasn't changed
+- **DAG construction cache** — MonitorView caches `StableDag` and only rebuilds on task state changes
+- **JSON formatting cache** — MonitorView caches `serde_json::to_string_pretty()` results
+- **Active-view-only ticking** — Only the current view's `tick()` runs per frame (+ background tick for ChatView streaming)
+- **Conditional Clear** — Full screen clear only on view switch, resize, or first frame; ratatui's differential rendering handles incremental updates
+
+### Refactored
+
+#### use_wiring → with_spec Migration Complete
+
+Removed the deprecated `use_wiring` field from `Task` struct and all consumers:
+
+- **AST** — `Task.use_wiring` field removed, `with_spec` is the sole binding system
+- **DAG** — Dead `use_wiring` code paths removed from flow.rs and validate.rs
+- **DAG validation** — `validate_use_wiring()` renamed to `validate_bindings()`
+- **Include loader** — Removed `use_wiring` prefixing code and `prefix_binding_path()` helper
+- **Error messages** — Updated from `use.alias` to `with.alias` terminology
+- **LSP** — Completions, hover docs, and reserved fields updated to `with:` syntax
+- **TUI** — Studio YAML highlighter and standalone validator updated
+- **Tests** — All tests and benchmarks updated to use `with_spec`
+
 ## [0.27.0] - 2026-03-12
 
 ```
