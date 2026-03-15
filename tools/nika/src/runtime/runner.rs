@@ -1973,9 +1973,8 @@ mod tests {
         let workflow = create_exec_workflow(vec![("greet", "echo hello")], vec![]);
         let mut runner = Runner::new(workflow);
 
-        let result = runner.run().await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "hello");
+        let result = runner.run().await.unwrap();
+        assert_eq!(result, "hello");
 
         // Verify event sequence
         let events = runner.event_log().events();
@@ -2024,8 +2023,7 @@ mod tests {
         );
         let mut runner = Runner::new(workflow);
 
-        let result = runner.run().await;
-        assert!(result.is_ok());
+        runner.run().await.unwrap();
 
         let events = runner.event_log().events();
 
@@ -2069,8 +2067,7 @@ mod tests {
         );
         let mut runner = Runner::new(workflow);
 
-        let result = runner.run().await;
-        assert!(result.is_ok());
+        runner.run().await.unwrap();
 
         let events = runner.event_log().events();
 
@@ -2152,9 +2149,8 @@ mod tests {
         let workflow = create_exec_workflow(vec![("fail", "exit 1")], vec![]);
         let mut runner = Runner::new(workflow);
 
-        let result = runner.run().await;
-        // Workflow completes but task failed
-        assert!(result.is_ok());
+        // Workflow run() returns Ok even when individual tasks fail
+        runner.run().await.expect("workflow should complete even when tasks fail internally");
 
         let events = runner.event_log().filter_task("fail");
         let failed = events
