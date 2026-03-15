@@ -2883,3 +2883,52 @@ fn test_dag_version_tracks_timeline() {
     let v1 = state.dag_version();
     assert!(v1 > v0, "dag_version should increase after task event");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P0 Task 3: JSON format cache tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_json_cache_avoids_reformat() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Create test data
+    let data = serde_json::json!({"key": "value", "nested": {"a": 1}});
+
+    // First call should format and cache
+    let key = "test:data";
+    let result1 = state.json_cache.get_or_format(key, &data).to_string();
+    assert!(result1.contains("key"));
+    assert!(result1.contains("value"));
+
+    // Get cache stats
+    let (entries, _max) = state.json_cache.stats();
+    assert_eq!(entries, 1);
+
+    // Second call should return cached value
+    let result2 = state.json_cache.get_or_format(key, &data).to_string();
+    assert_eq!(result1, result2);
+
+    let (entries2, _) = state.json_cache.stats();
+    assert_eq!(entries2, 1, "Should reuse cached entry, not add new one");
+}
+
+#[test]
+fn test_json_cache_invalidation_on_task_change() {
+    let mut state = TuiState::new("test.nika.yaml");
+
+    // Simulate task output
+    let output = serde_json::json!({"result": "success"});
+    let key = "task:task1";
+
+    // Cache the output
+    let _ = state.json_cache.get_or_format(key, &output);
+    let (entries, _) = state.json_cache.stats();
+    assert_eq!(entries, 1);
+
+    // Invalidate on task completion (simulating handle_event)
+    state.json_cache.invalidate(key);
+
+    let (entries_after, _) = state.json_cache.stats();
+    assert_eq!(entries_after, 0, "Cache entry should be removed");
+}

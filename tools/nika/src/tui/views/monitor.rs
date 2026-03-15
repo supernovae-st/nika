@@ -83,6 +83,16 @@ pub struct MonitorView {
     cached_dag_deps: HashMap<String, Vec<String>>,
     /// Version counter for cache invalidation
     dag_cache_version: u32,
+    /// Cached formatted JSON for selected task input
+    cached_task_input_json: String,
+    /// Cached formatted JSON for selected task output
+    cached_task_output_json: String,
+    /// Cached formatted JSON for selected MCP response
+    cached_mcp_response_json: String,
+    /// Task ID that the cached task JSON belongs to
+    cached_json_task_id: Option<String>,
+    /// MCP call index that the cached MCP JSON belongs to
+    cached_json_mcp_idx: Option<usize>,
 }
 
 impl MonitorView {
@@ -106,6 +116,11 @@ impl MonitorView {
             cached_dag_nodes: Vec::new(),
             cached_dag_deps: HashMap::new(),
             dag_cache_version: 0,
+            cached_task_input_json: String::new(),
+            cached_task_output_json: String::new(),
+            cached_mcp_response_json: String::new(),
+            cached_json_task_id: None,
+            cached_json_mcp_idx: None,
         }
     }
 
@@ -194,6 +209,74 @@ impl MonitorView {
             self.cached_dag_nodes = Self::build_dag_nodes(state);
             self.cached_dag_deps = Self::build_dag_dependencies(state);
             self.dag_cache_version = current_version;
+        }
+    }
+
+    /// Refresh cached JSON for selected task
+    ///
+    /// Call before rendering Mission TaskIO/Output tabs to avoid
+    /// serde_json::to_string_pretty in the render path.
+    pub fn refresh_task_json_cache(&mut self, state: &TuiState) {
+        let selected_id = state.task_order.get(self.selected_task).cloned();
+
+        // Refresh if selected task changed OR task data updated
+        if self.cached_json_task_id == selected_id && !state.dirty.progress {
+            return;
+        }
+
+        self.cached_json_task_id = selected_id.clone();
+
+        if let Some(ref task_id) = selected_id {
+            if let Some(task) = state.tasks.get(task_id) {
+                self.cached_task_input_json = task
+                    .input
+                    .as_ref()
+                    .map(|v| {
+                        serde_json::to_string_pretty(v.as_ref())
+                            .unwrap_or_else(|_| "{}".to_string())
+                    })
+                    .unwrap_or_else(|| "No input".to_string());
+
+                self.cached_task_output_json = task
+                    .output
+                    .as_ref()
+                    .map(|v| {
+                        serde_json::to_string_pretty(v.as_ref())
+                            .unwrap_or_else(|_| "{}".to_string())
+                    })
+                    .unwrap_or_else(|| "No output yet".to_string());
+                return;
+            }
+        }
+
+        self.cached_task_input_json = "No task selected".to_string();
+        self.cached_task_output_json = "No task selected".to_string();
+    }
+
+    /// Refresh cached JSON for selected MCP call
+    ///
+    /// Call before rendering NovaNet FullJson tab to avoid
+    /// serde_json::to_string_pretty in the render path.
+    pub fn refresh_mcp_json_cache(&mut self, state: &TuiState) {
+        let selected_idx = self.scroll_offset(PanelId::RunnerNovanet);
+
+        // Refresh if selected MCP call changed OR MCP data updated
+        if self.cached_json_mcp_idx == Some(selected_idx) && !state.dirty.novanet {
+            return;
+        }
+
+        self.cached_json_mcp_idx = Some(selected_idx);
+
+        if let Some(call) = state.mcp_calls.get(selected_idx) {
+            self.cached_mcp_response_json = call
+                .response
+                .as_ref()
+                .map(|v| {
+                    serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string())
+                })
+                .unwrap_or_else(|| "No response".to_string());
+        } else {
+            self.cached_mcp_response_json = String::new();
         }
     }
 
@@ -450,38 +533,20 @@ impl MonitorView {
     }
 
     /// Render Mission Control TaskIO tab
-    /// Shows selected task's input and output data
+    /// Shows selected task's input and output data (uses cached JSON)
     fn render_mission_task_io(
         &self,
         frame: &mut Frame,
         area: Rect,
-        state: &TuiState,
+        _state: &TuiState,
         theme: &Theme,
     ) {
-        let selected_id = state.task_order.get(self.selected_task);
-        let task = selected_id.and_then(|id| state.tasks.get(id));
-
-        let content = if let Some(task) = task {
-            let input_str = task
-                .input
-                .as_ref()
-                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
-                .unwrap_or_else(|| "No input".to_string());
-
-            let output_str = task
-                .output
-                .as_ref()
-                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
-                .unwrap_or_else(|| "No output".to_string());
-
-            format!(
-                "─── INPUT ───\n{}\n\n─── OUTPUT ───\n{}",
-                truncate_to_width(&input_str, area.width as usize * 3),
-                truncate_to_width(&output_str, area.width as usize * 3)
-            )
-        } else {
-            "No task selected".to_string()
-        };
+        // Use cached JSON (refreshed before render)
+        let content = format!(
+            "─── INPUT ───\n{}\n\n─── OUTPUT ───\n{}",
+            truncate_to_width(&self.cached_task_input_json, area.width as usize * 3),
+            truncate_to_width(&self.cached_task_output_json, area.width as usize * 3)
+        );
 
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
@@ -490,25 +555,16 @@ impl MonitorView {
     }
 
     /// Render Mission Control Output tab
-    /// Shows selected task's full output/response
+    /// Shows selected task's full output/response (uses cached JSON)
     fn render_mission_output(
         &self,
         frame: &mut Frame,
         area: Rect,
-        state: &TuiState,
+        _state: &TuiState,
         theme: &Theme,
     ) {
-        let selected_id = state.task_order.get(self.selected_task);
-        let task = selected_id.and_then(|id| state.tasks.get(id));
-
-        let content = if let Some(task) = task {
-            task.output
-                .as_ref()
-                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
-                .unwrap_or_else(|| "No output yet".to_string())
-        } else {
-            "No task selected".to_string()
-        };
+        // Use cached JSON (refreshed before render)
+        let content = self.cached_task_output_json.clone();
 
         let paragraph = Paragraph::new(content)
             .style(Style::default().fg(theme.text_primary))
@@ -722,7 +778,7 @@ impl MonitorView {
     }
 
     /// Render NovaNet FullJson tab
-    /// Shows full JSON response of selected MCP call
+    /// Shows full JSON response of selected MCP call (uses cached JSON)
     fn render_novanet_full_json(
         &self,
         frame: &mut Frame,
@@ -735,13 +791,8 @@ impl MonitorView {
 
         let content = if let Some(call) = call {
             let tool_name = call.tool.as_deref().unwrap_or("resource");
-            let response = call
-                .response
-                .as_ref()
-                .map(|v| serde_json::to_string_pretty(v).unwrap_or_else(|_| "{}".to_string()))
-                .unwrap_or_else(|| "No response".to_string());
-
-            format!("─── {} ───\n{}", tool_name, response)
+            // Use cached JSON (refreshed before render)
+            format!("─── {} ───\n{}", tool_name, &self.cached_mcp_response_json)
         } else {
             "No MCP call selected".to_string()
         };
@@ -974,6 +1025,11 @@ impl View for MonitorView {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(rows[1]);
 
+        // Refresh caches before rendering (only rebuild if data changed)
+        self.refresh_task_json_cache(state);
+        self.refresh_mcp_json_cache(state);
+        self.refresh_dag_cache(state);
+
         // Render 4 panels
         self.render_mission_panel(
             frame,
@@ -982,8 +1038,6 @@ impl View for MonitorView {
             theme,
             self.focus == PanelId::RunnerMission,
         );
-        // Refresh DAG cache before rendering (only rebuilds if version changed)
-        self.refresh_dag_cache(state);
         self.render_dag_panel(
             frame,
             top_panels[1],
