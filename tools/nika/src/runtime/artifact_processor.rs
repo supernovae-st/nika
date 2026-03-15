@@ -14,6 +14,7 @@ use tracing::{debug, warn};
 use crate::ast::artifact::{
     ArtifactFormat, ArtifactMode, ArtifactOutput, ArtifactSpec, ArtifactsConfig,
 };
+use crate::ast::OutputFormat;
 use crate::binding::{template_resolve, ResolvedBindings};
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
@@ -22,7 +23,6 @@ use crate::io::security::DEFAULT_ARTIFACT_DIR;
 use crate::io::writer::{ArtifactWriter, WriteRequest, WriteResult};
 use crate::serde_yaml;
 use crate::store::RunContext;
-use crate::OutputFormat;
 
 /// Result of processing artifacts for a task
 #[derive(Debug, Clone)]

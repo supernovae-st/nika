@@ -77,15 +77,14 @@ pub use error::NikaError;
 
 // AST types
 pub use ast::{
-    AgentParams, ExecParams, FetchParams, Flow, InferParams, InvokeParams, OutputFormat,
-    OutputPolicy, Task, TaskAction, Workflow,
+    AgentParams, ExecParams, FetchParams, InferParams, InvokeParams, Task, TaskAction, Workflow,
 };
 
 // Runtime
 pub use runtime::{Runner, TaskExecutor};
 
 // DAG
-pub use dag::{validate_bindings, validate_with_bindings, Dag, StableDag};
+pub use dag::{validate_bindings, Dag, StableDag};
 
 // Binding
 pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
@@ -94,7 +93,7 @@ pub use binding::{validate_task_id, ResolvedBindings, UseEntry, WiringSpec};
 pub use event::{list_traces, Event, EventKind, EventLog};
 
 // Store
-pub use store::{RunContext, TaskOutcome, TaskResult};
+pub use store::{RunContext, TaskResult};
 
 // MCP
 pub use mcp::{McpClient, McpConfig};

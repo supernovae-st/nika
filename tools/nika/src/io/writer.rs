@@ -29,11 +29,11 @@ use std::path::{Path, PathBuf};
 
 use tokio::fs;
 
+use crate::ast::OutputFormat;
 use crate::error::NikaError;
 use crate::io::atomic::write_atomic;
 use crate::io::security::validate_artifact_path;
 use crate::io::template::TemplateResolver;
-use crate::OutputFormat;
 
 /// Default maximum artifact size (10 MB)
 pub const DEFAULT_MAX_SIZE: u64 = 10 * 1024 * 1024;
