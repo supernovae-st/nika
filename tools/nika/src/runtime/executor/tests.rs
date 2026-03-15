@@ -1508,3 +1508,307 @@ async fn test_run_infer_empty_prompt() {
         err
     );
 }
+
+// ═══════════════════════════════════════════════════════════════
+// EXEC VERB: ENV VAR INJECTION TESTS
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_run_exec_with_env_vars() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let mut env = rustc_hash::FxHashMap::default();
+    env.insert("MY_VAR".to_string(), "hello_from_env".to_string());
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "sh -c 'echo $MY_VAR'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: Some(env),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_env");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "hello_from_env");
+}
+
+#[tokio::test]
+async fn test_run_exec_with_env_template_resolution() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let mut bindings = ResolvedBindings::new();
+    bindings.set("env_val", json!("resolved_value"));
+    let datastore = RunContext::new();
+
+    let mut env = rustc_hash::FxHashMap::default();
+    env.insert("DYNAMIC".to_string(), "{{with.env_val}}".to_string());
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "sh -c 'echo $DYNAMIC'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: Some(env),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_env_tpl");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "resolved_value");
+}
+
+#[tokio::test]
+async fn test_run_exec_with_multiple_env_vars() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let mut env = rustc_hash::FxHashMap::default();
+    env.insert("A".to_string(), "first".to_string());
+    env.insert("B".to_string(), "second".to_string());
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "sh -c 'echo ${A}_${B}'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: Some(env),
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_multi_env");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "first_second");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXEC VERB: PER-TASK TIMEOUT
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_run_exec_with_custom_timeout() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    // Use a short timeout with a command that finishes quickly
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "echo fast".to_string(),
+            shell: None,
+            timeout: Some(10), // 10 seconds, plenty of time
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("test_timeout_ok");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "fast");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INFER VERB: TEMPLATE RESOLUTION
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_run_infer_mock_with_template_binding() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-tpl");
+    let mut bindings = ResolvedBindings::new();
+    bindings.set("topic", json!("quantum computing"));
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Explain {{with.topic}} in simple terms".to_string(),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_ok(), "Infer with template should succeed: {:?}", result.err());
+}
+
+#[tokio::test]
+async fn test_run_infer_mock_missing_binding_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-missing");
+    let bindings = ResolvedBindings::new(); // Empty bindings
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Process {{with.nonexistent}}".to_string(),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_err(), "Missing binding should fail");
+}
+
+#[tokio::test]
+async fn test_run_infer_mock_with_model_override() {
+    let executor = TaskExecutor::new("mock", Some("default-model"), None, EventLog::new());
+    let task_id: Arc<str> = Arc::from("test-infer-model");
+    let bindings = ResolvedBindings::default();
+    let datastore = RunContext::default();
+
+    let infer = InferParams {
+        prompt: "Generate something".to_string(),
+        model: Some("custom-model".to_string()),
+        ..Default::default()
+    };
+
+    let result = executor
+        .run_infer(&task_id, &infer, &bindings, &datastore, None)
+        .await;
+    assert!(result.is_ok(), "Model override should succeed with mock: {:?}", result.err());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DECOMPOSE: RESOLVE SOURCE VARIANTS
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_resolve_decompose_source_literal() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let result = executor.resolve_decompose_source("some-key", &bindings, &datastore);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), json!("some-key"));
+}
+
+#[tokio::test]
+async fn test_resolve_decompose_source_template() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let mut bindings = ResolvedBindings::new();
+    bindings.set("entity", json!("qr-code"));
+    let datastore = RunContext::new();
+
+    let result = executor.resolve_decompose_source("{{with.entity}}", &bindings, &datastore);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), json!("qr-code"));
+}
+
+#[tokio::test]
+async fn test_resolve_decompose_source_dollar_binding() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let mut bindings = ResolvedBindings::new();
+    bindings.set("my_key", json!("entity-key"));
+    let datastore = RunContext::new();
+
+    let result = executor.resolve_decompose_source("$my_key", &bindings, &datastore);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), json!("entity-key"));
+}
+
+#[tokio::test]
+async fn test_resolve_decompose_source_missing_binding_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let result = executor.resolve_decompose_source("$nonexistent", &bindings, &datastore);
+    assert!(result.is_err(), "Missing binding should fail");
+}
+
+#[tokio::test]
+async fn test_resolve_decompose_source_dollar_path_from_datastore() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    // Insert task result with nested field
+    datastore.insert(
+        Arc::from("prev_task"),
+        TaskResult::success(json!({"key": "nested-key"}), Duration::from_millis(1)),
+    );
+
+    let result = executor.resolve_decompose_source("$prev_task.key", &bindings, &datastore);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), json!("nested-key"));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DECOMPOSE: JSON TYPE NAME
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn test_json_type_name_all_types() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+
+    assert_eq!(executor.json_type_name(&json!(null)), "null");
+    assert_eq!(executor.json_type_name(&json!(true)), "boolean");
+    assert_eq!(executor.json_type_name(&json!(42)), "number");
+    assert_eq!(executor.json_type_name(&json!("text")), "string");
+    assert_eq!(executor.json_type_name(&json!([])), "array");
+    assert_eq!(executor.json_type_name(&json!({})), "object");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DECOMPOSE: EXTRACT KEY EDGE CASES
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_extract_decompose_key_from_object_with_extra_fields() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let value = json!({"key": "my-entity", "name": "My Entity", "type": "Entity"});
+    let key = executor.extract_decompose_key(&value).unwrap();
+    assert_eq!(key, "my-entity");
+}
+
+#[tokio::test]
+async fn test_extract_decompose_key_from_number_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.extract_decompose_key(&json!(42));
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("number"), "Should mention the actual type: {}", err);
+}
+
+#[tokio::test]
+async fn test_extract_decompose_key_from_null_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.extract_decompose_key(&json!(null));
+    assert!(result.is_err());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DECOMPOSE: EXTRACT NODES EDGE CASES
+// ═══════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_extract_decompose_nodes_from_non_object_non_array_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.extract_decompose_nodes(json!("just a string"));
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_extract_decompose_nodes_from_object_without_known_fields_fails() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let result = executor.extract_decompose_nodes(json!({"data": [1, 2, 3]}));
+    assert!(result.is_err());
+}
