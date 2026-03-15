@@ -10,7 +10,7 @@ use serde_saphyr as serde_yaml; // v0.13.0: migrated from deprecated serde_yaml
 /// Generate a linear workflow (A -> B -> C -> ...)
 fn generate_linear_workflow(size: usize) -> Workflow {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 tasks:
 "#,
@@ -41,7 +41,7 @@ tasks:
 /// Generate a diamond DAG: A -> (B, C) -> D
 fn generate_diamond_workflow(width: usize) -> Workflow {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: source
@@ -73,7 +73,7 @@ tasks:
 /// Generate a wide parallel workflow (many independent tasks)
 fn generate_parallel_workflow(size: usize) -> Workflow {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 tasks:
 "#,
@@ -91,10 +91,10 @@ tasks:
     serde_yaml::from_str(&yaml).unwrap()
 }
 
-/// Generate workflow with use: bindings
+/// Generate workflow with with: bindings
 fn generate_workflow_with_bindings(size: usize) -> Workflow {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: source
@@ -105,9 +105,9 @@ tasks:
     for i in 0..size {
         yaml.push_str(&format!(
             r#"  - id: consumer_{i}
-    use:
-      data: source.result
-    infer: "Process {{{{use.data}}}}"
+    with:
+      data: $source
+    infer: "Process {{{{with.data}}}}"
 "#
         ));
     }

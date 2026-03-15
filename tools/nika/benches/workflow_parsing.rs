@@ -10,7 +10,7 @@ use serde_saphyr as serde_yaml; // v0.13.0: migrated from deprecated serde_yaml
 /// Generate a workflow YAML with N tasks
 fn generate_workflow_yaml(task_count: usize) -> String {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -42,10 +42,10 @@ tasks:
     yaml
 }
 
-/// Generate a workflow with complex use: bindings
+/// Generate a workflow with complex with: bindings
 fn generate_workflow_with_bindings(task_count: usize) -> String {
     let mut yaml = String::from(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -58,11 +58,11 @@ tasks:
     for i in 0..task_count {
         yaml.push_str(&format!(
             r#"  - id: consumer_{i}
-    use:
-      data: source_task.result
+    with:
+      data: $source_task
       fallback: source_task.result ?? "default"
     infer:
-      prompt: "Process {{{{use.data}}}} with fallback {{{{use.fallback}}}}"
+      prompt: "Process {{{{with.data}}}} with fallback {{{{with.fallback}}}}"
 "#
         ));
     }
@@ -84,7 +84,7 @@ fn generate_parallel_workflow(item_count: usize) -> String {
     let items: Vec<String> = (0..item_count).map(|i| format!("\"item_{i}\"")).collect();
 
     format!(
-        r#"schema: "nika/workflow@0.5"
+        r#"schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -94,7 +94,7 @@ tasks:
     concurrency: 5
     fail_fast: true
     infer:
-      prompt: "Process {{{{use.item}}}}"
+      prompt: "Process {{{{with.item}}}}"
 "#,
         items = items.join(", ")
     )
