@@ -111,69 +111,53 @@ mod tests {
 
     #[test]
     fn reject_empty() {
-        let result = validate_task_id("");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
         assert!(err.to_string().contains("cannot be empty"));
     }
 
     #[test]
     fn reject_number_start() {
-        let result = validate_task_id("123task");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("123task").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
         assert!(err.to_string().contains("start with lowercase letter"));
     }
 
     #[test]
     fn reject_uppercase_start() {
-        let result = validate_task_id("Task");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("Task").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
     }
 
     #[test]
     fn reject_all_uppercase() {
-        let result = validate_task_id("TASK");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("TASK").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
     }
 
     #[test]
     fn reject_uppercase_middle() {
-        let result = validate_task_id("myTask");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("myTask").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
     }
 
     #[test]
     fn reject_underscore_start() {
-        let result = validate_task_id("_private");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("_private").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
         assert!(err.to_string().contains("start with lowercase letter"));
     }
 
     #[test]
     fn reject_dash() {
-        let result = validate_task_id("fetch-api");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("fetch-api").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
         // Should suggest fetch_api
     }
 
     #[test]
     fn reject_dot() {
-        let result = validate_task_id("weather.api");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
+        let err = validate_task_id("weather.api").unwrap_err();
         assert!(err.to_string().contains("NIKA-055"));
         // Dots are reserved for path traversal
     }
