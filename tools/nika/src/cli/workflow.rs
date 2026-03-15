@@ -304,9 +304,9 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     "Missing or invalid schema version".to_string(),
                 ));
             } else if let Some(version) = schema.strip_prefix("nika/workflow@") {
-                if version != "0.10" && suggest {
+                if version != "0.12" && suggest {
                     suggestions.push(format!(
-                        "Consider upgrading from @{} to @0.10 for latest features",
+                        "Consider upgrading from @{} to @0.12 for latest features",
                         version
                     ));
                 }

@@ -146,7 +146,7 @@ pub fn handle_schema_command(action: SchemaAction, quiet: bool) -> Result<(), Ni
                 let schema_version = target_schema.map(|s| s.to_string()).unwrap_or_else(|| {
                     let extracted = extract_schema_version(&content);
                     if extracted == "(not specified)" {
-                        "nika/workflow@0.10".to_string()
+                        "nika/workflow@0.12".to_string()
                     } else {
                         extracted
                     }
