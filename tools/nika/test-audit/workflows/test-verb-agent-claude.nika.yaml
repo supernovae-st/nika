@@ -1,4 +1,4 @@
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:

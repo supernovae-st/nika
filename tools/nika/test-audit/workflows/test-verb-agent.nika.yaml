@@ -1,4 +1,4 @@
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 
 mcp:

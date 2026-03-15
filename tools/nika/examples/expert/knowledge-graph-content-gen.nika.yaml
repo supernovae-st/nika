@@ -24,7 +24,7 @@
 #   - NovaNet MCP server running (cargo run in tools/novanet-mcp)
 #   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: knowledge-graph-content-gen
 description: "Generate native content from NovaNet knowledge graph with RLM-on-KG"
 

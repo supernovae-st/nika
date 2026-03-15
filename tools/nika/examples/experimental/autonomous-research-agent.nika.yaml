@@ -22,7 +22,7 @@
 #   - ANTHROPIC_API_KEY
 #   - PERPLEXITY_API_KEY (optional, for web search)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: autonomous-research-agent
 description: "Autonomous multi-agent research system with deep reasoning"
 

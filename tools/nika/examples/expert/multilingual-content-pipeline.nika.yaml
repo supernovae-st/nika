@@ -18,7 +18,7 @@
 #   - ANTHROPIC_API_KEY
 #   - NovaNet MCP server running (optional, falls back to mock data)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: multilingual-content-pipeline
 description: "Generate SEO-optimized content across multiple locales with schema validation"
 
