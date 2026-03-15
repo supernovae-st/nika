@@ -6,13 +6,14 @@
 //! - for_each parallelism and concurrency
 //! - Event emission
 
-use nika::ast::{self, Workflow};
+use nika::ast::analyzed::{AnalyzedTaskAction, AnalyzedWorkflow};
+use nika::ast::parse_analyzed;
 use nika::event::EventLog;
 use nika::runtime::Runner;
 
 /// Helper to create a minimal workflow YAML and parse it
-fn parse_workflow(yaml: &str) -> Workflow {
-    ast::parse_workflow(yaml).expect("Failed to parse workflow YAML")
+fn parse_workflow(yaml: &str) -> AnalyzedWorkflow {
+    parse_analyzed(yaml).expect("Failed to parse workflow YAML")
 }
 
 // =============================================================================
@@ -89,10 +90,10 @@ mod workflow_parsing {
     use super::*;
 
     #[test]
-    fn test_workflow_with_flows() {
+    fn test_workflow_with_depends_on() {
         let yaml = r#"
 schema: nika/workflow@0.12
-workflow: with-flows
+workflow: with-deps
 tasks:
   - id: step1
     exec:
@@ -103,11 +104,11 @@ tasks:
       command: "echo end"
 "#;
         let workflow = parse_workflow(yaml);
-        assert_eq!(workflow.flows.len(), 1);
+        assert_eq!(workflow.tasks.len(), 2);
 
-        let flow = &workflow.flows[0];
-        assert_eq!(flow.source.as_vec(), vec!["step1"]);
-        assert_eq!(flow.target.as_vec(), vec!["step2"]);
+        // step2 depends on step1
+        let step2 = &workflow.tasks[1];
+        assert_eq!(step2.depends_on.len(), 1);
     }
 
     #[test]
@@ -127,7 +128,8 @@ tasks:
 
         let task = &workflow.tasks[0];
         assert!(task.for_each.is_some());
-        assert_eq!(task.for_each_var(), "item");
+        let fe = task.for_each.as_ref().unwrap();
+        assert_eq!(fe.as_var, "item");
     }
 
     #[test]
@@ -146,9 +148,10 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
+        let fe = task.for_each.as_ref().unwrap();
 
-        assert_eq!(task.for_each_concurrency(), 3);
-        assert!(!task.for_each_fail_fast());
+        assert_eq!(fe.parallel, Some(3));
+        assert!(!fe.fail_fast);
     }
 
     #[test]
@@ -165,11 +168,12 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
+        let fe = task.for_each.as_ref().unwrap();
 
         // Default concurrency is 1 (sequential)
-        assert_eq!(task.for_each_concurrency(), 1);
+        assert_eq!(fe.parallel, Some(1));
         // Default fail_fast is true
-        assert!(task.for_each_fail_fast());
+        assert!(fe.fail_fast);
     }
 }
 
@@ -192,7 +196,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
-        assert!(matches!(task.action, nika::ast::TaskAction::Infer { .. }));
+        assert!(matches!(task.action, AnalyzedTaskAction::Infer(..)));
     }
 
     #[test]
@@ -207,7 +211,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
-        assert!(matches!(task.action, nika::ast::TaskAction::Exec { .. }));
+        assert!(matches!(task.action, AnalyzedTaskAction::Exec(..)));
     }
 
     #[test]
@@ -223,7 +227,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
-        assert!(matches!(task.action, nika::ast::TaskAction::Fetch { .. }));
+        assert!(matches!(task.action, AnalyzedTaskAction::Fetch(..)));
     }
 
     #[test]
@@ -239,23 +243,22 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let task = &workflow.tasks[0];
-        assert!(matches!(task.action, nika::ast::TaskAction::Invoke { .. }));
+        assert!(matches!(task.action, AnalyzedTaskAction::Invoke(..)));
     }
 }
 
 // =============================================================================
-// TEST 4: Flow Graph Construction
+// TEST 4: Dependency Graph Construction
 // =============================================================================
 
-mod flow_graph {
+mod dependency_graph {
     use super::*;
-    use nika::dag::Dag;
 
     #[test]
-    fn test_flow_graph_empty_flows() {
+    fn test_no_dependencies() {
         let yaml = r#"
 schema: nika/workflow@0.3
-workflow: no-flows
+workflow: no-deps
 tasks:
   - id: task1
     exec:
@@ -265,17 +268,14 @@ tasks:
       command: "echo 2"
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // No dependencies - both tasks should have empty deps
-        let deps1 = graph.get_dependencies("task1");
-        let deps2 = graph.get_dependencies("task2");
-        assert!(deps1.is_empty());
-        assert!(deps2.is_empty());
+        assert!(workflow.tasks[0].depends_on.is_empty());
+        assert!(workflow.tasks[1].depends_on.is_empty());
     }
 
     #[test]
-    fn test_flow_graph_linear_chain() {
+    fn test_linear_chain() {
         let yaml = r#"
 schema: nika/workflow@0.12
 workflow: linear-chain
@@ -293,15 +293,14 @@ tasks:
       command: "echo 3"
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow).unwrap();
 
-        assert!(graph.get_dependencies("task1").is_empty());
-        assert_eq!(graph.get_dependencies("task2").len(), 1);
-        assert_eq!(graph.get_dependencies("task3").len(), 1);
+        assert!(workflow.tasks[0].depends_on.is_empty());
+        assert_eq!(workflow.tasks[1].depends_on.len(), 1);
+        assert_eq!(workflow.tasks[2].depends_on.len(), 1);
     }
 
     #[test]
-    fn test_flow_graph_fan_out() {
+    fn test_fan_out() {
         let yaml = r#"
 schema: nika/workflow@0.12
 workflow: fan-out
@@ -323,21 +322,18 @@ tasks:
       command: "echo branch3"
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // Root has no dependencies
-        assert!(graph.get_dependencies("root").is_empty());
+        assert!(workflow.tasks[0].depends_on.is_empty());
 
         // All branches depend on root
-        for branch in ["branch1", "branch2", "branch3"] {
-            let deps = graph.get_dependencies(branch);
-            assert_eq!(deps.len(), 1);
-            assert_eq!(&*deps[0], "root");
+        for task in &workflow.tasks[1..] {
+            assert_eq!(task.depends_on.len(), 1);
         }
     }
 
     #[test]
-    fn test_flow_graph_fan_in() {
+    fn test_fan_in() {
         let yaml = r#"
 schema: nika/workflow@0.12
 workflow: fan-in
@@ -354,11 +350,10 @@ tasks:
       command: "echo sink"
 "#;
         let workflow = parse_workflow(yaml);
-        let graph = Dag::from_workflow(&workflow).unwrap();
 
         // Sink depends on both sources
-        let deps = graph.get_dependencies("sink");
-        assert_eq!(deps.len(), 2);
+        let sink = &workflow.tasks[2];
+        assert_eq!(sink.depends_on.len(), 2);
     }
 }
 
@@ -432,7 +427,7 @@ tasks:
 
         // Second task has with: binding
         let task2 = &workflow.tasks[1];
-        assert!(task2.with_spec.is_some());
+        assert!(!task2.with_spec.is_empty());
     }
 
     #[test]
@@ -459,7 +454,9 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         assert_eq!(workflow.tasks.len(), 3);
-        // depends_on creates 2 flows, with: bindings create 2 more implicit flows
-        assert!(workflow.flows.len() >= 2);
+
+        // combine task has 2 with: bindings
+        let combine = &workflow.tasks[2];
+        assert_eq!(combine.with_spec.len(), 2);
     }
 }

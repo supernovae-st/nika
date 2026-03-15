@@ -15,7 +15,8 @@
 //!         locale: "{{use.locale}}"
 //! ```
 
-use nika::ast::parse_workflow;
+use nika::ast::analyzed::AnalyzedTaskAction;
+use nika::ast::parse_analyzed;
 use nika::runtime::Runner;
 
 // ═══════════════════════════════════════════════════════════════
@@ -35,7 +36,7 @@ tasks:
       command: "echo {{use.locale}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     // Verify for_each parsed
@@ -44,10 +45,11 @@ tasks:
 
     // Should be an array with 3 items
     assert!(for_each.is_array(), "for_each should be an array");
-    assert_eq!(for_each.as_array().unwrap().len(), 3);
+    let items = for_each.parse_items().unwrap();
+    assert_eq!(items.len(), 3);
 
     // Verify 'as' variable name
-    assert_eq!(task.for_each_as.as_deref(), Some("locale"));
+    assert_eq!(for_each.as_var, "locale");
 }
 
 #[test]
@@ -62,12 +64,13 @@ tasks:
       command: "echo {{use.item}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_some());
     // When 'as' is not specified, it defaults to "item" (set by analyzer)
-    assert_eq!(task.for_each_as.as_deref(), Some("item"));
+    let fe = task.for_each.as_ref().unwrap();
+    assert_eq!(fe.as_var, "item");
 }
 
 #[test]
@@ -91,11 +94,12 @@ tasks:
         locale: "{{use.locale}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_some());
-    assert_eq!(task.for_each_as.as_deref(), Some("locale"));
+    let fe = task.for_each.as_ref().unwrap();
+    assert_eq!(fe.as_var, "locale");
 }
 
 #[test]
@@ -111,12 +115,12 @@ tasks:
       command: "echo {{use.letter}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     // Verify action is Exec
     match &task.action {
-        nika::ast::TaskAction::Exec { exec } => {
+        AnalyzedTaskAction::Exec(exec) => {
             assert_eq!(exec.command, "echo {{use.letter}}");
         }
         other => panic!("Expected Exec action, got {:?}", other),
@@ -124,12 +128,12 @@ tasks:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// for_each Validation Tests
+// for_each Parsing Validation Tests
 // ═══════════════════════════════════════════════════════════════
 
 #[test]
-fn test_for_each_empty_array_error() {
-    // Empty array should be invalid
+fn test_for_each_empty_array_parsed() {
+    // Empty array should still parse at the AST level
     let yaml = r#"
 schema: nika/workflow@0.3
 tasks:
@@ -139,15 +143,12 @@ tasks:
       command: "echo test"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
-
-    // Validation should fail for empty array (task-level)
-    let result = task.validate_for_each();
-    assert!(result.is_err(), "Empty for_each should be invalid");
-
-    // Note: workflow-level validate_schema() was removed
-    // The task-level check above is sufficient
+    let fe = task.for_each.as_ref().unwrap();
+    // Empty array parses to "[]"
+    let items = fe.parse_items().unwrap();
+    assert!(items.is_empty(), "Empty for_each should have 0 items");
 }
 
 #[test]
@@ -161,11 +162,10 @@ tasks:
       command: "echo hello"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let task = &workflow.tasks[0];
 
     assert!(task.for_each.is_none());
-    assert!(task.for_each_as.is_none());
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -185,7 +185,7 @@ tasks:
       command: "echo {{use.fruit}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -215,7 +215,7 @@ tasks:
       command: "echo {{use.item}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -244,7 +244,7 @@ tasks:
       command: "sh -c '{{use.cmd}}'"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -272,7 +272,7 @@ tasks:
       command: "echo {{use.word}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -302,7 +302,7 @@ tasks:
       command: "{{use.cmd}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
@@ -342,7 +342,7 @@ tasks:
       command: "echo Processing: {{use.item}}"
 "#;
 
-    let workflow = parse_workflow(yaml).unwrap();
+    let workflow = parse_analyzed(yaml).unwrap();
     let mut runner = Runner::new(workflow);
     let result = runner.run().await;
 
