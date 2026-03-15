@@ -744,7 +744,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_mentions_to_wiring_single() {
+    fn test_mentions_to_bindings_single() {
         let spec = mentions_to_bindings(&ResolvedMention::Single(2));
         assert_eq!(spec.len(), 1);
         assert!(spec.contains_key("ref_2"));
@@ -752,7 +752,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mentions_to_wiring_single_large_number() {
+    fn test_mentions_to_bindings_single_large_number() {
         let spec = mentions_to_bindings(&ResolvedMention::Single(123));
         assert_eq!(spec.len(), 1);
         assert!(spec.contains_key("ref_123"));
@@ -760,7 +760,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mentions_to_wiring_multiple() {
+    fn test_mentions_to_bindings_multiple() {
         let spec = mentions_to_bindings(&ResolvedMention::Multiple(vec![1, 2, 3]));
         assert_eq!(spec.len(), 3);
         assert_eq!(spec["ref_1"].path, "msg-001.output");
@@ -769,13 +769,13 @@ mod tests {
     }
 
     #[test]
-    fn test_mentions_to_wiring_empty() {
+    fn test_mentions_to_bindings_empty() {
         let spec = mentions_to_bindings(&ResolvedMention::Empty);
         assert!(spec.is_empty());
     }
 
     #[test]
-    fn test_mentions_to_wiring_use_entry_is_eager() {
+    fn test_mentions_to_bindings_use_entry_is_eager() {
         // Verify bindings are eager (not lazy)
         let spec = mentions_to_bindings(&ResolvedMention::Single(1));
         assert!(!spec["ref_1"].lazy);
@@ -783,14 +783,14 @@ mod tests {
     }
 
     #[test]
-    fn test_text_to_wiring_simple() {
+    fn test_text_to_bindings_simple() {
         let spec = text_to_bindings("Based on @1", 3).unwrap();
         assert_eq!(spec.len(), 1);
         assert!(spec.contains_key("ref_1"));
     }
 
     #[test]
-    fn test_text_to_wiring_multiple() {
+    fn test_text_to_bindings_multiple() {
         let spec = text_to_bindings("Combine @1 and @2", 3).unwrap();
         assert_eq!(spec.len(), 2);
         assert!(spec.contains_key("ref_1"));
@@ -798,14 +798,14 @@ mod tests {
     }
 
     #[test]
-    fn test_text_to_wiring_with_last() {
+    fn test_text_to_bindings_with_last() {
         let spec = text_to_bindings("Continue from @last", 5).unwrap();
         assert_eq!(spec.len(), 1);
         assert!(spec.contains_key("ref_5")); // @last resolves to 5
     }
 
     #[test]
-    fn test_text_to_wiring_with_range() {
+    fn test_text_to_bindings_with_range() {
         let spec = text_to_bindings("Summarize @1..3", 5).unwrap();
         assert_eq!(spec.len(), 3);
         assert!(spec.contains_key("ref_1"));
@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_text_to_wiring_with_all() {
+    fn test_text_to_bindings_with_all() {
         let spec = text_to_bindings("Based on @all", 3).unwrap();
         assert_eq!(spec.len(), 3);
         assert!(spec.contains_key("ref_1"));
@@ -823,13 +823,13 @@ mod tests {
     }
 
     #[test]
-    fn test_text_to_wiring_no_mentions() {
+    fn test_text_to_bindings_no_mentions() {
         let spec = text_to_bindings("Just a normal message", 5).unwrap();
         assert!(spec.is_empty());
     }
 
     #[test]
-    fn test_text_to_wiring_error_out_of_bounds() {
+    fn test_text_to_bindings_error_out_of_bounds() {
         let result = text_to_bindings("Reference @10", 3);
         assert!(result.is_err());
         assert_eq!(
@@ -839,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn test_text_to_wiring_dedup() {
+    fn test_text_to_bindings_dedup() {
         // Same reference multiple times should produce one binding
         let spec = text_to_bindings("See @1 and again @1", 3).unwrap();
         assert_eq!(spec.len(), 1); // HashMap deduplicates
