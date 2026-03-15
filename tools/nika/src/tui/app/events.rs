@@ -78,7 +78,10 @@ impl App {
                     self.state.ui.chat_overlay.messages.pop();
                 }
             }
-            self.state.ui.chat_overlay.add_nika_message(response.clone());
+            self.state
+                .ui
+                .chat_overlay
+                .add_nika_message(response.clone());
 
             // Update chat view
             if let Some(last) = self.chat_view.messages.last() {

@@ -41,9 +41,6 @@
 use std::path::PathBuf;
 
 use crate::ast::expand_includes;
-use crate::core::backend::DownloadRequest;
-use crate::core::models::find_model;
-use crate::core::storage::{default_model_dir, HuggingFaceStorage};
 use crate::event::EventLog;
 use crate::provider::rig::StreamChunk;
 use crate::runtime::Runner;
@@ -233,104 +230,37 @@ impl App {
                 self.chat_view
                     .add_user_message(format!("/infer {}", prompt));
                 self.set_status("Inferring...");
-                tracing::debug!("ChatInfer: {}", prompt);
-
-                // Clone what we need for the async task
-                let tx = self.stream_chunk_tx.clone();
-                let prompt_clone = prompt.clone();
-
-                self.spawn_tracked(async move {
-                    // Create ChatAgent and wire streaming
-                    match ChatAgent::new() {
-                        Ok(mut agent) => {
-                            agent.set_stream_chunk_tx(tx.clone());
-                            match agent.infer(&prompt_clone).await {
-                                Ok(_response) => {
-                                    // Response already streamed via stream_chunk_tx
-                                    tracing::debug!("ChatInfer completed");
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx
-                                .send(StreamChunk::Error(format!(
-                                    "Failed to create ChatAgent: {}",
-                                    e
-                                )))
-                                .await;
-                        }
-                    }
+                self.spawn_chat_command(move |mut agent, tx| async move {
+                    agent.set_stream_chunk_tx(tx);
+                    agent
+                        .infer(&prompt)
+                        .await
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
                 });
             }
             ViewAction::ChatExec(cmd) => {
                 self.chat_view.add_user_message(format!("/exec {}", cmd));
                 self.set_status("Executing...");
-                tracing::debug!("ChatExec: {}", cmd);
-
-                let tx = self.stream_chunk_tx.clone();
-                let cmd_clone = cmd.clone();
-
-                self.spawn_tracked(async move {
-                    match ChatAgent::new() {
-                        Ok(mut agent) => {
-                            agent.set_stream_chunk_tx(tx.clone());
-                            match agent.exec_command(&cmd_clone).await {
-                                Ok(output) => {
-                                    // Send result as a message (exec doesn't stream)
-                                    let _ = tx.send(StreamChunk::Done(output)).await;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx
-                                .send(StreamChunk::Error(format!(
-                                    "Failed to create ChatAgent: {}",
-                                    e
-                                )))
-                                .await;
-                        }
-                    }
+                self.spawn_chat_command(move |mut agent, tx| async move {
+                    agent.set_stream_chunk_tx(tx.clone());
+                    let output = agent.exec_command(&cmd).await.map_err(|e| e.to_string())?;
+                    let _ = tx.send(StreamChunk::Done(output)).await;
+                    Ok(())
                 });
             }
             ViewAction::ChatFetch(url, method) => {
                 self.chat_view
                     .add_user_message(format!("/fetch {} {}", method, url));
                 self.set_status("Fetching...");
-                tracing::debug!("ChatFetch: {} {}", method, url);
-
-                let tx = self.stream_chunk_tx.clone();
-                let url_clone = url.clone();
-                let method_clone = method.clone();
-
-                self.spawn_tracked(async move {
-                    match ChatAgent::new() {
-                        Ok(mut agent) => {
-                            agent.set_stream_chunk_tx(tx.clone());
-                            match agent.fetch(&url_clone, &method_clone).await {
-                                Ok(response) => {
-                                    // Send result (fetch doesn't stream)
-                                    let _ = tx.send(StreamChunk::Done(response)).await;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx
-                                .send(StreamChunk::Error(format!(
-                                    "Failed to create ChatAgent: {}",
-                                    e
-                                )))
-                                .await;
-                        }
-                    }
+                self.spawn_chat_command(move |mut agent, tx| async move {
+                    agent.set_stream_chunk_tx(tx.clone());
+                    let response = agent
+                        .fetch(&url, &method)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let _ = tx.send(StreamChunk::Done(response)).await;
+                    Ok(())
                 });
             }
             ViewAction::ChatInvoke(tool, server, params) => {
@@ -340,79 +270,25 @@ impl App {
                     server.as_deref().unwrap_or("(auto)")
                 ));
                 self.set_status("Invoking MCP tool...");
-                tracing::debug!("ChatInvoke: {} {:?}", tool, server);
-
-                let tx = self.stream_chunk_tx.clone();
-                let tool_clone = tool.clone();
-                let server_clone = server.clone();
-                let params_clone = params.clone();
-
-                self.spawn_tracked(async move {
-                    match ChatAgent::new() {
-                        Ok(agent) => {
-                            match agent
-                                .invoke(&tool_clone, server_clone.as_deref(), params_clone)
-                                .await
-                            {
-                                Ok(result) => {
-                                    let _ = tx.send(StreamChunk::Done(result)).await;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx
-                                .send(StreamChunk::Error(format!(
-                                    "Failed to create ChatAgent: {}",
-                                    e
-                                )))
-                                .await;
-                        }
-                    }
+                self.spawn_chat_command(move |agent, tx| async move {
+                    let result = agent
+                        .invoke(&tool, server.as_deref(), params)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let _ = tx.send(StreamChunk::Done(result)).await;
+                    Ok(())
                 });
             }
-            // ChatAgent: Run agentic loop with MCP tools
             ViewAction::ChatAgent(goal, max_turns, extended, servers) => {
                 self.chat_view.add_user_message(format!("/agent {}", goal));
                 self.set_status("Running agent...");
-                tracing::debug!(
-                    "ChatAgent: {} (turns={:?}, ext={}, servers={:?})",
-                    goal,
-                    max_turns,
-                    extended,
-                    servers
-                );
-
-                let tx = self.stream_chunk_tx.clone();
-                let goal_clone = goal.clone();
-                let servers_clone = servers.clone();
-
-                self.spawn_tracked(async move {
-                    match ChatAgent::new() {
-                        Ok(agent) => {
-                            match agent
-                                .run_agent(goal_clone, max_turns, extended, servers_clone)
-                                .await
-                            {
-                                Ok(result) => {
-                                    let _ = tx.send(StreamChunk::Done(result)).await;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(StreamChunk::Error(e.to_string())).await;
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx
-                                .send(StreamChunk::Error(format!(
-                                    "Failed to create ChatAgent: {}",
-                                    e
-                                )))
-                                .await;
-                        }
-                    }
+                self.spawn_chat_command(move |agent, tx| async move {
+                    let result = agent
+                        .run_agent(goal, max_turns, extended, servers)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let _ = tx.send(StreamChunk::Done(result)).await;
+                    Ok(())
                 });
             }
             ViewAction::ChatClear => {
@@ -675,168 +551,33 @@ impl App {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Native Model Management
+    // Chat Command Helper
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// Pull a native model from HuggingFace.
+    /// Spawn a background chat command with ChatAgent creation boilerplate.
     ///
-    /// Spawns a background task to download the model with progress updates
-    /// via the stream_chunk channel.
-    fn pull_native_model(&mut self, model: String) {
-        self.set_status(&format!("Starting pull: {}", model));
-
-        // Look up the model in KNOWN_MODELS
-        let known_model = match find_model(&model) {
-            Some(m) => m,
-            None => {
-                self.set_status(&format!("Unknown model: {}", model));
-                tracing::warn!("Unknown model ID: {}", model);
-                return;
-            }
-        };
-
-        // Clone data for the async task
+    /// Handles ChatAgent creation, error reporting, and task spawning.
+    /// The closure receives a ready ChatAgent and the stream_chunk sender.
+    fn spawn_chat_command<F, Fut>(&mut self, op: F)
+    where
+        F: FnOnce(ChatAgent, tokio::sync::mpsc::Sender<StreamChunk>) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = std::result::Result<(), String>> + Send,
+    {
         let tx = self.stream_chunk_tx.clone();
-        let model_clone = model.clone();
-        let repo = known_model.hf_repo.to_string();
-        let filename = known_model.default_file.to_string();
-
-        // Send start event
-        let _ = tx.try_send(StreamChunk::NativeModelPullStarted {
-            model: model.clone(),
-        });
-
         self.spawn_tracked(async move {
-            // Create storage
-            let storage = match HuggingFaceStorage::new(default_model_dir()) {
-                Ok(s) => s,
-                Err(e) => {
-                    let _ = tx
-                        .send(StreamChunk::NativeModelPullFailed {
-                            model: model_clone,
-                            error: e.to_string(),
-                        })
-                        .await;
-                    return;
-                }
-            };
-
-            // Create download request
-            let request = DownloadRequest::huggingface(&repo, &filename);
-
-            // Clone tx for progress callback
-            let progress_tx = tx.clone();
-            let progress_model = model_clone.clone();
-
-            // Download with progress
-            let result = storage
-                .download(&request, move |progress| {
-                    let _ = progress_tx.try_send(StreamChunk::NativeModelPullProgress {
-                        model: progress_model.clone(),
-                        status: progress.status.clone(),
-                        completed: progress.completed,
-                        total: progress.total,
-                    });
-                })
-                .await;
-
-            match result {
-                Ok(download_result) => {
-                    tracing::info!(
-                        "Model {} downloaded to {:?} ({} bytes)",
-                        model_clone,
-                        download_result.path,
-                        download_result.size
-                    );
-                    let _ = tx
-                        .send(StreamChunk::NativeModelPulled {
-                            model: model_clone,
-                            path: download_result.path.display().to_string(),
-                            size: download_result.size,
-                        })
-                        .await;
+            match ChatAgent::new() {
+                Ok(agent) => {
+                    if let Err(msg) = op(agent, tx.clone()).await {
+                        let _ = tx.send(StreamChunk::Error(msg)).await;
+                    }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to pull model {}: {}", model_clone, e);
                     let _ = tx
-                        .send(StreamChunk::NativeModelPullFailed {
-                            model: model_clone,
-                            error: e.to_string(),
-                        })
+                        .send(StreamChunk::Error(format!(
+                            "Failed to create ChatAgent: {}",
+                            e
+                        )))
                         .await;
-                }
-            }
-        });
-    }
-
-    /// Delete a native model from local storage.
-    fn delete_native_model(&mut self, model: String) {
-        self.set_status(&format!("Deleting: {}", model));
-
-        let tx = self.stream_chunk_tx.clone();
-        let model_clone = model.clone();
-
-        self.spawn_tracked(async move {
-            // Create storage
-            let storage = match HuggingFaceStorage::new(default_model_dir()) {
-                Ok(s) => s,
-                Err(e) => {
-                    let _ = tx
-                        .send(StreamChunk::NativeModelDeleteFailed {
-                            model: model_clone,
-                            error: e.to_string(),
-                        })
-                        .await;
-                    return;
-                }
-            };
-
-            // Delete the model
-            match storage.delete(&model_clone) {
-                Ok(()) => {
-                    tracing::info!("Deleted model: {}", model_clone);
-                    let _ = tx
-                        .send(StreamChunk::NativeModelDeleted { model: model_clone })
-                        .await;
-                }
-                Err(e) => {
-                    tracing::error!("Failed to delete model {}: {}", model_clone, e);
-                    let _ = tx
-                        .send(StreamChunk::NativeModelDeleteFailed {
-                            model: model_clone,
-                            error: e.to_string(),
-                        })
-                        .await;
-                }
-            }
-        });
-    }
-
-    /// Refresh the list of native models.
-    fn refresh_native_models(&mut self) {
-        self.set_status("Refreshing native models...");
-
-        let tx = self.stream_chunk_tx.clone();
-
-        self.spawn_tracked(async move {
-            // Create storage
-            let storage = match HuggingFaceStorage::new(default_model_dir()) {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::error!("Failed to create storage for refresh: {}", e);
-                    return;
-                }
-            };
-
-            // List models
-            match storage.list_models() {
-                Ok(models) => {
-                    let count = models.len();
-                    tracing::info!("Found {} native models", count);
-                    let _ = tx.send(StreamChunk::NativeModelsRefreshed { count }).await;
-                }
-                Err(e) => {
-                    tracing::error!("Failed to list native models: {}", e);
                 }
             }
         });

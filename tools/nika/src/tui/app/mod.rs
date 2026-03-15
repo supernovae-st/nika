@@ -18,6 +18,7 @@ mod events;
 mod lifecycle;
 mod render;
 mod routing;
+mod routing_models;
 mod types;
 
 // Re-export Action enum for external use

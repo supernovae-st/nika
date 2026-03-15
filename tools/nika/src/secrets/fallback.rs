@@ -279,9 +279,12 @@ mod tests {
             .count();
         let total = result.from_fallback.len() + result.not_found.len();
         assert_eq!(
-            total, llm_count,
+            total,
+            llm_count,
             "Should process exactly {} LLM providers, got {} fallback + {} not_found",
-            llm_count, result.from_fallback.len(), result.not_found.len()
+            llm_count,
+            result.from_fallback.len(),
+            result.not_found.len()
         );
     }
 

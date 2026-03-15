@@ -1150,7 +1150,8 @@ impl TuiState {
     ///
     /// Returns true if the task_id appears as a child in spawned_agents.
     pub fn is_subagent(&self, task_id: &str) -> bool {
-        self.agent.spawned_agents
+        self.agent
+            .spawned_agents
             .iter()
             .any(|s| s.child_task_id == task_id)
     }
@@ -1237,7 +1238,8 @@ impl TuiState {
 
     /// Get currently selected MCP call
     pub fn get_selected_mcp(&self) -> Option<&McpCall> {
-        self.mcp.selected_idx
+        self.mcp
+            .selected_idx
             .and_then(|idx| self.mcp.calls.get(idx))
     }
 
@@ -1339,7 +1341,8 @@ impl TuiState {
         }
 
         let query = self.filter_query.to_lowercase();
-        self.mcp.calls
+        self.mcp
+            .calls
             .iter()
             .filter(|call| {
                 // Match server name

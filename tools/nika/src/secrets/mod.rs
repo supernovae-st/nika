@@ -273,7 +273,8 @@ mod tests {
         };
         let total = result.from_daemon.len() + result.from_fallback.len() + result.not_found.len();
         assert_eq!(
-            total, expected_count,
+            total,
+            expected_count,
             "Should process exactly {} providers, got {} daemon + {} fallback + {} not_found",
             expected_count,
             result.from_daemon.len(),

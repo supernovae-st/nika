@@ -1242,7 +1242,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             }
                         } else if items_str.contains("{{with.") || items_str.contains("{{use.") {
                             // Template format (e.g., "{{with.locales}}" or legacy "{{use.locales}}")
-                            let prefix_info = items_str.find("{{with.")
+                            let prefix_info = items_str
+                                .find("{{with.")
                                 .map(|s| (s, 7usize))
                                 .or_else(|| items_str.find("{{use.").map(|s| (s, 6usize)));
                             if let Some((start, prefix_len)) = prefix_info {
