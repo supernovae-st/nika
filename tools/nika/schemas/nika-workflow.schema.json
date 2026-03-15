@@ -182,8 +182,8 @@
           "description": "Unique task identifier (lowercase alphanumeric with underscores/hyphens)"
         },
         "with": {
-          "$ref": "#/$defs/WiringSpec",
-          "description": "Data wiring from previous task outputs"
+          "$ref": "#/$defs/BindingSpec",
+          "description": "Data bindings from previous task outputs"
         },
         "output": {
           "$ref": "#/$defs/OutputPolicy",
@@ -637,17 +637,17 @@
         }
       }
     },
-    "WiringSpec": {
+    "BindingSpec": {
       "type": "object",
-      "description": "Data wiring from previous task outputs",
+      "description": "Data bindings from previous task outputs",
       "additionalProperties": {
         "oneOf": [
           { "type": "string" },
-          { "$ref": "#/$defs/WiringValue" }
+          { "$ref": "#/$defs/BindingValue" }
         ]
       }
     },
-    "WiringValue": {
+    "BindingValue": {
       "type": "object",
       "properties": {
         "path": {
