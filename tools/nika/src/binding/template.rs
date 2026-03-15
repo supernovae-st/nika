@@ -92,12 +92,11 @@ const MAX_TEMPLATE_VARS: usize = 256;
 /// `{{a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z}}`.
 const MAX_PATH_DEPTH: usize = 32;
 
-/// Pre-compiled regex for {{with.alias}} pattern (also accepts legacy {{use.alias}})
+/// Pre-compiled regex for {{with.alias}} pattern.
 /// Supports optional |shell modifier: {{with.alias|shell}}
 /// Also supports bracket notation after preprocessing: {{with.items[0]}} → {{with.items.0}}
-/// Extended to match both `use.` and `with.` prefixes
 static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*(?:use|with)\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
+    Regex::new(r"\{\{\s*with\.(\w+(?:\.\w+)*)(?:\s*\|\s*(shell))?\s*\}\}").unwrap()
 });
 
 /// Pre-compiled regex for bracket array notation
@@ -154,7 +153,6 @@ pub enum TemplateExpr {
 ///   expr := "context." path             → Context
 ///         | "inputs." path              → Input
 ///         | "with." alias_path ("|" t)* → Alias (with. prefix stripped)
-///         | "use." alias_path ("|" t)*  → Alias (use. prefix stripped)
 ///         | alias_path ("|" transform)* → Alias
 /// ```
 ///
@@ -195,11 +193,10 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
         return Ok(TemplateExpr::Input(rest.to_string()));
     }
 
-    // Strip "with." or "use." prefix (both resolve to Alias)
-    // "with.data" → alias path "data"; "use.result" → alias path "result"
+    // Strip "with." prefix to get alias path
+    // "with.data" → alias path "data"
     let effective = trimmed
         .strip_prefix("with.")
-        .or_else(|| trimmed.strip_prefix("use."))
         .unwrap_or(trimmed);
 
     // Everything else is an alias (possibly with transforms)
@@ -606,7 +603,7 @@ pub fn validate_with_refs(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// with:/use: template engine (runtime Workflow path)
+// with: template engine (runtime Workflow path)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Escape for JSON string context
@@ -701,15 +698,15 @@ pub fn resolve<'a>(
     datastore: &RunContext,
 ) -> Result<Cow<'a, str>, NikaError> {
     // Early return with borrowed string (zero alloc)
-    // Fast check: must contain `{{` followed eventually by `use.`, `context.`, or `inputs.`
-    // Regex handles whitespace variations like `{{ use.` or `{{\tuse.`
+    // Fast check: must contain `{{` followed eventually by `with.`, `context.`, or `inputs.`
+    // Regex handles whitespace variations like `{{ with.` or `{{\twith.`
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
     }
-    let has_use = template.contains("use.") || template.contains("with.");
+    let has_with = template.contains("with.");
     let has_context = template.contains("context.");
     let has_inputs = template.contains("inputs.");
-    if !has_use && !has_context && !has_inputs {
+    if !has_with && !has_context && !has_inputs {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -979,9 +976,9 @@ pub fn resolve_for_shell<'a>(
     if !template.contains("{{") {
         return Ok(Cow::Borrowed(template));
     }
-    let has_use = template.contains("use.") || template.contains("with.");
+    let has_with = template.contains("with.");
     let has_context = template.contains("context.");
-    if !has_use && !has_context {
+    if !has_with && !has_context {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -2865,17 +2862,6 @@ mod v028_template_tests {
         // Unclosed {{ should be left as literal (TEMPLATE_RE won't match)
         let result = resolve_with("{{incomplete", &with, &ds).unwrap();
         assert_eq!(result, "{{incomplete");
-    }
-
-    #[test]
-    fn resolve_with_old_use_prefix_not_resolved() {
-        // Old {{use.alias}} syntax should NOT be resolved by new engine
-        // "use" is treated as an alias name, not a special prefix
-        let _with = make_with(&[("use.alias", json!("should not match"))]);
-        let ds = empty_datastore();
-        // With no "use" alias in with:, this should error
-        let result = resolve_with("{{use.alias}}", &FxHashMap::default(), &ds);
-        assert!(result.is_err());
     }
 
     #[test]

@@ -413,10 +413,7 @@ fn check_template_hover(line: &str, col: usize) -> Option<Hover> {
 fn get_template_documentation(template: &str) -> String {
     let template = template.trim();
 
-    let alias = template
-        .strip_prefix("with.")
-        .or_else(|| template.strip_prefix("use."));
-    if let Some(alias) = alias {
+    if let Some(alias) = template.strip_prefix("with.") {
         format!(
             "## Binding Reference\n\n\
             **`{{{{with.{}}}}}`**\n\n\
@@ -443,7 +440,7 @@ fn get_template_documentation(template: &str) -> String {
             References an input parameter passed to the workflow.",
             name
         )
-    } else if template == "item" || template == "with.item" || template == "use.item" {
+    } else if template == "item" || template == "with.item" {
         "## Loop Item Reference\n\n\
         **`{{item}}`** or **`{{with.item}}`**\n\n\
         References the current item in a `for_each` loop.\n\n\

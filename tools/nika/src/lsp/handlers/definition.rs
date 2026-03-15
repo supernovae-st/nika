@@ -137,7 +137,7 @@ fn find_task_reference_definition(
     None
 }
 
-/// Find definition for template variable like {{with.alias}} (or legacy {{use.alias}})
+/// Find definition for template variable like {{with.alias}}
 #[cfg(feature = "lsp")]
 fn find_template_definition(
     text: &str,
@@ -155,11 +155,8 @@ fn find_template_definition(
                 let template = &line[abs_start + 2..abs_start + end];
                 let template = template.trim();
 
-                // Handle {{with.alias}} or legacy {{use.alias}} → find with: block
-                let alias = template
-                    .strip_prefix("with.")
-                    .or_else(|| template.strip_prefix("use."));
-                if let Some(alias) = alias {
+                // Handle {{with.alias}} → find with: block
+                if let Some(alias) = template.strip_prefix("with.") {
                     if let Some(location) = find_with_binding_location(text, alias, uri) {
                         return Some(GotoDefinitionResponse::Scalar(location));
                     }
@@ -259,11 +256,8 @@ fn find_template_definition_with_ast(
                 let template = &line[abs_start + 2..abs_start + end];
                 let template = template.trim();
 
-                // Handle {{with.alias}} or legacy {{use.alias}} → find task referenced by binding
-                let alias = template
-                    .strip_prefix("with.")
-                    .or_else(|| template.strip_prefix("use."));
-                if let Some(alias) = alias {
+                // Handle {{with.alias}} → find task referenced by binding
+                if let Some(alias) = template.strip_prefix("with.") {
                     // Try to find the task that this binding references via AST
                     if let Some(location) = find_with_binding_location(text, alias, uri) {
                         return Some(GotoDefinitionResponse::Scalar(location));

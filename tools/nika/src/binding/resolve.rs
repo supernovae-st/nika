@@ -3,12 +3,10 @@
 //! ResolvedBindings holds resolved values from `with:` blocks for template resolution.
 //! Supports both eager (immediate) and lazy (deferred) resolution.
 //!
-//! ## Legacy system (use:) — WiringSpec + UseEntry
+//! ## Binding syntax
 //!
 //! Unified syntax: `alias: task.path [?? default]`
 //! Extended syntax: `alias: {path: task.path, lazy: true}`
-//!
-//! ## New system (with:) — WithSpec + WithEntry
 //!
 //! Rich typed paths with transforms:
 //! ```yaml

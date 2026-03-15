@@ -1,6 +1,6 @@
 //! Binding Module - Data binding between tasks.
 //!
-//! Handles `with:` block data binding (also supports legacy `use:`):
+//! Handles `with:` block data binding:
 //! - `entry`: YAML types (WiringSpec/UseEntry + WithSpec/WithEntry)
 //! - `resolve`: Runtime resolution (ResolvedBindings) with lazy support
 //! - `template`: Template substitution (`{{with.alias}}`)
