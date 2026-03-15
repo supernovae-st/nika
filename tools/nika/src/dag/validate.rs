@@ -40,7 +40,7 @@ pub fn validate_with_bindings(
 
     for task in &workflow.tasks {
         if !task.with_spec.is_empty() {
-            validate_wiring(&task.name, &task.with_spec, &all_task_ids, flow_graph)?;
+            validate_with_spec(&task.name, &task.with_spec, &all_task_ids, flow_graph)?;
         }
 
         validate_template_refs(task)?;
@@ -130,7 +130,7 @@ fn collect_string_values(value: &serde_json::Value, templates: &mut Vec<String>)
 /// 4. Validates the source task is upstream (reachable via DAG path)
 ///
 /// Non-task bindings (Context, Input, Env, LoopVar) are silently skipped.
-fn validate_wiring(
+fn validate_with_spec(
     task_id: &str,
     with_spec: &WithSpec,
     all_task_ids: &FxHashSet<&str>,
@@ -208,7 +208,7 @@ pub fn validate_bindings(workflow: &Workflow, flow_graph: &Dag) -> Result<(), Ni
 
     for task in &workflow.tasks {
         if let Some(ref with_spec) = task.with_spec {
-            validate_wiring(&task.id, with_spec, &all_task_ids, flow_graph)?;
+            validate_with_spec(&task.id, with_spec, &all_task_ids, flow_graph)?;
         }
         validate_template_refs_with(task)?;
     }
@@ -891,7 +891,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn validate_wiring_valid_upstream() {
+    fn validate_with_spec_valid_upstream() {
         // task1 → task2 with binding data: task1.result
         let workflow = build_workflow_with_bindings(&[
             ("task1", &[], &[], &[]),
@@ -903,7 +903,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_unknown_task() {
+    fn validate_with_spec_unknown_task() {
         // task2 references nonexistent via with:
         let workflow = build_workflow_with_bindings(&[
             ("task1", &[], &[], &[]),
@@ -915,7 +915,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_self_reference() {
+    fn validate_with_spec_self_reference() {
         // task1 references itself via with:
         let workflow =
             build_workflow_with_bindings(&[("task1", &[], &[], &[("self_ref", "task1")])]);
@@ -925,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_implicit_dependency_from_with() {
+    fn validate_with_spec_implicit_dependency_from_with() {
         // task3 references task2 via with:, and task2 → task3 via implicit_deps
         let workflow = build_workflow_with_bindings(&[
             ("task1", &[], &[], &[]),
@@ -941,7 +941,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_multiple_dependencies() {
+    fn validate_with_spec_multiple_dependencies() {
         // task3 references task1 and task2
         let workflow = build_workflow_with_bindings(&[
             ("task1", &[], &[], &[]),
@@ -959,7 +959,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_indirect_dependency() {
+    fn validate_with_spec_indirect_dependency() {
         // a → b → c, and c references a (a is upstream via indirect path)
         let workflow = build_workflow_with_bindings(&[
             ("a", &[], &[], &[]),
@@ -972,7 +972,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_non_upstream_task() {
+    fn validate_with_spec_non_upstream_task() {
         // task1 and task2 are disconnected, task2 references task1
         // task1 is NOT upstream of task2 (no path)
         let workflow = build_workflow_with_bindings(&[
@@ -989,7 +989,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn validate_wiring_context_binding_skipped() {
+    fn validate_with_spec_context_binding_skipped() {
         // A context binding should be silently skipped (no task lookup)
         let mut workflow = build_workflow(&[("task1", &[], &[])]);
         workflow.tasks[0].with_spec.insert(
@@ -1012,7 +1012,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_input_binding_skipped() {
+    fn validate_with_spec_input_binding_skipped() {
         let mut workflow = build_workflow(&[("task1", &[], &[])]);
         workflow.tasks[0].with_spec.insert(
             "name".to_string(),
@@ -1028,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_env_binding_skipped() {
+    fn validate_with_spec_env_binding_skipped() {
         let mut workflow = build_workflow(&[("task1", &[], &[])]);
         workflow.tasks[0].with_spec.insert(
             "api_key".to_string(),
@@ -1044,7 +1044,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_wiring_mixed_bindings() {
+    fn validate_with_spec_mixed_bindings() {
         // task2 has both task and non-task bindings
         // Only the task binding should be validated
         let mut workflow =
