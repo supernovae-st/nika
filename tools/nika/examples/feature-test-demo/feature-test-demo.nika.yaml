@@ -18,7 +18,7 @@ schema: nika/workflow@0.12
 workflow: feature-test-demo
 description: |
   Comprehensive Nika feature test workflow.
-  Creates ~/Desktop/output/ with research.json, content.md, summary.txt, index.html
+  Creates ./output/ with research.json, content.md, summary.txt, index.html
   Tests: infer, exec, fetch, invoke, agent, spawn_agent, for_each, context, include,
          lazy bindings, eager bindings, output schemas, MCP servers, parallelism
 
@@ -237,7 +237,7 @@ tasks:
       - research_agent
     exec:
       command: |
-        cat > ~/Desktop/output/research.json << 'JSONEOF'
+        cat > ./output/research.json << 'JSONEOF'
         {{with.research}}
         JSONEOF
         echo "Written: research.json"
@@ -250,7 +250,7 @@ tasks:
       - content_generation
     exec:
       command: |
-        cat > ~/Desktop/output/content.md << 'MDEOF'
+        cat > ./output/content.md << 'MDEOF'
         {{with.all_content}}
         MDEOF
         echo "Written: content.md"
@@ -264,7 +264,7 @@ tasks:
       - content_generation
     exec:
       command: |
-        cat > ~/Desktop/output/summary.txt << 'TXTEOF'
+        cat > ./output/summary.txt << 'TXTEOF'
         {{with.all_content}}
         TXTEOF
         echo "Written: summary.txt"
@@ -278,7 +278,7 @@ tasks:
       - assemble_html
     exec:
       command: |
-        cat > ~/Desktop/output/index.html << 'HTMLEOF'
+        cat > ./output/index.html << 'HTMLEOF'
         {{with.html}}
         HTMLEOF
         echo "Written: index.html"
@@ -299,7 +299,7 @@ tasks:
       - write_index_html
     exec:
       command: |
-        cd ~/Desktop/output && \
+        cd ./output && \
         echo "{\"files\": [" && \
         for f in research.json content.md summary.txt index.html; do
           if [ -f "$$f" ]; then

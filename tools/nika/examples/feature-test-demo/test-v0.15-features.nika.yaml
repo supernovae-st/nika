@@ -36,7 +36,7 @@ tasks:
   - id: test_shell_tilde
     exec:
       command: |
-        mkdir -p ~/Desktop/nika-test-v015 && echo "Created test directory"
+        mkdir -p ./nika-test-v015 && echo "Created test directory"
       shell: true
 
   # Test 4: infer with temperature + system + max_tokens (v0.15.0)

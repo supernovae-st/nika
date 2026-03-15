@@ -14,7 +14,7 @@ tasks:
   # Uses ~ (tilde expansion) which requires shell
   - id: create_output_dir
     exec:
-      command: mkdir -p ~/Desktop/output
+      command: mkdir -p ./output
       shell: true
 
   # Task 2: Fetch health check (test fetch: verb)
