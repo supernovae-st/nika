@@ -22,7 +22,7 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-6,532_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-6,264_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
@@ -119,7 +119,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 ║  ├── KNOWN_MODELS    — 16+ curated models for native inference               ║
 ║  └── MCP_ALIASES     — 48 server aliases for auto-configuration              ║
 ║                                                                               ║
-║  📊 STATS: 6,532 tests | 6 providers | Zero clippy warnings | 0.x.x forever   ║
+║  📊 STATS: 6,264 tests | 6 providers | Zero clippy warnings | 0.x.x forever   ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -1670,7 +1670,7 @@ flows:
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  6,532 passing                                        ║
+║   📊 Tests              │  6,264 passing                                        ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
 ║   🔮 LLM Providers      │  6 (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini) ║
@@ -1693,7 +1693,7 @@ flows:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (6,532 tests)
+pie title 📊 Test Distribution (6,264 tests)
     "🖥️ TUI" : 1800
     "📁 IO" : 150
     "🔗 Binding" : 250
@@ -1722,7 +1722,7 @@ pie title 📊 Test Distribution (6,532 tests)
 | 🔀 `dag/` | 1,914 | 120 | StableGraph, validation |
 | 📊 `event/` | 1,732 | 100 | Event log, traces |
 | 🛠️ `util/` | 1,200 | 350 | Utilities, constants, validation |
-| **Total** | **106,000+** | **6,532** | |
+| **Total** | **106,000+** | **6,264** | |
 
 <br>
 
@@ -2027,7 +2027,7 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (6,532 tests)
+# 🧪 Test (6,264 tests)
 cargo test
 
 # 🔍 Lint

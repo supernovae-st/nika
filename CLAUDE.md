@@ -2,7 +2,7 @@
 
 Semantic YAML workflow engine for AI tasks — DAG execution, MCP integration, multi-provider LLM support.
 
-**Version**: v0.27.0 | **Tests**: 6,532 | **Target**: [QR Code AI](https://qrcode-ai.com)
+**Version**: v0.27.0 | **Tests**: 6,264 | **Target**: [QR Code AI](https://qrcode-ai.com)
 
 ---
 
