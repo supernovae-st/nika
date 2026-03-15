@@ -115,8 +115,7 @@ use std::time::Instant;
 use crate::config::NikaConfig;
 use crate::event::EventKind;
 
-use super::theme::{MissionPhase, TaskStatus, ThemeMode};
-use super::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
+use super::theme::{MissionPhase, TaskStatus};
 #[allow(unused_imports)]
 use super::widgets::{task_box::TokenVelocity, StatusQueue, TimelineEntry};
 
@@ -145,32 +144,10 @@ pub struct TuiState {
     pub task_order: Vec<String>,
 
     // ═══════════════════════════════════════════
-    // UI STATE
+    // SETTINGS (requires NikaConfig at construction)
     // ═══════════════════════════════════════════
-    /// Currently focused panel
-    pub focus: PanelId,
-    /// Current interaction mode
-    pub mode: TuiMode,
-    /// Scroll offset per panel
-    pub scroll: HashMap<PanelId, usize>,
     /// Settings overlay state
     pub settings: SettingsState,
-    /// Chat overlay state (contextual AI assistance)
-    pub chat_overlay: ChatOverlayState,
-    /// Theme mode: dark or light (TIER 2.4)
-    pub theme_mode: ThemeMode,
-
-    // ═══════════════════════════════════════════
-    // TAB STATE
-    // ═══════════════════════════════════════════
-    /// Mission Control panel tab (Progress / IO / Output)
-    pub mission_tab: MissionTab,
-    /// DAG panel tab (Graph / YAML)
-    pub dag_tab: DagTab,
-    /// NovaNet panel tab (Summary / Full JSON)
-    pub novanet_tab: NovanetTab,
-    /// Reasoning panel tab (Turns / Thinking)
-    pub reasoning_tab: ReasoningTab,
 
     // ═══════════════════════════════════════════
     // DEBUG STATE
@@ -252,16 +229,7 @@ impl TuiState {
             tasks: HashMap::new(),
             current_task: None,
             task_order: Vec::new(),
-            focus: PanelId::Progress,
-            mode: TuiMode::Normal,
-            scroll: HashMap::new(),
             settings: SettingsState::new(config),
-            chat_overlay: ChatOverlayState::new(),
-            theme_mode: ThemeMode::default(),
-            mission_tab: MissionTab::default(),
-            dag_tab: DagTab::default(),
-            novanet_tab: NovanetTab::default(),
-            reasoning_tab: ReasoningTab::default(),
             breakpoints: HashSet::new(),
             // P0 Fix: paused field removed - workflow.paused is single source of truth
             step_mode: false,
@@ -1200,32 +1168,32 @@ impl TuiState {
 
     /// Focus next panel
     pub fn focus_next(&mut self) {
-        self.focus = self.focus.next();
+        self.ui.focus = self.ui.focus.next();
     }
 
     /// Focus previous panel
     pub fn focus_prev(&mut self) {
-        self.focus = self.focus.prev();
+        self.ui.focus = self.ui.focus.prev();
     }
 
     /// Focus specific panel by number (1-indexed)
     pub fn focus_panel(&mut self, num: u8) {
-        self.focus = match num {
+        self.ui.focus = match num {
             1 => PanelId::Progress,
             2 => PanelId::Dag,
             3 => PanelId::NovaNet,
             4 => PanelId::Agent,
-            _ => self.focus,
+            _ => self.ui.focus,
         };
     }
 
     /// Cycle tab in the currently focused panel
     pub fn cycle_tab(&mut self) {
-        match self.focus {
-            PanelId::Progress => self.mission_tab = self.mission_tab.next(),
-            PanelId::Dag => self.dag_tab = self.dag_tab.next(),
-            PanelId::NovaNet => self.novanet_tab = self.novanet_tab.next(),
-            PanelId::Agent => self.reasoning_tab = self.reasoning_tab.next(),
+        match self.ui.focus {
+            PanelId::Progress => self.ui.mission_tab = self.ui.mission_tab.next(),
+            PanelId::Dag => self.ui.dag_tab = self.ui.dag_tab.next(),
+            PanelId::NovaNet => self.ui.novanet_tab = self.ui.novanet_tab.next(),
+            PanelId::Agent => self.ui.reasoning_tab = self.ui.reasoning_tab.next(),
         }
     }
 
@@ -1513,7 +1481,7 @@ impl TuiState {
     /// - NovaNet panel: Selected MCP call (params + response)
     /// - Agent panel: Agent turns or thinking content
     pub fn get_copyable_content(&self) -> Option<String> {
-        match self.focus {
+        match self.ui.focus {
             PanelId::Progress => {
                 // Priority: final output > current task output > metrics summary
                 if let Some(ref output) = self.workflow.final_output {

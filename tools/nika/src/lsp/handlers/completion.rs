@@ -560,9 +560,9 @@ fn mcp_server_completions() -> Vec<CompletionItem> {
 fn template_completions(text: &str) -> Vec<CompletionItem> {
     let mut items = vec![
         CompletionItem {
-            label: "use.".to_string(),
+            label: "with.".to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
-            insert_text: Some("use.${1:alias}".to_string()),
+            insert_text: Some("with.${1:alias}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
                 "Reference bound task output.".to_string(),
@@ -684,9 +684,9 @@ fn template_completions_with_ast(
 ) -> Vec<CompletionItem> {
     let mut items = vec![
         CompletionItem {
-            label: "use.".to_string(),
+            label: "with.".to_string(),
             kind: Some(CompletionItemKind::VARIABLE),
-            insert_text: Some("use.${1:alias}".to_string()),
+            insert_text: Some("with.${1:alias}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
                 "Reference bound task output.".to_string(),
@@ -881,7 +881,7 @@ tasks:
         let items = template_completions_with_ast(&index, &uri, text);
 
         // Should have base template completions
-        assert!(items.iter().any(|i| i.label == "use."));
+        assert!(items.iter().any(|i| i.label == "with."));
         assert!(items.iter().any(|i| i.label == "context.files."));
         assert!(items.iter().any(|i| i.label == "inputs."));
 

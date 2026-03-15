@@ -26,7 +26,7 @@ pub fn server_capabilities() -> ServerCapabilities {
         completion_provider: Some(CompletionOptions {
             trigger_characters: Some(vec![
                 ":".to_string(), // After verb names
-                ".".to_string(), // Binding paths (use.alias.field)
+                ".".to_string(), // Binding paths (with.alias.field)
                 "$".to_string(), // Implicit output shorthand
                 "{".to_string(), // Template start {{
             ]),

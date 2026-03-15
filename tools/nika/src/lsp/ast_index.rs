@@ -335,7 +335,7 @@ pub enum AstNode {
     /// Include specification
     Include(String, Span),
 
-    /// Template expression (e.g., {{use.alias}})
+    /// Template expression (e.g., {{with.alias}})
     Template(String, Span),
 
     /// Unknown node

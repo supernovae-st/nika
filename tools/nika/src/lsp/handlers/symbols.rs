@@ -688,7 +688,7 @@ tasks:
   - id: parallel_task
     for_each: ["a", "b", "c"]
     as: item
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 "#;
         let symbols = compute_document_symbols(text);
 

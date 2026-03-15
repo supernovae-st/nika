@@ -117,3 +117,205 @@ fn provider_env_var(provider: &str) -> &'static str {
     // Use KNOWN_PROVIDERS as source of truth
     crate::core::provider_to_env_var(provider).unwrap_or("UNKNOWN_API_KEY")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use secrecy::ExposeSecret;
+    use serial_test::serial;
+
+    // ─── daemon_available ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_daemon_available_always_false() {
+        // Without nika-daemon feature, daemon is never available
+        assert!(!daemon_available());
+    }
+
+    // ─── provider_env_var (private helper) ────────────────────────────────
+
+    #[test]
+    fn test_provider_env_var_known_providers() {
+        assert_eq!(provider_env_var("anthropic"), "ANTHROPIC_API_KEY");
+        assert_eq!(provider_env_var("openai"), "OPENAI_API_KEY");
+        assert_eq!(provider_env_var("mistral"), "MISTRAL_API_KEY");
+        assert_eq!(provider_env_var("groq"), "GROQ_API_KEY");
+        assert_eq!(provider_env_var("deepseek"), "DEEPSEEK_API_KEY");
+        assert_eq!(provider_env_var("gemini"), "GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_provider_env_var_unknown_returns_fallback() {
+        assert_eq!(provider_env_var("nonexistent"), "UNKNOWN_API_KEY");
+        assert_eq!(provider_env_var(""), "UNKNOWN_API_KEY");
+    }
+
+    // ─── try_load_from_fallback ───────────────────────────────────────────
+
+    #[test]
+    fn test_try_load_from_fallback_skips_keychain_in_test_mode() {
+        // cfg!(test) is true, so keychain is always skipped
+        let result = try_load_from_fallback("anthropic", "ANTHROPIC_API_KEY");
+        assert!(!result);
+    }
+
+    // ─── get_secret ───────────────────────────────────────────────────────
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_secret_returns_env_var_value() {
+        let key = "ANTHROPIC_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "sk-ant-test-key-12345");
+        let secret = get_secret("anthropic").await;
+        assert!(secret.is_some());
+        assert_eq!(secret.unwrap().expose_secret(), "sk-ant-test-key-12345");
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_secret_returns_none_when_env_empty() {
+        let key = "DEEPSEEK_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "");
+        let secret = get_secret("deepseek").await;
+        // Empty string is treated as not set
+        assert!(secret.is_none());
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_secret_returns_none_when_env_unset() {
+        let key = "GROQ_API_KEY";
+        let original = std::env::var(key).ok();
+
+        unsafe { std::env::remove_var(key) };
+        // In test mode, keychain is skipped, so returns None
+        let secret = get_secret("groq").await;
+        assert!(secret.is_none());
+
+        // Restore
+        if let Some(v) = original {
+            std::env::set_var(key, v);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_secret_unknown_provider_returns_none() {
+        // Unknown provider maps to UNKNOWN_API_KEY which won't be set
+        let secret = get_secret("nonexistent_provider").await;
+        assert!(secret.is_none());
+    }
+
+    // ─── has_secret ───────────────────────────────────────────────────────
+
+    #[tokio::test]
+    #[serial]
+    async fn test_has_secret_true_when_env_set() {
+        let key = "MISTRAL_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "test-key");
+        assert!(has_secret("mistral").await);
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_has_secret_false_when_env_unset() {
+        let key = "GEMINI_API_KEY";
+        let original = std::env::var(key).ok();
+
+        unsafe { std::env::remove_var(key) };
+        // In test mode, keychain skipped → false
+        assert!(!has_secret("gemini").await);
+
+        // Restore
+        if let Some(v) = original {
+            std::env::set_var(key, v);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_has_secret_unknown_provider_false() {
+        assert!(!has_secret("fantasy_provider").await);
+    }
+
+    // ─── load_from_daemon_or_fallback ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_load_result_daemon_unavailable() {
+        let result = load_from_daemon_or_fallback().await;
+        assert!(!result.daemon_available);
+        assert!(result.from_daemon.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_load_result_only_processes_llm_providers() {
+        let result = load_from_daemon_or_fallback().await;
+        // The combined count should equal the number of LLM providers
+        let llm_count = KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.category == ProviderCategory::Llm)
+            .count();
+        let total = result.from_fallback.len() + result.not_found.len();
+        assert_eq!(
+            total, llm_count,
+            "Should process exactly {} LLM providers, got {} fallback + {} not_found",
+            llm_count, result.from_fallback.len(), result.not_found.len()
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_load_result_detects_env_vars() {
+        let key = "OPENAI_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "sk-test-openai-key");
+        let result = load_from_daemon_or_fallback().await;
+
+        // openai should be in from_fallback (found in env)
+        assert!(
+            result.from_fallback.contains(&"openai".to_string()),
+            "openai should be detected from env, got: {:?}",
+            result.from_fallback
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_result_summary_format() {
+        let result = load_from_daemon_or_fallback().await;
+        let summary = result.summary();
+        assert!(
+            summary.contains("daemon unavailable"),
+            "Summary should indicate daemon unavailable: {}",
+            summary
+        );
+    }
+}

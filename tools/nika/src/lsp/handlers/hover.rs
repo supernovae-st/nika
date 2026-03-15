@@ -86,7 +86,7 @@ pub fn compute_hover_with_ast(
             let docs = format!(
                 "## Binding: `{}`\n\n\
                 References data from another task or context.\n\n\
-                Access via `{{{{use.{}}}}}` in prompts.",
+                Access via `{{{{with.{}}}}}` in prompts.",
                 alias, alias
             );
             Some(Hover {
@@ -373,7 +373,7 @@ fn check_field_hover(line: &str, col: usize) -> Option<Hover> {
 /// Check if cursor is on a template expression
 #[cfg(feature = "lsp")]
 fn check_template_hover(line: &str, col: usize) -> Option<Hover> {
-    // Find template expressions like {{use.alias}} or {{context.files.name}}
+    // Find template expressions like {{with.alias}} or {{context.files.name}}
     let mut search_start = 0;
     while let Some(start) = line[search_start..].find("{{") {
         let abs_start = search_start + start;
@@ -413,13 +413,16 @@ fn check_template_hover(line: &str, col: usize) -> Option<Hover> {
 fn get_template_documentation(template: &str) -> String {
     let template = template.trim();
 
-    if let Some(alias) = template.strip_prefix("use.") {
+    let alias = template
+        .strip_prefix("with.")
+        .or_else(|| template.strip_prefix("use."));
+    if let Some(alias) = alias {
         format!(
             "## Binding Reference\n\n\
-            **`{{{{use.{}}}}}`**\n\n\
-            References the output of a task bound to `{}` in the `use:` block.\n\n\
+            **`{{{{with.{}}}}}`**\n\n\
+            References the output of a task bound to `{}` in the `with:` block.\n\n\
             ```yaml\n\
-            use:\n  {}: task_id\n\
+            with:\n  {}: task_id\n\
             ```",
             alias, alias, alias
         )
@@ -440,9 +443,9 @@ fn get_template_documentation(template: &str) -> String {
             References an input parameter passed to the workflow.",
             name
         )
-    } else if template == "item" || template == "use.item" {
+    } else if template == "item" || template == "with.item" || template == "use.item" {
         "## Loop Item Reference\n\n\
-        **`{{item}}`** or **`{{use.item}}`**\n\n\
+        **`{{item}}`** or **`{{with.item}}`**\n\n\
         References the current item in a `for_each` loop.\n\n\
         ```yaml\n\
         for_each: [\"a\", \"b\", \"c\"]\n\
@@ -580,9 +583,9 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
           - id: step1\n\
             infer: \"Generate content\"\n\
           - id: step2\n\
-            use:\n\
+            with:\n\
               input: step1\n\
-            infer: \"Process: {{use.input}}\"\n\
+            infer: \"Process: {{with.input}}\"\n\
         ```",
     ),
     (
@@ -627,7 +630,7 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         as: locale\n\
         concurrency: 5\n\
         fail_fast: true\n\
-        infer: \"Generate for {{use.locale}}\"\n\
+        infer: \"Generate for {{with.locale}}\"\n\
         ```",
     ),
     (

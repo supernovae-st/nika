@@ -137,7 +137,7 @@ fn find_task_reference_definition(
     None
 }
 
-/// Find definition for template variable like {{use.alias}}
+/// Find definition for template variable like {{with.alias}} (or legacy {{use.alias}})
 #[cfg(feature = "lsp")]
 fn find_template_definition(
     text: &str,
@@ -155,9 +155,12 @@ fn find_template_definition(
                 let template = &line[abs_start + 2..abs_start + end];
                 let template = template.trim();
 
-                // Handle {{use.alias}} → find use: block
-                if let Some(alias) = template.strip_prefix("use.") {
-                    if let Some(location) = find_use_binding_location(text, alias, uri) {
+                // Handle {{with.alias}} or legacy {{use.alias}} → find with: block
+                let alias = template
+                    .strip_prefix("with.")
+                    .or_else(|| template.strip_prefix("use."));
+                if let Some(alias) = alias {
+                    if let Some(location) = find_with_binding_location(text, alias, uri) {
                         return Some(GotoDefinitionResponse::Scalar(location));
                     }
                 }
@@ -256,10 +259,13 @@ fn find_template_definition_with_ast(
                 let template = &line[abs_start + 2..abs_start + end];
                 let template = template.trim();
 
-                // Handle {{use.alias}} → find task referenced by binding
-                if let Some(alias) = template.strip_prefix("use.") {
+                // Handle {{with.alias}} or legacy {{use.alias}} → find task referenced by binding
+                let alias = template
+                    .strip_prefix("with.")
+                    .or_else(|| template.strip_prefix("use."));
+                if let Some(alias) = alias {
                     // Try to find the task that this binding references via AST
-                    if let Some(location) = find_use_binding_location(text, alias, uri) {
+                    if let Some(location) = find_with_binding_location(text, alias, uri) {
                         return Some(GotoDefinitionResponse::Scalar(location));
                     }
                 }
@@ -354,28 +360,28 @@ fn find_task_location(text: &str, task_id: &str, uri: &Url) -> Option<Location> 
     None
 }
 
-/// Find the location of a use: binding by alias
+/// Find the location of a with: binding by alias
 #[cfg(feature = "lsp")]
-fn find_use_binding_location(text: &str, alias: &str, uri: &Url) -> Option<Location> {
+fn find_with_binding_location(text: &str, alias: &str, uri: &Url) -> Option<Location> {
     let pattern = format!("{}:", alias);
-    let mut in_use_block = false;
+    let mut in_with_block = false;
 
     for (line_num, line) in text.lines().enumerate() {
         let trimmed = line.trim();
 
-        // Track when we enter a use: block
-        if trimmed == "use:" || trimmed.starts_with("use:") {
-            in_use_block = true;
+        // Track when we enter a with: block
+        if trimmed == "with:" || trimmed.starts_with("with:") {
+            in_with_block = true;
             continue;
         }
 
-        // Exit use block when we see a non-indented line or new field
-        if in_use_block && !line.starts_with("  ") && !line.starts_with("\t") && !line.is_empty() {
-            in_use_block = false;
+        // Exit with block when we see a non-indented line or new field
+        if in_with_block && !line.starts_with("  ") && !line.starts_with("\t") && !line.is_empty() {
+            in_with_block = false;
         }
 
-        // Check for alias in use block
-        if in_use_block && trimmed.starts_with(&pattern) {
+        // Check for alias in with block
+        if in_with_block && trimmed.starts_with(&pattern) {
             let indent = line.len() - trimmed.len();
             return Some(Location {
                 uri: uri.clone(),
@@ -464,16 +470,16 @@ tasks:
 
     #[test]
     #[cfg(feature = "lsp")]
-    fn test_find_use_binding_location() {
+    fn test_find_with_binding_location() {
         let text = r#"
 - id: step2
-  use:
+  with:
     input: step1
     data: other_task
-  infer: "Process {{use.input}}"
+  infer: "Process {{with.input}}"
 "#;
         let uri = Url::parse("file:///test.nika.yaml").unwrap();
-        let location = find_use_binding_location(text, "input", &uri);
+        let location = find_with_binding_location(text, "input", &uri);
 
         assert!(location.is_some());
         let loc = location.unwrap();
