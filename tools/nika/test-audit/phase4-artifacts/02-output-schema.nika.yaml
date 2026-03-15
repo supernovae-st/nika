@@ -26,10 +26,10 @@ tasks:
 
   - id: verify
     depends_on: [structured_output]
-    use:
+    with:
       product: structured_output
     infer: |
-      Product: {{use.product}}
+      Product: {{with.product}}
 
       If it's valid JSON with name, price, and inStock fields, return "PASS".
       Otherwise return "FAIL".

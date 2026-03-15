@@ -14,7 +14,7 @@ tasks:
       max_turns: 2
 
   - id: process_result
-    use:
+    with:
       analysis: simple_agent
     exec:
       command: "echo 'Agent test completed successfully. Output received.'"

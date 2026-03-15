@@ -9,4 +9,4 @@ tasks:
       tool: nika:run
       params:
         workflow: ./test-audit/workflows/test-nested-child.nika.yaml
-    use.ctx: run_result
+    with.ctx: run_result

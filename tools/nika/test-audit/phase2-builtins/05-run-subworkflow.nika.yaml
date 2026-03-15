@@ -19,10 +19,10 @@ tasks:
         workflow: "./test-audit/phase2-builtins/sub-workflow.nika.yaml"
 
   - id: verify
-    use:
+    with:
       sub_result: run_sub
     infer: |
-      Sub-workflow result: {{use.sub_result}}
+      Sub-workflow result: {{with.sub_result}}
 
       If result contains "SUB_RESULT_OK", return "PASS".
       Otherwise return "FAIL: <result>".

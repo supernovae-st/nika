@@ -11,28 +11,28 @@ tasks:
       {"user": {"name": "Alice", "address": {"city": "Paris", "zip": "75001"}}, "active": true}
 
   - id: access_shallow
-    use:
+    with:
       data: produce_nested
     infer: |
-      Data: {{use.data}}
+      Data: {{with.data}}
 
       Parse the JSON and return ONLY the value of the "active" field (true or false).
 
   - id: access_deep
-    use:
+    with:
       data: produce_nested
     infer: |
-      Data: {{use.data}}
+      Data: {{with.data}}
 
       Parse the JSON and return ONLY the city name from user.address.city.
 
   - id: verify
-    use:
+    with:
       active: access_shallow
       city: access_deep
     infer: |
-      Active: {{use.active}}
-      City: {{use.city}}
+      Active: {{with.active}}
+      City: {{with.city}}
 
       If active is "true" and city is "Paris", return "PASS".
-      Otherwise return "FAIL: active={{use.active}}, city={{use.city}}".
+      Otherwise return "FAIL: active={{with.active}}, city={{with.city}}".

@@ -10,15 +10,15 @@ tasks:
     for_each: ["apple", "banana", "cherry"]
     as: fruit
     infer: |
-      Process fruit: {{use.fruit}}
+      Process fruit: {{with.fruit}}
       Return: "Processed <fruit>"
 
   - id: verify
     depends_on: [process_items]
-    use:
+    with:
       results: process_items
     infer: |
-      Results: {{use.results}}
+      Results: {{with.results}}
 
       If all 3 fruits were processed, return "PASS".
       Otherwise return "FAIL".

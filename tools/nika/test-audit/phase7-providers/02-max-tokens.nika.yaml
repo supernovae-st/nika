@@ -13,10 +13,10 @@ tasks:
 
   - id: verify
     depends_on: [limited_output]
-    use:
+    with:
       story: limited_output
     infer: |
-      Story output: {{use.story}}
+      Story output: {{with.story}}
 
       The output should be very short (truncated to ~20 tokens).
       If the output is less than 100 characters, return "PASS".

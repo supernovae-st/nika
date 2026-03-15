@@ -11,34 +11,34 @@ tasks:
       Just the number, nothing else.
 
   - id: step2
-    use:
+    with:
       val: step1
     infer: |
-      Input value: {{use.val}}
+      Input value: {{with.val}}
 
       Add 50 to it and return just the result number.
 
   - id: step3
-    use:
+    with:
       val: step2
     infer: |
-      Input value: {{use.val}}
+      Input value: {{with.val}}
 
       Multiply by 2 and return just the result number.
 
   - id: step4
-    use:
+    with:
       val: step3
     infer: |
-      Input value: {{use.val}}
+      Input value: {{with.val}}
 
       Subtract 100 and return just the result number.
 
   - id: verify
-    use:
+    with:
       final: step4
     infer: |
-      Final value: {{use.final}}
+      Final value: {{with.final}}
 
       Expected: (100 + 50) * 2 - 100 = 200
 

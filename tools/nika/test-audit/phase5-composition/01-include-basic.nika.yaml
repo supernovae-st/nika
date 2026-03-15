@@ -12,9 +12,9 @@ include:
 tasks:
   - id: main_task
     depends_on: [setup_init]
-    use:
+    with:
       init_result: setup_init
     infer: |
-      Init result: {{use.init_result}}
+      Init result: {{with.init_result}}
       If it says "INIT_COMPLETE", return "PASS".
       Otherwise return "FAIL".

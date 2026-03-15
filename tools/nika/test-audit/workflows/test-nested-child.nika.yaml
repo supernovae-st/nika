@@ -10,7 +10,7 @@ tasks:
       params:
         level: info
         message: "Hello from nested child workflow!"
-    use.ctx: child_result
+    with.ctx: child_result
 
   - id: child_emit
     invoke:
@@ -20,7 +20,7 @@ tasks:
         payload:
           from: nested_child
           success: true
-    use.ctx: emit_result
+    with.ctx: emit_result
 
 flows:
   - source: child_log

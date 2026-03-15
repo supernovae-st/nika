@@ -11,28 +11,28 @@ tasks:
       ["apple", "banana", "cherry", "date"]
 
   - id: access_first
-    use:
+    with:
       items: produce_array
     infer: |
-      Array: {{use.items}}
+      Array: {{with.items}}
 
       Return ONLY the first element of the array.
 
   - id: access_third
-    use:
+    with:
       items: produce_array
     infer: |
-      Array: {{use.items}}
+      Array: {{with.items}}
 
       Return ONLY the third element of the array (index 2).
 
   - id: verify
-    use:
+    with:
       first: access_first
       third: access_third
     infer: |
-      First element: {{use.first}}
-      Third element: {{use.third}}
+      First element: {{with.first}}
+      Third element: {{with.third}}
 
       If first is "apple" and third is "cherry", return "PASS".
-      Otherwise return "FAIL: first={{use.first}}, third={{use.third}}".
+      Otherwise return "FAIL: first={{with.first}}, third={{with.third}}".

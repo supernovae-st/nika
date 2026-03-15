@@ -13,20 +13,20 @@ tasks:
 
   - id: process_items
     depends_on: [generate_items]
-    use:
+    with:
       items: generate_items
     for_each: $items
     as: color
     infer: |
-      Process color: {{use.color}}
+      Process color: {{with.color}}
       Return: "Color is <color>"
 
   - id: verify
     depends_on: [process_items]
-    use:
+    with:
       results: process_items
     infer: |
-      Results: {{use.results}}
+      Results: {{with.results}}
 
       If all 3 colors (red, green, blue) were processed, return "PASS".
       Otherwise return "FAIL".

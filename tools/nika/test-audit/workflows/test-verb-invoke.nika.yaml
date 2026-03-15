@@ -14,7 +14,7 @@ tasks:
         duration: "100ms"
 
   - id: test_log
-    use:
+    with:
       sleep_result: test_sleep
     invoke:
       mcp: dummy

@@ -13,6 +13,6 @@ tasks:
 
   - id: step2
     # NO depends_on here - the use: block should create implicit dependency
-    use:
+    with:
       data: step1
-    infer: "Repeat back what you received: {{use.data}}"
+    infer: "Repeat back what you received: {{with.data}}"

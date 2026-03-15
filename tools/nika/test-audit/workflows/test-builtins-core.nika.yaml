@@ -11,7 +11,7 @@ tasks:
       tool: nika:sleep
       params:
         duration: "100ms"
-    use.ctx: sleep_result
+    with.ctx: sleep_result
 
   # 2. nika:log - Should emit log at info level
   - id: test_log_info
@@ -20,7 +20,7 @@ tasks:
       params:
         level: info
         message: "Test log message from builtin audit"
-    use.ctx: log_result
+    with.ctx: log_result
 
   # 3. nika:log - Test warn level
   - id: test_log_warn
@@ -29,7 +29,7 @@ tasks:
       params:
         level: warn
         message: "Warning message test"
-    use.ctx: warn_result
+    with.ctx: warn_result
 
   # 4. nika:emit - Should emit custom event
   - id: test_emit
@@ -40,7 +40,7 @@ tasks:
         payload:
           test: true
           timestamp: "2024-01-01"
-    use.ctx: emit_result
+    with.ctx: emit_result
 
   # 5. nika:assert - Should pass with true condition
   - id: test_assert_pass
@@ -49,7 +49,7 @@ tasks:
       params:
         condition: true
         message: "This assertion should pass"
-    use.ctx: assert_result
+    with.ctx: assert_result
 
   # 6. nika:prompt - Should use default in headless mode
   - id: test_prompt
@@ -58,7 +58,7 @@ tasks:
       params:
         message: "Do you confirm?"
         default: "yes_default_used"
-    use.ctx: prompt_result
+    with.ctx: prompt_result
 
 flows:
   - source: test_sleep

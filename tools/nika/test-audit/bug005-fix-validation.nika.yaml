@@ -11,8 +11,8 @@ tasks:
     infer: 'Return EXACTLY this JSON array (nothing else): ["red", "green", "blue"]'
 
   - id: process_items
-    use:
+    with:
       items: generate_items
     for_each: $items
     as: color
-    infer: "Color received: {{use.color}}"
+    infer: "Color received: {{with.color}}"

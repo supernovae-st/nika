@@ -12,10 +12,10 @@ tasks:
 
   - id: consume_data
     depends_on: [produce_data]
-    use:
+    with:
       data: produce_data
     infer: |
-      You received this data: {{use.data}}
+      You received this data: {{with.data}}
 
       Extract the name and price, then return EXACTLY:
       {"received_name": "<name>", "received_price": <price>}

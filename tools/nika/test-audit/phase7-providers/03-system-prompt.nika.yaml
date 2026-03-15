@@ -13,10 +13,10 @@ tasks:
 
   - id: verify
     depends_on: [with_system]
-    use:
+    with:
       response: with_system
     infer: |
-      Response: {{use.response}}
+      Response: {{with.response}}
 
       If the response contains pirate language (like "Arrr", "matey", "ahoy", etc.), return "PASS".
       Otherwise return "FAIL".

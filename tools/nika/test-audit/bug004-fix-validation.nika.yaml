@@ -11,16 +11,16 @@ tasks:
     infer: "Return EXACTLY: SOURCE"
 
   - id: branch_a
-    use:
+    with:
       data: source
-    infer: "Return EXACTLY: BRANCH_A (received {{use.data}})"
+    infer: "Return EXACTLY: BRANCH_A (received {{with.data}})"
 
   - id: branch_b
-    use:
+    with:
       data: source
-    infer: "Return EXACTLY: BRANCH_B (received {{use.data}})"
+    infer: "Return EXACTLY: BRANCH_B (received {{with.data}})"
 
   - id: final
-    use:
+    with:
       data: branch_b
-    infer: "Return EXACTLY: FINAL (received {{use.data}})"
+    infer: "Return EXACTLY: FINAL (received {{with.data}})"

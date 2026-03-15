@@ -23,10 +23,10 @@ tasks:
 
   - id: verify
     depends_on: [search]
-    use:
+    with:
       result: search
     infer: |
-      Search result: {{use.result}}
+      Search result: {{with.result}}
 
       If the result contains information about Rust programming, return "PASS".
       Otherwise return "FAIL".

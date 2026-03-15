@@ -18,12 +18,12 @@ tasks:
 
   - id: verify
     depends_on: [gpt4o_mini, gpt4o]
-    use:
+    with:
       mini_response: gpt4o_mini
       full_response: gpt4o
     infer: |
-      Mini model said: {{use.mini_response}}
-      Full model said: {{use.full_response}}
+      Mini model said: {{with.mini_response}}
+      Full model said: {{with.full_response}}
 
       Both tasks should have executed successfully (we got responses).
       Return "PASS" if both responses contain text.

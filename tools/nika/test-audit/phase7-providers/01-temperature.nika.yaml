@@ -18,12 +18,12 @@ tasks:
 
   - id: verify
     depends_on: [low_temp, high_temp]
-    use:
+    with:
       low: low_temp
       high: high_temp
     infer: |
-      Low temperature result: {{use.low}}
-      High temperature result: {{use.high}}
+      Low temperature result: {{with.low}}
+      High temperature result: {{with.high}}
 
       Both should be single words. Return "PASS" if both are valid words.
       Return "FAIL" otherwise.

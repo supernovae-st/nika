@@ -12,7 +12,7 @@ tasks:
       params:
         pattern: "*.yaml"
         path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data"
-    use.ctx: glob_result
+    with.ctx: glob_result
 
   # 2. nika:read - Read file with line numbers
   - id: test_read
@@ -20,7 +20,7 @@ tasks:
       tool: nika:read
       params:
         file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/test-file.txt"
-    use.ctx: read_result
+    with.ctx: read_result
 
   # 3. nika:write - Create/overwrite file
   - id: test_write
@@ -29,7 +29,7 @@ tasks:
       params:
         file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
         content: "Written by nika:write tool\nSecond line"
-    use.ctx: write_result
+    with.ctx: write_result
 
   # 4. nika:read again to verify write worked
   - id: verify_write
@@ -37,7 +37,7 @@ tasks:
       tool: nika:read
       params:
         file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
-    use.ctx: verify_result
+    with.ctx: verify_result
 
   # 5. nika:edit - Modify file (old_string -> new_string)
   - id: test_edit
@@ -47,7 +47,7 @@ tasks:
         file_path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/output.txt"
         old_string: "Second line"
         new_string: "Modified second line"
-    use.ctx: edit_result
+    with.ctx: edit_result
 
   # 6. nika:grep - Search content with regex
   - id: test_grep
@@ -56,7 +56,7 @@ tasks:
       params:
         pattern: "Line [0-9]+"
         path: "/Users/thibaut/dev/supernovae/nika/tools/nika/test-audit/data/test-file.txt"
-    use.ctx: grep_result
+    with.ctx: grep_result
 
 flows:
   - source: test_glob

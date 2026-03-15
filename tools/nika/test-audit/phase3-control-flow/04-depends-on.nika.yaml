@@ -14,18 +14,18 @@ tasks:
 
   - id: step_c
     depends_on: [step_a, step_b]
-    use:
+    with:
       a: step_a
       b: step_b
     infer: |
-      A = {{use.a}}
-      B = {{use.b}}
+      A = {{with.a}}
+      B = {{with.b}}
       Concatenate and return: "<A><B>"
 
   - id: verify
     depends_on: [step_c]
-    use:
+    with:
       result: step_c
     infer: |
-      Result: {{use.result}}
+      Result: {{with.result}}
       If result is "AB", return "PASS". Otherwise "FAIL".
