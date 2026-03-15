@@ -102,9 +102,9 @@ tasks:
     provider: claude
     model: claude-3-5-haiku-latest
     artifact:
-      path: "./outputs/result.json"
+      path: "./outputs/result-{{with.timestamp}}.json"
       format: json
-    description: "Save output as artifact with template path"
+    description: "Save output as artifact with dynamic binding path"
 
   # ─────────────────────────────────────────────────────────────────────────
   # TEST 6: agent: verb — Multi-turn agentic loop (optional, needs MCP)

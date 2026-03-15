@@ -224,12 +224,16 @@ async fn write_single_artifact(
         ArtifactFormat::Yaml => OutputFormat::Text, // YAML treated as text for validation
     };
 
+    // Pre-resolve {{with.*}} and {{output}} binding references in the path
+    // before the TemplateResolver handles {{task_id}}, {{date}}, etc.
+    let resolved_path = resolve_artifact_path_bindings(&output_spec.path, output, bindings);
+
     // Normalize the artifact path to prevent doubled paths when user specifies
     // full path like ./artifacts/custom.txt instead of just custom.txt
     let artifact_dir_str = workflow_config
         .and_then(|c| c.dir.as_deref())
         .unwrap_or(DEFAULT_ARTIFACT_DIR);
-    let normalized_path = normalize_artifact_path(&output_spec.path, artifact_dir_str);
+    let normalized_path = normalize_artifact_path(&resolved_path, artifact_dir_str);
 
     // Build write request - we need to keep output_format for WriteResult
     let request = WriteRequest::new(task_id, &normalized_path)
@@ -353,6 +357,126 @@ async fn resolve_artifact_dir(
 
     // Canonicalize to resolve symlinks (important for macOS /var -> /private/var)
     artifact_dir.canonicalize().unwrap_or(artifact_dir)
+}
+
+/// Sanitize a value for safe use in file paths.
+///
+/// Replaces path-dangerous characters with underscores and truncates
+/// to prevent excessively long paths. This is the security boundary
+/// where user-controlled binding values enter the filesystem path context.
+fn sanitize_for_path(value: &str) -> String {
+    value
+        .replace(['/', '\\'], "_")
+        .replace('\0', "")
+        .replace("..", "_")
+        .replace('~', "_")
+        .chars()
+        .take(200)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+/// Pre-resolve `{{with.*}}` and `{{output}}` binding references in an artifact path.
+///
+/// This is a targeted pre-pass that resolves binding-based templates in artifact
+/// paths before they reach the `TemplateResolver` (which handles `{{task_id}}`,
+/// `{{date}}`, etc.). The two template systems remain independent.
+///
+/// Supported patterns:
+/// - `{{with.alias}}` — Resolves from the task's `with:` bindings
+/// - `{{output}}` — Resolves to the current task's output (sanitized)
+///
+/// Values are sanitized via `sanitize_for_path()` to prevent path traversal.
+/// Unresolved `{{with.*}}` references are left as-is (will error in TemplateResolver).
+fn resolve_artifact_path_bindings(path: &str, output: &str, bindings: &ResolvedBindings) -> String {
+    let mut result = path.to_string();
+    let mut pos = 0;
+
+    while let Some(start) = result[pos..].find("{{") {
+        let start = pos + start;
+        let Some(end) = result[start..].find("}}") else {
+            break;
+        };
+        let end = start + end + 2;
+
+        let var_name = result[start + 2..end - 2].trim();
+
+        if var_name == "output" {
+            let sanitized = sanitize_for_path(output.trim());
+            result.replace_range(start..end, &sanitized);
+            pos = start + sanitized.len();
+        } else if let Some(alias) = var_name.strip_prefix("with.") {
+            // Extract top-level alias (e.g., "with.timestamp" → "timestamp")
+            let top_alias = alias.split('.').next().unwrap_or(alias);
+            if let Some(value) = bindings.get(top_alias) {
+                // For nested paths like "with.data.name", do JSONPath-like access
+                let raw_value = if alias.contains('.') {
+                    // Navigate into the JSON value
+                    let parts: Vec<&str> = alias.splitn(2, '.').collect();
+                    if parts.len() == 2 {
+                        json_path_value(value, parts[1])
+                    } else {
+                        value_to_string(value)
+                    }
+                } else {
+                    value_to_string(value)
+                };
+                let sanitized = sanitize_for_path(&raw_value);
+                result.replace_range(start..end, &sanitized);
+                pos = start + sanitized.len();
+            } else {
+                // Unknown alias — leave as-is for TemplateResolver to handle/error
+                pos = end;
+            }
+        } else {
+            // Not a binding reference (e.g., {{task_id}}, {{date}}) — skip
+            pos = end;
+        }
+    }
+
+    result
+}
+
+/// Convert a serde_json::Value to a path-friendly string
+fn value_to_string(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => "null".to_string(),
+        // Arrays and objects get compact JSON representation
+        other => other.to_string(),
+    }
+}
+
+/// Simple dot-path navigation into a serde_json::Value
+fn json_path_value(value: &serde_json::Value, path: &str) -> String {
+    let mut current = value;
+    for part in path.split('.') {
+        match current {
+            serde_json::Value::Object(map) => {
+                if let Some(next) = map.get(part) {
+                    current = next;
+                } else {
+                    return format!("{{{{with.{}}}}}", path);
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                if let Ok(idx) = part.parse::<usize>() {
+                    if let Some(next) = arr.get(idx) {
+                        current = next;
+                    } else {
+                        return format!("{{{{with.{}}}}}", path);
+                    }
+                } else {
+                    return format!("{{{{with.{}}}}}", path);
+                }
+            }
+            _ => return format!("{{{{with.{}}}}}", path),
+        }
+    }
+    value_to_string(current)
 }
 
 /// Normalize artifact output path to prevent doubled paths
@@ -761,5 +885,195 @@ mod tests {
         let artifact_content = std::fs::read_to_string(&result.paths[0]).unwrap();
         // On template resolution failure, it uses the raw template
         assert_eq!(artifact_content, "Hello {{with.missing}}!");
+    }
+
+    // ========== resolve_artifact_path_bindings tests ==========
+
+    #[test]
+    fn test_path_bindings_with_alias() {
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("timestamp", serde_json::json!("2024-01-15_14-30-00"));
+
+        let result = resolve_artifact_path_bindings(
+            "./outputs/result-{{with.timestamp}}.json",
+            "task output",
+            &bindings,
+        );
+        assert_eq!(result, "./outputs/result-2024-01-15_14-30-00.json");
+    }
+
+    #[test]
+    fn test_path_bindings_output() {
+        let bindings = ResolvedBindings::default();
+
+        let result =
+            resolve_artifact_path_bindings("./outputs/{{output}}.json", "my-report", &bindings);
+        assert_eq!(result, "./outputs/my-report.json");
+    }
+
+    #[test]
+    fn test_path_bindings_mixed_with_builtins() {
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("locale", serde_json::json!("fr-FR"));
+
+        // {{with.locale}} should resolve, {{task_id}} should be left for TemplateResolver
+        let result = resolve_artifact_path_bindings(
+            "{{task_id}}/{{with.locale}}/output.json",
+            "",
+            &bindings,
+        );
+        assert_eq!(result, "{{task_id}}/fr-FR/output.json");
+    }
+
+    #[test]
+    fn test_path_bindings_nested_json() {
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("meta", serde_json::json!({"slug": "qr-code", "version": 2}));
+
+        let result = resolve_artifact_path_bindings(
+            "./outputs/{{with.meta.slug}}-v{{with.meta.version}}.json",
+            "",
+            &bindings,
+        );
+        assert_eq!(result, "./outputs/qr-code-v2.json");
+    }
+
+    #[test]
+    fn test_path_bindings_sanitizes_slashes() {
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("name", serde_json::json!("../../etc/passwd"));
+
+        let result = resolve_artifact_path_bindings("./outputs/{{with.name}}.txt", "", &bindings);
+        // Path traversal characters should be sanitized
+        assert!(!result.contains(".."));
+        assert!(!result.contains("etc/passwd"));
+    }
+
+    #[test]
+    fn test_path_bindings_sanitizes_output() {
+        let bindings = ResolvedBindings::default();
+
+        let result = resolve_artifact_path_bindings(
+            "./outputs/{{output}}.txt",
+            "../../../etc/passwd",
+            &bindings,
+        );
+        assert!(!result.contains("../"));
+        assert!(!result.contains("etc/passwd"));
+    }
+
+    #[test]
+    fn test_path_bindings_unknown_alias_preserved() {
+        let bindings = ResolvedBindings::default();
+
+        // Unknown binding should be left as-is
+        let result =
+            resolve_artifact_path_bindings("./outputs/{{with.unknown}}.json", "", &bindings);
+        assert_eq!(result, "./outputs/{{with.unknown}}.json");
+    }
+
+    #[test]
+    fn test_path_bindings_no_bindings_passthrough() {
+        let bindings = ResolvedBindings::default();
+
+        // Path with no binding references should pass through unchanged
+        let result =
+            resolve_artifact_path_bindings("{{task_id}}/{{date}}/output.json", "", &bindings);
+        assert_eq!(result, "{{task_id}}/{{date}}/output.json");
+    }
+
+    #[test]
+    fn test_path_bindings_truncates_long_values() {
+        let mut bindings = ResolvedBindings::default();
+        let long_value = "a".repeat(300);
+        bindings.set("name", serde_json::json!(long_value));
+
+        let result = resolve_artifact_path_bindings("{{with.name}}.txt", "", &bindings);
+        // sanitize_for_path truncates to 200 chars
+        assert!(result.len() <= 204); // 200 + ".txt"
+    }
+
+    #[tokio::test]
+    async fn test_e2e_artifact_path_with_bindings() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        let mut bindings = ResolvedBindings::default();
+        bindings.set("timestamp", serde_json::json!("2024-01-15_14-30-00"));
+
+        let datastore = RunContext::new();
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "result-{{with.timestamp}}.json".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Json),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "save_result",
+            r#"{"status": "ok"}"#,
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        assert_eq!(
+            result.written, 1,
+            "Expected 1 artifact written, errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result.paths[0]
+                .display()
+                .to_string()
+                .contains("result-2024-01-15_14-30-00.json"),
+            "Expected resolved path, got: {}",
+            result.paths[0].display()
+        );
+    }
+
+    // ========== sanitize_for_path tests ==========
+
+    #[test]
+    fn test_sanitize_for_path_clean() {
+        assert_eq!(sanitize_for_path("hello-world"), "hello-world");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_slashes() {
+        assert_eq!(sanitize_for_path("a/b/c"), "a_b_c");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_backslashes() {
+        assert_eq!(sanitize_for_path("a\\b\\c"), "a_b_c");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_dotdot() {
+        assert_eq!(sanitize_for_path("../escape"), "__escape");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_null() {
+        assert_eq!(sanitize_for_path("a\0b"), "ab");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_tilde() {
+        assert_eq!(sanitize_for_path("~/home"), "__home");
+    }
+
+    #[test]
+    fn test_sanitize_for_path_truncation() {
+        let long = "x".repeat(300);
+        assert_eq!(sanitize_for_path(&long).len(), 200);
     }
 }
