@@ -268,7 +268,7 @@ fn kahn_sort(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::analyzed::{AnalyzedTask, AnalyzedWorkflow};
+    use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow};
     use crate::binding::WithSpec;
     use crate::source::Span;
 
@@ -295,7 +295,7 @@ mod tests {
                 id,
                 name: name.to_string(),
                 description: None,
-                action: crate::ast::analyzed::task::AnalyzedTaskAction::default(),
+                action: AnalyzedTaskAction::default(),
                 provider: None,
                 model: None,
                 with_spec: WithSpec::default(),
@@ -474,7 +474,7 @@ mod tests {
             id,
             name: name.to_string(),
             description: None,
-            action: crate::ast::analyzed::task::AnalyzedTaskAction::default(),
+            action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
             with_spec: WithSpec::default(),
@@ -547,7 +547,7 @@ mod tests {
             id: id_src,
             name: "src".to_string(),
             description: None,
-            action: crate::ast::analyzed::task::AnalyzedTaskAction::default(),
+            action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
             with_spec: WithSpec::default(),
@@ -570,7 +570,7 @@ mod tests {
             id: id_sink,
             name: "sink".to_string(),
             description: None,
-            action: crate::ast::analyzed::task::AnalyzedTaskAction::default(),
+            action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
             with_spec: WithSpec::default(),
@@ -704,7 +704,7 @@ mod tests {
             id,
             name: name.to_string(),
             description: None,
-            action: crate::ast::analyzed::task::AnalyzedTaskAction::default(),
+            action: AnalyzedTaskAction::default(),
             provider: None,
             model: None,
             with_spec: WithSpec::default(),
