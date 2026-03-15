@@ -179,6 +179,7 @@ pub fn mask_api_key(key: &str, visible_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
     use tempfile::TempDir;
 
@@ -233,6 +234,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_env_overrides_config() {
         // Set env var
         env::set_var("ANTHROPIC_API_KEY", "sk-ant-from-env");
@@ -254,6 +256,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_env_does_not_override_with_empty() {
         env::set_var("OPENAI_API_KEY", "");
 
