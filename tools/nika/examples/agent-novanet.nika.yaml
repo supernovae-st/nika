@@ -39,7 +39,7 @@ tasks:
         Generate native French content for the QR Code homepage hero block.
 
         INSTRUCTIONS:
-        1. Use novanet_generate to get full context for entity "qr-code" in locale "fr-FR"
+        1. Use novanet_context to get full context for entity "qr-code" in locale "fr-FR"
         2. Use the denomination_forms EXACTLY as provided (no paraphrasing)
         3. Generate a JSON object with:
            - title: H1 for the hero (use denomination_forms.title)

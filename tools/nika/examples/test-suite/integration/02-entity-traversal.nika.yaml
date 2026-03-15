@@ -13,7 +13,7 @@
 
 schema: "nika/workflow@0.12"
 workflow: test-entity-traversal
-description: "Test NovaNet search, traverse, and introspect tools"
+description: "Test NovaNet search, walk, and introspect tools"
 
 mcp:
   novanet:
@@ -56,19 +56,18 @@ tasks:
       format: json
     flow: [introspect_entity]
 
-  # Test 3: novanet_traverse - Explore from entity
+  # Test 3: novanet_search (walk mode) - Explore from entity
   - id: traverse_entity
-    description: "Traverse from entity to related nodes"
+    description: "Walk from entity to related nodes"
     invoke:
       server: novanet
-      tool: novanet_traverse
+      tool: novanet_search
       params:
+        query: "qr-code"
+        mode: walk
         start_key: "entity:qr-code"
         max_depth: 2
         direction: outgoing
-        arc_families:
-          - localization
-          - ownership
     output:
       format: json
     flow: [search_entities]

@@ -1,7 +1,7 @@
 # Invoke NovaNet MCP Tools
 #
 # Demonstrates the invoke verb for direct MCP tool calls.
-# Builds a pipeline: schema -> context -> traversal -> content generation.
+# Builds a pipeline: schema -> context -> walk -> content generation.
 #
 # Usage:
 #   nika examples/invoke-novanet.nika.yaml
@@ -49,30 +49,30 @@ tasks:
       graph_schema: $schema
     invoke:
       server: novanet
-      tool: novanet_assemble
+      tool: novanet_context
       params:
         focus_key: "entity:qr-code"
         locale: fr-FR
+        mode: assemble
         token_budget: 10000
-        include_entities: true
-        include_knowledge: true
     output:
       format: json
     flow: [schema]
 
-  # Step 3: Traverse from entity to its native content
+  # Step 3: Walk from entity to its native content
   - id: traverse_native
-    description: "Traverse to native content"
+    description: "Walk to native content"
     with:
       ctx: $entity_context
     invoke:
       server: novanet
-      tool: novanet_traverse
+      tool: novanet_search
       params:
+        query: "qr-code"
+        mode: walk
         start_key: "entity:qr-code"
         max_depth: 1
         direction: outgoing
-        arc_families: [localization]
     output:
       format: json
     flow: [entity_context]
