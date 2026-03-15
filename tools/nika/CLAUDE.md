@@ -2,7 +2,7 @@
 
 DAG workflow runner for AI tasks with MCP integration.
 
-**v0.27.0** | 5,054 tests | Zero clippy warnings
+**v0.27.0** | 6,542 tests | Zero clippy warnings
 
 ---
 
@@ -31,7 +31,7 @@ tools/nika/src/
 ├── provider/         # LLM providers
 │   ├── rig.rs        # RigProvider (6 cloud providers via rig-core v0.32)
 │   └── native/       # NativeRuntime (mistral.rs for GGUF models)
-├── binding/          # Data flow ({{with.alias}} or {{use.alias}})
+├── binding/          # Data flow ({{with.alias}})
 ├── event/            # NDJSON trace (22 event variants)
 ├── secrets/          # Keychain + daemon IPC
 ├── tui/              # 4-view Terminal UI
@@ -161,7 +161,7 @@ Navigation: `Tab` cycles forward, `Shift+Tab` backward, `1-4` jump directly.
 
 ## Binding Syntax
 
-Both `with:` and `use:` are supported (aliased):
+Use `with:` blocks to bind task outputs:
 
 ```yaml
 tasks:
@@ -175,7 +175,7 @@ tasks:
 ```
 
 Template patterns:
-- `{{with.alias}}` / `{{use.alias}}` - Task output
+- `{{with.alias}}` - Task output
 - `{{with.data.field}}` - Nested JSON access
 - `{{with.items[0]}}` - Array indexing
 - `{{context.files.X}}` - Context file
@@ -195,6 +195,7 @@ Template patterns:
 | `@0.9` | +context: file loading, +include: DAG fusion |
 | `@0.10` | +three-phase AST, +analyzer validation |
 | `@0.11` | +native inference (mistral.rs) |
+| `@0.12` | +exec.env, +fetch.json, +inputs refs, +$inputs binding |
 
 ---
 

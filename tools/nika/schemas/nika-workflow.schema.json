@@ -203,7 +203,7 @@
             },
             {
               "type": "string",
-              "pattern": "^\\{\\{(with|use|inputs|context)\\.[a-z][a-z0-9_.]*\\}\\}$",
+              "pattern": "^\\{\\{(with|inputs|context)\\.[a-z][a-z0-9_.]*\\}\\}$",
               "description": "Template binding to an array (e.g., {{with.items}}, {{inputs.locales}})"
             }
           ],
