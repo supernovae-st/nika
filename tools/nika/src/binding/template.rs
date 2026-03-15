@@ -2940,12 +2940,21 @@ mod v028_template_tests {
 
     #[test]
     fn resolve_alias_rejects_excessive_path_depth() {
-        // Build a deeply nested JSON and a path that exceeds MAX_PATH_DEPTH
-        let deep_path = (0..=MAX_PATH_DEPTH)
+        // Test the resolve_alias_path guard directly via resolve_with.
+        // Build a deep path that exceeds MAX_PATH_DEPTH segments.
+        let segments: Vec<String> = (0..=MAX_PATH_DEPTH)
             .map(|i| format!("k{}", i))
-            .collect::<Vec<_>>()
-            .join(".");
-        let with = make_with(&[("k0", json!({"k1": {"k2": "deep"}}))]);
+            .collect();
+        let deep_path = segments.join(".");
+
+        // Build a deeply nested JSON value using serde_json::Map
+        let mut value: Value = json!("leaf");
+        for key in segments.iter().rev().skip(1) {
+            let mut map = serde_json::Map::new();
+            map.insert(key.clone(), value);
+            value = Value::Object(map);
+        }
+        let with = make_with(&[(segments[0].as_str(), value)]);
         let ds = empty_datastore();
         let template = format!("{{{{{}}}}}", deep_path);
         let result = resolve_with(&template, &with, &ds);
