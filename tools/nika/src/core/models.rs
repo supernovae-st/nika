@@ -301,7 +301,7 @@ pub struct KnownModel {
     pub description: &'static str,
 }
 
-/// Curated models for native inference (16+ models).
+/// Curated models for native inference (15 models).
 ///
 /// These are tested and verified to work with mistral.rs.
 pub static KNOWN_MODELS: &[KnownModel] = &[
