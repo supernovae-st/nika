@@ -1,9 +1,9 @@
 # 🦋 Nika Evolution — Research & Strategy
 
 > Comprehensive research corpus for Nika's next evolution phase.
-> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 12 brainstorm documents produced.
+> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 17 research documents produced.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-15
 
 ---
 
@@ -15,6 +15,9 @@ mindmap
     Research
       01 Current Features
       02 Scientific Literature
+      13 Multi-Modal Worker Architectures
+      14 DataStore Naming Research
+      16 Multi-Modal Builtin Research
     Analysis
       03 Competitive Landscape
       04 Nika × NovaNet Overlap
@@ -22,6 +25,8 @@ mindmap
       05 Evolution Roadmap
       06 Research Synthesis
       07 Slate Deep Integration
+      15 Ecosystem Coherence
+      17 Smart Router & Multi-Modal Deep
     Guides
       08 v0.30 Complete Guide
       09 Use Cases Cookbook
@@ -45,6 +50,11 @@ mindmap
 | [10](./10-jarvis-tui-vision.md) | **JARVIS TUI Vision** | Iron Man-inspired TUI design for shaka orchestration | Visual design spec |
 | [11](./11-nika-030-technical-reference.md) | **v0.30 Technical Reference** | Complete technical spec: structs, traits, schemas | API-level reference |
 | [12](./12-vegapunk-naming.md) | **Vegapunk Naming** | One Piece-inspired naming system for Nika v0.30 | Naming spec + codebase impact |
+| [13](./13-multimodal-worker-architectures.md) | **Multi-Modal Worker Architectures** | How frameworks handle multi-modal workers | Validated Approach C (worker-level) |
+| [14](./14-datastore-naming-research.md) | **DataStore Naming Research** | RunContext naming decision, industry survey | RunContext chosen over alternatives |
+| [15](./15-ecosystem-coherence.md) | **Ecosystem Coherence** | Unified view of all ecosystem pieces | Complete system topology |
+| [16](./16-multimodal-builtin-research.md) | **Multi-Modal Builtin Research** | mistral.rs capabilities, Rust ML ecosystem | Native vision support roadmap |
+| [17](./17-smart-router-multimodal-deep.md) | **Smart Router & Multi-Modal Deep** | Smart Router pattern, complete tool inventory | Native RAG + translation tools |
 
 ---
 
@@ -232,7 +242,7 @@ All claims verified against actual source code on 2026-03-14:
 
 - **13 research agents** deployed in parallel
 - **12-step ultrathink** sequential analysis (Slate → Nika concept mapping)
-- **12 brainstorm documents** produced (01-features through 12-vegapunk-naming)
+- **17 research documents** produced (01-features through 17-smart-router-multimodal-deep)
 - **Full Slate blog** scraped and analyzed (26 academic references in blog)
 
 ---

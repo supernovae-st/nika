@@ -35,7 +35,7 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 ║  Accumule le savoir des satellites  Accumule les Records des workflow runs    ║
 ║  Personnel à Vegapunk               Personnel à Nika (.nika/records/)         ║
 ║                                                                               ║
-║  Egghead Island (laboratoire)  →  Egghead (DataStore)                         ║
+║  Egghead Island (laboratoire)  →  RunContext (in-memory run data)             ║
 ║  Lab éphémère de Vegapunk           Mémoire in-memory d'un run                ║
 ║  Détruit pendant l'arc              Détruit à la fin du workflow               ║
 ║  Satellites y travaillent           Tasks y stockent leurs résultats           ║
@@ -78,7 +78,7 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 |--------|---------|-------|--------|
 | `Episode` | `Record` | Struct, YAML, tools, docs | Punk Records — mémoire compressée |
 | `episodes` | `records` | Partout | Cohérence |
-| `DataStore` | `Egghead` | Struct Rust interne | Lab éphémère du run — **voir Questions en suspens** |
+| `DataStore` | `RunContext` | Struct Rust interne | Industry standard name (voir Doc 14), extended with vector_index (Doc 17) |
 | `orchestration: strategy` | `orchestration: shaka` | YAML, Rust | PUNK-01, le leader stratège |
 | `strategy` (alias) | accepté | Parser YAML | Backward-friendly pour onboarding |
 | `tactics` | `satellites` | YAML templates | Dispatchés par Shaka |
@@ -88,6 +88,10 @@ The rest of the SuperNovae architecture maps deeply onto Dr. Vegapunk's satellit
 | `search` (slot) | `york` | YAML + Rust | PUNK-06, ressources |
 | `nika:episodes` | `nika:records` | Introspection tool | Cohérence Records |
 | `nika:strategy_state` | `nika:shaka` | Introspection tool | Cohérence Shaka |
+
+**Cross-references:**
+- **Doc 14**: DataStore → RunContext validated (industry standard name)
+- **Doc 17**: RunContext extended with `vector_index` field for nika:search (native RAG)
 
 ### Pas touché
 
@@ -200,7 +204,7 @@ tools:
 
 ## Rust avant / après
 
-### Egghead (ex-DataStore)
+### RunContext (ex-DataStore)
 
 ```rust
 // AVANT
@@ -210,13 +214,14 @@ pub struct DataStore {
 }
 
 // APRÈS
-pub struct Egghead {
+pub struct RunContext {
     results: DashMap<String, TaskResult>,
     context: DashMap<String, Value>,
+    vector_index: Option<VectorIndex>,  // Doc 17: native RAG
 }
 ```
 
-File rename: `src/store/datastore.rs` → `src/store/egghead.rs`
+File rename: `src/store/datastore.rs` → `src/store/run_context.rs`
 
 ### Record (ex-Episode)
 
@@ -291,7 +296,7 @@ pub struct ShakaRunner { ... }
 
 | Rename | Occurrences | Files | Criticité |
 |--------|-------------|-------|-----------|
-| `DataStore` → `Egghead` | **668** | 29 (19 src + 10 tests) | **CRITIQUE** |
+| `DataStore` → `RunContext` | **668** | 29 (19 src + 10 tests) | **CRITIQUE** |
 | `strategy` (DecomposeStrategy) | 51 | 13 | MOYEN (attention: `BackoffStrategy` n'est PAS à renommer) |
 | `episode` | 17 | 1 (tier6.rs exemples) | FAIBLE |
 | `tactics` | 0 | 0 | Pas encore implémenté |
@@ -309,7 +314,7 @@ pub struct ShakaRunner { ... }
 | NovaNet memory (v0.30) | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
 | Introspection (v0.30) | 6 builtin tools | `nika:records`, `nika:shaka`, rest technique |
 
-### Detailed file impact: DataStore → Egghead
+### Detailed file impact: DataStore → RunContext
 
 **Tier 1 — Critical (>50 occurrences):**
 
@@ -373,29 +378,36 @@ pub struct ShakaRunner { ... }
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### Phase 1 — DataStore → Egghead (v0.28)
+### Phase 1 — DataStore → RunContext (v0.28)
 
 The biggest rename. 668 occurrences, 29 files. Pure mechanical refactor.
 
 ```bash
 # 1. Rename the file
-mv src/store/datastore.rs src/store/egghead.rs
+mv src/store/datastore.rs src/store/run_context.rs
 
 # 2. Global rename in src/
-sed -i 's/DataStore/Egghead/g' src/**/*.rs
-sed -i 's/datastore/egghead/g' src/**/*.rs
-sed -i 's/data_store/egghead/g' src/**/*.rs
+sed -i 's/DataStore/RunContext/g' src/**/*.rs
+sed -i 's/datastore/run_context/g' src/**/*.rs
+sed -i 's/data_store/run_context/g' src/**/*.rs
 
 # 3. Global rename in tests/
-sed -i 's/DataStore/Egghead/g' tests/**/*.rs
-sed -i 's/datastore/egghead/g' tests/**/*.rs
+sed -i 's/DataStore/RunContext/g' tests/**/*.rs
+sed -i 's/datastore/run_context/g' tests/**/*.rs
 
 # 4. Update mod.rs exports
-# pub mod egghead;
-# pub use egghead::Egghead;
+# pub mod run_context;
+# pub use run_context::RunContext;
 
-# 5. cargo test (6,157 tests must pass)
-# 6. cargo clippy -- -D warnings
+# 5. Add vector_index field (Doc 17)
+# pub struct RunContext {
+#     results: DashMap<String, TaskResult>,
+#     context: DashMap<String, Value>,
+#     vector_index: Option<VectorIndex>,
+# }
+
+# 6. cargo test (6,157 tests must pass)
+# 7. cargo clippy -- -D warnings
 ```
 
 **Risk**: LOW — pure rename, no logic change. All tests validate the same behavior.
@@ -491,17 +503,18 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 ║                    VEGAPUNK NAMING — QUICK REFERENCE                          ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  🦋 NIKA        = Le runtime (exécution, liberté)                             ║
+║  🦋 NIKA         = Le runtime (exécution, liberté)                            ║
 ║  ⭐ STELLA       = L'utilisateur (la volonté qui dirige)                      ║
 ║  📀 PUNK RECORDS = Tier WARM — mémoire locale disque (RecordLog)             ║
-║  🧠 NOVANET      = Tier COLD — mémoire permanente graph (Record node)       ║
-║  🏝️ EGGHEAD      = Tier HOT — mémoire éphémère du run (DataStore, Q1)       ║
+║  🧠 NOVANET      = Tier COLD — mémoire permanente graph (Record node)        ║
+║  🏗️ RUNCONTEXT   = Tier HOT — mémoire éphémère du run (ex-DataStore)        ║
+║                   Note: Egghead Island lore conservé, RunContext pour le code║
 ║                                                                               ║
 ║  🎯 SHAKA       = Orchestrateur dynamique (PUNK-01, sagesse)                  ║
 ║  💡 EDISON      = Slot main — création (PUNK-03, intelligence)                ║
 ║  🧮 PYTHAGORAS  = Slot reasoning — logique (PUNK-04, calcul)                  ║
 ║  💪 ATLAS       = Slot tactical — force rapide (PUNK-05, puissance)           ║
-║  🔍 YORK        = Slot search — ressources (PUNK-06, collecte)               ║
+║  🔍 YORK        = Slot search — ressources (PUNK-06, collecte)                ║
 ║  🛡️ LILITH      = Security layer — doc only (PUNK-02, défense)               ║
 ║                                                                               ║
 ║  📦 RECORD      = Résultat compressé (ex-Episode, Punk Records)               ║
@@ -518,23 +531,21 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 ## Decisions validees (brainstorm 2026-03-14)
 
 > [!NOTE]
-> Decisions prises apres recherche approfondie (8 queries Perplexity, analyse de Letta/MemGPT, LangGraph, CrewAI, SSGM, A-MAC, conventions KG). Q1 reste en suspens.
+> Decisions prises apres recherche approfondie (8 queries Perplexity, analyse de Letta/MemGPT, LangGraph, CrewAI, SSGM, A-MAC, conventions KG). Toutes les questions sont maintenant résolues.
 
-### Q1: DataStore → Egghead — EN SUSPENS
+### Q1: DataStore → RunContext — RÉSOLU ✅
 
-**Contexte :** "DataStore" n'est PAS une convention Rust officielle. C'est un nom generique invente pour le projet. Le rename vers "Egghead" est faisable (205 occurrences, 17 fichiers, refactor mecanique).
+**Contexte :** "DataStore" n'est PAS une convention Rust officielle. C'est un nom générique inventé pour le projet.
 
-**Arguments POUR Egghead :**
-- Coherence avec le naming Vegapunk (Egghead Island = lab ephemere)
-- Pas une convention officielle, donc renommable sans perte de sens
-- Le parallele est profond (lab detruit a la fin de l'arc = memoire detruite a la fin du run)
+**Décision finale (Doc 14) :** `DataStore` → `RunContext`
 
-**Arguments POUR garder DataStore :**
-- Self-documenting (tout dev comprend immediatement)
-- Impact massif (668 occurrences si on compte les derivations)
-- "Egghead" pourrait confondre un contributeur externe
+**Raisons :**
+- **Industry standard name** — "RunContext" est utilisé dans plusieurs frameworks de workflows
+- **Self-documenting** — Évident qu'il s'agit du contexte d'exécution du run
+- **Extension naturelle (Doc 17)** — `vector_index` field added pour `nika:search` native RAG
+- **Clear semantics** — Context de runtime qui persiste pendant le run, disparu après
 
-**Status :** EN SUSPENS — a trancher lors du kickoff v0.28
+**Status :** RÉSOLU — implémenté en v0.28
 
 ### Q2: Punk Records = tier WARM — VALIDE
 
@@ -547,12 +558,13 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 ```
 Nika Memory Architecture (3 tiers, pas de nom umbrella)
 │
-├── HOT:  Egghead         = DashMap (RAM)
-│         Struct Rust:       Egghead (ou DataStore, Q1 en suspens)
+├── HOT:  RunContext       = DashMap (RAM)
+│         Struct Rust:       RunContext (ex-DataStore, résolu Doc 14)
 │         Lifetime:          un workflow run
-│         Contenu:           TaskResults, bindings, loaded context
+│         Contenu:           TaskResults, bindings, loaded context, vector_index
 │         Analogie manga:    Egghead Island (le lab ephemere)
 │         Analogie tech:     CPU cache / memoire de travail
+│         Extension:         vector_index field (Doc 17) pour nika:search RAG
 │
 ├── WARM: Punk Records     = NDJSON (disque local)
 │         Struct Rust:       RecordLog
@@ -579,7 +591,7 @@ Nika Memory Architecture (3 tiers, pas de nom umbrella)
 | **LangGraph** | Thread State | MemorySaver | InMemoryStore/DB |
 | **CrewAI** | Short-term (ChromaDB) | Entity Memory (SQLite) | Long-term (SQLite) |
 | **SSGM (2026)** | Mutable Active Graph | Immutable Episodic Log | — |
-| **Nika** | **Egghead** | **Punk Records** | **NovaNet** |
+| **Nika** | **RunContext** | **Punk Records** | **NovaNet** |
 
 ### Q3: Node NovaNet = `Record` — VALIDE
 
@@ -624,7 +636,7 @@ properties:
 ### Lifecycle d'un Record
 
 ```
-Task executes dans Egghead (HOT)
+Task executes dans RunContext (HOT)
     ↓
 TaskResult cree (resultat brut)
     ↓
