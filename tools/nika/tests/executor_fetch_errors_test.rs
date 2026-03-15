@@ -13,11 +13,23 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nika::ast::{FetchParams, TaskAction};
+use nika::binding::ResolvedBindings;
 use nika::error::NikaError;
-use nika::test_utils::{mock_executor, test_context};
+use nika::event::EventLog;
+use nika::runtime::TaskExecutor;
+use nika::store::RunContext;
 use rustc_hash::FxHashMap;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+
+fn mock_executor() -> TaskExecutor {
+    let event_log = EventLog::new();
+    TaskExecutor::new("mock", None, None, event_log)
+}
+
+fn test_context() -> (ResolvedBindings, RunContext) {
+    (ResolvedBindings::new(), RunContext::new())
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPERS

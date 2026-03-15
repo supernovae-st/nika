@@ -60,13 +60,6 @@ pub mod tui;
 #[cfg(feature = "lsp")]
 pub mod lsp;
 
-// Test utilities
-#[cfg(any(test, feature = "test-fixtures"))]
-pub mod test_fixtures;
-
-#[cfg(any(test, feature = "test-fixtures"))]
-pub mod test_utils;
-
 // ── Public API re-exports ────────────────────────────────────
 
 // Source tracking
