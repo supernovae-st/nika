@@ -75,7 +75,7 @@ tasks:
     fail_fast: false
     invoke:
       server: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "entity:{{inputs.entity_key}}"
         locale: "{{with.locale}}"
