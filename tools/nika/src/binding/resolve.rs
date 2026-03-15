@@ -1872,7 +1872,7 @@ mod tests {
 
     #[test]
     fn with_spec_context_file() {
-        use crate::runtime::LoadedContext;
+        use crate::store::LoadedContext;
         let store = RunContext::new();
         let mut ctx = LoadedContext::new();
         ctx.files
@@ -1891,7 +1891,7 @@ mod tests {
 
     #[test]
     fn with_spec_context_session() {
-        use crate::runtime::LoadedContext;
+        use crate::store::LoadedContext;
         let store = RunContext::new();
         let mut ctx = LoadedContext::new();
         ctx.session = Some(json!({"last_run": "2025-01-01"}));
@@ -2241,7 +2241,7 @@ mod tests {
 
         // Context file
         {
-            use crate::runtime::LoadedContext;
+            use crate::store::LoadedContext;
             let mut ctx = LoadedContext::new();
             ctx.files.insert("brand".to_string(), json!("Brand Text"));
             store.set_context(ctx);
