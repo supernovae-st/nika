@@ -13,20 +13,20 @@ These workflows demonstrate **future features** not yet implemented in Nika v0.1
 | `trigger:` / `rollback_for:` | saga-pattern.nika.yaml | v0.16+ |
 | Nested `tasks:` in for_each | parallel-entity-generation.nika.yaml | v0.15+ |
 
-## Syntax Differences from v0.8
+## Syntax Differences
 
 These workflows use experimental syntax that differs from the current schema:
 
 ```yaml
-# Current v0.8 syntax (works)
+# Current syntax (works)
 - id: my_task
   invoke:
     mcp: novanet           # Use 'mcp:' not 'server:'
     tool: novanet_describe
     params:
       entity: "qr-code"
-  use:
-    ctx: previous_task.result   # Bindings under 'use:'
+  with:
+    ctx: previous_task.result   # Bindings under 'with:'
 
 # Experimental syntax (not yet working)
 - id: my_task
@@ -34,7 +34,7 @@ These workflows use experimental syntax that differs from the current schema:
     server: novanet        # 'server:' not yet supported
     tool: novanet_describe
   output:
-    use.ctx: result        # 'output: use.xxx' not yet supported
+    with.ctx: result       # 'output: with.xxx' not yet supported
   condition: "{{expr}}"    # Conditions not yet supported
 ```
 
