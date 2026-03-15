@@ -49,7 +49,7 @@ Same terms everywhere: Code, Spec, Docs, CLI.
 | Flow | `Flow` | `flows[]` | DAG edge |
 | Use | `UseWiring` | `use:` | Data dependencies |
 | Output | `OutputPolicy` | `output:` | Format & validation |
-| Store | `DataStore` | (runtime) | Task outputs |
+| Store | `RunContext` | (runtime) | Task outputs |
 | Result | `TaskResult` | (runtime) | Execution result |
 | Error | `NikaError` | NIKA-XXX | Error with code |
 
@@ -358,19 +358,19 @@ pub enum OutputFormat {
 ### Data Flow
 
 ```
-Task A → DataStore → use: block → {{use.alias}} → Task B
+Task A → RunContext → use: block → {{use.alias}} → Task B
 ```
 
-1. Task A completes, output stored in DataStore
+1. Task A completes, output stored in RunContext
 2. Task B declares `use: { alias: taskA.path }`
-3. Bindings resolved from DataStore
+3. Bindings resolved from RunContext
 4. Templates substituted in prompt
 5. Task B executes
 
 ### Key Types
 
 ```rust
-pub struct DataStore {
+pub struct RunContext {
     results: Arc<DashMap<Arc<str>, TaskResult>>,
 }
 
@@ -471,7 +471,7 @@ pub enum TaskStatus {
                    ▼
 ┌─────────────────────────────────────────┐
 │        INFRASTRUCTURE LAYER             │
-│  store/    → DataStore, TaskResult      │
+│  store/    → RunContext, TaskResult      │
 │  event/    → EventLog, EventKind        │
 │  provider/ → Claude, OpenAI, Mock       │
 │  util/     → jsonpath, interner         │
