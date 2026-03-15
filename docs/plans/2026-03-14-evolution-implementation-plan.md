@@ -65,9 +65,9 @@ Discovered during deep audit. Should be resolved before evolution work.
 - `src/ast/analyzer/analyze.rs` — Emit deprecation warning for `use:` blocks
 - `src/runtime/executor/mod.rs` — Unify dispatch to WithSpec only
 
-### 0.2 DataStore Eviction
+### 0.2 RunContext Eviction
 
-**Problem:** DataStore (DashMap) grows unbounded. For long-running workflows with many for_each iterations, memory accumulates.
+**Problem:** RunContext (DashMap) grows unbounded. For long-running workflows with many for_each iterations, memory accumulates.
 
 **Plan:** Add optional TTL or LRU eviction.
 
@@ -300,7 +300,7 @@ EventKind::TaskStarted {
 
 ```rust
 use crate::dag::Dag;
-use crate::store::DataStore;
+use crate::store::RunContext;
 use std::sync::Arc;
 
 /// nika:dag_info — Static DAG structure
@@ -311,17 +311,17 @@ pub struct DagInfoTool {
 /// nika:dag_metrics — Runtime execution metrics
 pub struct DagMetricsTool {
     dag: Arc<Dag>,
-    store: Arc<DataStore>,
+    store: Arc<RunContext>,
 }
 
 /// nika:task_status — Single task status query
 pub struct TaskStatusTool {
-    store: Arc<DataStore>,
+    store: Arc<RunContext>,
 }
 
 /// nika:task_output — Single task output retrieval
 pub struct TaskOutputTool {
-    store: Arc<DataStore>,
+    store: Arc<RunContext>,
 }
 ```
 
@@ -384,7 +384,7 @@ pub struct TaskOutputTool {
 impl BuiltinToolRouter {
     pub fn with_dag_tools(
         dag: Arc<Dag>,
-        store: Arc<DataStore>,
+        store: Arc<RunContext>,
     ) -> Self {
         let mut router = Self::new();
         router.register("nika:dag_info", Box::new(DagInfoTool { dag: dag.clone() }));
@@ -1035,7 +1035,7 @@ Not a standalone priority but woven into P1 and P4:
 +----------+---------------------+------------------------------------------+
 | Version  | Priorities          | Key Deliverables                         |
 +----------+---------------------+------------------------------------------+
-| v0.27.x  | Wave 0              | Binding unification prep, DataStore      |
+| v0.27.x  | Wave 0              | Binding unification prep, RunContext      |
 |          |                     | eviction, context file limits             |
 +----------+---------------------+------------------------------------------+
 | v0.28.0  | P2 + P5             | Per-task provider/model, 4 DAG tools     |

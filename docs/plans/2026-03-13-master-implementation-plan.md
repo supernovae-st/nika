@@ -1404,7 +1404,7 @@ pub type BindingMap = FxHashMap<String, BindingState>;
 /// Resolve all eager bindings in a WithSpec
 pub fn resolve_eager(
     spec: &WithSpec,
-    store: &DataStore,
+    store: &RunContext,
     context: &ContextData,
     inputs: &Value,
 ) -> BindingMap {
@@ -1423,7 +1423,7 @@ pub fn resolve_eager(
 /// Resolve a single binding entry
 fn resolve_single(
     entry: &WithEntry,
-    store: &DataStore,
+    store: &RunContext,
     context: &ContextData,
     inputs: &Value,
 ) -> BindingState {

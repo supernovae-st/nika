@@ -226,7 +226,7 @@ pub struct AgentSubsystem {
 pub struct PersistenceSubsystem {
     config: TuiSettings,
     session: SessionManager,
-    datastore: DataStore,
+    datastore: RunContext,
 }
 ```
 
