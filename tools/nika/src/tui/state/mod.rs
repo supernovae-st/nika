@@ -145,18 +145,6 @@ pub struct TuiState {
     pub task_order: Vec<String>,
 
     // ═══════════════════════════════════════════
-    // MCP TRACKING
-    // ═══════════════════════════════════════════
-    /// MCP call log
-    pub mcp_calls: Vec<McpCall>,
-    /// Next MCP call sequence number
-    pub mcp_seq: usize,
-    /// Selected MCP call index for Full JSON view
-    pub selected_mcp_idx: Option<usize>,
-    /// Current context assembly
-    pub context_assembly: ContextAssembly,
-
-    // ═══════════════════════════════════════════
     // AGENT TRACKING
     // ═══════════════════════════════════════════
     /// Agent turns for current agent task
@@ -286,10 +274,6 @@ impl TuiState {
             tasks: HashMap::new(),
             current_task: None,
             task_order: Vec::new(),
-            mcp_calls: Vec::new(),
-            mcp_seq: 0,
-            selected_mcp_idx: None,
-            context_assembly: ContextAssembly::default(),
             agent_turns: Vec::new(),
             streaming_buffer: String::new(),
             agent_max_turns: None,
@@ -538,7 +522,7 @@ impl TuiState {
             } => {
                 let call = McpCall {
                     call_id: call_id.clone(),
-                    seq: self.mcp_seq,
+                    seq: self.mcp.seq,
                     server: mcp_server.clone(),
                     tool: tool.clone(),
                     resource: resource.clone(),
@@ -551,8 +535,8 @@ impl TuiState {
                     is_error: false,
                     duration_ms: None,
                 };
-                self.mcp_calls.push(call);
-                self.mcp_seq += 1;
+                self.mcp.calls.push(call);
+                self.mcp.seq += 1;
 
                 // Update phase
                 self.workflow.phase = MissionPhase::Rendezvous;
@@ -577,12 +561,13 @@ impl TuiState {
             } => {
                 // Find and update the matching call by call_id
                 let tool_name = self
-                    .mcp_calls
+                    .mcp
+                    .calls
                     .iter()
                     .find(|c| c.call_id == *call_id)
                     .and_then(|c| c.tool.clone());
 
-                if let Some(call) = self.mcp_calls.iter_mut().find(|c| c.call_id == *call_id) {
+                if let Some(call) = self.mcp.calls.iter_mut().find(|c| c.call_id == *call_id) {
                     call.completed = true;
                     call.output_len = Some(*output_len);
                     call.response = response.clone();
@@ -628,7 +613,7 @@ impl TuiState {
                 truncated,
                 ..
             } => {
-                self.context_assembly = ContextAssembly {
+                self.mcp.context_assembly = ContextAssembly {
                     sources: sources.clone(),
                     excluded: excluded.clone(),
                     total_tokens: *total_tokens,
@@ -1279,12 +1264,12 @@ impl TuiState {
 
     /// Select previous MCP call
     pub fn select_prev_mcp(&mut self) {
-        if self.mcp_calls.is_empty() {
+        if self.mcp.calls.is_empty() {
             return;
         }
 
-        self.selected_mcp_idx = match self.selected_mcp_idx {
-            None => Some(self.mcp_calls.len().saturating_sub(1)), // Start from last
+        self.mcp.selected_idx = match self.mcp.selected_idx {
+            None => Some(self.mcp.calls.len().saturating_sub(1)), // Start from last
             Some(0) => Some(0),                                   // Stay at first
             Some(idx) => Some(idx - 1),
         };
@@ -1292,12 +1277,12 @@ impl TuiState {
 
     /// Select next MCP call
     pub fn select_next_mcp(&mut self) {
-        if self.mcp_calls.is_empty() {
+        if self.mcp.calls.is_empty() {
             return;
         }
 
-        let max_idx = self.mcp_calls.len().saturating_sub(1);
-        self.selected_mcp_idx = match self.selected_mcp_idx {
+        let max_idx = self.mcp.calls.len().saturating_sub(1);
+        self.mcp.selected_idx = match self.mcp.selected_idx {
             None => Some(0),                              // Start from first
             Some(idx) if idx >= max_idx => Some(max_idx), // Stay at last
             Some(idx) => Some(idx + 1),
@@ -1306,28 +1291,28 @@ impl TuiState {
 
     /// Select MCP call by index (for direct access)
     pub fn select_mcp(&mut self, idx: usize) {
-        if idx < self.mcp_calls.len() {
-            self.selected_mcp_idx = Some(idx);
+        if idx < self.mcp.calls.len() {
+            self.mcp.selected_idx = Some(idx);
         }
     }
 
     /// Get currently selected MCP call
     pub fn get_selected_mcp(&self) -> Option<&McpCall> {
-        self.selected_mcp_idx
-            .and_then(|idx| self.mcp_calls.get(idx))
+        self.mcp.selected_idx
+            .and_then(|idx| self.mcp.calls.get(idx))
     }
 
     /// Select first MCP call (g key - vim go to top)
     pub fn select_first_mcp(&mut self) {
-        if !self.mcp_calls.is_empty() {
-            self.selected_mcp_idx = Some(0);
+        if !self.mcp.calls.is_empty() {
+            self.mcp.selected_idx = Some(0);
         }
     }
 
     /// Select last MCP call (G key - vim go to bottom)
     pub fn select_last_mcp(&mut self) {
-        if !self.mcp_calls.is_empty() {
-            self.selected_mcp_idx = Some(self.mcp_calls.len().saturating_sub(1));
+        if !self.mcp.calls.is_empty() {
+            self.mcp.selected_idx = Some(self.mcp.calls.len().saturating_sub(1));
         }
     }
 
@@ -1411,11 +1396,11 @@ impl TuiState {
     /// Get filtered MCP calls
     pub fn filtered_mcp_calls(&self) -> Vec<&McpCall> {
         if self.filter_query.is_empty() {
-            return self.mcp_calls.iter().collect();
+            return self.mcp.calls.iter().collect();
         }
 
         let query = self.filter_query.to_lowercase();
-        self.mcp_calls
+        self.mcp.calls
             .iter()
             .filter(|call| {
                 // Match server name
@@ -1576,7 +1561,7 @@ impl TuiState {
                         self.workflow.tasks_completed,
                         self.workflow.task_count,
                         self.metrics.total_tokens,
-                        self.mcp_calls.len()
+                        self.mcp.calls.len()
                     ))
                 }
             }
@@ -1606,8 +1591,8 @@ impl TuiState {
             }
             PanelId::NovaNet => {
                 // Return selected MCP call or all calls
-                if let Some(idx) = self.selected_mcp_idx {
-                    self.mcp_calls.get(idx).map(|call| {
+                if let Some(idx) = self.mcp.selected_idx {
+                    self.mcp.calls.get(idx).map(|call| {
                         let mut content = format!(
                             "# MCP Call #{}: {}\n\n",
                             call.seq + 1,
@@ -1629,10 +1614,10 @@ impl TuiState {
                         }
                         content
                     })
-                } else if !self.mcp_calls.is_empty() {
+                } else if !self.mcp.calls.is_empty() {
                     // Return summary of all MCP calls
                     let mut lines = vec!["# MCP Calls".to_string()];
-                    for call in &self.mcp_calls {
+                    for call in &self.mcp.calls {
                         let status = if call.completed { "[x]" } else { "[~]" };
                         let tool = call.tool.as_deref().unwrap_or("resource");
                         let duration = call
@@ -1746,7 +1731,7 @@ impl TuiState {
 
         // Clear MCP calls (keep for reference? or clear?)
         // For now, keep them as history but mark workflow as ready for retry
-        self.mcp_seq = 0;
+        self.mcp.seq = 0;
 
         reset_tasks
     }

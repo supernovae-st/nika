@@ -267,7 +267,7 @@ impl MonitorView {
 
         self.cached_json_mcp_idx = Some(selected_idx);
 
-        if let Some(call) = state.mcp_calls.get(selected_idx) {
+        if let Some(call) = state.mcp.calls.get(selected_idx) {
             self.cached_mcp_response_json = call
                 .response
                 .as_ref()
@@ -722,7 +722,8 @@ impl MonitorView {
 
         // Build MCP call list
         let items: Vec<ListItem> = state
-            .mcp_calls
+            .mcp
+            .calls
             .iter()
             .enumerate()
             .map(|(i, call)| {
@@ -785,7 +786,7 @@ impl MonitorView {
         theme: &Theme,
     ) {
         let selected_idx = self.scroll_offset(PanelId::RunnerNovanet);
-        let call = state.mcp_calls.get(selected_idx);
+        let call = state.mcp.calls.get(selected_idx);
 
         let content = if let Some(call) = call {
             let tool_name = call.tool.as_deref().unwrap_or("resource");

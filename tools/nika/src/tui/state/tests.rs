@@ -227,14 +227,14 @@ fn test_tui_state_handle_mcp_events() {
         100,
     );
 
-    assert_eq!(state.mcp_calls.len(), 1);
-    assert_eq!(state.mcp_calls[0].call_id, "test-call-1");
+    assert_eq!(state.mcp.calls.len(), 1);
+    assert_eq!(state.mcp.calls[0].call_id, "test-call-1");
     assert_eq!(
-        state.mcp_calls[0].tool,
+        state.mcp.calls[0].tool,
         Some("novanet_describe".to_string())
     );
-    assert!(!state.mcp_calls[0].completed);
-    assert_eq!(state.mcp_calls[0].params, Some(test_params));
+    assert!(!state.mcp.calls[0].completed);
+    assert_eq!(state.mcp.calls[0].params, Some(test_params));
 
     let test_response = serde_json::json!({"name": "QR Code", "locale": "en-US"});
     state.handle_event(
@@ -250,11 +250,11 @@ fn test_tui_state_handle_mcp_events() {
         200,
     );
 
-    assert!(state.mcp_calls[0].completed);
-    assert_eq!(state.mcp_calls[0].output_len, Some(1024));
-    assert_eq!(state.mcp_calls[0].response, Some(test_response));
-    assert_eq!(state.mcp_calls[0].duration_ms, Some(100));
-    assert!(!state.mcp_calls[0].is_error);
+    assert!(state.mcp.calls[0].completed);
+    assert_eq!(state.mcp.calls[0].output_len, Some(1024));
+    assert_eq!(state.mcp.calls[0].response, Some(test_response));
+    assert_eq!(state.mcp.calls[0].duration_ms, Some(100));
+    assert!(!state.mcp.calls[0].is_error);
 }
 
 #[test]
@@ -286,10 +286,10 @@ fn test_tui_state_handle_mcp_error_response() {
         125,
     );
 
-    assert!(state.mcp_calls[0].is_error);
-    assert_eq!(state.mcp_calls[0].duration_ms, Some(25));
+    assert!(state.mcp.calls[0].is_error);
+    assert_eq!(state.mcp.calls[0].duration_ms, Some(25));
     assert_eq!(
-        state.mcp_calls[0].response,
+        state.mcp.calls[0].response,
         Some(serde_json::json!({"error": "Invalid params"}))
     );
 }
@@ -322,9 +322,9 @@ fn test_tui_state_handle_mcp_parallel_calls() {
         110,
     );
 
-    assert_eq!(state.mcp_calls.len(), 2);
-    assert!(!state.mcp_calls[0].completed);
-    assert!(!state.mcp_calls[1].completed);
+    assert_eq!(state.mcp.calls.len(), 2);
+    assert!(!state.mcp.calls[0].completed);
+    assert!(!state.mcp.calls[1].completed);
 
     // Response for second call arrives first
     state.handle_event(
@@ -341,9 +341,9 @@ fn test_tui_state_handle_mcp_parallel_calls() {
     );
 
     // First call still pending, second completed
-    assert!(!state.mcp_calls[0].completed);
-    assert!(state.mcp_calls[1].completed);
-    assert_eq!(state.mcp_calls[1].call_id, "call-en");
+    assert!(!state.mcp.calls[0].completed);
+    assert!(state.mcp.calls[1].completed);
+    assert_eq!(state.mcp.calls[1].call_id, "call-en");
 
     // Response for first call arrives
     state.handle_event(
@@ -360,12 +360,12 @@ fn test_tui_state_handle_mcp_parallel_calls() {
     );
 
     // Both completed, correct correlation
-    assert!(state.mcp_calls[0].completed);
-    assert_eq!(state.mcp_calls[0].call_id, "call-fr");
-    assert_eq!(state.mcp_calls[0].duration_ms, Some(120));
-    assert!(state.mcp_calls[1].completed);
-    assert_eq!(state.mcp_calls[1].call_id, "call-en");
-    assert_eq!(state.mcp_calls[1].duration_ms, Some(50));
+    assert!(state.mcp.calls[0].completed);
+    assert_eq!(state.mcp.calls[0].call_id, "call-fr");
+    assert_eq!(state.mcp.calls[0].duration_ms, Some(120));
+    assert!(state.mcp.calls[1].completed);
+    assert_eq!(state.mcp.calls[1].call_id, "call-en");
+    assert_eq!(state.mcp.calls[1].duration_ms, Some(50));
 }
 
 #[test]
@@ -962,13 +962,13 @@ fn test_reset_for_retry_resets_failed_tasks() {
 #[test]
 fn test_mcp_navigation_empty_list() {
     let mut state = TuiState::new("test.yaml");
-    assert!(state.mcp_calls.is_empty());
-    assert!(state.selected_mcp_idx.is_none());
+    assert!(state.mcp.calls.is_empty());
+    assert!(state.mcp.selected_idx.is_none());
 
     // Navigation on empty list should not panic
     state.select_prev_mcp();
     state.select_next_mcp();
-    assert!(state.selected_mcp_idx.is_none());
+    assert!(state.mcp.selected_idx.is_none());
 }
 
 #[test]
@@ -977,7 +977,7 @@ fn test_mcp_navigation_select_prev() {
 
     // Add some MCP calls
     for i in 0..3 {
-        state.mcp_calls.push(McpCall {
+        state.mcp.calls.push(McpCall {
             call_id: format!("call-{}", i),
             seq: i,
             server: "novanet".to_string(),
@@ -996,19 +996,19 @@ fn test_mcp_navigation_select_prev() {
 
     // First prev should select last item
     state.select_prev_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(2));
+    assert_eq!(state.mcp.selected_idx, Some(2));
 
     // Prev again should go to index 1
     state.select_prev_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(1));
+    assert_eq!(state.mcp.selected_idx, Some(1));
 
     // Prev again should go to index 0
     state.select_prev_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(0));
+    assert_eq!(state.mcp.selected_idx, Some(0));
 
     // Prev again should stay at 0 (boundary)
     state.select_prev_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(0));
+    assert_eq!(state.mcp.selected_idx, Some(0));
 }
 
 #[test]
@@ -1017,7 +1017,7 @@ fn test_mcp_navigation_select_next() {
 
     // Add some MCP calls
     for i in 0..3 {
-        state.mcp_calls.push(McpCall {
+        state.mcp.calls.push(McpCall {
             call_id: format!("call-{}", i),
             seq: i,
             server: "novanet".to_string(),
@@ -1036,19 +1036,19 @@ fn test_mcp_navigation_select_next() {
 
     // First next should select first item
     state.select_next_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(0));
+    assert_eq!(state.mcp.selected_idx, Some(0));
 
     // Next again should go to index 1
     state.select_next_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(1));
+    assert_eq!(state.mcp.selected_idx, Some(1));
 
     // Next again should go to index 2
     state.select_next_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(2));
+    assert_eq!(state.mcp.selected_idx, Some(2));
 
     // Next again should stay at 2 (boundary)
     state.select_next_mcp();
-    assert_eq!(state.selected_mcp_idx, Some(2));
+    assert_eq!(state.mcp.selected_idx, Some(2));
 }
 
 #[test]
@@ -1056,7 +1056,7 @@ fn test_mcp_navigation_get_selected() {
     let mut state = TuiState::new("test.yaml");
 
     // Add MCP call
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1278,7 +1278,7 @@ fn test_filtered_task_ids_case_insensitive() {
 #[test]
 fn test_filtered_mcp_calls_no_filter() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1302,7 +1302,7 @@ fn test_filtered_mcp_calls_no_filter() {
 #[test]
 fn test_filtered_mcp_calls_matches_server() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1317,7 +1317,7 @@ fn test_filtered_mcp_calls_matches_server() {
         is_error: false,
         duration_ms: Some(10),
     });
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-1".to_string(),
         seq: 1,
         server: "other_server".to_string(),
@@ -1342,7 +1342,7 @@ fn test_filtered_mcp_calls_matches_server() {
 #[test]
 fn test_filtered_mcp_calls_matches_tool() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
@@ -1357,7 +1357,7 @@ fn test_filtered_mcp_calls_matches_tool() {
         is_error: false,
         duration_ms: Some(10),
     });
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-1".to_string(),
         seq: 1,
         server: "novanet".to_string(),
@@ -1382,7 +1382,7 @@ fn test_filtered_mcp_calls_matches_tool() {
 #[test]
 fn test_filtered_mcp_calls_matches_resource() {
     let mut state = TuiState::new("test.yaml");
-    state.mcp_calls.push(McpCall {
+    state.mcp.calls.push(McpCall {
         call_id: "call-0".to_string(),
         seq: 0,
         server: "novanet".to_string(),
