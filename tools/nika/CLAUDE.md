@@ -220,16 +220,27 @@ Runtime Execution
 | Range | Category |
 |-------|----------|
 | NIKA-000-009 | Workflow |
-| NIKA-010-019 | Task |
+| NIKA-010-019 | Schema/validation |
 | NIKA-020-029 | DAG |
 | NIKA-030-039 | Provider |
-| NIKA-040-049 | Binding |
-| NIKA-050-059 | Security |
-| NIKA-060-069 | JSON validation |
+| NIKA-040-049 | Template/binding |
+| NIKA-050-059 | Path/task/security |
+| NIKA-060-069 | Output |
+| NIKA-070-079 | With block validation |
+| NIKA-080-089 | DAG validation |
+| NIKA-090-099 | JSONPath/IO (+096 execution catch-all) |
 | NIKA-100-109 | MCP |
 | NIKA-110-119 | Agent |
-| NIKA-140-149 | AST analysis |
+| NIKA-120-129 | Resilience |
+| NIKA-130-139 | TUI |
+| NIKA-140-149 | AST analysis (Phase 2) |
+| NIKA-200-209 | File tools |
+| NIKA-210-219 | Builtin tools |
 | NIKA-280-289 | Artifacts |
+| NIKA-300-309 | Structured output |
+| NIKA-400-409 | Daemon |
+| NIKA-410-419 | IO (enhanced) |
+| NIKA-420-429 | Sync |
 
 ---
 
