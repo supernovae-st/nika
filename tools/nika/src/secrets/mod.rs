@@ -260,17 +260,22 @@ mod tests {
     #[tokio::test]
     async fn test_load_result_structure() {
         let result = load_from_daemon_or_fallback().await;
-        // from_daemon is empty when daemon isn't running (both impls)
-        // from_fallback + not_found should cover all LLM providers
-        let llm_count = KNOWN_PROVIDERS
-            .iter()
-            .filter(|p| p.category == ProviderCategory::Llm)
-            .count();
+        // from_daemon is empty when daemon isn't running
+        // With nika-daemon feature: iterates ALL providers (LLM + MCP + Local)
+        // Without nika-daemon feature: iterates only LLM providers
+        let expected_count = if cfg!(feature = "nika-daemon") {
+            KNOWN_PROVIDERS.len()
+        } else {
+            KNOWN_PROVIDERS
+                .iter()
+                .filter(|p| p.category == ProviderCategory::Llm)
+                .count()
+        };
         let total = result.from_daemon.len() + result.from_fallback.len() + result.not_found.len();
         assert_eq!(
-            total, llm_count,
-            "Should process exactly {} LLM providers, got {} daemon + {} fallback + {} not_found",
-            llm_count,
+            total, expected_count,
+            "Should process exactly {} providers, got {} daemon + {} fallback + {} not_found",
+            expected_count,
             result.from_daemon.len(),
             result.from_fallback.len(),
             result.not_found.len()
