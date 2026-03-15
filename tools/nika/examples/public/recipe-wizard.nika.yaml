@@ -29,7 +29,7 @@ tasks:
   # Step 3: Analyze ingredients (parallel with cuisine matching)
   - id: analyze_ingredients
     with:
-      ingredients: get_ingredients
+      ingredients: $get_ingredients
     infer:
       prompt: |
         Analyze these ingredients: {{with.ingredients}}
@@ -53,9 +53,9 @@ tasks:
     as: style
     concurrency: 3
     with:
-      ingredients: get_ingredients
-      diet: get_diet
-      analysis: analyze_ingredients
+      ingredients: $get_ingredients
+      diet: $get_diet
+      analysis: $analyze_ingredients
     infer:
       prompt: |
         Generate a {{with.style}} recipe using these ingredients.
@@ -85,7 +85,7 @@ tasks:
   # Step 5: Let user "pick" (in real app, would be interactive)
   - id: pick_recipe
     with:
-      options: generate_options
+      options: $generate_options
     infer:
       prompt: |
         From these 3 recipe options, pick the most balanced one:
@@ -98,10 +98,10 @@ tasks:
   # Step 6: Generate full recipe
   - id: full_recipe
     with:
-      ingredients: get_ingredients
-      diet: get_diet
-      style: pick_recipe
-      analysis: analyze_ingredients
+      ingredients: $get_ingredients
+      diet: $get_diet
+      style: $pick_recipe
+      analysis: $analyze_ingredients
     infer:
       prompt: |
         Create a complete {{with.style}} recipe.
@@ -152,7 +152,7 @@ tasks:
   # Step 7: Save
   - id: save
     with:
-      recipe: full_recipe
+      recipe: $full_recipe
     exec:
       command: |
         echo "{{with.recipe}}"

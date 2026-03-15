@@ -14,20 +14,20 @@ tasks:
 
   - id: branch_a
     with:
-      input: root
+      input: $root
     exec: "echo 'A: {{with.input}}'"
     flow: [root]
 
   - id: branch_b
     with:
-      input: root
+      input: $root
     exec: "echo 'B: {{with.input}}'"
     flow: [root]
 
   - id: merge
     description: "Merge data from branches"
     with:
-      from_a: branch_a
-      from_b: branch_b
+      from_a: $branch_a
+      from_b: $branch_b
     infer: "Merged: {{with.from_a}} and {{with.from_b}}"
     flow: [branch_a, branch_b]

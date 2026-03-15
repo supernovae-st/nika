@@ -19,7 +19,7 @@ tasks:
   # Test 2: Chain context to output
   - id: summarize
     with:
-      version: read_readme
+      version: $read_readme
     infer: |
       Confirm the version found: {{with.version}}
 

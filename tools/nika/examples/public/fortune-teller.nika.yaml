@@ -39,10 +39,10 @@ tasks:
   # Step 2: Generate cosmic reading
   - id: cosmic_reading
     with:
-      name: get_name
-      sign: get_sign
-      date: get_date
-      seed: get_seed
+      name: $get_name
+      sign: $get_sign
+      date: $get_date
+      seed: $get_seed
     infer:
       prompt: |
         You are Madame Astra, a mystical fortune teller with cosmic wisdom and theatrical flair.
@@ -85,8 +85,8 @@ tasks:
   # Step 3: Generate ASCII art card
   - id: format_fortune
     with:
-      reading: cosmic_reading
-      date: get_date
+      reading: $cosmic_reading
+      date: $get_date
     infer:
       prompt: |
         Create a beautiful mystical fortune card from this reading:
@@ -144,7 +144,7 @@ tasks:
   # Step 4: Display
   - id: display
     with:
-      fortune: format_fortune
+      fortune: $format_fortune
     exec:
       command: |
         clear 2>/dev/null || true

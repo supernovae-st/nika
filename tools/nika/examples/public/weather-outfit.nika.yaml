@@ -22,7 +22,7 @@ tasks:
   # Step 2: Fetch weather data (using wttr.in - no API key needed!)
   - id: fetch_weather
     with:
-      city: get_city
+      city: $get_city
     fetch:
       url: "https://wttr.in/{{with.city}}?format=j1"
       method: GET
@@ -32,8 +32,8 @@ tasks:
   # Step 3: Parse weather conditions
   - id: parse_weather
     with:
-      weather: fetch_weather
-      city: get_city
+      weather: $fetch_weather
+      city: $get_city
     infer:
       prompt: |
         Extract key weather info from this data:
@@ -57,7 +57,7 @@ tasks:
   # Step 4: Generate outfit suggestion
   - id: suggest_outfit
     with:
-      weather: parse_weather
+      weather: $parse_weather
     infer:
       prompt: |
         You are a stylish fashion advisor. Based on today's weather, suggest the perfect outfit.
@@ -102,8 +102,8 @@ tasks:
   # Step 5: Display
   - id: display
     with:
-      outfit: suggest_outfit
-      weather: parse_weather
+      outfit: $suggest_outfit
+      weather: $parse_weather
     exec:
       command: |
         echo "{{with.outfit}}"

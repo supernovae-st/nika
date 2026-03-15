@@ -42,7 +42,7 @@ tasks:
   # Step 4: Categorize commits
   - id: categorize
     with:
-      commits: get_commits
+      commits: $get_commits
     infer:
       prompt: |
         Categorize these git commits following Keep a Changelog format.
@@ -79,8 +79,8 @@ tasks:
   # Step 5: Generate changelog entry
   - id: generate_entry
     with:
-      version: get_version
-      categories: categorize
+      version: $get_version
+      categories: $categorize
     infer:
       prompt: |
         Generate a CHANGELOG.md entry.
@@ -112,8 +112,8 @@ tasks:
   # Step 6: Save or display
   - id: output
     with:
-      entry: generate_entry
-      version: get_version
+      entry: $generate_entry
+      version: $get_version
     exec:
       command: |
         echo "=== CHANGELOG ENTRY FOR {{with.version}} ==="

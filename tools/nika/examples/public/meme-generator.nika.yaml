@@ -32,8 +32,8 @@ tasks:
     as: format
     concurrency: 3
     with:
-      topic: get_topic
-      style: get_style
+      topic: $get_topic
+      style: $get_style
     infer:
       prompt: |
         You are a viral meme writer with {{with.style}} humor.
@@ -65,8 +65,8 @@ tasks:
   # Step 4: Pick the best one
   - id: pick_best
     with:
-      memes: generate_memes
-      topic: get_topic
+      memes: $generate_memes
+      topic: $get_topic
     infer:
       prompt: |
         You're a meme connoisseur. Pick the funniest meme from these options:
@@ -89,8 +89,8 @@ tasks:
   # Step 5: Display
   - id: display
     with:
-      meme: pick_best
-      topic: get_topic
+      meme: $pick_best
+      topic: $get_topic
     exec:
       command: |
         echo "🎭 MEME GENERATED 🎭"

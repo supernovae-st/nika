@@ -52,9 +52,9 @@ tasks:
   # Step 4: Generate standup
   - id: generate_standup
     with:
-      commits: get_commits
-      branch: get_branch
-      issues: get_issues
+      commits: $get_commits
+      branch: $get_branch
+      issues: $get_issues
     infer:
       prompt: |
         Generate a concise daily standup update.
@@ -87,7 +87,7 @@ tasks:
   # Step 5: Output
   - id: output
     with:
-      standup: generate_standup
+      standup: $generate_standup
     exec:
       command: |
         echo "{{with.standup}}"

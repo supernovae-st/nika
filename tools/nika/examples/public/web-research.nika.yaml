@@ -31,7 +31,7 @@ tasks:
   # Step 2: Initial research with Perplexity
   - id: research_main
     with:
-      query: get_query
+      query: $get_query
     invoke:
       mcp: perplexity
       tool: perplexity_search
@@ -45,7 +45,7 @@ tasks:
     as: aspect
     concurrency: 3
     with:
-      query: get_query
+      query: $get_query
     invoke:
       mcp: perplexity
       tool: perplexity_search
@@ -56,9 +56,9 @@ tasks:
   # Step 4: Synthesize findings
   - id: synthesize
     with:
-      query: get_query
-      main: research_main
-      deep: research_deep
+      query: $get_query
+      main: $research_main
+      deep: $research_deep
     infer:
       prompt: |
         You are a research analyst. Synthesize these findings into a comprehensive report.
@@ -105,8 +105,8 @@ tasks:
   # Step 5: Save report
   - id: save_report
     with:
-      report: synthesize
-      query: get_query
+      report: $synthesize
+      query: $get_query
     exec:
       command: |
         FILENAME="/tmp/research-$(date +%Y%m%d-%H%M%S).md"

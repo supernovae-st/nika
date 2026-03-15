@@ -16,6 +16,6 @@ tasks:
   - id: consumer
     description: "Consumer task that uses source output"
     with:
-      message: source
+      message: $source
     exec: "echo 'Received: {{with.message}}'"
     flow: [source]

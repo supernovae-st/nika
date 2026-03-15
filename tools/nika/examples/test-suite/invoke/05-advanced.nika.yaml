@@ -27,7 +27,7 @@ tasks:
   - id: second_call
     description: "Second MCP tool call using first result"
     with:
-      prev: first_call
+      prev: $first_call
     invoke:
       mcp: builtin
       tool: nika:log
@@ -59,8 +59,8 @@ tasks:
   - id: final_call
     description: "Final call after parallel completion"
     with:
-      a: parallel_call_a
-      b: parallel_call_b
+      a: $parallel_call_a
+      b: $parallel_call_b
     invoke:
       mcp: builtin
       tool: nika:log

@@ -44,7 +44,7 @@ tasks:
 
   - id: foreach_from_exec
     with:
-      colors: generate_items
+      colors: $generate_items
     for_each: ["red", "green", "blue"]
     as: color
     exec: "echo 'Color: {{with.color}}'"

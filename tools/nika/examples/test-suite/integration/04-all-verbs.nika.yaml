@@ -74,7 +74,7 @@ tasks:
   - id: infer_summary
     description: "infer: Summarize graph stats"
     with:
-      stats: invoke_describe
+      stats: $invoke_describe
     infer:
       prompt: |
         Summarize these NovaNet graph statistics in ONE sentence (max 50 words):
@@ -89,7 +89,7 @@ tasks:
   - id: agent_explore
     description: "agent: Explore graph and report"
     with:
-      summary: infer_summary
+      summary: $infer_summary
     agent:
       prompt: |
         You are a knowledge graph explorer. Your task:
@@ -128,7 +128,7 @@ tasks:
   - id: exec_complete
     description: "exec: Log test completion"
     with:
-      result: agent_explore
+      result: $agent_explore
     exec:
       command: |
         echo "All 5 verbs tested successfully!"

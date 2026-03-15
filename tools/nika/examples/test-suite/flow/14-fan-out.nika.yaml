@@ -14,30 +14,30 @@ tasks:
 
   - id: worker1
     with:
-      data: source
+      data: $source
     exec: "echo 'Worker 1: {{with.data}}'"
     flow: [source]
 
   - id: worker2
     with:
-      data: source
+      data: $source
     exec: "echo 'Worker 2: {{with.data}}'"
     flow: [source]
 
   - id: worker3
     with:
-      data: source
+      data: $source
     exec: "echo 'Worker 3: {{with.data}}'"
     flow: [source]
 
   - id: worker4
     with:
-      data: source
+      data: $source
     exec: "echo 'Worker 4: {{with.data}}'"
     flow: [source]
 
   - id: worker5
     with:
-      data: source
+      data: $source
     exec: "echo 'Worker 5: {{with.data}}'"
     flow: [source]

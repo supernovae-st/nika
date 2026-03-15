@@ -21,8 +21,8 @@ tasks:
   - id: combine
     description: "Combine multiple bindings"
     with:
-      a: step1
-      b: step2
-      c: step3
+      a: $step1
+      b: $step2
+      c: $step3
     infer: "Combine: {{with.a}}, {{with.b}}, {{with.c}}"
     flow: [step1, step2, step3]

@@ -26,7 +26,7 @@ tasks:
   # Step 3: Security review
   - id: review_security
     with:
-      diff: get_diff
+      diff: $get_diff
     infer:
       prompt: |
         You are a security expert. Review this code for security issues.
@@ -59,7 +59,7 @@ tasks:
   # Step 4: Quality review
   - id: review_quality
     with:
-      diff: get_diff
+      diff: $get_diff
     infer:
       prompt: |
         You are a senior developer. Review this code for quality.
@@ -93,9 +93,9 @@ tasks:
   # Step 5: Generate summary
   - id: generate_summary
     with:
-      files: get_files
-      security: review_security
-      quality: review_quality
+      files: $get_files
+      security: $review_security
+      quality: $review_quality
     infer:
       prompt: |
         Generate a code review summary.
@@ -129,7 +129,7 @@ tasks:
   # Step 6: Output
   - id: output
     with:
-      summary: generate_summary
+      summary: $generate_summary
     exec:
       command: |
         echo "{{with.summary}}"

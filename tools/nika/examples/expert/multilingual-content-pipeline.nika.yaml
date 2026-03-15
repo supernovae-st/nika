@@ -144,8 +144,8 @@ tasks:
     fail_fast: false                # Continue even if one locale fails
 
     with:
-      entity: load_entity
-      locales: define_locales
+      entity: $load_entity
+      locales: $define_locales
 
     infer:
       prompt: |
@@ -242,8 +242,8 @@ tasks:
   - id: quality_assessment
     description: "Assess content quality across all locales"
     with:
-      locales: define_locales
-      content: generate_locale_content
+      locales: $define_locales
+      content: $generate_locale_content
 
     infer:
       prompt: |
@@ -301,9 +301,9 @@ tasks:
   - id: generate_report
     description: "Generate final pipeline summary"
     with:
-      entity: load_entity
-      locales: define_locales
-      assessment: quality_assessment
+      entity: $load_entity
+      locales: $define_locales
+      assessment: $quality_assessment
 
     infer:
       prompt: |
@@ -335,8 +335,8 @@ tasks:
   - id: final_output
     description: "Output final results to console"
     with:
-      report: generate_report
-      assessment: quality_assessment
+      report: $generate_report
+      assessment: $quality_assessment
 
     exec: |
       echo "═══════════════════════════════════════════════════════════════"

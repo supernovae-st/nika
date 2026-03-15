@@ -38,10 +38,10 @@ tasks:
   # Step 2: Research destination (agent with spawn for sub-tasks)
   - id: travel_agent
     with:
-      destination: get_destination
-      days: get_days
-      budget: get_budget
-      interests: get_interests
+      destination: $get_destination
+      days: $get_days
+      budget: $get_budget
+      interests: $get_interests
     agent:
       prompt: |
         You are an expert travel planner creating a {{with.days}}-day itinerary for {{with.destination}}.
@@ -74,9 +74,9 @@ tasks:
   # Step 3: Generate packing list
   - id: packing_list
     with:
-      destination: get_destination
-      days: get_days
-      plan: travel_agent
+      destination: $get_destination
+      days: $get_days
+      plan: $travel_agent
     infer:
       prompt: |
         Based on this trip plan to {{with.destination}} for {{with.days}} days:
@@ -111,11 +111,11 @@ tasks:
   # Step 4: Compile final plan
   - id: compile
     with:
-      destination: get_destination
-      days: get_days
-      budget: get_budget
-      itinerary: travel_agent
-      packing: packing_list
+      destination: $get_destination
+      days: $get_days
+      budget: $get_budget
+      itinerary: $travel_agent
+      packing: $packing_list
     exec:
       command: |
         cat > /tmp/travel-plan.md << 'PLAN_EOF'

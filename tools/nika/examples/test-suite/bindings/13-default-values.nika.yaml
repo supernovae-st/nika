@@ -16,7 +16,7 @@ tasks:
     description: "Use default when source is empty"
     with:
       data:
-        path: maybe_empty
+        path: $maybe_empty
         default: "default-value"
     infer: "Using: {{with.data}}"
     flow: [maybe_empty]

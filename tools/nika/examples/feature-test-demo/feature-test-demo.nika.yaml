@@ -97,8 +97,8 @@ tasks:
         - nika:log
     with:
       # Eager binding: from included setup partial
-      meta: setup_generate_meta
-      env_status: setup_validate_env
+      meta: $setup_generate_meta
+      env_status: $setup_validate_env
     output:
       format: json
       schema: ./schemas/research.schema.json
@@ -142,7 +142,7 @@ tasks:
       system: "You are a professional content writer specializing in technical documentation."
       max_tokens: 4000
     with:
-      research_summary: research_agent
+      research_summary: $research_agent
       # format is auto-populated from 'as: format' in for_each
     output:
       format: json
@@ -186,9 +186,9 @@ tasks:
         - nika:log
     with:
       # section is auto-populated from 'as: section' in for_each
-      research: research_agent
+      research: $research_agent
       all_content:
-        path: content_generation
+        path: $content_generation
         lazy: true
         default: "[]"
     output:
@@ -223,7 +223,7 @@ tasks:
       system: "You are an expert HTML/CSS developer. Output only valid HTML code."
     with:
       # for_each results are aggregated as JSON array [header_result, main_result, footer_result]
-      sections: html_builder_agent
+      sections: $html_builder_agent
     output:
       format: text
 
@@ -243,7 +243,7 @@ tasks:
         echo "Written: research.json"
       shell: true
     with:
-      research: research_agent
+      research: $research_agent
 
   - id: write_content_md
     depends_on:
@@ -257,7 +257,7 @@ tasks:
       shell: true
     with:
       # for_each results: [md_result, txt_result, json_result] - write all formats
-      all_content: content_generation
+      all_content: $content_generation
 
   - id: write_summary_txt
     depends_on:
@@ -271,7 +271,7 @@ tasks:
       shell: true
     with:
       # for_each results aggregated as JSON array
-      all_content: content_generation
+      all_content: $content_generation
 
   - id: write_index_html
     depends_on:
@@ -284,7 +284,7 @@ tasks:
         echo "Written: index.html"
       shell: true
     with:
-      html: assemble_html
+      html: $assemble_html
 
   # ─────────────────────────────────────────────────────────────────────────────
   # PHASE 7: VERIFICATION (exec to check files)
@@ -337,7 +337,7 @@ tasks:
       temperature: 0.5
       system: "You are a technical report writer. Be concise and factual."
     with:
-      verification: verify_files
+      verification: $verify_files
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLOWS: DAG definition (using depends_on above, flows for visualization only)

@@ -183,9 +183,9 @@ tasks:
     fail_fast: false
 
     with:
-      entity: describe_entity
-      relations: traverse_relations
-      atoms: retrieve_locale_atoms
+      entity: $describe_entity
+      relations: $traverse_relations
+      atoms: $retrieve_locale_atoms
 
     invoke:
       server: novanet
@@ -248,8 +248,8 @@ tasks:
     fail_fast: false
 
     with:
-      context: assemble_context
-      entity: describe_entity
+      context: $assemble_context
+      entity: $describe_entity
 
     agent:
       prompt: |
@@ -371,8 +371,8 @@ tasks:
     description: "Validate generated content quality across locales"
 
     with:
-      content: generate_native_content
-      entity: describe_entity
+      content: $generate_native_content
+      entity: $describe_entity
 
     agent:
       prompt: |
@@ -475,9 +475,9 @@ tasks:
     description: "Generate comprehensive generation report"
 
     with:
-      entity: describe_entity
-      validation: validate_content_quality
-      content: generate_native_content
+      entity: $describe_entity
+      validation: $validate_content_quality
+      content: $generate_native_content
 
     infer:
       prompt: |
@@ -535,8 +535,8 @@ tasks:
     description: "Output generation summary"
 
     with:
-      validation: validate_content_quality
-      entity: describe_entity
+      validation: $validate_content_quality
+      entity: $describe_entity
 
     exec: |
       echo "═══════════════════════════════════════════════════════════════"

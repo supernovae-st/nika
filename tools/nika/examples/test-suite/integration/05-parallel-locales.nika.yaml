@@ -71,7 +71,7 @@ tasks:
     concurrency: 4
     fail_fast: false
     with:
-      contexts: generate_per_locale
+      contexts: $generate_per_locale
     infer:
       prompt: |
         Generate a compelling headline for locale: {{with.locale}}
@@ -98,7 +98,7 @@ tasks:
   - id: aggregate_results
     description: "Aggregate all locale results"
     with:
-      headlines: generate_headlines
+      headlines: $generate_headlines
     infer:
       prompt: |
         Summarize the headlines generated for each locale:
@@ -128,7 +128,7 @@ tasks:
   - id: verify_completion
     description: "Verify all locales processed"
     with:
-      result: aggregate_results
+      result: $aggregate_results
     exec:
       command: |
         echo '{{with.result}}' | jq -e '

@@ -20,7 +20,7 @@ tasks:
   - id: iterate_list
     description: "Iterate over produced list"
     with:
-      colors: produce_list
+      colors: $produce_list
     for_each: "{{with.colors}}"
     as: color
     exec: "echo 'Color: {{with.color}}'"

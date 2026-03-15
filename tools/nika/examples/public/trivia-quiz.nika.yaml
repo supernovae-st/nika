@@ -36,9 +36,9 @@ tasks:
     as: batch
     concurrency: 3
     with:
-      topic: get_topic
-      difficulty: get_difficulty
-      count: get_count
+      topic: $get_topic
+      difficulty: $get_difficulty
+      count: $get_count
     infer:
       prompt: |
         Generate trivia questions about: {{with.topic}}
@@ -70,9 +70,9 @@ tasks:
   # Step 3: Deduplicate and select best questions
   - id: select_questions
     with:
-      all_questions: generate_questions
-      count: get_count
-      topic: get_topic
+      all_questions: $generate_questions
+      count: $get_count
+      topic: $get_topic
     infer:
       prompt: |
         Select the best {{with.count}} trivia questions from these:
@@ -102,9 +102,9 @@ tasks:
   # Step 4: Format as interactive quiz
   - id: format_quiz
     with:
-      questions: select_questions
-      topic: get_topic
-      difficulty: get_difficulty
+      questions: $select_questions
+      topic: $get_topic
+      difficulty: $get_difficulty
     infer:
       prompt: |
         Format this trivia quiz for display:
@@ -158,8 +158,8 @@ tasks:
   # Step 5: Display
   - id: display
     with:
-      quiz: format_quiz
-      topic: get_topic
+      quiz: $format_quiz
+      topic: $get_topic
     exec:
       command: |
         echo "{{with.quiz}}"

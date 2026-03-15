@@ -39,8 +39,8 @@ tasks:
   # Step 2: Map mood to genres
   - id: map_mood
     with:
-      mood: get_mood
-      viewers: get_viewers
+      mood: $get_mood
+      viewers: $get_viewers
     infer:
       prompt: |
         You're a movie expert mapping moods to film genres.
@@ -77,9 +77,9 @@ tasks:
     as: pick_type
     concurrency: 3
     with:
-      mood_map: map_mood
-      decade: get_decade
-      avoid: get_avoid
+      mood_map: $map_mood
+      decade: $get_decade
+      avoid: $get_avoid
     infer:
       prompt: |
         Recommend a movie as "{{with.pick_type}}".
@@ -115,9 +115,9 @@ tasks:
   # Step 4: Rank and present
   - id: present
     with:
-      picks: generate_picks
-      mood: get_mood
-      viewers: get_viewers
+      picks: $generate_picks
+      mood: $get_mood
+      viewers: $get_viewers
     infer:
       prompt: |
         Create an engaging movie night recommendation card.
@@ -151,7 +151,7 @@ tasks:
   # Step 5: Display
   - id: display
     with:
-      recommendation: present
+      recommendation: $present
     exec:
       command: |
         echo "{{with.recommendation}}"

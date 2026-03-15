@@ -43,7 +43,7 @@ tasks:
   - id: verify_schema_structure
     description: "Verify schema contains node_classes"
     with:
-      schema: describe_schema
+      schema: $describe_schema
     exec:
       command: |
         echo '{{with.schema}}' | jq -e '
@@ -68,7 +68,7 @@ tasks:
   - id: verify_stats
     description: "Verify stats contains node counts"
     with:
-      stats: describe_stats
+      stats: $describe_stats
     exec:
       command: |
         echo '{{with.stats}}' | jq -e '

@@ -41,7 +41,7 @@ tasks:
   # Test 7: Binding from previous task
   - id: infer_with_binding
     with:
-      previous: infer_shorthand
+      previous: $infer_shorthand
     infer: "Repeat exactly what was said before: {{with.previous}}"
 
 flows:

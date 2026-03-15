@@ -56,8 +56,8 @@ tasks:
       system: "You are a JSON generator. Output only valid JSON without code blocks."
       max_tokens: 200
     with:
-      heredoc_result: test_shell_heredoc
-      substitution_result: test_shell_substitution
+      heredoc_result: $test_shell_heredoc
+      substitution_result: $test_shell_substitution
     output:
       format: json
 
@@ -75,9 +75,9 @@ tasks:
         echo "=== ALL TESTS PASSED ==="
       shell: true
     with:
-      heredoc: test_shell_heredoc
-      substitution: test_shell_substitution
-      infer: test_infer_options
+      heredoc: $test_shell_heredoc
+      substitution: $test_shell_substitution
+      infer: $test_infer_options
 
   # Test 6: Cleanup (using rmdir to avoid rm -rf blocklist)
   - id: cleanup

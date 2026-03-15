@@ -16,6 +16,6 @@ tasks:
   - id: use_processed
     description: "Use output from included task"
     with:
-      result: proc_validate_output
+      result: $proc_validate_output
     exec: "echo 'Using: {{with.result}}'"
     flow: [proc_validate_output]

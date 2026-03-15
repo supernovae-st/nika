@@ -27,8 +27,8 @@ tasks:
   # Step 2: Create story outline with main agent
   - id: story_master
     with:
-      genre: get_genre
-      setting: get_setting
+      genre: $get_genre
+      setting: $get_setting
     agent:
       prompt: |
         You are a Story Master orchestrating a collaborative story.
@@ -57,7 +57,7 @@ tasks:
     as: character
     concurrency: 3
     with:
-      bible: story_master
+      bible: $story_master
     infer:
       prompt: |
         You are writing from the perspective of the {{with.character}}.
@@ -76,8 +76,8 @@ tasks:
   # Step 4: Weave perspectives into Act 1
   - id: weave_act1
     with:
-      bible: story_master
-      perspectives: act1_perspectives
+      bible: $story_master
+      perspectives: $act1_perspectives
     infer:
       prompt: |
         You are an editor weaving multiple perspectives into a cohesive narrative.
@@ -98,8 +98,8 @@ tasks:
   # Step 5: Generate plot twist with agent
   - id: twist_agent
     with:
-      bible: story_master
-      act1: weave_act1
+      bible: $story_master
+      act1: $weave_act1
     agent:
       prompt: |
         You are a Plot Twist Specialist.
@@ -121,9 +121,9 @@ tasks:
   # Step 6: Write climax
   - id: climax
     with:
-      bible: story_master
-      act1: weave_act1
-      act2: twist_agent
+      bible: $story_master
+      act1: $weave_act1
+      act2: $twist_agent
     infer:
       prompt: |
         Write the climactic Act 3 (200-300 words).
@@ -141,12 +141,12 @@ tasks:
   # Step 7: Assemble final story
   - id: assemble
     with:
-      genre: get_genre
-      setting: get_setting
-      bible: story_master
-      act1: weave_act1
-      act2: twist_agent
-      act3: climax
+      genre: $get_genre
+      setting: $get_setting
+      bible: $story_master
+      act1: $weave_act1
+      act2: $twist_agent
+      act3: $climax
     exec:
       command: |
         cat > /tmp/story.md << 'STORY_EOF'

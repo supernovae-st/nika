@@ -27,10 +27,10 @@ tasks:
   - id: aggregator
     description: "Aggregate all sources"
     with:
-      s1: source1
-      s2: source2
-      s3: source3
-      s4: source4
-      s5: source5
+      s1: $source1
+      s2: $source2
+      s3: $source3
+      s4: $source4
+      s5: $source5
     infer: "Combine: {{with.s1}}, {{with.s2}}, {{with.s3}}, {{with.s4}}, {{with.s5}}"
     flow: [source1, source2, source3, source4, source5]

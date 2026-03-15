@@ -16,7 +16,7 @@ tasks:
     description: "Task with lazy binding"
     with:
       data:
-        path: early_task
+        path: $early_task
         lazy: true
         default: "fallback"
     infer: "Using data: {{with.data}}"

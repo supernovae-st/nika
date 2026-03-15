@@ -76,7 +76,7 @@ tasks:
   - id: verify_traversal
     description: "Verify traversal returned results"
     with:
-      nodes: traverse_entity
+      nodes: $traverse_entity
     exec:
       command: |
         echo '{{with.nodes}}' | jq -e '

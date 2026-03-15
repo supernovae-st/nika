@@ -20,6 +20,6 @@ tasks:
   - id: use_nested
     description: "Access nested fields from JSON"
     with:
-      data: produce_json
+      data: $produce_json
     infer: "Process user data: {{with.data}}"
     flow: [produce_json]

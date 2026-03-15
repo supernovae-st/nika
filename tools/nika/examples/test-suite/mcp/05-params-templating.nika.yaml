@@ -21,7 +21,7 @@ tasks:
   - id: use_template
     description: "Use template in MCP params"
     with:
-      val: get_value
+      val: $get_value
     invoke:
       mcp: templated
       tool: nika:log

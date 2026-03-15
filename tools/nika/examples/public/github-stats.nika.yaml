@@ -24,7 +24,7 @@ tasks:
   # Step 2: Fetch user profile
   - id: fetch_profile
     with:
-      username: get_username
+      username: $get_username
     fetch:
       url: "https://api.github.com/users/{{with.username}}"
       method: GET
@@ -37,7 +37,7 @@ tasks:
   # Step 3: Fetch repos (for language stats)
   - id: fetch_repos
     with:
-      username: get_username
+      username: $get_username
     fetch:
       url: "https://api.github.com/users/{{with.username}}/repos?per_page=100&sort=pushed"
       method: GET
@@ -50,9 +50,9 @@ tasks:
   # Step 4: Analyze stats with LLM
   - id: analyze_stats
     with:
-      profile: fetch_profile
-      repos: fetch_repos
-      username: get_username
+      profile: $fetch_profile
+      repos: $fetch_repos
+      username: $get_username
     infer:
       prompt: |
         Analyze this GitHub profile and create a fun stats card.
@@ -92,7 +92,7 @@ tasks:
   # Step 5: Generate ASCII card
   - id: generate_card
     with:
-      stats: analyze_stats
+      stats: $analyze_stats
     infer:
       prompt: |
         Create a beautiful ASCII art stats card for this GitHub user:
@@ -125,8 +125,8 @@ tasks:
   # Step 6: Display
   - id: display
     with:
-      card: generate_card
-      stats: analyze_stats
+      card: $generate_card
+      stats: $analyze_stats
     exec:
       command: |
         echo "{{with.card}}"

@@ -32,9 +32,9 @@ tasks:
   - id: aggregate
     description: "Aggregate results"
     with:
-      batch: parallel_batch
-      f1: fan_out
-      f2: fan_out_2
-      f3: fan_out_3
+      batch: $parallel_batch
+      f1: $fan_out
+      f2: $fan_out_2
+      f3: $fan_out_3
     exec: "echo 'Aggregated'"
     flow: [parallel_batch, fan_out, fan_out_2, fan_out_3]

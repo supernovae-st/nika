@@ -36,7 +36,7 @@ tasks:
   # Step 3: Analyze structure
   - id: analyze
     with:
-      data: read_input
+      data: $read_input
     infer:
       prompt: |
         Analyze this JSON structure:
@@ -54,9 +54,9 @@ tasks:
   # Step 4: Transform
   - id: transform
     with:
-      data: read_input
-      instruction: get_transform
-      analysis: analyze
+      data: $read_input
+      instruction: $get_transform
+      analysis: $analyze
     infer:
       prompt: |
         Transform this JSON data.
@@ -81,8 +81,8 @@ tasks:
   # Step 5: Validate and output
   - id: output
     with:
-      result: transform
-      instruction: get_transform
+      result: $transform
+      instruction: $get_transform
     exec:
       command: |
         echo "=== Transformation Complete ==="

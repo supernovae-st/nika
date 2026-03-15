@@ -26,6 +26,6 @@ tasks:
   - id: compensate_if_needed
     description: "Compensation check"
     with:
-      result: step3_forward
+      result: $step3_forward
     exec: "echo 'Checking if compensation needed'"
     flow: [step3_forward]

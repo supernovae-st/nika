@@ -10,7 +10,7 @@ tasks:
 
   - id: eager_consumer
     with:
-      value: producer
+      value: $producer
     exec: "echo 'Eagerly consumed: value captured'"
 
   # Test 2: Lazy binding with default (references existing task)
@@ -22,7 +22,7 @@ tasks:
   - id: lazy_with_default
     with:
       slow_data:
-        path: slow_producer
+        path: $slow_producer
         lazy: true
         default: "fallback_value"
     exec: "echo 'Got lazy data'"
@@ -30,8 +30,8 @@ tasks:
   # Test 3: Multiple bindings
   - id: multi_binding
     with:
-      a: producer
-      b: slow_producer
+      a: $producer
+      b: $slow_producer
     exec: "echo 'Combined A and B'"
 
 flows:

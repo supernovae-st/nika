@@ -17,7 +17,7 @@ tasks:
   - id: on_true
     description: "Execute after check (always runs — no actual conditional)"
     with:
-      result: check_condition
+      result: $check_condition
     exec: "echo 'Condition was true'"
     flow: [check_condition]
 

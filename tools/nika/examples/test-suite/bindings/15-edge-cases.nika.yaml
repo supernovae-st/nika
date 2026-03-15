@@ -27,9 +27,9 @@ tasks:
   - id: handle_edges
     description: "Handle all edge cases"
     with:
-      special: special_chars
-      empty: empty_output
-      nullish: null_like
-      spaces: whitespace
+      special: $special_chars
+      empty: $empty_output
+      nullish: $null_like
+      spaces: $whitespace
     infer: "Processing edge cases"
     flow: [special_chars, empty_output, null_like, whitespace]

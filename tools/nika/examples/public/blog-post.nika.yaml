@@ -23,7 +23,7 @@ tasks:
   # Step 2: Generate outline
   - id: generate_outline
     with:
-      topic: get_topic
+      topic: $get_topic
     infer:
       prompt: |
         Create a detailed blog post outline for: {{with.topic}}
@@ -41,8 +41,8 @@ tasks:
   # Step 3: Generate full content (parallel sections)
   - id: generate_intro
     with:
-      topic: get_topic
-      outline: generate_outline
+      topic: $get_topic
+      outline: $generate_outline
     infer: |
       Write an engaging introduction (150-200 words) for this blog post.
 
@@ -55,8 +55,8 @@ tasks:
   # Step 4: Generate body sections
   - id: generate_body
     with:
-      topic: get_topic
-      outline: generate_outline
+      topic: $get_topic
+      outline: $generate_outline
     infer:
       prompt: |
         Write the main body sections for this blog post (800-1000 words).
@@ -75,8 +75,8 @@ tasks:
   # Step 5: Generate conclusion
   - id: generate_conclusion
     with:
-      topic: get_topic
-      outline: generate_outline
+      topic: $get_topic
+      outline: $generate_outline
     infer: |
       Write a strong conclusion (100-150 words) for this blog post.
 
@@ -87,10 +87,10 @@ tasks:
   # Step 6: Assemble full post
   - id: assemble_post
     with:
-      outline: generate_outline
-      intro: generate_intro
-      body: generate_body
-      conclusion: generate_conclusion
+      outline: $generate_outline
+      intro: $generate_intro
+      body: $generate_body
+      conclusion: $generate_conclusion
     exec:
       command: |
         cat > /tmp/blog-post.md << 'BLOG_EOF'

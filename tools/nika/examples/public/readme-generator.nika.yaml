@@ -71,10 +71,10 @@ tasks:
   # Step 5: Generate README
   - id: generate_readme
     with:
-      structure: get_structure
-      package: get_package
-      docs: get_docs
-      stack: detect_stack
+      structure: $get_structure
+      package: $get_package
+      docs: $get_docs
+      stack: $detect_stack
     infer:
       prompt: |
         Generate a professional README.md for this project.
@@ -139,7 +139,7 @@ tasks:
   # Step 6: Save
   - id: save
     with:
-      readme: generate_readme
+      readme: $generate_readme
     exec:
       command: |
         echo "{{with.readme}}" > /tmp/README-generated.md

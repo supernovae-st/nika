@@ -18,6 +18,6 @@ tasks:
   - id: fallback_task
     description: "Task that uses fallback"
     with:
-      primary: primary_provider
+      primary: $primary_provider
     infer: "Process: {{with.primary}}"
     flow: [primary_provider]
