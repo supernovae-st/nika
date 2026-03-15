@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [features]
 default = ["tui", "nika-daemon", "native-keychain", "native-inference"]
-tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:unicode-width", "dep:terminal_size", "dep:tui-tree-widget", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:unicode-width", "dep:terminal_size", "dep:tui-tree-widget", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
@@ -95,13 +95,13 @@ spn-client = { version = "0.3.4", optional = true }
 mistralrs = { version = "0.7", optional = true }
 async-stream = { version = "0.3", optional = true }
 
-# Git integration (v0.21.3 - Git gutter + file status)
-git2 = "0.19"  # libgit2 bindings for git operations
+# Git integration (v0.21.3 - Git gutter + file status) - TUI only
+git2 = { version = "0.19", optional = true }
 
 # OpenSSL vendored for cross-compilation (required by git2 -> libgit2-sys -> openssl-sys)
 # Using vendored feature compiles OpenSSL statically, avoiding system OpenSSL dependency
 # Required for: musl static builds, cross-compilation (aarch64-linux-gnu), CI builds
-openssl = { version = "0.10", features = ["vendored"] }
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # Utilities
 regex = "1.11"
