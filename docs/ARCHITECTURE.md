@@ -84,8 +84,8 @@ src/
 │   └── output.rs     # Output processing
 │
 ├── binding/          # Data flow
-│   ├── entry.rs      # UseEntry, UseWiring
-│   ├── template.rs   # {{use.alias}} substitution
+│   ├── entry.rs      # BindingEntry, BindingSpec
+│   ├── template.rs   # {{with.alias}} substitution
 │   └── resolve.rs    # Path resolution
 │
 ├── mcp/              # MCP client (NEW)
@@ -200,14 +200,14 @@ tasks:
       tool: novanet_generate
       params:
         entity: "qr-code"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
 
   - id: synthesize
-    use:
+    with:
       ctx: context
       results: generate_locales
     agent:
-      prompt: "Synthesize {{use.results}} using context {{use.ctx}}"
+      prompt: "Synthesize {{with.results}} using context {{with.ctx}}"
       mcp: [novanet]
       max_turns: 10
       tool_choice: auto
@@ -231,7 +231,7 @@ flows:
 5. Execute tasks in topological order:
    - Parallel when no dependencies
    - Wait for upstream completion
-   - Substitute {{use.alias}} templates
+   - Substitute {{with.alias}} templates
 6. Store results in RunContext
 7. Return final outputs
 ```

@@ -125,7 +125,7 @@ tasks:
     infer: "Analyze the code for issues"
 
   - id: report
-    infer: "Generate a report of {{use.analyze}}"
+    infer: "Generate a report of {{with.analyze}}"
     flow: analyze
 ```
 
@@ -143,7 +143,7 @@ Tasks are the fundamental unit of execution.
 | `description` | string | No | Human-readable description |
 | `provider` | string | No | Override workflow provider |
 | `model` | string | No | Override workflow model |
-| `use` | object | No | Data dependencies |
+| `with` | object | No | Data dependencies |
 | `flow` | string/array | No | Execution dependencies |
 | `output` | object | No | Output configuration |
 | `retry` | object | No | Retry configuration |
@@ -292,7 +292,7 @@ Call an MCP (Model Context Protocol) tool.
   invoke:
     tool: novanet::search
     params:
-      query: "{{use.keywords}}"
+      query: "{{with.keywords}}"
       limit: 10
     timeout_ms: 5000
 ```
@@ -337,7 +337,7 @@ Run an autonomous agent with tools.
 
 Tasks can depend on other tasks in two ways:
 
-### `use:` - Data Dependencies
+### `with:` - Data Dependencies
 
 Access output from another task:
 
@@ -347,20 +347,20 @@ tasks:
     infer: "Analyze this code"
 
   - id: report
-    use:
+    with:
       analysis: analyze
-    infer: "Create report from {{use.analysis}}"
+    infer: "Create report from {{with.analysis}}"
 ```
 
 With JSONPath extraction:
 
 ```yaml
 - id: extract
-  use:
+  with:
     items:
       task: parse-json
       path: "$.data.items"
-  infer: "Process these items: {{use.items}}"
+  infer: "Process these items: {{with.items}}"
 ```
 
 ### `flow:` - Execution Dependencies
@@ -476,7 +476,7 @@ Templates use `{{...}}` syntax for variable interpolation:
 
 | Variable | Description |
 |----------|-------------|
-| `{{use.alias}}` | Output from a `use:` dependency |
+| `{{with.alias}}` | Output from a `with:` dependency |
 | `{{inputs.name}}` | Input parameter value |
 | `{{env.VAR}}` | Environment variable |
 | `{{context.alias}}` | Loaded context file |
@@ -485,10 +485,10 @@ Templates use `{{...}}` syntax for variable interpolation:
 
 ```yaml
 - id: process
-  use:
+  with:
     data: fetch-data
   infer: |
-    Process this data: {{use.data}}
+    Process this data: {{with.data}}
 
     Configuration:
     - API Key: {{env.API_KEY}}
@@ -529,14 +529,14 @@ workflow      ::= schema [metadata] tasks [flows]
 schema        ::= "schema:" string
 metadata      ::= [workflow] [description] [provider] [model] [mcp] [context] [inputs]
 tasks         ::= "tasks:" task+
-task          ::= "- id:" id [description] verb [use] [flow] [output] [retry]
+task          ::= "- id:" id [description] verb [with] [flow] [output] [retry]
 verb          ::= infer | exec | fetch | invoke | agent
 infer         ::= "infer:" (string | infer_params)
 exec          ::= "exec:" (string | exec_params)
 fetch         ::= "fetch:" (string | fetch_params)
 invoke        ::= "invoke:" (string | invoke_params)
 agent         ::= "agent:" agent_params
-use           ::= "use:" { alias: target }+
+with          ::= "with:" { alias: target }+
 target        ::= id | { task: id, path: jsonpath }
 flow          ::= "flow:" (id | id+)
 output        ::= "output:" { format: format [schema: schema] }
