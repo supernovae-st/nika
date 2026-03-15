@@ -204,7 +204,7 @@ impl App {
 
             // ═══ Mode Change ═══
             Action::SetMode(mode) => {
-                self.state.mode = mode;
+                self.state.ui.mode = mode;
             }
 
             // ═══ Continue (no-op) ═══
@@ -576,13 +576,13 @@ impl App {
     /// Handle scroll up action for current view
     fn handle_scroll_up(&mut self) {
         // Delegate to current view's scroll handler
-        self.state.chat_overlay.scroll_up();
+        self.state.ui.chat_overlay.scroll_up();
     }
 
     /// Handle scroll down action for current view
     fn handle_scroll_down(&mut self) {
         // Delegate to current view's scroll handler
-        self.state.chat_overlay.scroll_down();
+        self.state.ui.chat_overlay.scroll_down();
     }
 
     /// Run a workflow from a file path

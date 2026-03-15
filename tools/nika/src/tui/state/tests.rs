@@ -96,16 +96,16 @@ fn test_workflow_state_progress() {
 #[test]
 fn test_tui_state_focus_navigation() {
     let mut state = TuiState::new("test.yaml");
-    assert_eq!(state.focus, PanelId::Progress);
+    assert_eq!(state.ui.focus, PanelId::Progress);
 
     state.focus_next();
-    assert_eq!(state.focus, PanelId::Dag);
+    assert_eq!(state.ui.focus, PanelId::Dag);
 
     state.focus_panel(4);
-    assert_eq!(state.focus, PanelId::Agent);
+    assert_eq!(state.ui.focus, PanelId::Agent);
 
     state.focus_prev();
-    assert_eq!(state.focus, PanelId::NovaNet);
+    assert_eq!(state.ui.focus, PanelId::NovaNet);
 }
 
 #[test]
@@ -115,40 +115,40 @@ fn test_tui_state_cycle_tab() {
     let mut state = TuiState::new("test.yaml");
 
     // Test Mission tab cycling (Progress → TaskIO → Output → Progress)
-    state.focus = PanelId::Progress;
-    assert_eq!(state.mission_tab, MissionTab::Progress);
+    state.ui.focus = PanelId::Progress;
+    assert_eq!(state.ui.mission_tab, MissionTab::Progress);
     state.cycle_tab();
-    assert_eq!(state.mission_tab, MissionTab::TaskIO);
+    assert_eq!(state.ui.mission_tab, MissionTab::TaskIO);
     state.cycle_tab();
-    assert_eq!(state.mission_tab, MissionTab::Output);
+    assert_eq!(state.ui.mission_tab, MissionTab::Output);
     state.cycle_tab();
-    assert_eq!(state.mission_tab, MissionTab::Progress);
+    assert_eq!(state.ui.mission_tab, MissionTab::Progress);
 
     // Test Dag tab cycling (Graph ↔ Yaml)
-    state.focus = PanelId::Dag;
-    assert_eq!(state.dag_tab, DagTab::Graph);
+    state.ui.focus = PanelId::Dag;
+    assert_eq!(state.ui.dag_tab, DagTab::Graph);
     state.cycle_tab();
-    assert_eq!(state.dag_tab, DagTab::Yaml);
+    assert_eq!(state.ui.dag_tab, DagTab::Yaml);
     state.cycle_tab();
-    assert_eq!(state.dag_tab, DagTab::Graph);
+    assert_eq!(state.ui.dag_tab, DagTab::Graph);
 
     // Test NovaNet tab cycling (Summary ↔ FullJson)
-    state.focus = PanelId::NovaNet;
-    assert_eq!(state.novanet_tab, NovanetTab::Summary);
+    state.ui.focus = PanelId::NovaNet;
+    assert_eq!(state.ui.novanet_tab, NovanetTab::Summary);
     state.cycle_tab();
-    assert_eq!(state.novanet_tab, NovanetTab::FullJson);
+    assert_eq!(state.ui.novanet_tab, NovanetTab::FullJson);
     state.cycle_tab();
-    assert_eq!(state.novanet_tab, NovanetTab::Summary);
+    assert_eq!(state.ui.novanet_tab, NovanetTab::Summary);
 
     // Test Reasoning tab cycling (Turns → Thinking → Steps → Turns)
-    state.focus = PanelId::Agent;
-    assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
+    state.ui.focus = PanelId::Agent;
+    assert_eq!(state.ui.reasoning_tab, ReasoningTab::Turns);
     state.cycle_tab();
-    assert_eq!(state.reasoning_tab, ReasoningTab::Thinking);
+    assert_eq!(state.ui.reasoning_tab, ReasoningTab::Thinking);
     state.cycle_tab();
-    assert_eq!(state.reasoning_tab, ReasoningTab::Steps);
+    assert_eq!(state.ui.reasoning_tab, ReasoningTab::Steps);
     state.cycle_tab();
-    assert_eq!(state.reasoning_tab, ReasoningTab::Turns);
+    assert_eq!(state.ui.reasoning_tab, ReasoningTab::Turns);
 }
 
 #[test]
@@ -2424,8 +2424,8 @@ fn test_tui_mode_chat_overlay_variant() {
 fn test_tui_state_has_chat_overlay() {
     let state = TuiState::new("test.yaml");
     // Chat overlay should be initialized with welcome message
-    assert_eq!(state.chat_overlay.messages.len(), 1);
-    assert!(state.chat_overlay.input.is_empty());
+    assert_eq!(state.ui.chat_overlay.messages.len(), 1);
+    assert!(state.ui.chat_overlay.input.is_empty());
 }
 
 #[test]

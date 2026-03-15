@@ -73,12 +73,12 @@ impl App {
     fn poll_llm_responses(&mut self) {
         while let Ok(response) = self.llm_response_rx.try_recv() {
             // Update chat overlay
-            if let Some(last) = self.state.chat_overlay.messages.last() {
+            if let Some(last) = self.state.ui.chat_overlay.messages.last() {
                 if last.content == "Thinking..." {
-                    self.state.chat_overlay.messages.pop();
+                    self.state.ui.chat_overlay.messages.pop();
                 }
             }
-            self.state.chat_overlay.add_nika_message(response.clone());
+            self.state.ui.chat_overlay.add_nika_message(response.clone());
 
             // Update chat view
             if let Some(last) = self.chat_view.messages.last() {

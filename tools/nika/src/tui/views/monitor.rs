@@ -345,7 +345,7 @@ impl MonitorView {
         focused: bool,
     ) {
         // Tab indicator in title
-        let tab_indicator = state.mission_tab.title();
+        let tab_indicator = state.ui.mission_tab.title();
         let mode_indicator = match self.render_mode {
             RenderMode::Compact => "compact",
             RenderMode::Expanded => "expanded",
@@ -371,7 +371,7 @@ impl MonitorView {
         frame.render_widget(block, area);
 
         // Tab-aware content rendering
-        match state.mission_tab {
+        match state.ui.mission_tab {
             MissionTab::TaskIO => {
                 // Show selected task's input/output
                 self.render_mission_task_io(frame, inner_area, state, theme);
@@ -622,7 +622,7 @@ impl MonitorView {
         focused: bool,
     ) {
         // Tab indicator in title
-        let tab_indicator = state.dag_tab.title();
+        let tab_indicator = state.ui.dag_tab.title();
         let mode_indicator = match self.dag_mode {
             NodeBoxMode::Minimal => "compact",
             NodeBoxMode::Expanded => "expanded",
@@ -646,7 +646,7 @@ impl MonitorView {
         frame.render_widget(block, area);
 
         // Tab-aware content rendering
-        match state.dag_tab {
+        match state.ui.dag_tab {
             DagTab::Yaml => {
                 self.render_dag_yaml(frame, inner_area, state, theme);
                 return;
@@ -693,7 +693,7 @@ impl MonitorView {
         focused: bool,
     ) {
         // Tab indicator in title
-        let tab_indicator = state.novanet_tab.title();
+        let tab_indicator = state.ui.novanet_tab.title();
 
         let block = Block::default()
             .title(format!(" ⊛ NOVANET STATION [{}] ", tab_indicator))
@@ -710,7 +710,7 @@ impl MonitorView {
         frame.render_widget(block.clone(), area);
 
         // Tab-aware content rendering
-        match state.novanet_tab {
+        match state.ui.novanet_tab {
             NovanetTab::FullJson => {
                 self.render_novanet_full_json(frame, inner_area, state, theme);
                 return;
@@ -816,7 +816,7 @@ impl MonitorView {
         focused: bool,
     ) {
         // Tab indicator in title
-        let tab_indicator = state.reasoning_tab.title();
+        let tab_indicator = state.ui.reasoning_tab.title();
 
         let block = Block::default()
             .title(format!(" ⊕ AGENT REASONING [{}] ", tab_indicator))
@@ -833,7 +833,7 @@ impl MonitorView {
         frame.render_widget(block.clone(), area);
 
         // Tab-aware content rendering
-        match state.reasoning_tab {
+        match state.ui.reasoning_tab {
             ReasoningTab::Thinking => {
                 self.render_agent_thinking(frame, inner_area, state, theme);
                 return;
