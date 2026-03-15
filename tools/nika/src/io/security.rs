@@ -153,24 +153,44 @@ fn validate_path_components(path: &Path) -> Result<(), NikaError> {
 /// Normalize a path by resolving `.` and `..` components without filesystem access
 ///
 /// This is used when we need to validate paths that don't exist yet.
+///
+/// # Safety
+///
+/// For absolute paths, `..` at the root is a no-op (can't go above `/`).
+/// For relative paths, unresolvable `..` components are preserved to ensure
+/// the boundary check detects traversal attempts rather than silently swallowing them.
 fn normalize_path(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
+    let mut components: Vec<std::path::Component<'_>> = Vec::new();
 
     for component in path.components() {
         match component {
             std::path::Component::ParentDir => {
-                normalized.pop();
+                // Pop only if the last component is a Normal directory.
+                // Preserve `..` if we'd go above the starting point (prevents
+                // silent traversal swallowing on relative paths).
+                match components.last() {
+                    Some(std::path::Component::Normal(_)) => {
+                        components.pop();
+                    }
+                    Some(std::path::Component::RootDir) | Some(std::path::Component::Prefix(_)) => {
+                        // At root — can't go higher, skip this `..`
+                    }
+                    _ => {
+                        // Empty or already has `..` — preserve for boundary detection
+                        components.push(component);
+                    }
+                }
             }
             std::path::Component::CurDir => {
                 // Skip current directory references
             }
             _ => {
-                normalized.push(component);
+                components.push(component);
             }
         }
     }
 
-    normalized
+    components.iter().collect()
 }
 
 /// Error type for path boundary validation
@@ -383,5 +403,34 @@ mod tests {
         // Try to escape using nested parent references
         let result = validate_artifact_path(&artifact_dir, Path::new("a/../../b"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_normalize_path_preserves_unresolvable_parent() {
+        // Relative path with leading `..` — should be preserved, not swallowed
+        let path = PathBuf::from("../../etc/passwd");
+        let normalized = normalize_path(&path);
+        assert_eq!(
+            normalized,
+            PathBuf::from("../../etc/passwd"),
+            "`..` at start of relative path must be preserved for boundary checks"
+        );
+    }
+
+    #[test]
+    fn test_normalize_path_absolute_root_clamp() {
+        // Absolute path with `..` past root — clamps at root
+        let path = PathBuf::from("/a/../../b");
+        let normalized = normalize_path(&path);
+        assert_eq!(normalized, PathBuf::from("/b"));
+    }
+
+    #[test]
+    fn test_normalize_path_mixed_relative() {
+        // Relative path: resolvable `..` removed, unresolvable preserved
+        let path = PathBuf::from("a/b/../../c/../../../etc");
+        let normalized = normalize_path(&path);
+        // a/b/../.. → (empty), c/.. → (empty), ../etc → ../etc  but leading .. preserved
+        assert_eq!(normalized, PathBuf::from("../../etc"));
     }
 }
