@@ -80,7 +80,7 @@ pub struct RawOutputConfig {
 /// For-each iteration configuration.
 #[derive(Debug, Clone, Default)]
 pub struct RawForEach {
-    /// Items expression: "use.task_id" or "{{...}}"
+    /// Items expression: "$task_id" or "{{...}}"
     pub items: Spanned<String>,
     /// Loop variable name (default: "item")
     pub as_var: Option<Spanned<String>>,

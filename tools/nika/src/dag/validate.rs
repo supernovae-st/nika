@@ -167,7 +167,7 @@ fn validate_from_task(
 ) -> Result<(), NikaError> {
     // Check not self-reference first (cheapest O(1) check)
     if from_task == task_id {
-        return Err(NikaError::UseCircularDep {
+        return Err(NikaError::WithCircularDep {
             alias: alias.to_string(),
             from_task: from_task.to_string(),
             task_id: task_id.to_string(),
@@ -176,7 +176,7 @@ fn validate_from_task(
 
     // Check task exists (O(1) hash lookup)
     if !all_task_ids.contains(from_task) {
-        return Err(NikaError::UseUnknownTask {
+        return Err(NikaError::WithUnknownTask {
             alias: alias.to_string(),
             from_task: from_task.to_string(),
             task_id: task_id.to_string(),
@@ -185,7 +185,7 @@ fn validate_from_task(
 
     // Check from_task has path to current task (O(V+E) BFS)
     if !flow_graph.has_path(from_task, task_id) {
-        return Err(NikaError::UseNotUpstream {
+        return Err(NikaError::WithNotUpstream {
             alias: alias.to_string(),
             from_task: from_task.to_string(),
             task_id: task_id.to_string(),

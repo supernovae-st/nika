@@ -496,7 +496,7 @@ mod tests {
 
     #[test]
     fn test_rich_error_creation() {
-        let source = "tasks:\n  - id: step1\n    use:\n      data: taks1\n";
+        let source = "tasks:\n  - id: step1\n    with:\n      data: taks1\n";
         let err = AnalyzeError::unknown_task(make_span(40, 45), "taks1", Some("task1"));
         let rich = RichAnalyzeError::new(err, source, "test.nika.yaml");
 

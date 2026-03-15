@@ -291,23 +291,21 @@ pub enum NikaError {
     // DAG VALIDATION (080-089)
     // ═══════════════════════════════════════════
     #[error("[NIKA-080] with.{alias} references unknown task '{from_task}'")]
-    UseUnknownTask {
+    WithUnknownTask {
         alias: String,
         from_task: String,
         task_id: String,
     },
 
     #[error("[NIKA-081] with.{alias}='{from_task}' is not upstream of task '{task_id}'")]
-    UseNotUpstream {
+    WithNotUpstream {
         alias: String,
         from_task: String,
         task_id: String,
     },
 
-    #[error(
-        "[NIKA-082] with.{alias}='{from_task}' creates circular dependency with '{task_id}'"
-    )]
-    UseCircularDep {
+    #[error("[NIKA-082] with.{alias}='{from_task}' creates circular dependency with '{task_id}'")]
+    WithCircularDep {
         alias: String,
         from_task: String,
         task_id: String,
@@ -762,9 +760,9 @@ impl NikaError {
             Self::InvalidTraversal { .. } => "NIKA-073",
             Self::TemplateParse { .. } => "NIKA-074",
             // DAG validation errors
-            Self::UseUnknownTask { .. } => "NIKA-080",
-            Self::UseNotUpstream { .. } => "NIKA-081",
-            Self::UseCircularDep { .. } => "NIKA-082",
+            Self::WithUnknownTask { .. } => "NIKA-080",
+            Self::WithNotUpstream { .. } => "NIKA-081",
+            Self::WithCircularDep { .. } => "NIKA-082",
             // JSONPath/IO errors
             Self::JsonPathUnsupported { .. } => "NIKA-090",
             Self::JsonPathNoMatch { .. } => "NIKA-091",
@@ -933,11 +931,11 @@ impl FixSuggestion for NikaError {
                 Some("Check the path - accessing field on non-object")
             }
             NikaError::TemplateParse { .. } => Some("Check template syntax: {{with.alias}}"),
-            NikaError::UseUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
-            NikaError::UseNotUpstream { .. } => {
+            NikaError::WithUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
+            NikaError::WithNotUpstream { .. } => {
                 Some("Add a flow from the source task to this task")
             }
-            NikaError::UseCircularDep { .. } => Some("Remove the circular dependency"),
+            NikaError::WithCircularDep { .. } => Some("Remove the circular dependency"),
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),
             NikaError::JsonPathNoMatch { .. } => {
                 Some("Check the path exists in source task output")
@@ -1547,7 +1545,7 @@ mod tests {
 
     #[test]
     fn test_with_unknown_task_error() {
-        let err = NikaError::UseUnknownTask {
+        let err = NikaError::WithUnknownTask {
             alias: "ctx".to_string(),
             from_task: "undefined".to_string(),
             task_id: "current".to_string(),
@@ -1560,7 +1558,7 @@ mod tests {
 
     #[test]
     fn test_with_not_upstream_error() {
-        let err = NikaError::UseNotUpstream {
+        let err = NikaError::WithNotUpstream {
             alias: "ctx".to_string(),
             from_task: "task2".to_string(),
             task_id: "task1".to_string(),
@@ -1572,7 +1570,7 @@ mod tests {
 
     #[test]
     fn test_with_circular_dep_error() {
-        let err = NikaError::UseCircularDep {
+        let err = NikaError::WithCircularDep {
             alias: "ctx".to_string(),
             from_task: "task1".to_string(),
             task_id: "task2".to_string(),

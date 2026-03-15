@@ -31,7 +31,7 @@ pub enum CompletionContext {
     /// After a verb keyword (infer:, exec:, etc.)
     VerbValue(String),
     /// Inside a with: block (binding references)
-    UseBinding,
+    WithBinding,
     /// Inside mcp: block
     McpServer,
     /// Inside a template {{ }}
@@ -65,7 +65,7 @@ pub fn compute_completions_with_ast(
         CompletionContext::VerbValue(verb) => {
             verb_value_completions_with_ast(&verb, ast_index, uri)
         }
-        CompletionContext::UseBinding => binding_completions_with_ast(ast_index, uri, text),
+        CompletionContext::WithBinding => binding_completions_with_ast(ast_index, uri, text),
         CompletionContext::McpServer => mcp_server_completions(),
         CompletionContext::Template => template_completions_with_ast(ast_index, uri, text),
         CompletionContext::Unknown => vec![],
@@ -81,7 +81,7 @@ pub fn compute_completions(text: &str, position: Position) -> Vec<CompletionItem
         CompletionContext::TopLevel => top_level_completions(),
         CompletionContext::TaskField => task_field_completions(),
         CompletionContext::VerbValue(verb) => verb_value_completions(&verb),
-        CompletionContext::UseBinding => binding_completions(text),
+        CompletionContext::WithBinding => binding_completions(text),
         CompletionContext::McpServer => mcp_server_completions(),
         CompletionContext::Template => template_completions(text),
         CompletionContext::Unknown => vec![],
@@ -132,7 +132,7 @@ fn analyze_completion_context(text: &str, position: Position) -> CompletionConte
             if indent > task_indent {
                 // Check for specific contexts
                 if prefix.trim().starts_with("with") {
-                    return CompletionContext::UseBinding;
+                    return CompletionContext::WithBinding;
                 }
                 if line_contains_verb(prefix) {
                     return CompletionContext::VerbValue(extract_verb(prefix));
@@ -976,10 +976,10 @@ tasks:
             character: 14,
         };
 
-        // This should detect UseBinding context and provide task names
+        // This should detect WithBinding context and provide task names
         let items = compute_completions_with_ast(&index, &uri, text, position);
 
-        // The context analysis may or may not detect UseBinding correctly
+        // The context analysis may or may not detect WithBinding correctly
         // depending on indentation detection. This test verifies the function runs
         // without panic - actual completions depend on detection accuracy.
         let _ = items; // Allow empty results for now
