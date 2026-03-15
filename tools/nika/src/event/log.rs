@@ -181,7 +181,7 @@ pub enum EventKind {
         task_id: Arc<str>,
         dependencies: Vec<Arc<str>>,
     },
-    /// Task execution begins with resolved inputs from use: block
+    /// Task execution begins with resolved inputs from with: block
     TaskStarted {
         task_id: Arc<str>,
         /// Verb type (infer, exec, fetch, invoke, agent)

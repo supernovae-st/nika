@@ -738,7 +738,7 @@ mod tests {
         let spec = ArtifactSpec::Single(ArtifactOutput {
             path: "report.md".to_string(),
             source: None,
-            template: Some("Hello {{use.missing}}!".to_string()),
+            template: Some("Hello {{with.missing}}!".to_string()),
             format: Some(ArtifactFormat::Text),
             mode: None,
         });
@@ -760,6 +760,6 @@ mod tests {
 
         let artifact_content = std::fs::read_to_string(&result.paths[0]).unwrap();
         // On template resolution failure, it uses the raw template
-        assert_eq!(artifact_content, "Hello {{use.missing}}!");
+        assert_eq!(artifact_content, "Hello {{with.missing}}!");
     }
 }
