@@ -24,7 +24,7 @@ The CNCF Serverless Workflow DSL v1.0.3 uses a **pipeline-based data flow model*
 | Expression language | JQ (mandatory) | Handlebars-style `{{use.alias}}` templates |
 | Transformation points | 3 per task (`input.from`, `output.as`, `export.as`) | None (raw pass-through) |
 | Schema validation | JSON Schema at input/output/export boundaries | JSON Schema for StructuredOutput only |
-| Context | Mutable `$context` shared across all tasks | Immutable DataStore |
+| Context | Mutable `$context` shared across all tasks | Immutable RunContext |
 | Flow control | `then` directives (continue/exit/end/named) | Explicit `flows:` section with DAG edges |
 
 ---
@@ -827,7 +827,7 @@ do:
       with:
         endpoint: ${ $context.homeworld }        # Read from context
 
-# Nika: No shared mutable context (DataStore is immutable from task perspective)
+# Nika: No shared mutable context (RunContext is immutable from task perspective)
 # Tasks explicitly declare dependencies via use: blocks
 ```
 

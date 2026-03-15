@@ -269,7 +269,7 @@ def main(n: int):
 | Binding syntax | JavaScript expressions (`results.step_a.field`) | `{{use.alias}}` templates |
 | Transform | Full JavaScript (arbitrary computation) | String interpolation only |
 | Engine | QuickJS or Deno V8 | Handlebars-like templates |
-| State escape hatch | `setFlowUserState()` / `getFlowUserState()` | DataStore (similar) |
+| State escape hatch | `setFlowUserState()` / `getFlowUserState()` | RunContext (similar) |
 | Heavy data | Shared directory (`./shared/`) | Artifact system (`io::writer`) |
 
 **What Nika could learn**:

@@ -281,7 +281,7 @@ Two schools of thought:
    - `workflow_parsing.rs` — YAML parse performance
    - `dag_validation.rs` — DAG construction
    - `binding_resolution.rs` — Template resolution
-   - `task_execution.rs` — DataStore operations
+   - `task_execution.rs` — RunContext operations
 
 ### 2025-2026 Best Practices
 
@@ -574,7 +574,7 @@ serde-saphyr = "0.0.20"  // Replaced deprecated serde_yaml
 ```rust
 // Good: #[instrument] for span-based tracing
 #[instrument(skip(self), fields(workflow_tasks = self.workflow.tasks.len()))]
-pub async fn run(&mut self) -> Result<DataStore> { ... }
+pub async fn run(&mut self) -> Result<RunContext> { ... }
 
 // Good: Structured logging
 tracing::info!(servers = ?server_names, "Loaded MCP server configurations");

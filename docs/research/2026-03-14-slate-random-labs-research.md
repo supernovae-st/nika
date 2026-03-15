@@ -235,7 +235,7 @@ Several architectural parallels and differences are worth noting:
 | Slate Concept | Nika Equivalent | Notes |
 |---------------|-----------------|-------|
 | Thread (worker) | Subagent via `spawn_agent` | Both use parent-child delegation |
-| Episode (compressed result) | Task output in DataStore | Nika passes results via `use:` bindings |
+| Episode (compressed result) | Task output in RunContext | Nika passes results via `use:` bindings |
 | Orchestrator DSL | YAML workflow DAG | Different expressivity tradeoff: Slate uses TypeScript DSL, Nika uses declarative YAML |
 | Multi-model routing | `provider:` field per task | Nika supports per-task provider selection |
 | Parallel execution | `for_each` with `concurrency` | Nika has DAG-based parallelism |

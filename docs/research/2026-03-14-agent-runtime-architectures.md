@@ -135,7 +135,7 @@ RLM's architecture maps almost perfectly to Nika's existing concepts:
 | REPL environment | `exec:` verb (shell execution) | Nika uses shell, not Python REPL |
 | sub_RLM calls | `spawn_agent` (ADR-004) | Already implemented with depth_limit |
 | Prompt as variable | `context:` files (v0.14.3) | Could externalize more aggressively |
-| Variable-based output | `DataStore` + bindings | Already supports `{{use.alias}}` |
+| Variable-based output | `RunContext` + bindings | Already supports `{{use.alias}}` |
 | Symbolic recursion | `decompose:` modifier | Already supports runtime DAG expansion |
 
 **Concrete improvements Nika could adopt:**
@@ -339,7 +339,7 @@ THREAD is the closest match to Nika's existing `spawn_agent` architecture:
 | Thread spawning | `spawn_agent` tool | Implemented (ADR-004) |
 | Depth protection | `depth_limit` | Implemented (default 3, max 10) |
 | Parent-child context | Context inheritance | Implemented |
-| Join synchronization | Result propagation | Implemented via DataStore |
+| Join synchronization | Result propagation | Implemented via RunContext |
 | Recursive decomposition | `decompose:` modifier | Implemented (v0.5) |
 
 **Concrete improvements:**
@@ -348,7 +348,7 @@ THREAD is the closest match to Nika's existing `spawn_agent` architecture:
    child results (async spawning with callback).
 
 2. **Thread-to-thread communication**: Enable sibling threads to share results
-   directly (shared memory region in DataStore) without routing through parent.
+   directly (shared memory region in RunContext) without routing through parent.
 
 3. **Thread pool with work stealing**: Instead of spawning new agent instances,
    maintain a pool of pre-warmed threads that can pick up subtasks.
@@ -513,7 +513,7 @@ Final Result
 | Branch/fold | `decompose:` + result binding | No automatic folding |
 | Context compaction | None | No context management strategy |
 | JIT loading | `context:` files | Loads eagerly, not on-demand |
-| Memory tiers | DataStore | Single-tier, no archival |
+| Memory tiers | RunContext | Single-tier, no archival |
 
 **Concrete improvements:**
 
@@ -525,7 +525,7 @@ Final Result
    (filename, size, type) and let tasks request content via tool calls -- matching
    the RLM pattern of metadata-only initial context.
 
-3. **Hierarchical DataStore**: Add archival storage for completed task results
+3. **Hierarchical RunContext**: Add archival storage for completed task results
    that can be retrieved on demand, rather than keeping all results in memory.
 
 ---
@@ -721,7 +721,7 @@ tasks:
 Nika already has `spawn_agent` (ADR-004). Enhancements from THREAD:
 
 1. **Async spawning**: Non-blocking child thread creation
-2. **Sibling communication**: Shared DataStore region for peer threads
+2. **Sibling communication**: Shared RunContext region for peer threads
 3. **Thread pool**: Pre-warmed execution contexts for faster spawning
 4. **Selective result return**: Children return only essential tokens
 

@@ -316,7 +316,7 @@ struct Binding<State> {
 }
 
 impl Binding<Unresolved> {
-    fn resolve(self, store: &DataStore) -> Binding<Resolved> {
+    fn resolve(self, store: &RunContext) -> Binding<Resolved> {
         // ...
     }
 }
@@ -338,7 +338,7 @@ Nika's binding system because:
 1. Bindings are stored in `FxHashMap<String, LazyBinding>` -- the map must hold
    bindings in mixed states (some resolved, some pending).
 2. Binding resolution happens at runtime, not compile time.
-3. The `DashMap<Arc<str>, TaskResult>` DataStore is inherently dynamic.
+3. The `DashMap<Arc<str>, TaskResult>` RunContext is inherently dynamic.
 
 **Alternative**: An enum-based state machine (which Nika already uses with
 `LazyBinding::Resolved | Pending`) is the correct approach. The type-state pattern
@@ -1089,7 +1089,7 @@ Transforms execute AFTER path resolution but BEFORE template interpolation:
 
 ```
 Step 1: Parse UseEntry (YAML -> UseEntry with BindingPath + TransformExpr)
-Step 2: Resolve BindingPath (navigate DataStore to get raw Value)
+Step 2: Resolve BindingPath (navigate RunContext to get raw Value)
 Step 3: Apply TransformExpr (pipe the Value through transform ops)
 Step 4: Type-check (validate result against BindingType)
 Step 5: Template interpolation (insert string representation into prompt)
@@ -1138,7 +1138,7 @@ impl BindingState {
     /// Get the resolved value, resolving lazily if needed
     pub fn resolve(
         &mut self,
-        store: &DataStore,
+        store: &RunContext,
         inputs: Option<&Value>,
     ) -> Result<&Value, BindingResolutionError> {
         match self {
@@ -1216,7 +1216,7 @@ impl ResolvedBindings {
     pub fn get(
         &self,
         alias: &str,
-        store: &DataStore,
+        store: &RunContext,
         inputs: Option<&Value>,
     ) -> Result<Arc<Value>, BindingResolutionError> {
         let binding = self.bindings.get(alias)
@@ -1257,7 +1257,7 @@ impl ResolvedBindings {
 ### Note on Current Design
 
 The current `ResolvedBindings` intentionally does NOT cache lazy resolution
-(each `get_resolved()` call re-resolves from the DataStore). The design above
+(each `get_resolved()` call re-resolves from the RunContext). The design above
 introduces caching via the `Pending -> Resolved` state transition. This is a
 trade-off: caching is faster but means bindings see a snapshot, not live values.
 
@@ -1416,7 +1416,7 @@ Task outputs are read by multiple downstream tasks. Use `Arc<Value>` to avoid
 cloning:
 
 ```rust
-/// Task result stored in the DataStore
+/// Task result stored in the RunContext
 pub struct TaskResult {
     /// The task's output value (shared across all consumers)
     pub output: Arc<Value>,
@@ -1435,7 +1435,7 @@ The current `template::resolve()` already returns `Cow<str>`:
 pub fn resolve<'a>(
     template: &'a str,
     bindings: &ResolvedBindings,
-    store: &DataStore,
+    store: &RunContext,
     context: Option<&Value>,
     inputs: Option<&Value>,
 ) -> Result<Cow<'a, str>, SmallVec<[NikaError; 4]>> {
@@ -1485,7 +1485,7 @@ JSONPath compilation is non-trivial. Cache compiled paths globally
 | Operation | Current | Target | Method |
 |-----------|---------|--------|--------|
 | UseEntry parse | ~450ns | ~500ns | Acceptable: adding type/transform parsing |
-| Path resolution | ~6ns (DataStore get) | ~6ns | No change (DashMap) |
+| Path resolution | ~6ns (RunContext get) | ~6ns | No change (DashMap) |
 | JSONPath apply | ~800ns (custom) | ~200ns | serde_json_path returns refs |
 | Transform | N/A | <1us per op | Built-in ops are O(n) on value size |
 | Template resolve | ~4us (regex) | ~4us | No change |
@@ -1809,7 +1809,7 @@ use:
 │       ├──▶ Lazy: stays Pending until first access                           │
 │       │                                                                     │
 │       ▼  (on access)                                                        │
-│  resolve_from_store(source, DataStore)                                      │
+│  resolve_from_store(source, RunContext)                                      │
 │       │                                                                     │
 │       ▼                                                                     │
 │  serde_json_path::query(value, path) → &Value                              │
