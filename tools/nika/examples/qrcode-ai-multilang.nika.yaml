@@ -147,6 +147,6 @@ tasks:
       echo "=== QR Code AI Landing Page Generated ==="
       echo "Hero (FR): {{with.hero | to_yaml}}"
       echo "Locales processed: {{inputs.locales | length}}"
-      echo "Artifacts written to: ./landing-pages/{{date}}/"
+      echo "Artifacts written to: ./landing-pages/"
 
     flow: [generate_hero_fr]

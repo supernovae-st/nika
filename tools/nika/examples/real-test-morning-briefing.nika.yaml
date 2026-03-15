@@ -275,7 +275,7 @@ tasks:
     exec: |
       echo "=== MORNING BRIEFING GENERATED ==="
       echo "Timestamp: {{with.timestamp.timestamp}}"
-      echo "Saved to: ~/.nika/briefings/{{date}}/"
+      echo "Saved to: ~/.nika/briefings/"
       echo ""
       echo "{{with.briefing}}"
 

@@ -163,7 +163,7 @@ tasks:
       brief: $generate_brief
     exec: |
       echo "=== Content Strategy Brief Generated ==="
-      echo "Output: ./research/{{date}}/content-strategy-brief.md"
+      echo "Output: ./research/content-strategy-brief.md"
       echo ""
       echo "Artifacts:"
       echo "  - research-analysis.json"
