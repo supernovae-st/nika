@@ -36,6 +36,8 @@ pub struct Provider {
     pub id: &'static str,
     /// Human-readable name (e.g., "Anthropic Claude")
     pub name: &'static str,
+    /// Alternative names that resolve to this provider (e.g., "claude" for anthropic)
+    pub aliases: &'static [&'static str],
     /// Environment variable for the API key (e.g., "ANTHROPIC_API_KEY")
     pub env_var: &'static str,
     /// Expected key prefix for validation (e.g., "sk-ant-")
@@ -46,6 +48,13 @@ pub struct Provider {
     pub requires_key: bool,
     /// Short description of the provider
     pub description: &'static str,
+}
+
+impl Provider {
+    /// Check if this provider's API key is available in the environment.
+    pub fn has_env_key(&self) -> bool {
+        std::env::var(self.env_var).is_ok_and(|v| !v.trim().is_empty())
+    }
 }
 
 /// All known providers (18 total).
@@ -62,6 +71,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "anthropic",
         name: "Anthropic Claude",
+        aliases: &["claude"],
         env_var: "ANTHROPIC_API_KEY",
         key_prefix: Some("sk-ant-"),
         category: ProviderCategory::Llm,
@@ -71,6 +81,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "openai",
         name: "OpenAI",
+        aliases: &["gpt"],
         env_var: "OPENAI_API_KEY",
         key_prefix: Some("sk-"),
         category: ProviderCategory::Llm,
@@ -80,6 +91,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "mistral",
         name: "Mistral AI",
+        aliases: &[],
         env_var: "MISTRAL_API_KEY",
         key_prefix: None,
         category: ProviderCategory::Llm,
@@ -89,6 +101,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "groq",
         name: "Groq",
+        aliases: &[],
         env_var: "GROQ_API_KEY",
         key_prefix: Some("gsk_"),
         category: ProviderCategory::Llm,
@@ -98,6 +111,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "deepseek",
         name: "DeepSeek",
+        aliases: &["deep-seek"],
         env_var: "DEEPSEEK_API_KEY",
         key_prefix: Some("sk-"),
         category: ProviderCategory::Llm,
@@ -107,6 +121,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "gemini",
         name: "Google Gemini",
+        aliases: &["google"],
         env_var: "GEMINI_API_KEY",
         key_prefix: None,
         category: ProviderCategory::Llm,
@@ -119,6 +134,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "neo4j",
         name: "Neo4j",
+        aliases: &[],
         env_var: "NEO4J_PASSWORD",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -128,6 +144,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "github",
         name: "GitHub",
+        aliases: &[],
         env_var: "GITHUB_TOKEN",
         key_prefix: Some("ghp_"),
         category: ProviderCategory::Mcp,
@@ -137,6 +154,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "slack",
         name: "Slack",
+        aliases: &[],
         env_var: "SLACK_BOT_TOKEN",
         key_prefix: Some("xoxb-"),
         category: ProviderCategory::Mcp,
@@ -146,6 +164,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "perplexity",
         name: "Perplexity",
+        aliases: &[],
         env_var: "PERPLEXITY_API_KEY",
         key_prefix: Some("pplx-"),
         category: ProviderCategory::Mcp,
@@ -155,6 +174,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "firecrawl",
         name: "Firecrawl",
+        aliases: &[],
         env_var: "FIRECRAWL_API_KEY",
         key_prefix: Some("fc-"),
         category: ProviderCategory::Mcp,
@@ -164,6 +184,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "supadata",
         name: "Supadata",
+        aliases: &[],
         env_var: "SUPADATA_API_KEY",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -173,6 +194,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "dataforseo",
         name: "DataForSEO",
+        aliases: &[],
         env_var: "DATAFORSEO_API_KEY",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -182,6 +204,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "ahrefs",
         name: "Ahrefs",
+        aliases: &[],
         env_var: "AHREFS_API_KEY",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -191,6 +214,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "postgres",
         name: "PostgreSQL",
+        aliases: &[],
         env_var: "POSTGRES_URL",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -200,6 +224,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "filesystem",
         name: "Filesystem",
+        aliases: &[],
         env_var: "FILESYSTEM_ALLOWED_PATHS",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -209,6 +234,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "memory",
         name: "Memory",
+        aliases: &[],
         env_var: "MEMORY_STORAGE_PATH",
         key_prefix: None,
         category: ProviderCategory::Mcp,
@@ -221,6 +247,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     Provider {
         id: "native",
         name: "Native Inference",
+        aliases: &["local"],
         env_var: "NIKA_NATIVE_MODEL_PATH",
         key_prefix: None,
         category: ProviderCategory::Local,
@@ -229,7 +256,9 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
     },
 ];
 
-/// Find a provider by ID.
+/// Find a provider by ID or alias (case-insensitive).
+///
+/// Matches against `provider.id` first, then `provider.aliases`.
 ///
 /// # Example
 ///
@@ -238,9 +267,16 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
 ///
 /// let provider = find_provider("anthropic").unwrap();
 /// assert_eq!(provider.env_var, "ANTHROPIC_API_KEY");
+///
+/// // Also resolves aliases
+/// let same = find_provider("claude").unwrap();
+/// assert_eq!(same.id, "anthropic");
 /// ```
-pub fn find_provider(id: &str) -> Option<&'static Provider> {
-    KNOWN_PROVIDERS.iter().find(|p| p.id == id)
+pub fn find_provider(name: &str) -> Option<&'static Provider> {
+    let lower = name.to_lowercase();
+    KNOWN_PROVIDERS
+        .iter()
+        .find(|p| p.id == lower || p.aliases.iter().any(|a| *a == lower))
 }
 
 /// Get the environment variable name for a provider ID.
@@ -336,8 +372,34 @@ mod tests {
         assert!(!native.requires_key);
 
         assert!(find_provider("ollama").is_none());
-
         assert!(find_provider("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_find_provider_by_alias() {
+        // "claude" → anthropic
+        let p = find_provider("claude").unwrap();
+        assert_eq!(p.id, "anthropic");
+
+        // "gpt" → openai
+        let p = find_provider("gpt").unwrap();
+        assert_eq!(p.id, "openai");
+
+        // "deep-seek" → deepseek
+        let p = find_provider("deep-seek").unwrap();
+        assert_eq!(p.id, "deepseek");
+
+        // "google" → gemini
+        let p = find_provider("google").unwrap();
+        assert_eq!(p.id, "gemini");
+
+        // "local" → native
+        let p = find_provider("local").unwrap();
+        assert_eq!(p.id, "native");
+
+        // case-insensitive
+        let p = find_provider("Claude").unwrap();
+        assert_eq!(p.id, "anthropic");
     }
 
     #[test]
