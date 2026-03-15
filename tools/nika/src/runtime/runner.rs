@@ -1087,7 +1087,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     let items_str = &for_each.items;
 
                     if for_each.is_binding() {
-                        // Binding reference ($alias, {{use.alias}}, {{inputs.xxx}})
+                        // Binding reference ($alias, {{with.alias}}, {{inputs.xxx}})
                         let bindings = ResolvedBindings::from_with_spec(
                             Some(&task.with_spec),
                             &self.datastore,
@@ -1240,10 +1240,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             } else {
                                 None
                             }
-                        } else if items_str.contains("{{use.") {
-                            // Template format (e.g., "{{use.locales}}")
-                            if let Some(start) = items_str.find("{{use.") {
-                                let after = &items_str[start + 6..];
+                        } else if items_str.contains("{{with.") || items_str.contains("{{use.") {
+                            // Template format (e.g., "{{with.locales}}" or legacy "{{use.locales}}")
+                            let prefix_info = items_str.find("{{with.")
+                                .map(|s| (s, 7usize))
+                                .or_else(|| items_str.find("{{use.").map(|s| (s, 6usize)));
+                            if let Some((start, prefix_len)) = prefix_info {
+                                let after = &items_str[start + prefix_len..];
                                 if let Some(end) = after.find("}}") {
                                     let path = &after[..end];
                                     let mut parts = path.split('.');
@@ -1866,7 +1869,7 @@ mod tests {
             "echo_items",
             r#"["a", "b", "c"]"#,
             "item",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
             None,  // sequential
             true,  // fail_fast default
             false, // no shell
@@ -1902,7 +1905,7 @@ mod tests {
             "ordered",
             r#"["first", "second", "third"]"#,
             "x",
-            "echo {{use.x}}",
+            "echo {{with.x}}",
             None,
             true,
             false,
@@ -2395,7 +2398,7 @@ mod tests {
             "concurrent",
             r#"["a", "b", "c", "d"]"#,
             "item",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
             Some(2), // Limit to 2 concurrent
             true,
             false,
@@ -2424,7 +2427,7 @@ mod tests {
             "failfast",
             r#"["ok1", "FAIL", "ok2", "ok3"]"#,
             "item",
-            "test '{{use.item}}' != 'FAIL' && echo {{use.item}}",
+            "test '{{with.item}}' != 'FAIL' && echo {{with.item}}",
             Some(1), // Sequential to make failure predictable
             true,    // fail_fast
             false,
@@ -2442,7 +2445,7 @@ mod tests {
             "continue",
             r#"["ok1", "ok2"]"#,
             "item",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
             None,
             false, // Explicitly disable fail_fast
             false,
@@ -2496,7 +2499,7 @@ mod tests {
             "process_items",
             "$inputs.items",
             "item",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
             inputs,
             None,
         );
@@ -2528,7 +2531,7 @@ mod tests {
             "translate",
             "{{inputs.locales}}",
             "locale",
-            "echo Translating to {{use.locale}}",
+            "echo Translating to {{with.locale}}",
             inputs,
             Some(2),
         );
@@ -2560,7 +2563,7 @@ mod tests {
             "missing_input",
             "$inputs.nonexistent",
             "item",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
             inputs,
             None,
         );
@@ -2597,7 +2600,7 @@ mod tests {
             "nested",
             "$inputs.data.items",
             "n",
-            "echo {{use.n}}",
+            "echo {{with.n}}",
             inputs,
             None,
         );
@@ -2734,7 +2737,7 @@ mod tests {
             r#"echo '{"items": ["alpha", "beta", "gamma"], "count": 3}'"#,
             true,
             "$step1.items",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
         );
 
         let mut runner = Runner::new(workflow);
@@ -2759,7 +2762,7 @@ mod tests {
             "echo not_an_array",
             false,
             "$step1",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
         );
 
         let mut runner = Runner::new(workflow);
@@ -2787,7 +2790,7 @@ mod tests {
             r#"echo '["x","y","z"]'"#,
             true,
             "$step1",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
         );
 
         let mut runner = Runner::new(workflow);
@@ -2812,7 +2815,7 @@ mod tests {
             r#"echo '{"data": {"count": 5}}'"#,
             true,
             "$step1.data.nonexistent",
-            "echo {{use.item}}",
+            "echo {{with.item}}",
         );
 
         let mut runner = Runner::new(workflow);
