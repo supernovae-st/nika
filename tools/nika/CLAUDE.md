@@ -2,7 +2,7 @@
 
 DAG workflow runner for AI tasks with MCP integration.
 
-**v0.27.0** | 6,542 tests | Zero clippy warnings
+**v0.27.0** | 6,532 tests | Zero clippy warnings
 
 ---
 
@@ -251,7 +251,7 @@ Runtime Execution
 ## Testing
 
 ```bash
-cargo test                    # Run 5,054 tests
+cargo test                    # Run 6,532 tests
 cargo test --features lsp     # Include LSP tests
 cargo clippy -- -D warnings   # Lint
 cargo fmt                     # Format
