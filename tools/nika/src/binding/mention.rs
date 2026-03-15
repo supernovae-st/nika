@@ -1,6 +1,6 @@
 //! Mention Module - @reference parsing for Chat-as-DAG
 //!
-//! Parses @mentions in chat messages and converts them to WiringSpec bindings.
+//! Parses @mentions in chat messages and converts them to BindingSpec bindings.
 //!
 //! # Syntax
 //!
@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::LazyLock;
 
-use super::entry::{UseEntry, WiringSpec};
+use super::entry::{BindingEntry, BindingSpec};
 
 /// A reference to a previous chat message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -286,10 +286,10 @@ pub fn resolve_mention(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Task 2.8: mentions_to_wiring() - Mentions → WiringSpec
+// Task 2.8: mentions_to_bindings() - Mentions → BindingSpec
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Convert resolved mentions to WiringSpec bindings.
+/// Convert resolved mentions to BindingSpec bindings.
 ///
 /// Creates a binding for each referenced message with:
 /// - Alias: `ref_N` where N is the message number (1-indexed)
@@ -299,37 +299,37 @@ pub fn resolve_mention(
 /// * `resolved` - Resolved mention indices
 ///
 /// # Returns
-/// WiringSpec with bindings for each referenced message
+/// BindingSpec with bindings for each referenced message
 ///
 /// # Examples
 ///
 /// ```
-/// use nika::binding::mention::{mentions_to_wiring, ResolvedMention};
+/// use nika::binding::mention::{mentions_to_bindings, ResolvedMention};
 ///
 /// // Single reference @2
-/// let wiring = mentions_to_wiring(&ResolvedMention::Single(2));
-/// assert!(wiring.contains_key("ref_2"));
+/// let spec = mentions_to_bindings(&ResolvedMention::Single(2));
+/// assert!(spec.contains_key("ref_2"));
 ///
 /// // Multiple references @1..3
-/// let wiring = mentions_to_wiring(&ResolvedMention::Multiple(vec![1, 2, 3]));
-/// assert!(wiring.contains_key("ref_1"));
-/// assert!(wiring.contains_key("ref_2"));
-/// assert!(wiring.contains_key("ref_3"));
+/// let spec = mentions_to_bindings(&ResolvedMention::Multiple(vec![1, 2, 3]));
+/// assert!(spec.contains_key("ref_1"));
+/// assert!(spec.contains_key("ref_2"));
+/// assert!(spec.contains_key("ref_3"));
 /// ```
-pub fn mentions_to_wiring(resolved: &ResolvedMention) -> WiringSpec {
-    let mut wiring = WiringSpec::default();
+pub fn mentions_to_bindings(resolved: &ResolvedMention) -> BindingSpec {
+    let mut spec = BindingSpec::default();
 
     match resolved {
         ResolvedMention::Single(n) => {
             let alias = format!("ref_{}", n);
             let path = format!("msg-{:03}.output", n);
-            wiring.insert(alias, UseEntry::new(path));
+            spec.insert(alias, BindingEntry::new(path));
         }
         ResolvedMention::Multiple(indices) => {
             for n in indices {
                 let alias = format!("ref_{}", n);
                 let path = format!("msg-{:03}.output", n);
-                wiring.insert(alias, UseEntry::new(path));
+                spec.insert(alias, BindingEntry::new(path));
             }
         }
         ResolvedMention::Empty => {
@@ -340,7 +340,7 @@ pub fn mentions_to_wiring(resolved: &ResolvedMention) -> WiringSpec {
     wiring
 }
 
-/// Convert all mentions in text to WiringSpec.
+/// Convert all mentions in text to BindingSpec.
 ///
 /// Parses, resolves, and converts mentions in one step.
 ///
@@ -349,19 +349,19 @@ pub fn mentions_to_wiring(resolved: &ResolvedMention) -> WiringSpec {
 /// * `message_count` - Current message count for resolution
 ///
 /// # Returns
-/// Combined WiringSpec for all mentions in text
-pub fn text_to_wiring(
+/// Combined BindingSpec for all mentions in text
+pub fn text_to_bindings(
     text: &str,
     message_count: u32,
-) -> Result<WiringSpec, MentionResolutionError> {
-    let mut wiring = WiringSpec::default();
+) -> Result<BindingSpec, MentionResolutionError> {
+    let mut spec = BindingSpec::default();
 
     for mention in parse_mentions(text) {
         let resolved = resolve_mention(&mention, message_count)?;
-        wiring.extend(mentions_to_wiring(&resolved));
+        spec.extend(mentions_to_bindings(&resolved));
     }
 
-    Ok(wiring)
+    Ok(spec)
 }
 
 #[cfg(test)]
@@ -740,97 +740,97 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Task 2.8: mentions_to_wiring() tests
+    // Task 2.8: mentions_to_bindings() tests
     // ═══════════════════════════════════════════════════════════════════════════
 
     #[test]
     fn test_mentions_to_wiring_single() {
-        let wiring = mentions_to_wiring(&ResolvedMention::Single(2));
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_2"));
-        assert_eq!(wiring["ref_2"].path, "msg-002.output");
+        let spec = mentions_to_bindings(&ResolvedMention::Single(2));
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_2"));
+        assert_eq!(spec["ref_2"].path, "msg-002.output");
     }
 
     #[test]
     fn test_mentions_to_wiring_single_large_number() {
-        let wiring = mentions_to_wiring(&ResolvedMention::Single(123));
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_123"));
-        assert_eq!(wiring["ref_123"].path, "msg-123.output");
+        let spec = mentions_to_bindings(&ResolvedMention::Single(123));
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_123"));
+        assert_eq!(spec["ref_123"].path, "msg-123.output");
     }
 
     #[test]
     fn test_mentions_to_wiring_multiple() {
-        let wiring = mentions_to_wiring(&ResolvedMention::Multiple(vec![1, 2, 3]));
-        assert_eq!(wiring.len(), 3);
-        assert_eq!(wiring["ref_1"].path, "msg-001.output");
-        assert_eq!(wiring["ref_2"].path, "msg-002.output");
-        assert_eq!(wiring["ref_3"].path, "msg-003.output");
+        let spec = mentions_to_bindings(&ResolvedMention::Multiple(vec![1, 2, 3]));
+        assert_eq!(spec.len(), 3);
+        assert_eq!(spec["ref_1"].path, "msg-001.output");
+        assert_eq!(spec["ref_2"].path, "msg-002.output");
+        assert_eq!(spec["ref_3"].path, "msg-003.output");
     }
 
     #[test]
     fn test_mentions_to_wiring_empty() {
-        let wiring = mentions_to_wiring(&ResolvedMention::Empty);
-        assert!(wiring.is_empty());
+        let spec = mentions_to_bindings(&ResolvedMention::Empty);
+        assert!(spec.is_empty());
     }
 
     #[test]
     fn test_mentions_to_wiring_use_entry_is_eager() {
         // Verify bindings are eager (not lazy)
-        let wiring = mentions_to_wiring(&ResolvedMention::Single(1));
-        assert!(!wiring["ref_1"].lazy);
-        assert!(wiring["ref_1"].default.is_none());
+        let spec = mentions_to_bindings(&ResolvedMention::Single(1));
+        assert!(!spec["ref_1"].lazy);
+        assert!(spec["ref_1"].default.is_none());
     }
 
     #[test]
     fn test_text_to_wiring_simple() {
-        let wiring = text_to_wiring("Based on @1", 3).unwrap();
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_1"));
+        let spec = text_to_bindings("Based on @1", 3).unwrap();
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_1"));
     }
 
     #[test]
     fn test_text_to_wiring_multiple() {
-        let wiring = text_to_wiring("Combine @1 and @2", 3).unwrap();
-        assert_eq!(wiring.len(), 2);
-        assert!(wiring.contains_key("ref_1"));
-        assert!(wiring.contains_key("ref_2"));
+        let spec = text_to_bindings("Combine @1 and @2", 3).unwrap();
+        assert_eq!(spec.len(), 2);
+        assert!(spec.contains_key("ref_1"));
+        assert!(spec.contains_key("ref_2"));
     }
 
     #[test]
     fn test_text_to_wiring_with_last() {
-        let wiring = text_to_wiring("Continue from @last", 5).unwrap();
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_5")); // @last resolves to 5
+        let spec = text_to_bindings("Continue from @last", 5).unwrap();
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_5")); // @last resolves to 5
     }
 
     #[test]
     fn test_text_to_wiring_with_range() {
-        let wiring = text_to_wiring("Summarize @1..3", 5).unwrap();
-        assert_eq!(wiring.len(), 3);
-        assert!(wiring.contains_key("ref_1"));
-        assert!(wiring.contains_key("ref_2"));
-        assert!(wiring.contains_key("ref_3"));
+        let spec = text_to_bindings("Summarize @1..3", 5).unwrap();
+        assert_eq!(spec.len(), 3);
+        assert!(spec.contains_key("ref_1"));
+        assert!(spec.contains_key("ref_2"));
+        assert!(spec.contains_key("ref_3"));
     }
 
     #[test]
     fn test_text_to_wiring_with_all() {
-        let wiring = text_to_wiring("Based on @all", 3).unwrap();
-        assert_eq!(wiring.len(), 3);
-        assert!(wiring.contains_key("ref_1"));
-        assert!(wiring.contains_key("ref_2"));
-        assert!(wiring.contains_key("ref_3"));
+        let spec = text_to_bindings("Based on @all", 3).unwrap();
+        assert_eq!(spec.len(), 3);
+        assert!(spec.contains_key("ref_1"));
+        assert!(spec.contains_key("ref_2"));
+        assert!(spec.contains_key("ref_3"));
     }
 
     #[test]
     fn test_text_to_wiring_no_mentions() {
-        let wiring = text_to_wiring("Just a normal message", 5).unwrap();
-        assert!(wiring.is_empty());
+        let spec = text_to_bindings("Just a normal message", 5).unwrap();
+        assert!(spec.is_empty());
     }
 
     #[test]
     fn test_text_to_wiring_error_out_of_bounds() {
-        let result = text_to_wiring("Reference @10", 3);
+        let result = text_to_bindings("Reference @10", 3);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -841,8 +841,8 @@ mod tests {
     #[test]
     fn test_text_to_wiring_dedup() {
         // Same reference multiple times should produce one binding
-        let wiring = text_to_wiring("See @1 and again @1", 3).unwrap();
-        assert_eq!(wiring.len(), 1); // HashMap deduplicates
-        assert!(wiring.contains_key("ref_1"));
+        let spec = text_to_bindings("See @1 and again @1", 3).unwrap();
+        assert_eq!(spec.len(), 1); // HashMap deduplicates
+        assert!(spec.contains_key("ref_1"));
     }
 }

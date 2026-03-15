@@ -9,7 +9,7 @@
 //! - NovaNet MCP server accessible
 
 use nika::ast::{AgentParams, DecomposeSpec, DecomposeStrategy};
-use nika::binding::UseEntry;
+use nika::binding::BindingEntry;
 use nika::event::EventKind;
 use nika::serde_yaml;
 use serde_json::json;
@@ -187,13 +187,13 @@ max_items: 5
 
 #[test]
 fn test_phase5_lazy_binding_creation() {
-    let entry = UseEntry::new_lazy("future.result".to_string());
+    let entry = BindingEntry::new_lazy("future.result".to_string());
     assert!(entry.is_lazy());
 }
 
 #[test]
 fn test_phase5_lazy_binding_with_default() {
-    let entry = UseEntry::lazy_with_default("optional.path".to_string(), json!("fallback"));
+    let entry = BindingEntry::lazy_with_default("optional.path".to_string(), json!("fallback"));
     assert!(entry.is_lazy());
     assert!(entry.default.is_some());
 }
@@ -206,14 +206,14 @@ lazy: true
 default: "fallback"
 "#;
 
-    let entry: UseEntry = serde_yaml::from_str(yaml).expect("Should parse");
+    let entry: BindingEntry = serde_yaml::from_str(yaml).expect("Should parse");
     assert!(entry.is_lazy());
     assert!(entry.default.is_some());
 }
 
 #[test]
 fn test_phase5_eager_binding_default() {
-    let entry = UseEntry::new("immediate.result".to_string());
+    let entry = BindingEntry::new("immediate.result".to_string());
     assert!(!entry.is_lazy());
 }
 

@@ -23,8 +23,8 @@ use crate::error::NikaError;
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingType};
 
-/// Wiring spec - map of alias to entry (YAML `with:` block)
-pub type WiringSpec = FxHashMap<String, UseEntry>;
+/// Binding spec - map of alias to entry (YAML `with:` block)
+pub type BindingSpec = FxHashMap<String, BindingEntry>;
 
 /// Unified with entry - supports both string and extended object syntax
 ///
@@ -37,7 +37,7 @@ pub type WiringSpec = FxHashMap<String, UseEntry>;
 /// - lazy: bool (optional, default false)
 /// - default: JSON value (optional)
 #[derive(Debug, Clone, PartialEq)]
-pub struct UseEntry {
+pub struct BindingEntry {
     /// Full path: "task.field.subfield" or "task" for entire output
     pub path: String,
     /// Optional default value (JSON literal)
@@ -46,8 +46,8 @@ pub struct UseEntry {
     pub lazy: bool,
 }
 
-impl UseEntry {
-    /// Create a new UseEntry with just a path (eager resolution)
+impl BindingEntry {
+    /// Create a new BindingEntry with just a path (eager resolution)
     pub fn new(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
@@ -56,7 +56,7 @@ impl UseEntry {
         }
     }
 
-    /// Create a new UseEntry with path and default (eager resolution)
+    /// Create a new BindingEntry with path and default (eager resolution)
     pub fn with_default(path: impl Into<String>, default: Value) -> Self {
         Self {
             path: path.into(),
@@ -65,7 +65,7 @@ impl UseEntry {
         }
     }
 
-    /// Create a new lazy UseEntry (deferred resolution)
+    /// Create a new lazy BindingEntry (deferred resolution)
     pub fn new_lazy(path: impl Into<String>) -> Self {
         Self {
             path: path.into(),
@@ -74,7 +74,7 @@ impl UseEntry {
         }
     }
 
-    /// Create a new lazy UseEntry with default (deferred resolution)
+    /// Create a new lazy BindingEntry with default (deferred resolution)
     pub fn lazy_with_default(path: impl Into<String>, default: Value) -> Self {
         Self {
             path: path.into(),
@@ -102,13 +102,13 @@ impl UseEntry {
     /// # Examples
     ///
     /// ```
-    /// use nika::binding::UseEntry;
+    /// use nika::binding::BindingEntry;
     ///
-    /// assert_eq!(UseEntry::normalize_path("$task1"), "task1");
-    /// assert_eq!(UseEntry::normalize_path("task1"), "task1");
-    /// assert_eq!(UseEntry::normalize_path("$my_task"), "my_task");
-    /// assert_eq!(UseEntry::normalize_path("task.field"), "task.field");
-    /// assert_eq!(UseEntry::normalize_path("$task.field"), "task.field");
+    /// assert_eq!(BindingEntry::normalize_path("$task1"), "task1");
+    /// assert_eq!(BindingEntry::normalize_path("task1"), "task1");
+    /// assert_eq!(BindingEntry::normalize_path("$my_task"), "my_task");
+    /// assert_eq!(BindingEntry::normalize_path("task.field"), "task.field");
+    /// assert_eq!(BindingEntry::normalize_path("$task.field"), "task.field");
     /// ```
     #[inline]
     pub fn normalize_path(path: &str) -> &str {
@@ -116,13 +116,13 @@ impl UseEntry {
     }
 }
 
-/// Parse a use entry string into UseEntry (eager resolution)
+/// Parse a binding entry string into BindingEntry (eager resolution)
 ///
 /// Syntax: `task.path [?? default]`
 /// - If `??` found outside quotes, splits into path and default
 /// - Default is parsed as JSON literal (strings must be quoted)
 /// - String syntax always produces eager bindings (lazy=false)
-pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
+pub fn parse_binding_entry(s: &str) -> Result<BindingEntry, NikaError> {
     let s = s.trim();
 
     if s.is_empty() {
@@ -148,13 +148,13 @@ pub fn parse_use_entry(s: &str) -> Result<UseEntry, NikaError> {
                     reason: e.to_string(),
                 })?;
 
-            Ok(UseEntry {
+            Ok(BindingEntry {
                 path: path.to_string(),
                 default: Some(default),
                 lazy: false,
             })
         }
-        None => Ok(UseEntry {
+        None => Ok(BindingEntry {
             path: s.to_string(),
             default: None,
             lazy: false,
@@ -188,24 +188,24 @@ fn find_operator_outside_quotes(s: &str, op: &str) -> Option<usize> {
     None
 }
 
-/// Custom deserializer for UseEntry
+/// Custom deserializer for BindingEntry
 ///
 /// Accepts two formats:
 /// 1. String: `task.path [?? default]` → eager binding
 /// 2. Object: `{path: "task.path", lazy: true, default: ...}` → lazy binding
-impl<'de> Deserialize<'de> for UseEntry {
+impl<'de> Deserialize<'de> for BindingEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_any(UseEntryVisitor)
+        deserializer.deserialize_any(BindingEntryVisitor)
     }
 }
 
-struct UseEntryVisitor;
+struct BindingEntryVisitor;
 
-impl<'de> Visitor<'de> for UseEntryVisitor {
-    type Value = UseEntry;
+impl<'de> Visitor<'de> for BindingEntryVisitor {
+    type Value = BindingEntry;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter
@@ -218,8 +218,8 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
     where
         E: de::Error,
     {
-        let mut entry = parse_use_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
-        entry.path = UseEntry::normalize_path(&entry.path).to_string();
+        let mut entry = parse_binding_entry(value).map_err(|e| de::Error::custom(e.to_string()))?;
+        entry.path = BindingEntry::normalize_path(&entry.path).to_string();
         Ok(entry)
     }
 
@@ -260,9 +260,9 @@ impl<'de> Visitor<'de> for UseEntryVisitor {
         }
 
         let path = path.ok_or_else(|| de::Error::missing_field("path"))?;
-        let path = UseEntry::normalize_path(&path).to_string();
+        let path = BindingEntry::normalize_path(&path).to_string();
 
-        Ok(UseEntry {
+        Ok(BindingEntry {
             path,
             default,
             lazy: lazy.unwrap_or(false),
@@ -650,103 +650,103 @@ mod tests {
     use serde_json::json;
 
     // ═══════════════════════════════════════════════════════════════
-    // parse_use_entry() tests - TDD: write these first
+    // parse_binding_entry() tests - TDD: write these first
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
     fn parse_simple_path() {
-        let entry = parse_use_entry("weather.summary").unwrap();
+        let entry = parse_binding_entry("weather.summary").unwrap();
         assert_eq!(entry.path, "weather.summary");
         assert_eq!(entry.default, None);
     }
 
     #[test]
     fn parse_simple_task_only() {
-        let entry = parse_use_entry("weather").unwrap();
+        let entry = parse_binding_entry("weather").unwrap();
         assert_eq!(entry.path, "weather");
         assert_eq!(entry.default, None);
     }
 
     #[test]
     fn parse_nested_path() {
-        let entry = parse_use_entry("weather.data.temperature.celsius").unwrap();
+        let entry = parse_binding_entry("weather.data.temperature.celsius").unwrap();
         assert_eq!(entry.path, "weather.data.temperature.celsius");
         assert_eq!(entry.default, None);
     }
 
     #[test]
     fn parse_with_default_number() {
-        let entry = parse_use_entry("x.y ?? 0").unwrap();
+        let entry = parse_binding_entry("x.y ?? 0").unwrap();
         assert_eq!(entry.path, "x.y");
         assert_eq!(entry.default, Some(json!(0)));
     }
 
     #[test]
     fn parse_with_default_negative_number() {
-        let entry = parse_use_entry("score ?? -1").unwrap();
+        let entry = parse_binding_entry("score ?? -1").unwrap();
         assert_eq!(entry.path, "score");
         assert_eq!(entry.default, Some(json!(-1)));
     }
 
     #[test]
     fn parse_with_default_float() {
-        let entry = parse_use_entry("rate ?? 0.5").unwrap();
+        let entry = parse_binding_entry("rate ?? 0.5").unwrap();
         assert_eq!(entry.path, "rate");
         assert_eq!(entry.default, Some(json!(0.5)));
     }
 
     #[test]
     fn parse_with_default_string() {
-        let entry = parse_use_entry(r#"x.y ?? "Anon""#).unwrap();
+        let entry = parse_binding_entry(r#"x.y ?? "Anon""#).unwrap();
         assert_eq!(entry.path, "x.y");
         assert_eq!(entry.default, Some(json!("Anon")));
     }
 
     #[test]
     fn parse_with_default_empty_string() {
-        let entry = parse_use_entry(r#"name ?? """#).unwrap();
+        let entry = parse_binding_entry(r#"name ?? """#).unwrap();
         assert_eq!(entry.path, "name");
         assert_eq!(entry.default, Some(json!("")));
     }
 
     #[test]
     fn parse_with_default_bool_true() {
-        let entry = parse_use_entry("enabled ?? true").unwrap();
+        let entry = parse_binding_entry("enabled ?? true").unwrap();
         assert_eq!(entry.path, "enabled");
         assert_eq!(entry.default, Some(json!(true)));
     }
 
     #[test]
     fn parse_with_default_bool_false() {
-        let entry = parse_use_entry("enabled ?? false").unwrap();
+        let entry = parse_binding_entry("enabled ?? false").unwrap();
         assert_eq!(entry.path, "enabled");
         assert_eq!(entry.default, Some(json!(false)));
     }
 
     #[test]
     fn parse_with_default_null() {
-        let entry = parse_use_entry("value ?? null").unwrap();
+        let entry = parse_binding_entry("value ?? null").unwrap();
         assert_eq!(entry.path, "value");
         assert_eq!(entry.default, Some(json!(null)));
     }
 
     #[test]
     fn parse_with_default_object() {
-        let entry = parse_use_entry(r#"x ?? {"a": 1, "b": 2}"#).unwrap();
+        let entry = parse_binding_entry(r#"x ?? {"a": 1, "b": 2}"#).unwrap();
         assert_eq!(entry.path, "x");
         assert_eq!(entry.default, Some(json!({"a": 1, "b": 2})));
     }
 
     #[test]
     fn parse_with_default_array() {
-        let entry = parse_use_entry(r#"tags ?? ["untagged"]"#).unwrap();
+        let entry = parse_binding_entry(r#"tags ?? ["untagged"]"#).unwrap();
         assert_eq!(entry.path, "tags");
         assert_eq!(entry.default, Some(json!(["untagged"])));
     }
 
     #[test]
     fn parse_with_default_nested_object() {
-        let entry = parse_use_entry(r#"cfg ?? {"debug": false, "nested": {"a": 1}}"#).unwrap();
+        let entry = parse_binding_entry(r#"cfg ?? {"debug": false, "nested": {"a": 1}}"#).unwrap();
         assert_eq!(entry.path, "cfg");
         assert_eq!(
             entry.default,
@@ -757,27 +757,27 @@ mod tests {
     #[test]
     fn parse_quotes_in_default() {
         // The ?? inside quotes should be ignored
-        let entry = parse_use_entry(r#"x ?? "What?? Really??""#).unwrap();
+        let entry = parse_binding_entry(r#"x ?? "What?? Really??""#).unwrap();
         assert_eq!(entry.path, "x");
         assert_eq!(entry.default, Some(json!("What?? Really??")));
     }
 
     #[test]
     fn parse_escaped_quotes_in_default() {
-        let entry = parse_use_entry(r#"x ?? "He said \"hello\"""#).unwrap();
+        let entry = parse_binding_entry(r#"x ?? "He said \"hello\"""#).unwrap();
         assert_eq!(entry.path, "x");
         assert_eq!(entry.default, Some(json!("He said \"hello\"")));
     }
 
     #[test]
     fn parse_with_whitespace() {
-        let entry = parse_use_entry("  weather.summary  ").unwrap();
+        let entry = parse_binding_entry("  weather.summary  ").unwrap();
         assert_eq!(entry.path, "weather.summary");
     }
 
     #[test]
     fn parse_with_whitespace_around_operator() {
-        let entry = parse_use_entry("x  ??  0").unwrap();
+        let entry = parse_binding_entry("x  ??  0").unwrap();
         assert_eq!(entry.path, "x");
         assert_eq!(entry.default, Some(json!(0)));
     }
@@ -789,7 +789,7 @@ mod tests {
     #[test]
     fn parse_reject_unquoted_string() {
         // "Anonymous" without quotes is invalid JSON
-        let result = parse_use_entry("x ?? Anonymous");
+        let result = parse_binding_entry("x ?? Anonymous");
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("NIKA-056"));
@@ -797,26 +797,26 @@ mod tests {
 
     #[test]
     fn parse_reject_empty_path() {
-        let result = parse_use_entry("");
+        let result = parse_binding_entry("");
         assert!(result.is_err());
     }
 
     #[test]
     fn parse_reject_only_operator() {
-        let result = parse_use_entry("??");
+        let result = parse_binding_entry("??");
         assert!(result.is_err());
     }
 
     #[test]
     fn parse_reject_empty_path_with_default() {
-        let result = parse_use_entry("?? 0");
+        let result = parse_binding_entry("?? 0");
         assert!(result.is_err());
     }
 
     #[test]
     fn parse_reject_invalid_json_default() {
         // Missing closing brace
-        let result = parse_use_entry(r#"x ?? {"a": 1"#);
+        let result = parse_binding_entry(r#"x ?? {"a": 1"#);
         assert!(result.is_err());
     }
 
@@ -826,19 +826,19 @@ mod tests {
 
     #[test]
     fn task_id_simple() {
-        let entry = UseEntry::new("weather");
+        let entry = BindingEntry::new("weather");
         assert_eq!(entry.task_id(), "weather");
     }
 
     #[test]
     fn task_id_with_path() {
-        let entry = UseEntry::new("weather.summary");
+        let entry = BindingEntry::new("weather.summary");
         assert_eq!(entry.task_id(), "weather");
     }
 
     #[test]
     fn task_id_with_nested_path() {
-        let entry = UseEntry::new("weather.data.temp.celsius");
+        let entry = BindingEntry::new("weather.data.temp.celsius");
         assert_eq!(entry.task_id(), "weather");
     }
 
@@ -849,8 +849,8 @@ mod tests {
     #[test]
     fn yaml_parse_simple() {
         let yaml = "forecast: weather.summary";
-        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
-        let entry = wiring.get("forecast").unwrap();
+        let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
+        let entry = spec.get("forecast").unwrap();
         assert_eq!(entry.path, "weather.summary");
         assert_eq!(entry.default, None);
     }
@@ -858,8 +858,8 @@ mod tests {
     #[test]
     fn yaml_parse_with_default() {
         let yaml = r#"temp: weather.temp ?? 20"#;
-        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
-        let entry = wiring.get("temp").unwrap();
+        let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
+        let entry = spec.get("temp").unwrap();
         assert_eq!(entry.path, "weather.temp");
         assert_eq!(entry.default, Some(json!(20)));
     }
@@ -871,17 +871,17 @@ forecast: weather.summary
 temp: weather.temp ?? 20
 name: user.name ?? "Anonymous"
 "#;
-        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
+        let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
 
-        let forecast = wiring.get("forecast").unwrap();
+        let forecast = spec.get("forecast").unwrap();
         assert_eq!(forecast.path, "weather.summary");
         assert_eq!(forecast.default, None);
 
-        let temp = wiring.get("temp").unwrap();
+        let temp = spec.get("temp").unwrap();
         assert_eq!(temp.path, "weather.temp");
         assert_eq!(temp.default, Some(json!(20)));
 
-        let name = wiring.get("name").unwrap();
+        let name = spec.get("name").unwrap();
         assert_eq!(name.path, "user.name");
         assert_eq!(name.default, Some(json!("Anonymous")));
     }
@@ -894,12 +894,12 @@ name: user.name ?? "Anonymous"
 cfg: 'settings ?? {"debug": false}'
 tags: 'meta.tags ?? ["default"]'
 "#;
-        let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
+        let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
 
-        let cfg = wiring.get("cfg").unwrap();
+        let cfg = spec.get("cfg").unwrap();
         assert_eq!(cfg.default, Some(json!({"debug": false})));
 
-        let tags = wiring.get("tags").unwrap();
+        let tags = spec.get("tags").unwrap();
         assert_eq!(tags.default, Some(json!(["default"])));
     }
 
@@ -949,11 +949,11 @@ tags: 'meta.tags ?? ["default"]'
 
     #[test]
     fn test_normalize_path_strips_dollar_prefix() {
-        assert_eq!(UseEntry::normalize_path("$task1"), "task1");
-        assert_eq!(UseEntry::normalize_path("task1"), "task1");
-        assert_eq!(UseEntry::normalize_path("$my_task"), "my_task");
-        assert_eq!(UseEntry::normalize_path("task.field"), "task.field");
-        assert_eq!(UseEntry::normalize_path("$task.field"), "task.field");
+        assert_eq!(BindingEntry::normalize_path("$task1"), "task1");
+        assert_eq!(BindingEntry::normalize_path("task1"), "task1");
+        assert_eq!(BindingEntry::normalize_path("$my_task"), "my_task");
+        assert_eq!(BindingEntry::normalize_path("task.field"), "task.field");
+        assert_eq!(BindingEntry::normalize_path("$task.field"), "task.field");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -961,20 +961,20 @@ tags: 'meta.tags ?? ["default"]'
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn test_use_entry_deserialize_normalizes_dollar_prefix_shorthand() {
-        // Shorthand: "$task1" → UseEntry { path: "task1", ... }
-        let entry: UseEntry = serde_yaml::from_str("\"$task1\"").unwrap();
+    fn test_binding_entry_deserialize_normalizes_dollar_prefix_shorthand() {
+        // Shorthand: "$task1" → BindingEntry { path: "task1", ... }
+        let entry: BindingEntry = serde_yaml::from_str("\"$task1\"").unwrap();
         assert_eq!(entry.path, "task1");
 
         // Without prefix should also work
-        let entry: UseEntry = serde_yaml::from_str("\"task1\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"task1\"").unwrap();
         assert_eq!(entry.path, "task1");
     }
 
     #[test]
-    fn test_use_entry_deserialize_normalizes_dollar_prefix_full_form() {
+    fn test_binding_entry_deserialize_normalizes_dollar_prefix_full_form() {
         // Full form with $ prefix in path field
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "$my_task"
             default: "fallback"
@@ -988,7 +988,7 @@ tags: 'meta.tags ?? ["default"]'
         );
 
         // Without prefix should also work
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "my_task"
             lazy: true
@@ -1006,52 +1006,52 @@ tags: 'meta.tags ?? ["default"]'
     #[test]
     fn test_normalize_path_edge_cases() {
         // Multiple $ prefixes - only strip first
-        assert_eq!(UseEntry::normalize_path("$$task"), "$task");
-        assert_eq!(UseEntry::normalize_path("$$$task"), "$$task");
+        assert_eq!(BindingEntry::normalize_path("$$task"), "$task");
+        assert_eq!(BindingEntry::normalize_path("$$$task"), "$$task");
 
         // $ in middle or end - should NOT be stripped
-        assert_eq!(UseEntry::normalize_path("ta$sk"), "ta$sk");
-        assert_eq!(UseEntry::normalize_path("task$"), "task$");
-        assert_eq!(UseEntry::normalize_path("ta$sk$"), "ta$sk$");
+        assert_eq!(BindingEntry::normalize_path("ta$sk"), "ta$sk");
+        assert_eq!(BindingEntry::normalize_path("task$"), "task$");
+        assert_eq!(BindingEntry::normalize_path("ta$sk$"), "ta$sk$");
 
         // Nested field access with $ prefix
         assert_eq!(
-            UseEntry::normalize_path("$task.field.subfield"),
+            BindingEntry::normalize_path("$task.field.subfield"),
             "task.field.subfield"
         );
         assert_eq!(
-            UseEntry::normalize_path("$task.nested.deep.path"),
+            BindingEntry::normalize_path("$task.nested.deep.path"),
             "task.nested.deep.path"
         );
 
         // Empty string and edge cases
-        assert_eq!(UseEntry::normalize_path(""), "");
-        assert_eq!(UseEntry::normalize_path("$"), "");
-        assert_eq!(UseEntry::normalize_path("$$"), "$");
+        assert_eq!(BindingEntry::normalize_path(""), "");
+        assert_eq!(BindingEntry::normalize_path("$"), "");
+        assert_eq!(BindingEntry::normalize_path("$$"), "$");
 
         // Just dots
-        assert_eq!(UseEntry::normalize_path("$."), ".");
-        assert_eq!(UseEntry::normalize_path("$.."), "..");
-        assert_eq!(UseEntry::normalize_path(".task"), ".task");
-        assert_eq!(UseEntry::normalize_path("$.task"), ".task");
+        assert_eq!(BindingEntry::normalize_path("$."), ".");
+        assert_eq!(BindingEntry::normalize_path("$.."), "..");
+        assert_eq!(BindingEntry::normalize_path(".task"), ".task");
+        assert_eq!(BindingEntry::normalize_path("$.task"), ".task");
 
         // Unicode paths (should work fine)
-        assert_eq!(UseEntry::normalize_path("$résultat"), "résultat");
-        assert_eq!(UseEntry::normalize_path("$задача"), "задача");
+        assert_eq!(BindingEntry::normalize_path("$résultat"), "résultat");
+        assert_eq!(BindingEntry::normalize_path("$задача"), "задача");
 
         // Whitespace handling (normalize_path doesn't trim)
-        assert_eq!(UseEntry::normalize_path("$ task"), " task");
-        assert_eq!(UseEntry::normalize_path("$task "), "task ");
+        assert_eq!(BindingEntry::normalize_path("$ task"), " task");
+        assert_eq!(BindingEntry::normalize_path("$task "), "task ");
     }
 
     #[test]
-    fn test_use_entry_deserialize_nested_field_access() {
+    fn test_binding_entry_deserialize_nested_field_access() {
         // Shorthand form with nested field access
-        let entry: UseEntry = serde_yaml::from_str("\"$research.summary.title\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$research.summary.title\"").unwrap();
         assert_eq!(entry.path, "research.summary.title");
 
         // Full form with nested field access
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "$agent_result.response.data.items"
             lazy: true
@@ -1063,16 +1063,16 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     #[test]
-    fn test_use_entry_deserialize_multiple_dollar_signs() {
+    fn test_binding_entry_deserialize_multiple_dollar_signs() {
         // Multiple $ at start - only first stripped
-        let entry: UseEntry = serde_yaml::from_str("\"$$task\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$$task\"").unwrap();
         assert_eq!(entry.path, "$task");
 
-        let entry: UseEntry = serde_yaml::from_str("\"$$$triple\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$$$triple\"").unwrap();
         assert_eq!(entry.path, "$$triple");
 
         // Full form with multiple $
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "$$escaped_var"
             "#,
@@ -1082,16 +1082,16 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     #[test]
-    fn test_use_entry_deserialize_dollar_in_middle() {
+    fn test_binding_entry_deserialize_dollar_in_middle() {
         // $ in middle should be preserved
-        let entry: UseEntry = serde_yaml::from_str("\"task$name\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"task$name\"").unwrap();
         assert_eq!(entry.path, "task$name");
 
-        let entry: UseEntry = serde_yaml::from_str("\"$task$name\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$task$name\"").unwrap();
         assert_eq!(entry.path, "task$name");
 
         // Full form
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "result$2"
             "#,
@@ -1101,27 +1101,27 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     #[test]
-    fn test_use_entry_deserialize_special_characters() {
+    fn test_binding_entry_deserialize_special_characters() {
         // Underscores and numbers (common in task IDs)
-        let entry: UseEntry = serde_yaml::from_str("\"$task_123\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$task_123\"").unwrap();
         assert_eq!(entry.path, "task_123");
 
-        let entry: UseEntry = serde_yaml::from_str("\"$_private_task\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$_private_task\"").unwrap();
         assert_eq!(entry.path, "_private_task");
 
         // Hyphens
-        let entry: UseEntry = serde_yaml::from_str("\"$task-name\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$task-name\"").unwrap();
         assert_eq!(entry.path, "task-name");
 
         // Mixed
-        let entry: UseEntry = serde_yaml::from_str("\"$task_1-result.field_2\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$task_1-result.field_2\"").unwrap();
         assert_eq!(entry.path, "task_1-result.field_2");
     }
 
     #[test]
-    fn test_use_entry_deserialize_with_all_options() {
+    fn test_binding_entry_deserialize_with_all_options() {
         // Full form with $ prefix and all options set
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "$complex_task.nested.value"
             default: "default_value"
@@ -1138,10 +1138,10 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     #[test]
-    fn test_use_entry_equivalence_with_and_without_dollar() {
-        // These should produce identical UseEntry instances
-        let with_dollar: UseEntry = serde_yaml::from_str("\"$my_task\"").unwrap();
-        let without_dollar: UseEntry = serde_yaml::from_str("\"my_task\"").unwrap();
+    fn test_binding_entry_equivalence_with_and_without_dollar() {
+        // These should produce identical BindingEntry instances
+        let with_dollar: BindingEntry = serde_yaml::from_str("\"$my_task\"").unwrap();
+        let without_dollar: BindingEntry = serde_yaml::from_str("\"my_task\"").unwrap();
 
         assert_eq!(with_dollar.path, without_dollar.path);
         assert_eq!(with_dollar.default, without_dollar.default);
@@ -1149,21 +1149,21 @@ tags: 'meta.tags ?? ["default"]'
     }
 
     #[test]
-    fn test_use_entry_deserialize_real_workflow_patterns() {
+    fn test_binding_entry_deserialize_real_workflow_patterns() {
         // Pattern: Simple task reference
-        let entry: UseEntry = serde_yaml::from_str("\"$get_context\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$get_context\"").unwrap();
         assert_eq!(entry.path, "get_context");
 
         // Pattern: Output field access
-        let entry: UseEntry = serde_yaml::from_str("\"$generate.content\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$generate.content\"").unwrap();
         assert_eq!(entry.path, "generate.content");
 
         // Pattern: Agent result access
-        let entry: UseEntry = serde_yaml::from_str("\"$research_agent.findings.summary\"").unwrap();
+        let entry: BindingEntry = serde_yaml::from_str("\"$research_agent.findings.summary\"").unwrap();
         assert_eq!(entry.path, "research_agent.findings.summary");
 
         // Pattern: Lazy binding with default for optional task output
-        let entry: UseEntry = serde_yaml::from_str(
+        let entry: BindingEntry = serde_yaml::from_str(
             r#"
             path: "$optional_step.result"
             default: null

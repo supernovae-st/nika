@@ -46,7 +46,7 @@ use super::jsonpath;
 use crate::error::NikaError;
 use crate::store::RunContext;
 
-use super::entry::{UseEntry, WiringSpec, WithEntry, WithSpec};
+use super::entry::{BindingEntry, BindingSpec, WithEntry, WithSpec};
 use super::transform::TransformExpr;
 use super::types::{BindingPath, BindingSource, BindingType, PathSegment};
 
@@ -109,10 +109,10 @@ impl ResolvedBindings {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // String-path resolution: from_wiring_spec (UseEntry / WiringSpec)
+    // String-path resolution: from_binding_spec (BindingEntry / BindingSpec)
     // ═══════════════════════════════════════════════════════════════
 
-    /// Build bindings from with: wiring by resolving paths from datastore
+    /// Build bindings from with: block by resolving paths from datastore
     ///
     /// Unified resolution for both syntax styles:
     /// - String: `task.path [?? default]` → eager resolution
@@ -121,18 +121,18 @@ impl ResolvedBindings {
     /// Lazy bindings are stored as Pending and resolved on first access.
     /// Eager bindings are resolved immediately and fail if source is missing.
     ///
-    /// Returns empty bindings if wiring_spec is None.
-    pub fn from_wiring_spec(
-        wiring_spec: Option<&WiringSpec>,
+    /// Returns empty bindings if binding_spec is None.
+    pub fn from_binding_spec(
+        binding_spec: Option<&BindingSpec>,
         datastore: &RunContext,
     ) -> Result<Self, NikaError> {
-        let Some(wiring) = wiring_spec else {
+        let Some(bindings) = binding_spec else {
             return Ok(Self::new());
         };
 
         let mut bindings = Self::new();
 
-        for (alias, entry) in wiring {
+        for (alias, entry) in bindings {
             if entry.is_lazy() {
                 // Lazy binding - defer resolution
                 bindings.bindings.insert(
@@ -229,8 +229,8 @@ impl ResolvedBindings {
         match self.bindings.get(alias) {
             Some(LazyBinding::Resolved(value)) => Ok(value.clone()),
             Some(LazyBinding::Pending { path, default }) => {
-                // String-path: resolve via UseEntry
-                let entry = UseEntry {
+                // String-path: resolve via BindingEntry
+                let entry = BindingEntry {
                     path: path.clone(),
                     default: default.clone(),
                     lazy: true,
@@ -317,10 +317,10 @@ impl ResolvedBindings {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// String-path resolution: UseEntry (simple path bindings)
+// String-path resolution: BindingEntry (simple path bindings)
 // ═══════════════════════════════════════════════════════════════
 
-/// Resolve a single UseEntry to a Value
+/// Resolve a single BindingEntry to a Value
 ///
 /// Unified resolution logic:
 /// 1. Check for inputs.* path (workflow inputs support)
@@ -329,7 +329,7 @@ impl ResolvedBindings {
 /// 4. Resolve remaining path within output
 /// 5. Apply default if value is null/missing
 fn resolve_entry(
-    entry: &UseEntry,
+    entry: &BindingEntry,
     alias: &str,
     datastore: &RunContext,
 ) -> Result<Value, NikaError> {
@@ -633,9 +633,9 @@ mod tests {
     }
 
     #[test]
-    fn from_wiring_spec_none() {
+    fn from_binding_spec_none() {
         let store = RunContext::new();
-        let bindings = ResolvedBindings::from_wiring_spec(None, &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(None, &store).unwrap();
         assert!(bindings.is_empty());
     }
 
@@ -647,7 +647,7 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // String-path resolution tests (UseEntry / WiringSpec)
+    // String-path resolution tests (BindingEntry / BindingSpec)
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
@@ -658,10 +658,10 @@ mod tests {
             TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
+        let mut spec = BindingSpec::default();
+        spec.insert("forecast".to_string(), BindingEntry::new("weather.summary"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
     }
 
@@ -676,10 +676,10 @@ mod tests {
             ),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("data".to_string(), UseEntry::new("weather"));
+        let mut spec = BindingSpec::default();
+        spec.insert("data".to_string(), BindingEntry::new("weather"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(
             bindings.get("data"),
             Some(&json!({"summary": "Sunny", "temp": 25}))
@@ -697,13 +697,13 @@ mod tests {
             ),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "temp".to_string(),
-            UseEntry::new("weather.data.temp.celsius"),
+            BindingEntry::new("weather.data.temp.celsius"),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("temp"), Some(&json!(25)));
     }
 
@@ -711,13 +711,13 @@ mod tests {
     fn resolve_with_default_on_missing() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "forecast".to_string(),
-            UseEntry::with_default("weather.summary", json!("Unknown")),
+            BindingEntry::with_default("weather.summary", json!("Unknown")),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("Unknown")));
     }
 
@@ -729,13 +729,13 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "forecast".to_string(),
-            UseEntry::with_default("weather.summary", json!("N/A")),
+            BindingEntry::with_default("weather.summary", json!("N/A")),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("forecast"), Some(&json!("N/A")));
     }
 
@@ -743,13 +743,13 @@ mod tests {
     fn resolve_with_default_object() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "cfg".to_string(),
-            UseEntry::with_default("settings", json!({"debug": false})),
+            BindingEntry::with_default("settings", json!({"debug": false})),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("cfg"), Some(&json!({"debug": false})));
     }
 
@@ -757,13 +757,13 @@ mod tests {
     fn resolve_with_default_array() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "tags".to_string(),
-            UseEntry::with_default("meta.tags", json!(["default"])),
+            BindingEntry::with_default("meta.tags", json!(["default"])),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("tags"), Some(&json!(["default"])));
     }
 
@@ -775,10 +775,10 @@ mod tests {
     fn resolve_path_not_found_error() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("x".to_string(), UseEntry::new("missing.path"));
+        let mut spec = BindingSpec::default();
+        spec.insert("x".to_string(), BindingEntry::new("missing.path"));
 
-        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-052"));
     }
@@ -791,10 +791,10 @@ mod tests {
             TaskResult::success(json!({"summary": null}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("forecast".to_string(), UseEntry::new("weather.summary"));
+        let mut spec = BindingSpec::default();
+        spec.insert("forecast".to_string(), BindingEntry::new("weather.summary"));
 
-        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-072"));
     }
@@ -814,10 +814,10 @@ mod tests {
             ),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("first".to_string(), UseEntry::new("data.items[0].name"));
+        let mut spec = BindingSpec::default();
+        spec.insert("first".to_string(), BindingEntry::new("data.items[0].name"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("first"), Some(&json!("first")));
     }
 
@@ -1032,13 +1032,13 @@ mod tests {
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "lazy_bind".to_string(),
-            UseEntry::lazy_with_default("task.value", json!("default")),
+            BindingEntry::lazy_with_default("task.value", json!("default")),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         // get() should NOT resolve lazy bindings
         assert_eq!(bindings.get("lazy_bind"), None);
     }
@@ -1055,10 +1055,10 @@ mod tests {
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("eager".to_string(), BindingEntry::new("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         let result = bindings.get_resolved("eager", &store).unwrap();
         assert_eq!(result, json!("result"));
     }
@@ -1071,10 +1071,10 @@ mod tests {
             TaskResult::success(json!({"value": "lazy_result"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         let result = bindings.get_resolved("lazy", &store).unwrap();
         assert_eq!(result, json!("lazy_result"));
     }
@@ -1093,13 +1093,13 @@ mod tests {
         let store = RunContext::new();
         // No task in store - should use default
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "lazy_default".to_string(),
-            UseEntry::lazy_with_default("missing.path", json!("fallback")),
+            BindingEntry::lazy_with_default("missing.path", json!("fallback")),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         let result = bindings.get_resolved("lazy_default", &store).unwrap();
         assert_eq!(result, json!("fallback"));
     }
@@ -1112,10 +1112,10 @@ mod tests {
             TaskResult::success(json!({"counter": 1}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.counter"));
+        let mut spec = BindingSpec::default();
+        spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.counter"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         // First call
         let result1 = bindings.get_resolved("lazy", &store).unwrap();
@@ -1144,20 +1144,20 @@ mod tests {
             TaskResult::success(json!({"value": "test"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("eager".to_string(), BindingEntry::new("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert!(!bindings.is_lazy("eager"));
     }
 
     #[test]
     fn is_lazy_for_lazy_binding() {
         let store = RunContext::new();
-        let mut wiring = WiringSpec::default();
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert!(bindings.is_lazy("lazy"));
     }
 
@@ -1175,10 +1175,10 @@ mod tests {
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         // Even after calling get_resolved(), the binding is still marked as lazy
         let _ = bindings.get_resolved("lazy", &store);
         assert!(bindings.is_lazy("lazy"));
@@ -1203,11 +1203,11 @@ mod tests {
             TaskResult::success(json!({"value": "result"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("eager".to_string(), UseEntry::new("task.value"));
-        wiring.insert("lazy".to_string(), UseEntry::new_lazy("task.value"));
+        let mut spec = BindingSpec::default();
+        spec.insert("eager".to_string(), BindingEntry::new("task.value"));
+        spec.insert("lazy".to_string(), BindingEntry::new_lazy("task.value"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         // iter() should only return eager bindings, not lazy ones
         let items: Vec<_> = bindings.iter().collect();
@@ -1314,32 +1314,32 @@ mod tests {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Error handling in from_wiring_spec()
+    // Error handling in from_binding_spec()
     // ═══════════════════════════════════════════════════════════════
 
     #[test]
-    fn from_wiring_spec_eager_missing_path() {
+    fn from_binding_spec_eager_missing_path() {
         let store = RunContext::new();
-        let mut wiring = WiringSpec::default();
-        wiring.insert("x".to_string(), UseEntry::new("nonexistent.path"));
+        let mut spec = BindingSpec::default();
+        spec.insert("x".to_string(), BindingEntry::new("nonexistent.path"));
 
-        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
         assert!(result.is_err());
     }
 
     #[test]
-    fn from_wiring_spec_lazy_does_not_fail_on_missing() {
+    fn from_binding_spec_lazy_does_not_fail_on_missing() {
         let store = RunContext::new();
-        let mut wiring = WiringSpec::default();
-        wiring.insert("x".to_string(), UseEntry::new_lazy("nonexistent.path"));
+        let mut spec = BindingSpec::default();
+        spec.insert("x".to_string(), BindingEntry::new_lazy("nonexistent.path"));
 
-        // Lazy bindings don't fail during from_wiring_spec - they fail on get_resolved()
-        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        // Lazy bindings don't fail during from_binding_spec - they fail on get_resolved()
+        let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn from_wiring_spec_preserves_all_entries() {
+    fn from_binding_spec_preserves_all_entries() {
         let store = RunContext::new();
         store.insert(
             Arc::from("task1"),
@@ -1350,11 +1350,11 @@ mod tests {
             TaskResult::success(json!({"b": 2}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("binding1".to_string(), UseEntry::new("task1.a"));
-        wiring.insert("binding2".to_string(), UseEntry::new_lazy("task2.b"));
+        let mut spec = BindingSpec::default();
+        spec.insert("binding1".to_string(), BindingEntry::new("task1.a"));
+        spec.insert("binding2".to_string(), BindingEntry::new_lazy("task2.b"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         // Both bindings should exist
         assert_eq!(bindings.get("binding1"), Some(&json!(1)));
@@ -1377,11 +1377,11 @@ mod tests {
             TaskResult::success(json!({"result": "slow_value"}), Duration::from_secs(5)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("quick_bind".to_string(), UseEntry::new("quick.result"));
-        wiring.insert("slow_bind".to_string(), UseEntry::new_lazy("slow.result"));
+        let mut spec = BindingSpec::default();
+        spec.insert("quick_bind".to_string(), BindingEntry::new("quick.result"));
+        spec.insert("slow_bind".to_string(), BindingEntry::new_lazy("slow.result"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         // Eager should be available immediately
         assert_eq!(bindings.get("quick_bind"), Some(&json!("fast")));
@@ -1454,10 +1454,10 @@ mod tests {
         );
         store.set_inputs(inputs);
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("topic_val".to_string(), UseEntry::new("inputs.topic"));
+        let mut spec = BindingSpec::default();
+        spec.insert("topic_val".to_string(), BindingEntry::new("inputs.topic"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("topic_val"), Some(&json!("AI trends 2025")));
     }
 
@@ -1483,14 +1483,14 @@ mod tests {
         );
         store.set_inputs(inputs);
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("theme".to_string(), UseEntry::new("inputs.config.theme"));
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert("theme".to_string(), BindingEntry::new("inputs.config.theme"));
+        spec.insert(
             "deep".to_string(),
-            UseEntry::new("inputs.config.nested.deep"),
+            BindingEntry::new("inputs.config.nested.deep"),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("theme"), Some(&json!("dark")));
         assert_eq!(bindings.get("deep"), Some(&json!("value")));
     }
@@ -1499,13 +1499,13 @@ mod tests {
     fn resolve_inputs_with_default_on_missing() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "fallback".to_string(),
-            UseEntry::with_default("inputs.missing", json!("default_value")),
+            BindingEntry::with_default("inputs.missing", json!("default_value")),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("fallback"), Some(&json!("default_value")));
     }
 
@@ -1513,10 +1513,10 @@ mod tests {
     fn resolve_inputs_missing_no_default() {
         let store = RunContext::new();
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("missing".to_string(), UseEntry::new("inputs.missing"));
+        let mut spec = BindingSpec::default();
+        spec.insert("missing".to_string(), BindingEntry::new("inputs.missing"));
 
-        let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+        let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-052")); // PathNotFound
     }
@@ -1537,13 +1537,13 @@ mod tests {
         );
         store.set_inputs(inputs);
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert(
+        let mut spec = BindingSpec::default();
+        spec.insert(
             "lazy_alias".to_string(),
-            UseEntry::new_lazy("inputs.lazy_input"),
+            BindingEntry::new_lazy("inputs.lazy_input"),
         );
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         assert!(bindings.is_lazy("lazy_alias"));
         assert_eq!(bindings.get("lazy_alias"), None);
@@ -1573,11 +1573,11 @@ mod tests {
             TaskResult::success(json!({"result": "generated"}), Duration::from_secs(1)),
         );
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("from_input".to_string(), UseEntry::new("inputs.topic"));
-        wiring.insert("from_task".to_string(), UseEntry::new("step1.result"));
+        let mut spec = BindingSpec::default();
+        spec.insert("from_input".to_string(), BindingEntry::new("inputs.topic"));
+        spec.insert("from_task".to_string(), BindingEntry::new("step1.result"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
         assert_eq!(bindings.get("from_input"), Some(&json!("AI")));
         assert_eq!(bindings.get("from_task"), Some(&json!("generated")));
@@ -1599,10 +1599,10 @@ mod tests {
         );
         store.set_inputs(inputs);
 
-        let mut wiring = WiringSpec::default();
-        wiring.insert("all_items".to_string(), UseEntry::new("inputs.items"));
+        let mut spec = BindingSpec::default();
+        spec.insert("all_items".to_string(), BindingEntry::new("inputs.items"));
 
-        let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
         assert_eq!(bindings.get("all_items"), Some(&json!(["a", "b", "c"])));
     }
 

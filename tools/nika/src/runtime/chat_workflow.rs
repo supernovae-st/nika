@@ -18,8 +18,8 @@
 //! ```
 
 use crate::binding::{
-    has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, text_to_wiring,
-    Mention, MentionResolutionError, ResolvedMention, WiringSpec,
+    has_parallel_marker, parse_mentions, resolve_mention, strip_parallel_marker, text_to_bindings,
+    Mention, MentionResolutionError, ResolvedMention, BindingSpec,
 };
 use crate::dag::StableDag;
 use chrono::{DateTime, Utc};
@@ -221,17 +221,17 @@ impl ChatWorkflow {
         resolve_mention(mention, self.message_counter)
     }
 
-    /// Get WiringSpec for all mentions in a message.
+    /// Get BindingSpec for all mentions in a message.
     ///
     /// Parses mentions from the message content and converts them to
-    /// WiringSpec bindings that can be used for DAG edges.
-    pub fn get_wiring_for_message(
+    /// BindingSpec bindings that can be used for DAG edges.
+    pub fn get_bindings_for_message(
         &self,
         idx: NodeIndex,
-    ) -> Result<WiringSpec, MentionResolutionError> {
+    ) -> Result<BindingSpec, MentionResolutionError> {
         match self.get_message_by_index(idx) {
-            Some(msg) => text_to_wiring(&msg.content, self.message_counter),
-            None => Ok(WiringSpec::default()),
+            Some(msg) => text_to_bindings(&msg.content, self.message_counter),
+            None => Ok(BindingSpec::default()),
         }
     }
 
@@ -923,21 +923,21 @@ mod tests {
     }
 
     #[test]
-    fn test_get_wiring_for_message() {
+    fn test_get_bindings_for_message() {
         let mut workflow = ChatWorkflow::new();
 
         workflow.add_message("First", Role::User);
         workflow.add_message("Second", Role::Assistant);
         let idx = workflow.add_message("Based on @1", Role::User);
 
-        let wiring = workflow.get_wiring_for_message(idx).unwrap();
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_1"));
-        assert_eq!(wiring["ref_1"].path, "msg-001.output");
+        let spec = workflow.get_bindings_for_message(idx).unwrap();
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_1"));
+        assert_eq!(spec["ref_1"].path, "msg-001.output");
     }
 
     #[test]
-    fn test_get_wiring_for_message_with_last() {
+    fn test_get_bindings_for_message_with_last() {
         let mut workflow = ChatWorkflow::new();
 
         workflow.add_message("First", Role::User);
@@ -945,9 +945,9 @@ mod tests {
         let idx = workflow.add_message("Continue from @last", Role::User);
 
         // @last resolves to current message count (3) at resolution time
-        let wiring = workflow.get_wiring_for_message(idx).unwrap();
-        assert_eq!(wiring.len(), 1);
-        assert!(wiring.contains_key("ref_3")); // @last = message 3 (current count)
+        let spec = workflow.get_bindings_for_message(idx).unwrap();
+        assert_eq!(spec.len(), 1);
+        assert!(spec.contains_key("ref_3")); // @last = message 3 (current count)
     }
 
     #[test]

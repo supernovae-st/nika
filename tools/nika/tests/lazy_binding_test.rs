@@ -7,7 +7,7 @@
 //! - Breaking circular dependency detection false positives
 //! - Supporting dynamic workflow patterns
 
-use nika::binding::{ResolvedBindings, UseEntry, WiringSpec};
+use nika::binding::{ResolvedBindings, BindingEntry, BindingSpec};
 use nika::serde_yaml;
 use nika::store::{RunContext, TaskResult};
 use serde_json::json;
@@ -15,27 +15,27 @@ use std::sync::Arc;
 use std::time::Duration;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// YAML Parsing Tests - Extended UseEntry syntax
+// YAML Parsing Tests - Extended BindingEntry syntax
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn test_use_entry_lazy_flag_default_false() {
+fn test_binding_entry_lazy_flag_default_false() {
     // Standard string syntax should have lazy=false by default
-    let entry = UseEntry::new("task1.result");
+    let entry = BindingEntry::new("task1.result");
     assert!(!entry.is_lazy());
 }
 
 #[test]
-fn test_use_entry_lazy_flag_explicit() {
+fn test_binding_entry_lazy_flag_explicit() {
     // Extended syntax should allow lazy: true
-    let entry = UseEntry::new_lazy("task1.result");
+    let entry = BindingEntry::new_lazy("task1.result");
     assert!(entry.is_lazy());
 }
 
 #[test]
-fn test_use_entry_lazy_with_default() {
+fn test_binding_entry_lazy_with_default() {
     // Lazy binding with default value
-    let entry = UseEntry::lazy_with_default("task1.result", json!("fallback"));
+    let entry = BindingEntry::lazy_with_default("task1.result", json!("fallback"));
     assert!(entry.is_lazy());
     assert_eq!(entry.default, Some(json!("fallback")));
 }
@@ -55,14 +55,14 @@ lazy_one:
   lazy: true
 "#;
 
-    let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
+    let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
 
     // eager should be non-lazy
-    let eager = wiring.get("eager").unwrap();
+    let eager = spec.get("eager").unwrap();
     assert!(!eager.is_lazy());
 
     // lazy_one should be lazy
-    let lazy_one = wiring.get("lazy_one").unwrap();
+    let lazy_one = spec.get("lazy_one").unwrap();
     assert!(lazy_one.is_lazy());
     assert_eq!(lazy_one.path, "task2.result");
 }
@@ -76,8 +76,8 @@ optional:
   default: "fallback"
 "#;
 
-    let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
-    let optional = wiring.get("optional").unwrap();
+    let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
+    let optional = spec.get("optional").unwrap();
 
     assert!(optional.is_lazy());
     assert_eq!(optional.path, "missing.result");
@@ -90,16 +90,16 @@ optional:
 
 #[test]
 fn test_lazy_binding_not_resolved_initially() {
-    // Lazy bindings should NOT fail during from_wiring_spec
+    // Lazy bindings should NOT fail during from_binding_spec
     // even if the source task output doesn't exist yet
     let store = RunContext::new();
     // Note: "future" task NOT in store
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("lazy_val".to_string(), UseEntry::new_lazy("future.result"));
+    let mut spec = BindingSpec::default();
+    spec.insert("lazy_val".to_string(), BindingEntry::new_lazy("future.result"));
 
     // This should succeed because lazy bindings defer resolution
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(bindings.is_ok());
 
     let bindings = bindings.unwrap();
@@ -111,11 +111,11 @@ fn test_lazy_binding_resolved_on_access() {
     let store = RunContext::new();
     // Initially empty - task1 hasn't run yet
 
-    let mut wiring = WiringSpec::default();
+    let mut spec = BindingSpec::default();
     // Note: path "task1.result" expects task1 output to have a "result" field
-    wiring.insert("lazy_val".to_string(), UseEntry::new_lazy("task1.result"));
+    spec.insert("lazy_val".to_string(), BindingEntry::new_lazy("task1.result"));
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Initially lazy
     assert!(bindings.is_lazy("lazy_val"));
@@ -136,10 +136,10 @@ fn test_lazy_binding_resolved_on_access() {
 fn test_lazy_binding_with_path() {
     let store = RunContext::new();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("nested".to_string(), UseEntry::new_lazy("task1.data.value"));
+    let mut spec = BindingSpec::default();
+    spec.insert("nested".to_string(), BindingEntry::new_lazy("task1.data.value"));
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Add task output
     store.insert(
@@ -157,13 +157,13 @@ fn test_lazy_binding_with_default_on_missing() {
     let store = RunContext::new();
     // Task never runs
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert(
+    let mut spec = BindingSpec::default();
+    spec.insert(
         "optional".to_string(),
-        UseEntry::lazy_with_default("missing.result", json!("fallback")),
+        BindingEntry::lazy_with_default("missing.result", json!("fallback")),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Resolve with default (task doesn't exist)
     let value = bindings.get_resolved("optional", &store).unwrap();
@@ -178,13 +178,13 @@ fn test_lazy_binding_with_default_on_null() {
         TaskResult::success(json!(null), Duration::from_secs(1)),
     );
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert(
+    let mut spec = BindingSpec::default();
+    spec.insert(
         "nullable".to_string(),
-        UseEntry::lazy_with_default("task1", json!("default")),
+        BindingEntry::lazy_with_default("task1", json!("default")),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Null value should use default
     let value = bindings.get_resolved("nullable", &store).unwrap();
@@ -196,10 +196,10 @@ fn test_lazy_binding_error_on_missing_no_default() {
     let store = RunContext::new();
     // Task never runs, no default
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("strict".to_string(), UseEntry::new_lazy("missing.result"));
+    let mut spec = BindingSpec::default();
+    spec.insert("strict".to_string(), BindingEntry::new_lazy("missing.result"));
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Should error on access when no default and task missing
     let result = bindings.get_resolved("strict", &store);
@@ -221,12 +221,12 @@ fn test_mixed_eager_and_lazy_bindings() {
     );
     // task2 not in store (lazy binding target)
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("eager".to_string(), UseEntry::new("task1"));
-    wiring.insert("lazy".to_string(), UseEntry::new_lazy("task2.result"));
+    let mut spec = BindingSpec::default();
+    spec.insert("eager".to_string(), BindingEntry::new("task1"));
+    spec.insert("lazy".to_string(), BindingEntry::new_lazy("task2.result"));
 
     // Should succeed - eager resolved, lazy deferred
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     // Eager is resolved
     assert!(!bindings.is_lazy("eager"));
@@ -251,11 +251,11 @@ fn test_eager_binding_fails_on_missing() {
     let store = RunContext::new();
     // No tasks in store
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("eager".to_string(), UseEntry::new("missing.value"));
+    let mut spec = BindingSpec::default();
+    spec.insert("eager".to_string(), BindingEntry::new("missing.value"));
 
     // Eager binding should fail immediately
-    let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(result.is_err());
 }
 
@@ -271,10 +271,10 @@ fn test_is_lazy_returns_false_for_resolved() {
         TaskResult::success(json!("value"), Duration::from_secs(1)),
     );
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("resolved".to_string(), UseEntry::new("task1"));
+    let mut spec = BindingSpec::default();
+    spec.insert("resolved".to_string(), BindingEntry::new("task1"));
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     assert!(!bindings.is_lazy("resolved"));
     assert!(!bindings.is_lazy("nonexistent")); // Non-existent is also not lazy
@@ -285,10 +285,10 @@ fn test_is_lazy_returns_true_for_pending() {
     let store = RunContext::new();
     // No tasks
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("pending".to_string(), UseEntry::new_lazy("future.result"));
+    let mut spec = BindingSpec::default();
+    spec.insert("pending".to_string(), BindingEntry::new_lazy("future.result"));
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     assert!(bindings.is_lazy("pending"));
 }

@@ -1,9 +1,9 @@
 //! Integration tests for binding workflow
 //!
-//! Tests the full pipeline: YAML → WiringSpec → ResolvedBindings → template resolution
+//! Tests the full pipeline: YAML → BindingSpec → ResolvedBindings → template resolution
 
 use nika::binding::{
-    parse_use_entry, template_resolve, validate_task_id, ResolvedBindings, WiringSpec,
+    parse_binding_entry, template_resolve, validate_task_id, ResolvedBindings, BindingSpec,
 };
 use nika::serde_yaml;
 use nika::store::{RunContext, TaskResult};
@@ -18,13 +18,13 @@ use std::time::Duration;
 #[test]
 fn full_workflow_simple_path() {
     // 1. Parse use: entry
-    let entry = parse_use_entry("weather.summary").unwrap();
+    let entry = parse_binding_entry("weather.summary").unwrap();
     assert_eq!(entry.path, "weather.summary");
     assert!(entry.default.is_none());
 
-    // 2. Create wiring
-    let mut wiring = WiringSpec::default();
-    wiring.insert("forecast".to_string(), entry);
+    // 2. Create binding spec
+    let mut spec = BindingSpec::default();
+    spec.insert("forecast".to_string(), entry);
 
     // 3. Populate datastore with task output
     let store = RunContext::new();
@@ -37,7 +37,7 @@ fn full_workflow_simple_path() {
     );
 
     // 4. Resolve bindings
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
 
     // 5. Template resolution (v0.5: pass datastore for lazy binding support)
@@ -49,13 +49,13 @@ fn full_workflow_simple_path() {
 #[test]
 fn full_workflow_with_default() {
     // 1. Parse with default
-    let entry = parse_use_entry(r#"weather.rating ?? 5"#).unwrap();
+    let entry = parse_binding_entry(r#"weather.rating ?? 5"#).unwrap();
     assert_eq!(entry.path, "weather.rating");
     assert_eq!(entry.default, Some(json!(5)));
 
     // 2. Wiring
-    let mut wiring = WiringSpec::default();
-    wiring.insert("rating".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("rating".to_string(), entry);
 
     // 3. Datastore WITHOUT rating field
     let store = RunContext::new();
@@ -65,7 +65,7 @@ fn full_workflow_with_default() {
     );
 
     // 4. Resolve - should use default
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("rating"), Some(&json!(5)));
 
     // 5. Template (v0.5: pass datastore for lazy binding support)
@@ -76,10 +76,10 @@ fn full_workflow_with_default() {
 #[test]
 fn full_workflow_nested_path() {
     // Deep nesting: flights.cheapest.price
-    let entry = parse_use_entry("flights.cheapest.price").unwrap();
+    let entry = parse_binding_entry("flights.cheapest.price").unwrap();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("price".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("price".to_string(), entry);
 
     let store = RunContext::new();
     store.insert(
@@ -90,7 +90,7 @@ fn full_workflow_nested_path() {
         ),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("price"), Some(&json!(89)));
 
     let result = template_resolve("Price: ${{with.price}}", &bindings, &store).unwrap();
@@ -99,15 +99,15 @@ fn full_workflow_nested_path() {
 
 #[test]
 fn full_workflow_multiple_aliases() {
-    let mut wiring = WiringSpec::default();
-    wiring.insert("city".to_string(), parse_use_entry("weather.city").unwrap());
-    wiring.insert(
+    let mut spec = BindingSpec::default();
+    spec.insert("city".to_string(), parse_binding_entry("weather.city").unwrap());
+    spec.insert(
         "temp".to_string(),
-        parse_use_entry("weather.temp ?? 20").unwrap(),
+        parse_binding_entry("weather.temp ?? 20").unwrap(),
     );
-    wiring.insert(
+    spec.insert(
         "price".to_string(),
-        parse_use_entry("flights.cheapest.price").unwrap(),
+        parse_binding_entry("flights.cheapest.price").unwrap(),
     );
 
     let store = RunContext::new();
@@ -120,7 +120,7 @@ fn full_workflow_multiple_aliases() {
         TaskResult::success(json!({"cheapest": {"price": 89}}), Duration::from_secs(1)),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     let template = "Travel to {{with.city}}: {{with.temp}}C, ${{with.price}}";
     let result = template_resolve(template, &bindings, &store).unwrap();
@@ -129,17 +129,17 @@ fn full_workflow_multiple_aliases() {
 
 #[test]
 fn full_workflow_string_default() {
-    let entry = parse_use_entry(r#"user.name ?? "Anonymous""#).unwrap();
+    let entry = parse_binding_entry(r#"user.name ?? "Anonymous""#).unwrap();
     assert_eq!(entry.default, Some(json!("Anonymous")));
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("name".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("name".to_string(), entry);
 
     // No user task in store
     let store = RunContext::new();
 
     // Should error without default
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     // Actually, this should use the default because we have one
     // But wait - the task doesn't exist, so it should error even with default?
     // Let me check the resolve logic...
@@ -150,15 +150,15 @@ fn full_workflow_string_default() {
 
 #[test]
 fn full_workflow_object_default() {
-    let entry = parse_use_entry(r#"settings ?? {"debug": false}"#).unwrap();
+    let entry = parse_binding_entry(r#"settings ?? {"debug": false}"#).unwrap();
     assert_eq!(entry.default, Some(json!({"debug": false})));
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("config".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("config".to_string(), entry);
 
     let store = RunContext::new();
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("config"), Some(&json!({"debug": false})));
 }
 
@@ -168,14 +168,14 @@ fn full_workflow_object_default() {
 
 #[test]
 fn error_task_not_found_no_default() {
-    let entry = parse_use_entry("missing.data").unwrap();
+    let entry = parse_binding_entry("missing.data").unwrap();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("x".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("x".to_string(), entry);
 
     let store = RunContext::new();
 
-    let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("NIKA-052") || err.contains("not found"));
@@ -183,10 +183,10 @@ fn error_task_not_found_no_default() {
 
 #[test]
 fn error_path_not_found_no_default() {
-    let entry = parse_use_entry("weather.nonexistent").unwrap();
+    let entry = parse_binding_entry("weather.nonexistent").unwrap();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("x".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("x".to_string(), entry);
 
     let store = RunContext::new();
     store.insert(
@@ -194,16 +194,16 @@ fn error_path_not_found_no_default() {
         TaskResult::success(json!({"summary": "Sunny"}), Duration::from_secs(1)),
     );
 
-    let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(result.is_err());
 }
 
 #[test]
 fn error_null_value_no_default() {
-    let entry = parse_use_entry("weather.temp").unwrap();
+    let entry = parse_binding_entry("weather.temp").unwrap();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("temp".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("temp".to_string(), entry);
 
     let store = RunContext::new();
     store.insert(
@@ -211,7 +211,7 @@ fn error_null_value_no_default() {
         TaskResult::success(json!({"temp": null}), Duration::from_secs(1)),
     );
 
-    let result = ResolvedBindings::from_wiring_spec(Some(&wiring), &store);
+    let result = ResolvedBindings::from_binding_spec(Some(&spec), &store);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("NIKA-072"));
 }
@@ -263,19 +263,19 @@ temp: weather.temp ?? 20
 name: 'user.name ?? "Guest"'
 "#;
 
-    let wiring: WiringSpec = serde_yaml::from_str(yaml).unwrap();
-    assert_eq!(wiring.len(), 3);
+    let spec: BindingSpec = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(spec.len(), 3);
 
     // Verify parsed entries
-    let forecast = wiring.get("forecast").unwrap();
+    let forecast = spec.get("forecast").unwrap();
     assert_eq!(forecast.path, "weather.summary");
     assert!(forecast.default.is_none());
 
-    let temp = wiring.get("temp").unwrap();
+    let temp = spec.get("temp").unwrap();
     assert_eq!(temp.path, "weather.temp");
     assert_eq!(temp.default, Some(json!(20)));
 
-    let name = wiring.get("name").unwrap();
+    let name = spec.get("name").unwrap();
     assert_eq!(name.path, "user.name");
     assert_eq!(name.default, Some(json!("Guest")));
 
@@ -293,7 +293,7 @@ name: 'user.name ?? "Guest"'
         TaskResult::success(json!({"name": "Alice"}), Duration::from_secs(1)),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
 
     assert_eq!(bindings.get("forecast"), Some(&json!("Rainy")));
     assert_eq!(bindings.get("temp"), Some(&json!(15)));
@@ -322,11 +322,11 @@ fn edge_case_no_templates() {
 
 #[test]
 fn edge_case_entire_task_output() {
-    let entry = parse_use_entry("weather").unwrap();
+    let entry = parse_binding_entry("weather").unwrap();
     assert_eq!(entry.path, "weather");
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("data".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("data".to_string(), entry);
 
     let store = RunContext::new();
     store.insert(
@@ -337,7 +337,7 @@ fn edge_case_entire_task_output() {
         ),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(
         bindings.get("data"),
         Some(&json!({"summary": "Sunny", "temp": 25}))
@@ -346,10 +346,10 @@ fn edge_case_entire_task_output() {
 
 #[test]
 fn edge_case_array_index() {
-    let entry = parse_use_entry("results.items[0].name").unwrap();
+    let entry = parse_binding_entry("results.items[0].name").unwrap();
 
-    let mut wiring = WiringSpec::default();
-    wiring.insert("first".to_string(), entry);
+    let mut spec = BindingSpec::default();
+    spec.insert("first".to_string(), entry);
 
     let store = RunContext::new();
     store.insert(
@@ -360,13 +360,13 @@ fn edge_case_array_index() {
         ),
     );
 
-    let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
+    let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
     assert_eq!(bindings.get("first"), Some(&json!("Alpha")));
 }
 
 #[test]
 fn edge_case_default_with_special_chars() {
     // Default containing ?? inside quotes
-    let entry = parse_use_entry(r#"x ?? "What?? Really??""#).unwrap();
+    let entry = parse_binding_entry(r#"x ?? "What?? Really??""#).unwrap();
     assert_eq!(entry.default, Some(json!("What?? Really??")));
 }

@@ -1,11 +1,11 @@
-//! Wiring Tests: Data Flow & Bindings
+//! Binding Tests: Data Flow & Bindings
 //!
 //! Consolidated from: wiring_checkpoint_2 (@mention bindings) + wiring_checkpoint_3 (builtin tools)
 //!
-//! Verifies: @mentions convert to WiringSpec, builtin tools route correctly.
+//! Verifies: @mentions convert to BindingSpec, builtin tools route correctly.
 
 use nika::binding::mention::{
-    has_parallel_marker, mentions_to_wiring, parse_mentions, resolve_mention, text_to_wiring,
+    has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention, text_to_bindings,
     Mention, ResolvedMention,
 };
 use nika::runtime::builtin::BuiltinToolRouter;
@@ -63,30 +63,30 @@ fn resolve_mentions() {
 }
 
 #[test]
-fn mentions_to_wiring_spec() {
-    let wiring = mentions_to_wiring(&ResolvedMention::Single(2));
-    assert!(wiring.contains_key("ref_2"));
-    assert_eq!(wiring["ref_2"].path, "msg-002.output");
+fn mentions_to_binding_spec() {
+    let spec = mentions_to_bindings(&ResolvedMention::Single(2));
+    assert!(spec.contains_key("ref_2"));
+    assert_eq!(spec["ref_2"].path, "msg-002.output");
 
-    let wiring = mentions_to_wiring(&ResolvedMention::Multiple(vec![1, 2, 3]));
-    assert_eq!(wiring.len(), 3);
-    assert_eq!(wiring["ref_1"].path, "msg-001.output");
-    assert_eq!(wiring["ref_2"].path, "msg-002.output");
-    assert_eq!(wiring["ref_3"].path, "msg-003.output");
+    let spec = mentions_to_bindings(&ResolvedMention::Multiple(vec![1, 2, 3]));
+    assert_eq!(spec.len(), 3);
+    assert_eq!(spec["ref_1"].path, "msg-001.output");
+    assert_eq!(spec["ref_2"].path, "msg-002.output");
+    assert_eq!(spec["ref_3"].path, "msg-003.output");
 
-    let wiring = mentions_to_wiring(&ResolvedMention::Empty);
-    assert!(wiring.is_empty());
+    let spec = mentions_to_bindings(&ResolvedMention::Empty);
+    assert!(spec.is_empty());
 }
 
 #[test]
-fn text_to_wiring_end_to_end() {
-    let wiring = text_to_wiring("Based on @1 and @2", 5).unwrap();
-    assert_eq!(wiring.len(), 2);
-    assert!(wiring.contains_key("ref_1"));
-    assert!(wiring.contains_key("ref_2"));
+fn text_to_bindings_end_to_end() {
+    let spec = text_to_bindings("Based on @1 and @2", 5).unwrap();
+    assert_eq!(spec.len(), 2);
+    assert!(spec.contains_key("ref_1"));
+    assert!(spec.contains_key("ref_2"));
 
-    let wiring = text_to_wiring("Summarize @all", 4).unwrap();
-    assert_eq!(wiring.len(), 4);
+    let spec = text_to_bindings("Summarize @all", 4).unwrap();
+    assert_eq!(spec.len(), 4);
 }
 
 #[test]
@@ -115,12 +115,12 @@ fn chatworkflow_mentions() {
     let mentions = chat.get_mentions(idx3);
     assert_eq!(mentions, vec![Mention::Number(1)]);
 
-    let wiring = chat.get_wiring_for_message(idx3).unwrap();
+    let spec = chat.get_bindings_for_message(idx3).unwrap();
     assert!(
-        wiring.contains_key("ref_1"),
-        "Wiring should have ref_1 from @1 mention"
+        spec.contains_key("ref_1"),
+        "Bindings should have ref_1 from @1 mention"
     );
-    assert_eq!(wiring["ref_1"].path, "msg-001.output");
+    assert_eq!(spec["ref_1"].path, "msg-001.output");
 }
 
 #[test]

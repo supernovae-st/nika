@@ -1,7 +1,7 @@
 //! Binding Module - Data binding between tasks.
 //!
 //! Handles `with:` block data binding:
-//! - `entry`: YAML types (WiringSpec/UseEntry + WithSpec/WithEntry)
+//! - `entry`: YAML types (BindingSpec/BindingEntry + WithSpec/WithEntry)
 //! - `resolve`: Runtime resolution (ResolvedBindings) with lazy support
 //! - `template`: Template substitution (`{{with.alias}}`)
 //! - `jsonpath`: RFC 9535 JSONPath via serde_json_path
@@ -31,7 +31,7 @@
 //!
 //! Data flow:
 //! ```text
-//! YAML `with:` block → WiringSpec (entry)
+//! YAML `with:` block → BindingSpec (entry)
 //!                          ↓
 //!                  ┌───────┴───────┐
 //!                  ▼               ▼
@@ -58,12 +58,12 @@ mod validate;
 
 // Re-export public types
 pub use entry::{
-    parse_use_entry, parse_with_entry, UseEntry, WiringSpec, WithEntry, WithEntryParseError,
+    parse_binding_entry, parse_with_entry, BindingEntry, BindingSpec, WithEntry, WithEntryParseError,
     WithSpec,
 };
 pub use mention::{
-    has_parallel_marker, mentions_to_wiring, parse_mentions, resolve_mention,
-    strip_parallel_marker, text_to_wiring, Mention, MentionResolutionError, ResolvedMention,
+    has_parallel_marker, mentions_to_bindings, parse_mentions, resolve_mention,
+    strip_parallel_marker, text_to_bindings, Mention, MentionResolutionError, ResolvedMention,
 };
 pub use resolve::{LazyBinding, ResolvedBindings};
 pub use template::{
