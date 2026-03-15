@@ -72,7 +72,7 @@ tasks:
             "task_ids": workflow.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
             "has_flows": !workflow.flows.is_empty(),
             "flow_count": workflow.flows.len(),
-            "has_bindings": workflow.tasks.iter().any(|t| t.use_wiring.is_some())
+            "has_bindings": workflow.tasks.iter().any(|t| t.with_spec.is_some())
         })
     );
 }
@@ -88,7 +88,7 @@ tasks:
     as: item
     concurrency: 3
     fail_fast: true
-    exec: "process {{use.item}}"
+    exec: "process {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();

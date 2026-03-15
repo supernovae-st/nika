@@ -142,7 +142,7 @@ tasks:
 
     // parse_workflow() processes use: bindings during analysis, but
     // references to non-existent tasks are not rejected at parse time.
-    // The lowered Workflow struct does not carry use_wiring (always None).
+    // The lowered Workflow struct uses with_spec for bindings.
     // Invalid references are caught at runtime when bindings resolve.
     let result = parse_workflow(yaml);
     // Document actual behavior: orphan binding references are accepted at parse time

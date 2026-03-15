@@ -326,7 +326,7 @@ tasks:
 "#;
 
     // parse_workflow() processes use: bindings during analysis.
-    // The lowered Workflow struct does not carry use_wiring (always None)
+    // The lowered Workflow struct uses with_spec for bindings
     // since bindings are resolved at runtime, not stored structurally.
     let workflow = parse_workflow(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 2);
@@ -349,7 +349,7 @@ tasks:
 "#;
 
     // parse_workflow() processes use: bindings during analysis.
-    // The lowered Workflow struct does not carry use_wiring (always None)
+    // The lowered Workflow struct uses with_spec for bindings
     // since bindings are resolved at runtime, not stored structurally.
     let workflow = parse_workflow(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 2);
@@ -375,7 +375,7 @@ tasks:
 "#;
 
     // parse_workflow() processes use: with lazy/default during analysis.
-    // The lowered Workflow struct does not carry use_wiring (always None).
+    // The lowered Workflow struct uses with_spec for bindings.
     // Lazy binding resolution happens at runtime.
     let workflow = parse_workflow(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 2);
@@ -406,7 +406,7 @@ tasks:
 "#;
 
     // parse_workflow() processes use: bindings during analysis.
-    // The lowered Workflow struct does not carry use_wiring (always None)
+    // The lowered Workflow struct uses with_spec for bindings
     // since bindings are resolved at runtime, not stored structurally.
     let workflow = parse_workflow(yaml).expect("Should parse");
     assert_eq!(workflow.tasks.len(), 4);

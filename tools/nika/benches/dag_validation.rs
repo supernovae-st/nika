@@ -4,7 +4,7 @@
 //! Run: cargo bench --bench dag_validation
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use nika::{validate_use_wiring, Dag, Workflow};
+use nika::{validate_bindings, Dag, Workflow};
 use serde_saphyr as serde_yaml; // v0.13.0: migrated from deprecated serde_yaml
 
 /// Generate a linear workflow (A -> B -> C -> ...)
@@ -289,8 +289,8 @@ fn bench_get_final_tasks(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_validate_use_wiring(c: &mut Criterion) {
-    let mut group = c.benchmark_group("validate_use_wiring");
+fn bench_validate_bindings(c: &mut Criterion) {
+    let mut group = c.benchmark_group("validate_bindings");
 
     for size in [5, 10, 25, 50].iter() {
         let workflow = generate_workflow_with_bindings(*size);
@@ -301,7 +301,7 @@ fn bench_validate_use_wiring(c: &mut Criterion) {
             &(&workflow, &graph),
             |b, (wf, g)| {
                 b.iter(|| {
-                    let result = validate_use_wiring(black_box(wf), black_box(g));
+                    let result = validate_bindings(black_box(wf), black_box(g));
                     black_box(result)
                 });
             },
@@ -318,6 +318,6 @@ criterion_group!(
     bench_has_path,
     bench_get_dependencies,
     bench_get_final_tasks,
-    bench_validate_use_wiring,
+    bench_validate_bindings,
 );
 criterion_main!(benches);
