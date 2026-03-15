@@ -44,7 +44,7 @@ use crate::helpers::{novanet_config, should_skip_integration_test};
 /// - `disconnect()` terminates connection cleanly
 /// - `is_connected()` returns false after disconnect
 #[tokio::test]
-#[ignore] // Run with: cargo test --features integration -- --ignored
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_connect_to_novanet() {
     if should_skip_integration_test() {
         return;
@@ -77,7 +77,7 @@ async fn test_connect_to_novanet() {
 
 /// Test that connect is idempotent (safe to call multiple times).
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_connect_idempotent() {
     if should_skip_integration_test() {
         return;
@@ -108,7 +108,7 @@ async fn test_connect_idempotent() {
 /// - `list_tools()` returns a non-empty list
 /// - Expected NovaNet tools are present (novanet_describe, novanet_query, etc.)
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_list_tools() {
     if should_skip_integration_test() {
         return;
@@ -154,7 +154,7 @@ async fn test_list_tools() {
 /// - Response is not an error
 /// - Response contains schema-related content
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_novanet_describe_schema() {
     if should_skip_integration_test() {
         return;
@@ -204,7 +204,7 @@ async fn test_novanet_describe_schema() {
 /// - Cypher query execution succeeds
 /// - Response is not an error
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_novanet_query() {
     if should_skip_integration_test() {
         return;
@@ -239,7 +239,7 @@ async fn test_novanet_query() {
 
 /// Test calling a tool with invalid parameters returns an error.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_tool_call_invalid_params() {
     if should_skip_integration_test() {
         return;
@@ -282,7 +282,7 @@ async fn test_tool_call_invalid_params() {
 
 /// Test that calling a tool while disconnected returns an error.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_call_tool_while_disconnected() {
     if should_skip_integration_test() {
         return;
@@ -302,7 +302,7 @@ async fn test_call_tool_while_disconnected() {
 
 /// Test calling a non-existent tool returns an error.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_call_nonexistent_tool() {
     if should_skip_integration_test() {
         return;
@@ -339,7 +339,7 @@ async fn test_call_nonexistent_tool() {
 
 /// Test multiple sequential tool calls on the same connection.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_multiple_tool_calls() {
     if should_skip_integration_test() {
         return;
@@ -377,7 +377,7 @@ async fn test_multiple_tool_calls() {
 /// This use case simulates a workflow that needs to find all available
 /// entities before generating content.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_use_case_discover_entities() {
     if should_skip_integration_test() {
         return;
@@ -415,7 +415,7 @@ async fn test_use_case_discover_entities() {
 
 /// Test discovering page structure for content generation.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_use_case_discover_pages() {
     if should_skip_integration_test() {
         return;
@@ -463,7 +463,7 @@ async fn test_use_case_discover_pages() {
 /// 2. Query for specific entity context
 /// 3. (Would normally invoke LLM here, simulated by query)
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_use_case_content_generation_workflow() {
     if should_skip_integration_test() {
         return;
@@ -541,7 +541,7 @@ async fn test_use_case_content_generation_workflow() {
 /// This is useful for understanding what node types and relationships
 /// are available before building workflows.
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_use_case_schema_introspection() {
     if should_skip_integration_test() {
         return;
@@ -590,7 +590,7 @@ async fn test_use_case_schema_introspection() {
 /// - Missing required properties
 /// - Broken relationships
 #[tokio::test]
-#[ignore]
+#[ignore = "requires NovaNet MCP server + Neo4j"]
 async fn test_use_case_data_validation() {
     if should_skip_integration_test() {
         return;
