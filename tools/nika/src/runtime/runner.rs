@@ -1684,7 +1684,9 @@ mod tests {
     use super::*;
     use crate::ast::{ExecParams, Flow, FlowEndpoint, Task, TaskAction};
     use crate::binding::UseEntry;
+    use serde_json::json;
     use std::sync::Arc;
+    use std::time::Duration;
 
     // ═══════════════════════════════════════════════════════════════
     // QUIET MODE TEST
@@ -3543,5 +3545,554 @@ mod tests {
         let result = value_to_array(&value);
         assert!(result.is_some());
         assert_eq!(result.unwrap().len(), 0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GET_RETRY_CONFIG TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Helper to create a Task with an infer action and optional output policy
+    fn make_infer_task(id: &str, output: Option<OutputPolicy>) -> Arc<Task> {
+        Arc::new(Task {
+            id: id.to_string(),
+            use_wiring: None,
+            with_spec: None,
+            output,
+            decompose: None,
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            action: TaskAction::Infer {
+                infer: InferParams {
+                    prompt: "test prompt".to_string(),
+                    provider: None,
+                    model: None,
+                    temperature: None,
+                    max_tokens: None,
+                    system: None,
+                    response_format: None,
+                    extended_thinking: None,
+                    thinking_budget: None,
+                },
+            },
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        })
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_exec_task() {
+        let task = Arc::new(Task {
+            id: "exec_task".to_string(),
+            use_wiring: None,
+            with_spec: None,
+            output: Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                max_retries: Some(3),
+            }),
+            decompose: None,
+            for_each: None,
+            for_each_as: None,
+            concurrency: None,
+            fail_fast: None,
+            action: TaskAction::Exec {
+                exec: ExecParams {
+                    command: "echo hi".to_string(),
+                    shell: None,
+                    timeout: None,
+                    cwd: None,
+                    env: None,
+                },
+            },
+            artifact: None,
+            log: None,
+            flow: None,
+            structured: None,
+        });
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "Exec tasks should never qualify for retry"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_no_output_policy() {
+        let task = make_infer_task("no_output", None);
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "No output policy means no retry"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_text_format() {
+        let task = make_infer_task(
+            "text_format",
+            Some(OutputPolicy {
+                format: OutputFormat::Text,
+                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                max_retries: Some(3),
+            }),
+        );
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "Text format should not qualify for retry"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_json_no_schema() {
+        let task = make_infer_task(
+            "json_no_schema",
+            Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: None,
+                max_retries: Some(3),
+            }),
+        );
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "JSON without schema should not qualify"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_file_schema() {
+        let task = make_infer_task(
+            "file_schema",
+            Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: Some(crate::ast::output::SchemaRef::File("schema.json".to_string())),
+                max_retries: Some(3),
+            }),
+        );
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "File schemas don't support retry feedback"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_zero_retries() {
+        let task = make_infer_task(
+            "zero_retries",
+            Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                max_retries: Some(0),
+            }),
+        );
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "Zero retries means no retry"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_none_for_default_retries() {
+        let task = make_infer_task(
+            "default_retries",
+            Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: Some(crate::ast::output::SchemaRef::Inline(json!({"type": "object"}))),
+                max_retries: None, // defaults to 0
+            }),
+        );
+        assert!(
+            Runner::get_retry_config(&task).is_none(),
+            "Default retries (None → 0) means no retry"
+        );
+    }
+
+    #[test]
+    fn test_get_retry_config_some_for_valid_config() {
+        let schema = json!({"type": "object", "properties": {"name": {"type": "string"}}});
+        let task = make_infer_task(
+            "valid_retry",
+            Some(OutputPolicy {
+                format: OutputFormat::Json,
+                schema: Some(crate::ast::output::SchemaRef::Inline(schema.clone())),
+                max_retries: Some(3),
+            }),
+        );
+        let result = Runner::get_retry_config(&task);
+        assert!(result.is_some(), "Valid config should return Some");
+
+        let (ret_schema, max_retries, infer) = result.unwrap();
+        assert_eq!(ret_schema, schema);
+        assert_eq!(max_retries, 3);
+        assert_eq!(infer.prompt, "test prompt");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FIND_ROOT_FAILURE TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_find_root_failure_none_when_empty() {
+        let runner = Runner::new(make_empty_workflow());
+        assert!(
+            runner.find_root_failure().is_none(),
+            "Empty workflow has no failures"
+        );
+    }
+
+    #[test]
+    fn test_find_root_failure_none_when_all_succeed() {
+        let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let runner = Runner::new(workflow);
+
+        // Simulate successful completions
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::success(json!("ok"), Duration::from_millis(20)),
+        );
+
+        assert!(
+            runner.find_root_failure().is_none(),
+            "All-success should return None"
+        );
+    }
+
+    #[test]
+    fn test_find_root_failure_returns_first_failed() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::failed("something broke".to_string(), Duration::from_millis(20)),
+        );
+        runner.datastore.insert(
+            intern("c"),
+            TaskResult::failed("also broken".to_string(), Duration::from_millis(30)),
+        );
+
+        assert_eq!(
+            runner.find_root_failure(),
+            Some("b".to_string()),
+            "Should return first failed task in workflow order"
+        );
+    }
+
+    #[test]
+    fn test_find_root_failure_skips_dependency_failed() {
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![("a", "b"), ("b", "c")],
+        );
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("root cause".to_string(), Duration::from_millis(10)),
+        );
+        runner
+            .datastore
+            .insert(intern("b"), TaskResult::dependency_failed("a"));
+        runner
+            .datastore
+            .insert(intern("c"), TaskResult::dependency_failed("b"));
+
+        assert_eq!(
+            runner.find_root_failure(),
+            Some("a".to_string()),
+            "Should skip DependencyFailed and return the actual failure"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GET_PENDING_TASKS TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_pending_tasks_all_pending() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let runner = Runner::new(workflow);
+
+        let pending = runner.get_pending_tasks();
+        assert_eq!(pending.len(), 3);
+        assert!(pending.contains(&"a".to_string()));
+        assert!(pending.contains(&"b".to_string()));
+        assert!(pending.contains(&"c".to_string()));
+    }
+
+    #[test]
+    fn test_get_pending_tasks_excludes_completed() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+        runner.datastore.insert(
+            intern("c"),
+            TaskResult::success(json!("ok"), Duration::from_millis(20)),
+        );
+
+        let pending = runner.get_pending_tasks();
+        assert_eq!(pending, vec!["b".to_string()]);
+    }
+
+    #[test]
+    fn test_get_pending_tasks_empty_when_all_done() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::success(json!("ok"), Duration::from_millis(20)),
+        );
+
+        let pending = runner.get_pending_tasks();
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn test_get_pending_tasks_excludes_failed() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("error".to_string(), Duration::from_millis(10)),
+        );
+
+        let pending = runner.get_pending_tasks();
+        assert_eq!(pending, vec!["b".to_string()]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GET_READY_TASKS + DEPENDENCY FAILURE PROPAGATION TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_get_ready_tasks_no_deps() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let runner = Runner::new(workflow);
+
+        let ready = runner.get_ready_tasks();
+        assert_eq!(ready.len(), 2, "Tasks with no deps should all be ready");
+    }
+
+    #[test]
+    fn test_get_ready_tasks_blocked_by_incomplete_dep() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
+        let runner = Runner::new(workflow);
+
+        let ready = runner.get_ready_tasks();
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "a", "Only root task should be ready");
+    }
+
+    #[test]
+    fn test_get_ready_tasks_unblocked_after_dep_success() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+
+        let ready = runner.get_ready_tasks();
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "b", "b should be ready after a succeeds");
+    }
+
+    #[test]
+    fn test_get_ready_tasks_skips_already_done() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+
+        let ready = runner.get_ready_tasks();
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, "b", "Completed task should not be returned");
+    }
+
+    #[test]
+    fn test_dependency_failure_propagation() {
+        // a → b → c: if a fails, b and c should get DependencyFailed
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
+            vec![("a", "b"), ("b", "c")],
+        );
+        let runner = Runner::new(workflow);
+
+        // Mark a as failed
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("boom".to_string(), Duration::from_millis(10)),
+        );
+
+        // First call: b should be marked as DependencyFailed
+        let ready = runner.get_ready_tasks();
+        assert!(
+            ready.is_empty(),
+            "No tasks should be ready when dep failed"
+        );
+
+        // Verify b was stored as DependencyFailed
+        let b_result = runner.datastore.get("b").expect("b should be in store");
+        assert!(
+            b_result.is_dependency_failed(),
+            "b should be DependencyFailed"
+        );
+        assert_eq!(
+            b_result.failed_dependency(),
+            Some("a"),
+            "b should record a as the failed dependency"
+        );
+
+        // Second call: c should now also be marked as DependencyFailed
+        let ready = runner.get_ready_tasks();
+        assert!(ready.is_empty());
+
+        let c_result = runner.datastore.get("c").expect("c should be in store");
+        assert!(
+            c_result.is_dependency_failed(),
+            "c should be DependencyFailed"
+        );
+        assert_eq!(
+            c_result.failed_dependency(),
+            Some("b"),
+            "c should record b as the failed dependency"
+        );
+    }
+
+    #[test]
+    fn test_dependency_failure_does_not_affect_parallel_tasks() {
+        // a → b, a → c (parallel), d (independent)
+        // If a fails, b and c get DependencyFailed, but d remains pending
+        let workflow = create_exec_workflow(
+            vec![
+                ("a", "echo a"),
+                ("b", "echo b"),
+                ("c", "echo c"),
+                ("d", "echo d"),
+            ],
+            vec![("a", "b"), ("a", "c")],
+        );
+        let runner = Runner::new(workflow);
+
+        // Mark a as failed
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("oops".to_string(), Duration::from_millis(10)),
+        );
+
+        let ready = runner.get_ready_tasks();
+        assert_eq!(ready.len(), 1, "Only d should be ready");
+        assert_eq!(ready[0].id, "d");
+
+        // b and c should be dependency-failed
+        assert!(runner.datastore.get("b").unwrap().is_dependency_failed());
+        assert!(runner.datastore.get("c").unwrap().is_dependency_failed());
+    }
+
+    #[test]
+    fn test_dependency_failure_emits_events() {
+        let workflow = create_exec_workflow(
+            vec![("a", "echo a"), ("b", "echo b")],
+            vec![("a", "b")],
+        );
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::failed("crash".to_string(), Duration::from_millis(10)),
+        );
+
+        // Trigger dependency failure propagation
+        let _ = runner.get_ready_tasks();
+
+        // Check that a TaskFailed event was emitted for b
+        let events = runner.event_log.events();
+        let fail_events: Vec<_> = events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    &e.kind,
+                    EventKind::TaskFailed { task_id, .. } if task_id.as_ref() == "b"
+                )
+            })
+            .collect();
+        assert_eq!(
+            fail_events.len(),
+            1,
+            "Should emit exactly one TaskFailed event for b"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ALL_DONE TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_all_done_empty_workflow() {
+        let runner = Runner::new(make_empty_workflow());
+        assert!(runner.all_done(), "Empty workflow is trivially done");
+    }
+
+    #[test]
+    fn test_all_done_false_when_pending() {
+        let workflow = create_exec_workflow(vec![("a", "echo a")], vec![]);
+        let runner = Runner::new(workflow);
+        assert!(!runner.all_done());
+    }
+
+    #[test]
+    fn test_all_done_true_with_mixed_outcomes() {
+        let workflow =
+            create_exec_workflow(vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")], vec![]);
+        let runner = Runner::new(workflow);
+
+        runner.datastore.insert(
+            intern("a"),
+            TaskResult::success(json!("ok"), Duration::from_millis(10)),
+        );
+        runner.datastore.insert(
+            intern("b"),
+            TaskResult::failed("err".to_string(), Duration::from_millis(20)),
+        );
+        runner
+            .datastore
+            .insert(intern("c"), TaskResult::dependency_failed("b"));
+
+        assert!(
+            runner.all_done(),
+            "All tasks have results (success, failed, or dep-failed)"
+        );
     }
 }
