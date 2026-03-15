@@ -12,7 +12,7 @@ use nika::ast::{parse_workflow, DecomposeStrategy};
 #[test]
 fn test_decompose_spec_parses_in_workflow() {
     let yaml = r#"
-schema: nika/workflow@0.4
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: expand_children
@@ -21,7 +21,7 @@ tasks:
       traverse: HAS_CHILD
       source: $entity
     infer:
-      prompt: "Generate for {{use.item}}"
+      prompt: "Generate for {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -40,18 +40,18 @@ tasks:
 #[test]
 fn test_decompose_spec_parses_with_custom_mcp() {
     let yaml = r#"
-schema: nika/workflow@0.4
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: expand_custom
     decompose:
       strategy: nested
       traverse: HAS_NATIVE
-      source: "{{use.entity_key}}"
+      source: "{{with.entity_key}}"
       mcp_server: custom_server
       max_items: 5
     infer:
-      prompt: "Process {{use.item}}"
+      prompt: "Process {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -70,7 +70,7 @@ fn test_decompose_coexists_with_for_each_settings() {
     // Note: concurrency/fail_fast are parsed as part of for_each, so both
     // for_each and decompose must be present for settings to take effect.
     let yaml = r#"
-schema: nika/workflow@0.4
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: parallel_decompose
@@ -81,7 +81,7 @@ tasks:
     concurrency: 5
     fail_fast: false
     infer:
-      prompt: "Generate {{use.item}}"
+      prompt: "Generate {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -95,7 +95,7 @@ tasks:
 #[test]
 fn test_task_without_decompose() {
     let yaml = r#"
-schema: nika/workflow@0.4
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: simple_task

@@ -157,7 +157,7 @@ fn test_output_special_chars() {
 #[test]
 fn test_regression_exec_workflow_parsing() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: exec-regression-test
 description: "Test exec parsing stability"
 
@@ -180,7 +180,7 @@ tasks:
 #[test]
 fn test_regression_fetch_workflow_parsing() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: fetch-regression-test
 description: "Test fetch parsing stability"
 
@@ -207,7 +207,7 @@ tasks:
 #[test]
 fn test_regression_infer_workflow_parsing() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: infer-regression-test
 provider: claude
 
@@ -304,7 +304,7 @@ fn test_regression_marker_shell_basic() {
 fn test_regression_marker_workflow_schema() {
     // Test that workflow schema version is correctly parsed
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: test
     exec: "echo test"
@@ -314,7 +314,7 @@ tasks:
 
     // Schema should be exactly as specified
     assert_eq!(
-        workflow.schema, "nika/workflow@0.5",
+        workflow.schema, "nika/workflow@0.12",
         "Regression: schema parsing changed"
     );
 }
@@ -375,13 +375,13 @@ tasks:
 #[test]
 fn test_regression_for_each_static() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: parallel_task
     for_each: ["a", "b", "c"]
     as: item
     concurrency: 3
-    exec: "echo {{use.item}}"
+    exec: "echo {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse");

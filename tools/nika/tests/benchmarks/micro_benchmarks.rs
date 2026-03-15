@@ -14,7 +14,7 @@ use std::time::Instant;
 #[test]
 fn bench_parse_simple_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-simple
 description: "Simple benchmark workflow"
 
@@ -51,7 +51,7 @@ fn bench_parse_complex_workflow() {
     // Generate a complex workflow with 50 tasks
     let mut yaml = String::from(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-complex
 description: "Complex benchmark workflow"
 provider: claude
@@ -106,7 +106,7 @@ tasks:
 #[test]
 fn bench_dag_construction_small() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-dag-small
 description: "Small DAG"
 
@@ -156,7 +156,7 @@ fn bench_dag_construction_large() {
     // Generate a large DAG with 100 tasks
     let mut yaml = String::from(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-dag-large
 description: "Large DAG"
 
@@ -211,7 +211,7 @@ fn bench_cycle_detection() {
     // Generate a DAG with 50 tasks
     let mut yaml = String::from(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-cycle
 description: "Cycle detection benchmark"
 
@@ -276,7 +276,7 @@ tasks:
 #[test]
 fn bench_workflow_memory_size() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench-memory
 description: "Memory size benchmark"
 
@@ -338,7 +338,7 @@ fn bench_comparison_report() {
 
 fn benchmark_parse_simple() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: bench
 tasks:
   - id: t1
@@ -348,7 +348,7 @@ tasks:
 }
 
 fn benchmark_parse_complex() {
-    let mut yaml = String::from("schema: \"nika/workflow@0.5\"\nworkflow: bench\ntasks:\n");
+    let mut yaml = String::from("schema: \"nika/workflow@0.12\"\nworkflow: bench\ntasks:\n");
     for i in 0..50 {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"echo\"\n", i));
     }
@@ -356,14 +356,14 @@ fn benchmark_parse_complex() {
 }
 
 fn benchmark_dag_small() {
-    let yaml = "schema: \"nika/workflow@0.5\"\nworkflow: b\ntasks:\n  - id: a\n    exec: \"e\"\n";
+    let yaml = "schema: \"nika/workflow@0.12\"\nworkflow: b\ntasks:\n  - id: a\n    exec: \"e\"\n";
     let w = parse_workflow(yaml).unwrap();
     let g = Dag::from_workflow(&w).unwrap();
     let _ = g.detect_cycles();
 }
 
 fn benchmark_dag_large() {
-    let mut yaml = String::from("schema: \"nika/workflow@0.5\"\nworkflow: b\ntasks:\n");
+    let mut yaml = String::from("schema: \"nika/workflow@0.12\"\nworkflow: b\ntasks:\n");
     for i in 0..100 {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"e\"\n", i));
     }
@@ -373,7 +373,7 @@ fn benchmark_dag_large() {
 }
 
 fn benchmark_cycle_detect() {
-    let mut yaml = String::from("schema: \"nika/workflow@0.5\"\nworkflow: b\ntasks:\n");
+    let mut yaml = String::from("schema: \"nika/workflow@0.12\"\nworkflow: b\ntasks:\n");
     for i in 0..50 {
         yaml.push_str(&format!("  - id: t{}\n    exec: \"e\"\n", i));
     }

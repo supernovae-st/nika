@@ -92,7 +92,7 @@ fn test_cli_check_valid_workflow() {
     std::fs::write(
         &workflow_path,
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-valid
 description: "Valid test workflow"
 
@@ -270,7 +270,7 @@ fn test_cli_run_exec_only_workflow() {
     std::fs::write(
         &workflow_path,
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-exec-only
 description: "Exec-only workflow (no API needed)"
 
@@ -310,7 +310,7 @@ fn test_cli_run_fetch_workflow() {
     std::fs::write(
         &workflow_path,
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-fetch
 description: "Fetch-only workflow"
 

@@ -108,7 +108,7 @@ async fn test_mcp_invoke_emits_events() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   test-server:
@@ -145,7 +145,7 @@ tasks:
 async fn test_novanet_describe_returns_entity() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -185,7 +185,7 @@ tasks:
 async fn test_novanet_traverse_returns_graph() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -227,7 +227,7 @@ tasks:
 async fn test_novanet_introspect_returns_schema() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -272,7 +272,7 @@ async fn test_perplexity_search_returns_results() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   perplexity:
@@ -320,7 +320,7 @@ async fn test_firecrawl_scrape_returns_content() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   firecrawl:
@@ -364,7 +364,7 @@ async fn test_firecrawl_map_returns_urls() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   firecrawl:
@@ -403,7 +403,7 @@ tasks:
 async fn test_sequential_thinking_tool() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   sequential-thinking:
@@ -441,7 +441,7 @@ async fn test_context7_resolve_library() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   context7:
@@ -471,7 +471,7 @@ tasks:
 async fn test_mcp_events_contain_params_and_response() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -545,7 +545,7 @@ tasks:
 async fn test_mcp_call_ids_correlate() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -636,7 +636,7 @@ async fn test_agent_uses_novanet_tools() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
   novanet:
@@ -684,7 +684,7 @@ async fn test_agent_uses_perplexity_for_search() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
   perplexity:

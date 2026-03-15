@@ -412,7 +412,7 @@ async fn test_mock_provider_always_works() {
 #[test]
 fn test_parse_provider_workflow() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: provider-test
 description: "Test provider configuration"
 
@@ -436,7 +436,7 @@ tasks:
 #[test]
 fn test_parse_agent_with_provider() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: agent-provider-test
 
 tasks:

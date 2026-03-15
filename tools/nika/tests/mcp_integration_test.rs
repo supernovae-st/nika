@@ -20,7 +20,7 @@ use nika::event::{EventKind, EventLog};
 #[test]
 fn test_parse_single_mcp_config() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: single-mcp-test
 description: "Test single MCP configuration"
 
@@ -48,7 +48,7 @@ tasks:
 #[test]
 fn test_parse_multi_mcp_config() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: multi-mcp-test
 description: "Test multiple MCP servers"
 
@@ -91,7 +91,7 @@ tasks:
 #[test]
 fn test_parse_mcp_with_env() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: mcp-env-test
 
 mcp:
@@ -261,7 +261,7 @@ fn test_mcp_tool_sequence() {
 #[test]
 fn test_parse_introspect_workflow() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: introspect-test
 description: "Test novanet_introspect tool"
 
@@ -329,7 +329,7 @@ fn test_introspect_event() {
 #[test]
 fn test_parse_multi_mcp_agent_workflow() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: multi-mcp-coordination
 
 mcp:
@@ -509,7 +509,7 @@ fn test_mcp_resource_read() {
 #[test]
 fn test_parse_invoke_task() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: invoke-test
 
 tasks:
@@ -528,7 +528,7 @@ tasks:
 #[test]
 fn test_parse_invoke_without_params() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: invoke-no-params
 
 tasks:

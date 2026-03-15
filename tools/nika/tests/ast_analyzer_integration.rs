@@ -28,7 +28,7 @@ fn analyze_workflow(
 #[test]
 fn test_full_pipeline_minimal_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -103,7 +103,7 @@ tasks:
 #[test]
 fn test_full_pipeline_all_verbs() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -275,7 +275,7 @@ tasks:
 #[test]
 fn test_span_tracking_preserved() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: test_task
@@ -350,7 +350,7 @@ tasks:
     for_each: ["a", "b", "c"]
     as: item
     infer:
-      prompt: "Process {{use.item}}"
+      prompt: "Process {{with.item}}"
 "#;
 
     let raw = parse_yaml(yaml).expect("parse should succeed");
@@ -589,7 +589,7 @@ tasks:
 #[test]
 fn test_mcp_servers_analyzed() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -634,7 +634,7 @@ tasks:
 #[test]
 fn test_for_each_analyzed() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: parallel_task
@@ -666,7 +666,7 @@ tasks:
 #[test]
 fn test_retry_analyzed() {
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: retryable_task

@@ -26,7 +26,7 @@ mod runner_initialization {
     #[test]
     fn test_runner_new_creates_valid_runner() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: test-init
 tasks:
   - id: step1
@@ -44,7 +44,7 @@ tasks:
     #[test]
     fn test_runner_with_event_log() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: test-event-log
 tasks:
   - id: step1
@@ -61,7 +61,7 @@ tasks:
     #[test]
     fn test_runner_with_multiple_tasks() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: multi-task
 tasks:
   - id: step1
@@ -114,7 +114,7 @@ tasks:
     #[test]
     fn test_workflow_with_for_each() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: with-for-each
 tasks:
   - id: parallel_task
@@ -135,7 +135,7 @@ tasks:
     #[test]
     fn test_workflow_with_concurrency_settings() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: with-concurrency
 tasks:
   - id: parallel_task
@@ -157,7 +157,7 @@ tasks:
     #[test]
     fn test_workflow_concurrency_defaults() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: concurrency-defaults
 tasks:
   - id: parallel_task
@@ -187,7 +187,7 @@ mod task_actions {
     #[test]
     fn test_infer_task() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: infer-test
 tasks:
   - id: infer_task
@@ -202,7 +202,7 @@ tasks:
     #[test]
     fn test_exec_task() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: exec-test
 tasks:
   - id: exec_task
@@ -217,7 +217,7 @@ tasks:
     #[test]
     fn test_fetch_task() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: fetch-test
 tasks:
   - id: fetch_task
@@ -233,7 +233,7 @@ tasks:
     #[test]
     fn test_invoke_task() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: invoke-test
 tasks:
   - id: invoke_task
@@ -257,7 +257,7 @@ mod dependency_graph {
     #[test]
     fn test_no_dependencies() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: no-deps
 tasks:
   - id: task1
@@ -367,7 +367,7 @@ mod event_log_integration {
     #[test]
     fn test_event_log_starts_empty() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: event-test
 tasks:
   - id: task1
@@ -383,7 +383,7 @@ tasks:
     #[test]
     fn test_event_log_with_broadcast() {
         let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 workflow: broadcast-test
 tasks:
   - id: task1

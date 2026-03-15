@@ -213,7 +213,7 @@ tasks:
 fn test_dag_no_flows_valid() {
     // No dependencies = each task is independent (valid DAG)
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 id: no_flows
 tasks:
   - id: a

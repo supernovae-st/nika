@@ -305,7 +305,7 @@ fn test_workflow_yaml_agent_verb_parses_to_agent_params() {
     use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 
 mcp:
   servers:
@@ -327,7 +327,7 @@ tasks:
     let workflow = parse_workflow(yaml).expect("Should parse workflow YAML");
 
     // Assert: Workflow parsed correctly
-    assert_eq!(workflow.schema, "nika/workflow@0.5");
+    assert_eq!(workflow.schema, "nika/workflow@0.12");
     assert_eq!(workflow.tasks.len(), 1);
 
     // Assert: Task has agent verb with correct params

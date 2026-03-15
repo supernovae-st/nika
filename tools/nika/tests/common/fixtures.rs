@@ -16,7 +16,7 @@ pub fn fixture(name: &str) -> PathBuf {
 /// Create a minimal valid workflow YAML
 pub fn minimal_workflow_yaml() -> &'static str {
     r#"
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -29,7 +29,7 @@ tasks:
 /// Create a workflow with invoke verb (v0.2)
 pub fn invoke_workflow_yaml() -> &'static str {
     r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -52,7 +52,7 @@ tasks:
 /// Create a workflow with agent verb (v0.2)
 pub fn agent_workflow_yaml() -> &'static str {
     r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:

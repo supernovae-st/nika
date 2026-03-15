@@ -33,7 +33,7 @@ async fn test_novanet_describe_tool() {
     // This would test the novanet_describe tool
     // For now, just validate workflow parsing
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-describe
 description: "Test novanet_describe MCP tool"
 
@@ -65,7 +65,7 @@ async fn test_novanet_traverse_tool() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-traverse
 description: "Test novanet_traverse MCP tool"
 
@@ -98,7 +98,7 @@ async fn test_novanet_generate_tool() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-generate
 description: "Test novanet_generate MCP tool"
 
@@ -131,7 +131,7 @@ async fn test_novanet_introspect_tool() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-introspect
 description: "Test novanet_introspect MCP tool (v0.5 MVP8)"
 
@@ -167,7 +167,7 @@ async fn test_novanet_full_workflow() {
 
     // Complex workflow combining NovaNet tools with infer
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-full
 description: "Full NovaNet integration workflow"
 provider: claude
@@ -188,10 +188,10 @@ tasks:
 
   - id: generate_content
     infer: |
-      Based on this entity context: {{use.ctx}}
+      Based on this entity context: {{with.ctx}}
       Generate a headline for a landing page.
-    use:
-      ctx: get_entity_context
+    with:
+      ctx: $get_entity_context
 
 flows:
   - source: get_entity_context
@@ -211,7 +211,7 @@ async fn test_novanet_multilang_workflow() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-multilang
 description: "Multi-language content generation with NovaNet"
 provider: claude
@@ -232,7 +232,7 @@ tasks:
       server: novanet
       params:
         entity: "qr-code"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         forms: ["text", "title"]
 "#;
 
@@ -252,7 +252,7 @@ async fn test_novanet_decompose_semantic() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-novanet-decompose
 description: "Test decompose with NovaNet traversal (MVP8)"
 provider: claude
@@ -270,7 +270,7 @@ tasks:
       traverse: HAS_ENTITY
       source: "project:qrcode-ai"
       max_items: 5
-    infer: "Generate content for entity: {{use.item}}"
+    infer: "Generate content for entity: {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");

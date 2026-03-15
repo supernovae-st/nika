@@ -153,7 +153,7 @@ fn test_event_log_spawn_agent() {
 #[test]
 fn test_parse_basic_conversational_agent() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: basic-chat
 description: "Basic conversational agent"
 
@@ -172,7 +172,7 @@ tasks:
 #[test]
 fn test_parse_agent_with_mcp_servers() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: mcp-agent
 
 tasks:
@@ -192,7 +192,7 @@ tasks:
 #[test]
 fn test_parse_agent_with_depth_limit() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: nested-agent
 
 tasks:
@@ -210,7 +210,7 @@ tasks:
 #[test]
 fn test_parse_agent_with_extended_thinking() {
     let yaml = r#"
-schema: nika/workflow@0.5
+schema: nika/workflow@0.12
 workflow: thinking-agent
 
 tasks:
@@ -415,7 +415,7 @@ tasks:
   - id: fetch-context
     fetch:
       url: "https://api.example.com/data"
-    use.data: api_data
+    with.data: api_data
 
   - id: analyze
     depends_on:
@@ -423,7 +423,7 @@ tasks:
     agent:
       prompt: |
         Analyze the following data:
-        {{use.api_data}}
+        {{with.api_data}}
       max_turns: 3
 "#;
 
@@ -442,7 +442,7 @@ tasks:
     agent:
       prompt: "Research the topic and summarize findings."
       max_turns: 5
-    use.findings: research_output
+    with.findings: research_output
 
   - id: writer
     depends_on:
@@ -450,7 +450,7 @@ tasks:
     agent:
       prompt: |
         Based on these findings, write an article:
-        {{use.research_output}}
+        {{with.research_output}}
       max_turns: 3
 "#;
 

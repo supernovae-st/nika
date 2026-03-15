@@ -36,13 +36,13 @@ mod template_fuzzing {
     }
 
     prop_compose! {
-        /// Generate template strings with valid {{use.alias}} patterns
+        /// Generate template strings with valid {{with.alias}} patterns
         fn arb_template_with_alias()(
             prefix in "[ -~]{0,20}",  // ASCII printable
             alias in r"[a-z][a-z0-9_]{0,15}",
             suffix in "[ -~]{0,20}"
         ) -> String {
-            format!("{}{{{{use.{}}}}}{}", prefix, alias, suffix)
+            format!("{}{{{{with.{}}}}}{}", prefix, alias, suffix)
         }
     }
 
@@ -55,7 +55,7 @@ mod template_fuzzing {
             alias2 in r"[a-z][a-z0-9_]{0,10}",
             suffix in "[ -~]{0,10}"
         ) -> String {
-            format!("{}{{{{use.{}}}}}{}{{{{use.{}}}}}{}", prefix, alias1, middle, alias2, suffix)
+            format!("{}{{{{with.{}}}}}{}{{{{with.{}}}}}{}", prefix, alias1, middle, alias2, suffix)
         }
     }
 
@@ -76,8 +76,8 @@ mod template_fuzzing {
             let ds = empty_datastore();
             let result = template_resolve(&s, &bindings, &ds);
             if let Ok(cow) = result {
-                // If no {{use.}} pattern, should be borrowed
-                if !s.contains("{{use.") {
+                // If no {{with.}} pattern, should be borrowed
+                if !s.contains("{{with.") {
                     assert!(matches!(cow, Cow::Borrowed(_)));
                 }
             }
@@ -86,7 +86,7 @@ mod template_fuzzing {
         /// Property: Templates with substitutions return Cow::Owned
         #[test]
         fn test_template_with_substitution_returns_owned(template in arb_template_with_alias()) {
-            let alias_re = regex::Regex::new(r"\{\{\s*use\.(\w+)").unwrap();
+            let alias_re = regex::Regex::new(r"\{\{\s*with\.(\w+)").unwrap();
             if let Some(cap) = alias_re.captures(&template) {
                 let alias = &cap[1];
                 let mut bindings = ResolvedBindings::new();
@@ -106,7 +106,7 @@ mod template_fuzzing {
             alias in arb_alias(),
             value in "[ -~]{0,50}"
         ) {
-            let template = format!("{{{{use.{}}}}}", alias);
+            let template = format!("{{{{with.{}}}}}", alias);
             let mut bindings = ResolvedBindings::new();
             bindings.set(&alias, json!(value.clone()));
             let ds = empty_datastore();
@@ -119,7 +119,7 @@ mod template_fuzzing {
         /// Property: Missing alias always returns error (never panic)
         #[test]
         fn test_missing_alias_returns_error(alias in arb_alias()) {
-            let template = format!("{{{{use.{}}}}}", alias);
+            let template = format!("{{{{with.{}}}}}", alias);
             let bindings = ResolvedBindings::new();  // Empty bindings
             let ds = empty_datastore();
 
@@ -134,7 +134,7 @@ mod template_fuzzing {
             field in r"[a-z][a-z0-9_]{0,10}",
             value in "[ -~]{0,30}"
         ) {
-            let template = format!("{{{{use.{}.{}}}}}", alias, field);
+            let template = format!("{{{{with.{}.{}}}}}", alias, field);
             let mut bindings = ResolvedBindings::new();
             bindings.set(&alias, json!({field.clone(): value.clone()}));
             let ds = empty_datastore();
@@ -152,7 +152,7 @@ mod template_fuzzing {
             values in prop::collection::vec("[ -~]{1,10}", 1..15)
         ) {
             if index < values.len() {
-                let template = format!("{{{{use.{}.{}}}}}", alias, index);
+                let template = format!("{{{{with.{}.{}}}}}", alias, index);
                 let mut bindings = ResolvedBindings::new();
                 bindings.set(&alias, json!(values.clone()));
                 let ds = empty_datastore();
@@ -172,7 +172,7 @@ mod template_fuzzing {
             value2 in "[ -~]{0,20}"
         ) {
             if alias1 != alias2 {
-                let template = format!("{{{{use.{}}}}} and {{{{use.{}}}}}", alias1, alias2);
+                let template = format!("{{{{with.{}}}}} and {{{{with.{}}}}}", alias1, alias2);
                 let mut bindings = ResolvedBindings::new();
                 bindings.set(&alias1, json!(value1.clone()));
                 bindings.set(&alias2, json!(value2.clone()));
@@ -209,7 +209,7 @@ mod workflow_fuzzing {
         fn arb_schema_version()(version in prop::sample::select(vec![
             "nika/workflow@0.1",
             "nika/workflow@0.2",
-            "nika/workflow@0.3"
+            "nika/workflow@0.12"
         ])) -> String {
             version.to_string()
         }
@@ -257,7 +257,7 @@ tasks:
             task_id in arb_task_id()
         ) {
             // Exclude valid schemas
-            if !["nika/workflow@0.1", "nika/workflow@0.2", "nika/workflow@0.3"].contains(&invalid_schema.as_str()) {
+            if !["nika/workflow@0.1", "nika/workflow@0.2", "nika/workflow@0.12"].contains(&invalid_schema.as_str()) {
                 let yaml = format!(
                     r#"schema: {}
 workflow: test
@@ -277,7 +277,7 @@ tasks:
         #[test]
         fn test_for_each_empty_array_fails(task_id in arb_task_id()) {
             let yaml = format!(
-                r#"schema: nika/workflow@0.3
+                r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: {}
@@ -297,7 +297,7 @@ tasks:
             non_array in prop::sample::select(vec!["\"string\"", "123", "true", "null"])
         ) {
             let yaml = format!(
-                r#"schema: nika/workflow@0.3
+                r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: {}
@@ -319,7 +319,7 @@ tasks:
         ) {
             let items_yaml = format!("[{}]", items.iter().map(|s| format!("\"{}\"", s)).collect::<Vec<_>>().join(", "));
             let yaml = format!(
-                r#"schema: nika/workflow@0.3
+                r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
   - id: {}
@@ -367,7 +367,7 @@ mod dag_fuzzing {
                 .map(|(i, t)| format!("{}{}", t, i))
                 .collect();
 
-            let mut yaml = String::from("schema: nika/workflow@0.3\nworkflow: linear\ntasks:\n");
+            let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: linear\ntasks:\n");
             for (i, task) in unique_tasks.iter().enumerate() {
                 yaml.push_str(&format!("  - id: {}\n    infer: \"step {}\"\n", task, i));
             }
@@ -403,7 +403,7 @@ mod dag_fuzzing {
         #[test]
         fn test_self_reference_fails(task_id in arb_valid_task_id()) {
             let yaml = format!(
-                r#"schema: nika/workflow@0.3
+                r#"schema: nika/workflow@0.12
 workflow: self_ref
 tasks:
   - id: {}
@@ -425,7 +425,7 @@ flows:
         ) {
             if task1 != task2 {
                 let yaml = format!(
-                    r#"schema: nika/workflow@0.3
+                    r#"schema: nika/workflow@0.12
 workflow: cycle
 tasks:
   - id: {}
@@ -452,7 +452,7 @@ flows:
         ) {
             if task1 != nonexistent {
                 let yaml = format!(
-                    r#"schema: nika/workflow@0.3
+                    r#"schema: nika/workflow@0.12
 workflow: missing
 tasks:
   - id: {}
@@ -470,7 +470,7 @@ flows:
         /// Property: Large DAGs don't cause stack overflow
         #[test]
         fn test_large_dag_no_overflow(depth in 10usize..50) {
-            let mut yaml = String::from("schema: nika/workflow@0.3\nworkflow: deep\ntasks:\n");
+            let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: deep\ntasks:\n");
             for i in 0..depth {
                 yaml.push_str(&format!("  - id: task_{}\n    infer: \"level {}\"\n", i, i));
             }

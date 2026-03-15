@@ -12,7 +12,7 @@
 //!       tool: novanet_generate
 //!       params:
 //!         entity: "qr-code"
-//!         locale: "{{use.locale}}"
+//!         locale: "{{with.locale}}"
 //! ```
 
 use nika::ast::analyzed::AnalyzedTaskAction;
@@ -27,13 +27,13 @@ use nika::runtime::Runner;
 fn test_for_each_array_literal() {
     // Task with for_each array literal
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: process_locales
     for_each: ["en-US", "fr-FR", "de-DE"]
     as: locale
     exec:
-      command: "echo {{use.locale}}"
+      command: "echo {{with.locale}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -56,12 +56,12 @@ tasks:
 fn test_for_each_default_as_item() {
     // When 'as' is not specified, default to "item"
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: process_numbers
     for_each: [1, 2, 3]
     exec:
-      command: "echo {{use.item}}"
+      command: "echo {{with.item}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -77,7 +77,7 @@ tasks:
 fn test_for_each_with_invoke() {
     // for_each with invoke action - real use case
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 mcp:
   novanet:
     command: cargo
@@ -91,7 +91,7 @@ tasks:
       tool: novanet_generate
       params:
         entity: "qr-code"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -106,13 +106,13 @@ tasks:
 fn test_for_each_preserves_action() {
     // Ensure the action is still parsed correctly alongside for_each
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: test_task
     for_each: ["a", "b"]
     as: letter
     exec:
-      command: "echo {{use.letter}}"
+      command: "echo {{with.letter}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -121,7 +121,7 @@ tasks:
     // Verify action is Exec
     match &task.action {
         AnalyzedTaskAction::Exec(exec) => {
-            assert_eq!(exec.command, "echo {{use.letter}}");
+            assert_eq!(exec.command, "echo {{with.letter}}");
         }
         other => panic!("Expected Exec action, got {:?}", other),
     }
@@ -135,7 +135,7 @@ tasks:
 fn test_for_each_empty_array_parsed() {
     // Empty array should still parse at the AST level
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: empty_foreach
     for_each: []
@@ -155,7 +155,7 @@ tasks:
 fn test_task_without_for_each() {
     // Regular task without for_each should work
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: simple_task
     exec:
@@ -176,13 +176,13 @@ tasks:
 async fn test_for_each_executes_for_all_items() {
     // for_each should execute the task once per item in the array
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: echo_items
     for_each: ["apple", "banana", "cherry"]
     as: fruit
     exec:
-      command: "echo {{use.fruit}}"
+      command: "echo {{with.fruit}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -207,12 +207,12 @@ tasks:
 async fn test_for_each_with_default_item_variable() {
     // When 'as' is not specified, the variable should be 'item'
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: echo_numbers
     for_each: [1, 2, 3]
     exec:
-      command: "echo {{use.item}}"
+      command: "echo {{with.item}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -235,13 +235,13 @@ async fn test_for_each_partial_failure_collects_all() {
     // One item succeeds, one fails (exit 1), one succeeds
     // Workflow should complete and collect all results (including failures)
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: mixed_results
     for_each: ["echo success1", "exit 1", "echo success2"]
     as: cmd
     exec:
-      command: "sh -c '{{use.cmd}}'"
+      command: "sh -c '{{with.cmd}}'"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -263,13 +263,13 @@ tasks:
 async fn test_for_each_all_succeed() {
     // All items succeed - baseline test
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: all_good
     for_each: ["hello", "world", "test"]
     as: word
     exec:
-      command: "echo {{use.word}}"
+      command: "echo {{with.word}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -293,13 +293,13 @@ tasks:
 async fn test_for_each_with_empty_output() {
     // Items that produce empty output
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 tasks:
   - id: empty_outputs
     for_each: ["true", "true", "true"]
     as: cmd
     exec:
-      command: "{{use.cmd}}"
+      command: "{{with.cmd}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -319,7 +319,7 @@ tasks:
 
 #[tokio::test]
 async fn test_for_each_with_use_nested_path_binding() {
-    // BUG: for_each: "{{use.data.nested.items}}" silently fails when
+    // BUG: for_each: "{{with.data.nested.items}}" silently fails when
     // the binding is "data: producer" because the code tries to resolve
     // "data.nested.items" as the alias instead of resolving "data" first
     // and then traversing ".nested.items".
@@ -336,10 +336,10 @@ tasks:
   - id: consumer
     with:
       data: $producer
-    for_each: "{{use.data.nested.items}}"
+    for_each: "{{with.data.nested.items}}"
     as: item
     exec:
-      command: "echo Processing: {{use.item}}"
+      command: "echo Processing: {{with.item}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();

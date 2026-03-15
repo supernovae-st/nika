@@ -156,7 +156,7 @@ fn test_workflow_yaml_parses_extended_thinking() {
 
     // extended_thinking is supported on infer: tasks (mapped to thinking field)
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: claude
 
 tasks:
@@ -192,7 +192,7 @@ fn test_workflow_yaml_extended_thinking_false() {
     // Note: extended_thinking is not wired through agent: lowering yet.
     // For agent tasks, it defaults to None.
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 
 tasks:
   - id: quick_task
@@ -217,7 +217,7 @@ fn test_workflow_yaml_without_extended_thinking() {
     use nika::ast::{parse_workflow, TaskAction};
 
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 
 tasks:
   - id: standard_task

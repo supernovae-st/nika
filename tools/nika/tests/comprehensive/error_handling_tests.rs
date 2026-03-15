@@ -51,7 +51,7 @@ tasks:
 #[test]
 fn test_parse_error_invalid_yaml_syntax() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -67,7 +67,7 @@ tasks:
 #[test]
 fn test_parse_error_unknown_field() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 unknown_field: "value"
 
@@ -86,7 +86,7 @@ tasks:
 #[test]
 fn test_parse_error_empty_tasks() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks: []
@@ -101,7 +101,7 @@ tasks: []
 #[test]
 fn test_parse_error_missing_task_id() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -116,7 +116,7 @@ tasks:
 #[test]
 fn test_parse_error_missing_verb() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -135,7 +135,7 @@ tasks:
 #[test]
 fn test_parse_error_multiple_verbs() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -262,7 +262,7 @@ tasks:
 #[test]
 fn test_dag_error_orphan_flow_source() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -287,7 +287,7 @@ flows:
 #[test]
 fn test_dag_error_orphan_flow_target() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -312,7 +312,7 @@ flows:
 #[test]
 fn test_binding_in_prompt() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -320,9 +320,9 @@ tasks:
     exec: "echo 'data'"
 
   - id: use_binding
-    use:
-      data: setup
-    infer: "Process: {{use.data}}"
+    with:
+      data: $setup
+    infer: "Process: {{with.data}}"
 "#;
 
     // parse_workflow() processes use: bindings during analysis.
@@ -335,7 +335,7 @@ tasks:
 #[test]
 fn test_binding_dollar_syntax() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -343,8 +343,8 @@ tasks:
     exec: "echo 'data'"
 
   - id: use_binding
-    use:
-      data: setup
+    with:
+      data: $setup
     infer: "Process: $data"
 "#;
 
@@ -358,7 +358,7 @@ tasks:
 #[test]
 fn test_binding_lazy_with_default() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -366,12 +366,12 @@ tasks:
     exec: "echo 'ok'"
 
   - id: use_lazy
-    use:
+    with:
       data:
         path: maybe_fails
         lazy: true
         default: "fallback"
-    infer: "Data: {{use.data}}"
+    infer: "Data: {{with.data}}"
 "#;
 
     // parse_workflow() processes use: with lazy/default during analysis.
@@ -384,7 +384,7 @@ tasks:
 #[test]
 fn test_binding_multiple_aliases() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -398,11 +398,11 @@ tasks:
     exec: "echo 'c'"
 
   - id: aggregate
-    use:
-      a: task_a
-      b: task_b
-      c: task_c
-    infer: "A={{use.a}}, B={{use.b}}, C={{use.c}}"
+    with:
+      a: $task_a
+      b: $task_b
+      c: $task_c
+    infer: "A={{with.a}}, B={{with.b}}, C={{with.c}}"
 "#;
 
     // parse_workflow() processes use: bindings during analysis.
@@ -419,7 +419,7 @@ tasks:
 #[test]
 fn test_infer_shorthand_string() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -434,7 +434,7 @@ tasks:
 #[test]
 fn test_infer_full_form() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -451,7 +451,7 @@ tasks:
 #[test]
 fn test_exec_shorthand_string() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -466,7 +466,7 @@ tasks:
 #[test]
 fn test_exec_full_form() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -483,7 +483,7 @@ tasks:
 #[test]
 fn test_fetch_requires_object() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -500,7 +500,7 @@ tasks:
 #[test]
 fn test_invoke_requires_object() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -523,7 +523,7 @@ tasks:
 #[test]
 fn test_agent_requires_prompt() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -543,7 +543,7 @@ tasks:
 #[test]
 fn test_output_format_json() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -560,7 +560,7 @@ tasks:
 #[test]
 fn test_output_format_text() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -581,13 +581,13 @@ tasks:
 #[test]
 fn test_for_each_with_empty_array() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
   - id: parallel
     for_each: []
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");
@@ -597,7 +597,7 @@ tasks:
 #[test]
 fn test_for_each_with_binding() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -607,11 +607,11 @@ tasks:
       format: json
 
   - id: parallel
-    use:
-      items: get_items
-    for_each: "{{use.items}}"
+    with:
+      items: $get_items
+    for_each: "{{with.items}}"
     as: item
-    infer: "Process {{use.item}}"
+    infer: "Process {{with.item}}"
 
 flows:
   - source: get_items
@@ -625,7 +625,7 @@ flows:
 #[test]
 fn test_for_each_concurrency() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -634,7 +634,7 @@ tasks:
     as: num
     concurrency: 3
     fail_fast: false
-    infer: "Process {{use.num}}"
+    infer: "Process {{with.num}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");

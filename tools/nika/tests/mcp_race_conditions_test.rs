@@ -297,7 +297,7 @@ async fn test_for_each_parallel_mcp_calls() {
     // Create a workflow with for_each that would invoke MCP calls
     // Using exec as a stand-in since we can't easily mock real MCP here
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: mock
 
 tasks:
@@ -306,7 +306,7 @@ tasks:
     as: item
     concurrency: 5
     exec:
-      command: "echo MCP call for {{use.item}}"
+      command: "echo MCP call for {{with.item}}"
 "#;
 
     let workflow = parse_analyzed(yaml).expect("Should parse workflow");
@@ -550,7 +550,7 @@ async fn test_high_contention_stress() {
 #[tokio::test]
 async fn test_concurrent_workflow_runs_shared_mcp() {
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: mock
 
 tasks:

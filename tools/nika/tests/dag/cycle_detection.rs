@@ -246,7 +246,7 @@ tasks:
 fn test_binding_cycle_detection() {
     // Cycle through bindings: A uses B, B uses A
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: binding-cycle
 description: "Cycle through use: bindings"
 

@@ -130,13 +130,13 @@ tasks:
 #[test]
 fn test_orphan_binding_reference() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
   - id: consumer
-    use:
-      data: nonexistent_task
+    with:
+      data: $nonexistent_task
     infer: "Use data"
 "#;
 
@@ -152,7 +152,7 @@ tasks:
 #[test]
 fn test_orphan_flow_source() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -175,7 +175,7 @@ flows:
 #[test]
 fn test_orphan_flow_target() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -199,7 +199,7 @@ flows:
 #[test]
 fn test_reject_empty_infer_prompt() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -216,7 +216,7 @@ tasks:
 #[test]
 fn test_reject_null_infer() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -235,7 +235,7 @@ tasks:
 #[test]
 fn test_reject_array_infer() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -250,7 +250,7 @@ tasks:
 #[test]
 fn test_reject_number_as_shell_command() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -275,7 +275,7 @@ tasks:
 #[test]
 fn test_mcp_missing_command() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -300,7 +300,7 @@ tasks:
 #[test]
 fn test_invoke_unknown_mcp_server() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -329,7 +329,7 @@ tasks:
 #[test]
 fn test_reject_task_without_id() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -343,7 +343,7 @@ tasks:
 #[test]
 fn test_reject_task_without_verb() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -376,7 +376,7 @@ tasks:
 #[test]
 fn test_reject_fetch_without_url() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -392,7 +392,7 @@ tasks:
 #[test]
 fn test_reject_invoke_without_tool() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -415,7 +415,7 @@ tasks:
 #[test]
 fn test_reject_agent_without_prompt() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -435,7 +435,7 @@ tasks:
 #[test]
 fn test_reject_invalid_max_turns_type() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -452,7 +452,7 @@ tasks:
 #[test]
 fn test_reject_invalid_concurrency_type() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -469,7 +469,7 @@ tasks:
 #[test]
 fn test_reject_negative_max_turns() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -487,7 +487,7 @@ tasks:
 #[test]
 fn test_reject_invalid_boolean() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -511,7 +511,7 @@ tasks:
 #[test]
 fn test_duplicate_task_ids() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -543,7 +543,7 @@ fn test_very_long_task_id() {
     let long_id = "a".repeat(1000);
     let yaml = format!(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -561,7 +561,7 @@ tasks:
 #[test]
 fn test_special_chars_in_task_id() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -580,7 +580,7 @@ tasks:
 #[test]
 fn test_unicode_task_id() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -596,7 +596,7 @@ tasks:
 #[test]
 fn test_whitespace_only_prompt() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:

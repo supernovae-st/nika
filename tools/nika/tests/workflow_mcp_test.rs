@@ -12,7 +12,7 @@ use nika::ast::parse_workflow;
 #[test]
 fn test_workflow_with_mcp_config() {
     let yaml = r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -36,7 +36,7 @@ tasks:
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     // Verify basic workflow fields
-    assert_eq!(workflow.schema, "nika/workflow@0.2");
+    assert_eq!(workflow.schema, "nika/workflow@0.12");
     assert_eq!(workflow.provider, "claude");
     assert_eq!(workflow.tasks.len(), 1);
 
@@ -59,7 +59,7 @@ tasks:
 fn test_workflow_without_mcp_config_v01() {
     // V0.1 workflow without mcp (backward compatibility)
     let yaml = r#"
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -71,7 +71,7 @@ tasks:
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
 
     // Verify basic fields
-    assert_eq!(workflow.schema, "nika/workflow@0.1");
+    assert_eq!(workflow.schema, "nika/workflow@0.12");
     assert_eq!(workflow.provider, "claude");
     assert_eq!(workflow.tasks.len(), 1);
 
@@ -86,7 +86,7 @@ tasks:
 fn test_workflow_mcp_config_minimal() {
     // Minimal mcp config (command only, no args/env/cwd)
     let yaml = r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -121,7 +121,7 @@ tasks:
 #[test]
 fn test_workflow_multiple_mcp_servers() {
     let yaml = r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -165,7 +165,7 @@ tasks:
 #[test]
 fn test_workflow_mcp_with_complex_env() {
     let yaml = r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -202,7 +202,7 @@ tasks:
 fn test_workflow_empty_mcp_block() {
     // Empty mcp block — lowered to None (no servers to configure)
     let yaml = r#"
-schema: "nika/workflow@0.2"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:

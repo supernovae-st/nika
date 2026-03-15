@@ -57,7 +57,7 @@ async fn collect_events(mut rx: broadcast::Receiver<Event>, timeout_ms: u64) -> 
 async fn test_exec_workflow_emits_events() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1
@@ -112,7 +112,7 @@ tasks:
 async fn test_multiple_tasks_emit_sequential_events() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1
@@ -151,7 +151,7 @@ flows:
 async fn test_parallel_tasks_emit_events() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1
@@ -197,7 +197,7 @@ flows:
 async fn test_exec_output_captured_in_event() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: echo_test
@@ -240,7 +240,7 @@ tasks:
 async fn test_json_output_captured() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: json_output
@@ -284,7 +284,7 @@ tasks:
 async fn test_task_inputs_captured_in_event() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: producer
@@ -294,8 +294,8 @@ tasks:
       format: json
 
   - id: consumer
-    use:
-      data: producer
+    with:
+      data: $producer
     exec: "echo consumed"
 flows:
   - source: producer
@@ -336,7 +336,7 @@ flows:
 async fn test_failed_task_emits_failure_event() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: failing
@@ -376,7 +376,7 @@ tasks:
 async fn test_failed_task_includes_error_message() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: bad_command
@@ -415,7 +415,7 @@ tasks:
 async fn test_event_timestamps_are_monotonic() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1
@@ -455,7 +455,7 @@ flows:
 async fn test_task_duration_matches_events() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: timed
@@ -514,7 +514,7 @@ tasks:
 async fn test_workflow_started_includes_metadata() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: step1
@@ -556,7 +556,7 @@ tasks:
 async fn test_workflow_completed_includes_final_output() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: final
@@ -601,14 +601,14 @@ tasks:
 async fn test_for_each_emits_multiple_task_events() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: parallel_task
     for_each: ["a", "b", "c"]
     as: item
     concurrency: 3
-    exec: "echo {{use.item}}"
+    exec: "echo {{with.item}}"
 "#,
     )
     .unwrap();

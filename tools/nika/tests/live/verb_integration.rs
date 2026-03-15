@@ -21,7 +21,7 @@ fn has_any_provider() -> bool {
 #[test]
 fn test_parse_exec_verb_shorthand() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: run
     exec: "echo 'hello world'"
@@ -34,7 +34,7 @@ tasks:
 #[test]
 fn test_parse_exec_verb_full() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: run
     exec:
@@ -49,7 +49,7 @@ tasks:
 #[test]
 fn test_parse_exec_with_working_dir() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: run
     exec:
@@ -68,7 +68,7 @@ tasks:
 #[test]
 fn test_parse_fetch_verb_simple() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: get_data
     fetch:
@@ -83,7 +83,7 @@ tasks:
 #[test]
 fn test_parse_fetch_verb_post() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: post_data
     fetch:
@@ -99,7 +99,7 @@ tasks:
 #[test]
 fn test_parse_fetch_verb_with_headers() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: fetch_auth
     fetch:
@@ -121,7 +121,7 @@ tasks:
 #[test]
 fn test_parse_infer_verb_shorthand() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer: "Write a haiku about Rust"
@@ -134,7 +134,7 @@ tasks:
 #[test]
 fn test_parse_infer_verb_full() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer:
@@ -180,7 +180,7 @@ tasks:
 #[test]
 fn test_parse_agent_verb() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: research
     agent:
@@ -195,7 +195,7 @@ tasks:
 #[test]
 fn test_parse_agent_verb_with_mcp() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 mcp:
   tools:
     command: "node"
@@ -277,13 +277,13 @@ tasks:
 #[test]
 fn test_parse_for_each_static_array() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: greet_all
     for_each: ["Alice", "Bob", "Charlie"]
     as: name
     concurrency: 3
-    infer: "Say hello to {{use.name}}"
+    infer: "Say hello to {{with.name}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse");
@@ -294,17 +294,17 @@ tasks:
 #[test]
 fn test_parse_for_each_binding() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: get_items
     exec: "echo 'item1,item2,item3'"
 
   - id: process_items
-    for_each: "{{use.items}}"
+    for_each: "{{with.items}}"
     as: item
-    infer: "Process {{use.item}}"
-    use:
-      items: get_items
+    infer: "Process {{with.item}}"
+    with:
+      items: $get_items
 
 flows:
   - source: get_items

@@ -21,7 +21,7 @@ mod tui_tests {
         use nika::tui::App;
 
         let yaml = r#"
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: test

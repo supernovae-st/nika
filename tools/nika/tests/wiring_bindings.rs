@@ -372,7 +372,7 @@ async fn dispatch_run_validation() {
     let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
     writeln!(
         temp_file,
-        r#"schema: nika/workflow@0.2
+        r#"schema: nika/workflow@0.12
 workflow: wiring-test
 tasks:
   - id: hello

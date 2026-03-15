@@ -19,7 +19,7 @@ async fn test_50_concurrent_exec_calls() {
 
     let yaml = format!(
         r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: mock
 
 tasks:
@@ -27,7 +27,7 @@ tasks:
     for_each: [{}]
     as: item
     exec:
-      command: "echo {{{{use.item}}}}"
+      command: "echo {{{{with.item}}}}"
 "#,
         items_yaml
     );
@@ -58,7 +58,7 @@ async fn test_concurrent_mcp_client_access() {
     // This test uses mock MCP client injected via workflow config
     // The key is testing that OnceCell ensures only one client is created
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: mock
 
 tasks:
@@ -66,7 +66,7 @@ tasks:
     for_each: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
     as: item
     exec:
-      command: "echo {{use.item}}"
+      command: "echo {{with.item}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
@@ -90,7 +90,7 @@ tasks:
 #[tokio::test]
 async fn test_for_each_result_ordering() {
     let yaml = r#"
-schema: nika/workflow@0.3
+schema: nika/workflow@0.12
 provider: mock
 
 tasks:
@@ -98,7 +98,7 @@ tasks:
     for_each: ["first", "second", "third", "fourth", "fifth"]
     as: word
     exec:
-      command: "echo {{use.word}}"
+      command: "echo {{with.word}}"
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();

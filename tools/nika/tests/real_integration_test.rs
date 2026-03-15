@@ -98,7 +98,7 @@ async fn test_claude_infer_basic() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: claude_test
@@ -130,7 +130,7 @@ async fn test_claude_agent_with_tools() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: agent_test
@@ -185,7 +185,7 @@ async fn test_claude_extended_thinking() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: thinking_test
@@ -235,7 +235,7 @@ async fn test_claude_multi_task_workflow() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: step1
@@ -244,18 +244,18 @@ tasks:
       model: claude-sonnet-4-6
 
   - id: step2
-    use:
-      name: step1
+    with:
+      name: $step1
     infer:
-      prompt: "Write a one-sentence tagline for a company called '{{use.name}}'"
+      prompt: "Write a one-sentence tagline for a company called '{{with.name}}'"
       model: claude-sonnet-4-6
 
   - id: step3
-    use:
-      name: step1
-      tagline: step2
+    with:
+      name: $step1
+      tagline: $step2
     exec: |
-      echo '{"company": "{{use.name}}", "tagline": "{{use.tagline}}"}'
+      echo '{"company": "{{with.name}}", "tagline": "{{with.tagline}}"}'
     output:
       format: json
 
@@ -302,7 +302,7 @@ async fn test_openai_infer_basic() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 tasks:
   - id: openai_test
@@ -334,7 +334,7 @@ async fn test_openai_agent() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 tasks:
   - id: openai_agent
@@ -376,7 +376,7 @@ async fn test_openai_json_output() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 tasks:
   - id: json_task
@@ -423,7 +423,7 @@ async fn test_same_task_different_providers() {
     // Test with Claude
     let claude_workflow = parse_workflow(&format!(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: test
@@ -441,7 +441,7 @@ tasks:
     // Test with OpenAI
     let openai_workflow = parse_workflow(&format!(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 tasks:
   - id: test
@@ -478,7 +478,7 @@ tasks:
 async fn test_novanet_full_workflow() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   novanet:
@@ -500,10 +500,10 @@ tasks:
         entity: "qr-code"
 
   - id: process
-    use:
-      entity: get_entity
+    with:
+      entity: $get_entity
     exec: |
-      echo 'Entity loaded: {{use.entity.key}}'
+      echo 'Entity loaded: {{with.entity.key}}'
 
 flows:
   - source: get_entity
@@ -545,7 +545,7 @@ async fn test_claude_with_novanet_context() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
   novanet:
@@ -567,11 +567,11 @@ tasks:
         entity: "qr-code"
 
   - id: generate
-    use:
-      ctx: get_context
+    with:
+      ctx: $get_context
     infer:
       prompt: |
-        Based on this entity data: {{use.ctx}}
+        Based on this entity data: {{with.ctx}}
 
         Write a one-sentence description for a landing page.
       model: claude-sonnet-4-6
@@ -610,7 +610,7 @@ async fn test_invalid_api_key_error() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: should_fail
@@ -638,7 +638,7 @@ tasks:
 async fn test_missing_mcp_server_error() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 mcp:
   nonexistent:
@@ -677,7 +677,7 @@ async fn test_token_tracking_accurate() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: token_test
@@ -734,7 +734,7 @@ async fn test_agent_token_accumulation() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: multi_turn
@@ -789,7 +789,7 @@ async fn test_research_workflow_e2e() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
   firecrawl:
@@ -810,12 +810,12 @@ tasks:
           - "markdown"
 
   - id: summarize
-    use:
-      content: scrape
+    with:
+      content: $scrape
     infer:
       prompt: |
         Summarize the main points from this webpage content:
-        {{use.content}}
+        {{with.content}}
 
         Keep it to 3 bullet points.
       model: claude-sonnet-4-6

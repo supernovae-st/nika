@@ -318,7 +318,7 @@ async fn test_exec_template_missing_binding() {
     let executor = create_executor();
     let action = TaskAction::Exec {
         exec: ExecParams {
-            command: "echo {{use.nonexistent}}".to_string(),
+            command: "echo {{with.nonexistent}}".to_string(),
             shell: None,
             timeout: None,
             cwd: None,

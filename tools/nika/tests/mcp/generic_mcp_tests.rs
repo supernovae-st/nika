@@ -17,7 +17,7 @@ fn mcp_tests_enabled() -> bool {
 #[test]
 fn test_mcp_config_parsing() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -96,7 +96,7 @@ async fn test_perplexity_mcp_search() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -127,7 +127,7 @@ async fn test_firecrawl_mcp_scrape() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -159,7 +159,7 @@ async fn test_filesystem_mcp() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -187,7 +187,7 @@ tasks:
 #[test]
 fn test_mcp_invalid_server_reference() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -210,7 +210,7 @@ tasks:
 #[test]
 fn test_mcp_env_config() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -248,7 +248,7 @@ async fn test_agent_with_mcp_tools() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -278,7 +278,7 @@ async fn test_agent_with_multiple_mcp() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:

@@ -149,16 +149,16 @@ fn test_missing_api_key_error_type() {
 
 /// Test that infer fails when template references missing alias
 ///
-/// When the prompt contains `{{use.missing}}` but 'missing' is not in bindings,
+/// When the prompt contains `{{with.missing}}` but 'missing' is not in bindings,
 /// the template resolution should fail with a clear error.
 #[tokio::test]
 async fn test_infer_template_resolution_failure() {
     let executor = create_mock_executor();
     let task_id: Arc<str> = "test_template".into();
 
-    // Prompt references {{use.context}} but we don't provide that binding
+    // Prompt references {{with.context}} but we don't provide that binding
     let action = TaskAction::Infer {
-        infer: infer_params("Generate based on: {{use.context}}"),
+        infer: infer_params("Generate based on: {{with.context}}"),
     };
     let bindings = ResolvedBindings::new(); // Empty - no 'context' binding
     let datastore = RunContext::new();
@@ -196,7 +196,7 @@ async fn test_infer_template_multiple_missing_aliases() {
 
     // Multiple missing aliases
     let action = TaskAction::Infer {
-        infer: infer_params("Combine {{use.first}} with {{use.second}} and {{use.third}}"),
+        infer: infer_params("Combine {{with.first}} with {{with.second}} and {{with.third}}"),
     };
     let bindings = ResolvedBindings::new();
     let datastore = RunContext::new();
@@ -227,7 +227,7 @@ async fn test_infer_template_nested_path_failure() {
 
     // Template references nested field that doesn't exist
     let action = TaskAction::Infer {
-        infer: infer_params("Value: {{use.data.nonexistent.field}}"),
+        infer: infer_params("Value: {{with.data.nonexistent.field}}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -261,7 +261,7 @@ async fn test_infer_template_null_value_error() {
     let task_id: Arc<str> = "test_null".into();
 
     let action = TaskAction::Infer {
-        infer: infer_params("Result: {{use.result}}"),
+        infer: infer_params("Result: {{with.result}}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -358,7 +358,7 @@ async fn test_infer_template_resolution_success() {
     let task_id: Arc<str> = "test_success".into();
 
     let action = TaskAction::Infer {
-        infer: infer_params("Generate headline for: {{use.product}}"),
+        infer: infer_params("Generate headline for: {{with.product}}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -401,7 +401,7 @@ async fn test_infer_template_invalid_traversal_on_string() {
     let task_id: Arc<str> = "test_traverse_string".into();
 
     let action = TaskAction::Infer {
-        infer: infer_params("Get field: {{use.name.field}}"),
+        infer: infer_params("Get field: {{with.name.field}}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -438,7 +438,7 @@ async fn test_infer_template_invalid_traversal_on_number() {
     let task_id: Arc<str> = "test_traverse_number".into();
 
     let action = TaskAction::Infer {
-        infer: infer_params("Get value: {{use.count.property}}"),
+        infer: infer_params("Get value: {{with.count.property}}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -507,7 +507,7 @@ async fn test_infer_empty_prompt() {
 
 /// Test prompt with extra whitespace in template references
 ///
-/// Verifies that `{{  use.data  }}` (with spaces) is handled correctly.
+/// Verifies that `{{  with.data  }}` (with spaces) is handled correctly.
 /// NOTE: This test is ignored because rig-core panics when API key is not set.
 #[tokio::test]
 #[ignore = "rig-core panics without API key - run with ANTHROPIC_API_KEY set"]
@@ -522,7 +522,7 @@ async fn test_infer_whitespace_in_template() {
 
     // Template with extra whitespace (should still work)
     let action = TaskAction::Infer {
-        infer: infer_params("Value: {{  use.data  }}"),
+        infer: infer_params("Value: {{  with.data  }}"),
     };
 
     let mut bindings = ResolvedBindings::new();
@@ -555,11 +555,11 @@ async fn test_infer_whitespace_in_template() {
 #[test]
 fn test_template_whitespace_parsing() {
     // The template regex in binding/template.rs:
-    // r"\{\{\s*use\.(\w+(?:\.\w+)*)\s*\}\}"
+    // r"\{\{\s*with\.(\w+(?:\.\w+)*)\s*\}\}"
     //
     // Supports optional whitespace after `{{` and before `}}`.
-    // Standard syntax: `{{use.data}}`
-    // Also works: `{{use.data }}` (trailing whitespace)
+    // Standard syntax: `{{with.data}}`
+    // Also works: `{{with.data }}` (trailing whitespace)
 
     use nika::binding::template_resolve;
 
@@ -568,13 +568,13 @@ fn test_template_whitespace_parsing() {
     let datastore = RunContext::new();
 
     // Standard syntax - works
-    let template = "Value: {{use.data}}";
+    let template = "Value: {{with.data}}";
     let result = template_resolve(template, &bindings, &datastore);
     assert!(result.is_ok(), "Standard template should resolve");
     assert_eq!(result.unwrap().as_ref(), "Value: resolved_value");
 
     // Trailing whitespace before }} - works
-    let template2 = "Value: {{use.data }}";
+    let template2 = "Value: {{with.data }}";
     let result2 = template_resolve(template2, &bindings, &datastore);
     assert!(
         result2.is_ok(),
@@ -592,7 +592,7 @@ fn test_template_no_whitespace() {
     bindings.set("value", json!(42));
     let datastore = RunContext::new();
 
-    let template = "Number: {{use.value}}";
+    let template = "Number: {{with.value}}";
     let result = template_resolve(template, &bindings, &datastore);
 
     assert!(result.is_ok());

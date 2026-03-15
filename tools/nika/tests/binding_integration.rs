@@ -41,7 +41,7 @@ fn full_workflow_simple_path() {
     assert_eq!(bindings.get("forecast"), Some(&json!("Sunny")));
 
     // 5. Template resolution (v0.5: pass datastore for lazy binding support)
-    let template = "Weather: {{use.forecast}}";
+    let template = "Weather: {{with.forecast}}";
     let result = template_resolve(template, &bindings, &store).unwrap();
     assert_eq!(result, "Weather: Sunny");
 }
@@ -69,7 +69,7 @@ fn full_workflow_with_default() {
     assert_eq!(bindings.get("rating"), Some(&json!(5)));
 
     // 5. Template (v0.5: pass datastore for lazy binding support)
-    let result = template_resolve("Rating: {{use.rating}}/5", &bindings, &store).unwrap();
+    let result = template_resolve("Rating: {{with.rating}}/5", &bindings, &store).unwrap();
     assert_eq!(result, "Rating: 5/5");
 }
 
@@ -93,7 +93,7 @@ fn full_workflow_nested_path() {
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
     assert_eq!(bindings.get("price"), Some(&json!(89)));
 
-    let result = template_resolve("Price: ${{use.price}}", &bindings, &store).unwrap();
+    let result = template_resolve("Price: ${{with.price}}", &bindings, &store).unwrap();
     assert_eq!(result, "Price: $89");
 }
 
@@ -122,7 +122,7 @@ fn full_workflow_multiple_aliases() {
 
     let bindings = ResolvedBindings::from_wiring_spec(Some(&wiring), &store).unwrap();
 
-    let template = "Travel to {{use.city}}: {{use.temp}}C, ${{use.price}}";
+    let template = "Travel to {{with.city}}: {{with.temp}}C, ${{with.price}}";
     let result = template_resolve(template, &bindings, &store).unwrap();
     assert_eq!(result, "Travel to Paris: 25C, $89");
 }
@@ -221,7 +221,7 @@ fn error_template_unknown_alias() {
     let bindings = ResolvedBindings::new();
     let store = RunContext::new();
 
-    let result = template_resolve("Hello {{use.unknown}}", &bindings, &store);
+    let result = template_resolve("Hello {{with.unknown}}", &bindings, &store);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     // Template errors for unknown aliases include the alias name

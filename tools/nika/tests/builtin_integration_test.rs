@@ -222,7 +222,7 @@ async fn test_executor_invoke_nika_run_executes_workflow() {
     let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
     writeln!(
         temp_file,
-        r#"schema: nika/workflow@0.2
+        r#"schema: nika/workflow@0.12
 workflow: integration-test
 tasks:
   - id: hello
@@ -280,7 +280,7 @@ async fn test_executor_invoke_builtin_with_template_resolution() {
         invoke: InvokeParams {
             mcp: Some("builtin".to_string()),
             tool: Some("nika:log".to_string()),
-            params: Some(json!({"level": "info", "message": "Value: {{use.value}}"})),
+            params: Some(json!({"level": "info", "message": "Value: {{with.value}}"})),
             resource: None,
             timeout: None,
         },

@@ -104,7 +104,7 @@ async fn run_workflow_and_get_task_output(
 async fn test_exec_simple_echo() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: simple_echo
@@ -127,7 +127,7 @@ tasks:
 async fn test_exec_json_output() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: json_echo
@@ -150,7 +150,7 @@ tasks:
 async fn test_exec_multiline_script() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: multiline
@@ -178,7 +178,7 @@ tasks:
 async fn test_exec_with_env_vars() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: env_test
@@ -204,7 +204,7 @@ tasks:
 async fn test_exec_shorthand_syntax() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: shorthand
@@ -254,14 +254,14 @@ tasks:
 async fn test_exec_for_each_parallel() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: parallel
     for_each: ["apple", "banana", "cherry"]
     as: fruit
     concurrency: 3
-    exec: "echo '{{use.fruit}}'"
+    exec: "echo '{{with.fruit}}'"
 "#,
     );
 
@@ -290,7 +290,7 @@ tasks:
 async fn test_fetch_get_json() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: fetch_json
@@ -330,7 +330,7 @@ tasks:
 async fn test_fetch_with_headers() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: fetch_headers
@@ -360,7 +360,7 @@ tasks:
 async fn test_fetch_post_with_body() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: fetch_post
@@ -396,7 +396,7 @@ async fn test_infer_with_mock_provider() {
     // Use agent: verb for mock testing, or real providers (claude/openai) for infer:
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: mock_infer
@@ -415,7 +415,7 @@ tasks:
 async fn test_infer_shorthand_syntax() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: shorthand_infer
@@ -432,7 +432,7 @@ tasks:
 async fn test_infer_with_context_binding() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: context_producer
@@ -442,10 +442,10 @@ tasks:
       format: json
 
   - id: context_infer
-    use:
-      ctx: context_producer
+    with:
+      ctx: $context_producer
     infer:
-      prompt: "Explain {{use.ctx.topic}} briefly"
+      prompt: "Explain {{with.ctx.topic}} briefly"
       model: claude-sonnet-4-6
 
 flows:
@@ -472,7 +472,7 @@ async fn test_infer_real_claude() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: real_claude
@@ -503,7 +503,7 @@ async fn test_infer_real_openai() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: openai
 tasks:
   - id: real_openai
@@ -537,7 +537,7 @@ async fn test_infer_emits_provider_events() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: provider_test
@@ -595,7 +595,7 @@ tasks:
 async fn test_agent_mock_completes() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: mock_agent
@@ -622,7 +622,7 @@ async fn test_agent_real_claude() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: real_agent
@@ -653,7 +653,7 @@ async fn test_agent_emits_turn_events() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: turn_agent
@@ -708,7 +708,7 @@ async fn test_agent_extended_thinking_captures_reasoning() {
 
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 tasks:
   - id: thinking_agent
@@ -798,7 +798,7 @@ tasks:
 async fn test_diamond_dependency_workflow() {
     let workflow = parse_workflow(
         r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: mock
 tasks:
   - id: start

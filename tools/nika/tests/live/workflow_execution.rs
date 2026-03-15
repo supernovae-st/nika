@@ -38,7 +38,7 @@ async fn test_workflow_simple_infer() {
 
     // Create a simple inline workflow
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-simple-infer
 description: "Simple infer test"
 provider: claude
@@ -49,7 +49,7 @@ tasks:
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
-    assert_eq!(workflow.schema, "nika/workflow@0.5");
+    assert_eq!(workflow.schema, "nika/workflow@0.12");
     assert_eq!(workflow.tasks.len(), 1);
 }
 
@@ -61,7 +61,7 @@ async fn test_workflow_multi_task_dag() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-multi-task
 description: "Multi-task DAG test"
 provider: claude
@@ -74,10 +74,10 @@ tasks:
     exec: "echo 'step2'"
 
   - id: step3
-    infer: "Combine: {{use.a}} and {{use.b}}"
-    use:
-      a: step1
-      b: step2
+    infer: "Combine: {{with.a}} and {{with.b}}"
+    with:
+      a: $step1
+      b: $step2
 
 flows:
   - source: step1
@@ -199,7 +199,7 @@ async fn test_workflow_diamond_dependency() {
 
     // Diamond pattern: A -> B, A -> C, B -> D, C -> D
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-diamond
 description: "Diamond dependency pattern"
 provider: claude
@@ -209,20 +209,20 @@ tasks:
     exec: "echo 'A'"
 
   - id: B
-    exec: "echo 'B: {{use.a}}'"
-    use:
-      a: A
+    exec: "echo 'B: {{with.a}}'"
+    with:
+      a: $A
 
   - id: C
-    exec: "echo 'C: {{use.a}}'"
-    use:
-      a: A
+    exec: "echo 'C: {{with.a}}'"
+    with:
+      a: $A
 
   - id: D
-    infer: "Combine B={{use.b}} and C={{use.c}}"
-    use:
-      b: B
-      c: C
+    infer: "Combine B={{with.b}} and C={{with.c}}"
+    with:
+      b: $B
+      c: $C
 
 flows:
   - source: A
@@ -248,7 +248,7 @@ async fn test_workflow_parallel_tasks() {
 
     // Parallel tasks with no dependencies
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-parallel
 description: "Parallel execution test"
 provider: claude
@@ -264,11 +264,11 @@ tasks:
     exec: "echo 'task3'"
 
   - id: final
-    infer: "Summarize: {{use.t1}}, {{use.t2}}, {{use.t3}}"
-    use:
-      t1: task1
-      t2: task2
-      t3: task3
+    infer: "Summarize: {{with.t1}}, {{with.t2}}, {{with.t3}}"
+    with:
+      t1: $task1
+      t2: $task2
+      t3: $task3
 
 flows:
   - source: task1
@@ -295,7 +295,7 @@ async fn test_workflow_for_each_static() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-for-each
 description: "for_each parallelism test"
 provider: claude
@@ -305,7 +305,7 @@ tasks:
     for_each: ["Alice", "Bob", "Charlie"]
     as: name
     concurrency: 3
-    infer: "Say hello to {{use.name}}"
+    infer: "Say hello to {{with.name}}"
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
@@ -325,7 +325,7 @@ async fn test_workflow_lazy_bindings() {
     }
 
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 workflow: test-lazy-bindings
 description: "Lazy binding test"
 provider: claude
@@ -335,8 +335,8 @@ tasks:
     exec: "echo 'data123'"
 
   - id: use_data
-    infer: "Process: {{use.data}}"
-    use:
+    infer: "Process: {{with.data}}"
+    with:
       data:
         path: get_data
         lazy: true

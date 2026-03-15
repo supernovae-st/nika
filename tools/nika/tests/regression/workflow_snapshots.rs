@@ -12,7 +12,7 @@ use serde_json::json;
 #[test]
 fn test_snapshot_simple_workflow_parse() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: task1
@@ -80,7 +80,7 @@ tasks:
 #[test]
 fn test_snapshot_for_each_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 tasks:
   - id: parallel_tasks
@@ -109,7 +109,7 @@ tasks:
 #[test]
 fn test_snapshot_mcp_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 
 mcp:
   servers:
@@ -141,7 +141,7 @@ tasks:
 #[test]
 fn test_snapshot_agent_workflow() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -198,7 +198,7 @@ tasks:
 #[test]
 fn test_snapshot_parse_error_invalid_yaml() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: task1
     exec: "echo"
@@ -225,7 +225,7 @@ tasks:
 #[test]
 fn test_snapshot_all_verb_types() {
     let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
