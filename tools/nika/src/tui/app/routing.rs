@@ -143,10 +143,10 @@ impl App {
 
             // ═══ Notifications ═══
             Action::DismissNotification => {
-                self.state.notifications.pop();
+                self.state.dismiss_notification();
             }
             Action::DismissAllNotifications => {
-                self.state.notifications.clear();
+                self.state.dismiss_all_notifications();
             }
             Action::DismissError => {
                 // Dismiss error message

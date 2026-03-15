@@ -196,14 +196,6 @@ pub struct TuiState {
     pub filter_cursor: usize,
 
     // ═══════════════════════════════════════════
-    // NOTIFICATIONS (TIER 3.4)
-    // ═══════════════════════════════════════════
-    /// System notifications
-    pub notifications: Vec<Notification>,
-    /// Maximum number of notifications to keep
-    pub max_notifications: usize,
-
-    // ═══════════════════════════════════════════
     // STATUS MESSAGES
     // ═══════════════════════════════════════════
     /// Status message queue for user feedback
@@ -276,8 +268,6 @@ impl TuiState {
             metrics: Metrics::default(),
             filter_query: String::new(),
             filter_cursor: 0,
-            notifications: Vec::new(),
-            max_notifications: 10,
             status_messages: StatusQueue::new(),
             dirty: {
                 let mut d = DirtyFlags::default();
@@ -1723,54 +1713,40 @@ impl TuiState {
 
     /// Add a notification (TIER 3.4)
     ///
-    /// Automatically trims old notifications when exceeding max_notifications.
+    /// Delegates to NotificationState slice, then marks dirty.
     pub fn add_notification(&mut self, notification: Notification) {
-        self.notifications.push(notification);
-
-        // Trim old notifications if we exceed max
-        while self.notifications.len() > self.max_notifications {
-            self.notifications.remove(0);
-        }
-
+        self.notifs.push(notification);
         // TIER 4.1: Mark notifications dirty
         self.dirty.notifications = true;
     }
 
     /// Get active (non-dismissed) notifications
-    pub fn active_notifications(&self) -> impl Iterator<Item = &Notification> {
-        self.notifications.iter().filter(|n| !n.dismissed)
+    pub fn active_notifications(&self) -> Vec<&Notification> {
+        self.notifs.active()
     }
 
     /// Get count of active notifications
     pub fn active_notification_count(&self) -> usize {
-        self.notifications.iter().filter(|n| !n.dismissed).count()
+        self.notifs.active_count()
     }
 
     /// Dismiss the most recent notification
     pub fn dismiss_notification(&mut self) {
-        // Dismiss the most recent non-dismissed notification
-        for n in self.notifications.iter_mut().rev() {
-            if !n.dismissed {
-                n.dismissed = true;
-                // TIER 4.1: Mark notifications dirty
-                self.dirty.notifications = true;
-                break;
-            }
-        }
+        self.notifs.dismiss_latest();
+        // TIER 4.1: Mark notifications dirty
+        self.dirty.notifications = true;
     }
 
     /// Dismiss all notifications
     pub fn dismiss_all_notifications(&mut self) {
-        for n in &mut self.notifications {
-            n.dismissed = true;
-        }
+        self.notifs.dismiss_all();
         // TIER 4.1: Mark notifications dirty
         self.dirty.notifications = true;
     }
 
     /// Clear all notifications (removes from list entirely)
     pub fn clear_notifications(&mut self) {
-        self.notifications.clear();
+        self.notifs.items.clear();
         // TIER 4.1: Mark notifications dirty
         self.dirty.notifications = true;
     }

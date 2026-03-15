@@ -1441,20 +1441,20 @@ fn test_notification_constructors() {
 #[test]
 fn test_add_notification() {
     let mut state = TuiState::new("test.yaml");
-    assert_eq!(state.notifications.len(), 0);
+    assert_eq!(state.notifs.items.len(), 0);
 
     state.add_notification(Notification::info("Test 1", 1000));
-    assert_eq!(state.notifications.len(), 1);
-    assert_eq!(state.notifications[0].message, "Test 1");
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].message, "Test 1");
 
     state.add_notification(Notification::warning("Test 2", 2000));
-    assert_eq!(state.notifications.len(), 2);
+    assert_eq!(state.notifs.items.len(), 2);
 }
 
 #[test]
 fn test_notification_max_limit() {
     let mut state = TuiState::new("test.yaml");
-    state.max_notifications = 3;
+    state.notifs.max_items = 3;
 
     // Add 5 notifications
     for i in 0..5 {
@@ -1462,10 +1462,10 @@ fn test_notification_max_limit() {
     }
 
     // Should only keep last 3
-    assert_eq!(state.notifications.len(), 3);
-    assert_eq!(state.notifications[0].message, "Test 2");
-    assert_eq!(state.notifications[1].message, "Test 3");
-    assert_eq!(state.notifications[2].message, "Test 4");
+    assert_eq!(state.notifs.items.len(), 3);
+    assert_eq!(state.notifs.items[0].message, "Test 2");
+    assert_eq!(state.notifs.items[1].message, "Test 3");
+    assert_eq!(state.notifs.items[2].message, "Test 4");
 }
 
 #[test]
@@ -1474,9 +1474,9 @@ fn test_active_notifications() {
 
     state.add_notification(Notification::info("Active 1", 1000));
     state.add_notification(Notification::info("Active 2", 2000));
-    state.notifications[0].dismissed = true;
+    state.notifs.items[0].dismissed = true;
 
-    let active: Vec<_> = state.active_notifications().collect();
+    let active = state.active_notifications();
     assert_eq!(active.len(), 1);
     assert_eq!(active[0].message, "Active 2");
 }
@@ -1490,7 +1490,7 @@ fn test_active_notification_count() {
     state.add_notification(Notification::info("3", 3000));
     assert_eq!(state.active_notification_count(), 3);
 
-    state.notifications[1].dismissed = true;
+    state.notifs.items[1].dismissed = true;
     assert_eq!(state.active_notification_count(), 2);
 }
 
@@ -1504,14 +1504,14 @@ fn test_dismiss_notification() {
 
     // Dismiss most recent
     state.dismiss_notification();
-    assert!(state.notifications[2].dismissed);
-    assert!(!state.notifications[1].dismissed);
-    assert!(!state.notifications[0].dismissed);
+    assert!(state.notifs.items[2].dismissed);
+    assert!(!state.notifs.items[1].dismissed);
+    assert!(!state.notifs.items[0].dismissed);
 
     // Dismiss next most recent
     state.dismiss_notification();
-    assert!(state.notifications[1].dismissed);
-    assert!(!state.notifications[0].dismissed);
+    assert!(state.notifs.items[1].dismissed);
+    assert!(!state.notifs.items[0].dismissed);
 }
 
 #[test]
@@ -1524,7 +1524,7 @@ fn test_dismiss_all_notifications() {
 
     state.dismiss_all_notifications();
 
-    assert!(state.notifications.iter().all(|n| n.dismissed));
+    assert!(state.notifs.items.iter().all(|n| n.dismissed));
     assert_eq!(state.active_notification_count(), 0);
 }
 
@@ -1534,10 +1534,10 @@ fn test_clear_notifications() {
 
     state.add_notification(Notification::info("1", 1000));
     state.add_notification(Notification::info("2", 2000));
-    assert_eq!(state.notifications.len(), 2);
+    assert_eq!(state.notifs.items.len(), 2);
 
     state.clear_notifications();
-    assert_eq!(state.notifications.len(), 0);
+    assert_eq!(state.notifs.items.len(), 0);
 }
 
 #[test]
@@ -1554,9 +1554,9 @@ fn test_workflow_completed_adds_notification() {
         5000,
     );
 
-    assert_eq!(state.notifications.len(), 1);
-    assert_eq!(state.notifications[0].level, NotificationLevel::Success);
-    assert!(state.notifications[0].message.contains("Magnificent"));
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].level, NotificationLevel::Success);
+    assert!(state.notifs.items[0].message.contains("Magnificent"));
 }
 
 #[test]
@@ -1571,9 +1571,9 @@ fn test_workflow_failed_adds_notification() {
         5000,
     );
 
-    assert_eq!(state.notifications.len(), 1);
-    assert_eq!(state.notifications[0].level, NotificationLevel::Error);
-    assert!(state.notifications[0].message.contains("failed"));
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].level, NotificationLevel::Error);
+    assert!(state.notifs.items[0].message.contains("failed"));
 }
 
 #[test]
@@ -1596,9 +1596,9 @@ fn test_slow_task_adds_warning() {
         15000,
     );
 
-    assert_eq!(state.notifications.len(), 1);
-    assert_eq!(state.notifications[0].level, NotificationLevel::Warning);
-    assert!(state.notifications[0].message.contains("15.0s"));
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].level, NotificationLevel::Warning);
+    assert!(state.notifs.items[0].message.contains("15.0s"));
 }
 
 #[test]
@@ -1621,9 +1621,9 @@ fn test_very_slow_task_adds_alert() {
         35000,
     );
 
-    assert_eq!(state.notifications.len(), 1);
-    assert_eq!(state.notifications[0].level, NotificationLevel::Alert);
-    assert!(state.notifications[0].message.contains("35.0s"));
+    assert_eq!(state.notifs.items.len(), 1);
+    assert_eq!(state.notifs.items[0].level, NotificationLevel::Alert);
+    assert!(state.notifs.items[0].message.contains("35.0s"));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

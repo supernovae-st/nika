@@ -46,6 +46,16 @@ impl NotificationState {
         }
     }
 
+    /// Dismiss the most recent non-dismissed notification
+    pub fn dismiss_latest(&mut self) {
+        for notif in self.items.iter_mut().rev() {
+            if !notif.dismissed {
+                notif.dismissed = true;
+                break;
+            }
+        }
+    }
+
     /// Dismiss all notifications
     pub fn dismiss_all(&mut self) {
         for notif in &mut self.items {
