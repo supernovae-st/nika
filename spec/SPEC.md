@@ -24,11 +24,11 @@ tasks:
       format: json
 
   - id: recommend
-    use:
+    with:
       forecast: weather.summary
       temp: weather.temp ?? 20
     infer:
-      prompt: "Weather: {{use.forecast}} at {{use.temp}}C"
+      prompt: "Weather: {{with.forecast}} at {{with.temp}}C"
 
 flows:
   - source: weather
@@ -47,7 +47,7 @@ Same terms everywhere: Code, Spec, Docs, CLI.
 | Task | `Task` | `tasks[].id` | Single unit of work |
 | Action | `TaskAction` | `infer`/`exec`/`fetch` | What the task does |
 | Flow | `Flow` | `flows[]` | DAG edge |
-| Use | `UseWiring` | `use:` | Data dependencies |
+| With | `BindingSpec` | `with:` | Data dependencies |
 | Output | `OutputPolicy` | `output:` | Format & validation |
 | Store | `RunContext` | (runtime) | Task outputs |
 | Result | `TaskResult` | (runtime) | Execution result |
@@ -91,7 +91,7 @@ pub struct Workflow {
 
 ```yaml
 - id: my_task              # Required: snake_case
-  use:                     # Optional: data dependencies
+  with:                    # Optional: data dependencies
     alias: other.path
   infer:                   # Required: one action
     prompt: "..."
@@ -112,7 +112,7 @@ Pattern: `^[a-z][a-z0-9_]*$` (snake_case)
 ```rust
 pub struct Task {
     pub id: String,
-    pub use_wiring: Option<UseWiring>,
+    pub binding_spec: Option<BindingSpec>,
     pub output: Option<OutputPolicy>,
     pub action: TaskAction,
 }
@@ -128,7 +128,7 @@ Each task has exactly one action: `infer`, `exec`, or `fetch`.
 
 ```yaml
 infer:
-  prompt: "Recommend a restaurant in {{use.city}}"
+  prompt: "Recommend a restaurant in {{with.city}}"
   provider: openai     # Optional override
   model: gpt-4o-mini   # Optional override
 ```
@@ -147,8 +147,8 @@ fetch:
   url: "https://api.example.com/data"
   method: POST           # Default: GET
   headers:
-    Authorization: "Bearer {{use.token}}"
-  body: '{"name": "{{use.name}}"}'
+    Authorization: "Bearer {{with.token}}"
+  body: '{"name": "{{with.name}}"}'
 ```
 
 ### Rust Type
@@ -218,12 +218,12 @@ pub enum FlowEndpoint {
 
 ---
 
-## 6. Use Block
+## 6. With Block
 
 Declares data dependencies. Syntax: `alias: task.path [?? default]`
 
 ```yaml
-use:
+with:
   # Simple path
   forecast: weather.summary
 
@@ -272,14 +272,14 @@ Referenced task must:
 ### Rust Type
 
 ```rust
-pub type UseWiring = FxHashMap<String, UseEntry>;
+pub type BindingSpec = FxHashMap<String, BindingEntry>;
 
-pub struct UseEntry {
+pub struct BindingEntry {
     pub path: String,
     pub default: Option<Value>,
 }
 
-impl UseEntry {
+impl BindingEntry {
     pub fn task_id(&self) -> &str {
         self.path.split('.').next().unwrap_or(&self.path)
     }
@@ -290,17 +290,17 @@ impl UseEntry {
 
 ## 7. Template
 
-Syntax: `{{use.alias}}` or `{{use.alias.field}}`
+Syntax: `{{with.alias}}` or `{{with.alias.field}}`
 
 ```yaml
-use:
+with:
   city: location.name
   temp: weather.temp
 infer:
   prompt: |
-    City: {{use.city}}
-    Temperature: {{use.temp}}C
-    Full data: {{use.weather}}
+    City: {{with.city}}
+    Temperature: {{with.temp}}C
+    Full data: {{with.weather}}
 ```
 
 ### Value Conversion
@@ -315,7 +315,7 @@ infer:
 
 ### Static Validation
 
-All `{{use.X}}` must have corresponding `use:` declarations.
+All `{{with.X}}` must have corresponding `with:` declarations.
 
 ---
 
@@ -358,11 +358,11 @@ pub enum OutputFormat {
 ### Data Flow
 
 ```
-Task A → RunContext → use: block → {{use.alias}} → Task B
+Task A → RunContext → with: block → {{with.alias}} → Task B
 ```
 
 1. Task A completes, output stored in RunContext
-2. Task B declares `use: { alias: taskA.path }`
+2. Task B declares `with: { alias: taskA.path }`
 3. Bindings resolved from RunContext
 4. Templates substituted in prompt
 5. Task B executes
@@ -424,15 +424,15 @@ pub enum TaskStatus {
 | NIKA-060 | Invalid JSON | Ensure valid JSON output |
 | NIKA-061 | Schema failed | Fix output to match schema |
 
-### Use Block (070-074)
+### With Block (070-074)
 
 | Code | Error | Fix |
 |------|-------|-----|
 | NIKA-070 | Duplicate alias | Use unique names |
-| NIKA-071 | Unknown alias | Declare in `use:` block |
+| NIKA-071 | Unknown alias | Declare in `with:` block |
 | NIKA-072 | Null value | Add `?? default` |
 | NIKA-073 | Invalid traversal | Cannot access `.field` on primitive |
-| NIKA-074 | Template parse error | Check `{{use.alias}}` syntax |
+| NIKA-074 | Template parse error | Check `{{with.alias}}` syntax |
 
 ### DAG (080-082)
 
@@ -465,7 +465,7 @@ pub enum TaskStatus {
 │         APPLICATION LAYER               │
 │  runtime/  → Runner, TaskExecutor       │
 │  dag/      → Dag, validation      │
-│  binding/  → UseWiring, templates       │
+│  binding/  → BindingSpec, templates      │
 └─────────────────────────────────────────┘
                    │
                    ▼
@@ -500,15 +500,15 @@ tasks:
       format: json
 
   - id: recommend
-    use:
+    with:
       forecast: weather.summary
       temp: weather.temp ?? 20
       price: flights.cheapest.price
       airline: flights.cheapest.airline
     infer:
       prompt: |
-        Weather: {{use.forecast}} at {{use.temp}}C
-        Flight: {{use.airline}} for ${{use.price}}
+        Weather: {{with.forecast}} at {{with.temp}}C
+        Flight: {{with.airline}} for ${{with.price}}
 
         Create a travel recommendation.
     output:
