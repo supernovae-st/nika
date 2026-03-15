@@ -40,7 +40,9 @@ mod chat_overlay;
 mod notification;
 mod scroll;
 mod settings;
+mod mcp_state;
 mod types;
+mod ui;
 
 #[cfg(test)]
 mod tests;
@@ -93,6 +95,10 @@ pub use chat_overlay::{ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlaySt
 
 // Cache
 pub use cache::JsonFormatCache;
+
+// Domain slices (P1 decomposition)
+pub use mcp_state::McpState;
+pub use ui::UiState;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // IMPORTS FOR TuiState
@@ -246,6 +252,14 @@ pub struct TuiState {
     timeline_version: u32,
     /// Version used to build the current cache
     timeline_cache_version: u32,
+
+    // ═══════════════════════════════════════════
+    // DOMAIN SLICES (P1 decomposition)
+    // ═══════════════════════════════════════════
+    /// UI interaction state (focus, mode, scroll, theme, tabs)
+    pub ui: UiState,
+    /// MCP call tracking state (calls, selection, context assembly)
+    pub mcp: McpState,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -301,6 +315,7 @@ impl TuiState {
             cached_timeline_entries: Vec::new(),
             timeline_version: 0,
             timeline_cache_version: 0,
+            ui: UiState::new(),
         }
     }
 
