@@ -494,23 +494,20 @@ mod tests {
 
     #[test]
     fn task_id_invalid_dash() {
-        let result = validate_task_id("fetch-api");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
+        let err = validate_task_id("fetch-api").unwrap_err();
+        assert!(err.to_string().contains("NIKA-055"));
     }
 
     #[test]
     fn task_id_invalid_uppercase() {
-        let result = validate_task_id("myTask");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
+        let err = validate_task_id("myTask").unwrap_err();
+        assert!(err.to_string().contains("NIKA-055"));
     }
 
     #[test]
     fn task_id_invalid_dot() {
-        let result = validate_task_id("weather.api");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-055"));
+        let err = validate_task_id("weather.api").unwrap_err();
+        assert!(err.to_string().contains("NIKA-055"));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -621,9 +618,8 @@ mod tests {
         let workflow = build_workflow(&[("task1", &["task2"], &[]), ("task2", &["task1"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+        let err = graph.detect_cycles().unwrap_err();
+        assert!(err.to_string().contains("NIKA-020"));
     }
 
     #[test]
@@ -633,9 +629,8 @@ mod tests {
             build_workflow(&[("a", &["c"], &[]), ("b", &["a"], &[]), ("c", &["b"], &[])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
 
-        let result = graph.detect_cycles();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-020"));
+        let err = graph.detect_cycles().unwrap_err();
+        assert!(err.to_string().contains("NIKA-020"));
     }
 
     #[test]
@@ -764,10 +759,9 @@ mod tests {
         );
 
         let graph = Dag::from_analyzed(&workflow).unwrap();
-        let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_err());
+        let err = validate_with_bindings(&workflow, &graph).unwrap_err();
         // validate_with_refs returns UnknownAlias error (NIKA-071)
-        assert!(result.unwrap_err().to_string().contains("NIKA-071"));
+        assert!(err.to_string().contains("NIKA-071"));
     }
 
     #[test]
@@ -963,9 +957,8 @@ mod tests {
             ("task2", &[], &[], &[("data", "nonexistent")]),
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
-        let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-080"));
+        let err = validate_with_bindings(&workflow, &graph).unwrap_err();
+        assert!(err.to_string().contains("NIKA-080"));
     }
 
     #[test]
@@ -974,9 +967,8 @@ mod tests {
         let workflow =
             build_workflow_with_bindings(&[("task1", &[], &[], &[("self_ref", "task1")])]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
-        let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-082"));
+        let err = validate_with_bindings(&workflow, &graph).unwrap_err();
+        assert!(err.to_string().contains("NIKA-082"));
     }
 
     #[test]
@@ -1035,9 +1027,8 @@ mod tests {
             ("task2", &[], &[], &[("data", "task1")]),
         ]);
         let graph = Dag::from_analyzed(&workflow).unwrap();
-        let result = validate_with_bindings(&workflow, &graph);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("NIKA-081"));
+        let err = validate_with_bindings(&workflow, &graph).unwrap_err();
+        assert!(err.to_string().contains("NIKA-081"));
     }
 
     // ═══════════════════════════════════════════════════════════════
