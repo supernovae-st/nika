@@ -94,7 +94,8 @@ fn bench_binding_entry_creation(c: &mut Criterion) {
 
     group.bench_function("lazy_with_default", |b| {
         b.iter(|| {
-            let entry = BindingEntry::lazy_with_default(black_box("optional.value"), json!("fallback"));
+            let entry =
+                BindingEntry::lazy_with_default(black_box("optional.value"), json!("fallback"));
             black_box(entry)
         });
     });
