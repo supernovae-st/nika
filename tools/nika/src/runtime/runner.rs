@@ -17,20 +17,24 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument};
 
+use crate::ast::analyzed::{
+    AnalyzedOutput, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, OutputFormat as AnalyzedOutputFormat,
+};
+use crate::ast::lower::{lower_action, lower_mcp_servers, lower_output};
 use crate::ast::output::OutputPolicy;
-use crate::ast::{InferParams, OutputFormat, Task, TaskAction, Workflow};
+use crate::ast::{InferParams, TaskAction};
 use crate::binding::ResolvedBindings;
-use crate::dag::{validate_use_wiring, Dag};
+use crate::dag::Dag;
 use crate::error::NikaError;
 use crate::event::{EventKind, EventLog, TraceWriter};
 use crate::store::{RunContext, TaskResult};
 use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
 use super::artifact_processor::process_task_artifacts;
-use super::context_loader::load_context;
+use super::context_loader::load_context_analyzed;
 use super::executor::TaskExecutor;
 use super::output::{extract_json, format_validation_errors, make_task_result};
-use super::resolver::{resolve_assets, ResolvedAssets};
+use super::resolver::{resolve_assets_analyzed, ResolvedAssets};
 use super::structured_output::StructuredOutputEngine;
 
 use crate::ast::artifact::ArtifactsConfig;
@@ -81,8 +85,12 @@ struct IterationResult {
 }
 
 /// DAG workflow runner with event sourcing
+///
+/// Consumes `AnalyzedWorkflow` directly from the analyzer.
+/// Bridge conversions (`lower_action`, `lower_output`) happen at the
+/// `TaskExecutor` boundary only.
 pub struct Runner {
-    workflow: Workflow,
+    workflow: AnalyzedWorkflow,
     flow_graph: Dag,
     datastore: RunContext,
     executor: TaskExecutor,
@@ -102,7 +110,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(workflow: Workflow) -> Self {
+    pub fn new(workflow: AnalyzedWorkflow) -> Self {
         Self::with_event_log(workflow, EventLog::new())
     }
 
@@ -110,20 +118,25 @@ impl Runner {
     ///
     /// Use `EventLog::new_with_broadcast()` to create an EventLog that
     /// sends events to TUI in real-time.
-    pub fn with_event_log(workflow: Workflow, event_log: EventLog) -> Self {
+    pub fn with_event_log(workflow: AnalyzedWorkflow, event_log: EventLog) -> Self {
         // DAG construction should not fail for validated workflows.
         // This is a programming invariant: callers must validate before constructing Runner.
-        let flow_graph = Dag::from_workflow(&workflow).unwrap_or_else(|e| {
+        let flow_graph = Dag::from_analyzed(&workflow).unwrap_or_else(|e| {
             panic!(
-                "BUG: Dag::from_workflow failed for {} tasks — workflow must be validated before Runner: {e}",
+                "BUG: Dag::from_analyzed failed for {} tasks — workflow must be validated before Runner: {e}",
                 workflow.tasks.len()
             )
         });
         let datastore = RunContext::new();
+
+        // Bridge MCP servers to old FxHashMap<String, McpConfigInline> for TaskExecutor
+        let mcp_configs = lower_mcp_servers(workflow.mcp_servers.clone());
+        let provider = workflow.provider.as_deref().unwrap_or("claude");
+
         let executor = TaskExecutor::new(
-            &workflow.provider,
+            provider,
             workflow.model.as_deref(),
-            workflow.mcp.clone(),
+            mcp_configs,
             event_log.clone(),
         );
 
@@ -243,18 +256,18 @@ impl Runner {
     ///
     /// Also detects and marks tasks whose dependencies have failed.
     /// These tasks are marked as DependencyFailed and stored in the datastore.
-    fn get_ready_tasks(&self) -> Vec<Arc<Task>> {
+    fn get_ready_tasks(&self) -> Vec<&AnalyzedTask> {
         self.workflow
             .tasks
             .iter()
             .filter(|task| {
                 // Skip if already done
-                if self.datastore.contains(&task.id) {
+                if self.datastore.contains(&task.name) {
                     return false;
                 }
 
                 // Check all dependencies
-                let deps = self.flow_graph.get_dependencies(&task.id);
+                let deps = self.flow_graph.get_dependencies(&task.name);
                 for dep in deps.iter() {
                     // Check if dependency has completed
                     if let Some(dep_result) = self.datastore.get(dep.as_ref()) {
@@ -263,19 +276,19 @@ impl Runner {
                         if !dep_result.is_success() {
                             // Store DependencyFailed result for this task
                             self.datastore.insert(
-                                intern(&task.id),
+                                intern(&task.name),
                                 TaskResult::dependency_failed(dep.as_ref()),
                             );
 
                             // Emit event for observability
                             self.event_log.emit(EventKind::TaskFailed {
-                                task_id: Arc::from(task.id.as_str()),
+                                task_id: Arc::from(task.name.as_str()),
                                 error: format!("Cannot run: dependency '{}' failed", dep.as_ref()),
                                 duration_ms: 0,
                             });
 
                             debug!(
-                                task_id = %task.id,
+                                task_id = %task.name,
                                 dependency = %dep.as_ref(),
                                 "Task blocked due to failed dependency"
                             );
@@ -291,7 +304,6 @@ impl Runner {
                 // All dependencies succeeded - task is ready
                 true
             })
-            .cloned() // Clone the Arc, not the Task
             .collect()
     }
 
@@ -300,7 +312,7 @@ impl Runner {
         self.workflow
             .tasks
             .iter()
-            .all(|t| self.datastore.contains(&t.id))
+            .all(|t| self.datastore.contains(&t.name))
     }
 
     /// Get tasks that are blocked waiting for incomplete dependencies (not failed)
@@ -310,18 +322,18 @@ impl Runner {
         self.workflow
             .tasks
             .iter()
-            .filter(|task| !self.datastore.contains(&task.id))
-            .map(|t| t.id.clone())
+            .filter(|task| !self.datastore.contains(&task.name))
+            .map(|t| t.name.clone())
             .collect()
     }
 
     /// Get the first failed task in the workflow (for error reporting)
     fn find_root_failure(&self) -> Option<String> {
         for task in &self.workflow.tasks {
-            if let Some(result) = self.datastore.get(&task.id) {
+            if let Some(result) = self.datastore.get(&task.name) {
                 // Only consider actual failures, not dependency failures
                 if matches!(result.status, crate::store::TaskOutcome::Failed(_)) {
-                    return Some(task.id.clone());
+                    return Some(task.name.clone());
                 }
             }
         }
@@ -375,32 +387,43 @@ impl Runner {
     /// - Output format is JSON
     /// - Output has inline schema
     /// - max_retries > 0
-    fn get_retry_config(task: &Task) -> Option<(Value, u8, InferParams)> {
+    ///
+    /// Bridges AnalyzedTask to lowered InferParams for the retry loop.
+    fn get_retry_config(task: &AnalyzedTask) -> Option<(Value, u8, InferParams)> {
         // Must be an infer action
-        let infer = match &task.action {
-            TaskAction::Infer { infer } => infer,
-            _ => return None,
-        };
-
-        // Must have output policy with JSON format and inline schema
-        let output_policy = task.output.as_ref()?;
-        if output_policy.format != OutputFormat::Json {
+        if !matches!(&task.action, AnalyzedTaskAction::Infer(_)) {
             return None;
         }
 
-        // Must have inline schema (file schemas don't support retry feedback)
-        let schema = match &output_policy.schema {
-            Some(crate::ast::output::SchemaRef::Inline(s)) => s.clone(),
-            _ => return None,
-        };
+        // Must have output with JSON format and inline schema
+        let output = task.output.as_ref()?;
+        if output.format != AnalyzedOutputFormat::Json {
+            return None;
+        }
 
-        // max_retries must be > 0 (default is 0)
+        // Must have inline schema
+        let schema = output.schema.as_ref()?.clone();
+
+        // Bridge to lowered OutputPolicy to check max_retries
+        let output_policy = lower_output(output.clone());
         let max_retries = output_policy.max_retries.unwrap_or(0);
         if max_retries == 0 {
             return None;
         }
 
-        Some((schema, max_retries, infer.clone()))
+        // Bridge infer to lowered InferParams
+        let lowered_action = lower_action(
+            task.action.clone(),
+            task.provider.clone(),
+            task.model.clone(),
+            task.retry.clone(),
+        );
+        let lowered_infer = match lowered_action {
+            TaskAction::Infer { infer } => infer,
+            _ => return None,
+        };
+
+        Some((schema, max_retries, lowered_infer))
     }
 
     /// Execute an infer task with schema validation and retry loop
@@ -590,9 +613,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
     /// Execute a single task iteration (used for both regular tasks and for_each items)
     ///
+    /// Bridge conversions (`lower_action`, `lower_output`) happen here at the
+    /// `TaskExecutor` boundary — the rest of Runner works with `AnalyzedTask`.
+    ///
     /// # Arguments
     ///
-    /// * `task` - The task to execute
+    /// * `task` - The analyzed task to execute
     /// * `task_id` - ID for this specific execution (may include index for for_each)
     /// * `parent_task_id` - Original task ID (for for_each, this is the parent task ID)
     /// * `datastore` - Data store for task results
@@ -603,15 +629,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
     /// * `base_path` - Base path for artifact resolution
     #[allow(clippy::too_many_arguments)] // Artifact integration requires additional params
     async fn execute_task_iteration(
-        task: Arc<Task>,
+        task: AnalyzedTask,
         task_id: Arc<str>,
         parent_task_id: Arc<str>,
         datastore: RunContext,
         executor: TaskExecutor,
         event_log: EventLog,
-        for_each_binding: Option<(String, Value, usize)>, // Added index
-        workflow_artifacts: Option<ArtifactsConfig>,      // Artifact config
-        base_path: PathBuf,                               // Artifact base path
+        for_each_binding: Option<(String, Value, usize)>,
+        workflow_artifacts: Option<ArtifactsConfig>,
+        base_path: PathBuf,
     ) -> IterationResult {
         let start = Instant::now();
 
@@ -619,25 +645,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let for_each_info = for_each_binding
             .as_ref()
             .map(|(_, _, idx)| (Arc::clone(&parent_task_id), *idx));
-        let _is_for_each = for_each_binding.is_some();
 
-        // Build bindings from with: or use: wiring
-        let mut bindings = match if task.with_spec.is_some() {
-            ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &datastore)
-        } else {
-            ResolvedBindings::from_wiring_spec(task.use_wiring.as_ref(), &datastore)
-        } {
+        // Build bindings from with: spec (always present in AnalyzedTask)
+        let mut bindings = match ResolvedBindings::from_with_spec(
+            Some(&task.with_spec),
+            &datastore,
+        ) {
             Ok(b) => b,
             Err(e) => {
                 let duration = start.elapsed();
-                // EMIT: TaskFailed (bindings build failed)
                 event_log.emit(EventKind::TaskFailed {
                     task_id: Arc::clone(&task_id),
                     error: e.to_string(),
                     duration_ms: duration.as_millis() as u64,
                 });
                 return IterationResult {
-                    store_id: task_id, // Store with indexed ID for for_each
+                    store_id: task_id,
                     result: TaskResult::failed(e.to_string(), duration),
                     for_each_info,
                 };
@@ -649,15 +672,23 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             bindings.set(&var_name, value);
         }
 
-        // EMIT: TaskStarted (with resolved inputs from use: wiring)
+        // EMIT: TaskStarted
         event_log.emit(EventKind::TaskStarted {
             task_id: Arc::clone(&task_id),
             verb: Arc::from(task.action.verb_name()),
             inputs: bindings.to_value(),
         });
 
+        // Bridge AnalyzedTask to lowered types at executor boundary
+        let lowered_action = lower_action(
+            task.action.clone(),
+            task.provider.clone(),
+            task.model.clone(),
+            task.retry.clone(),
+        );
+        let lowered_output = task.output.as_ref().map(|o: &AnalyzedOutput| lower_output(o.clone()));
+
         // Check if task qualifies for schema validation retry
-        // Conditions: infer action + JSON output + inline schema + max_retries > 0
         let retry_config = Self::get_retry_config(&task);
 
         // Execute with retry loop if configured
@@ -672,7 +703,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 &executor,
                 &event_log,
                 start,
-                task.output.as_ref(),
+                lowered_output.as_ref(),
             )
             .await
         } else {
@@ -680,10 +711,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let result = executor
                 .execute(
                     &task_id,
-                    &task.action,
+                    &lowered_action,
                     &bindings,
                     &datastore,
-                    task.output.as_ref(),
+                    lowered_output.as_ref(),
                 )
                 .await;
             let duration = start.elapsed();
@@ -705,11 +736,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     total_attempts = result.total_attempts,
                                     "Structured output validation succeeded"
                                 );
-                                // Return validated JSON as string
                                 result.value.to_string()
                             }
                             Err(e) => {
-                                // Structured validation failed - emit failure and return error
                                 event_log.emit(EventKind::TaskFailed {
                                     task_id: Arc::clone(&task_id),
                                     error: e.to_string(),
@@ -726,12 +755,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         output
                     };
 
-                    let tr = make_task_result(final_output, task.output.as_ref(), duration).await;
-                    // EMIT: TaskCompleted or TaskFailed (based on result)
+                    let tr =
+                        make_task_result(final_output, lowered_output.as_ref(), duration).await;
                     if tr.is_success() {
                         event_log.emit(EventKind::TaskCompleted {
                             task_id: Arc::clone(&task_id),
-                            output: Arc::clone(&tr.output), // O(1) Arc clone
+                            output: Arc::clone(&tr.output),
                             duration_ms: duration.as_millis() as u64,
                         });
                     } else {
@@ -744,7 +773,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     tr
                 }
                 Err(e) => {
-                    // EMIT: TaskFailed
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(&task_id),
                         error: e.to_string(),
@@ -756,10 +784,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         };
 
         // Process artifacts if task succeeded and has artifact config
-        // Pass bindings and datastore for template resolution
         if task_result.is_success() {
             if let Some(ref artifact_spec) = task.artifact {
-                // Get the output content for artifact writing
                 let output_content = task_result.output_str().into_owned();
 
                 let artifact_result = process_task_artifacts(
@@ -768,13 +794,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     artifact_spec,
                     workflow_artifacts.as_ref(),
                     &base_path,
-                    Some(&event_log), // Pass event log for artifact events
-                    &bindings,        // For template resolution
-                    &datastore,       // For lazy binding resolution
+                    Some(&event_log),
+                    &bindings,
+                    &datastore,
                 )
                 .await;
 
-                // Log artifact results
                 if artifact_result.written > 0 {
                     debug!(
                         task_id = %task_id,
@@ -783,7 +808,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     );
                 }
 
-                // Log any artifact errors (non-fatal)
                 for err in artifact_result.errors {
                     tracing::warn!(
                         task_id = %task_id,
@@ -795,7 +819,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         IterationResult {
-            store_id: task_id, // Store individual results with indexed ID
+            store_id: task_id,
             result: task_result,
             for_each_info,
         }
@@ -821,27 +845,30 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             ));
         }
 
-        // Validate use: blocks before execution (fail-fast)
-        validate_use_wiring(&self.workflow, &self.flow_graph)?;
-
-        // Load context files if workflow has context: block
+        // Load context files if workflow has context_files
         let base_path = std::env::current_dir().unwrap_or_default();
-        if let Some(context_config) = &self.workflow.context {
-            let loaded_context = load_context(context_config, &base_path).await?;
+        if !self.workflow.context_files.is_empty() {
+            let loaded_context =
+                load_context_analyzed(&self.workflow.context_files, &base_path).await?;
             self.datastore.set_context(loaded_context);
-            debug!("Loaded {} context files", context_config.files.len());
+            debug!(
+                "Loaded {} context files",
+                self.workflow.context_files.len()
+            );
         }
 
-        // Load inputs if workflow has inputs: block
-        if let Some(ref inputs) = self.workflow.inputs {
-            self.datastore.set_inputs(inputs.clone());
-            debug!("Loaded {} input parameters", inputs.len());
+        // Load inputs if workflow has inputs
+        if !self.workflow.inputs.is_empty() {
+            let inputs_map: rustc_hash::FxHashMap<String, serde_json::Value> =
+                self.workflow.inputs.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            self.datastore.set_inputs(inputs_map);
+            debug!("Loaded {} input parameters", self.workflow.inputs.len());
         }
 
-        // Resolve agents and skills
-        // This loads external agent definitions and skill files
-        if self.workflow.agents.is_some() || self.workflow.skills.is_some() {
-            self.resolved_assets = resolve_assets(&self.workflow, &base_path).await?;
+        // Resolve agents
+        if self.workflow.agents.is_some() {
+            self.resolved_assets =
+                resolve_assets_analyzed(&self.workflow, &base_path).await?;
             debug!(
                 agents = self.resolved_assets.agents.len(),
                 skills = self.resolved_assets.skills.len(),
@@ -877,8 +904,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .workflow
                     .tasks
                     .iter()
-                    .filter(|t| !self.datastore.contains(&t.id))
-                    .map(|t| Arc::from(t.id.as_str()))
+                    .filter(|t| !self.datastore.contains(&t.name))
+                    .map(|t| Arc::from(t.name.as_str()))
                     .collect();
 
                 self.event_log.emit(EventKind::WorkflowAborted {
@@ -906,8 +933,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             .workflow
                             .tasks
                             .iter()
-                            .filter(|t| !self.datastore.contains(&t.id))
-                            .map(|t| Arc::from(t.id.as_str()))
+                            .filter(|t| !self.datastore.contains(&t.name))
+                            .map(|t| Arc::from(t.name.as_str()))
                             .collect();
 
                         self.event_log.emit(EventKind::WorkflowAborted {
@@ -943,8 +970,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     .workflow
                     .tasks
                     .iter()
-                    .filter(|t| self.datastore.is_dependency_failed(&t.id))
-                    .map(|t| t.id.clone())
+                    .filter(|t| self.datastore.is_dependency_failed(&t.name))
+                    .map(|t| t.name.clone())
                     .collect();
 
                 if !blocked_by_dep_failure.is_empty() {
@@ -986,14 +1013,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let artifact_base_path = base_path.clone();
 
             for task in ready {
-                let task = Arc::clone(&task);
-                let task_id = intern(&task.id); // Interned Arc<str> for deduplication
+                let task_id = intern(&task.name);
 
                 // EMIT: TaskScheduled
-                let deps = self.flow_graph.get_dependencies(&task.id);
+                let deps = self.flow_graph.get_dependencies(&task.name);
                 self.event_log.emit(EventKind::TaskScheduled {
                     task_id: Arc::clone(&task_id),
-                    dependencies: deps.to_vec(), // Arc::clone is O(1)
+                    dependencies: deps.to_vec(),
                 });
 
                 if !self.quiet {
@@ -1008,25 +1034,18 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Check if task has decompose - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
                 let for_each_items: Option<Vec<Value>> = if let Some(decompose) =
-                    task.decompose_spec()
+                    task.decompose.as_ref()
                 {
                     debug!(
-                        task_id = %task.id,
+                        task_id = %task.name,
                         strategy = ?decompose.strategy,
                         traverse = %decompose.traverse,
                         "Expanding decompose modifier"
                     );
-                    // Resolve bindings for decompose source (with: or use:)
-                    let bindings = if task.with_spec.is_some() {
-                        ResolvedBindings::from_with_spec(task.with_spec.as_ref(), &self.datastore)
-                            .unwrap_or_default()
-                    } else {
-                        ResolvedBindings::from_wiring_spec(
-                            task.use_wiring.as_ref(),
-                            &self.datastore,
-                        )
-                        .unwrap_or_default()
-                    };
+                    // Resolve bindings for decompose source
+                    let bindings =
+                        ResolvedBindings::from_with_spec(Some(&task.with_spec), &self.datastore)
+                            .unwrap_or_default();
                     // Expand decompose using executor (with timeout to prevent silent hangs)
                     let decompose_result = tokio::time::timeout(
                         DECOMPOSE_TIMEOUT,
@@ -1040,7 +1059,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         Ok(Err(e)) => {
                             // Decompose expansion failed
                             self.datastore.insert(
-                                intern(&task.id),
+                                intern(&task.name),
                                 TaskResult::failed(e.to_string(), std::time::Duration::ZERO),
                             );
                             continue;
@@ -1048,42 +1067,34 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         Err(_timeout) => {
                             // Decompose expansion timed out
                             let timeout_error = NikaError::DecomposeTimeout {
-                                task_id: task.id.clone(),
+                                task_id: task.name.clone(),
                                 timeout_secs: DECOMPOSE_TIMEOUT.as_secs(),
                             };
                             self.datastore.insert(
-                                intern(&task.id),
+                                intern(&task.name),
                                 TaskResult::failed(timeout_error.to_string(), DECOMPOSE_TIMEOUT),
                             );
                             continue;
                         }
                     }
-                } else if let Some(for_each) = &task.for_each {
-                    // Handle binding references ($alias or {{use.alias}})
-                    if let Some(binding_str) = for_each.as_str() {
-                        // Resolve bindings from with:/use: wiring to access the referenced array
-                        let bindings = if task.with_spec.is_some() {
-                            ResolvedBindings::from_with_spec(
-                                task.with_spec.as_ref(),
-                                &self.datastore,
-                            )
-                            .unwrap_or_default()
-                        } else {
-                            ResolvedBindings::from_wiring_spec(
-                                task.use_wiring.as_ref(),
-                                &self.datastore,
-                            )
-                            .unwrap_or_default()
-                        };
+                } else if let Some(ref for_each) = task.for_each {
+                    // AnalyzedForEach has structured fields: items, as_var, parallel, fail_fast
+                    let items_str = &for_each.items;
 
-                        if let Some(alias) = binding_str.strip_prefix('$') {
+                    if for_each.is_binding() {
+                        // Binding reference ($alias, {{use.alias}}, {{inputs.xxx}})
+                        let bindings =
+                            ResolvedBindings::from_with_spec(Some(&task.with_spec), &self.datastore)
+                                .unwrap_or_default();
+
+                        if let Some(alias) = items_str.strip_prefix('$') {
                             // Check for $inputs.xxx format first (workflow inputs)
                             if alias.starts_with("inputs.") {
                                 match self.datastore.resolve_input_path(alias) {
                                     Some(value) => value_to_array(&value),
                                     None => {
                                         self.datastore.insert(
-                                            intern(&task.id),
+                                            intern(&task.name),
                                             TaskResult::failed(
                                                 format!(
                                                     "for_each input '{}' not found in workflow inputs",
@@ -1096,14 +1107,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     }
                                 }
                             } else {
-                                // $alias or $alias.nested.path format (e.g., "$locales", "$step1.items")
-                                // Split on '.' — first segment is the binding alias, rest is nested path
+                                // $alias or $alias.nested.path format
                                 let mut segments = alias.split('.');
                                 let base_alias = segments.next().unwrap();
 
                                 match bindings.get_resolved(base_alias, &self.datastore) {
                                     Ok(base_value) => {
-                                        // Parse JSON strings (objects and arrays) before traversal
+                                        // Parse JSON strings before traversal
                                         let parsed_value: Value;
                                         let working_value: &Value = if let Some(s) =
                                             base_value.as_str()
@@ -1143,7 +1153,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 Some(v) => value_ref = v,
                                                 None => {
                                                     self.datastore.insert(
-                                                        intern(&task.id),
+                                                        intern(&task.name),
                                                         TaskResult::failed(
                                                             format!(
                                                                 "for_each binding '${}': nested path segment '{}' not found",
@@ -1165,9 +1175,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         match value_to_array(value_ref) {
                                             Some(items) => Some(items),
                                             None => {
-                                                // Explicit error instead of silent fallback
                                                 self.datastore.insert(
-                                                    intern(&task.id),
+                                                    intern(&task.name),
                                                     TaskResult::failed(
                                                         format!(
                                                             "for_each binding '${}' resolved to non-array value",
@@ -1181,9 +1190,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         }
                                     }
                                     Err(e) => {
-                                        // Binding not found - fail the task
                                         self.datastore.insert(
-                                            intern(&task.id),
+                                            intern(&task.name),
                                             TaskResult::failed(
                                                 format!(
                                                     "for_each binding '{}' not found: {}",
@@ -1196,10 +1204,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     }
                                 }
                             }
-                        } else if binding_str.contains("{{inputs.") {
+                        } else if items_str.contains("{{inputs.") {
                             // Template format for inputs (e.g., "{{inputs.items}}")
-                            if let Some(start) = binding_str.find("{{inputs.") {
-                                let after = &binding_str[start + 9..]; // "{{inputs." is 9 chars
+                            if let Some(start) = items_str.find("{{inputs.") {
+                                let after = &items_str[start + 9..];
                                 if let Some(end) = after.find("}}") {
                                     let param_path = &after[..end];
                                     let full_path = format!("inputs.{}", param_path);
@@ -1207,7 +1215,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         Some(value) => value_to_array(&value),
                                         None => {
                                             self.datastore.insert(
-                                                intern(&task.id),
+                                                intern(&task.name),
                                                 TaskResult::failed(
                                                     format!(
                                                         "for_each input '{}' not found in workflow inputs",
@@ -1225,22 +1233,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             } else {
                                 None
                             }
-                        } else if binding_str.contains("{{use.") {
-                            // Template format (e.g., "{{use.locales}}" or "{{use.data.nested.items}}")
-                            // Extract path from template pattern
-                            if let Some(start) = binding_str.find("{{use.") {
-                                let after = &binding_str[start + 6..];
+                        } else if items_str.contains("{{use.") {
+                            // Template format (e.g., "{{use.locales}}")
+                            if let Some(start) = items_str.find("{{use.") {
+                                let after = &items_str[start + 6..];
                                 if let Some(end) = after.find("}}") {
                                     let path = &after[..end];
-
-                                    // Split: first segment is alias, rest is nested path
                                     let mut parts = path.split('.');
                                     let alias = parts.next().unwrap();
 
                                     match bindings.get_resolved(alias, &self.datastore) {
                                         Ok(base_value) => {
-                                            // If base_value is a JSON string, parse it first
-                                            // This handles exec: tasks that output JSON as strings
                                             let parsed_value: Value;
                                             let working_value: &Value =
                                                 if let Some(s) = base_value.as_str() {
@@ -1265,7 +1268,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     &base_value
                                                 };
 
-                                            // Traverse nested path if present
                                             let mut value_ref: &Value = working_value;
                                             let mut traversal_failed = false;
 
@@ -1281,7 +1283,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                     Some(v) => value_ref = v,
                                                     None => {
                                                         tracing::warn!(
-                                                            task_id = %task.id,
+                                                            task_id = %task.name,
                                                             path = %path,
                                                             segment = %segment,
                                                             "for_each nested path segment not found"
@@ -1300,7 +1302,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         }
                                         Err(e) => {
                                             self.datastore.insert(
-                                                intern(&task.id),
+                                                intern(&task.name),
                                                 TaskResult::failed(
                                                     format!(
                                                         "for_each binding '{}' not found: {}",
@@ -1321,9 +1323,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         } else {
                             None
                         }
+                    } else if for_each.is_array() {
+                        // Direct JSON array literal
+                        for_each.parse_items()
                     } else {
-                        // Direct array value (or JSON array string)
-                        value_to_array(for_each)
+                        None
                     }
                 } else {
                     None
@@ -1332,12 +1336,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Check if task has for_each or decompose items
                 if let Some(items) = for_each_items {
                     if !items.is_empty() {
-                        // Get concurrency settings from task
-                        let concurrency = task.for_each_concurrency();
-                        let fail_fast = task.for_each_fail_fast();
+                        // Get concurrency settings from analyzed for_each
+                        let fe = task.for_each.as_ref();
+                        let concurrency = fe
+                            .and_then(|f| f.parallel)
+                            .unwrap_or(1) as usize;
+                        let fail_fast = fe
+                            .map(|f| f.fail_fast)
+                            .unwrap_or(true);
 
                         debug!(
-                            task_id = %task.id,
+                            task_id = %task.name,
                             items = items.len(),
                             concurrency = concurrency,
                             fail_fast = fail_fast,
@@ -1350,21 +1359,24 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         let cancelled = Arc::new(AtomicBool::new(false));
 
                         // Spawn one execution per item in the array
-                        let var_name = task.for_each_var().to_string();
+                        let var_name = fe
+                            .map(|f| f.as_var.as_str())
+                            .unwrap_or("item")
+                            .to_string();
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
                             if fail_fast && cancelled.load(Ordering::Relaxed) {
                                 debug!(
-                                    task_id = %task.id,
+                                    task_id = %task.name,
                                     idx = idx,
                                     "Skipping iteration due to fail_fast cancellation"
                                 );
                                 break;
                             }
 
-                            let task = Arc::clone(&task);
-                            let task_id = intern(&format!("{}[{}]", task.id, idx));
-                            let parent_task_id = intern(&task.id);
+                            let task = task.clone();
+                            let task_id = intern(&format!("{}[{}]", task.name, idx));
+                            let parent_task_id = intern(&task.name);
                             let datastore = self.datastore.clone();
                             let executor = self.executor.clone();
                             let event_log = self.event_log.clone();
@@ -1372,13 +1384,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
                             let cancelled = Arc::clone(&cancelled);
-                            // Clone artifact config for this iteration
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
 
                             join_set.spawn(async move {
                                 // Check cancellation BEFORE acquiring semaphore
-                                // This prevents tasks from executing after fail_fast triggers
                                 if cancelled.load(Ordering::SeqCst) {
                                     return IterationResult {
                                         store_id: task_id,
@@ -1391,12 +1401,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 }
 
                                 // Use tokio::select! to race semaphore acquisition
-                                // against cancellation check. This ensures tasks waiting on
-                                // semaphore can be cancelled promptly.
+                                // against cancellation check.
                                 let _permit = tokio::select! {
-                                    biased;  // Check cancellation first
+                                    biased;
 
-                                    // Poll cancellation periodically while waiting for semaphore
                                     _ = async {
                                         while !cancelled.load(Ordering::SeqCst) {
                                             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -1411,7 +1419,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         };
                                     }
 
-                                    // Try to acquire semaphore
                                     permit = semaphore.acquire() => {
                                         match permit {
                                             Ok(p) => p,
@@ -1429,7 +1436,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     }
                                 };
 
-                                // Final check after acquiring permit (double-check)
+                                // Final check after acquiring permit
                                 if cancelled.load(Ordering::SeqCst) {
                                     return IterationResult {
                                         store_id: task_id,
@@ -1453,8 +1460,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 )
                                 .await;
 
-                                // If failed and fail_fast, set cancellation flag with SeqCst
-                                // for maximum visibility across threads
+                                // If failed and fail_fast, set cancellation flag
                                 if !result.result.is_success() && fail_fast {
                                     cancelled.store(true, Ordering::SeqCst);
                                 }
@@ -1465,10 +1471,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     }
                 } else {
                     // Regular task without for_each
+                    let task = task.clone();
                     let datastore = self.datastore.clone();
                     let executor = self.executor.clone();
                     let event_log = self.event_log.clone();
-                    // Clone artifact config for this task
                     let workflow_artifacts = workflow_artifacts.clone();
                     let artifact_base_path = artifact_base_path.clone();
 
@@ -1510,8 +1516,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             .workflow
                             .tasks
                             .iter()
-                            .filter(|t| !self.datastore.contains(&t.id))
-                            .map(|t| Arc::from(t.id.as_str()))
+                            .filter(|t| !self.datastore.contains(&t.name))
+                            .map(|t| Arc::from(t.name.as_str()))
                             .collect();
 
                         self.event_log.emit(EventKind::WorkflowAborted {

@@ -30,7 +30,7 @@
 //! - task_local! depth tracking prevents race conditions between concurrent workflows
 
 use super::BuiltinTool;
-use crate::ast::parse_workflow;
+use crate::ast::parse_analyzed;
 use crate::error::NikaError;
 use crate::runtime::Runner;
 use serde::{Deserialize, Serialize};
@@ -266,7 +266,7 @@ impl BuiltinTool for RunTool {
             })?;
 
             let workflow =
-                parse_workflow(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
+                parse_analyzed(&yaml_content).map_err(|e| NikaError::BuiltinToolError {
                     tool: "nika_run".into(),
                     reason: format!("Failed to parse workflow YAML: {}", e),
                 })?;

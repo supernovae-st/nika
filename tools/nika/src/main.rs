@@ -692,10 +692,13 @@ async fn run_workflow(
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let mut workflow = expand_includes(workflow, base_path)?;
+    let workflow = expand_includes(workflow, base_path)?;
+
+    // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
+    let mut workflow = nika::ast::unlower(workflow);
 
     if let Some(p) = provider_override {
-        workflow.provider = p;
+        workflow.provider = Some(p);
     }
     if let Some(m) = model_override {
         workflow.model = Some(m);
@@ -704,7 +707,7 @@ async fn run_workflow(
     println!(
         "{} Using provider: {} | model: {}",
         "→".cyan(),
-        workflow.provider.cyan().bold(),
+        workflow.provider.as_deref().unwrap_or("(auto)").cyan().bold(),
         workflow.model.as_deref().unwrap_or("(default)").cyan()
     );
 

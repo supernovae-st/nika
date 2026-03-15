@@ -107,7 +107,7 @@ pub use completion::{
 };
 // LimitsConfig is defined in limits.rs
 pub use limits::{LimitAction, LimitStatus, LimitType, LimitsConfig, OnLimitReachedConfig};
-pub use lower::lower;
+pub use lower::{lower, unlower};
 
 // ============================================================================
 // Unified Pipeline: YAML → Raw → Analyzed → Workflow

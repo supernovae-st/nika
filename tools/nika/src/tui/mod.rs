@@ -263,7 +263,7 @@ fn install_panic_hook() {
 /// 4. Runs the TUI with real-time event updates
 #[cfg(feature = "tui")]
 pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()> {
-    use crate::ast::parse_workflow;
+    use crate::ast::parse_analyzed;
     use crate::event::EventLog;
     use crate::runtime::Runner;
 
@@ -277,7 +277,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
             path: format!("{}: {}", workflow_path.display(), e),
         })?;
 
-    let workflow = parse_workflow(&yaml_content)?;
+    let workflow = parse_analyzed(&yaml_content)?;
 
     // 2. Create EventLog with broadcast channel for TUI
     let (event_log, event_rx) = EventLog::new_with_broadcast();

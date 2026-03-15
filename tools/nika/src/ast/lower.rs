@@ -16,12 +16,14 @@ use super::agent::AgentParams;
 use super::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
     AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry,
-    AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, McpTransport,
+    AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod, McpTransport,
     OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
 };
 use super::invoke::InvokeParams;
 use super::output::{OutputFormat, OutputPolicy, SchemaRef};
+use super::schema::SchemaVersion;
 use super::workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
+use crate::source::Span;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -376,6 +378,234 @@ fn task_dep_names(
     } else {
         Some(deps)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Unlower: Workflow → AnalyzedWorkflow (bridge for expand_includes)
+// ---------------------------------------------------------------------------
+
+/// Convert a lowered [`Workflow`] back into an [`AnalyzedWorkflow`].
+///
+/// This is the reverse of [`lower()`] and exists as a temporary bridge
+/// for call sites that use `expand_includes` (which operates on the old
+/// `Workflow` type) before passing to `Runner` (which expects `AnalyzedWorkflow`).
+///
+/// Fields that were dropped during lowering (`context_files`, `imports`,
+/// `agents`, `artifacts`, `log`, `name`, `description`) are set to their
+/// defaults since they have already been consumed/expanded.
+pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
+    let schema_version = SchemaVersion::parse(&workflow.schema).unwrap_or(SchemaVersion::V12);
+
+    // Build TaskTable and convert tasks
+    let mut task_table = TaskTable::new();
+    let mut analyzed_tasks = Vec::with_capacity(workflow.tasks.len());
+
+    // First pass: register all task names in the table
+    for task in &workflow.tasks {
+        task_table.insert(&task.id);
+    }
+
+    // Second pass: convert tasks with resolved dependencies
+    for task in workflow.tasks {
+        let task = Arc::try_unwrap(task).unwrap_or_else(|arc| (*arc).clone());
+        let id = task_table.get_id(&task.id).expect("task just inserted");
+
+        // Resolve flow dependencies to TaskIds
+        let depends_on: Vec<TaskId> = task
+            .flow
+            .as_ref()
+            .map(|deps| {
+                deps.iter()
+                    .filter_map(|name| task_table.get_id(name))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let action = unlower_action(&task.action);
+        let output = task.output.as_ref().map(unlower_output);
+
+        let for_each = unlower_for_each(
+            task.for_each.as_ref(),
+            task.for_each_as.as_ref(),
+            task.concurrency,
+            task.fail_fast,
+        );
+
+        let with_spec = task.with_spec.clone().unwrap_or_default();
+
+        analyzed_tasks.push(AnalyzedTask {
+            id,
+            name: task.id.clone(),
+            description: None,
+            action,
+            provider: None, // Provider is at workflow level
+            model: None,    // Model is at workflow level
+            with_spec,
+            depends_on,
+            implicit_deps: vec![],
+            output,
+            for_each,
+            retry: None,
+            decompose: task.decompose.clone(),
+            concurrency: task.concurrency.map(|c| c as u32),
+            fail_fast: task.fail_fast,
+            artifact: task.artifact.clone(),
+            log: task.log.clone(),
+            structured: task.structured.clone(),
+            span: Span::dummy(),
+        });
+    }
+
+    // Convert MCP servers back to IndexMap<String, AnalyzedMcpServer>
+    let mcp_servers = unlower_mcp_servers(workflow.mcp);
+
+    // Convert inputs back to IndexMap
+    let inputs: IndexMap<String, serde_json::Value> = workflow
+        .inputs
+        .map(|m| m.into_iter().collect())
+        .unwrap_or_default();
+
+    AnalyzedWorkflow {
+        schema_version,
+        name: None,
+        description: None,
+        provider: Some(workflow.provider),
+        model: workflow.model,
+        task_table,
+        tasks: analyzed_tasks,
+        mcp_servers,
+        context_files: vec![],
+        imports: vec![],
+        inputs,
+        artifacts: workflow.artifacts,
+        log: workflow.log,
+        agents: workflow
+            .agents
+            .map(|m| m.into_iter().collect::<IndexMap<_, _>>()),
+        span: Span::dummy(),
+    }
+}
+
+fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
+    match action {
+        TaskAction::Infer { infer } => AnalyzedTaskAction::Infer(AnalyzedInferAction {
+            prompt: infer.prompt.clone(),
+            system: infer.system.clone(),
+            temperature: infer.temperature,
+            max_tokens: infer.max_tokens,
+            stop: vec![],
+            thinking: infer.extended_thinking,
+            thinking_budget: infer.thinking_budget.map(|b| b as u32),
+            span: Span::dummy(),
+        }),
+        TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
+            command: exec.command.clone(),
+            shell: exec.shell.unwrap_or(false),
+            working_dir: exec.cwd.clone(),
+            env: exec
+                .env
+                .as_ref()
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default(),
+            timeout_ms: exec.timeout,
+            capture_stdout: true,
+            capture_stderr: false,
+            span: Span::dummy(),
+        }),
+        TaskAction::Fetch { fetch } => {
+            AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: fetch.url.clone(),
+                method: HttpMethod::parse(&fetch.method).unwrap_or_default(),
+                headers: fetch.headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                body: fetch.body.clone(),
+                json: fetch.json.clone(),
+                timeout_ms: fetch.timeout,
+                follow_redirects: fetch.follow_redirects.unwrap_or(true),
+                span: Span::dummy(),
+            })
+        }
+        TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+            server: invoke.mcp.clone(),
+            tool: invoke.tool.clone().unwrap_or_default(),
+            params: invoke.params.clone(),
+            timeout_ms: invoke.timeout,
+            span: Span::dummy(),
+        }),
+        TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+            goal: agent.prompt.clone(),
+            tools: agent.tools.clone(),
+            max_iterations: agent.max_turns,
+            max_tokens: agent.max_tokens,
+            from: None,
+            skills: agent
+                .skills
+                .as_ref()
+                .map(|s| s.to_vec())
+                .unwrap_or_default(),
+            span: Span::dummy(),
+        }),
+    }
+}
+
+fn unlower_output(output: &OutputPolicy) -> AnalyzedOutput {
+    let format = match output.format {
+        OutputFormat::Text => AnalyzedOutputFormat::Text,
+        OutputFormat::Json => AnalyzedOutputFormat::Json,
+        OutputFormat::Yaml => AnalyzedOutputFormat::Yaml,
+        OutputFormat::Markdown => AnalyzedOutputFormat::Text,
+    };
+    AnalyzedOutput {
+        format,
+        schema: output.schema.as_ref().map(|s| match s {
+            SchemaRef::Inline(v) => v.clone(),
+            SchemaRef::File(path) => serde_json::Value::String(path.clone()),
+        }),
+        span: Span::dummy(),
+    }
+}
+
+fn unlower_for_each(
+    items: Option<&serde_json::Value>,
+    as_var: Option<&String>,
+    concurrency: Option<usize>,
+    fail_fast: Option<bool>,
+) -> Option<AnalyzedForEach> {
+    let items = items?;
+    let items_str = if items.is_string() {
+        items.as_str().unwrap().to_string()
+    } else {
+        serde_json::to_string(items).unwrap_or_default()
+    };
+    Some(AnalyzedForEach {
+        items: items_str,
+        as_var: as_var.cloned().unwrap_or_else(|| "item".to_string()),
+        parallel: concurrency.map(|c| c as u32),
+        fail_fast: fail_fast.unwrap_or(true),
+        span: Span::dummy(),
+    })
+}
+
+fn unlower_mcp_servers(
+    mcp: Option<FxHashMap<String, McpConfigInline>>,
+) -> IndexMap<String, AnalyzedMcpServer> {
+    let Some(mcp) = mcp else {
+        return IndexMap::new();
+    };
+    mcp.into_iter()
+        .map(|(name, config)| {
+            let server = AnalyzedMcpServer {
+                name: name.clone(),
+                command: Some(config.command),
+                args: config.args,
+                env: config.env.into_iter().collect(),
+                cwd: config.cwd,
+                url: None,
+                transport: McpTransport::Stdio,
+                span: Span::dummy(),
+            };
+            (name, server)
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
