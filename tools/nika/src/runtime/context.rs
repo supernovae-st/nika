@@ -1,4 +1,4 @@
-//! RuntimeContext — shared read-only context for workflow execution.
+//! WorkflowMeta — read-only workflow metadata for execution.
 //!
 //! Inspired by rustc's Session pattern. Created once from AnalyzedWorkflow,
 //! shared via Arc across all runtime components.
@@ -10,12 +10,12 @@ use std::sync::Arc;
 
 use crate::ast::analyzed::{AnalyzedWorkflow, TaskId, TaskTable};
 
-/// Shared runtime context — read-only after construction.
+/// Read-only workflow metadata — immutable after construction.
 ///
 /// Created once from `AnalyzedWorkflow` and wrapped in `Arc` for sharing
 /// across runner, executor, and spawned tasks.
 #[derive(Debug)]
-pub struct RuntimeContext {
+pub struct WorkflowMeta {
     /// Bidirectional TaskId ↔ name mapping.
     task_table: TaskTable,
 
@@ -26,7 +26,7 @@ pub struct RuntimeContext {
     model: Option<String>,
 }
 
-impl RuntimeContext {
+impl WorkflowMeta {
     /// Create from an AnalyzedWorkflow, wrapped in Arc for sharing.
     pub fn from_workflow(wf: &AnalyzedWorkflow) -> Arc<Self> {
         Arc::new(Self {
@@ -98,7 +98,7 @@ mod tests {
             Some("anthropic"),
             Some("claude-sonnet-4-6"),
         );
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         assert_eq!(ctx.task_count(), 3);
         assert_eq!(ctx.provider(), Some("anthropic"));
@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn task_name_roundtrip() {
         let wf = make_workflow(&["alpha", "beta"], None, None);
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         let id_alpha = ctx.task_id("alpha").unwrap();
         let id_beta = ctx.task_id("beta").unwrap();
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn unknown_name_returns_none() {
         let wf = make_workflow(&["task1"], None, None);
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         assert!(ctx.task_id("nonexistent").is_none());
     }
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn provider_and_model_none() {
         let wf = make_workflow(&["task1"], None, None);
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         assert!(ctx.provider().is_none());
         assert!(ctx.model().is_none());
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn task_table_accessible() {
         let wf = make_workflow(&["a", "b", "c"], None, None);
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         let table = ctx.task_table();
         assert_eq!(table.len(), 3);
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn arc_sharing() {
         let wf = make_workflow(&["task1"], Some("openai"), None);
-        let ctx = RuntimeContext::from_workflow(&wf);
+        let ctx = WorkflowMeta::from_workflow(&wf);
 
         let ctx2 = Arc::clone(&ctx);
         assert_eq!(ctx2.task_name(TaskId::new(0)), "task1");

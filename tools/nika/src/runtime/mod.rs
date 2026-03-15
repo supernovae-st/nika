@@ -50,7 +50,7 @@ pub use builtin::{
     RunTool,
 };
 pub use chat_workflow::{ChatMessage, ChatWorkflow, Role};
-pub use context::RuntimeContext;
+pub use context::WorkflowMeta;
 pub use context_loader::{load_context, LoadedContext};
 pub use executor::TaskExecutor;
 pub use hitl::{DefaultHitlHandler, HitlError, HitlHandler, HitlRequest, HitlResponse};
