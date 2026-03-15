@@ -3,7 +3,7 @@
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
 [![Version](https://img.shields.io/badge/version-0.27.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-5054%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-6532%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -52,7 +52,7 @@ cargo build --release
   - `$inputs` binding - for_each accepts `$inputs.items` expressions
 - **TUI Panels Module** - TaskListPanel, TaskBoxFlow, BrowserPanel
 - **New Task Status** - `TaskStatus::Queued` and `TaskStatus::Skipped` variants
-- **5,054 tests passing** (full regression coverage)
+- **6,532 tests passing** (full regression coverage)
 
 ## v0.22.0+ Features
 
@@ -246,14 +246,14 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test                    # All 5,054 tests
+cargo test                    # All 6,532 tests
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
 ### Test Breakdown (v0.27.0)
-- **5,054 tests passing**
+- **6,532 tests passing**
 - Zero clippy warnings
 - Schema @0.11 validation in CI
 
