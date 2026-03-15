@@ -27,6 +27,7 @@ pub mod artifact_processor;
 pub mod boot;
 pub mod builtin;
 pub mod chat_workflow;
+pub mod context;
 pub mod context_loader;
 mod executor;
 pub mod hitl;
@@ -57,6 +58,7 @@ pub use resolver::{
     resolve_assets, AgentSource, ResolvedAgent, ResolvedAgents, ResolvedAssets, ResolvedSkills,
 };
 pub use rig_agent_loop::{RigAgentLoop, RigAgentLoopResult, RigAgentStatus};
+pub use context::RuntimeContext;
 pub use runner::Runner;
 pub use skill_injector::SkillInjector;
 pub use spawn::{SpawnAgentParams, SpawnAgentTool};
