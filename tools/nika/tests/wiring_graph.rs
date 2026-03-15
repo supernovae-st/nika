@@ -58,8 +58,14 @@ fn stable_edges() {
 
     graph.remove_node(b);
 
-    assert!(!graph.has_edge(a, b), "Edge A→B should be removed with node B");
-    assert!(!graph.has_edge(b, c), "Edge B→C should be removed with node B");
+    assert!(
+        !graph.has_edge(a, b),
+        "Edge A→B should be removed with node B"
+    );
+    assert!(
+        !graph.has_edge(b, c),
+        "Edge B→C should be removed with node B"
+    );
 
     assert_eq!(graph.node_weight(a), Some(&"A"));
     assert_eq!(graph.node_weight(c), Some(&"C"));
@@ -110,7 +116,10 @@ fn chatworkflow_uses_stablegraph() {
     assert_eq!(msg_by_num.content, "Hello");
 
     let idx_lookup = chat.get_index_by_number(1).unwrap();
-    assert_eq!(idx_lookup, idx1, "NodeIndex should be stable and retrievable");
+    assert_eq!(
+        idx_lookup, idx1,
+        "NodeIndex should be stable and retrievable"
+    );
 }
 
 #[test]
@@ -122,10 +131,16 @@ fn auto_edge_creation() {
     let idx3 = chat.add_message("User follow-up", Role::User);
 
     let deps_of_2 = chat.get_dependencies(idx2);
-    assert!(deps_of_2.contains(&idx1), "msg-002 should depend on msg-001");
+    assert!(
+        deps_of_2.contains(&idx1),
+        "msg-002 should depend on msg-001"
+    );
 
     let deps_of_3 = chat.get_dependencies(idx3);
-    assert!(deps_of_3.contains(&idx2), "msg-003 should depend on msg-002");
+    assert!(
+        deps_of_3.contains(&idx2),
+        "msg-003 should depend on msg-002"
+    );
 
     let deps_of_1 = chat.get_dependencies(idx1);
     assert!(deps_of_1.is_empty(), "msg-001 should have no dependencies");

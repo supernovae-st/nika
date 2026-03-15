@@ -1255,7 +1255,10 @@ fn test_build_json_schema_instruction_text_format() {
         max_retries: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
-    assert!(result.is_none(), "Text format should not produce schema instruction");
+    assert!(
+        result.is_none(),
+        "Text format should not produce schema instruction"
+    );
 }
 
 #[test]
@@ -1266,7 +1269,10 @@ fn test_build_json_schema_instruction_json_no_schema() {
         max_retries: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
-    assert!(result.is_none(), "JSON format without schema should return None");
+    assert!(
+        result.is_none(),
+        "JSON format without schema should return None"
+    );
 }
 
 #[test]
@@ -1317,7 +1323,10 @@ fn test_build_json_schema_instruction_yaml_format() {
         max_retries: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
-    assert!(result.is_none(), "YAML format should not produce schema instruction");
+    assert!(
+        result.is_none(),
+        "YAML format should not produce schema instruction"
+    );
 }
 
 #[test]
@@ -1328,7 +1337,10 @@ fn test_build_json_schema_instruction_markdown_format() {
         max_retries: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
-    assert!(result.is_none(), "Markdown format should not produce schema instruction");
+    assert!(
+        result.is_none(),
+        "Markdown format should not produce schema instruction"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1373,11 +1385,15 @@ async fn test_run_infer_mock_basic() {
     let result = executor
         .run_infer(&task_id, &infer, &bindings, &datastore, None)
         .await;
-    assert!(result.is_ok(), "Mock infer should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Mock infer should succeed: {:?}",
+        result.err()
+    );
 
     let response = result.unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(&response)
-        .expect("Mock response should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&response).expect("Mock response should be valid JSON");
 
     assert_eq!(parsed["mock"], true);
     assert_eq!(parsed["task_id"], "test-infer-mock");
@@ -1410,7 +1426,10 @@ async fn test_run_infer_mock_emits_provider_responded() {
             EventKind::ProviderResponded { task_id, .. } if task_id.as_ref() == "test-infer-events"
         )
     });
-    assert!(has_provider_responded, "Should emit ProviderResponded event");
+    assert!(
+        has_provider_responded,
+        "Should emit ProviderResponded event"
+    );
 }
 
 #[tokio::test]

@@ -116,7 +116,10 @@ fn chatworkflow_mentions() {
     assert_eq!(mentions, vec![Mention::Number(1)]);
 
     let wiring = chat.get_wiring_for_message(idx3).unwrap();
-    assert!(wiring.contains_key("ref_1"), "Wiring should have ref_1 from @1 mention");
+    assert!(
+        wiring.contains_key("ref_1"),
+        "Wiring should have ref_1 from @1 mention"
+    );
     assert_eq!(wiring["ref_1"].path, "msg-001.output");
 }
 
@@ -132,7 +135,10 @@ fn chatworkflow_edges_from_mentions() {
     assert_eq!(edges_added, 1, "Should add edge from @1 to message 3");
 
     let idx1 = chat.get_index_by_number(1).unwrap();
-    assert!(chat.dag.has_edge(idx1, idx3), "Edge from msg-001 to msg-003 should exist");
+    assert!(
+        chat.dag.has_edge(idx1, idx3),
+        "Edge from msg-001 to msg-003 should exist"
+    );
 }
 
 #[test]
@@ -160,7 +166,10 @@ fn all_creates_dependencies() {
     let idx4 = chat.add_message("Summarize @all", Role::User);
 
     let edges_added = chat.add_edges_from_mentions(idx4).unwrap();
-    assert_eq!(edges_added, 3, "@all with 4 messages should add 3 edges (1,2,3 -> 4)");
+    assert_eq!(
+        edges_added, 3,
+        "@all with 4 messages should add 3 edges (1,2,3 -> 4)"
+    );
 
     for n in 1..=3 {
         let source_idx = chat.get_index_by_number(n).unwrap();
@@ -208,8 +217,14 @@ fn all_tools_registered() {
     assert!(router.has_tool("sleep"), "sleep tool should be registered");
     assert!(router.has_tool("log"), "log tool should be registered");
     assert!(router.has_tool("emit"), "emit tool should be registered");
-    assert!(router.has_tool("assert"), "assert tool should be registered");
-    assert!(router.has_tool("prompt"), "prompt tool should be registered");
+    assert!(
+        router.has_tool("assert"),
+        "assert tool should be registered"
+    );
+    assert!(
+        router.has_tool("prompt"),
+        "prompt tool should be registered"
+    );
     assert!(router.has_tool("run"), "run tool should be registered");
 
     let tool_names = router.tool_names();
@@ -221,8 +236,14 @@ fn extract_name() {
     assert_eq!(BuiltinToolRouter::extract_name("nika:sleep"), Some("sleep"));
     assert_eq!(BuiltinToolRouter::extract_name("nika:log"), Some("log"));
     assert_eq!(BuiltinToolRouter::extract_name("nika:emit"), Some("emit"));
-    assert_eq!(BuiltinToolRouter::extract_name("nika:assert"), Some("assert"));
-    assert_eq!(BuiltinToolRouter::extract_name("nika:prompt"), Some("prompt"));
+    assert_eq!(
+        BuiltinToolRouter::extract_name("nika:assert"),
+        Some("assert")
+    );
+    assert_eq!(
+        BuiltinToolRouter::extract_name("nika:prompt"),
+        Some("prompt")
+    );
     assert_eq!(BuiltinToolRouter::extract_name("nika:run"), Some("run"));
 
     assert_eq!(BuiltinToolRouter::extract_name("novanet:describe"), None);
@@ -239,7 +260,10 @@ async fn dispatch_sleep() {
         .await;
 
     let response: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
-    assert!(response["slept_for_ms"].is_number(), "Should have slept_for_ms");
+    assert!(
+        response["slept_for_ms"].is_number(),
+        "Should have slept_for_ms"
+    );
 }
 
 #[tokio::test]
@@ -302,7 +326,10 @@ async fn dispatch_assert_fail() {
         .await;
 
     let err = result.unwrap_err();
-    assert!(err.to_string().contains("Should fail"), "Error should contain the assert message");
+    assert!(
+        err.to_string().contains("Should fail"),
+        "Error should contain the assert message"
+    );
 }
 
 #[tokio::test]
@@ -356,10 +383,16 @@ tasks:
     let result = router
         .dispatch(
             "nika:run",
-            format!(r#"{{"workflow": "{}"}}"#, temp_file.path().to_str().unwrap()),
+            format!(
+                r#"{{"workflow": "{}"}}"#,
+                temp_file.path().to_str().unwrap()
+            ),
         )
         .await;
-    assert!(result.is_ok(), "nika:run with valid workflow should succeed");
+    assert!(
+        result.is_ok(),
+        "nika:run with valid workflow should succeed"
+    );
 
     let result = router
         .dispatch(
@@ -367,12 +400,18 @@ tasks:
             r#"{"workflow": "path/to/nonexistent.nika.yaml"}"#.to_string(),
         )
         .await;
-    assert!(result.is_err(), "nika:run with non-existent file should fail");
+    assert!(
+        result.is_err(),
+        "nika:run with non-existent file should fail"
+    );
 
     let result = router
         .dispatch("nika:run", r#"{"workflow": "test.yaml"}"#.to_string())
         .await;
-    assert!(result.is_err(), "nika:run with invalid extension should fail");
+    assert!(
+        result.is_err(),
+        "nika:run with invalid extension should fail"
+    );
 
     let result = router
         .dispatch("nika:run", r#"{"workflow": ""}"#.to_string())

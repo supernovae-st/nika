@@ -2150,7 +2150,10 @@ mod tests {
         let mut runner = Runner::new(workflow);
 
         // Workflow run() returns Ok even when individual tasks fail
-        runner.run().await.expect("workflow should complete even when tasks fail internally");
+        runner
+            .run()
+            .await
+            .expect("workflow should complete even when tasks fail internally");
 
         let events = runner.event_log().filter_task("fail");
         let failed = events

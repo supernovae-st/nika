@@ -14,4 +14,4 @@ mod run_context;
 
 // Re-export all public types
 pub use context::LoadedContext;
-pub use run_context::{RunContext, TaskResult, TaskOutcome};
+pub use run_context::{RunContext, TaskOutcome, TaskResult};
