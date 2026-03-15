@@ -2,7 +2,7 @@
 # Tests: Cross-task data flow in complex DAG
 # Expected: Data flows correctly through DAG
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-cross-task
 description: "Test cross-task data flow"
 

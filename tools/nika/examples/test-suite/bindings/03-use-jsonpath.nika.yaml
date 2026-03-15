@@ -2,7 +2,7 @@
 # Tests: JSONPath expressions in bindings
 # Expected: Complex JSONPath queries work
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-jsonpath
 description: "Test JSONPath expressions in bindings"
 

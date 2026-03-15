@@ -2,7 +2,7 @@
 # Tests: Artifact file persistence
 # Expected: Output is written to specified path via artifact system
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-output-file
 description: "Test artifact file writing (migrated from deprecated output.save)"
 

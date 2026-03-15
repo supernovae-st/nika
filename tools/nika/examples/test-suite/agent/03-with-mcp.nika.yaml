@@ -2,7 +2,7 @@
 # Tests: Agent verb with MCP server access
 # Expected: Agent can call MCP tools
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-agent-with-mcp
 description: "Test agent verb with MCP server"
 

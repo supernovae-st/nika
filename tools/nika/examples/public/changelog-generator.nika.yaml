@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Git repository with conventional commits
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: changelog-generator
 description: "Generate CHANGELOG.md entries from git history"
 provider: claude

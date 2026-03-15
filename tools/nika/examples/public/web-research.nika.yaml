@@ -9,7 +9,7 @@
 #   - PERPLEXITY_API_KEY (for MCP)
 #   - QUERY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: web-research
 description: "Research a topic with AI and generate structured report"
 provider: claude

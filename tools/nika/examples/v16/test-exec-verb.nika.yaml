@@ -1,6 +1,6 @@
 # Test: exec: verb - Shell execution and security
 # Tests: shorthand, full form, shell-free (v0.15.0)
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-exec-verb
 
 tasks:

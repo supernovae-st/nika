@@ -1,7 +1,7 @@
 # Partial: setup
 # Tasks for setup phase
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: partial-setup
 
 tasks:

@@ -2,7 +2,7 @@
 # Tests: Context merging with included workflows
 # Expected: Context from parent available to included tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-context-merge
 description: "Test context merging with includes"
 

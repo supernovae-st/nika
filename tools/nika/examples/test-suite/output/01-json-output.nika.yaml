@@ -2,7 +2,7 @@
 # Tests: JSON output format with validation
 # Expected: Output is parsed and validated as JSON
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-output-json
 description: "Test JSON output format"
 

@@ -2,7 +2,7 @@
 # Tests: Logging configuration at workflow and task level
 # Expected: Log levels and formats are respected
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-log-config
 description: "Test logging configuration"
 

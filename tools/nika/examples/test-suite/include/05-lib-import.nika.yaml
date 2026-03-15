@@ -2,7 +2,7 @@
 # Tests: Importing from lib-style directory structure
 # Expected: Library patterns work for reusable tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-lib
 description: "Test lib-style imports"
 

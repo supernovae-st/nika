@@ -2,7 +2,7 @@
 # Tests: Multiple providers in same workflow
 # Expected: Different tasks can use different providers
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-multi-provider
 description: "Test multiple providers in workflow"
 

@@ -2,7 +2,7 @@
 # Tests: Structured output with complex schema
 # Expected: Complex JSON schema validates correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-structured-output
 description: "Test complex structured output"
 

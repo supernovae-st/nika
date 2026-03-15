@@ -2,7 +2,7 @@
 # Tests: Basic agent verb with simple prompt
 # Expected: Agent executes and returns response
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-agent-basic
 description: "Test basic agent verb"
 

@@ -2,7 +2,7 @@
 # Tests: Fan-out pattern (one to many)
 # Expected: Single task fans out to multiple
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-fan-out
 description: "Test fan-out pattern"
 

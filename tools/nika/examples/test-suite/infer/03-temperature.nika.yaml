@@ -2,7 +2,7 @@
 # Tests: Infer verb with temperature control
 # Expected: Temperature parameter affects generation creativity
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-infer-temperature
 description: "Test infer verb with temperature control"
 

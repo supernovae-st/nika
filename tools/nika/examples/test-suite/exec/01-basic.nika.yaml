@@ -2,7 +2,7 @@
 # Tests: Basic exec verb with shorthand command syntax
 # Expected: Command executes and returns stdout
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-exec-basic
 description: "Test basic exec verb with shorthand command"
 

@@ -2,7 +2,7 @@
 # Tests: Output validation with schema
 # Expected: Invalid output triggers retry
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-validation
 description: "Test output validation with schema"
 

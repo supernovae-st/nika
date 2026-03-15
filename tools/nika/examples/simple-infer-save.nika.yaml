@@ -12,7 +12,7 @@
 # Output:
 #   /tmp/nika-generated.txt
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: simple-infer-save
 description: "Generate AI text and save to filesystem"
 

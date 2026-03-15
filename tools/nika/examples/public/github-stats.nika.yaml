@@ -9,7 +9,7 @@
 # Showcases: fetch: verb, parallel data fetching, stats visualization
 # Note: Uses GitHub public API (no auth needed for public profiles)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: github-stats
 description: "Generate GitHub profile stats card"
 provider: claude

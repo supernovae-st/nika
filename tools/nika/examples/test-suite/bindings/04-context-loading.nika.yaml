@@ -2,7 +2,7 @@
 # Tests: Context file loading at workflow start
 # Expected: Files are loaded and available via context.files
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-context
 description: "Test context file loading"
 

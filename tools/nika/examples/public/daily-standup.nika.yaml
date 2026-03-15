@@ -9,7 +9,7 @@
 #   - LINEAR_API_KEY (optional, for issue context)
 #   - Git repository
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: daily-standup
 description: "Generate daily standup from git and task activity"
 provider: claude

@@ -2,7 +2,7 @@
 # Tests: Fetch verb with timeout configuration
 # Expected: Request respects timeout setting
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-fetch-timeout
 description: "Test fetch verb with timeout"
 

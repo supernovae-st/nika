@@ -2,7 +2,7 @@
 # Tests: Exec verb with complex command chains
 # Expected: Multi-step command execution works
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-exec-advanced
 description: "Test exec verb with complex shell operations"
 

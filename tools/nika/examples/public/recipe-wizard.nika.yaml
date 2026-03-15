@@ -8,7 +8,7 @@
 # Pattern: Fan-out DAG (parallel analysis → merge)
 # Showcases: Parallel tasks, creative generation, structured output
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: recipe-wizard
 description: "Generate a recipe from ingredients in your fridge"
 provider: claude

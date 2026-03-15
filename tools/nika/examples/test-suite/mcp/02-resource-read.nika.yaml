@@ -2,7 +2,7 @@
 # Tests: MCP resource reading
 # Expected: Resource content is retrieved
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-resource
 description: "Test MCP resource reading"
 

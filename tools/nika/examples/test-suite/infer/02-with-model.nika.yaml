@@ -2,7 +2,7 @@
 # Tests: Infer verb with explicit prompt object and model override
 # Expected: Uses specified model for generation
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-infer-with-model
 description: "Test infer verb with explicit model configuration"
 

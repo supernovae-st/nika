@@ -2,7 +2,7 @@
 # Tests: Error handling in DAG execution
 # Expected: Errors are handled, dependent tasks skip
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-error-handling
 description: "Test error handling in flow"
 

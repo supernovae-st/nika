@@ -2,7 +2,7 @@
 # Tests: Graceful shutdown handling
 # Expected: Long-running tasks can be interrupted gracefully
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-graceful-shutdown
 description: "Test graceful shutdown"
 

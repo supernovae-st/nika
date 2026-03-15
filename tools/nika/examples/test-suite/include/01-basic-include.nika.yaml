@@ -2,7 +2,7 @@
 # Tests: Basic include of external workflow
 # Expected: Included tasks merge into DAG
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-basic
 description: "Test basic include functionality"
 

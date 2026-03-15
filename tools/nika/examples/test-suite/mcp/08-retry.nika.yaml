@@ -2,7 +2,7 @@
 # Tests: MCP retry behavior
 # Expected: Failed calls can trigger workflow retry
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-retry
 description: "Test MCP retry behavior"
 

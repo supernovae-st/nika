@@ -2,7 +2,7 @@
 # Tests: Invoke verb with chained MCP calls and bindings
 # Expected: Multiple invoke tasks work with data flow
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-invoke-advanced
 description: "Test invoke verb with chained calls"
 

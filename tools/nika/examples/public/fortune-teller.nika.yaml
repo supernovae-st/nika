@@ -9,7 +9,7 @@
 # Pattern: Simple linear with creative generation
 # Showcases: Entertainment generation, personality, ASCII art
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: fortune-teller
 description: "AI fortune teller with cosmic wisdom"
 provider: claude

@@ -11,7 +11,7 @@
 #   - NovaNet MCP server accessible
 # =============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-connection
 description: "Verify NovaNet MCP server connectivity"
 

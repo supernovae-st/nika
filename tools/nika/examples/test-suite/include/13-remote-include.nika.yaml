@@ -2,7 +2,7 @@
 # Tests: Remote include syntax (pkg: URI)
 # Expected: Schema validates pkg: syntax
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-remote
 description: "Test remote include syntax validation"
 

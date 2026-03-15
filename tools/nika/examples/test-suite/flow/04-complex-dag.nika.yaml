@@ -2,7 +2,7 @@
 # Tests: Complex DAG with multiple paths
 # Expected: All paths resolve correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-complex-dag
 description: "Test complex DAG with multiple paths"
 

@@ -2,7 +2,7 @@
 # Tests: MCP server with environment variables
 # Expected: Env vars are resolved for MCP server
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-dynamic
 description: "Test dynamic MCP server configuration"
 

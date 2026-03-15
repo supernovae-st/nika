@@ -2,7 +2,7 @@
 # Tests: Complex dependency resolution
 # Expected: All dependencies resolve in correct order
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-dependencies
 description: "Test complex dependency resolution"
 

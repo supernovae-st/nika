@@ -2,7 +2,7 @@
 # Tests: Streaming output handling
 # Expected: Streaming responses are captured correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-streaming
 description: "Test streaming output handling"
 

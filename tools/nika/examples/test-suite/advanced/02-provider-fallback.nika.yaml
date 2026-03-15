@@ -2,7 +2,7 @@
 # Tests: Provider fallback behavior
 # Expected: Workflow handles provider unavailability
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-provider-fallback
 description: "Test provider fallback"
 

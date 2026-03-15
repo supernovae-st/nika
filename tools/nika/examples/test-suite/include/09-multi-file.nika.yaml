@@ -2,7 +2,7 @@
 # Tests: Including multiple files with different prefixes
 # Expected: All files merge without ID collisions
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-multi-file
 description: "Test multiple file includes"
 

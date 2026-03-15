@@ -2,7 +2,7 @@
 # Tests: Parallel task execution (no dependencies)
 # Expected: Tasks A, B, C execute concurrently
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-parallel
 description: "Test parallel task execution"
 

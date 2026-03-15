@@ -7,7 +7,7 @@
 # Pattern: Agent loop with spawn_agent
 # Showcases: agent: verb, spawn_agent tool, multi-turn creative generation
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: story-collab
 description: "Multi-agent collaborative story creation"
 provider: claude

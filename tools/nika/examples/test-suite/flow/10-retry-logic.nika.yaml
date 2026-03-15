@@ -2,7 +2,7 @@
 # Tests: Retry logic with output validation
 # Expected: Failed validation triggers retry
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-retry
 description: "Test retry logic with validation"
 

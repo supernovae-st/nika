@@ -2,7 +2,7 @@
 # Tests: Bindings from multiple source types
 # Expected: Mix of exec, infer, fetch outputs work together
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-multi-source
 description: "Test bindings from multiple source types"
 

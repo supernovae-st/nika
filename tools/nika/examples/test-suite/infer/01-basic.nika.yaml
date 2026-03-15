@@ -2,7 +2,7 @@
 # Tests: Basic infer verb with simple prompt (shorthand syntax)
 # Expected: LLM generates text response successfully
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-infer-basic
 description: "Test basic infer verb with shorthand string prompt"
 

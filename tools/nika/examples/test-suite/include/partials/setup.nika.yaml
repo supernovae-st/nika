@@ -1,7 +1,7 @@
 # Partial: setup.nika.yaml
 # Reusable setup tasks for include tests
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: partial-setup
 
 provider: claude

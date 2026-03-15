@@ -2,7 +2,7 @@
 # Tests: Exec verb with working directory configuration
 # Expected: Command runs in specified directory
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-exec-working-dir
 description: "Test exec verb with custom working directory"
 

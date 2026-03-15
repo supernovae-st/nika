@@ -9,7 +9,7 @@
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: claude-test
 description: "Test Claude API connectivity with a simple inference"
 

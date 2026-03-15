@@ -2,7 +2,7 @@
 # Tests: Saga pattern with compensating actions
 # Expected: Workflow supports saga-style orchestration
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-saga-pattern
 description: "Test saga pattern"
 

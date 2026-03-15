@@ -2,7 +2,7 @@
 # Tests: Agent verb with all advanced options
 # Expected: Full configuration works including thinking and nested agents
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-agent-advanced
 description: "Test agent verb with advanced options"
 

@@ -2,7 +2,7 @@
 # Tests: Task timeout handling in DAG
 # Expected: Timeout doesn't block other paths
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-timeout
 description: "Test timeout handling in flow"
 

@@ -2,7 +2,7 @@
 # Tests: Basic use: binding from task output
 # Expected: Task output is available via {{with.alias}}
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-use-basic
 description: "Test basic use: binding pattern"
 

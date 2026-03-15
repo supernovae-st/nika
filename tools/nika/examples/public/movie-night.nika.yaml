@@ -9,7 +9,7 @@
 # Pattern: Conditional branching (mood → genre mapping → recommendations)
 # Showcases: Context assembly, creative generation, personalization
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: movie-night
 description: "AI-powered movie recommendations for the perfect night in"
 provider: claude

@@ -2,7 +2,7 @@
 # Tests: Conditional artifact saving
 # Expected: Artifact behavior controlled by boolean
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-artifact-conditional
 description: "Test conditional artifact saving"
 

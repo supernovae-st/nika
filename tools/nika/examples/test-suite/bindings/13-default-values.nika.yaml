@@ -2,7 +2,7 @@
 # Tests: Binding with default values
 # Expected: Default values are used when source is null
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-defaults
 description: "Test binding default values"
 

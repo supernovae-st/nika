@@ -2,7 +2,7 @@
 # Tests: Basic for_each with inline array
 # Expected: Task executes for each item in array
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-foreach-basic
 description: "Test basic for_each iteration"
 

@@ -2,7 +2,7 @@
 # Tests: Using specific tasks from included workflow
 # Expected: Can reference prefixed task IDs
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-partial-tasks
 description: "Test referencing included task outputs"
 

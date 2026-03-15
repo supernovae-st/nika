@@ -2,7 +2,7 @@
 # Tests: Relative path resolution for includes
 # Expected: Relative paths resolve from workflow file location
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-relative-paths
 description: "Test relative path resolution"
 

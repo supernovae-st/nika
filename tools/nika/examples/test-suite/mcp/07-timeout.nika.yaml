@@ -2,7 +2,7 @@
 # Tests: MCP call timeout handling
 # Expected: Timeout is respected and handled
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-timeout
 description: "Test MCP timeout handling"
 

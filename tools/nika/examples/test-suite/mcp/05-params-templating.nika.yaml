@@ -2,7 +2,7 @@
 # Tests: Template resolution in MCP parameters
 # Expected: {{with.x}} templates resolve in params
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-params-template
 description: "Test parameter templating in MCP calls"
 

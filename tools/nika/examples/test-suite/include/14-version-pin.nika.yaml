@@ -2,7 +2,7 @@
 # Tests: Version pinning in includes (via path for now)
 # Expected: Versioned includes work
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-version-pin
 description: "Test versioned includes"
 

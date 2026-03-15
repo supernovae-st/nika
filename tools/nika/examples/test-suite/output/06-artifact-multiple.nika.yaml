@@ -2,7 +2,7 @@
 # Tests: Multiple artifacts from single task
 # Expected: Multiple artifacts saved correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-artifact-multiple
 description: "Test multiple artifacts per task"
 

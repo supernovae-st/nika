@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Run from project root
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: readme-generator
 description: "Generate README.md from codebase structure"
 provider: claude

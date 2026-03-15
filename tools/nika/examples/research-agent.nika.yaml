@@ -12,7 +12,7 @@
 #   - FIRECRAWL_API_KEY
 #   - SUPADATA_API_KEY
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: research-agent
 description: "Multi-source web research agent"
 

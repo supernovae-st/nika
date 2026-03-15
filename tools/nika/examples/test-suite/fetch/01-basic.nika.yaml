@@ -2,7 +2,7 @@
 # Tests: Basic fetch verb with GET request
 # Expected: HTTP GET request returns response
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-fetch-basic
 description: "Test basic fetch verb with GET request"
 

@@ -2,7 +2,7 @@
 # Tests: Skill merging across includes
 # Expected: Skills propagate through DAG fusion
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-skill-merging
 description: "Test skill merging"
 

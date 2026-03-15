@@ -2,7 +2,7 @@
 # Tests: Multiple includes in same workflow
 # Expected: All includes merge correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-nested
 description: "Test multiple includes"
 

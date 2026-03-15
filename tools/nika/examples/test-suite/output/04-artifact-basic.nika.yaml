@@ -2,7 +2,7 @@
 # Tests: Basic artifact configuration
 # Expected: Artifact is saved with default settings
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-artifact-basic
 description: "Test basic artifact configuration"
 

@@ -2,7 +2,7 @@
 # Tests: Fetch verb with all HTTP methods and complex scenarios
 # Expected: PUT, PATCH, DELETE methods work correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-fetch-advanced
 description: "Test fetch verb with various HTTP methods"
 

@@ -2,7 +2,7 @@
 # Tests: Skills propagation through includes
 # Expected: Skills from parent merge with included
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-skills
 description: "Test skill merging through includes"
 

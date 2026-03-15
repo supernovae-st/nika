@@ -2,7 +2,7 @@
 # Tests: Plain text output format
 # Expected: Output is treated as raw text
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-output-text
 description: "Test text output format"
 

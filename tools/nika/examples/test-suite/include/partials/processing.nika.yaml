@@ -1,7 +1,7 @@
 # Partial: processing.nika.yaml
 # Reusable processing tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: partial-processing
 
 provider: claude

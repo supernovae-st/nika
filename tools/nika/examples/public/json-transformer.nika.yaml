@@ -9,7 +9,7 @@
 #   - INPUT_FILE environment variable (path to JSON)
 #   - TRANSFORM environment variable (transformation instruction)
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: json-transformer
 description: "Transform JSON data with natural language instructions"
 provider: claude

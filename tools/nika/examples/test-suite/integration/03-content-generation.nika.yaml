@@ -11,7 +11,7 @@
 #   - ANTHROPIC_API_KEY or other LLM provider key
 # =============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-content-generation
 description: "Test full Nika↔NovaNet content generation pipeline"
 

@@ -2,7 +2,7 @@
 # Tests: Invoke verb with resource reading
 # Expected: MCP resource is read successfully
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-invoke-resource
 description: "Test invoke verb with MCP resource reading"
 

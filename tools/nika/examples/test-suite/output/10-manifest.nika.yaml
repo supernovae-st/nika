@@ -2,7 +2,7 @@
 # Tests: Artifact manifest generation
 # Expected: artifacts.json manifest is generated
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-artifact-manifest
 description: "Test artifact manifest generation"
 

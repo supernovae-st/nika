@@ -2,7 +2,7 @@
 # Tests: Template resolution with multiple bindings
 # Expected: Multiple {{with.x}} templates resolve correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-template
 description: "Test multiple template resolution"
 

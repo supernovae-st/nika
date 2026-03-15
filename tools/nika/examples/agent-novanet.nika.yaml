@@ -12,7 +12,7 @@
 #   - NovaNet MCP server running (cargo run in tools/novanet-mcp)
 #   - Neo4j database with NovaNet schema
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: agent-novanet
 description: "Agent with NovaNet MCP tool integration"
 

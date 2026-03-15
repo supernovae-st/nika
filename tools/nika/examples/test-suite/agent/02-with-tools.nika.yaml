@@ -2,7 +2,7 @@
 # Tests: Agent verb with builtin tools
 # Expected: Agent can use file tools
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-agent-with-tools
 description: "Test agent verb with builtin tools"
 

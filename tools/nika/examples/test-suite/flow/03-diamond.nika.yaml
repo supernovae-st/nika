@@ -2,7 +2,7 @@
 # Tests: Diamond DAG pattern (fan-out then fan-in)
 # Expected: A -> (B, C) -> D
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-diamond
 description: "Test diamond DAG pattern"
 

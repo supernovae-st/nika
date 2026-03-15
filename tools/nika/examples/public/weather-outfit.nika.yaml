@@ -7,7 +7,7 @@
 # Pattern: Linear DAG (A → B → C → D)
 # Showcases: fetch: verb, data transformation, creative generation
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: weather-outfit
 description: "Get weather and suggest perfect outfit for the day"
 provider: claude

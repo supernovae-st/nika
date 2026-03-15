@@ -2,7 +2,7 @@
 # Tests: Conditional execution based on task results
 # Expected: Flow continues based on conditions
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-conditional
 description: "Test conditional flow execution"
 

@@ -2,7 +2,7 @@
 # Tests: Multiple MCP calls in sequence and parallel
 # Expected: Batch of MCP calls execute correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-batch
 description: "Test batch MCP calls"
 

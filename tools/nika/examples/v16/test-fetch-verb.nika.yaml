@@ -1,6 +1,6 @@
 # Test: fetch: verb - HTTP requests
 # Tests: GET, POST, headers
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-fetch-verb
 
 tasks:

@@ -2,7 +2,7 @@
 # Tests: MCP error handling
 # Expected: MCP errors are handled gracefully
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-mcp-errors
 description: "Test MCP error handling"
 

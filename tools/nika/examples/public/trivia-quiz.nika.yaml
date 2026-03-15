@@ -8,7 +8,7 @@
 # Pattern: Generation → Validation → Formatting
 # Showcases: Structured JSON output, quiz format, parallel generation
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: trivia-quiz
 description: "Generate custom trivia quizzes"
 provider: claude

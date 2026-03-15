@@ -2,7 +2,7 @@
 # Tests: Invoke verb with various builtin tools
 # Expected: All core builtin tools work via invoke
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-invoke-builtins
 description: "Test invoke verb with builtin tools"
 

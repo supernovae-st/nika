@@ -2,7 +2,7 @@
 # Tests: Fetch verb with POST method and body
 # Expected: POST request sends body correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-fetch-post
 description: "Test fetch verb with POST method and body"
 

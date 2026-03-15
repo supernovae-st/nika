@@ -2,7 +2,7 @@
 # Tests: Task override patterns with includes
 # Expected: Main workflow tasks can override included
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-override
 description: "Test override patterns"
 

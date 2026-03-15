@@ -14,7 +14,7 @@
 #   ANTHROPIC_API_KEY=sk-ant-... nika examples/test-suite/integration/04-all-verbs.nika.yaml
 # =============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-all-verbs-integration
 description: "Test all 5 semantic verbs with NovaNet"
 

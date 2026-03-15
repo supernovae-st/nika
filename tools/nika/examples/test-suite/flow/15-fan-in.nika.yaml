@@ -2,7 +2,7 @@
 # Tests: Fan-in pattern (many to one)
 # Expected: Multiple tasks converge to single
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-fan-in
 description: "Test fan-in pattern"
 

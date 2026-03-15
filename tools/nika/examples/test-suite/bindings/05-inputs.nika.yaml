@@ -2,7 +2,7 @@
 # Tests: Workflow inputs binding
 # Expected: Input parameters are accessible in tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-inputs
 description: "Test workflow inputs binding"
 

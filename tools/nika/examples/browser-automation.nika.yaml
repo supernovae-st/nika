@@ -10,7 +10,7 @@
 #   - ANTHROPIC_API_KEY
 #   - Playwright MCP server
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: browser-automation
 description: "Browser automation using Playwright MCP"
 

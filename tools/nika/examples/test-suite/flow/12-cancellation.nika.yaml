@@ -2,7 +2,7 @@
 # Tests: Task cancellation with fail_fast
 # Expected: First failure cancels remaining tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-flow-cancellation
 description: "Test fail_fast cancellation"
 

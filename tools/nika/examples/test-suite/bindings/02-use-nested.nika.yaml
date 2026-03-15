@@ -2,7 +2,7 @@
 # Tests: Nested object access in bindings
 # Expected: Nested JSON paths are resolved correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-use-nested
 description: "Test nested object access in bindings"
 

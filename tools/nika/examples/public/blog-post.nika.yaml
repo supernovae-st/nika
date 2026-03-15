@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - TOPIC environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: blog-post
 description: "Generate a complete blog post from a topic"
 provider: claude

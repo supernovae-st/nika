@@ -5,7 +5,7 @@ Comprehensive test workflows covering all Nika v0.19.3 features.
 ## Summary
 
 - **103 total workflows** (100 test workflows + 3 partials)
-- All workflows validated against `nika/workflow@0.10` schema
+- All workflows validated against `nika/workflow@0.12` schema
 - Uses `provider: mock` for offline validation
 
 ## Categories
@@ -36,7 +36,7 @@ Tests data flow and binding patterns:
 | `06-for-each-basic` | Basic `for_each` iteration |
 | `07-for-each-concurrent` | Concurrent `for_each` with concurrency control |
 | `08-for-each-binding` | `for_each` with binding reference to array |
-| `09-template-resolution` | Multiple `{{use.x}}` template resolution |
+| `09-template-resolution` | Multiple `{{with.x}}` template resolution |
 | `10-lazy-bindings` | Lazy binding resolution |
 | `11-cross-task` | Cross-task data flow in complex DAG |
 | `12-multi-source` | Bindings from multiple source types |
@@ -170,7 +170,7 @@ nika run examples/test-suite/exec/01-basic.nika.yaml
 
 ## Schema Version
 
-All workflows use `nika/workflow@0.10` schema.
+All workflows use `nika/workflow@0.12` schema.
 
 ## Provider
 

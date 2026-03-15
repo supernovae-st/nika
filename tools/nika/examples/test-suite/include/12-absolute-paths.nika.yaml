@@ -2,7 +2,7 @@
 # Tests: Absolute path handling (uses relative for portability)
 # Expected: Path resolution works correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-paths
 description: "Test path handling"
 

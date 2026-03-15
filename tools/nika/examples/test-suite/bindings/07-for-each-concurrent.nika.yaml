@@ -2,7 +2,7 @@
 # Tests: for_each with concurrency control
 # Expected: Items process in parallel up to concurrency limit
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-foreach-concurrent
 description: "Test for_each with concurrency control"
 

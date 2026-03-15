@@ -9,7 +9,7 @@
 # Requirements:
 #   - ANTHROPIC_API_KEY environment variable
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: agent-simple
 description: "Simple agent demonstration without MCP tools"
 

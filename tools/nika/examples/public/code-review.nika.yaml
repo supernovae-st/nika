@@ -8,7 +8,7 @@
 #   - ANTHROPIC_API_KEY or OPENAI_API_KEY
 #   - Git repository with staged changes
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: code-review
 description: "AI-powered code review with actionable suggestions"
 provider: claude

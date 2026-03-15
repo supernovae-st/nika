@@ -2,7 +2,7 @@
 # Tests: for_each with binding reference to array
 # Expected: Array from previous task is iterated
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-foreach-binding
 description: "Test for_each with binding reference"
 

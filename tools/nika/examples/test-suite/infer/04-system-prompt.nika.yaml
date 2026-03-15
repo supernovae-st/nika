@@ -2,7 +2,7 @@
 # Tests: Infer verb with system prompt for persona control
 # Expected: System prompt influences response style/behavior
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-infer-system-prompt
 description: "Test infer verb with system prompt persona"
 

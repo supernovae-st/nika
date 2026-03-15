@@ -1,6 +1,6 @@
 # Test: lazy: bindings - Deferred resolution
 # Tests: lazy flag, default values, binding timing
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-lazy-bindings
 
 tasks:

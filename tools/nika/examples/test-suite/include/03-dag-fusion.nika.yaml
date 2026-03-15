@@ -2,7 +2,7 @@
 # Tests: DAG fusion with flow connections to included tasks
 # Expected: Main workflow flows connect to included tasks
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-include-dag-fusion
 description: "Test DAG fusion with includes"
 

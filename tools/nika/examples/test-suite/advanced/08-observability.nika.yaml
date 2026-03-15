@@ -2,7 +2,7 @@
 # Tests: Observability features (logging, events)
 # Expected: All events are captured correctly
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-observability
 description: "Test observability features"
 

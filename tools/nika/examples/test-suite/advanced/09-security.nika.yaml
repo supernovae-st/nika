@@ -2,7 +2,7 @@
 # Tests: Security features (shell-free exec, safe commands)
 # Expected: Security defaults are enforced
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-security
 description: "Test security features"
 

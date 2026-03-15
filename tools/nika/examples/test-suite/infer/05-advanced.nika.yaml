@@ -2,7 +2,7 @@
 # Tests: Infer verb with all options including extended thinking
 # Expected: Full configuration works including thinking budget
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-infer-advanced
 description: "Test infer verb with all advanced options"
 

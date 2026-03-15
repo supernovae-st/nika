@@ -8,7 +8,7 @@
 # Pattern: Multi-agent orchestration with spawn_agent
 # Showcases: agent: verb, spawn_agent tool, complex planning
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: travel-planner
 description: "AI-powered travel itinerary generator"
 provider: claude

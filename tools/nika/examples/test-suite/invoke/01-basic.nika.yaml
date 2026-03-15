@@ -2,7 +2,7 @@
 # Tests: Basic invoke verb with MCP tool call
 # Expected: MCP tool is called successfully
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-invoke-basic
 description: "Test basic invoke verb with MCP tool"
 

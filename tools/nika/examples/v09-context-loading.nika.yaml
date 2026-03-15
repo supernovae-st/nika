@@ -14,7 +14,7 @@
 # Run with: cargo run -- check examples/v09-context-loading.nika.yaml
 # ============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: context-loading-demo
 description: "Demonstrate context: file loading at workflow start"
 

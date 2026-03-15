@@ -13,7 +13,7 @@
 #   ANTHROPIC_API_KEY=sk-ant-... nika examples/test-suite/integration/05-parallel-locales.nika.yaml
 # =============================================================================
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-parallel-locale-generation
 description: "Test for_each parallelism with multi-locale generation"
 

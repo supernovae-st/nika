@@ -2,7 +2,7 @@
 # Tests: Edge cases in binding resolution
 # Expected: Special characters, empty strings, nulls handled
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-bindings-edge-cases
 description: "Test binding edge cases"
 

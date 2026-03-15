@@ -9,7 +9,7 @@
 # Requirements:
 #   - ANTHROPIC_API_KEY
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: sequential-thinking
 description: "Step-by-step reasoning using sequential-thinking MCP"
 

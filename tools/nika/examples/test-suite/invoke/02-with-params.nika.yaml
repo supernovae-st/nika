@@ -2,7 +2,7 @@
 # Tests: Invoke verb with complex parameters
 # Expected: Parameters are passed correctly to MCP tool
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-invoke-with-params
 description: "Test invoke verb with complex parameters"
 

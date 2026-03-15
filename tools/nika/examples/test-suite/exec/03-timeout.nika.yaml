@@ -2,7 +2,7 @@
 # Tests: Exec verb with timeout configuration
 # Expected: Command respects timeout setting
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-exec-timeout
 description: "Test exec verb with timeout configuration"
 

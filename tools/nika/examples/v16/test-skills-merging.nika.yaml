@@ -1,6 +1,6 @@
 # Test: Skill usage patterns
 # Note: skills: field is v0.15.1 feature (schema may not validate yet)
-schema: nika/workflow@0.10
+schema: nika/workflow@0.12
 workflow: test-skills-usage
 
 tasks:

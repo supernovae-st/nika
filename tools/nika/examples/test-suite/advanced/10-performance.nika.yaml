@@ -2,7 +2,7 @@
 # Tests: Performance patterns (parallel, concurrency)
 # Expected: Concurrent execution performs efficiently
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-performance
 description: "Test performance patterns"
 

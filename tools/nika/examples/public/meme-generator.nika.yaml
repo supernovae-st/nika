@@ -8,7 +8,7 @@
 # Pattern: Parallel fan-out (3 variations) → selection
 # Showcases: for_each parallelism, creative generation, humor
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: meme-generator
 description: "Generate hilarious meme captions"
 provider: claude

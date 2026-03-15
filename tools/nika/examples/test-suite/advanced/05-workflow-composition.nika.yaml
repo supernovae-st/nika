@@ -2,7 +2,7 @@
 # Tests: Composing workflows from multiple sources
 # Expected: Complex composition works
 
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-composition
 description: "Test workflow composition"
 
