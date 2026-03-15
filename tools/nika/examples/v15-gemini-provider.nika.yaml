@@ -17,10 +17,10 @@ tasks:
 
   # Test Gemini with system prompt
   - id: generate_description
-    use:
+    with:
       tagline: generate_tagline
     infer:
-      prompt: "Write a 2-sentence product description using this tagline: {{use.tagline}}"
+      prompt: "Write a 2-sentence product description using this tagline: {{with.tagline}}"
       system: "You are a marketing copywriter. Be concise and impactful."
       temperature: 0.6
       max_tokens: 150

@@ -99,12 +99,12 @@ tasks:
 
   - id: pr_context_text
     description: "Generate PR context summary"
-    use:
+    with:
       pr_meta: pr_metadata
     infer:
       prompt: |
         Based on this PR metadata (or use placeholder if not available):
-        {{use.pr_meta}}
+        {{with.pr_meta}}
 
         Generate a brief context summary about what this PR is trying to accomplish.
         If metadata is unavailable, generate: "Code review for pull request with multiple file changes"
@@ -133,12 +133,12 @@ tasks:
 
   - id: parse_files
     description: "Parse changed files list into array"
-    use:
+    with:
       file_list: changed_files
     infer:
       prompt: |
         Parse this list of changed files into a JSON array of file paths:
-        {{use.file_list}}
+        {{with.file_list}}
 
         Return ONLY a JSON array like: ["src/main.rs", "src/lib.rs", "tests/integration.rs"]
     output:
@@ -147,11 +147,11 @@ tasks:
 
   - id: file_reviews
     description: "Review each file in parallel"
-    use:
+    with:
       files: parse_files
       diff: full_diff
       docs: documentation_refs
-    for_each: "{{use.files}}"
+    for_each: "{{with.files}}"
     as: filepath
     concurrency: 5
     fail_fast: false
@@ -159,18 +159,18 @@ tasks:
       - on: error
         then:
           infer:
-            prompt: "Failed to review {{use.filepath}}. Generate placeholder review highlighting the error."
+            prompt: "Failed to review {{with.filepath}}. Generate placeholder review highlighting the error."
     infer:
       prompt: |
-        Review this specific file: {{use.filepath}}
+        Review this specific file: {{with.filepath}}
 
         Code diff for context:
-        {{use.diff}}
+        {{with.diff}}
 
         Documentation reference:
-        {{use.docs}}
+        {{with.docs}}
 
-        Provide a focused code review for {{use.filepath}} covering:
+        Provide a focused code review for {{with.filepath}} covering:
         1. **Correctness** - Logic errors, edge cases, unsafe patterns
         2. **Performance** - Algorithmic complexity, allocations, locking
         3. **Style** - Naming, structure, consistency with Rust conventions
@@ -188,7 +188,7 @@ tasks:
 
   - id: comprehensive_review
     description: "Agent-driven comprehensive review"
-    use:
+    with:
       files_reviewed: file_reviews
       diff_stats: diff_stats
       commits: commit_history
@@ -213,16 +213,16 @@ tasks:
         a comprehensive pull request review.
 
         CHANGES SUMMARY:
-        {{use.diff_stats}}
+        {{with.diff_stats}}
 
         COMMIT MESSAGES:
-        {{use.commits}}
+        {{with.commits}}
 
         PR CONTEXT:
-        {{use.pr_context}}
+        {{with.pr_context}}
 
         INDIVIDUAL FILE REVIEWS:
-        {{use.files_reviewed}}
+        {{with.files_reviewed}}
 
         TASK:
         1. Synthesize insights from individual file reviews
@@ -286,7 +286,7 @@ tasks:
 
   - id: review_report
     description: "Generate final review report"
-    use:
+    with:
       comprehensive: comprehensive_review
       files: parse_files
       diff_info: diff_stats
@@ -297,16 +297,16 @@ tasks:
       ================================================================================
 
       FILES ANALYZED:
-      {{use.files}}
+      {{with.files}}
 
       CHANGES:
-      {{use.diff_info}}
+      {{with.diff_info}}
 
       ================================================================================
                           COMPREHENSIVE REVIEW
       ================================================================================
 
-      {{use.comprehensive | to_yaml}}
+      {{with.comprehensive | to_yaml}}
 
       ================================================================================
                             END OF REVIEW REPORT

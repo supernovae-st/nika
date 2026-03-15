@@ -27,7 +27,7 @@ tasks:
 
   - id: save_json
     description: "Save fetched JSON to file"
-    use:
+    with:
       data: fetch_data
-    exec: "echo '{{use.data}}' > /tmp/nika-api-result.json && echo 'Saved to /tmp/nika-api-result.json'"
+    exec: "echo '{{with.data}}' > /tmp/nika-api-result.json && echo 'Saved to /tmp/nika-api-result.json'"
     flow: [fetch_data]

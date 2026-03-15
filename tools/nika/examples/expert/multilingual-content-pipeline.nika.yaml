@@ -143,23 +143,23 @@ tasks:
     concurrency: 4                  # Process 4 locales in parallel
     fail_fast: false                # Continue even if one locale fails
 
-    use:
+    with:
       entity: load_entity
       locales: define_locales
 
     infer:
       prompt: |
-        Generate SEO-optimized landing page content for {{use.locale.code}}.
+        Generate SEO-optimized landing page content for {{with.locale.code}}.
 
         Entity Information:
-        {{use.entity | to_yaml}}
+        {{with.entity | to_yaml}}
 
         Locale Settings:
-        - Code: {{use.locale.code}}
-        - Native Name: {{use.locale.native_name}}
-        - Formality: {{use.locale.formality}}
+        - Code: {{with.locale.code}}
+        - Native Name: {{with.locale.native_name}}
+        - Formality: {{with.locale.formality}}
 
-        Generate content ENTIRELY in the target language ({{use.locale.native_name}}).
+        Generate content ENTIRELY in the target language ({{with.locale.native_name}}).
         Match the formality level specified.
 
         Required fields:
@@ -228,9 +228,9 @@ tasks:
 
     # Multiple artifacts per locale
     artifact:
-      - path: content/{{use.locale.code}}/landing-page.json
+      - path: content/{{with.locale.code}}/landing-page.json
         format: json
-      - path: content/{{use.locale.code}}/meta.yaml
+      - path: content/{{with.locale.code}}/meta.yaml
         format: yaml
 
     flow: [load_entity, define_locales]
@@ -241,7 +241,7 @@ tasks:
 
   - id: quality_assessment
     description: "Assess content quality across all locales"
-    use:
+    with:
       locales: define_locales
       content: generate_locale_content
 
@@ -249,10 +249,10 @@ tasks:
       prompt: |
         You are a content quality analyst. Assess the generated content.
 
-        Locales processed: {{use.locales | length}}
+        Locales processed: {{with.locales | length}}
 
         Content samples:
-        {{use.content | to_yaml}}
+        {{with.content | to_yaml}}
 
         For each locale, evaluate:
         1. SEO optimization (meta tags, keywords)
@@ -300,7 +300,7 @@ tasks:
 
   - id: generate_report
     description: "Generate final pipeline summary"
-    use:
+    with:
       entity: load_entity
       locales: define_locales
       assessment: quality_assessment
@@ -309,11 +309,11 @@ tasks:
       prompt: |
         Generate a pipeline execution summary report in Markdown.
 
-        Entity: {{use.entity.name}}
-        Locales processed: {{use.locales | length}}
+        Entity: {{with.entity.name}}
+        Locales processed: {{with.locales | length}}
 
         Quality Assessment:
-        {{use.assessment | to_yaml}}
+        {{with.assessment | to_yaml}}
 
         Include:
         - Executive summary
@@ -334,7 +334,7 @@ tasks:
 
   - id: final_output
     description: "Output final results to console"
-    use:
+    with:
       report: generate_report
       assessment: quality_assessment
 
@@ -343,8 +343,8 @@ tasks:
       echo "  🦋 MULTILINGUAL CONTENT PIPELINE COMPLETE"
       echo "═══════════════════════════════════════════════════════════════"
       echo ""
-      echo "Quality Score: {{use.assessment.overall_score}}/100"
-      echo "Status: {{use.assessment.approval_status}}"
+      echo "Quality Score: {{with.assessment.overall_score}}/100"
+      echo "Status: {{with.assessment.approval_status}}"
       echo ""
       echo "Artifacts written to: ./output/{{date}}/{{workflow_name}}/"
       echo "  - context/entity.json"

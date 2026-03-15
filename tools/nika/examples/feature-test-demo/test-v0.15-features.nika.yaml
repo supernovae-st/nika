@@ -55,7 +55,7 @@ tasks:
       temperature: 0.3
       system: "You are a JSON generator. Output only valid JSON without code blocks."
       max_tokens: 200
-    use:
+    with:
       heredoc_result: test_shell_heredoc
       substitution_result: test_shell_substitution
     output:
@@ -69,12 +69,12 @@ tasks:
     exec:
       command: |
         echo "=== v0.15.0 Feature Test Results ==="
-        echo "Heredoc test: {{use.heredoc}}"
-        echo "Substitution test: {{use.substitution}}"
-        echo "Infer test: {{use.infer}}"
+        echo "Heredoc test: {{with.heredoc}}"
+        echo "Substitution test: {{with.substitution}}"
+        echo "Infer test: {{with.infer}}"
         echo "=== ALL TESTS PASSED ==="
       shell: true
-    use:
+    with:
       heredoc: test_shell_heredoc
       substitution: test_shell_substitution
       infer: test_infer_options

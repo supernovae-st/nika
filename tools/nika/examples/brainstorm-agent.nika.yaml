@@ -105,14 +105,14 @@ tasks:
 
   - id: brainstorm
     description: "Generate ideas based on research"
-    use:
+    with:
       research: research
     infer:
       prompt: |
         Based on the following research brief, generate creative ideas.
 
         RESEARCH:
-        {{use.research | to_yaml}}
+        {{with.research | to_yaml}}
 
         BRAINSTORMING RULES:
         1. Generate 5-7 distinct ideas
@@ -175,14 +175,14 @@ tasks:
 
   - id: refine
     description: "Deep dive on top idea"
-    use:
+    with:
       ideas: brainstorm
     infer:
       prompt: |
         Take the #1 ranked idea from the brainstorm and develop it further.
 
         BRAINSTORM RESULTS:
-        {{use.ideas | to_yaml}}
+        {{with.ideas | to_yaml}}
 
         REFINEMENT TASKS:
         1. Expand the concept with specific features

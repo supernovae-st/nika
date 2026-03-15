@@ -20,16 +20,16 @@ tasks:
 
   # Step 2: Process and write artifact with binding
   - id: process_and_save
-    use:
+    with:
       data: $generate_data  # Implicit output reference
     artifact:
       - path: data/{{task_id}}.json
         mode: overwrite
-    infer: "Transform the input data: {{use.data}} into a processed format"
+    infer: "Transform the input data: {{with.data}} into a processed format"
 
   # Step 3: Multiple artifacts from single task
   - id: multi_artifact_task
-    use:
+    with:
       processed: $process_and_save
     artifact:
       - path: reports/main.json
@@ -37,39 +37,39 @@ tasks:
       - path: logs/audit.log
         mode: append
     infer: |
-      Create two outputs from: {{use.processed}}
+      Create two outputs from: {{with.processed}}
       1. A main report (JSON)
       2. An audit log entry (text)
 
   # Step 4: Artifact with template variables
   - id: templated_artifact
-    use:
+    with:
       source: $generate_data
       report: $multi_artifact_task
     artifact:
       - path: "{{task_id}}/{{date}}/output.json"
         mode: overwrite
     infer: |
-      Combine source: {{use.source}}
-      With report: {{use.report}}
+      Combine source: {{with.source}}
+      With report: {{with.report}}
       Generate final templated output.
 
   # Step 5: Test artifact with default values
   - id: artifact_with_defaults
-    use:
+    with:
       existing: $templated_artifact
       optional: $templated_artifact
     artifact:
       - path: final/complete.json
         mode: overwrite
     infer: |
-      Using existing: {{use.existing}}
-      With optional: {{use.optional}}
+      Using existing: {{with.existing}}
+      With optional: {{with.optional}}
       Create final artifact.
 
   # Step 6: Verify artifact chain integrity
   - id: verify_chain
-    use:
+    with:
       step1: $generate_data
       step2: $process_and_save
       step3: $multi_artifact_task
@@ -77,11 +77,11 @@ tasks:
       step5: $artifact_with_defaults
     infer: |
       Verify artifact chain integrity:
-      - Step 1 (generate_data): {{use.step1}}
-      - Step 2 (process_and_save): {{use.step2}}
-      - Step 3 (multi_artifact_task): {{use.step3}}
-      - Step 4 (templated_artifact): {{use.step4}}
-      - Step 5 (artifact_with_defaults): {{use.step5}}
+      - Step 1 (generate_data): {{with.step1}}
+      - Step 2 (process_and_save): {{with.step2}}
+      - Step 3 (multi_artifact_task): {{with.step3}}
+      - Step 4 (templated_artifact): {{with.step4}}
+      - Step 5 (artifact_with_defaults): {{with.step5}}
 
       All artifacts should be written and accessible.
 

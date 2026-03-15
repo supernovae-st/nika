@@ -18,10 +18,10 @@ tasks:
 
   # Test 2: Chain context to output
   - id: summarize
-    use:
+    with:
       version: read_readme
     infer: |
-      Confirm the version found: {{use.version}}
+      Confirm the version found: {{with.version}}
 
 flows:
   - source: read_readme

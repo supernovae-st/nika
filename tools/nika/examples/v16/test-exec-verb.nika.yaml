@@ -39,7 +39,7 @@ tasks:
 
   # Test 7: Binding template in command
   - id: exec_with_binding
-    use:
+    with:
       msg: exec_shorthand
     exec:
       command: "echo 'Previous output was captured'"

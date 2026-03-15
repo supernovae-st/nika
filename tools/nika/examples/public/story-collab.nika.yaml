@@ -26,15 +26,15 @@ tasks:
 
   # Step 2: Create story outline with main agent
   - id: story_master
-    use:
+    with:
       genre: get_genre
       setting: get_setting
     agent:
       prompt: |
         You are a Story Master orchestrating a collaborative story.
 
-        GENRE: {{use.genre}}
-        SETTING: {{use.setting}}
+        GENRE: {{with.genre}}
+        SETTING: {{with.setting}}
 
         Your job:
         1. Create a compelling story premise (2-3 sentences)
@@ -56,14 +56,14 @@ tasks:
     for_each: ["protagonist", "ally", "mysterious_stranger"]
     as: character
     concurrency: 3
-    use:
+    with:
       bible: story_master
     infer:
       prompt: |
-        You are writing from the perspective of the {{use.character}}.
+        You are writing from the perspective of the {{with.character}}.
 
         STORY BIBLE:
-        {{use.bible}}
+        {{with.bible}}
 
         Write a short scene (100-150 words) from this character's POV.
         Show their personality through:
@@ -71,11 +71,11 @@ tasks:
         - Dialogue style
         - Actions and reactions
 
-        Start with: "From {{use.character}}'s perspective..."
+        Start with: "From {{with.character}}'s perspective..."
 
   # Step 4: Weave perspectives into Act 1
   - id: weave_act1
-    use:
+    with:
       bible: story_master
       perspectives: act1_perspectives
     infer:
@@ -83,10 +83,10 @@ tasks:
         You are an editor weaving multiple perspectives into a cohesive narrative.
 
         STORY BIBLE:
-        {{use.bible}}
+        {{with.bible}}
 
         CHARACTER PERSPECTIVES:
-        {{use.perspectives}}
+        {{with.perspectives}}
 
         Weave these into Act 1 (300-400 words):
         - Smooth transitions between POVs
@@ -97,7 +97,7 @@ tasks:
 
   # Step 5: Generate plot twist with agent
   - id: twist_agent
-    use:
+    with:
       bible: story_master
       act1: weave_act1
     agent:
@@ -105,10 +105,10 @@ tasks:
         You are a Plot Twist Specialist.
 
         STORY SO FAR:
-        {{use.bible}}
+        {{with.bible}}
 
         ACT 1:
-        {{use.act1}}
+        {{with.act1}}
 
         Generate a surprising but logical plot twist that:
         1. Recontextualizes something from Act 1
@@ -120,7 +120,7 @@ tasks:
 
   # Step 6: Write climax
   - id: climax
-    use:
+    with:
       bible: story_master
       act1: weave_act1
       act2: twist_agent
@@ -128,9 +128,9 @@ tasks:
       prompt: |
         Write the climactic Act 3 (200-300 words).
 
-        STORY BIBLE: {{use.bible}}
-        ACT 1: {{use.act1}}
-        ACT 2: {{use.act2}}
+        STORY BIBLE: {{with.bible}}
+        ACT 1: {{with.act1}}
+        ACT 2: {{with.act2}}
 
         The climax should:
         - Resolve the central conflict
@@ -140,7 +140,7 @@ tasks:
 
   # Step 7: Assemble final story
   - id: assemble
-    use:
+    with:
       genre: get_genre
       setting: get_setting
       bible: story_master
@@ -150,27 +150,27 @@ tasks:
     exec:
       command: |
         cat > /tmp/story.md << 'STORY_EOF'
-        # {{use.genre}} Story in {{use.setting}}
+        # {{with.genre}} Story in {{with.setting}}
 
         ---
 
         ## Story Bible
-        {{use.bible}}
+        {{with.bible}}
 
         ---
 
         ## Act 1: The Setup
-        {{use.act1}}
+        {{with.act1}}
 
         ---
 
         ## Act 2: The Twist
-        {{use.act2}}
+        {{with.act2}}
 
         ---
 
         ## Act 3: The Climax
-        {{use.act3}}
+        {{with.act3}}
 
         ---
 

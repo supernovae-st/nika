@@ -30,13 +30,13 @@ tasks:
 
   # Step 2: Initial research with Perplexity
   - id: research_main
-    use:
+    with:
       query: get_query
     invoke:
       mcp: perplexity
       tool: perplexity_search
       params:
-        query: "{{use.query}}"
+        query: "{{with.query}}"
         recency: "week"
 
   # Step 3: Deep dive on key aspects (parallel)
@@ -44,18 +44,18 @@ tasks:
     for_each: ["technical implementation", "best practices", "common pitfalls"]
     as: aspect
     concurrency: 3
-    use:
+    with:
       query: get_query
     invoke:
       mcp: perplexity
       tool: perplexity_search
       params:
-        query: "{{use.query}} - {{use.aspect}}"
+        query: "{{with.query}} - {{with.aspect}}"
         recency: "month"
 
   # Step 4: Synthesize findings
   - id: synthesize
-    use:
+    with:
       query: get_query
       main: research_main
       deep: research_deep
@@ -63,13 +63,13 @@ tasks:
       prompt: |
         You are a research analyst. Synthesize these findings into a comprehensive report.
 
-        RESEARCH QUERY: {{use.query}}
+        RESEARCH QUERY: {{with.query}}
 
         MAIN FINDINGS:
-        {{use.main}}
+        {{with.main}}
 
         DEEP DIVE FINDINGS:
-        {{use.deep}}
+        {{with.deep}}
 
         Generate a structured report with:
 
@@ -104,15 +104,15 @@ tasks:
 
   # Step 5: Save report
   - id: save_report
-    use:
+    with:
       report: synthesize
       query: get_query
     exec:
       command: |
         FILENAME="/tmp/research-$(date +%Y%m%d-%H%M%S).md"
-        echo "{{use.report}}" > "$FILENAME"
+        echo "{{with.report}}" > "$FILENAME"
         echo "✅ Research report saved to $FILENAME"
-        echo "📊 Query: {{use.query}}"
+        echo "📊 Query: {{with.query}}"
       shell: true
 
 flows:

@@ -17,11 +17,11 @@ tasks:
 
   # Step 2: Agent test with tool calling
   - id: agent_test
-    use:
+    with:
       context: simple_infer
     agent:
       prompt: |
-        You received this insight about QR codes: {{use.context}}
+        You received this insight about QR codes: {{with.context}}
 
         Now think about how this applies to:
         1. Restaurant menus

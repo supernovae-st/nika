@@ -71,7 +71,7 @@ tasks:
       url: "${API_URL}/items"
       method: GET
       params:
-        offset: "{{use.state.last_index}}"
+        offset: "{{with.state.last_index}}"
         limit: 1000
     flow: [init_state]
     output:
@@ -83,7 +83,7 @@ tasks:
   # ════════════════════════════════════════════════════════════════════
 
   - id: process_batch
-    for_each: "{{use.items}}"
+    for_each: "{{with.items}}"
     as: item
     concurrency: 5
     fail_fast: false
@@ -95,9 +95,9 @@ tasks:
 
     agent:
       prompt: |
-        Process item {{use.item.id}}:
+        Process item {{with.item.id}}:
 
-        Item Data: {{use.item}}
+        Item Data: {{with.item}}
 
         1. Validate item data
         2. Transform according to schema
@@ -120,9 +120,9 @@ tasks:
       prompt: |
         Calculate batch processing progress:
 
-        State: {{use.state}}
-        Batch Results: {{use.batch_results}}
-        Total Items: {{use.total}}
+        State: {{with.state}}
+        Batch Results: {{with.batch_results}}
+        Total Items: {{with.total}}
 
         Return JSON:
         {
@@ -148,7 +148,7 @@ tasks:
       prompt: |
         Evaluate whether to continue processing:
 
-        Progress: {{use.progress}}
+        Progress: {{with.progress}}
 
         Continue if:
         - More items remaining (remaining > 0)
@@ -175,9 +175,9 @@ tasks:
       path: "./batch-processor-resumable.nika.yaml"
       inputs:
         state:
-          last_index: "{{use.state.last_index + use.batch_results.length}}"
-          results_so_far: "{{use.state.results_so_far.concat(use.batch_results)}}"
-    condition: "{{use.continuation.should_continue}}"
+          last_index: "{{with.state.last_index + use.batch_results.length}}"
+          results_so_far: "{{with.state.results_so_far.concat(use.batch_results)}}"
+    condition: "{{with.continuation.should_continue}}"
     flow: [check_continuation]
 
   # ════════════════════════════════════════════════════════════════════
@@ -189,8 +189,8 @@ tasks:
       prompt: |
         Generate final processing summary:
 
-        Final Progress: {{use.progress}}
-        All Results: {{use.state.results_so_far}}
+        Final Progress: {{with.progress}}
+        All Results: {{with.state.results_so_far}}
 
         Create comprehensive report with:
         - Total processed
@@ -224,7 +224,7 @@ tasks:
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "{{use.summary}}"
+                "text": "{{with.summary}}"
               }
             }
           ]

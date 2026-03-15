@@ -23,7 +23,7 @@ tasks:
 
   - id: save_to_file
     description: "Save timestamp to file"
-    use:
+    with:
       timestamp: get_date
-    exec: "echo 'Workflow executed at: {{use.timestamp}}' > /tmp/nika-output.txt && echo 'Saved to /tmp/nika-output.txt'"
+    exec: "echo 'Workflow executed at: {{with.timestamp}}' > /tmp/nika-output.txt && echo 'Saved to /tmp/nika-output.txt'"
     flow: [get_date]

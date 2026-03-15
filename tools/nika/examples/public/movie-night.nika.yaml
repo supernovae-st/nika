@@ -38,15 +38,15 @@ tasks:
 
   # Step 2: Map mood to genres
   - id: map_mood
-    use:
+    with:
       mood: get_mood
       viewers: get_viewers
     infer:
       prompt: |
         You're a movie expert mapping moods to film genres.
 
-        MOOD: {{use.mood}}
-        NUMBER OF VIEWERS: {{use.viewers}}
+        MOOD: {{with.mood}}
+        NUMBER OF VIEWERS: {{with.viewers}}
 
         Mood → Genre mapping examples:
         - cozy → comfort films, feel-good, light drama
@@ -60,7 +60,7 @@ tasks:
 
         Output JSON:
         {
-          "mood": "{{use.mood}}",
+          "mood": "{{with.mood}}",
           "primary_genres": ["genre1", "genre2"],
           "secondary_genres": ["genre3"],
           "avoid_genres": ["horror if cozy, etc"],
@@ -76,19 +76,19 @@ tasks:
     for_each: ["perfect_match", "hidden_gem", "classic_choice"]
     as: pick_type
     concurrency: 3
-    use:
+    with:
       mood_map: map_mood
       decade: get_decade
       avoid: get_avoid
     infer:
       prompt: |
-        Recommend a movie as "{{use.pick_type}}".
+        Recommend a movie as "{{with.pick_type}}".
 
         CRITERIA:
-        {{use.mood_map}}
+        {{with.mood_map}}
 
-        DECADE PREFERENCE: {{use.decade}}
-        AVOID: {{use.avoid}}
+        DECADE PREFERENCE: {{with.decade}}
+        AVOID: {{with.avoid}}
 
         Pick types:
         - perfect_match: Exactly fits the mood, popular and well-loved
@@ -97,7 +97,7 @@ tasks:
 
         Output JSON:
         {
-          "pick_type": "{{use.pick_type}}",
+          "pick_type": "{{with.pick_type}}",
           "title": "Movie Title",
           "year": 2020,
           "director": "Director Name",
@@ -114,7 +114,7 @@ tasks:
 
   # Step 4: Rank and present
   - id: present
-    use:
+    with:
       picks: generate_picks
       mood: get_mood
       viewers: get_viewers
@@ -122,10 +122,10 @@ tasks:
       prompt: |
         Create an engaging movie night recommendation card.
 
-        MOOD: {{use.mood}}
-        VIEWERS: {{use.viewers}}
+        MOOD: {{with.mood}}
+        VIEWERS: {{with.viewers}}
         MOVIE OPTIONS:
-        {{use.picks}}
+        {{with.picks}}
 
         Format as a fun, readable recommendation:
 
@@ -150,11 +150,11 @@ tasks:
 
   # Step 5: Display
   - id: display
-    use:
+    with:
       recommendation: present
     exec:
       command: |
-        echo "{{use.recommendation}}"
+        echo "{{with.recommendation}}"
         echo ""
         echo "---"
         echo "🎬 Run again with different mood: MOOD=\"thrilling\" nika movie-night.nika.yaml"

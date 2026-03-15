@@ -28,11 +28,11 @@ tasks:
 
   # Step 3: Analyze ingredients (parallel with cuisine matching)
   - id: analyze_ingredients
-    use:
+    with:
       ingredients: get_ingredients
     infer:
       prompt: |
-        Analyze these ingredients: {{use.ingredients}}
+        Analyze these ingredients: {{with.ingredients}}
 
         Output JSON:
         {
@@ -52,17 +52,17 @@ tasks:
     for_each: ["quick_easy", "impressive", "comfort_food"]
     as: style
     concurrency: 3
-    use:
+    with:
       ingredients: get_ingredients
       diet: get_diet
       analysis: analyze_ingredients
     infer:
       prompt: |
-        Generate a {{use.style}} recipe using these ingredients.
+        Generate a {{with.style}} recipe using these ingredients.
 
-        AVAILABLE: {{use.ingredients}}
-        DIETARY: {{use.diet}}
-        ANALYSIS: {{use.analysis}}
+        AVAILABLE: {{with.ingredients}}
+        DIETARY: {{with.diet}}
+        ANALYSIS: {{with.analysis}}
 
         Style guide:
         - quick_easy: Under 20 minutes, minimal steps
@@ -71,7 +71,7 @@ tasks:
 
         Output JSON:
         {
-          "style": "{{use.style}}",
+          "style": "{{with.style}}",
           "name": "Recipe Name",
           "emoji": "🍳",
           "time_minutes": 20,
@@ -84,12 +84,12 @@ tasks:
 
   # Step 5: Let user "pick" (in real app, would be interactive)
   - id: pick_recipe
-    use:
+    with:
       options: generate_options
     infer:
       prompt: |
         From these 3 recipe options, pick the most balanced one:
-        {{use.options}}
+        {{with.options}}
 
         Output just the style name: quick_easy, impressive, or comfort_food
     output:
@@ -97,18 +97,18 @@ tasks:
 
   # Step 6: Generate full recipe
   - id: full_recipe
-    use:
+    with:
       ingredients: get_ingredients
       diet: get_diet
       style: pick_recipe
       analysis: analyze_ingredients
     infer:
       prompt: |
-        Create a complete {{use.style}} recipe.
+        Create a complete {{with.style}} recipe.
 
-        INGREDIENTS: {{use.ingredients}}
-        DIETARY: {{use.diet}}
-        ANALYSIS: {{use.analysis}}
+        INGREDIENTS: {{with.ingredients}}
+        DIETARY: {{with.diet}}
+        ANALYSIS: {{with.analysis}}
 
         Format:
 
@@ -151,13 +151,13 @@ tasks:
 
   # Step 7: Save
   - id: save
-    use:
+    with:
       recipe: full_recipe
     exec:
       command: |
-        echo "{{use.recipe}}"
+        echo "{{with.recipe}}"
         echo ""
-        echo "{{use.recipe}}" > /tmp/recipe.md
+        echo "{{with.recipe}}" > /tmp/recipe.md
         echo "📄 Recipe saved to /tmp/recipe.md"
       shell: true
 

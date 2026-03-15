@@ -196,14 +196,14 @@ tasks:
 
   - id: validate_source_a
     description: "Validate source A data quality"
-    use:
+    with:
       data: fetch_source_a
     infer:
       prompt: |
         Validate the data from Source A.
 
         Data:
-        {{use.data | to_yaml}}
+        {{with.data | to_yaml}}
 
         Validation rules:
         1. id must be present and unique
@@ -252,14 +252,14 @@ tasks:
 
   - id: validate_source_b
     description: "Validate source B data quality"
-    use:
+    with:
       data: fetch_source_b
     infer:
       prompt: |
         Validate the transaction data from Source B.
 
         Data:
-        {{use.data | to_yaml}}
+        {{with.data | to_yaml}}
 
         Validation rules:
         1. transaction_id must be unique
@@ -296,14 +296,14 @@ tasks:
 
   - id: validate_source_c
     description: "Validate source C data quality"
-    use:
+    with:
       data: fetch_source_c
     infer:
       prompt: |
         Validate the user profile data from Source C.
 
         Data:
-        {{use.data | to_yaml}}
+        {{with.data | to_yaml}}
 
         Validation rules:
         1. user_id must be unique
@@ -343,7 +343,7 @@ tasks:
 
   - id: merge_validated_data
     description: "Merge validated data from all sources"
-    use:
+    with:
       source_a: fetch_source_a
       source_b: fetch_source_b
       source_c: fetch_source_c
@@ -354,14 +354,14 @@ tasks:
       prompt: |
         Merge validated data from all three sources.
 
-        Source A (Activity): {{use.source_a | length}} records
-        Source B (Transactions): {{use.source_b | length}} records
-        Source C (Profiles): {{use.source_c | length}} records
+        Source A (Activity): {{with.source_a | length}} records
+        Source B (Transactions): {{with.source_b | length}} records
+        Source C (Profiles): {{with.source_c | length}} records
 
         Validation Results:
-        - A: Score {{use.validation_a.quality_score}}, Valid: {{use.validation_a.valid_records | length}}
-        - B: Score {{use.validation_b.quality_score}}, Valid: {{use.validation_b.valid_records | length}}
-        - C: Score {{use.validation_c.quality_score}}, Valid: {{use.validation_c.valid_records | length}}
+        - A: Score {{with.validation_a.quality_score}}, Valid: {{with.validation_a.valid_records | length}}
+        - B: Score {{with.validation_b.quality_score}}, Valid: {{with.validation_b.valid_records | length}}
+        - C: Score {{with.validation_c.quality_score}}, Valid: {{with.validation_c.valid_records | length}}
 
         Merge strategy:
         1. Only include records that passed validation
@@ -406,13 +406,13 @@ tasks:
 
   - id: create_batches
     description: "Split merged data into processing batches"
-    use:
+    with:
       merged: merge_validated_data
     infer:
       prompt: |
         Split the merged data into processing batches.
 
-        Total records: {{use.merged.merged_records | length}}
+        Total records: {{with.merged.merged_records | length}}
         Batch size: {{inputs.batch_size}}
 
         Create batches with:
@@ -450,16 +450,16 @@ tasks:
     concurrency: 2
     fail_fast: false
 
-    use:
+    with:
       batches: create_batches
 
     infer:
       prompt: |
-        Process batch {{use.batch.batch_id}} with enrichment and scoring.
+        Process batch {{with.batch.batch_id}} with enrichment and scoring.
 
-        Batch records: {{use.batch.records | length}}
+        Batch records: {{with.batch.records | length}}
         Records:
-        {{use.batch.records | to_yaml}}
+        {{with.batch.records | to_yaml}}
 
         For each record:
         1. Calculate engagement_score based on activity
@@ -496,7 +496,7 @@ tasks:
       max_retries: 2
 
     artifact:
-      - path: batches/processed/{{use.batch.batch_id}}.json
+      - path: batches/processed/{{with.batch.batch_id}}.json
         format: json
         mode: overwrite
       - path: batches/audit.log
@@ -511,7 +511,7 @@ tasks:
 
   - id: aggregate_results
     description: "Aggregate all batch results into final output"
-    use:
+    with:
       batches: process_batches
       merged: merge_validated_data
 
@@ -520,10 +520,10 @@ tasks:
         Aggregate results from all processed batches.
 
         Batch results:
-        {{use.batches | to_yaml}}
+        {{with.batches | to_yaml}}
 
         Original merge statistics:
-        {{use.merged.merge_statistics | to_yaml}}
+        {{with.merged.merge_statistics | to_yaml}}
 
         Create final aggregated output:
         1. Combine all processed records
@@ -558,7 +558,7 @@ tasks:
 
   - id: generate_audit_report
     description: "Generate comprehensive audit report"
-    use:
+    with:
       source_a_val: validate_source_a
       source_b_val: validate_source_b
       source_c_val: validate_source_c
@@ -570,15 +570,15 @@ tasks:
         Generate a comprehensive audit report for this pipeline run.
 
         Validation Scores:
-        - Source A: {{use.source_a_val.quality_score}}
-        - Source B: {{use.source_b_val.quality_score}}
-        - Source C: {{use.source_c_val.quality_score}}
+        - Source A: {{with.source_a_val.quality_score}}
+        - Source B: {{with.source_b_val.quality_score}}
+        - Source C: {{with.source_c_val.quality_score}}
 
         Merge Statistics:
-        {{use.merged.merge_statistics | to_yaml}}
+        {{with.merged.merge_statistics | to_yaml}}
 
         Final Results:
-        {{use.aggregated | to_yaml}}
+        {{with.aggregated | to_yaml}}
 
         Create a detailed Markdown audit report with:
         - Executive summary
@@ -603,7 +603,7 @@ tasks:
 
   - id: final_output
     description: "Output pipeline completion summary"
-    use:
+    with:
       aggregated: aggregate_results
       audit: generate_audit_report
 
@@ -612,10 +612,10 @@ tasks:
       echo "  📊 DATA PROCESSING PIPELINE COMPLETE"
       echo "═══════════════════════════════════════════════════════════════"
       echo ""
-      echo "Records processed: {{use.aggregated.total_records}}"
+      echo "Records processed: {{with.aggregated.total_records}}"
       echo ""
       echo "Segment Distribution:"
-      echo "  {{use.aggregated.segment_distribution | to_yaml}}"
+      echo "  {{with.aggregated.segment_distribution | to_yaml}}"
       echo ""
       echo "Pipeline Artifacts:"
       echo "  📁 raw/           - Source data"

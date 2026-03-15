@@ -78,21 +78,21 @@ tasks:
       tool: novanet_generate
       params:
         focus_key: "entity:{{inputs.entity_key}}"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         mode: block
         token_budget: 2000
     output:
       format: json
 
     artifact:
-      path: locales/{{use.locale}}.json
+      path: locales/{{with.locale}}.json
 
     flow: [get_entity]
 
   # Step 3: Generate hero section for French (primary locale)
   - id: generate_hero_fr
     description: "Generate French hero section"
-    use:
+    with:
       entity: get_entity
       content: generate_locales
     infer:
@@ -102,10 +102,10 @@ tasks:
         Genere une section hero percutante pour la landing page francaise.
 
         Contexte de l'entite:
-        {{use.entity | to_yaml}}
+        {{with.entity | to_yaml}}
 
         Contenu localise disponible:
-        {{use.content | to_yaml}}
+        {{with.content | to_yaml}}
 
         Retourne un JSON avec:
         - headline: Titre accrocheur (max 10 mots)
@@ -140,12 +140,12 @@ tasks:
   # Step 4: Log results
   - id: log_output
     description: "Output generation summary"
-    use:
+    with:
       hero: generate_hero_fr
       locales: generate_locales
     exec: |
       echo "=== QR Code AI Landing Page Generated ==="
-      echo "Hero (FR): {{use.hero | to_yaml}}"
+      echo "Hero (FR): {{with.hero | to_yaml}}"
       echo "Locales processed: {{inputs.locales | length}}"
       echo "Artifacts written to: ./landing-pages/{{date}}/"
 

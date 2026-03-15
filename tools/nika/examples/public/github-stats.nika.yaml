@@ -23,10 +23,10 @@ tasks:
 
   # Step 2: Fetch user profile
   - id: fetch_profile
-    use:
+    with:
       username: get_username
     fetch:
-      url: "https://api.github.com/users/{{use.username}}"
+      url: "https://api.github.com/users/{{with.username}}"
       method: GET
       headers:
         Accept: "application/vnd.github.v3+json"
@@ -36,10 +36,10 @@ tasks:
 
   # Step 3: Fetch repos (for language stats)
   - id: fetch_repos
-    use:
+    with:
       username: get_username
     fetch:
-      url: "https://api.github.com/users/{{use.username}}/repos?per_page=100&sort=pushed"
+      url: "https://api.github.com/users/{{with.username}}/repos?per_page=100&sort=pushed"
       method: GET
       headers:
         Accept: "application/vnd.github.v3+json"
@@ -49,7 +49,7 @@ tasks:
 
   # Step 4: Analyze stats with LLM
   - id: analyze_stats
-    use:
+    with:
       profile: fetch_profile
       repos: fetch_repos
       username: get_username
@@ -58,10 +58,10 @@ tasks:
         Analyze this GitHub profile and create a fun stats card.
 
         PROFILE DATA:
-        {{use.profile}}
+        {{with.profile}}
 
         RECENT REPOS (up to 100):
-        {{use.repos}}
+        {{with.repos}}
 
         Calculate and present:
         1. Total stars across all repos
@@ -72,7 +72,7 @@ tasks:
 
         Output as JSON:
         {
-          "username": "{{use.username}}",
+          "username": "{{with.username}}",
           "name": "<real name or username>",
           "avatar_url": "<url>",
           "bio": "<bio or 'No bio'>",
@@ -91,13 +91,13 @@ tasks:
 
   # Step 5: Generate ASCII card
   - id: generate_card
-    use:
+    with:
       stats: analyze_stats
     infer:
       prompt: |
         Create a beautiful ASCII art stats card for this GitHub user:
 
-        {{use.stats}}
+        {{with.stats}}
 
         Design a card like this (but make it look good!):
 
@@ -124,14 +124,14 @@ tasks:
 
   # Step 6: Display
   - id: display
-    use:
+    with:
       card: generate_card
       stats: analyze_stats
     exec:
       command: |
-        echo "{{use.card}}"
+        echo "{{with.card}}"
         echo ""
-        echo '{{use.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
+        echo '{{with.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
       shell: true
 
 flows:

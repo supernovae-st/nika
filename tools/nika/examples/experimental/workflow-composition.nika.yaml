@@ -42,7 +42,7 @@ tasks:
       prompt: |
         Analyze content requirements:
 
-        Topic: {{use.topic}}
+        Topic: {{with.topic}}
         Target Audience: {{context.files.target_audience}}
         Brand Voice: {{context.files.brand_voice}}
 
@@ -63,14 +63,14 @@ tasks:
   - id: generate_content
     invoke_workflow:
       # Dynamically select workflow based on content type
-      path: "./workflows/{{use.content_plan.content_type}}-generator.nika.yaml"
+      path: "./workflows/{{with.content_plan.content_type}}-generator.nika.yaml"
       # Pass bindings to child workflow
       inputs:
-        topic: "{{use.topic}}"
-        word_count: "{{use.content_plan.word_count}}"
-        sections: "{{use.content_plan.key_sections}}"
-        keywords: "{{use.content_plan.seo_keywords}}"
-        tone: "{{use.content_plan.tone}}"
+        topic: "{{with.topic}}"
+        word_count: "{{with.content_plan.word_count}}"
+        sections: "{{with.content_plan.key_sections}}"
+        keywords: "{{with.content_plan.seo_keywords}}"
+        tone: "{{with.content_plan.tone}}"
         brand_voice: "{{context.files.brand_voice}}"
       # Capture outputs from child workflow
       outputs:
@@ -95,9 +95,9 @@ tasks:
     # Reference imported tasks dynamically
     invoke_workflow:
       path: "./shared/quality-checks.nika.yaml"
-      task: "{{use.check_type}}_check"
+      task: "{{with.check_type}}_check"
       inputs:
-        content: "{{use.raw_content}}"
+        content: "{{with.raw_content}}"
         style_guide: "{{context.files.style_guide}}"
     flow: [generate_content]
     output:
@@ -108,7 +108,7 @@ tasks:
       prompt: |
         Aggregate quality check results:
 
-        {{use.quality_results}}
+        {{with.quality_results}}
 
         Return JSON:
         - overall_score: number (0-100)
@@ -130,10 +130,10 @@ tasks:
         Revise content based on quality feedback:
 
         Original Content:
-        {{use.raw_content}}
+        {{with.raw_content}}
 
         Quality Issues:
-        {{use.quality_summary.issues}}
+        {{with.quality_summary.issues}}
 
         Style Guide:
         {{context.files.style_guide}}
@@ -146,7 +146,7 @@ tasks:
         Return the revised content.
       max_turns: 3
     # Only run if revision is needed
-    condition: "{{use.quality_summary.requires_revision}}"
+    condition: "{{with.quality_summary.requires_revision}}"
     flow: [aggregate_quality]
     output:
       use.revised_content: result
@@ -159,8 +159,8 @@ tasks:
     invoke_workflow:
       path: "./workflows/seo-optimizer.nika.yaml"
       inputs:
-        content: "{{use.revised_content || use.raw_content}}"
-        keywords: "{{use.content_plan.seo_keywords}}"
+        content: "{{with.revised_content || use.raw_content}}"
+        keywords: "{{with.content_plan.seo_keywords}}"
         target_score: 85
       outputs:
         optimized: optimized_content
@@ -181,9 +181,9 @@ tasks:
     invoke_workflow:
       path: "./workflows/content-exporter.nika.yaml"
       inputs:
-        content: "{{use.final_content}}"
-        format: "{{use.format}}"
-        metadata: "{{use.content_meta}}"
+        content: "{{with.final_content}}"
+        format: "{{with.format}}"
+        metadata: "{{with.content_meta}}"
       outputs:
         file_path: exported_file
     flow: [optimize_seo]
@@ -203,10 +203,10 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "title": "{{use.content_meta.title}}",
-          "content": "{{use.final_content}}",
-          "metadata": {{use.content_meta}},
-          "seo": {{use.seo_report}},
+          "title": "{{with.content_meta.title}}",
+          "content": "{{with.final_content}}",
+          "metadata": {{with.content_meta}},
+          "seo": {{with.seo_report}},
           "status": "draft"
         }
     flow: [export_formats]
@@ -220,11 +220,11 @@ tasks:
       inputs:
         event_type: "content_published"
         payload:
-          content_id: "{{use.publish_result.id}}"
-          title: "{{use.content_meta.title}}"
-          quality_score: "{{use.quality_summary.overall_score}}"
-          seo_score: "{{use.seo_report.score}}"
-          exported_files: "{{use.exported_files}}"
+          content_id: "{{with.publish_result.id}}"
+          title: "{{with.content_meta.title}}"
+          quality_score: "{{with.quality_summary.overall_score}}"
+          seo_score: "{{with.seo_report.score}}"
+          exported_files: "{{with.exported_files}}"
     flow: [publish_content]
 
 # ════════════════════════════════════════════════════════════════════

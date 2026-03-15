@@ -12,39 +12,39 @@ tasks:
 
   # Step 2: Use implicit output from step 1
   - id: process_data
-    use:
+    with:
       input: $generate_data  # Implicit output - normalizes to "generate_data"
-    infer: "Process this data: {{use.input}}"
+    infer: "Process this data: {{with.input}}"
 
   # Step 3: Chain with explicit syntax for comparison
   - id: validate_data
-    use:
+    with:
       processed: process_data  # Explicit syntax (no $)
-    infer: "Validate: {{use.processed}}"
+    infer: "Validate: {{with.processed}}"
 
   # Step 4: Use implicit syntax with nested field access
   - id: extract_fields
-    use:
+    with:
       # Both syntaxes should produce equivalent results
       implicit_ref: $validate_data
       explicit_ref: validate_data
     infer: |
       Compare references:
-      Implicit: {{use.implicit_ref}}
-      Explicit: {{use.explicit_ref}}
+      Implicit: {{with.implicit_ref}}
+      Explicit: {{with.explicit_ref}}
 
   # Step 5: Test values with binding
   - id: with_defaults
-    use:
+    with:
       data: $extract_fields
       optional: $validate_data
     infer: |
-      Data: {{use.data}}
-      Optional: {{use.optional}}
+      Data: {{with.data}}
+      Optional: {{with.optional}}
 
   # Step 6: Final aggregation
   - id: final_summary
-    use:
+    with:
       step1: $generate_data
       step2: $process_data
       step3: $validate_data
@@ -52,11 +52,11 @@ tasks:
       step5: $with_defaults
     infer: |
       Full chain summary:
-      - Step 1: {{use.step1}}
-      - Step 2: {{use.step2}}
-      - Step 3: {{use.step3}}
-      - Step 4: {{use.step4}}
-      - Step 5: {{use.step5}}
+      - Step 1: {{with.step1}}
+      - Step 2: {{with.step2}}
+      - Step 3: {{with.step3}}
+      - Step 4: {{with.step4}}
+      - Step 5: {{with.step5}}
 
 flows:
   - source: generate_data

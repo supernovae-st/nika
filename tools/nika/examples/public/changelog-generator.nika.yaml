@@ -41,14 +41,14 @@ tasks:
 
   # Step 4: Categorize commits
   - id: categorize
-    use:
+    with:
       commits: get_commits
     infer:
       prompt: |
         Categorize these git commits following Keep a Changelog format.
 
         COMMITS:
-        {{use.commits}}
+        {{with.commits}}
 
         Categories:
         - Added: new features
@@ -78,22 +78,22 @@ tasks:
 
   # Step 5: Generate changelog entry
   - id: generate_entry
-    use:
+    with:
       version: get_version
       categories: categorize
     infer:
       prompt: |
         Generate a CHANGELOG.md entry.
 
-        VERSION: {{use.version}}
+        VERSION: {{with.version}}
         DATE: today
 
         CATEGORIZED CHANGES:
-        {{use.categories}}
+        {{with.categories}}
 
         Format following Keep a Changelog:
 
-        ## [{{use.version}}] - YYYY-MM-DD
+        ## [{{with.version}}] - YYYY-MM-DD
 
         ### Added
         - Item 1
@@ -111,14 +111,14 @@ tasks:
 
   # Step 6: Save or display
   - id: output
-    use:
+    with:
       entry: generate_entry
       version: get_version
     exec:
       command: |
-        echo "=== CHANGELOG ENTRY FOR {{use.version}} ==="
+        echo "=== CHANGELOG ENTRY FOR {{with.version}} ==="
         echo ""
-        echo "{{use.entry}}"
+        echo "{{with.entry}}"
         echo ""
         echo "---"
         echo "To add to CHANGELOG.md, insert after the '## [Unreleased]' section"

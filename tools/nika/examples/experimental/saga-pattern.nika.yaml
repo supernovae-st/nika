@@ -33,8 +33,8 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "order_id": "{{use.order_id}}",
-          "items": {{use.order_items}}
+          "order_id": "{{with.order_id}}",
+          "items": {{with.order_items}}
         }
     output:
       use.inventory_reservation: result
@@ -49,7 +49,7 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "reservation_id": "{{use.inventory_reservation.id}}"
+          "reservation_id": "{{with.inventory_reservation.id}}"
         }
     # This task is only triggered on rollback
     trigger: on_rollback
@@ -68,10 +68,10 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "order_id": "{{use.order_id}}",
-          "amount": {{use.order_total}},
+          "order_id": "{{with.order_id}}",
+          "amount": {{with.order_total}},
           "currency": "USD",
-          "customer_id": "{{use.customer_id}}"
+          "customer_id": "{{with.customer_id}}"
         }
     flow: [reserve_inventory]
     output:
@@ -87,7 +87,7 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "charge_id": "{{use.payment_result.charge_id}}",
+          "charge_id": "{{with.payment_result.charge_id}}",
           "reason": "Order cancelled - saga rollback"
         }
     trigger: on_rollback
@@ -106,10 +106,10 @@ tasks:
         Content-Type: application/json
       body: |
         {
-          "order_id": "{{use.order_id}}",
-          "address": {{use.shipping_address}},
-          "items": {{use.order_items}},
-          "service": "{{use.shipping_service}}"
+          "order_id": "{{with.order_id}}",
+          "address": {{with.shipping_address}},
+          "items": {{with.order_items}},
+          "service": "{{with.shipping_service}}"
         }
     flow: [process_payment]
     output:
@@ -118,7 +118,7 @@ tasks:
 
   - id: compensate_shipment
     fetch:
-      url: "${SHIPPING_API}/shipments/{{use.shipment_result.id}}/cancel"
+      url: "${SHIPPING_API}/shipments/{{with.shipment_result.id}}/cancel"
       method: POST
       headers:
         Authorization: "Bearer ${SHIPPING_TOKEN}"
@@ -134,11 +134,11 @@ tasks:
       prompt: |
         Send order confirmation to customer:
 
-        Order ID: {{use.order_id}}
-        Customer Email: {{use.customer_email}}
-        Payment: {{use.payment_result}}
-        Shipment: {{use.shipment_result}}
-        Tracking Number: {{use.shipment_result.tracking_number}}
+        Order ID: {{with.order_id}}
+        Customer Email: {{with.customer_email}}
+        Payment: {{with.payment_result}}
+        Shipment: {{with.shipment_result}}
+        Tracking Number: {{with.shipment_result.tracking_number}}
 
         1. Generate a friendly confirmation email
         2. Send via email API
@@ -156,7 +156,7 @@ tasks:
 
   - id: finalize_order
     fetch:
-      url: "${ORDERS_API}/{{use.order_id}}/status"
+      url: "${ORDERS_API}/{{with.order_id}}/status"
       method: PATCH
       headers:
         Authorization: "Bearer ${ORDERS_TOKEN}"
@@ -164,9 +164,9 @@ tasks:
       body: |
         {
           "status": "completed",
-          "payment_id": "{{use.payment_result.charge_id}}",
-          "shipment_id": "{{use.shipment_result.id}}",
-          "tracking_number": "{{use.shipment_result.tracking_number}}"
+          "payment_id": "{{with.payment_result.charge_id}}",
+          "shipment_id": "{{with.shipment_result.id}}",
+          "tracking_number": "{{with.shipment_result.tracking_number}}"
         }
     flow: [send_confirmation]
     output:
@@ -181,11 +181,11 @@ tasks:
       prompt: |
         A saga rollback has been triggered.
 
-        Failed Step: {{use.failed_step}}
-        Error: {{use.error_message}}
+        Failed Step: {{with.failed_step}}
+        Error: {{with.error_message}}
 
         Compensations to execute (reverse order):
-        {{use.compensation_chain}}
+        {{with.compensation_chain}}
 
         Generate a rollback report with:
         1. Root cause analysis
@@ -210,7 +210,7 @@ tasks:
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "*Order {{use.order_id}} - Rollback Initiated*\n\n{{use.rollback_report}}"
+                "text": "*Order {{with.order_id}} - Rollback Initiated*\n\n{{with.rollback_report}}"
               }
             }
           ]

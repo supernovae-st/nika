@@ -22,22 +22,22 @@ tasks:
 
   # Test 2: Write a file via invoke: (NOT agent:)
   - id: write_via_invoke
-    use:
+    with:
       file_path: get_paths
     invoke:
       tool: nika:write
       params:
-        file_path: "{{use.file_path}}"
+        file_path: "{{with.file_path}}"
         content: "Hello from invoke: task!"
 
   # Test 3: Read the file back via invoke:
   - id: read_via_invoke
-    use:
+    with:
       file_path: get_paths
     invoke:
       tool: nika:read
       params:
-        file_path: "{{use.file_path}}"
+        file_path: "{{with.file_path}}"
 
   # Test 4: Glob to find the file
   - id: glob_via_invoke
@@ -47,24 +47,24 @@ tasks:
 
   # Test 5: Actually run the glob
   - id: glob_result
-    use:
+    with:
       dir: glob_via_invoke
     invoke:
       tool: nika:glob
       params:
         pattern: "*.txt"
-        path: "{{use.dir}}"
+        path: "{{with.dir}}"
 
   # Test 6: Log the result
   - id: log_result
-    use:
+    with:
       content: read_via_invoke
       files: glob_result
     invoke:
       tool: nika:log
       params:
         level: info
-        message: "Read content: {{use.content}} | Found files: {{use.files}}"
+        message: "Read content: {{with.content}} | Found files: {{with.files}}"
 
 flows:
   - source: get_paths

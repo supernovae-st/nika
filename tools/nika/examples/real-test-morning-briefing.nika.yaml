@@ -147,20 +147,20 @@ tasks:
     as: topic
     concurrency: 3
     fail_fast: false
-    use:
+    with:
       ai: research_ai_news
       rust: research_rust_news
       startup: research_startup_news
     infer:
       prompt: |
-        Generate a brief 2-3 bullet point summary for the topic: {{use.topic}}
+        Generate a brief 2-3 bullet point summary for the topic: {{with.topic}}
 
         Based on this research data:
-        - AI News: {{use.ai | truncate: 500}}
-        - Rust News: {{use.rust | truncate: 500}}
-        - Startup News: {{use.startup | truncate: 500}}
+        - AI News: {{with.ai | truncate: 500}}
+        - Rust News: {{with.rust | truncate: 500}}
+        - Startup News: {{with.startup | truncate: 500}}
 
-        Focus ONLY on {{use.topic}}. Be concise and actionable.
+        Focus ONLY on {{with.topic}}. Be concise and actionable.
     output:
       format: text
 
@@ -172,7 +172,7 @@ tasks:
 
   - id: synthesize_scraped_content
     description: "Synthesize scraped content"
-    use:
+    with:
       hn: scrape_hn_frontpage
       tc: scrape_techcrunch
     infer:
@@ -180,10 +180,10 @@ tasks:
         Analyze these scraped tech news sources and extract the TOP 5 stories:
 
         **Hacker News:**
-        {{use.hn | truncate: 1000}}
+        {{with.hn | truncate: 1000}}
 
         **TechCrunch:**
-        {{use.tc | truncate: 1000}}
+        {{with.tc | truncate: 1000}}
 
         Output format:
         1. [Source] Story title - one sentence summary
@@ -194,15 +194,15 @@ tasks:
 
   - id: check_system_health
     description: "Check system health"
-    use:
+    with:
       system: system_context
       github: fetch_github_status
     infer:
       prompt: |
         Provide a quick system status check:
 
-        System: {{use.system | to_yaml}}
-        GitHub: {{use.github | to_yaml}}
+        System: {{with.system | to_yaml}}
+        GitHub: {{with.github | to_yaml}}
 
         Format:
         - Local time: [time]
@@ -218,7 +218,7 @@ tasks:
 
   - id: morning_briefing_agent
     description: "Generate morning briefing"
-    use:
+    with:
       system_health: check_system_health
       top_stories: synthesize_scraped_content
       topic_summaries: generate_topic_summaries
@@ -230,13 +230,13 @@ tasks:
         Create a personalized morning briefing using this data:
 
         **SYSTEM STATUS:**
-        {{use.system_health}}
+        {{with.system_health}}
 
         **TOP STORIES TODAY:**
-        {{use.top_stories}}
+        {{with.top_stories}}
 
         **TOPIC SUMMARIES:**
-        {{use.topic_summaries | to_yaml}}
+        {{with.topic_summaries | to_yaml}}
 
         Structure the briefing with these sections:
         - Quick Status (1 line)
@@ -269,14 +269,14 @@ tasks:
 
   - id: save_briefing
     description: "Save briefing to file"
-    use:
+    with:
       briefing: morning_briefing_agent
       timestamp: system_context
     exec: |
       echo "=== MORNING BRIEFING GENERATED ==="
-      echo "Timestamp: {{use.timestamp.timestamp}}"
+      echo "Timestamp: {{with.timestamp.timestamp}}"
       echo "Saved to: ~/.nika/briefings/{{date}}/"
       echo ""
-      echo "{{use.briefing}}"
+      echo "{{with.briefing}}"
 
     flow: [morning_briefing_agent]

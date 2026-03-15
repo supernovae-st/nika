@@ -21,28 +21,28 @@ tasks:
 
   # Step 2: Fetch weather data (using wttr.in - no API key needed!)
   - id: fetch_weather
-    use:
+    with:
       city: get_city
     fetch:
-      url: "https://wttr.in/{{use.city}}?format=j1"
+      url: "https://wttr.in/{{with.city}}?format=j1"
       method: GET
     output:
       format: json
 
   # Step 3: Parse weather conditions
   - id: parse_weather
-    use:
+    with:
       weather: fetch_weather
       city: get_city
     infer:
       prompt: |
         Extract key weather info from this data:
 
-        {{use.weather}}
+        {{with.weather}}
 
         Output JSON:
         {
-          "city": "{{use.city}}",
+          "city": "{{with.city}}",
           "temperature_c": <number>,
           "feels_like_c": <number>,
           "condition": "<sunny/cloudy/rainy/snowy/etc>",
@@ -56,24 +56,24 @@ tasks:
 
   # Step 4: Generate outfit suggestion
   - id: suggest_outfit
-    use:
+    with:
       weather: parse_weather
     infer:
       prompt: |
         You are a stylish fashion advisor. Based on today's weather, suggest the perfect outfit.
 
         WEATHER CONDITIONS:
-        - City: {{use.weather.city}}
-        - Temperature: {{use.weather.temperature_c}}°C (feels like {{use.weather.feels_like_c}}°C)
-        - Condition: {{use.weather.condition}}
-        - Humidity: {{use.weather.humidity}}%
-        - Wind: {{use.weather.wind_kmh}} km/h
-        - UV Index: {{use.weather.uv_index}}
+        - City: {{with.weather.city}}
+        - Temperature: {{with.weather.temperature_c}}°C (feels like {{with.weather.feels_like_c}}°C)
+        - Condition: {{with.weather.condition}}
+        - Humidity: {{with.weather.humidity}}%
+        - Wind: {{with.weather.wind_kmh}} km/h
+        - UV Index: {{with.weather.uv_index}}
 
         Generate a fun, practical outfit suggestion with:
 
-        ## 🌤️ Weather in {{use.weather.city}}
-        {{use.weather.summary}}
+        ## 🌤️ Weather in {{with.weather.city}}
+        {{with.weather.summary}}
 
         ## 👕 Today's Outfit
 
@@ -101,15 +101,15 @@ tasks:
 
   # Step 5: Display
   - id: display
-    use:
+    with:
       outfit: suggest_outfit
       weather: parse_weather
     exec:
       command: |
-        echo "{{use.outfit}}"
+        echo "{{with.outfit}}"
         echo ""
         echo "---"
-        echo "🌡️ Current: {{use.weather.temperature_c}}°C | {{use.weather.condition}}"
+        echo "🌡️ Current: {{with.weather.temperature_c}}°C | {{with.weather.condition}}"
       shell: true
 
 flows:

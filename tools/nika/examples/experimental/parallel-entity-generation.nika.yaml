@@ -68,8 +68,8 @@ tasks:
       prompt: |
         Create generation matrix from entities and locales:
 
-        Entities: {{use.entities}}
-        Locales: {{use.locales}}
+        Entities: {{with.entities}}
+        Locales: {{with.locales}}
 
         Filter:
         - Only entities with priority >= 2
@@ -92,7 +92,7 @@ tasks:
   # ════════════════════════════════════════════════════════════════════
 
   - id: process_entities
-    for_each: "{{use.entities | filter(e => e.priority >= 2)}}"
+    for_each: "{{with.entities | filter(e => e.priority >= 2)}}"
     as: entity
     concurrency: 3  # Process 3 entities in parallel
     fail_fast: false
@@ -105,14 +105,14 @@ tasks:
           server: novanet
           tool: novanet_describe
           params:
-            entity: "{{use.entity.key}}"
+            entity: "{{with.entity.key}}"
             include: ["atoms", "natives", "relations"]
         output:
           use.entity_context: result
 
       # Generate for all locales of this entity
       - id: generate_locales
-        for_each: "{{use.locales | filter(l => l.tier <= 2)}}"
+        for_each: "{{with.locales | filter(l => l.tier <= 2)}}"
         as: locale
         concurrency: 5  # 5 locales in parallel per entity
         fail_fast: false
@@ -121,9 +121,9 @@ tasks:
           prompt: |
             Generate localized content for entity in locale.
 
-            Entity: {{use.entity.key}}
-            Entity Context: {{use.entity_context}}
-            Locale: {{use.locale.code}}
+            Entity: {{with.entity.key}}
+            Entity Context: {{with.entity_context}}
+            Locale: {{with.locale.code}}
 
             Brand Guidelines:
             {{context.files.brand_guidelines}}
@@ -151,9 +151,9 @@ tasks:
           server: novanet
           tool: novanet_validate
           params:
-            entity: "{{use.entity.key}}"
-            locale: "{{use.locale.code}}"
-            content: "{{use.locale_content}}"
+            entity: "{{with.entity.key}}"
+            locale: "{{with.locale.code}}"
+            content: "{{with.locale_content}}"
             schema: "EntityNative"
         flow: [generate_locales]
         output:
@@ -166,10 +166,10 @@ tasks:
           tool: novanet_upsert
           params:
             node_type: "EntityNative"
-            entity: "{{use.entity.key}}"
-            locale: "{{use.locale.code}}"
-            data: "{{use.locale_content}}"
-        condition: "{{use.validation_result.valid}}"
+            entity: "{{with.entity.key}}"
+            locale: "{{with.locale.code}}"
+            data: "{{with.locale_content}}"
+        condition: "{{with.validation_result.valid}}"
         flow: [validate_locale_content]
         output:
           use.save_result: result
@@ -187,7 +187,7 @@ tasks:
       prompt: |
         Aggregate generation results:
 
-        Entity Results: {{use.entity_results}}
+        Entity Results: {{with.entity_results}}
 
         Calculate:
         - Total entities processed
@@ -212,7 +212,7 @@ tasks:
       prompt: |
         Generate quality report for content generation run:
 
-        Aggregated Results: {{use.aggregated_results}}
+        Aggregated Results: {{with.aggregated_results}}
 
         Analyze:
         1. Content quality patterns
@@ -229,7 +229,7 @@ tasks:
   - id: save_report
     exec: |
       mkdir -p reports
-      echo '{{use.quality_report}}' > reports/generation-report-$(date +%Y%m%d-%H%M%S).md
+      echo '{{with.quality_report}}' > reports/generation-report-$(date +%Y%m%d-%H%M%S).md
     flow: [generate_quality_report]
 
   # ════════════════════════════════════════════════════════════════════
@@ -251,19 +251,19 @@ tasks:
               "fields": [
                 {
                   "type": "mrkdwn",
-                  "text": "*Entities:* {{use.aggregated_results.total_entities}}"
+                  "text": "*Entities:* {{with.aggregated_results.total_entities}}"
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Locales:* {{use.aggregated_results.total_locales}}"
+                  "text": "*Locales:* {{with.aggregated_results.total_locales}}"
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Success Rate:* {{use.aggregated_results.success_rate}}%"
+                  "text": "*Success Rate:* {{with.aggregated_results.success_rate}}%"
                 },
                 {
                   "type": "mrkdwn",
-                  "text": "*Duration:* {{use.aggregated_results.duration}}"
+                  "text": "*Duration:* {{with.aggregated_results.duration}}"
                 }
               ]
             }

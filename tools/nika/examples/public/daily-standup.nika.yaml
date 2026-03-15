@@ -51,7 +51,7 @@ tasks:
 
   # Step 4: Generate standup
   - id: generate_standup
-    use:
+    with:
       commits: get_commits
       branch: get_branch
       issues: get_issues
@@ -60,13 +60,13 @@ tasks:
         Generate a concise daily standup update.
 
         GIT ACTIVITY:
-        {{use.commits}}
+        {{with.commits}}
 
         CURRENT WORK:
-        {{use.branch}}
+        {{with.branch}}
 
         ACTIVE ISSUES:
-        {{use.issues}}
+        {{with.issues}}
 
         Format:
 
@@ -86,11 +86,11 @@ tasks:
 
   # Step 5: Output
   - id: output
-    use:
+    with:
       standup: generate_standup
     exec:
       command: |
-        echo "{{use.standup}}"
+        echo "{{with.standup}}"
         echo ""
         echo "---"
         echo "📋 Ready to paste in Slack/Linear/Discord"

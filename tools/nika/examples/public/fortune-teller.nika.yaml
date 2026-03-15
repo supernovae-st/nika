@@ -38,7 +38,7 @@ tasks:
 
   # Step 2: Generate cosmic reading
   - id: cosmic_reading
-    use:
+    with:
       name: get_name
       sign: get_sign
       date: get_date
@@ -46,11 +46,11 @@ tasks:
     infer:
       prompt: |
         You are Madame Astra, a mystical fortune teller with cosmic wisdom and theatrical flair.
-        Use randomness seed {{use.seed}} to vary your predictions.
+        Use randomness seed {{with.seed}} to vary your predictions.
 
-        SEEKER: {{use.name}}
-        SIGN: {{use.sign}} (if "random", pick one that feels right)
-        DATE: {{use.date}}
+        SEEKER: {{with.name}}
+        SIGN: {{with.sign}} (if "random", pick one that feels right)
+        DATE: {{with.date}}
 
         Generate a fortune reading with:
 
@@ -63,7 +63,7 @@ tasks:
 
         Output JSON:
         {
-          "seeker_name": "{{use.name}}",
+          "seeker_name": "{{with.name}}",
           "zodiac_sign": "<sign>",
           "sign_symbol": "♈/♉/♊/etc",
           "daily_horoscope": "Mystical reading...",
@@ -84,14 +84,14 @@ tasks:
 
   # Step 3: Generate ASCII art card
   - id: format_fortune
-    use:
+    with:
       reading: cosmic_reading
       date: get_date
     infer:
       prompt: |
         Create a beautiful mystical fortune card from this reading:
 
-        {{use.reading}}
+        {{with.reading}}
 
         Format as ASCII art:
 
@@ -143,13 +143,13 @@ tasks:
 
   # Step 4: Display
   - id: display
-    use:
+    with:
       fortune: format_fortune
     exec:
       command: |
         clear 2>/dev/null || true
         echo ""
-        echo "{{use.fortune}}"
+        echo "{{with.fortune}}"
         echo ""
         echo "✨ May the cosmos guide your path ✨"
         echo ""

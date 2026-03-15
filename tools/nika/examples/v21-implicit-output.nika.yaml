@@ -15,25 +15,25 @@ tasks:
 
   # Step 2: Using implicit output syntax ($task)
   - id: expand_title
-    use:
+    with:
       title: $generate_title      # Implicit output - normalizes to "generate_title"
-    infer: "Expand on this title: {{use.title}}"
+    infer: "Expand on this title: {{with.title}}"
 
   # Step 3: Demonstrate both syntaxes are equivalent
   - id: create_outline
-    use:
+    with:
       title: $generate_title      # Implicit syntax
       expanded: expand_title      # Explicit syntax (no $)
     infer: |
       Create an outline for:
-      Title: {{use.title}}
-      Expanded: {{use.expanded}}
+      Title: {{with.title}}
+      Expanded: {{with.expanded}}
 
   # Step 4: Show $ with nested field access
   - id: final_summary
-    use:
+    with:
       outline: $create_outline    # $ prefix works with any task reference
-    infer: "Summarize this outline: {{use.outline}}"
+    infer: "Summarize this outline: {{with.outline}}"
 
 flows:
   - source: generate_title

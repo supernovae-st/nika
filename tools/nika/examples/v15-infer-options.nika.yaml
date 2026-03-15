@@ -26,10 +26,10 @@ tasks:
 
   # Test 3: System prompt for persona
   - id: marketing_copy
-    use:
+    with:
       tagline: creative_tagline
     infer:
-      prompt: "Expand this tagline into a marketing paragraph: {{use.tagline}}"
+      prompt: "Expand this tagline into a marketing paragraph: {{with.tagline}}"
       system: "You are an expert marketing copywriter specializing in tech products. Write in an engaging, professional tone."
       temperature: 0.7
       max_tokens: 200
@@ -53,7 +53,7 @@ tasks:
       format: text
 
   - id: comparison
-    use:
+    with:
       creative: creative_tagline
       precise: precise_description
       marketing: marketing_copy

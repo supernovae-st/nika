@@ -28,7 +28,7 @@ tasks:
 
   # Step 4: Generate PR description
   - id: generate_pr
-    use:
+    with:
       diff: get_diff
       commits: get_commits
       branch: get_branch
@@ -36,13 +36,13 @@ tasks:
       prompt: |
         Generate a professional Pull Request description.
 
-        BRANCH: {{use.branch}}
+        BRANCH: {{with.branch}}
 
         RECENT COMMITS:
-        {{use.commits}}
+        {{with.commits}}
 
         DIFF SUMMARY:
-        {{use.diff}}
+        {{with.diff}}
 
         Generate a PR description with:
 
@@ -64,11 +64,11 @@ tasks:
 
   # Step 5: Save to clipboard (macOS) or file
   - id: save_output
-    use:
+    with:
       pr: generate_pr
     exec:
       command: |
-        echo "{{use.pr}}" | pbcopy 2>/dev/null || echo "{{use.pr}}" > /tmp/pr-description.md
+        echo "{{with.pr}}" | pbcopy 2>/dev/null || echo "{{with.pr}}" > /tmp/pr-description.md
         echo "✅ PR description generated!"
         echo "📋 Copied to clipboard (or saved to /tmp/pr-description.md)"
       shell: true

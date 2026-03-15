@@ -31,15 +31,15 @@ tasks:
     for_each: ["top-text-bottom-text", "observational", "relatable"]
     as: format
     concurrency: 3
-    use:
+    with:
       topic: get_topic
       style: get_style
     infer:
       prompt: |
-        You are a viral meme writer with {{use.style}} humor.
+        You are a viral meme writer with {{with.style}} humor.
 
-        TOPIC: {{use.topic}}
-        FORMAT: {{use.format}}
+        TOPIC: {{with.topic}}
+        FORMAT: {{with.format}}
 
         Generate a hilarious meme caption.
 
@@ -50,7 +50,7 @@ tasks:
 
         Output JSON:
         {
-          "format": "{{use.format}}",
+          "format": "{{with.format}}",
           "top_text": "TOP TEXT (if applicable)",
           "bottom_text": "BOTTOM TEXT (if applicable)",
           "full_caption": "The complete meme text",
@@ -64,14 +64,14 @@ tasks:
 
   # Step 4: Pick the best one
   - id: pick_best
-    use:
+    with:
       memes: generate_memes
       topic: get_topic
     infer:
       prompt: |
         You're a meme connoisseur. Pick the funniest meme from these options:
 
-        {{use.memes}}
+        {{with.memes}}
 
         Consider:
         - Actual humor (not forced)
@@ -88,20 +88,20 @@ tasks:
 
   # Step 5: Display
   - id: display
-    use:
+    with:
       meme: pick_best
       topic: get_topic
     exec:
       command: |
         echo "🎭 MEME GENERATED 🎭"
         echo ""
-        echo "Topic: {{use.topic}}"
+        echo "Topic: {{with.topic}}"
         echo ""
-        echo '{{use.meme}}' | jq -r '"📝 " + .full_caption'
+        echo '{{with.meme}}' | jq -r '"📝 " + .full_caption'
         echo ""
-        echo '{{use.meme}}' | jq -r '"😂 Why it slaps: " + .why_its_funny'
+        echo '{{with.meme}}' | jq -r '"😂 Why it slaps: " + .why_its_funny'
         echo ""
-        echo '{{use.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
+        echo '{{with.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
       shell: true
 
 flows:

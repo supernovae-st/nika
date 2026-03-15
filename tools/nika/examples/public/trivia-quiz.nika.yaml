@@ -35,16 +35,16 @@ tasks:
     for_each: ["batch1", "batch2", "batch3"]
     as: batch
     concurrency: 3
-    use:
+    with:
       topic: get_topic
       difficulty: get_difficulty
       count: get_count
     infer:
       prompt: |
-        Generate trivia questions about: {{use.topic}}
-        Difficulty: {{use.difficulty}} (easy/medium/hard)
+        Generate trivia questions about: {{with.topic}}
+        Difficulty: {{with.difficulty}} (easy/medium/hard)
 
-        This is {{use.batch}} - generate unique questions!
+        This is {{with.batch}} - generate unique questions!
 
         Difficulty guide:
         - easy: Common knowledge, obvious answers
@@ -59,7 +59,7 @@ tasks:
             "correct_answer": "A",
             "explanation": "Brief explanation of the answer",
             "fun_fact": "An interesting related fact",
-            "difficulty": "{{use.difficulty}}"
+            "difficulty": "{{with.difficulty}}"
           }
         ]
 
@@ -69,23 +69,23 @@ tasks:
 
   # Step 3: Deduplicate and select best questions
   - id: select_questions
-    use:
+    with:
       all_questions: generate_questions
       count: get_count
       topic: get_topic
     infer:
       prompt: |
-        Select the best {{use.count}} trivia questions from these:
+        Select the best {{with.count}} trivia questions from these:
 
-        {{use.all_questions}}
+        {{with.all_questions}}
 
         Selection criteria:
         1. No duplicate or similar questions
-        2. Variety of sub-topics within {{use.topic}}
+        2. Variety of sub-topics within {{with.topic}}
         3. Clear, unambiguous wording
         4. Interesting and educational
 
-        Output exactly {{use.count}} questions as JSON array:
+        Output exactly {{with.count}} questions as JSON array:
         [
           {
             "number": 1,
@@ -101,7 +101,7 @@ tasks:
 
   # Step 4: Format as interactive quiz
   - id: format_quiz
-    use:
+    with:
       questions: select_questions
       topic: get_topic
       difficulty: get_difficulty
@@ -109,9 +109,9 @@ tasks:
       prompt: |
         Format this trivia quiz for display:
 
-        TOPIC: {{use.topic}}
-        DIFFICULTY: {{use.difficulty}}
-        QUESTIONS: {{use.questions}}
+        TOPIC: {{with.topic}}
+        DIFFICULTY: {{with.difficulty}}
+        QUESTIONS: {{with.questions}}
 
         Create an engaging quiz format:
 
@@ -157,12 +157,12 @@ tasks:
 
   # Step 5: Display
   - id: display
-    use:
+    with:
       quiz: format_quiz
       topic: get_topic
     exec:
       command: |
-        echo "{{use.quiz}}"
+        echo "{{with.quiz}}"
         echo ""
         echo "---"
         echo "🎯 Generate another: TOPIC=\"history\" DIFFICULTY=\"hard\" nika trivia-quiz.nika.yaml"

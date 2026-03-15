@@ -22,11 +22,11 @@ tasks:
 
   # Step 2: Generate outline
   - id: generate_outline
-    use:
+    with:
       topic: get_topic
     infer:
       prompt: |
-        Create a detailed blog post outline for: {{use.topic}}
+        Create a detailed blog post outline for: {{with.topic}}
 
         Include:
         1. Catchy title (SEO-friendly)
@@ -40,29 +40,29 @@ tasks:
 
   # Step 3: Generate full content (parallel sections)
   - id: generate_intro
-    use:
+    with:
       topic: get_topic
       outline: generate_outline
     infer: |
       Write an engaging introduction (150-200 words) for this blog post.
 
-      Topic: {{use.topic}}
-      Outline: {{use.outline}}
+      Topic: {{with.topic}}
+      Outline: {{with.outline}}
 
       Hook the reader, state the problem, preview the solution.
       Write in a conversational but professional tone.
 
   # Step 4: Generate body sections
   - id: generate_body
-    use:
+    with:
       topic: get_topic
       outline: generate_outline
     infer:
       prompt: |
         Write the main body sections for this blog post (800-1000 words).
 
-        Topic: {{use.topic}}
-        Outline: {{use.outline}}
+        Topic: {{with.topic}}
+        Outline: {{with.outline}}
 
         For each section:
         - Use H2 headers
@@ -74,19 +74,19 @@ tasks:
 
   # Step 5: Generate conclusion
   - id: generate_conclusion
-    use:
+    with:
       topic: get_topic
       outline: generate_outline
     infer: |
       Write a strong conclusion (100-150 words) for this blog post.
 
-      Topic: {{use.topic}}
+      Topic: {{with.topic}}
 
       Summarize key points, provide actionable takeaway, include CTA.
 
   # Step 6: Assemble full post
   - id: assemble_post
-    use:
+    with:
       outline: generate_outline
       intro: generate_intro
       body: generate_body
@@ -94,11 +94,11 @@ tasks:
     exec:
       command: |
         cat > /tmp/blog-post.md << 'BLOG_EOF'
-        {{use.intro}}
+        {{with.intro}}
 
-        {{use.body}}
+        {{with.body}}
 
-        {{use.conclusion}}
+        {{with.conclusion}}
 
         ---
         *Generated with [Nika](https://github.com/supernovae-st/nika)*

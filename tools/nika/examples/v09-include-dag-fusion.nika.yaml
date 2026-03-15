@@ -73,9 +73,9 @@ tasks:
         Analyze this content and extract SEO keywords and key phrases.
 
         Content:
-        {{use.content}}
+        {{with.content}}
       response_format: json
-    use:
+    with:
       content: generate_content
     output:
       format: json
@@ -103,18 +103,18 @@ tasks:
   # References prefixed task outputs from included workflow
   - id: assemble_page
     description: "Assemble final page with SEO elements"
-    use:
+    with:
       seo_title: seo_generate_title
       seo_meta: seo_generate_meta
       content: generate_content
     infer: |
       Assemble a complete HTML page with:
 
-      Title: {{use.seo_title}}
-      Meta Description: {{use.seo_meta}}
+      Title: {{with.seo_title}}
+      Meta Description: {{with.seo_meta}}
 
       Content:
-      {{use.content}}
+      {{with.content}}
 
       Return the complete HTML document.
 

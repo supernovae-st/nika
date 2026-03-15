@@ -147,7 +147,7 @@ tasks:
       server: novanet
       tool: novanet_atoms
       params:
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         atom_type: all
         limit: 50
 
@@ -168,7 +168,7 @@ tasks:
       max_retries: 1
 
     artifact:
-      path: atoms/{{use.locale}}-atoms.json
+      path: atoms/{{with.locale}}-atoms.json
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 4: Context Assembly
@@ -182,7 +182,7 @@ tasks:
     concurrency: 2
     fail_fast: false
 
-    use:
+    with:
       entity: describe_entity
       relations: traverse_relations
       atoms: retrieve_locale_atoms
@@ -192,7 +192,7 @@ tasks:
       tool: novanet_generate
       params:
         focus_key: "{{inputs.entity_key}}"
-        locale: "{{use.locale}}"
+        locale: "{{with.locale}}"
         mode: block
         token_budget: "{{inputs.token_budget}}"
         spreading_depth: 2
@@ -228,9 +228,9 @@ tasks:
       max_retries: 2
 
     artifact:
-      - path: context/assembled/{{use.locale}}-context.json
+      - path: context/assembled/{{with.locale}}-context.json
         format: json
-      - path: context/assembled/{{use.locale}}-build-log.json
+      - path: context/assembled/{{with.locale}}-build-log.json
         format: json
 
     flow: [traverse_relations, retrieve_locale_atoms]
@@ -247,25 +247,25 @@ tasks:
     concurrency: 3
     fail_fast: false
 
-    use:
+    with:
       context: assemble_context
       entity: describe_entity
 
     agent:
       prompt: |
-        You are a native {{use.locale}} content writer for NovaNet.
+        You are a native {{with.locale}} content writer for NovaNet.
 
         CRITICAL: You are GENERATING content natively, NOT translating.
         Write as a native speaker would write, with local idioms and cultural nuances.
 
         ENTITY CONTEXT:
-        {{use.entity | to_yaml}}
+        {{with.entity | to_yaml}}
 
         ASSEMBLED GENERATION CONTEXT:
-        {{use.context | to_yaml}}
+        {{with.context | to_yaml}}
 
         DENOMINATION FORMS (from ADR-033):
-        {{use.context.denomination_forms | to_yaml}}
+        {{with.context.denomination_forms | to_yaml}}
 
         Use these exact denomination forms when referring to the entity:
         - text: for body content, prose
@@ -283,7 +283,7 @@ tasks:
         6. **benefits**: 3 key benefits
         7. **faq**: 5 questions and answers
 
-        Write ENTIRELY in {{use.locale}}. Match local formality conventions.
+        Write ENTIRELY in {{with.locale}}. Match local formality conventions.
 
       mcp: [novanet]
       max_turns: 8
@@ -356,9 +356,9 @@ tasks:
       max_retries: 3
 
     artifact:
-      - path: content/{{use.locale}}/entity-native.json
+      - path: content/{{with.locale}}/entity-native.json
         format: json
-      - path: content/{{use.locale}}/entity-native.yaml
+      - path: content/{{with.locale}}/entity-native.yaml
         format: yaml
 
     flow: [assemble_context]
@@ -370,7 +370,7 @@ tasks:
   - id: validate_content_quality
     description: "Validate generated content quality across locales"
 
-    use:
+    with:
       content: generate_native_content
       entity: describe_entity
 
@@ -378,11 +378,11 @@ tasks:
       prompt: |
         You are a Quality Assurance specialist for multilingual content.
 
-        ENTITY: {{use.entity.name}}
+        ENTITY: {{with.entity.name}}
         CONTENT GENERATED FOR: {{inputs.target_locales | length}} locales
 
         GENERATED CONTENT:
-        {{use.content | to_yaml}}
+        {{with.content | to_yaml}}
 
         Validate each locale's content for:
 
@@ -474,7 +474,7 @@ tasks:
   - id: generate_final_report
     description: "Generate comprehensive generation report"
 
-    use:
+    with:
       entity: describe_entity
       validation: validate_content_quality
       content: generate_native_content
@@ -485,23 +485,23 @@ tasks:
 
         # Content Generation Report
 
-        **Entity**: {{use.entity.name}}
+        **Entity**: {{with.entity.name}}
         **Entity Key**: {{inputs.entity_key}}
         **Generated**: {{date}}
 
         ## Executive Summary
         - Locales generated: {{inputs.target_locales | length}}
-        - Overall quality score: {{use.validation.overall_score}}/100
-        - Approval status: {{use.validation.approval_status}}
+        - Overall quality score: {{with.validation.overall_score}}/100
+        - Approval status: {{with.validation.approval_status}}
 
         ## Per-Locale Breakdown
-        {{use.validation.locale_validations | to_yaml}}
+        {{with.validation.locale_validations | to_yaml}}
 
         ## Quality Issues
-        {{use.validation.issues | to_yaml}}
+        {{with.validation.issues | to_yaml}}
 
         ## Recommendations
-        {{use.validation.recommendations | to_yaml}}
+        {{with.validation.recommendations | to_yaml}}
 
         ## Content Preview
         (Include first 200 chars of each locale's description)
@@ -534,7 +534,7 @@ tasks:
   - id: final_output
     description: "Output generation summary"
 
-    use:
+    with:
       validation: validate_content_quality
       entity: describe_entity
 
@@ -543,10 +543,10 @@ tasks:
       echo "  🌐 KNOWLEDGE GRAPH CONTENT GENERATION COMPLETE"
       echo "═══════════════════════════════════════════════════════════════"
       echo ""
-      echo "Entity: {{use.entity.name}}"
+      echo "Entity: {{with.entity.name}}"
       echo "Locales: {{inputs.target_locales | length}}"
-      echo "Quality Score: {{use.validation.overall_score}}/100"
-      echo "Status: {{use.validation.approval_status}}"
+      echo "Quality Score: {{with.validation.overall_score}}/100"
+      echo "Status: {{with.validation.approval_status}}"
       echo ""
       echo "Generated artifacts:"
       echo "  📂 context/          - Schema, entity, relations, atoms"

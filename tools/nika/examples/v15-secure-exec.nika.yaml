@@ -46,7 +46,7 @@ tasks:
       format: text
 
   - id: summary
-    use:
+    with:
       files: list_files
       safe: safe_echo
       pipeline: pipeline_example

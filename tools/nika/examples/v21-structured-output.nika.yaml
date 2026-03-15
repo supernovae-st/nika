@@ -123,7 +123,7 @@ tasks:
 
   # Test 4: Summary combining results
   - id: summary
-    use:
+    with:
       person: generate_person
       keywords: generate_keywords
       product: generate_product
@@ -131,11 +131,11 @@ tasks:
       prompt: |
         Summarize the structured outputs:
 
-        Person: {{use.person}}
+        Person: {{with.person}}
 
-        Keywords: {{use.keywords}}
+        Keywords: {{with.keywords}}
 
-        Product: {{use.product}}
+        Product: {{with.product}}
 
         Write a brief analysis of each output's quality.
       temperature: 0.3

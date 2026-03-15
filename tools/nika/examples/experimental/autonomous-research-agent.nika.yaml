@@ -128,10 +128,10 @@ tasks:
   - id: run_investigations
     description: "Execute parallel investigations using spawned agents"
 
-    use:
+    with:
       plan: research_planner
 
-    for_each: "{{use.plan.investigations}}"
+    for_each: "{{with.plan.investigations}}"
     as: investigation
     concurrency: 3
     fail_fast: false
@@ -141,11 +141,11 @@ tasks:
         You are a specialized Research Investigator.
 
         INVESTIGATION ASSIGNMENT:
-        - Focus: {{use.investigation.focus}}
+        - Focus: {{with.investigation.focus}}
         - Questions to Answer:
-        {{use.investigation.questions | to_yaml}}
-        - Approach: {{use.investigation.approach}}
-        - Expected Output: {{use.investigation.output_type}}
+        {{with.investigation.questions | to_yaml}}
+        - Approach: {{with.investigation.approach}}
+        - Expected Output: {{with.investigation.output_type}}
 
         You have access to spawn_agent to delegate specific sub-tasks if needed.
         Use spawn_agent for:
@@ -209,9 +209,9 @@ tasks:
       max_retries: 2
 
     artifact:
-      - path: investigations/{{use.investigation.id}}.json
+      - path: investigations/{{with.investigation.id}}.json
         format: json
-      - path: investigations/{{use.investigation.id}}.md
+      - path: investigations/{{with.investigation.id}}.md
         format: text
 
     flow: [research_planner]
@@ -223,7 +223,7 @@ tasks:
   - id: synthesize_findings
     description: "Synthesize all investigation findings into coherent analysis"
 
-    use:
+    with:
       plan: research_planner
       investigations: run_investigations
 
@@ -232,10 +232,10 @@ tasks:
         You are a Senior Research Analyst synthesizing multi-source findings.
 
         ORIGINAL RESEARCH PLAN:
-        {{use.plan | to_yaml}}
+        {{with.plan | to_yaml}}
 
         INVESTIGATION RESULTS:
-        {{use.investigations | to_yaml}}
+        {{with.investigations | to_yaml}}
 
         Your synthesis tasks:
         1. Cross-reference findings across investigations
@@ -329,7 +329,7 @@ tasks:
   - id: generate_report
     description: "Generate final research report in multiple formats"
 
-    use:
+    with:
       plan: research_planner
       synthesis: synthesize_findings
 
@@ -337,14 +337,14 @@ tasks:
       prompt: |
         Generate a professional research report in Markdown format.
 
-        RESEARCH TOPIC: {{use.plan.topic}}
+        RESEARCH TOPIC: {{with.plan.topic}}
 
         SYNTHESIS:
-        {{use.synthesis | to_yaml}}
+        {{with.synthesis | to_yaml}}
 
         Structure the report as:
 
-        # Research Report: {{use.plan.topic}}
+        # Research Report: {{with.plan.topic}}
 
         ## Executive Summary
         (Key findings in 3-5 sentences)
@@ -391,7 +391,7 @@ tasks:
   - id: output_summary
     description: "Output execution summary"
 
-    use:
+    with:
       plan: research_planner
       synthesis: synthesize_findings
 
@@ -400,12 +400,12 @@ tasks:
       echo "  🔬 AUTONOMOUS RESEARCH AGENT COMPLETE"
       echo "═══════════════════════════════════════════════════════════════"
       echo ""
-      echo "Topic: {{use.plan.topic}}"
-      echo "Investigations completed: {{use.plan.investigations | length}}"
-      echo "Overall confidence: {{use.synthesis.confidence_assessment.overall}}"
+      echo "Topic: {{with.plan.topic}}"
+      echo "Investigations completed: {{with.plan.investigations | length}}"
+      echo "Overall confidence: {{with.synthesis.confidence_assessment.overall}}"
       echo ""
       echo "Key findings:"
-      echo "{{use.synthesis.key_findings | length}} findings documented"
+      echo "{{with.synthesis.key_findings | length}} findings documented"
       echo ""
       echo "Artifacts generated:"
       echo "  - planning/research-plan.json"

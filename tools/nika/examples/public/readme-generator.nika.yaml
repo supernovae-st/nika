@@ -70,7 +70,7 @@ tasks:
 
   # Step 5: Generate README
   - id: generate_readme
-    use:
+    with:
       structure: get_structure
       package: get_package
       docs: get_docs
@@ -80,16 +80,16 @@ tasks:
         Generate a professional README.md for this project.
 
         PROJECT STRUCTURE:
-        {{use.structure}}
+        {{with.structure}}
 
         PACKAGE CONFIG:
-        {{use.package}}
+        {{with.package}}
 
         EXISTING DOCS:
-        {{use.docs}}
+        {{with.docs}}
 
         TECH STACK:
-        {{use.stack}}
+        {{with.stack}}
 
         Generate a complete README with:
 
@@ -138,11 +138,11 @@ tasks:
 
   # Step 6: Save
   - id: save
-    use:
+    with:
       readme: generate_readme
     exec:
       command: |
-        echo "{{use.readme}}" > /tmp/README-generated.md
+        echo "{{with.readme}}" > /tmp/README-generated.md
         echo "✅ README generated at /tmp/README-generated.md"
         echo ""
         echo "Preview (first 30 lines):"

@@ -166,7 +166,7 @@ tasks:
 
   - id: research_topics
     description: "Deep research on selected topic"
-    use:
+    with:
       calendar: check_calendar
       trends: get_trends
       web_trends: web_search
@@ -175,10 +175,10 @@ tasks:
       prompt: |
         Based on these inputs, select the BEST blog topic:
 
-        CALENDAR: {{use.calendar | to_yaml}}
-        TRENDS: {{use.trends | to_yaml}}
-        WEB TRENDS: {{use.web_trends | to_yaml}}
-        COMPETITORS: {{use.competitor_insights | to_yaml}}
+        CALENDAR: {{with.calendar | to_yaml}}
+        TRENDS: {{with.trends | to_yaml}}
+        WEB TRENDS: {{with.web_trends | to_yaml}}
+        COMPETITORS: {{with.competitor_insights | to_yaml}}
 
         The topic must be:
         - Currently trending
@@ -230,12 +230,12 @@ tasks:
 
   - id: generate_outline
     description: "Generate detailed article outline"
-    use:
+    with:
       research: research_topics
     infer:
       prompt: |
         Create a detailed blog post outline based on this research:
-        {{use.research | to_yaml}}
+        {{with.research | to_yaml}}
 
         The outline should have:
         - Compelling introduction hook
@@ -258,15 +258,15 @@ tasks:
 
   - id: generate_metadata
     description: "Generate SEO metadata"
-    use:
+    with:
       research: research_topics
       outline: generate_outline
     infer:
       prompt: |
         Based on research and outline, generate SEO metadata:
 
-        RESEARCH: {{use.research | to_yaml}}
-        OUTLINE PREVIEW: {{use.outline | truncate: 500}}
+        RESEARCH: {{with.research | to_yaml}}
+        OUTLINE PREVIEW: {{with.outline | truncate: 500}}
 
         Generate:
         1. SEO title (55-60 chars)
@@ -309,7 +309,7 @@ tasks:
 
   - id: write_article
     description: "Multi-turn agent writes article with refinement"
-    use:
+    with:
       research: research_topics
       outline: generate_outline
       metadata: generate_metadata
@@ -318,13 +318,13 @@ tasks:
         You are an expert technical content writer.
 
         Write a comprehensive blog post following this outline:
-        {{use.outline}}
+        {{with.outline}}
 
         RESEARCH CONTEXT:
-        {{use.research | to_yaml}}
+        {{with.research | to_yaml}}
 
         SEO METADATA:
-        {{use.metadata | to_yaml}}
+        {{with.metadata | to_yaml}}
 
         REQUIREMENTS:
         1. Follow outline structure exactly
@@ -354,7 +354,7 @@ tasks:
 
   - id: render_platforms
     description: "Adapt article for different platforms"
-    use:
+    with:
       article: write_article
       metadata: generate_metadata
     for_each:
@@ -376,7 +376,7 @@ tasks:
         Adapt this blog article for {{platform.name}} platform:
 
         ARTICLE:
-        {{use.article | truncate: 2000}}
+        {{with.article | truncate: 2000}}
 
         PLATFORM: {{platform.name}}
         FORMAT: {{platform.format}}
@@ -397,7 +397,7 @@ tasks:
 
   - id: validate_content
     description: "Validate content quality and SEO"
-    use:
+    with:
       article: write_article
       platforms: render_platforms
       metadata: generate_metadata
@@ -406,10 +406,10 @@ tasks:
         Perform comprehensive quality check:
 
         ARTICLE PREVIEW:
-        {{use.article | truncate: 1000}}
+        {{with.article | truncate: 1000}}
 
         METADATA:
-        {{use.metadata | to_yaml}}
+        {{with.metadata | to_yaml}}
 
         VALIDATION CHECKLIST:
         - Word count target met
@@ -461,7 +461,7 @@ tasks:
 
   - id: prepare_publication
     description: "Prepare final publication package"
-    use:
+    with:
       article: write_article
       metadata: generate_metadata
       validation: validate_content
@@ -469,9 +469,9 @@ tasks:
       prompt: |
         Create final publication package summary:
 
-        ARTICLE: {{use.article | truncate: 500}}...
-        METADATA: {{use.metadata | to_yaml}}
-        VALIDATION: {{use.validation | to_yaml}}
+        ARTICLE: {{with.article | truncate: 500}}...
+        METADATA: {{with.metadata | to_yaml}}
+        VALIDATION: {{with.validation | to_yaml}}
 
         Return publication summary with status and next steps.
 
@@ -485,13 +485,13 @@ tasks:
 
   - id: save_and_notify
     description: "Save content and generate report"
-    use:
+    with:
       package: prepare_publication
       validation: validate_content
     exec: |
       echo "=== BLOG CONTENT PIPELINE COMPLETE ==="
-      echo "Quality Score: {{use.validation.overall_score}}/100"
-      echo "Ready to Publish: {{use.validation.ready_to_publish}}"
+      echo "Quality Score: {{with.validation.overall_score}}/100"
+      echo "Ready to Publish: {{with.validation.ready_to_publish}}"
       echo ""
       echo "Artifacts generated:"
       echo "  - research/topic-research.json"

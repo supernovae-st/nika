@@ -64,7 +64,7 @@ tasks:
     as: test_suite
     concurrency: 3
     fail_fast: false
-    exec: "pnpm test:{{use.test_suite}} --coverage --json"
+    exec: "pnpm test:{{with.test_suite}} --coverage --json"
     flow: [lint, typecheck]
     output:
       use.test_results: result
@@ -75,7 +75,7 @@ tasks:
       prompt: |
         Analyze test coverage results and produce a summary:
 
-        Test Results: {{use.test_results}}
+        Test Results: {{with.test_results}}
 
         Return JSON with:
         - total_coverage: number (percentage)
@@ -95,7 +95,7 @@ tasks:
     infer:
       prompt: |
         Evaluate coverage gate:
-        Coverage Summary: {{use.coverage_summary}}
+        Coverage Summary: {{with.coverage_summary}}
         Required: 80% minimum
 
         Return JSON: { "passed": boolean, "reason": string }
@@ -115,7 +115,7 @@ tasks:
     infer:
       prompt: |
         Evaluate mutation testing results:
-        {{use.mutation_results}}
+        {{with.mutation_results}}
 
         Mutation score must be >= 70% to pass.
         Return JSON: { "passed": boolean, "score": number, "reason": string }
@@ -157,7 +157,7 @@ tasks:
     fail_fast: true
     agent:
       prompt: |
-        Deploy to {{use.env}} environment:
+        Deploy to {{with.env}} environment:
 
         1. Run health checks on current deployment
         2. Deploy new version with blue-green strategy
@@ -166,7 +166,7 @@ tasks:
         5. Keep old version for 10 minutes for rollback
 
         Docker image: $IMAGE_NAME:$COMMIT_SHA
-        Environment: {{use.env}}
+        Environment: {{with.env}}
 
         Report deployment status and any issues.
       max_turns: 10
@@ -196,7 +196,7 @@ tasks:
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "*Deployment Summary*\n• Commit: $COMMIT_SHA\n• Coverage: {{use.coverage_summary.total_coverage}}%\n• Status: Success"
+                "text": "*Deployment Summary*\n• Commit: $COMMIT_SHA\n• Coverage: {{with.coverage_summary.total_coverage}}%\n• Status: Success"
               }
             }
           ]

@@ -123,13 +123,13 @@ tasks:
   # Step 2: Generate strategic brief from research
   - id: generate_brief
     description: "Generate content strategy brief"
-    use:
+    with:
       research: research_orchestrator
     infer:
       prompt: |
         Based on this research analysis:
 
-        {{use.research | to_yaml}}
+        {{with.research | to_yaml}}
 
         Generate a 1-page Content Strategy Brief for QR Code AI with:
 
@@ -159,7 +159,7 @@ tasks:
   # Step 3: Output summary
   - id: output_summary
     description: "Output generation summary"
-    use:
+    with:
       brief: generate_brief
     exec: |
       echo "=== Content Strategy Brief Generated ==="

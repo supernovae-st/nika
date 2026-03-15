@@ -40,13 +40,13 @@ tasks:
   # --------------------------------------------------------------------------
   - id: generate_meta
     description: "Generate SEO-optimized meta description"
-    use:
+    with:
       keywords: analyze_keywords
     infer: |
       Generate an SEO-optimized meta description (max 155 characters)
       using these keywords:
 
-      Keywords: {{use.keywords}}
+      Keywords: {{with.keywords}}
 
       The meta description should:
       - Include primary keyword naturally
@@ -58,13 +58,13 @@ tasks:
   # --------------------------------------------------------------------------
   - id: generate_title
     description: "Generate SEO-optimized title tag"
-    use:
+    with:
       keywords: analyze_keywords
     infer: |
       Generate an SEO-optimized title tag (max 60 characters)
       using these keywords:
 
-      Keywords: {{use.keywords}}
+      Keywords: {{with.keywords}}
 
       The title should:
       - Start with primary keyword

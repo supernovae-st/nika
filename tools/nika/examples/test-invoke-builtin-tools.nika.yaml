@@ -20,10 +20,10 @@ tasks:
 
   # Test 2: Create the test directory
   - id: create_dir
-    use:
+    with:
       dir: get_path
     exec:
-      command: "mkdir -p {{use.dir}}"
+      command: "mkdir -p {{with.dir}}"
       shell: true
 
   # Test 3: Use nika:log (doesn't require file paths)

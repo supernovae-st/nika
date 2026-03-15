@@ -18,13 +18,13 @@ tasks:
     as: locale
     concurrency: 4
     fail_fast: true
-    infer: "Generate greeting for locale: {{use.locale}}"
+    infer: "Generate greeting for locale: {{with.locale}}"
 
   # Step 3: Reference parallel results with implicit syntax
   - id: aggregate_results
-    use:
+    with:
       all_greetings: $process_locales  # Implicit reference to parallel results
-    infer: "Aggregate all greetings: {{use.all_greetings}}"
+    infer: "Aggregate all greetings: {{with.all_greetings}}"
 
   # Step 4: Nested for_each with binding reference
   - id: generate_items
@@ -37,22 +37,22 @@ tasks:
     for_each: ["item_a", "item_b", "item_c"]
     as: item
     concurrency: 3
-    use:
+    with:
       source: $generate_items  # Implicit reference to source
-    infer: "Process {{use.item}} with source context: {{use.source}}"
+    infer: "Process {{with.item}} with source context: {{with.source}}"
 
   # Step 6: Mixed for_each with implicit and explicit
   - id: mixed_parallel
     for_each: ["A", "B", "C"]
     as: category
     concurrency: 2
-    use:
+    with:
       locales_result: $aggregate_results  # Implicit
       items_result: process_items_parallel  # Explicit (no $)
     infer: |
-      Category: {{use.category}}
-      Locales: {{use.locales_result}}
-      Items: {{use.items_result}}
+      Category: {{with.category}}
+      Locales: {{with.locales_result}}
+      Items: {{with.items_result}}
 
   # Step 7: Sequential fallback for ordered operations
   - id: sequential_processing
@@ -60,23 +60,23 @@ tasks:
     as: step
     concurrency: 1  # Sequential
     fail_fast: false  # Continue on error
-    use:
+    with:
       prev_parallel: $mixed_parallel
-    infer: "Sequential {{use.step}} after parallel: {{use.prev_parallel}}"
+    infer: "Sequential {{with.step}} after parallel: {{with.prev_parallel}}"
 
   # Step 8: Final aggregation with all parallel results
   - id: final_aggregation
-    use:
+    with:
       locales: $process_locales
       items: $process_items_parallel
       mixed: $mixed_parallel
       sequential: $sequential_processing
     infer: |
       Final aggregation of all parallel results:
-      - Locales (4 parallel): {{use.locales}}
-      - Items (3 parallel): {{use.items}}
-      - Mixed (2 parallel): {{use.mixed}}
-      - Sequential (1 at a time): {{use.sequential}}
+      - Locales (4 parallel): {{with.locales}}
+      - Items (3 parallel): {{with.items}}
+      - Mixed (2 parallel): {{with.mixed}}
+      - Sequential (1 at a time): {{with.sequential}}
 
       All for_each executions completed successfully.
 

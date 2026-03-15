@@ -48,7 +48,7 @@ tasks:
   # =========================================================================
   - id: test_infer_claude
     description: "Test infer verb with Claude API"
-    use:
+    with:
       exec_result: test_exec
       fetch_result: test_fetch
     infer:
@@ -82,7 +82,7 @@ tasks:
     as: item
     concurrency: 3
     exec: |
-      echo '{"item": "{{use.item}}", "processed_at": "'$(date +%s)'"}'
+      echo '{"item": "{{with.item}}", "processed_at": "'$(date +%s)'"}'
     output:
       format: json
 
@@ -91,7 +91,7 @@ tasks:
   # =========================================================================
   - id: test_agent
     description: "Test agent verb with multi-turn reasoning"
-    use:
+    with:
       previous_tests: test_infer_claude
     agent:
       prompt: |
@@ -121,7 +121,7 @@ tasks:
   # =========================================================================
   - id: final_report
     description: "Generate test report"
-    use:
+    with:
       exec: test_exec
       fetch: test_fetch
       infer: test_infer_claude

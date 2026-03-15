@@ -9,7 +9,7 @@ tasks:
     exec: "echo 'Produced value'"
 
   - id: eager_consumer
-    use:
+    with:
       value: producer
     exec: "echo 'Eagerly consumed: value captured'"
 
@@ -20,7 +20,7 @@ tasks:
       shell: true
 
   - id: lazy_with_default
-    use:
+    with:
       slow_data:
         path: slow_producer
         lazy: true
@@ -29,7 +29,7 @@ tasks:
 
   # Test 3: Multiple bindings
   - id: multi_binding
-    use:
+    with:
       a: producer
       b: slow_producer
     exec: "echo 'Combined A and B'"

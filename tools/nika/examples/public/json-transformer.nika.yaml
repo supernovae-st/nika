@@ -35,13 +35,13 @@ tasks:
 
   # Step 3: Analyze structure
   - id: analyze
-    use:
+    with:
       data: read_input
     infer:
       prompt: |
         Analyze this JSON structure:
 
-        {{use.data}}
+        {{with.data}}
 
         Output a brief description:
         - Type (array/object)
@@ -53,7 +53,7 @@ tasks:
 
   # Step 4: Transform
   - id: transform
-    use:
+    with:
       data: read_input
       instruction: get_transform
       analysis: analyze
@@ -62,13 +62,13 @@ tasks:
         Transform this JSON data.
 
         ORIGINAL DATA:
-        {{use.data}}
+        {{with.data}}
 
         STRUCTURE ANALYSIS:
-        {{use.analysis}}
+        {{with.analysis}}
 
         TRANSFORMATION INSTRUCTION:
-        {{use.instruction}}
+        {{with.instruction}}
 
         Rules:
         - Output ONLY valid JSON
@@ -80,18 +80,18 @@ tasks:
 
   # Step 5: Validate and output
   - id: output
-    use:
+    with:
       result: transform
       instruction: get_transform
     exec:
       command: |
         echo "=== Transformation Complete ==="
-        echo "Instruction: {{use.instruction}}"
+        echo "Instruction: {{with.instruction}}"
         echo ""
         echo "=== Result ==="
-        echo '{{use.result}}' | jq . 2>/dev/null || echo '{{use.result}}'
+        echo '{{with.result}}' | jq . 2>/dev/null || echo '{{with.result}}'
         echo ""
-        echo '{{use.result}}' > /tmp/transformed.json
+        echo '{{with.result}}' > /tmp/transformed.json
         echo "💾 Saved to /tmp/transformed.json"
       shell: true
 

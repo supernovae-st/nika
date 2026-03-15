@@ -95,7 +95,7 @@ tasks:
       depth_limit: 3
       tools:
         - nika:log
-    use:
+    with:
       # Eager binding: from included setup partial
       meta: setup_generate_meta
       env_status: setup_validate_env
@@ -117,22 +117,22 @@ tasks:
     fail_fast: true
     infer:
       prompt: |
-        Generate {{use.format}} format content about: {{input.subject}}
+        Generate {{with.format}} format content about: {{input.subject}}
 
         Use this research as context:
-        {{use.research_summary}}
+        {{with.research_summary}}
 
         Template guidance:
         {{context.files.templates}}
 
         Generate comprehensive content with:
         - Clear structure with title, sections, subsections
-        - Proper formatting for {{use.format}}
+        - Proper formatting for {{with.format}}
         - Actionable insights
         - Quality metrics (word_count, reading_time, readability_score)
 
         Return valid JSON matching this structure:
-        - format: "{{use.format}}"
+        - format: "{{with.format}}"
         - content: { title, body, sections }
         - metadata: { word_count, reading_time_minutes, generated_at }
         - quality_metrics: { readability_score, completeness }
@@ -141,7 +141,7 @@ tasks:
       temperature: 0.7
       system: "You are a professional content writer specializing in technical documentation."
       max_tokens: 4000
-    use:
+    with:
       research_summary: research_agent
       # format is auto-populated from 'as: format' in for_each
     output:
@@ -161,7 +161,7 @@ tasks:
     concurrency: 3
     agent:
       prompt: |
-        Generate the {{use.section}} section of an HTML page about: {{input.subject}}
+        Generate the {{with.section}} section of an HTML page about: {{input.subject}}
 
         Use the content generated previously and create semantic, accessible HTML.
 
@@ -175,7 +175,7 @@ tasks:
         - WCAG AA contrast compliance
 
         Return valid JSON with:
-        - section_type: "{{use.section}}"
+        - section_type: "{{with.section}}"
         - html: { tag, content, classes, attributes }
         - styles: { inline, theme }
         - accessibility: { aria_labels, semantic_structure }
@@ -184,7 +184,7 @@ tasks:
       depth_limit: 2
       tools:
         - nika:log
-    use:
+    with:
       # section is auto-populated from 'as: section' in for_each
       research: research_agent
       all_content:
@@ -208,7 +208,7 @@ tasks:
         Combine these HTML sections into a complete HTML page:
 
         The sections array contains [header, main, footer] in order:
-        {{use.sections}}
+        {{with.sections}}
 
         Base template:
         {{context.files.html_boilerplate}}
@@ -221,7 +221,7 @@ tasks:
       model: claude-sonnet-4-6
       temperature: 0.3
       system: "You are an expert HTML/CSS developer. Output only valid HTML code."
-    use:
+    with:
       # for_each results are aggregated as JSON array [header_result, main_result, footer_result]
       sections: html_builder_agent
     output:
@@ -238,11 +238,11 @@ tasks:
     exec:
       command: |
         cat > ~/Desktop/output/research.json << 'JSONEOF'
-        {{use.research}}
+        {{with.research}}
         JSONEOF
         echo "Written: research.json"
       shell: true
-    use:
+    with:
       research: research_agent
 
   - id: write_content_md
@@ -251,11 +251,11 @@ tasks:
     exec:
       command: |
         cat > ~/Desktop/output/content.md << 'MDEOF'
-        {{use.all_content}}
+        {{with.all_content}}
         MDEOF
         echo "Written: content.md"
       shell: true
-    use:
+    with:
       # for_each results: [md_result, txt_result, json_result] - write all formats
       all_content: content_generation
 
@@ -265,11 +265,11 @@ tasks:
     exec:
       command: |
         cat > ~/Desktop/output/summary.txt << 'TXTEOF'
-        {{use.all_content}}
+        {{with.all_content}}
         TXTEOF
         echo "Written: summary.txt"
       shell: true
-    use:
+    with:
       # for_each results aggregated as JSON array
       all_content: content_generation
 
@@ -279,11 +279,11 @@ tasks:
     exec:
       command: |
         cat > ~/Desktop/output/index.html << 'HTMLEOF'
-        {{use.html}}
+        {{with.html}}
         HTMLEOF
         echo "Written: index.html"
       shell: true
-    use:
+    with:
       html: assemble_html
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -327,7 +327,7 @@ tasks:
         Generate a brief execution summary report for this workflow run.
 
         Subject: {{input.subject}}
-        Verification: {{use.verification}}
+        Verification: {{with.verification}}
 
         Include:
         - Files created
@@ -336,7 +336,7 @@ tasks:
       model: claude-sonnet-4-6
       temperature: 0.5
       system: "You are a technical report writer. Be concise and factual."
-    use:
+    with:
       verification: verify_files
 
 # ═══════════════════════════════════════════════════════════════════════════════
