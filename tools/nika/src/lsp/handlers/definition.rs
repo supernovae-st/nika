@@ -57,7 +57,7 @@ pub fn find_definition_with_ast(
     }
 
     // Fall back to text-based include definition (no AST support yet)
-    if let Some(response) = find_include_definition(line, offset) {
+    if let Some(response) = find_include_definition(line, offset, uri) {
         return Some(response);
     }
 
@@ -89,7 +89,7 @@ pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoD
     }
 
     // Check for include path
-    if let Some(response) = find_include_definition(line, offset) {
+    if let Some(response) = find_include_definition(line, offset, &uri) {
         return Some(response);
     }
 
@@ -178,12 +178,74 @@ fn find_template_definition(
     None
 }
 
-/// Find include path definition (returns file URI)
+/// Extract a file path from an `include:` block's `path:` field.
+///
+/// Handles various YAML formats:
+/// - `path: ./lib/seo-tasks.nika.yaml`
+/// - `- path: ./lib/seo-tasks.nika.yaml`
+/// - `path: "./lib/seo-tasks.nika.yaml"` (quoted)
 #[cfg(feature = "lsp")]
-fn find_include_definition(_line: &str, _offset: usize) -> Option<GotoDefinitionResponse> {
-    // TODO: Implement include path resolution
-    // This would need to resolve relative paths to absolute file URIs
-    None
+fn extract_include_path(line: &str) -> Option<&str> {
+    let trimmed = line.trim();
+
+    // Strip leading list marker `- `
+    let trimmed = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+
+    // Match `path:` field
+    let value = if let Some(rest) = trimmed.strip_prefix("path:") {
+        rest.trim()
+    } else {
+        return None;
+    };
+
+    if value.is_empty() {
+        return None;
+    }
+
+    // Strip surrounding quotes (single or double)
+    let value = value
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
+        .unwrap_or(value);
+
+    if value.is_empty() {
+        return None;
+    }
+
+    Some(value)
+}
+
+/// Find include path definition (returns file URI)
+///
+/// Resolves relative paths from `path:` fields in `include:` blocks against
+/// the document URI's parent directory. Returns a definition location pointing
+/// to the beginning of the resolved file.
+#[cfg(feature = "lsp")]
+fn find_include_definition(
+    line: &str,
+    _offset: usize,
+    doc_uri: &Url,
+) -> Option<GotoDefinitionResponse> {
+    let path_str = extract_include_path(line)?;
+
+    // Resolve the document URI to a filesystem path
+    let doc_path = doc_uri.to_file_path().ok()?;
+    let parent_dir = doc_path.parent()?;
+
+    // Resolve the include path relative to the document's parent directory
+    let resolved = parent_dir.join(path_str);
+
+    // Canonicalize to resolve `./` and `../` components.
+    // This also verifies the file exists on disk.
+    let canonical = resolved.canonicalize().ok()?;
+
+    let target_uri = Url::from_file_path(canonical).ok()?;
+
+    Some(GotoDefinitionResponse::Scalar(Location::new(
+        target_uri,
+        Range::default(),
+    )))
 }
 
 // ============================================================================
@@ -761,5 +823,124 @@ tasks:
         let response = find_definition_with_ast(&ast_index, &uri, text, position);
 
         assert!(response.is_none());
+    }
+
+    // ============================================================================
+    // Include Path Definition Tests (FEAT-001)
+    // ============================================================================
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_basic() {
+        let line = "    - path: ./lib/seo-tasks.nika.yaml";
+        let result = extract_include_path(line);
+        assert_eq!(result, Some("./lib/seo-tasks.nika.yaml"));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_without_list_marker() {
+        let line = "    path: ./lib/seo-tasks.nika.yaml";
+        let result = extract_include_path(line);
+        assert_eq!(result, Some("./lib/seo-tasks.nika.yaml"));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_double_quoted() {
+        let line = r#"    - path: "./lib/seo-tasks.nika.yaml""#;
+        let result = extract_include_path(line);
+        assert_eq!(result, Some("./lib/seo-tasks.nika.yaml"));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_single_quoted() {
+        let line = "    - path: './lib/seo-tasks.nika.yaml'";
+        let result = extract_include_path(line);
+        assert_eq!(result, Some("./lib/seo-tasks.nika.yaml"));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_no_match() {
+        let line = "    prefix: seo_";
+        let result = extract_include_path(line);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_empty_value() {
+        let line = "    path:";
+        let result = extract_include_path(line);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_include_path_non_path_line() {
+        let line = "    infer: \"Generate a title\"";
+        let result = extract_include_path(line);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_include_definition_with_existing_file() {
+        // Create a temp directory with a workflow file
+        let dir = std::env::temp_dir().join("nika_lsp_test_include");
+        let _ = std::fs::create_dir_all(dir.join("lib"));
+        let target_file = dir.join("lib").join("seo-tasks.nika.yaml");
+        std::fs::write(
+            &target_file,
+            "schema: nika/workflow@0.12\nworkflow: seo\ntasks: []",
+        )
+        .unwrap();
+
+        let main_file = dir.join("main.nika.yaml");
+        let doc_uri = Url::from_file_path(&main_file).unwrap();
+
+        let line = "    - path: ./lib/seo-tasks.nika.yaml";
+        let result = find_include_definition(line, 0, &doc_uri);
+
+        assert!(
+            result.is_some(),
+            "Should resolve include path to existing file"
+        );
+
+        // Verify the target URI points to the right file
+        if let Some(GotoDefinitionResponse::Scalar(location)) = result {
+            // canonicalize() resolves symlinks (e.g. /var -> /private/var on macOS)
+            let canonical_target = target_file.canonicalize().unwrap();
+            let target_uri = Url::from_file_path(&canonical_target).unwrap();
+            assert_eq!(location.uri, target_uri);
+            // Range should be at the start of the file
+            assert_eq!(location.range.start.line, 0);
+            assert_eq!(location.range.start.character, 0);
+        } else {
+            panic!("Expected GotoDefinitionResponse::Scalar");
+        }
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_include_definition_nonexistent_file() {
+        let doc_uri = Url::parse("file:///project/main.nika.yaml").unwrap();
+        let line = "    - path: ./lib/nonexistent.nika.yaml";
+        let result = find_include_definition(line, 0, &doc_uri);
+        assert!(result.is_none(), "Should return None for non-existent file");
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_include_definition_non_path_line() {
+        let doc_uri = Url::parse("file:///project/main.nika.yaml").unwrap();
+        let line = "    prefix: seo_";
+        let result = find_include_definition(line, 0, &doc_uri);
+        assert!(result.is_none(), "Should return None for non-path line");
     }
 }
