@@ -92,6 +92,11 @@ pub struct RigAgentLoop {
     /// takes ownership. The clone is necessary to preserve history for future turns.
     /// Pre-allocated with capacity based on `max_turns` to minimize reallocations.
     history: Vec<Message>,
+    /// Monotonically incrementing turn counter.
+    /// Incremented in `add_to_history()` (one complete user+assistant exchange = one turn).
+    /// Replaces the ambiguous `(history.len() / 2 + 1)` formula which yields identical
+    /// values for even and odd history lengths due to integer division.
+    turn_count: u32,
     /// Optional streaming channel for real-time token display
     stream_tx: Option<tokio::sync::mpsc::Sender<crate::provider::rig::StreamChunk>>,
     /// Skill injector for loading and caching skills
@@ -292,6 +297,7 @@ impl RigAgentLoop {
             mcp_clients,
             tools,
             history: Vec::with_capacity(history_capacity),
+            turn_count: 0,
             stream_tx: None,
             skill_injector: None,
             skills_map: None,

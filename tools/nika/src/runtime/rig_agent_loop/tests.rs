@@ -1425,53 +1425,10 @@ mod tests {
         );
     }
 
-    // ---- BUG: turn_index calculation off-by-one with odd history ----
-    // `(self.history.len() / 2 + 1) as u32` uses integer division.
-    // After `add_to_history()` (adds 2 messages), then `push_message()` (adds 1),
-    // history has 3 messages. Turn should be 2 (1 complete turn + 1 partial),
-    // but integer division gives 3/2 + 1 = 1 + 1 = 2. Actually, this is correct
-    // in this case. But the semantics are wrong: turn_index represents
-    // "the next turn number", which should be derived from complete turns only.
-    //
-    // With 1 message (just a user message): 1/2 + 1 = 0 + 1 = 1 (correct)
-    // With 2 messages (1 complete turn): 2/2 + 1 = 1 + 1 = 2 (correct)
-    // With 3 messages (1 turn + 1 orphan): 3/2 + 1 = 1 + 1 = 2 (WRONG: should be 2 but
-    //   a single orphan user message doesn't constitute a new turn_index — confusing)
-    //
-    // The real issue: odd history lengths yield the same turn_index as even,
-    // making turn tracking ambiguous. A user message pushed without a response
-    // doesn't increment the turn count.
-    #[test]
-    fn wave2_turn_index_ambiguous_with_odd_history() {
-        let params = AgentParams {
-            prompt: "Test".to_string(),
-            ..Default::default()
-        };
-        let event_log = EventLog::new();
-        let mcp_clients = FxHashMap::default();
-        let mut agent =
-            RigAgentLoop::new("test".to_string(), params, event_log, mcp_clients).unwrap();
-
-        // After 1 complete turn (2 messages), turn_index should be 2
-        agent.add_to_history("User msg 1", "Assistant response 1");
-        let turn_after_complete = (agent.history_len() / 2 + 1) as u32;
-        assert_eq!(turn_after_complete, 2, "After 1 complete turn, should be 2");
-
-        // Push one orphan message (3 total)
-        agent.push_message(rig::message::Message::user("Orphan msg"));
-        let turn_after_orphan = (agent.history_len() / 2 + 1) as u32;
-
-        // BUG: Odd and even-length histories give same turn_index
-        // 2 messages: 2/2 + 1 = 2
-        // 3 messages: 3/2 + 1 = 2 (same!)
-        // This means adding a user message doesn't change the turn index.
-        assert_eq!(
-            turn_after_complete, turn_after_orphan,
-            "BUG PROVEN: turn_index is {0} for both 2 messages and 3 messages. \
-             Integer division makes turn tracking ambiguous when history has odd length.",
-            turn_after_complete
-        );
-    }
+    // NOTE: test_turn_count_increments_correctly and
+    // wave2_turn_index_ambiguous_with_odd_history deleted — they called
+    // ChatAgentLoop methods (add_to_history, push_message, turn_count)
+    // on RigAgentLoop which doesn't have them. Broken audit tests.
 
     // ---- BUG: MaxTurnsReached is a dead variant ----
     // RigAgentStatus::MaxTurnsReached exists as a variant but is NEVER returned by

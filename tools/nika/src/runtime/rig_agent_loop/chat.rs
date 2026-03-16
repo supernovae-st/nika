@@ -29,6 +29,7 @@ impl RigAgentLoop {
     pub fn add_to_history(&mut self, user_prompt: &str, assistant_response: &str) {
         self.history.push(Message::user(user_prompt));
         self.history.push(Message::assistant(assistant_response));
+        self.turn_count += 1;
     }
 
     /// Add a single message to the history
@@ -36,14 +37,20 @@ impl RigAgentLoop {
         self.history.push(message);
     }
 
-    /// Clear all conversation history
+    /// Clear all conversation history and reset turn count
     pub fn clear_history(&mut self) {
         self.history.clear();
+        self.turn_count = 0;
     }
 
     /// Get the current history length (number of messages)
     pub fn history_len(&self) -> usize {
         self.history.len()
+    }
+
+    /// Get the number of completed turns (user + assistant exchanges).
+    pub fn turn_count(&self) -> u32 {
+        self.turn_count
     }
 
     /// Get a reference to the conversation history
@@ -115,7 +122,7 @@ impl RigAgentLoop {
         let model_name = self.params.model.as_deref().unwrap_or("claude-sonnet-4-6");
         let model = client.completion_model(model_name);
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
@@ -205,7 +212,7 @@ impl RigAgentLoop {
         let model_name = self.params.model.as_deref().unwrap_or("gpt-4o");
         let model = client.completion_model(model_name);
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         // Emit start event
         self.event_log.emit(EventKind::AgentTurn {
@@ -302,7 +309,7 @@ impl RigAgentLoop {
             .max_tokens(effective_max_tokens)
             .build();
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
@@ -368,7 +375,7 @@ impl RigAgentLoop {
             .max_tokens(effective_max_tokens)
             .build();
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
@@ -437,7 +444,7 @@ impl RigAgentLoop {
             .max_tokens(effective_max_tokens)
             .build();
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
@@ -499,7 +506,7 @@ impl RigAgentLoop {
             .max_tokens(effective_max_tokens)
             .build();
 
-        let turn_index = (self.history.len() / 2 + 1) as u32;
+        let turn_index = self.turn_count + 1;
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
