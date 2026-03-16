@@ -308,10 +308,6 @@ tasks:
 # FLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  # Schema understanding first
-  - source: describe_schema
-    target: search_entities
 
   # Parallel exploration
   - source: search_entities

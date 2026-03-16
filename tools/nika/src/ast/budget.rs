@@ -452,11 +452,6 @@ tasks:
     exec:
       command: "echo 'Done processing'"
 
-flows:
-  - source: step1
-    target: step2
-  - source: step2
-    target: step3
 "#;
 
         let result: serde_json::Value = from_str_with_budget(yaml).unwrap();

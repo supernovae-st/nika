@@ -61,19 +61,11 @@ tasks:
     );
 
     for i in 0..50 {
-        yaml.push_str(&format!(
-            "  - id: task_{}\n    exec: \"echo task_{}\"\n",
-            i, i
-        ));
-    }
-
-    yaml.push_str("\nflows:\n");
-    for i in 1..50 {
-        yaml.push_str(&format!(
-            "  - source: task_{}\n    target: task_{}\n",
-            i - 1,
-            i
-        ));
+        yaml.push_str(&format!("  - id: task_{}\n", i));
+        if i > 0 {
+            yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+        }
+        yaml.push_str(&format!("    exec: \"echo task_{}\"\n", i));
     }
 
     let iterations = 100;
@@ -118,11 +110,6 @@ tasks:
   - id: C
     exec: "echo C"
 
-flows:
-  - source: A
-    target: B
-  - source: B
-    target: C
 "#;
 
     let workflow = parse_workflow(yaml).unwrap();
@@ -165,19 +152,11 @@ tasks:
     );
 
     for i in 0..100 {
-        yaml.push_str(&format!(
-            "  - id: task_{}\n    exec: \"echo task_{}\"\n",
-            i, i
-        ));
-    }
-
-    yaml.push_str("\nflows:\n");
-    for i in 1..100 {
-        yaml.push_str(&format!(
-            "  - source: task_{}\n    target: task_{}\n",
-            i - 1,
-            i
-        ));
+        yaml.push_str(&format!("  - id: task_{}\n", i));
+        if i > 0 {
+            yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+        }
+        yaml.push_str(&format!("    exec: \"echo task_{}\"\n", i));
     }
 
     let workflow = parse_workflow(&yaml).unwrap();
@@ -220,27 +199,15 @@ tasks:
     );
 
     for i in 0..50 {
-        yaml.push_str(&format!(
-            "  - id: task_{}\n    exec: \"echo task_{}\"\n",
-            i, i
-        ));
-    }
-
-    yaml.push_str("\nflows:\n");
-    // Create a more complex graph
-    for i in 1..50 {
-        yaml.push_str(&format!(
-            "  - source: task_{}\n    target: task_{}\n",
-            i - 1,
-            i
-        ));
-        if i > 2 {
-            yaml.push_str(&format!(
-                "  - source: task_{}\n    target: task_{}\n",
-                i - 2,
-                i
-            ));
+        yaml.push_str(&format!("  - id: task_{}\n", i));
+        if i > 0 {
+            let mut deps = vec![format!("task_{}", i - 1)];
+            if i > 2 {
+                deps.push(format!("task_{}", i - 2));
+            }
+            yaml.push_str(&format!("    depends_on: [{}]\n", deps.join(", ")));
         }
+        yaml.push_str(&format!("    exec: \"echo task_{}\"\n", i));
     }
 
     let workflow = parse_workflow(&yaml).unwrap();
@@ -375,11 +342,11 @@ fn benchmark_dag_large() {
 fn benchmark_cycle_detect() {
     let mut yaml = String::from("schema: \"nika/workflow@0.12\"\nworkflow: b\ntasks:\n");
     for i in 0..50 {
-        yaml.push_str(&format!("  - id: t{}\n    exec: \"e\"\n", i));
-    }
-    yaml.push_str("flows:\n");
-    for i in 1..50 {
-        yaml.push_str(&format!("  - source: t{}\n    target: t{}\n", i - 1, i));
+        yaml.push_str(&format!("  - id: t{}\n", i));
+        if i > 0 {
+            yaml.push_str(&format!("    depends_on: [t{}]\n", i - 1));
+        }
+        yaml.push_str("    exec: \"e\"\n");
     }
     let w = parse_workflow(&yaml).unwrap();
     let g = Dag::from_workflow(&w).unwrap();

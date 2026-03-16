@@ -159,9 +159,6 @@ tasks:
   - id: real_task
     infer: "Hello"
 
-flows:
-  - source: ghost_task
-    target: real_task
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");
@@ -182,9 +179,6 @@ tasks:
   - id: real_task
     infer: "Hello"
 
-flows:
-  - source: real_task
-    target: ghost_task
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");

@@ -95,13 +95,3 @@ tasks:
         echo "---"
         echo "📋 Ready to paste in Slack/Linear/Discord"
       shell: true
-
-flows:
-  - source: get_commits
-    target: generate_standup
-  - source: get_branch
-    target: generate_standup
-  - source: get_issues
-    target: generate_standup
-  - source: generate_standup
-    target: output

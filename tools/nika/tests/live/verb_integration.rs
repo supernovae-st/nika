@@ -265,8 +265,8 @@ tasks:
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 5);
-    // depends_on creates flows during lowering
-    assert!(workflow.flows.len() >= 4);
+    // depends_on creates edges via task.flow during lowering
+    assert!(workflow.flow_count() >= 4);
     assert!(workflow.mcp.is_some());
 }
 
@@ -306,9 +306,6 @@ tasks:
     with:
       items: $get_items
 
-flows:
-  - source: get_items
-    target: process_items
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse");

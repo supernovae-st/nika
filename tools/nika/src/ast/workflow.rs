@@ -1,10 +1,8 @@
 //! Workflow Types - main workflow structure
 //!
 //! Contains the core YAML-parsed types:
-//! - `Workflow`: Root workflow with tasks and flows
+//! - `Workflow`: Root workflow with tasks (edges derived from `task.flow`)
 //! - `Task`: Individual task definition
-//! - `Flow`: DAG edge between tasks
-//! - `FlowEndpoint`: Single or multiple task references
 //! - `McpConfigInline`: Inline MCP server configuration
 //! - `ContextConfig`: File loading at workflow start
 //! - `IncludeSpec`: DAG fusion from external workflows
@@ -96,7 +94,6 @@ pub struct Workflow {
     /// Accessible via `{{inputs.param_name}}` in templates.
     pub inputs: Option<FxHashMap<String, serde_json::Value>>,
     pub tasks: Vec<Arc<Task>>,
-    pub flows: Vec<Flow>,
 }
 
 impl Workflow {
@@ -124,6 +121,29 @@ impl Workflow {
 
         let hash = xxh3_64(hasher_input.as_bytes());
         format!("{:016x}", hash)
+    }
+
+    /// Compute DAG edge count from per-task dependencies.
+    pub fn flow_count(&self) -> usize {
+        self.tasks
+            .iter()
+            .map(|t| t.flow.as_ref().map_or(0, |deps| deps.len()))
+            .sum()
+    }
+
+    /// Iterate over DAG edges as (source, target) pairs.
+    ///
+    /// Built from each task's `flow` field (which holds `depends_on` + implicit deps).
+    pub fn edges(&self) -> Vec<(&str, &str)> {
+        let mut edges = Vec::new();
+        for task in &self.tasks {
+            if let Some(ref deps) = task.flow {
+                for dep in deps {
+                    edges.push((dep.as_str(), task.id.as_str()));
+                }
+            }
+        }
+        edges
     }
 }
 
@@ -232,7 +252,6 @@ pub struct Task {
     /// Explicit task dependencies
     ///
     /// Task IDs that must complete before this task can execute.
-    /// Alternative to workflow-level `flows:` declaration.
     ///
     /// Accepts both `flow` and `depends_on` as field names.
     ///
@@ -369,7 +388,6 @@ impl Task {
     /// Get list of task IDs this task depends on
     ///
     /// Returns task IDs from the `flow`/`depends_on` field.
-    /// These are combined with workflow-level `flows:` in DAG construction.
     pub fn depends_on_ids(&self) -> Vec<&str> {
         self.flow
             .as_ref()
@@ -378,28 +396,7 @@ impl Task {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct Flow {
-    pub source: FlowEndpoint,
-    pub target: FlowEndpoint,
-}
-
-/// Handles string OR array for source/target
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum FlowEndpoint {
-    Single(String),
-    Multiple(Vec<String>),
-}
-
-impl FlowEndpoint {
-    pub fn as_vec(&self) -> Vec<&str> {
-        match self {
-            FlowEndpoint::Single(s) => vec![s],
-            FlowEndpoint::Multiple(v) => v.iter().map(String::as_str).collect(),
-        }
-    }
-}
+// Flow and FlowEndpoint types removed — edges are derived from task.flow
 
 #[cfg(test)]
 mod tests {
@@ -427,7 +424,7 @@ tasks:
         assert_eq!(workflow.tasks[0].id, "hello");
         assert!(workflow.model.is_none());
         assert!(workflow.mcp.is_none());
-        assert!(workflow.flows.is_empty());
+        assert_eq!(workflow.flow_count(), 0);
     }
 
     #[test]
@@ -730,73 +727,6 @@ agent:
     #[test]
     fn test_task_subagent_icon() {
         assert_eq!(Task::subagent_icon(), "🐤");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // FLOW ENDPOINT TESTS
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_flow_endpoint_single() {
-        let yaml = r#"
-source: step1
-target: step2
-"#;
-        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
-
-        let source_vec = flow.source.as_vec();
-        assert_eq!(source_vec.len(), 1);
-        assert_eq!(source_vec[0], "step1");
-
-        let target_vec = flow.target.as_vec();
-        assert_eq!(target_vec.len(), 1);
-        assert_eq!(target_vec[0], "step2");
-    }
-
-    #[test]
-    fn test_flow_endpoint_multiple_source() {
-        let yaml = r#"
-source:
-  - step1
-  - step2
-target: step3
-"#;
-        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
-
-        let source_vec = flow.source.as_vec();
-        assert_eq!(source_vec.len(), 2);
-        assert_eq!(source_vec[0], "step1");
-        assert_eq!(source_vec[1], "step2");
-    }
-
-    #[test]
-    fn test_flow_endpoint_multiple_target() {
-        let yaml = r#"
-source: step1
-target:
-  - step2
-  - step3
-  - step4
-"#;
-        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
-
-        let target_vec = flow.target.as_vec();
-        assert_eq!(target_vec.len(), 3);
-        assert_eq!(target_vec[0], "step2");
-        assert_eq!(target_vec[1], "step3");
-        assert_eq!(target_vec[2], "step4");
-    }
-
-    #[test]
-    fn test_flow_endpoint_multiple_both() {
-        let yaml = r#"
-source: [step1, step2]
-target: [step3, step4]
-"#;
-        let flow: Flow = serde_yaml::from_str(yaml).expect("Failed to parse");
-
-        assert_eq!(flow.source.as_vec().len(), 2);
-        assert_eq!(flow.target.as_vec().len(), 2);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

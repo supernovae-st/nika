@@ -16,7 +16,3 @@ tasks:
   - id: orchestrate
     description: "Orchestration task"
     exec: "echo 'Orchestrating composed workflow'"
-
-flows:
-  - source: setup_validate
-    target: orchestrate

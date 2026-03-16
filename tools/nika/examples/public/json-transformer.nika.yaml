@@ -94,15 +94,3 @@ tasks:
         echo '{{with.result}}' > /tmp/transformed.json
         echo "💾 Saved to /tmp/transformed.json"
       shell: true
-
-flows:
-  - source: read_input
-    target: analyze
-  - source: get_transform
-    target: transform
-  - source: analyze
-    target: transform
-  - source: read_input
-    target: transform
-  - source: transform
-    target: output

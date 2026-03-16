@@ -107,19 +107,3 @@ tasks:
         echo "✅ Blog post saved to /tmp/blog-post.md"
         wc -w /tmp/blog-post.md | awk '{print "📝 Word count: " $1}'
       shell: true
-
-flows:
-  - source: get_topic
-    target: generate_outline
-  - source: generate_outline
-    target: generate_intro
-  - source: generate_outline
-    target: generate_body
-  - source: generate_outline
-    target: generate_conclusion
-  - source: generate_intro
-    target: assemble_post
-  - source: generate_body
-    target: assemble_post
-  - source: generate_conclusion
-    target: assemble_post

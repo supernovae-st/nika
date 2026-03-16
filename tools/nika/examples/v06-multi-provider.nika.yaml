@@ -59,11 +59,3 @@ tasks:
   - id: default_provider_task
     description: "Uses workflow default provider (claude)"
     infer: "Summarize the benefits of multi-provider support in AI workflows"
-
-flows:
-  - source: creative_writing
-    target: default_provider_task
-  - source: technical_analysis
-    target: default_provider_task
-  - source: multilingual_task
-    target: default_provider_task

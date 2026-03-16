@@ -362,13 +362,12 @@ impl ChatWorkflow {
     /// Export the chat conversation to Nika workflow YAML.
     ///
     /// Converts User messages to `infer:` tasks, preserving @N dependencies
-    /// as `flows:` entries. Assistant/System/Tool messages are included
-    /// as comments for context.
+    /// as `depends_on:` entries. Assistant/System/Tool messages are skipped.
     ///
     /// # Example Output
     ///
     /// ```yaml
-    /// schema: "nika/workflow@0.2"
+    /// schema: "nika/workflow@0.12"
     /// provider: claude
     ///
     /// tasks:
@@ -376,11 +375,8 @@ impl ChatWorkflow {
     ///     infer: "What is Rust?"
     ///
     ///   - id: msg-004
+    ///     depends_on: [msg-002]
     ///     infer: "@2 Tell me more about safety"
-    ///
-    /// flows:
-    ///   - from: msg-002
-    ///     to: msg-004
     /// ```
     pub fn to_yaml(&self) -> String {
         let mut yaml = String::new();
@@ -393,38 +389,29 @@ impl ChatWorkflow {
         ));
         yaml.push_str("# Use `nika run <file>` to execute\n\n");
 
-        yaml.push_str("schema: \"nika/workflow@0.2\"\n");
+        yaml.push_str("schema: \"nika/workflow@0.12\"\n");
         yaml.push_str("provider: claude\n\n");
 
-        // Collect tasks (User messages become infer: tasks)
-        let mut tasks: Vec<(&str, &str)> = Vec::new(); // (id, content)
-        let mut flows: Vec<(String, String)> = Vec::new(); // (from_id, to_id)
+        // Collect tasks with their dependencies
+        // (id, content, deps: Vec<String>)
+        let mut tasks: Vec<(&str, &str, Vec<String>)> = Vec::new();
 
         for (idx, msg) in self.all_messages() {
             match msg.role {
                 Role::User => {
-                    // User message becomes an infer task
-                    tasks.push((&msg.id, &msg.content));
-
-                    // Check for @N dependencies
+                    // Collect @N dependencies (only User→User edges)
+                    let mut deps = Vec::new();
                     for dep_idx in self.get_dependencies(idx) {
                         if let Some(dep_msg) = self.get_message_by_index(dep_idx) {
-                            // Only add flow if the dependency is also a User message (task)
                             if dep_msg.role == Role::User {
-                                flows.push((dep_msg.id.clone(), msg.id.clone()));
+                                deps.push(dep_msg.id.clone());
                             }
                         }
                     }
+                    tasks.push((&msg.id, &msg.content, deps));
                 }
-                Role::Assistant => {
-                    // Assistant responses are outputs, add as comment
-                    // Skip for now - could be added as expected_output in future
-                }
-                Role::System => {
-                    // System messages are context, skip
-                }
-                Role::Tool => {
-                    // Tool outputs are results, skip
+                Role::Assistant | Role::System | Role::Tool => {
+                    // Non-user messages are skipped in workflow export
                 }
             }
         }
@@ -432,25 +419,17 @@ impl ChatWorkflow {
         // Tasks section
         if tasks.is_empty() {
             yaml.push_str("# No user messages to convert to tasks\n");
-            yaml.push_str("tasks: []\n\n");
+            yaml.push_str("tasks: []\n");
         } else {
             yaml.push_str("tasks:\n");
-            for (id, content) in &tasks {
-                // Escape content for YAML
+            for (id, content, deps) in &tasks {
                 let escaped = escape_yaml_string(content);
                 yaml.push_str(&format!("  - id: \"{}\"\n", id));
+                if !deps.is_empty() {
+                    let dep_list: Vec<String> = deps.iter().map(|d| format!("\"{}\"", d)).collect();
+                    yaml.push_str(&format!("    depends_on: [{}]\n", dep_list.join(", ")));
+                }
                 yaml.push_str(&format!("    infer: \"{}\"\n\n", escaped));
-            }
-        }
-
-        // Flows section (dependencies from @N mentions)
-        if flows.is_empty() {
-            yaml.push_str("flows: []\n");
-        } else {
-            yaml.push_str("flows:\n");
-            for (from_id, to_id) in &flows {
-                yaml.push_str(&format!("  - from: \"{}\"\n", from_id));
-                yaml.push_str(&format!("    to: \"{}\"\n\n", to_id));
             }
         }
 
@@ -1155,12 +1134,13 @@ mod tests {
 
         // Header should be present
         assert!(yaml.contains("# Auto-generated from Nika Chat session"));
-        assert!(yaml.contains("schema: \"nika/workflow@0.2\""));
+        assert!(yaml.contains("schema: \"nika/workflow@0.12\""));
         assert!(yaml.contains("provider: claude"));
 
-        // No tasks or flows
+        // No tasks
         assert!(yaml.contains("tasks: []"));
-        assert!(yaml.contains("flows: []"));
+        // No flows section at all (uses depends_on per-task instead)
+        assert!(!yaml.contains("flows:"));
     }
 
     #[test]
@@ -1220,7 +1200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_to_yaml_with_mention_creates_flow() {
+    fn test_to_yaml_with_mention_creates_depends_on() {
         let mut workflow = ChatWorkflow::new();
         workflow
             .add_message_with_mentions("What is Rust?", Role::User)
@@ -1234,14 +1214,15 @@ mod tests {
 
         let yaml = workflow.to_yaml();
 
-        // Should have flow from msg-001 to msg-003
-        assert!(yaml.contains("flows:"));
-        // The flow section should contain the dependency
-        assert!(yaml.contains("from: \"msg-001\"") || yaml.contains("from: msg-001"));
+        // msg-003 should have depends_on referencing msg-001
+        assert!(yaml.contains("depends_on:"));
+        assert!(yaml.contains("\"msg-001\""));
+        // No separate flows section
+        assert!(!yaml.contains("flows:"));
     }
 
     #[test]
-    fn test_to_yaml_multiple_mentions_create_multiple_flows() {
+    fn test_to_yaml_multiple_mentions_create_depends_on() {
         let mut workflow = ChatWorkflow::new();
         workflow
             .add_message_with_mentions("First question", Role::User)
@@ -1261,11 +1242,12 @@ mod tests {
 
         let yaml = workflow.to_yaml();
 
-        // msg-005 depends on msg-001 and msg-003 (both User messages)
-        // Only flows between User messages should appear
-        assert!(yaml.contains("flows:"));
-        // The to should be msg-005
-        assert!(yaml.contains("to: \"msg-005\"") || yaml.contains("to: msg-005"));
+        // msg-005 should have depends_on with both msg-001 and msg-003
+        assert!(yaml.contains("depends_on:"));
+        assert!(yaml.contains("\"msg-001\""));
+        assert!(yaml.contains("\"msg-003\""));
+        // No separate flows section
+        assert!(!yaml.contains("flows:"));
     }
 
     #[test]
@@ -1312,6 +1294,7 @@ mod tests {
         // Verify structure
         assert!(parsed["schema"].as_str().is_some());
         assert!(parsed["tasks"].is_array()); // serde_json uses is_array()
-        assert!(parsed["flows"].is_array());
+                                             // No flows section — dependencies expressed via depends_on per-task
+        assert!(parsed.get("flows").is_none());
     }
 }

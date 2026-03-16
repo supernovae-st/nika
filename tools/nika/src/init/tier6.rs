@@ -190,9 +190,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  # Parallel fetch phase (no dependencies = parallel execution)
-  # get_weather, get_news, get_schedule run simultaneously
 
   # Then compilation waits for all three
   - source: get_weather
@@ -402,11 +399,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: content_strategy
-    target: generate_posts
-  - source: generate_posts
-    target: compile_calendar
 "##;
 
 /// Workflow 23: Competitor Analysis
@@ -621,13 +613,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: define_analysis
-    target: analyze_competitor
-  - source: analyze_competitor
-    target: swot_comparison
-  - source: swot_comparison
-    target: strategic_recs
 "##;
 
 /// Workflow 24: Email Composer
@@ -821,13 +806,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: analyze_context
-    target: draft_email
-  - source: draft_email
-    target: refine_tone
-  - source: refine_tone
-    target: add_variations
 "##;
 
 /// Workflow 25: Recipe & Meal Planner
@@ -1033,13 +1011,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: analyze_preferences
-    target: plan_menu
-  - source: plan_menu
-    target: generate_recipes
-  - source: generate_recipes
-    target: generate_grocery
 "##;
 
 /// Workflow 26: Travel Planner
@@ -1317,19 +1288,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: analyze_trip
-    target: research_dest
-  - source: analyze_trip
-    target: local_insights
-  # Parallel research converges
-  - source: research_dest
-    target: create_itinerary
-  - source: local_insights
-    target: create_itinerary
-  # Final logistics
-  - source: create_itinerary
-    target: add_logistics
 "##;
 
 /// Workflow 27: Birthday Party Planner
@@ -1653,23 +1611,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: analyze_party
-    target: generate_theme
-  # Theme triggers parallel planning
-  - source: generate_theme
-    target: plan_food
-  - source: generate_theme
-    target: plan_activities
-  - source: generate_theme
-    target: plan_decor
-  # All plans merge into final kit
-  - source: plan_food
-    target: compile_party_kit
-  - source: plan_activities
-    target: compile_party_kit
-  - source: plan_decor
-    target: compile_party_kit
 "##;
 
 /// Workflow 28: Podcast Show Notes
@@ -2003,27 +1944,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: analyze_episode
-    target: create_notes
-  - source: analyze_episode
-    target: find_clips
-  - source: analyze_episode
-    target: generate_seo
-  # Social needs clips and notes
-  - source: find_clips
-    target: generate_social
-  - source: create_notes
-    target: generate_social
-  # Final compilation
-  - source: create_notes
-    target: compile_package
-  - source: find_clips
-    target: compile_package
-  - source: generate_seo
-    target: compile_package
-  - source: generate_social
-    target: compile_package
 "##;
 
 /// Workflow 29: Product Review Analyzer
@@ -2310,17 +2230,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: gather_context
-    target: analyze_reviews
-  - source: analyze_reviews
-    target: synthesize_verdict
-  - source: synthesize_verdict
-    target: find_alternatives
-  - source: synthesize_verdict
-    target: final_recommendation
-  - source: find_alternatives
-    target: final_recommendation
 "##;
 
 /// Workflow 30: Newsletter Curator
@@ -2620,18 +2529,6 @@ tasks:
 # EXECUTION FLOW
 # ─────────────────────────────────────────────────────────────────────────────
 
-flows:
-  - source: define_edition
-    target: curate_content
-  - source: define_edition
-    target: write_intro
-  - source: curate_content
-    target: write_intro
-  # All converge to compilation
-  - source: write_intro
-    target: compile_newsletter
-  - source: curate_content
-    target: compile_newsletter
 "##;
 
 /// Returns all tier 6 workflows (everyday magic)

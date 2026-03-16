@@ -185,19 +185,3 @@ tasks:
         echo "📄 Full story saved to /tmp/story.md"
         wc -w /tmp/story.md | awk '{print "📊 Word count: " $1}'
       shell: true
-
-flows:
-  - source: get_genre
-    target: story_master
-  - source: get_setting
-    target: story_master
-  - source: story_master
-    target: act1_perspectives
-  - source: act1_perspectives
-    target: weave_act1
-  - source: weave_act1
-    target: twist_agent
-  - source: twist_agent
-    target: climax
-  - source: climax
-    target: assemble

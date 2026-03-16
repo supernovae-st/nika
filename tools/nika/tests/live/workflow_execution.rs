@@ -79,16 +79,12 @@ tasks:
       a: $step1
       b: $step2
 
-flows:
-  - source: step1
-    target: step3
-  - source: step2
-    target: step3
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 3);
-    assert!(!workflow.flows.is_empty());
+    // step3 depends on step1 and step2 via with: bindings
+    assert!(workflow.flow_count() > 0);
 }
 
 // ============================================================================
@@ -224,15 +220,6 @@ tasks:
       b: $B
       c: $C
 
-flows:
-  - source: A
-    target: B
-  - source: A
-    target: C
-  - source: B
-    target: D
-  - source: C
-    target: D
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
@@ -270,13 +257,6 @@ tasks:
       t2: $task2
       t3: $task3
 
-flows:
-  - source: task1
-    target: final
-  - source: task2
-    target: final
-  - source: task3
-    target: final
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
@@ -342,9 +322,6 @@ tasks:
         lazy: true
         default: "fallback"
 
-flows:
-  - source: get_data
-    target: use_data
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");

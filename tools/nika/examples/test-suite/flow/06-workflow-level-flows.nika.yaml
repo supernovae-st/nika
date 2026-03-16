@@ -20,13 +20,3 @@ tasks:
 
   - id: task4
     exec: "echo 'Task 4'"
-
-flows:
-  - source: task1
-    target: task2
-  - source: task1
-    target: task3
-  - source: task2
-    target: task4
-  - source: task3
-    target: task4

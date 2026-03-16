@@ -133,17 +133,3 @@ tasks:
         echo ""
         echo '{{with.stats}}' | jq -r '"🔗 Profile: https://github.com/" + .username'
       shell: true
-
-flows:
-  - source: get_username
-    target: fetch_profile
-  - source: get_username
-    target: fetch_repos
-  - source: fetch_profile
-    target: analyze_stats
-  - source: fetch_repos
-    target: analyze_stats
-  - source: analyze_stats
-    target: generate_card
-  - source: generate_card
-    target: display

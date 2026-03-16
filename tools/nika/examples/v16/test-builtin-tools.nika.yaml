@@ -80,7 +80,3 @@ tasks:
         Report the first 3 matches found.
       tools: [nika:grep]
       max_turns: 3
-
-flows:
-  - source: test_write_read
-    target: test_edit

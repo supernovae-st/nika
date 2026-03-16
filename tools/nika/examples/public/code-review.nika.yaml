@@ -137,17 +137,3 @@ tasks:
         echo "---"
         echo "Review complete. Copy the above to your PR."
       shell: true
-
-flows:
-  - source: get_diff
-    target: review_security
-  - source: get_diff
-    target: review_quality
-  - source: get_files
-    target: generate_summary
-  - source: review_security
-    target: generate_summary
-  - source: review_quality
-    target: generate_summary
-  - source: generate_summary
-    target: output

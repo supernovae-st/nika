@@ -19,9 +19,3 @@ tasks:
   - id: custom_step
     description: "Custom step between setup and processing"
     exec: "echo 'Custom override step'"
-
-flows:
-  - source: base_validate
-    target: custom_step
-  - source: custom_step
-    target: proc_transform

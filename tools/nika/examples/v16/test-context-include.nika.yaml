@@ -22,7 +22,3 @@ tasks:
       version: $read_readme
     infer: |
       Confirm the version found: {{with.version}}
-
-flows:
-  - source: read_readme
-    target: summarize

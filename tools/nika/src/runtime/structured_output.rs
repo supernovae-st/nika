@@ -209,7 +209,7 @@ impl StructuredOutputEngine {
         // Layer 2: Provider-Native validation
         // The provider should have already received the schema via tool_use/response_format
         // Here we just validate what the provider returned
-        if self.spec.enable_tool_use.unwrap_or(true) {
+        if self.spec.enable_tool_injection.unwrap_or(true) {
             total_attempts += 1;
             let layer_result = self
                 .try_layer_2(&task_id, raw_output, &schema, total_attempts)

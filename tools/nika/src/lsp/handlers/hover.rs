@@ -66,7 +66,7 @@ pub fn compute_hover_with_ast(
             // Provide task-specific documentation
             let docs = format!(
                 "## Task: `{}`\n\n\
-                Task identifier used in `with:` bindings and `flows:`.\n\n\
+                Task identifier used in `with:` bindings and `depends_on:`.\n\n\
                 ```yaml\n\
                 with:\n  result: ${}\n\
                 ```",
@@ -586,19 +586,9 @@ const FIELD_DOCUMENTATION: &[(&str, &str)] = &[
         ```",
     ),
     (
-        "flows",
-        "## `flows:` - Task Dependencies\n\n\
-        Defines execution order between tasks.\n\n\
-        ```yaml\n\
-        flows:\n\
-          - source: step1\n\
-            target: step2\n\
-        ```",
-    ),
-    (
         "id",
         "## `id:` - Task Identifier\n\n\
-        Unique identifier for the task. Used in bindings and flows.\n\n\
+        Unique identifier for the task. Used in bindings and `depends_on:`.\n\n\
         ```yaml\n\
         - id: my_task\n\
           infer: \"...\"\n\

@@ -43,7 +43,3 @@ tasks:
     with:
       previous: $infer_shorthand
     infer: "Repeat exactly what was said before: {{with.previous}}"
-
-flows:
-  - source: infer_shorthand
-    target: infer_with_binding

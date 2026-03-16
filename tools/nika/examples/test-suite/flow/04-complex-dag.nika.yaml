@@ -29,17 +29,3 @@ tasks:
 
   - id: sink
     exec: "echo 'Sink'"
-
-flows:
-  - source: root
-    target: [node_a, node_b]
-  - source: node_a
-    target: [node_c, node_d]
-  - source: node_b
-    target: node_d
-  - source: node_c
-    target: node_e
-  - source: node_d
-    target: node_e
-  - source: node_e
-    target: sink

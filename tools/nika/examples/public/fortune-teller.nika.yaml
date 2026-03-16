@@ -154,17 +154,3 @@ tasks:
         echo "✨ May the cosmos guide your path ✨"
         echo ""
       shell: true
-
-flows:
-  - source: get_name
-    target: cosmic_reading
-  - source: get_sign
-    target: cosmic_reading
-  - source: get_date
-    target: cosmic_reading
-  - source: get_seed
-    target: cosmic_reading
-  - source: cosmic_reading
-    target: format_fortune
-  - source: format_fortune
-    target: display

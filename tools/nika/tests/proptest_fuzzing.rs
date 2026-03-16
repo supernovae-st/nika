@@ -369,15 +369,11 @@ mod dag_fuzzing {
 
             let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: linear\ntasks:\n");
             for (i, task) in unique_tasks.iter().enumerate() {
-                yaml.push_str(&format!("  - id: {}\n    infer: \"step {}\"\n", task, i));
-            }
-
-            if unique_tasks.len() > 1 {
-                yaml.push_str("flows:\n");
-                for i in 0..unique_tasks.len()-1 {
-                    yaml.push_str(&format!("  - source: {}\n    target: {}\n",
-                        unique_tasks[i], unique_tasks[i+1]));
+                yaml.push_str(&format!("  - id: {}\n", task));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [{}]\n", unique_tasks[i-1]));
                 }
+                yaml.push_str(&format!("    infer: \"step {}\"\n", i));
             }
             yaml
         }
@@ -407,11 +403,9 @@ mod dag_fuzzing {
 workflow: self_ref
 tasks:
   - id: {}
-    infer: "test"
-flows:
-  - source: {}
-    target: {}"#,
-                task_id, task_id, task_id
+    depends_on: [{}]
+    infer: "test""#,
+                task_id, task_id
             );
             // Should not panic - should either parse and fail validation, or fail parse
             let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
@@ -429,15 +423,12 @@ flows:
 workflow: cycle
 tasks:
   - id: {}
+    depends_on: [{}]
     infer: "first"
   - id: {}
-    infer: "second"
-flows:
-  - source: {}
-    target: {}
-  - source: {}
-    target: {}"#,
-                    task1, task2, task1, task2, task2, task1
+    depends_on: [{}]
+    infer: "second""#,
+                    task1, task2, task2, task1
                 );
                 // Should not panic - cycles should be detected
                 let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
@@ -457,10 +448,10 @@ workflow: missing
 tasks:
   - id: {}
     infer: "exists"
-flows:
-  - source: {}
-    target: {}"#,
-                    task1, task1, nonexistent
+  - id: {}
+    depends_on: [{}]
+    infer: "ghost""#,
+                    task1, nonexistent, task1
                 );
                 // Should not panic
                 let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
@@ -472,11 +463,11 @@ flows:
         fn test_large_dag_no_overflow(depth in 10usize..50) {
             let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: deep\ntasks:\n");
             for i in 0..depth {
-                yaml.push_str(&format!("  - id: task_{}\n    infer: \"level {}\"\n", i, i));
-            }
-            yaml.push_str("flows:\n");
-            for i in 0..depth-1 {
-                yaml.push_str(&format!("  - source: task_{}\n    target: task_{}\n", i, i+1));
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+                }
+                yaml.push_str(&format!("    infer: \"level {}\"\n", i));
             }
 
             // Should not cause stack overflow

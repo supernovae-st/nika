@@ -156,13 +156,6 @@ tasks:
 # ═══════════════════════════════════════════════════════════════════════════════
 # The combine_results task depends on all three taglines completing first
 
-flows:
-  - source: creative_tagline
-    target: combine_results
-  - source: technical_tagline
-    target: combine_results
-  - source: balanced_tagline
-    target: combine_results
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 LEARNING NOTES
@@ -436,14 +429,6 @@ tasks:
 # FLOWS - The DAG Bindings
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  # Stage 1 → Stage 2 (Fan-Out)
-  - source: define_topic
-    target: research_fundamentals
-  - source: define_topic
-    target: find_examples
-  - source: define_topic
-    target: analyze_trends
 
   # Stage 2 → Stage 3 (Diamond Merge)
   - source: research_fundamentals
@@ -640,11 +625,6 @@ tasks:
 # FLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  - source: source_content
-    target: localize_content
-  - source: localize_content
-    target: quality_check
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 FOR-EACH REFERENCE
@@ -889,11 +869,6 @@ tasks:
 # FLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  - source: validate_topic
-    target: generate_content
-  - source: generate_content
-    target: format_output
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 LEARNING NOTES

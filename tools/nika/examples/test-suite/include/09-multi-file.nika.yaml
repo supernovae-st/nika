@@ -20,9 +20,3 @@ tasks:
   - id: orchestrate
     description: "Orchestrate all includes"
     exec: "echo 'Orchestrating'"
-
-flows:
-  - source: a_validate
-    target: b_transform
-  - source: b_validate_output
-    target: c_finalize

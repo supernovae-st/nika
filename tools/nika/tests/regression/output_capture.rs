@@ -274,7 +274,7 @@ tasks:
 
     // Verify structure
     assert_eq!(workflow.tasks.len(), 5);
-    assert_eq!(workflow.flows.len(), 4);
+    assert_eq!(workflow.flow_count(), 4);
     assert!(workflow.mcp.is_some());
 }
 
@@ -342,7 +342,7 @@ tasks:
 
     assert_eq!(workflow.tasks.len(), 2);
     // depends_on creates 1 flow, with: binding creates another implicit flow
-    assert!(workflow.flows.len() >= 1);
+    assert!(workflow.flow_count() >= 1);
 }
 
 #[test]

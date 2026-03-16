@@ -72,8 +72,3 @@ tasks:
       - Stay under 60 characters
 
 # DAG flows within this library
-flows:
-  - source: analyze_keywords
-    target: generate_meta
-  - source: analyze_keywords
-    target: generate_title

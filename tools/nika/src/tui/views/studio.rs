@@ -2450,22 +2450,18 @@ impl YamlEditorPanel {
         }
     }
 
-    /// Extract dependencies from Flow objects
+    /// Extract dependencies from task flow fields
     ///
     /// Returns a map: target_task_id -> [source_task_ids]
     fn extract_flow_dependencies(&self, wf: &Workflow) -> HashMap<String, Vec<String>> {
         let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
-        for flow in &wf.flows {
-            let sources = flow.source.as_vec();
-            let targets = flow.target.as_vec();
-
-            // Each target depends on all sources
-            for target in &targets {
-                let entry = deps.entry(target.to_string()).or_default();
-                for source in &sources {
-                    if !entry.contains(&source.to_string()) {
-                        entry.push(source.to_string());
+        for task in &wf.tasks {
+            if let Some(ref flow) = task.flow {
+                let entry = deps.entry(task.id.clone()).or_default();
+                for source in flow {
+                    if !entry.contains(source) {
+                        entry.push(source.clone());
                     }
                 }
             }
@@ -2540,7 +2536,7 @@ impl YamlEditorPanel {
         match cached.as_ref() {
             Some(wf) => {
                 let task_count = wf.tasks.len();
-                let flow_count = wf.flows.len();
+                let flow_count = wf.flow_count();
                 // Complexity score: tasks + edges (simple heuristic)
                 let score = task_count + flow_count;
 

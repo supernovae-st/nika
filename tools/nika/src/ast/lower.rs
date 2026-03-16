@@ -23,7 +23,7 @@ use super::include::IncludeSpec;
 use super::invoke::InvokeParams;
 use super::output::{OutputFormat, OutputPolicy, SchemaRef};
 use super::schema::SchemaVersion;
-use super::workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
+use super::workflow::{McpConfigInline, Task, Workflow};
 use crate::source::Span;
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,6 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         span: _,
     } = analyzed;
 
-    let flows = build_flows(&tasks, &task_table);
     let tasks: Vec<Arc<Task>> = tasks
         .into_iter()
         .map(|t| Arc::new(lower_task(t, &task_table)))
@@ -74,7 +73,6 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         log: None,
         inputs,
         tasks,
-        flows,
     }
 }
 
@@ -360,27 +358,6 @@ fn lower_imports(imports: Vec<AnalyzedImportSpec>) -> Option<Vec<IncludeSpec>> {
                 .collect(),
         )
     }
-}
-
-// ---------------------------------------------------------------------------
-// Flows
-// ---------------------------------------------------------------------------
-
-/// Build workflow-level [`Flow`] entries from task `depends_on` + `implicit_deps`.
-fn build_flows(tasks: &[AnalyzedTask], table: &TaskTable) -> Vec<Flow> {
-    let mut flows = Vec::new();
-    for task in tasks {
-        let target = &task.name;
-        for dep_id in task.depends_on.iter().chain(task.implicit_deps.iter()) {
-            if let Some(source_name) = table.get_name(*dep_id) {
-                flows.push(Flow {
-                    source: FlowEndpoint::Single(String::from(source_name)),
-                    target: FlowEndpoint::Single(target.clone()),
-                });
-            }
-        }
-    }
-    flows
 }
 
 /// Build per-task dependency list for the runtime `flow` field.
@@ -681,7 +658,6 @@ mod tests {
         assert_eq!(lowered.schema, "nika/workflow@0.12");
         assert_eq!(lowered.provider, "claude");
         assert!(lowered.tasks.is_empty());
-        assert!(lowered.flows.is_empty());
         assert!(lowered.mcp.is_none());
         assert!(lowered.inputs.is_none());
     }
@@ -902,9 +878,6 @@ mod tests {
         });
 
         let lowered = lower(wf);
-
-        // Workflow-level flows: a->b, a->c, b->c
-        assert_eq!(lowered.flows.len(), 3);
 
         // Task-level flow field
         assert!(lowered.tasks[0].flow.is_none()); // a: no deps

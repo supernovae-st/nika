@@ -67,7 +67,7 @@ pub const WORKFLOW_01_EXEC_BASICS: &str = r##"# ══════════�
 # ├── timeout: command timeout (seconds)
 # ├── env: environment variables
 # ├── with: bindings between tasks
-# └── flows: task dependencies
+# └── depends_on: task dependencies
 #
 # PREREQUISITES: None! Works out of the box.
 #
@@ -186,14 +186,6 @@ tasks:
 # ─────────────────────────────────────────────────────────────────────────────
 # FLOWS: Define task execution order
 # ─────────────────────────────────────────────────────────────────────────────
-flows:
-  # Parallel: get_date, get_user, list_files run simultaneously
-  - source: get_date
-    target: show_system_info
-  - source: get_user
-    target: show_system_info
-  - source: list_files
-    target: show_system_info
 
   # Sequential chain
   - source: show_system_info
@@ -403,14 +395,6 @@ tasks:
 # ─────────────────────────────────────────────────────────────────────────────
 # FLOWS: Parallel fetch then sequential processing
 # ─────────────────────────────────────────────────────────────────────────────
-flows:
-  # Parallel: first 3 requests run simultaneously
-  - source: simple_get
-    target: post_data
-  - source: get_json
-    target: post_data
-  - source: get_headers
-    target: post_data
 
   # Sequential: post_data -> post_json_auto -> auth -> display
   - source: post_data
@@ -648,25 +632,4 @@ tasks:
 # ─────────────────────────────────────────────────────────────────────────────
 # FLOWS: Sequential execution
 # ─────────────────────────────────────────────────────────────────────────────
-flows:
-  - source: start_log
-    target: validate_condition
-  - source: validate_condition
-    target: validate_expression
-  - source: validate_expression
-    target: emit_start_event
-  - source: emit_start_event
-    target: pause_1_second
-  - source: pause_1_second
-    target: log_after_sleep
-  - source: log_after_sleep
-    target: emit_progress_50
-  - source: emit_progress_50
-    target: pause_500ms
-  - source: pause_500ms
-    target: emit_progress_100
-  - source: emit_progress_100
-    target: final_log
-  - source: final_log
-    target: summary
 "##;

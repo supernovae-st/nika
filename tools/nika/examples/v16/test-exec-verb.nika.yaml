@@ -44,7 +44,3 @@ tasks:
     exec:
       command: "echo 'Previous output was captured'"
       shell: true
-
-flows:
-  - source: exec_shorthand
-    target: exec_with_binding

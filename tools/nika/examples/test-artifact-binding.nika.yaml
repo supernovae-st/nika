@@ -84,25 +84,3 @@ tasks:
       - Step 5 (artifact_with_defaults): {{with.step5}}
 
       All artifacts should be written and accessible.
-
-flows:
-  - source: generate_data
-    target: process_and_save
-  - source: process_and_save
-    target: multi_artifact_task
-  - source: generate_data
-    target: templated_artifact
-  - source: multi_artifact_task
-    target: templated_artifact
-  - source: templated_artifact
-    target: artifact_with_defaults
-  - source: generate_data
-    target: verify_chain
-  - source: process_and_save
-    target: verify_chain
-  - source: multi_artifact_task
-    target: verify_chain
-  - source: templated_artifact
-    target: verify_chain
-  - source: artifact_with_defaults
-    target: verify_chain

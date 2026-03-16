@@ -114,15 +114,3 @@ tasks:
         echo "✅ Research report saved to $FILENAME"
         echo "📊 Query: {{with.query}}"
       shell: true
-
-flows:
-  - source: get_query
-    target: research_main
-  - source: get_query
-    target: research_deep
-  - source: research_main
-    target: synthesize
-  - source: research_deep
-    target: synthesize
-  - source: synthesize
-    target: save_report

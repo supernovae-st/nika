@@ -33,7 +33,3 @@ tasks:
       # spawn_agent now has OpenAI-compatible schema (all props required, nullable types)
     output:
       format: text
-
-flows:
-  - source: simple_infer
-    target: agent_test

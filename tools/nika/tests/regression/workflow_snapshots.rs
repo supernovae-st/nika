@@ -70,8 +70,8 @@ tasks:
             "provider": workflow.provider,
             "task_count": workflow.tasks.len(),
             "task_ids": workflow.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
-            "has_flows": !workflow.flows.is_empty(),
-            "flow_count": workflow.flows.len(),
+            "has_flows": workflow.flow_count() > 0,
+            "flow_count": workflow.flow_count(),
             "has_bindings": workflow.tasks.iter().any(|t| t.with_spec.is_some())
         })
     );

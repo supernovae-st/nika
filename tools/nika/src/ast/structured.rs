@@ -52,10 +52,12 @@ pub struct StructuredOutputSpec {
     #[serde(default)]
     pub enable_extractor: Option<bool>,
 
-    /// Enable Layer 2: Provider-native (tool_use / response_format)
+    /// Enable Layer 0: Tool injection (DynamicSubmitTool)
+    /// When true, injects a synthetic submit_result tool for provider-side
+    /// schema enforcement before falling through to post-processing layers.
     /// Default: true
     #[serde(default)]
-    pub enable_tool_use: Option<bool>,
+    pub enable_tool_injection: Option<bool>,
 
     /// Enable Layer 3: Retry with feedback
     /// Default: true
@@ -84,7 +86,7 @@ impl StructuredOutputSpec {
         Self {
             schema,
             enable_extractor: None,
-            enable_tool_use: None,
+            enable_tool_injection: None,
             enable_retry: None,
             enable_repair: None,
             max_retries: None,
@@ -108,8 +110,8 @@ impl StructuredOutputSpec {
     }
 
     /// Check if Layer 2 (tool_use) is enabled
-    pub fn enable_tool_use_or_default(&self) -> bool {
-        self.enable_tool_use.unwrap_or(true)
+    pub fn enable_tool_injection_or_default(&self) -> bool {
+        self.enable_tool_injection.unwrap_or(true)
     }
 
     /// Check if Layer 3 (retry) is enabled
@@ -160,7 +162,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
             {
                 let mut schema: Option<SchemaRef> = None;
                 let mut enable_extractor: Option<bool> = None;
-                let mut enable_tool_use: Option<bool> = None;
+                let mut enable_tool_injection: Option<bool> = None;
                 let mut enable_retry: Option<bool> = None;
                 let mut enable_repair: Option<bool> = None;
                 let mut max_retries: Option<u8> = None;
@@ -174,8 +176,9 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                         "enable_extractor" => {
                             enable_extractor = Some(map.next_value()?);
                         }
-                        "enable_tool_use" => {
-                            enable_tool_use = Some(map.next_value()?);
+                        // Accept both new and legacy field names
+                        "enable_tool_injection" | "enable_tool_use" => {
+                            enable_tool_injection = Some(map.next_value()?);
                         }
                         "enable_retry" => {
                             enable_retry = Some(map.next_value()?);
@@ -201,7 +204,7 @@ impl<'de> Deserialize<'de> for StructuredOutputSpec {
                 Ok(StructuredOutputSpec {
                     schema,
                     enable_extractor,
-                    enable_tool_use,
+                    enable_tool_injection,
                     enable_retry,
                     enable_repair,
                     max_retries,
@@ -261,7 +264,7 @@ max_retries: 2
     fn defaults_are_applied() {
         let spec = StructuredOutputSpec::with_file_schema("./test.json");
         assert_eq!(spec.max_retries_or_default(), 2);
-        assert!(spec.enable_tool_use_or_default());
+        assert!(spec.enable_tool_injection_or_default());
         assert!(spec.enable_retry_or_default());
         assert!(spec.enable_repair_or_default());
     }
@@ -292,15 +295,25 @@ repair_model: claude-sonnet-4-6
         let yaml = r#"
 schema: ./test.json
 enable_extractor: false
-enable_tool_use: false
+enable_tool_injection: false
 enable_retry: true
 enable_repair: false
 "#;
         let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(spec.enable_extractor, Some(false));
-        assert_eq!(spec.enable_tool_use, Some(false));
+        assert_eq!(spec.enable_tool_injection, Some(false));
         assert_eq!(spec.enable_retry, Some(true));
         assert_eq!(spec.enable_repair, Some(false));
+    }
+
+    #[test]
+    fn legacy_enable_tool_use_still_works() {
+        let yaml = r#"
+schema: ./test.json
+enable_tool_use: false
+"#;
+        let spec: StructuredOutputSpec = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(spec.enable_tool_injection, Some(false));
     }
 
     #[test]

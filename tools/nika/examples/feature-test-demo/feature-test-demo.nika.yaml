@@ -346,12 +346,6 @@ tasks:
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLOWS: DAG definition (using depends_on above, flows for visualization only)
 # ═══════════════════════════════════════════════════════════════════════════════
-flows:
-  # Setup (from included partial) → Research
-  - source: setup_generate_meta
-    target: research_agent
-  - source: setup_validate_env
-    target: research_agent
 
   # Research → Content Generation (parallel formats)
   - source: research_agent

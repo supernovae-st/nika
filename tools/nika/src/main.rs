@@ -754,7 +754,7 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
         workflow.model.as_deref().unwrap_or("(default)")
     );
     println!("  Tasks: {}", workflow.tasks.len());
-    println!("  Flows: {}", workflow.flows.len());
+    println!("  Flows: {}", workflow.flow_count());
 
     Ok(())
 }
@@ -898,7 +898,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         workflow.model.as_deref().unwrap_or("(default)")
     );
     println!("  Tasks: {}", workflow.tasks.len());
-    println!("  Flows: {}", workflow.flows.len());
+    println!("  Flows: {}", workflow.flow_count());
 
     Ok(())
 }

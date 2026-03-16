@@ -160,19 +160,3 @@ tasks:
         echo "{{with.recipe}}" > /tmp/recipe.md
         echo "📄 Recipe saved to /tmp/recipe.md"
       shell: true
-
-flows:
-  - source: get_ingredients
-    target: analyze_ingredients
-  - source: get_diet
-    target: generate_options
-  - source: analyze_ingredients
-    target: generate_options
-  - source: generate_options
-    target: pick_recipe
-  - source: pick_recipe
-    target: full_recipe
-  - source: analyze_ingredients
-    target: full_recipe
-  - source: full_recipe
-    target: save

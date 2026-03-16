@@ -159,19 +159,3 @@ tasks:
         echo "---"
         echo "🎬 Run again with different mood: MOOD=\"thrilling\" nika movie-night.nika.yaml"
       shell: true
-
-flows:
-  - source: get_mood
-    target: map_mood
-  - source: get_viewers
-    target: map_mood
-  - source: map_mood
-    target: generate_picks
-  - source: get_decade
-    target: generate_picks
-  - source: get_avoid
-    target: generate_picks
-  - source: generate_picks
-    target: present
-  - source: present
-    target: display

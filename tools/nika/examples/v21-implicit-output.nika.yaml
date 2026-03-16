@@ -34,13 +34,3 @@ tasks:
     with:
       outline: $create_outline    # $ prefix works with any task reference
     infer: "Summarize this outline: {{with.outline}}"
-
-flows:
-  - source: generate_title
-    target: expand_title
-  - source: generate_title
-    target: create_outline
-  - source: expand_title
-    target: create_outline
-  - source: create_outline
-    target: final_summary

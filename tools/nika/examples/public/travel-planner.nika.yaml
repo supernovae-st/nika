@@ -147,17 +147,3 @@ tasks:
         echo "..."
         echo "📄 Full plan saved to /tmp/travel-plan.md"
       shell: true
-
-flows:
-  - source: get_destination
-    target: travel_agent
-  - source: get_days
-    target: travel_agent
-  - source: get_budget
-    target: travel_agent
-  - source: get_interests
-    target: travel_agent
-  - source: travel_agent
-    target: packing_list
-  - source: packing_list
-    target: compile

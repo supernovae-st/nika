@@ -27,18 +27,6 @@ tasks:
         ));
     }
 
-    // Add flows for sequential dependencies (task_0 -> task_1 -> ... -> task_N-1)
-    if task_count > 1 {
-        yaml.push_str("\nflows:\n");
-        for i in 0..(task_count - 1) {
-            yaml.push_str(&format!(
-                "  - source: task_{}\n    target: task_{}\n",
-                i,
-                i + 1
-            ));
-        }
-    }
-
     yaml
 }
 
@@ -64,15 +52,6 @@ tasks:
     infer:
       prompt: "Process {{{{with.data}}}} with fallback {{{{with.fallback}}}}"
 "#
-        ));
-    }
-
-    // All consumers depend on source
-    yaml.push_str("\nflows:\n");
-    for i in 0..task_count {
-        yaml.push_str(&format!(
-            "  - source: source_task\n    target: consumer_{}\n",
-            i
         ));
     }
 

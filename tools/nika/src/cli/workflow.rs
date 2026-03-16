@@ -189,7 +189,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                             }
                         }
                     }
-                    // Check for flows: or other top-level sections
+                    // Check for top-level sections (context:, mcp:, etc.)
                     if !line.starts_with(' ') && !line.starts_with('-') && line.contains(':') {
                         insert_index = Some(i);
                         break;
@@ -333,17 +333,13 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                 }
             }
 
-            // Check for unused tasks (not referenced in flows or with blocks)
+            // Check for unused tasks (not referenced in deps or with blocks)
             if suggest {
                 let mut referenced: std::collections::HashSet<&str> =
                     std::collections::HashSet::new();
-                for flow in &workflow.flows {
-                    for target in flow.target.as_vec() {
-                        referenced.insert(target);
-                    }
-                    for source in flow.source.as_vec() {
-                        referenced.insert(source);
-                    }
+                for (source, target) in workflow.edges() {
+                    referenced.insert(source);
+                    referenced.insert(target);
                 }
                 for task in &workflow.tasks {
                     if let Some(ref with_spec) = task.with_spec {
@@ -448,14 +444,13 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
         output.push_str(&format!("{}{}│\n", line, " ".repeat(line_padding)));
     }
 
-    // Show flows
-    if !workflow.flows.is_empty() {
+    // Show flows (derived from task dependencies)
+    let edges = workflow.edges();
+    if !edges.is_empty() {
         output.push_str("├─────────────────────────────────────────┤\n");
         output.push_str("│ Flows:                                  │\n");
-        for flow in &workflow.flows {
-            let sources = flow.source.as_vec().join(", ");
-            let targets = flow.target.as_vec().join(", ");
-            let flow_str = format!("  {} → {}", sources, targets);
+        for (source, target) in &edges {
+            let flow_str = format!("  {} → {}", source, target);
             let flow_padding = 39usize.saturating_sub(flow_str.len());
             output.push_str(&format!("│{}{}│\n", flow_str, " ".repeat(flow_padding)));
         }
@@ -490,18 +485,14 @@ fn generate_dot_dag(workflow: &nika::ast::Workflow) -> String {
         ));
     }
 
-    // Add edges
+    // Add edges (derived from task dependencies)
     output.push('\n');
-    for flow in &workflow.flows {
-        for source in flow.source.as_vec() {
-            for target in flow.target.as_vec() {
-                output.push_str(&format!(
-                    "  {} -> {};\n",
-                    source.replace('-', "_"),
-                    target.replace('-', "_")
-                ));
-            }
-        }
+    for (source, target) in workflow.edges() {
+        output.push_str(&format!(
+            "  {} -> {};\n",
+            source.replace('-', "_"),
+            target.replace('-', "_")
+        ));
     }
 
     output.push_str("}\n");
@@ -539,18 +530,14 @@ fn generate_mermaid_dag(workflow: &nika::ast::Workflow) -> String {
         ));
     }
 
-    // Add edges
+    // Add edges (derived from task dependencies)
     output.push('\n');
-    for flow in &workflow.flows {
-        for source in flow.source.as_vec() {
-            for target in flow.target.as_vec() {
-                output.push_str(&format!(
-                    "  {} --> {}\n",
-                    source.replace('-', "_"),
-                    target.replace('-', "_")
-                ));
-            }
-        }
+    for (source, target) in workflow.edges() {
+        output.push_str(&format!(
+            "  {} --> {}\n",
+            source.replace('-', "_"),
+            target.replace('-', "_")
+        ));
     }
 
     output.push_str("```\n");

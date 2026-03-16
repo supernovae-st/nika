@@ -119,9 +119,6 @@ tasks:
     exec: "echo first"
   - id: step2
     exec: "echo second"
-flows:
-  - source: step1
-    target: step2
 "#,
     )
     .unwrap();
@@ -160,9 +157,6 @@ tasks:
     exec: "echo second"
   - id: step3
     exec: "echo final"
-flows:
-  - source: [step1, step2]
-    target: step3
 "#,
     )
     .unwrap();
@@ -297,9 +291,6 @@ tasks:
     with:
       data: $producer
     exec: "echo consumed"
-flows:
-  - source: producer
-    target: consumer
 "#,
     )
     .unwrap();
@@ -424,11 +415,6 @@ tasks:
     exec: "echo 2"
   - id: step3
     exec: "echo 3"
-flows:
-  - source: step1
-    target: step2
-  - source: step2
-    target: step3
 "#,
     )
     .unwrap();

@@ -72,13 +72,3 @@ tasks:
         echo "✅ PR description generated!"
         echo "📋 Copied to clipboard (or saved to /tmp/pr-description.md)"
       shell: true
-
-flows:
-  - source: get_diff
-    target: generate_pr
-  - source: get_commits
-    target: generate_pr
-  - source: get_branch
-    target: generate_pr
-  - source: generate_pr
-    target: save_output

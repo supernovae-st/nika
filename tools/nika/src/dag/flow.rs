@@ -415,9 +415,7 @@ impl Dag {
             predecessors.insert(id, DepVec::new());
         }
 
-        // Track seen edges globally to deduplicate across all sources.
-        // lower() puts the same dependency info into both workflow.flows AND task.flow,
-        // so without deduplication edges would be doubled.
+        // Track seen edges to deduplicate between task.flow and with_spec implicit edges.
         let mut seen_edges: FxHashSet<(Arc<str>, Arc<str>)> = FxHashSet::default();
 
         /// Insert an edge if not already seen, updating adjacency and predecessors.
@@ -438,25 +436,6 @@ impl Dag {
                     .entry(Arc::clone(tgt))
                     .or_default()
                     .push(Arc::clone(src));
-            }
-        }
-
-        // Build edges from workflow-level flows
-        for flow in &workflow.flows {
-            let sources = flow.source.as_vec();
-            let targets = flow.target.as_vec();
-            for src in &sources {
-                for tgt in &targets {
-                    let src_arc = task_set.get(*src).cloned().unwrap_or_else(|| intern(src));
-                    let tgt_arc = task_set.get(*tgt).cloned().unwrap_or_else(|| intern(tgt));
-                    insert_edge(
-                        &src_arc,
-                        &tgt_arc,
-                        &mut seen_edges,
-                        &mut adjacency,
-                        &mut predecessors,
-                    );
-                }
             }
         }
 

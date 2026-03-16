@@ -225,18 +225,6 @@ fn top_level_completions() -> Vec<CompletionItem> {
             ..Default::default()
         },
         CompletionItem {
-            label: "flows".to_string(),
-            kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some(
-                "flows:\n  - source: ${1:task-id}\n    target: ${2:task-id}".to_string(),
-            ),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            documentation: Some(Documentation::String(
-                "Optional. Explicit task dependencies.".to_string(),
-            )),
-            ..Default::default()
-        },
-        CompletionItem {
             label: "context".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
             insert_text: Some(

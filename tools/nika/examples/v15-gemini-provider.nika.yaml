@@ -36,7 +36,3 @@ tasks:
       max_turns: 2
     output:
       format: text
-
-flows:
-  - source: generate_tagline
-    target: generate_description

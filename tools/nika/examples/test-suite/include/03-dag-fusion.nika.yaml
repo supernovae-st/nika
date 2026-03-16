@@ -18,9 +18,3 @@ tasks:
   - id: process
     description: "Main processing"
     exec: "echo 'Processing'"
-
-flows:
-  - source: setup_validate
-    target: process
-  - source: process
-    target: cleanup_finalize

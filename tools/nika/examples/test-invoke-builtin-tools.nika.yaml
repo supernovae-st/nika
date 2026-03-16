@@ -58,15 +58,3 @@ tasks:
       params:
         condition: true
         message: "Assertion passed"
-
-flows:
-  - source: get_path
-    target: create_dir
-  - source: create_dir
-    target: log_start
-  - source: log_start
-    target: sleep_test
-  - source: sleep_test
-    target: emit_test
-  - source: emit_test
-    target: assert_test

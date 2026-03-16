@@ -111,13 +111,3 @@ tasks:
         echo "---"
         echo "🌡️ Current: {{with.weather.temperature_c}}°C | {{with.weather.condition}}"
       shell: true
-
-flows:
-  - source: get_city
-    target: fetch_weather
-  - source: fetch_weather
-    target: parse_weather
-  - source: parse_weather
-    target: suggest_outfit
-  - source: suggest_outfit
-    target: display

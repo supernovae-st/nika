@@ -475,17 +475,6 @@ pub fn compute_document_symbols(text: &str) -> Vec<SymbolInformation> {
             ));
         }
 
-        // Flows section
-        if trimmed == "flows:" {
-            symbols.push(create_symbol(
-                "flows".to_string(),
-                SymbolKind::NAMESPACE,
-                line_num,
-                0,
-                line.len() as u32,
-            ));
-        }
-
         // For each parallel iteration
         if trimmed.starts_with("for_each:") {
             symbols.push(create_symbol(

@@ -79,25 +79,3 @@ tasks:
       - Sequential (1 at a time): {{with.sequential}}
 
       All for_each executions completed successfully.
-
-flows:
-  - source: generate_locales
-    target: process_locales
-  - source: process_locales
-    target: aggregate_results
-  - source: generate_items
-    target: process_items_parallel
-  - source: aggregate_results
-    target: mixed_parallel
-  - source: process_items_parallel
-    target: mixed_parallel
-  - source: mixed_parallel
-    target: sequential_processing
-  - source: process_locales
-    target: final_aggregation
-  - source: process_items_parallel
-    target: final_aggregation
-  - source: mixed_parallel
-    target: final_aggregation
-  - source: sequential_processing
-    target: final_aggregation

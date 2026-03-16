@@ -448,9 +448,6 @@ tasks:
       prompt: "Explain {{with.ctx.topic}} briefly"
       model: claude-sonnet-4-6
 
-flows:
-  - source: context_producer
-    target: context_infer
 "#,
     );
 
@@ -813,11 +810,6 @@ tasks:
   - id: join
     exec: "echo 'join'"
 
-flows:
-  - source: start
-    target: [left, right]
-  - source: [left, right]
-    target: join
 "#,
     );
 

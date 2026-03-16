@@ -184,13 +184,6 @@ tasks:
 # FLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  - source: setup_files
-    target: explore_agent
-  - source: explore_agent
-    target: verify_output
-  - source: verify_output
-    target: cleanup
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 AGENT REFERENCE
@@ -535,13 +528,6 @@ tasks:
 # FLOWS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-flows:
-  - source: generate_product
-    target: generate_marketing
-  - source: generate_marketing
-    target: analyze_agent
-  - source: analyze_agent
-    target: final_report
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 STRUCTURED OUTPUT REFERENCE

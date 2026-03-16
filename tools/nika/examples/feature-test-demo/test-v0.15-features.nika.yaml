@@ -88,13 +88,3 @@ tasks:
         rmdir $HOME/Desktop/nika-test-v015 2>/dev/null || echo "Already cleaned or not empty"
         echo "Cleanup complete"
       shell: true
-
-flows:
-  - source: [test_shell_heredoc, test_shell_substitution]
-    target: test_infer_options
-  - source: test_shell_tilde
-    target: test_bindings
-  - source: test_infer_options
-    target: test_bindings
-  - source: test_bindings
-    target: cleanup

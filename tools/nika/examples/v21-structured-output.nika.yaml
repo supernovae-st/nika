@@ -139,11 +139,3 @@ tasks:
 
         Write a brief analysis of each output's quality.
       temperature: 0.3
-
-flows:
-  - source: generate_person
-    target: summary
-  - source: generate_keywords
-    target: summary
-  - source: generate_product
-    target: summary

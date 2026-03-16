@@ -20,9 +20,3 @@ tasks:
 
   - id: merge
     exec: "echo 'Merge'"
-
-flows:
-  - source: start
-    target: [branch_left, branch_right]
-  - source: [branch_left, branch_right]
-    target: merge

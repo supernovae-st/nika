@@ -148,15 +148,3 @@ tasks:
         echo "Preview (first 30 lines):"
         head -30 /tmp/README-generated.md
       shell: true
-
-flows:
-  - source: get_structure
-    target: generate_readme
-  - source: get_package
-    target: generate_readme
-  - source: get_docs
-    target: generate_readme
-  - source: detect_stack
-    target: generate_readme
-  - source: generate_readme
-    target: save

@@ -70,13 +70,6 @@
         "$ref": "#/$defs/Task"
       }
     },
-    "flows": {
-      "type": "array",
-      "description": "DAG edges defining task dependencies",
-      "items": {
-        "$ref": "#/$defs/Flow"
-      }
-    },
     "artifacts": {
       "$ref": "#/$defs/ArtifactsConfig",
       "description": "Workflow-level artifact defaults (v0.10+)"
@@ -768,35 +761,6 @@
             "properties": { "name": { "type": "string" } },
             "required": ["name"]
           }
-        }
-      ]
-    },
-    "Flow": {
-      "type": "object",
-      "required": ["source", "target"],
-      "additionalProperties": false,
-      "properties": {
-        "source": {
-          "$ref": "#/$defs/FlowEndpoint",
-          "description": "Source task(s)"
-        },
-        "target": {
-          "$ref": "#/$defs/FlowEndpoint",
-          "description": "Target task(s)"
-        }
-      }
-    },
-    "FlowEndpoint": {
-      "oneOf": [
-        {
-          "type": "string",
-          "description": "Single task ID"
-        },
-        {
-          "type": "array",
-          "items": { "type": "string" },
-          "minItems": 1,
-          "description": "Multiple task IDs"
         }
       ]
     },

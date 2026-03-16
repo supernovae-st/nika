@@ -259,11 +259,6 @@ tasks:
     output:
       format: json
 
-flows:
-  - source: step1
-    target: step2
-  - source: step2
-    target: step3
 "#,
     );
 
@@ -505,9 +500,6 @@ tasks:
     exec: |
       echo 'Entity loaded: {{with.entity.key}}'
 
-flows:
-  - source: get_entity
-    target: process
 "#,
     );
 
@@ -576,9 +568,6 @@ tasks:
         Write a one-sentence description for a landing page.
       model: claude-sonnet-4-6
 
-flows:
-  - source: get_context
-    target: generate
 "#,
     );
 
@@ -820,9 +809,6 @@ tasks:
         Keep it to 3 bullet points.
       model: claude-sonnet-4-6
 
-flows:
-  - source: scrape
-    target: summarize
 "#,
     );
 

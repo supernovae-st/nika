@@ -60,17 +60,3 @@ tasks:
       default: $default_infer
       full: $full_options
     exec: "echo 'All infer option tests completed. Compare outputs above.'"
-
-flows:
-  - source: creative_tagline
-    target: marketing_copy
-  - source: creative_tagline
-    target: comparison
-  - source: precise_description
-    target: comparison
-  - source: marketing_copy
-    target: comparison
-  - source: default_infer
-    target: comparison
-  - source: full_options
-    target: comparison

@@ -61,19 +61,3 @@ tasks:
       - Implicit syntax resolves to: {{with.single_dollar}}
       - Explicit syntax resolves to: {{with.no_dollar}}
       Both should be identical.
-
-flows:
-  - source: source_data
-    target: implicit_consumer
-  - source: source_data
-    target: explicit_consumer
-  - source: implicit_consumer
-    target: compare_results
-  - source: explicit_consumer
-    target: compare_results
-  - source: source_data
-    target: mixed_references
-  - source: compare_results
-    target: mixed_references
-  - source: mixed_references
-    target: edge_case_test

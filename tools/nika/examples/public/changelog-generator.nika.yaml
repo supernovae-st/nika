@@ -123,13 +123,3 @@ tasks:
         echo "---"
         echo "To add to CHANGELOG.md, insert after the '## [Unreleased]' section"
       shell: true
-
-flows:
-  - source: get_version
-    target: generate_entry
-  - source: get_commits
-    target: categorize
-  - source: categorize
-    target: generate_entry
-  - source: generate_entry
-    target: output

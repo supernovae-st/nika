@@ -269,9 +269,6 @@ tasks:
   - id: task1
     infer: "Hello"
 
-flows:
-  - source: nonexistent
-    target: task1
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");
@@ -294,9 +291,6 @@ tasks:
   - id: task1
     infer: "Hello"
 
-flows:
-  - source: task1
-    target: nonexistent
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");
@@ -614,9 +608,6 @@ tasks:
     as: item
     infer: "Process {{with.item}}"
 
-flows:
-  - source: get_items
-    target: parallel
 "#;
 
     let workflow = parse_workflow(yaml).expect("Should parse");

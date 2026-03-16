@@ -50,13 +50,3 @@ tasks:
       shell: true
     output:
       format: json
-
-flows:
-  # Parallel setup: health_check and validate_env run after dir creation
-  - source: create_output_dir
-    target: health_check
-  - source: create_output_dir
-    target: validate_env
-  # Meta generation happens after health check
-  - source: health_check
-    target: generate_meta

@@ -526,8 +526,8 @@ tasks:
     assert_eq!(workflow.tasks[1].id, "generate_page");
     assert!(matches!(workflow.tasks[1].action, TaskAction::Agent { .. }));
 
-    // Check flows at workflow level (DAG edges from depends_on)
-    assert_eq!(workflow.flows.len(), 1, "Should have one flow edge");
+    // Check edges from task.flow (DAG edges from depends_on)
+    assert_eq!(workflow.flow_count(), 1, "Should have one flow edge");
 }
 
 /// Test: Event log captures all agent turns

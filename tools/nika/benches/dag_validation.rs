@@ -17,22 +17,11 @@ tasks:
     );
 
     for i in 0..size {
-        yaml.push_str(&format!(
-            r#"  - id: task_{i}
-    infer: "Task {i}"
-"#
-        ));
-    }
-
-    if size > 1 {
-        yaml.push_str("\nflows:\n");
-        for i in 0..(size - 1) {
-            yaml.push_str(&format!(
-                "  - source: task_{}\n    target: task_{}\n",
-                i,
-                i + 1
-            ));
+        yaml.push_str(&format!("  - id: task_{i}\n"));
+        if i > 0 {
+            yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
         }
+        yaml.push_str(&format!("    infer: \"Task {i}\"\n"));
     }
 
     serde_yaml::from_str(&yaml).unwrap()
@@ -46,26 +35,21 @@ provider: claude
 tasks:
   - id: source
     infer: "Source"
-  - id: sink
-    infer: "Sink"
 "#,
     );
 
-    // Add middle tasks
     for i in 0..width {
         yaml.push_str(&format!(
-            r#"  - id: middle_{i}
-    infer: "Middle {i}"
-"#
+            "  - id: middle_{i}\n    depends_on: [source]\n    infer: \"Middle {i}\"\n"
         ));
     }
 
-    // source -> all middles, all middles -> sink
-    yaml.push_str("\nflows:\n");
-    for i in 0..width {
-        yaml.push_str(&format!("  - source: source\n    target: middle_{i}\n"));
-        yaml.push_str(&format!("  - source: middle_{i}\n    target: sink\n"));
-    }
+    // sink depends on all middles
+    let middle_deps: Vec<String> = (0..width).map(|i| format!("middle_{i}")).collect();
+    yaml.push_str(&format!(
+        "  - id: sink\n    depends_on: [{}]\n    infer: \"Sink\"\n",
+        middle_deps.join(", ")
+    ));
 
     serde_yaml::from_str(&yaml).unwrap()
 }
@@ -110,11 +94,6 @@ tasks:
     infer: "Process {{{{with.data}}}}"
 "#
         ));
-    }
-
-    yaml.push_str("\nflows:\n");
-    for i in 0..size {
-        yaml.push_str(&format!("  - source: source\n    target: consumer_{i}\n"));
     }
 
     serde_yaml::from_str(&yaml).unwrap()

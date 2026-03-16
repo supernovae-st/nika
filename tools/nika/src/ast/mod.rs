@@ -23,7 +23,7 @@
 //! - `lower`: Lowering (analyzed → runtime types)
 //!
 //! ## Runtime Types
-//! - `workflow`: Workflow, Task, Flow, FlowEndpoint
+//! - `workflow`: Workflow, Task, McpConfigInline
 //! - `action`: TaskAction, InferParams, ExecParams, FetchParams
 //! - `invoke`: InvokeParams (MCP integration)
 //! - `agent`: AgentParams (Agentic execution)
@@ -89,7 +89,7 @@ pub use output::{OutputFormat, OutputPolicy, SchemaRef};
 pub use skill_def::{SkillDef, SkillRef};
 // PkgUri is defined in pkg_resolver.rs
 pub use pkg_resolver::PkgUri;
-pub use workflow::{Flow, FlowEndpoint, McpConfigInline, Task, Workflow};
+pub use workflow::{McpConfigInline, Task, Workflow};
 // DecomposeSpec is defined in decompose.rs
 pub use decompose::{DecomposeSpec, DecomposeStrategy};
 // Loader is defined in loader.rs

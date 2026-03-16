@@ -17,9 +17,3 @@ tasks:
 
   - id: step_c
     exec: "echo 'Step C'"
-
-flows:
-  - source: step_a
-    target: step_b
-  - source: step_b
-    target: step_c

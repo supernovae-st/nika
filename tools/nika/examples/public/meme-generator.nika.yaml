@@ -103,13 +103,3 @@ tasks:
         echo ""
         echo '{{with.meme}}' | jq -r '"🔥 Virality score: " + (.virality_score|tostring) + "/10"'
       shell: true
-
-flows:
-  - source: get_topic
-    target: generate_memes
-  - source: get_style
-    target: generate_memes
-  - source: generate_memes
-    target: pick_best
-  - source: pick_best
-    target: display

@@ -43,9 +43,3 @@ tasks:
     exec:
       command: "cat /tmp/nika-output.txt"
       shell: true
-
-flows:
-  - source: write_initial_file
-    target: file_agent
-  - source: file_agent
-    target: verify_output

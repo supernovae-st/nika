@@ -124,10 +124,6 @@ tasks:
 # Connect main tasks to included tasks (using prefixed IDs)
 # ============================================================================
 
-flows:
-  # Main content generation
-  - source: generate_content
-    target: prepare_for_seo
 
   # Connect to included SEO tasks (prefixed with seo_)
   - source: prepare_for_seo

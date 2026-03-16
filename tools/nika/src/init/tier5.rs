@@ -344,25 +344,6 @@ tasks:
       path: ./output/code-review/fixed_code_{{date}}.ts
       format: text
 
-flows:
-  - source: parse_code
-    target: security_review
-  - source: parse_code
-    target: performance_review
-  - source: parse_code
-    target: style_review
-  - source: parse_code
-    target: logic_review
-  - source: security_review
-    target: synthesize_report
-  - source: performance_review
-    target: synthesize_report
-  - source: style_review
-    target: synthesize_report
-  - source: logic_review
-    target: synthesize_report
-  - source: synthesize_report
-    target: generate_fixes
 "##;
 
 // =============================================================================
@@ -541,13 +522,6 @@ tasks:
         - nika:write
       max_turns: 5
 
-flows:
-  - source: analyze_content
-    target: localize
-  - source: localize
-    target: quality_check
-  - source: quality_check
-    target: export_files
 "##;
 
 // =============================================================================
@@ -754,21 +728,6 @@ tasks:
       path: ./output/seo/article_{{date}}.html
       format: text
 
-flows:
-  - source: keyword_research
-    target: content_outline
-  - source: content_outline
-    target: generate_meta
-  - source: content_outline
-    target: generate_schema
-  - source: content_outline
-    target: generate_content
-  - source: generate_meta
-    target: assemble_page
-  - source: generate_schema
-    target: assemble_page
-  - source: generate_content
-    target: assemble_page
 "##;
 
 // =============================================================================
@@ -871,11 +830,6 @@ tasks:
         - nika:write
       max_turns: 10
 
-flows:
-  - source: scan_project
-    target: generate_docs
-  - source: generate_docs
-    target: generate_index
 "##;
 
 // =============================================================================
@@ -946,13 +900,6 @@ tasks:
         - nika:write
       max_turns: 3
 
-flows:
-  - source: extract
-    target: validate
-  - source: validate
-    target: transform
-  - source: transform
-    target: load
 "##;
 
 pub const WORKFLOW_16_RESEARCH: &str = r##"# ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -1075,11 +1022,6 @@ tasks:
       temperature: 0.3
       max_tokens: 600
 
-flows:
-  - source: analyze_diff
-    target: review_changes
-  - source: review_changes
-    target: generate_review
 "##;
 
 pub const WORKFLOW_18_MEETING: &str = r##"# ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -1156,9 +1098,6 @@ tasks:
       path: ./output/meetings/summary_{{date}}.txt
       format: text
 
-flows:
-  - source: extract_info
-    target: generate_summary
 "##;
 
 pub const WORKFLOW_19_API_HEALTH: &str = r##"# ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -1213,9 +1152,6 @@ tasks:
           recommendations: { type: array, items: { type: string } }
           priority: { type: string, enum: [P1, P2, P3, P4] }
 
-flows:
-  - source: check_endpoints
-    target: analyze_results
 "##;
 
 pub const WORKFLOW_20_KNOWLEDGE_EXTRACT: &str = r##"# ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -1305,11 +1241,6 @@ tasks:
       path: ./output/knowledge/graph_{{date}}.cypher
       format: text
 
-flows:
-  - source: extract_entities
-    target: extract_relations
-  - source: extract_relations
-    target: build_graph
 "##;
 
 /// Returns all Tier 5 workflows (11-20)

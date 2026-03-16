@@ -27,7 +27,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::ast::{Flow, FlowEndpoint, Task, Workflow};
+use crate::ast::{Task, Workflow};
 use crate::error::NikaError;
 use crate::registry::resolver;
 
@@ -254,11 +254,9 @@ fn merge_workflow(
         main.tasks.push(prefixed_task);
     }
 
-    // Merge flows with prefix
-    for flow in included.flows {
-        let prefixed_flow = prefix_flow(flow, prefix);
-        main.flows.push(prefixed_flow);
-    }
+    // NOTE: flows are no longer merged at workflow level.
+    // Task-level `flow` fields are prefixed by `prefix_task()` and the DAG
+    // builder computes edges directly from `task.flow`.
 
     // Merge skills (main workflow skills take precedence)
     if let Some(included_skills) = included.skills {
@@ -279,13 +277,20 @@ fn merge_workflow(
     Ok(())
 }
 
-/// Prefix a task ID and with_spec references (works with Arc<Task>)
+/// Prefix a task ID, flow dependencies, and with_spec references (works with Arc<Task>)
 fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
     match prefix {
         Some(prefix) if !prefix.is_empty() => {
             // Clone and modify task ID
             let mut new_task = (*task).clone();
             new_task.id = format!("{}{}", prefix, new_task.id);
+
+            // Prefix flow (depends_on) references
+            if let Some(ref mut deps) = new_task.flow {
+                for dep in deps.iter_mut() {
+                    *dep = format!("{}{}", prefix, dep);
+                }
+            }
 
             // Also prefix with_spec task references
             if let Some(ref mut with_spec) = new_task.with_spec {
@@ -304,28 +309,7 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
     }
 }
 
-/// Prefix a FlowEndpoint (handles Single and Multiple variants)
-fn prefix_endpoint(endpoint: FlowEndpoint, prefix: &str) -> FlowEndpoint {
-    match endpoint {
-        FlowEndpoint::Single(id) => FlowEndpoint::Single(format!("{}{}", prefix, id)),
-        FlowEndpoint::Multiple(ids) => FlowEndpoint::Multiple(
-            ids.into_iter()
-                .map(|id| format!("{}{}", prefix, id))
-                .collect(),
-        ),
-    }
-}
-
-/// Prefix flow dependencies (source/target)
-fn prefix_flow(flow: Flow, prefix: Option<&str>) -> Flow {
-    match prefix {
-        Some(prefix) if !prefix.is_empty() => Flow {
-            source: prefix_endpoint(flow.source, prefix),
-            target: prefix_endpoint(flow.target, prefix),
-        },
-        _ => flow, // No prefix, return as-is
-    }
-}
+// prefix_endpoint and prefix_flow removed — flows are now derived from task.flow only
 
 #[cfg(test)]
 mod tests {
@@ -349,7 +333,6 @@ mod tests {
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         }
     }
 
@@ -473,40 +456,6 @@ mod tests {
     }
 
     #[test]
-    fn test_prefix_flow() {
-        let flow = Flow {
-            source: FlowEndpoint::Single("task1".to_string()),
-            target: FlowEndpoint::Single("task2".to_string()),
-        };
-
-        let prefixed = prefix_flow(flow.clone(), Some("lib_"));
-        assert!(matches!(&prefixed.source, FlowEndpoint::Single(s) if s == "lib_task1"));
-        assert!(matches!(&prefixed.target, FlowEndpoint::Single(s) if s == "lib_task2"));
-
-        let no_prefix = prefix_flow(flow, None);
-        assert!(matches!(&no_prefix.source, FlowEndpoint::Single(s) if s == "task1"));
-        assert!(matches!(&no_prefix.target, FlowEndpoint::Single(s) if s == "task2"));
-    }
-
-    #[test]
-    fn test_prefix_endpoint_single() {
-        let endpoint = FlowEndpoint::Single("task1".to_string());
-        let prefixed = prefix_endpoint(endpoint, "lib_");
-        assert!(matches!(prefixed, FlowEndpoint::Single(s) if s == "lib_task1"));
-    }
-
-    #[test]
-    fn test_prefix_endpoint_multiple() {
-        let endpoint = FlowEndpoint::Multiple(vec!["task1".to_string(), "task2".to_string()]);
-        let prefixed = prefix_endpoint(endpoint, "lib_");
-        if let FlowEndpoint::Multiple(ids) = prefixed {
-            assert_eq!(ids, vec!["lib_task1", "lib_task2"]);
-        } else {
-            panic!("Expected Multiple variant");
-        }
-    }
-
-    #[test]
     fn test_expand_includes_with_file() {
         let temp_dir = TempDir::new().unwrap();
 
@@ -563,9 +512,10 @@ tasks:
         assert_eq!(result.tasks[0].id, "lib_task1");
         assert_eq!(result.tasks[1].id, "lib_task2");
 
-        assert_eq!(result.flows.len(), 1);
-        assert!(matches!(&result.flows[0].source, FlowEndpoint::Single(s) if s == "lib_task1"));
-        assert!(matches!(&result.flows[0].target, FlowEndpoint::Single(s) if s == "lib_task2"));
+        // task.flow carries prefixed dependency names
+        assert!(result.tasks[0].flow.is_none()); // task1 has no deps
+        let task2_flow = result.tasks[1].flow.as_ref().unwrap();
+        assert_eq!(task2_flow, &["lib_task1".to_string()]);
     }
 
     #[test]

@@ -573,9 +573,6 @@ tasks:
       params:
         entity: "qr-code"
 
-flows:
-  - source: call1
-    target: call2
 "#,
     );
 

@@ -167,17 +167,3 @@ tasks:
         echo "---"
         echo "🎯 Generate another: TOPIC=\"history\" DIFFICULTY=\"hard\" nika trivia-quiz.nika.yaml"
       shell: true
-
-flows:
-  - source: get_topic
-    target: generate_questions
-  - source: get_difficulty
-    target: generate_questions
-  - source: get_count
-    target: generate_questions
-  - source: generate_questions
-    target: select_questions
-  - source: select_questions
-    target: format_quiz
-  - source: format_quiz
-    target: display

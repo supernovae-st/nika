@@ -411,9 +411,6 @@ tasks:
           - title
     output:
       format: json
-flows:
-  - source: describe
-    target: generate
 "#;
         let result = validator.validate_yaml(yaml);
         assert!(

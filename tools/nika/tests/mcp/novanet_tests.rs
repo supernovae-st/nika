@@ -193,14 +193,12 @@ tasks:
     with:
       ctx: $get_entity_context
 
-flows:
-  - source: get_entity_context
-    target: generate_content
 "#;
 
     let workflow = parse_workflow(yaml).expect("Failed to parse workflow");
     assert_eq!(workflow.tasks.len(), 2);
-    assert!(!workflow.flows.is_empty());
+    // generate_content depends on get_entity_context via with: binding
+    assert!(workflow.flow_count() > 0);
 }
 
 #[tokio::test]

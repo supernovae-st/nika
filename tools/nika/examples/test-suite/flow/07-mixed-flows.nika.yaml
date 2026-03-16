@@ -22,9 +22,3 @@ tasks:
   - id: finalize
     exec: "echo 'Finalize'"
     flow: [process_a]
-
-flows:
-  - source: init
-    target: process_b
-  - source: process_b
-    target: finalize

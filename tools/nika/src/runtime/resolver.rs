@@ -372,7 +372,6 @@ mod tests {
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let dir = tempdir().unwrap();
@@ -411,7 +410,6 @@ mod tests {
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let dir = tempdir().unwrap();
@@ -464,7 +462,6 @@ temperature: 0.5
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
@@ -507,7 +504,6 @@ temperature: 0.5
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let result = resolve_assets(&workflow, dir.path()).await;
@@ -550,7 +546,6 @@ You are an expert SEO content writer.
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
@@ -581,7 +576,6 @@ You are an expert SEO content writer.
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let result = resolve_assets(&workflow, dir.path()).await;
@@ -647,7 +641,6 @@ system: "You are a researcher."
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
@@ -708,7 +701,6 @@ system: "You are an agent with defaults."
             log: None,
             inputs: None,
             tasks: vec![],
-            flows: vec![],
         };
 
         let assets = resolve_assets(&workflow, dir.path()).await.unwrap();
