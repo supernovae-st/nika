@@ -314,6 +314,50 @@ tasks:
 }
 
 // ═══════════════════════════════════════════════════════════════
+// for_each + depends_on Pipeline Safety (v0.27.0)
+// ═══════════════════════════════════════════════════════════════
+
+/// Prove: YAML with for_each + depends_on goes through the full
+/// parse → analyze → DAG → run pipeline without false rejection.
+///
+/// This guards against the dangling-dep detection (Dag::from_analyzed)
+/// incorrectly flagging for_each template tasks as missing.
+#[tokio::test]
+async fn test_for_each_with_depends_on_full_pipeline() {
+    let yaml = r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: produce
+    exec:
+      command: "echo '[\"alpha\", \"beta\", \"gamma\"]'"
+
+  - id: process
+    depends_on: [produce]
+    for_each: $produce
+    as: item
+    exec:
+      command: "echo Processing {{with.item}}"
+
+  - id: aggregate
+    depends_on: [process]
+    exec:
+      command: "echo Done"
+"#;
+    let workflow = parse_analyzed(yaml)
+        .expect("for_each + depends_on should parse and analyze without error");
+
+    let mut runner = Runner::new(workflow)
+        .expect("for_each + depends_on should build DAG without false rejection");
+
+    let result = runner.run().await;
+    assert!(
+        result.is_ok(),
+        "for_each + depends_on pipeline should execute: {:?}",
+        result.err()
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // for_each with Nested Path Binding (v0.24.1 BUG FIX)
 // ═══════════════════════════════════════════════════════════════
 
