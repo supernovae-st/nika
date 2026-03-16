@@ -83,6 +83,11 @@ impl Dag {
 
         // Build edges from pre-computed dependencies (depends_on + implicit_deps).
         // Both are Vec<TaskId> resolved by the analyzer.
+        //
+        // SAFETY: for_each expansion happens only at runtime (runner.rs), creating
+        // Arc<str> identifiers like "task[0]", "task[1]" — NOT TaskIds.
+        // The DAG sees only the template task. The .ok_or_else() below is
+        // defense-in-depth: if a TaskId is missing, it's an analyzer bug.
         for task in &workflow.tasks {
             let tgt_arc = task_set
                 .get(task.name.as_str())
