@@ -11,9 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-#[cfg(test)]
-use super::errors::AnalyzeErrorKind;
-use super::errors::{AnalyzeError, AnalyzeResult};
+use super::errors::{AnalyzeError, AnalyzeErrorKind, AnalyzeResult};
 use super::suggestions::find_similar;
 use crate::ast::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
@@ -189,6 +187,7 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
                 &name_spanned.value,
                 &server_spanned.value,
                 server_spanned.span,
+                &mut ctx,
             );
             workflow
                 .mcp_servers
@@ -661,12 +660,33 @@ fn analyze_mcp_server(
     name: &str,
     raw: &crate::ast::raw::RawMcpServer,
     span: Span,
+    ctx: &mut AnalyzerContext,
 ) -> AnalyzedMcpServer {
     let transport = if raw.is_sse() {
         McpTransport::Sse
     } else {
         McpTransport::Stdio
     };
+
+    // Stdio servers require a non-empty command field
+    if transport == McpTransport::Stdio {
+        let has_command = raw
+            .command
+            .as_ref()
+            .map(|s| !s.value.trim().is_empty())
+            .unwrap_or(false);
+        if !has_command {
+            let error_span = raw.command.as_ref().map(|s| s.span).unwrap_or(span);
+            ctx.add_error(AnalyzeError::new(
+                AnalyzeErrorKind::MissingField,
+                error_span,
+                format!(
+                    "MCP server '{}' uses stdio transport but has no 'command' field",
+                    name
+                ),
+            ));
+        }
+    }
 
     AnalyzedMcpServer {
         name: name.to_string(),
@@ -1022,7 +1042,7 @@ fn detect_cycles_dfs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::raw::{RawTask, RawWorkflow};
+    use crate::ast::raw::{RawMcpConfig, RawMcpServer, RawTask, RawWorkflow};
     use crate::source::{FileId, Spanned};
     use indexmap::IndexMap;
 
@@ -1862,5 +1882,95 @@ mod tests {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
         let result = validate(&raw);
         assert!(result.is_ok());
+    }
+
+    // ====================================================================
+    // MCP server validation
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_mcp_stdio_server_requires_command() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+
+        // Create an MCP server with no command (stdio transport is default)
+        let mut mcp_config = RawMcpConfig::new();
+        mcp_config.servers.insert(
+            Spanned::new("broken".to_string(), make_span(10, 16)),
+            Spanned::new(RawMcpServer::default(), make_span(20, 30)),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 35)));
+
+        let result = analyze(raw);
+        assert!(result.is_err());
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
+        let msg = result.errors[0].message.to_lowercase();
+        assert!(
+            msg.contains("command"),
+            "error message should mention command: {}",
+            msg
+        );
+        assert!(
+            msg.contains("broken"),
+            "error message should mention server name: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_analyze_mcp_stdio_server_with_command_ok() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+
+        let mut mcp_config = RawMcpConfig::new();
+        mcp_config.servers.insert(
+            Spanned::new("novanet".to_string(), make_span(10, 17)),
+            Spanned::new(
+                RawMcpServer::with_command("cargo run -p novanet-mcp"),
+                make_span(20, 60),
+            ),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 65)));
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_analyze_mcp_sse_server_without_command_ok() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+
+        // SSE server does not need a command — it uses a URL
+        let mut mcp_config = RawMcpConfig::new();
+        mcp_config.servers.insert(
+            Spanned::new("remote".to_string(), make_span(10, 16)),
+            Spanned::new(
+                RawMcpServer::with_url("http://localhost:8080"),
+                make_span(20, 60),
+            ),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 65)));
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_analyze_mcp_stdio_server_empty_command() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1")]);
+
+        // A server with an empty command string should also fail
+        let mut mcp_config = RawMcpConfig::new();
+        let mut server = RawMcpServer::default();
+        server.command = Some(Spanned::new(String::new(), make_span(25, 25)));
+        mcp_config.servers.insert(
+            Spanned::new("empty_cmd".to_string(), make_span(10, 19)),
+            Spanned::new(server, make_span(20, 30)),
+        );
+        raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 35)));
+
+        let result = analyze(raw);
+        assert!(result.is_err());
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
     }
 }
