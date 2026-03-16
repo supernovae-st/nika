@@ -289,6 +289,24 @@ impl LanguageServer for NikaLanguageServer {
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
 
+    async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
+        tracing::info!("Configuration changed: {:?}", params.settings);
+
+        // Re-analyze all open documents with potentially new settings
+        let docs = self.documents.read().await;
+        let uris: Vec<_> = docs.uris().cloned().collect();
+        for uri in &uris {
+            if let Some(text) = docs.get(uri) {
+                self.ast_index.parse_document(uri, text, 0);
+            }
+        }
+        drop(docs);
+
+        self.client
+            .log_message(MessageType::INFO, "Configuration updated")
+            .await;
+    }
+
     async fn semantic_tokens_full(
         &self,
         params: SemanticTokensParams,
