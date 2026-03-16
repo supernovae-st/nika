@@ -246,7 +246,9 @@ impl RmcpClientAdapter {
 
         if let Some(service) = guard.take() {
             // Graceful shutdown
-            let _ = service.cancel().await;
+            if let Err(e) = service.cancel().await {
+                tracing::warn!(error = %e, "MCP server graceful shutdown failed");
+            }
         }
 
         *self.server_version.lock() = None;
