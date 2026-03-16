@@ -16,6 +16,11 @@
 
 schema: nika/workflow@0.12
 workflow: feature-test-demo
+
+inputs:
+  subject:
+    default: "Artificial Intelligence"
+
 description: |
   Comprehensive Nika feature test workflow.
   Creates ./output/ with research.json, content.md, summary.txt, index.html
@@ -72,7 +77,7 @@ tasks:
       - setup_validate_env
     agent:
       prompt: |
-        You are a research agent. Research the topic: {{input.subject}}
+        You are a research agent. Research the topic: {{inputs.subject}}
 
         Use the available MCP tools:
         1. Use 'search' (perplexity) to find relevant information
@@ -117,7 +122,7 @@ tasks:
     fail_fast: true
     infer:
       prompt: |
-        Generate {{with.format}} format content about: {{input.subject}}
+        Generate {{with.format}} format content about: {{inputs.subject}}
 
         Use this research as context:
         {{with.research_summary}}
@@ -161,7 +166,7 @@ tasks:
     concurrency: 3
     agent:
       prompt: |
-        Generate the {{with.section}} section of an HTML page about: {{input.subject}}
+        Generate the {{with.section}} section of an HTML page about: {{inputs.subject}}
 
         Use the content generated previously and create semantic, accessible HTML.
 
@@ -325,7 +330,7 @@ tasks:
       prompt: |
         Generate a brief execution summary report for this workflow run.
 
-        Subject: {{input.subject}}
+        Subject: {{inputs.subject}}
         Verification: {{with.verification}}
 
         Include:

@@ -35,6 +35,8 @@ struct AnalyzerContext {
     task_table: TaskTable,
     /// Task name to span mapping (for duplicate detection)
     task_spans: HashMap<String, Span>,
+    /// Prefixes declared in `include:` — tasks matching these are resolved post-analysis
+    include_prefixes: Vec<String>,
     /// Collected errors
     errors: Vec<AnalyzeError>,
     /// Collected warnings
@@ -46,6 +48,7 @@ impl AnalyzerContext {
         Self {
             task_table: TaskTable::new(),
             task_spans: HashMap::new(),
+            include_prefixes: Vec::new(),
             errors: Vec::new(),
             warnings: Vec::new(),
         }
@@ -53,6 +56,16 @@ impl AnalyzerContext {
 
     fn add_error(&mut self, error: AnalyzeError) {
         self.errors.push(error);
+    }
+
+    /// Check if a task name matches a declared include prefix.
+    ///
+    /// When `include:` declares `prefix: seo_`, references like `$seo_generate_title`
+    /// should not be flagged as unknown — they'll be resolved after DAG fusion.
+    fn is_included_task(&self, task_name: &str) -> bool {
+        self.include_prefixes
+            .iter()
+            .any(|prefix| task_name.starts_with(prefix))
     }
 }
 
@@ -90,6 +103,9 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
 
     // 2. Validate version-gated features
     validate_feature_gates(raw, version, &mut ctx);
+
+    // 2.5. Collect include prefixes (tasks with these prefixes are resolved post-analysis)
+    collect_include_prefixes(raw, &mut ctx);
 
     // 3. Build task table (detect duplicates)
     build_task_table(&raw.tasks.value, &mut ctx);
@@ -143,6 +159,10 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
 /// ```
 pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     let mut ctx = AnalyzerContext::new();
+
+    // Collect include prefixes early (before raw fields are moved)
+    collect_include_prefixes(&raw, &mut ctx);
+
     let mut workflow = AnalyzedWorkflow {
         span: raw.span,
         ..Default::default()
@@ -450,8 +470,9 @@ fn analyze_task(
                             if !task.implicit_deps.contains(&dep_id) {
                                 task.implicit_deps.push(dep_id);
                             }
-                        } else {
+                        } else if !ctx.is_included_task(dep_task_name) {
                             // Unknown task reference in with: binding
+                            // (skip check for tasks matching include prefixes)
                             let all_names: Vec<&str> =
                                 all_task_names.iter().map(|s| s.as_str()).collect();
                             let suggestion = find_similar(dep_task_name, &all_names, 0.6);
@@ -481,8 +502,8 @@ fn analyze_task(
             let dep_name = &dep_spanned.value;
             if let Some(dep_id) = task_table.get_id(dep_name) {
                 task.depends_on.push(dep_id);
-            } else {
-                // Unknown task in depends_on
+            } else if !ctx.is_included_task(dep_name) {
+                // Unknown task in depends_on (skip for include-prefixed tasks)
                 let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
                 let suggestion = find_similar(dep_name, &all_names, 0.6);
                 ctx.add_error(AnalyzeError::unknown_task(
@@ -699,6 +720,22 @@ fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedR
 
 /// Build the task table from raw tasks, detecting duplicates.
 ///
+/// Collect prefixes declared in `include:` entries.
+///
+/// When a workflow uses `include: [{ path: ./lib/seo.nika.yaml, prefix: seo_ }]`,
+/// task references like `$seo_generate_title` should not be flagged as unknown
+/// during analysis — they'll be resolved after `expand_includes()` merges the
+/// included tasks into the DAG.
+fn collect_include_prefixes(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
+    if let Some(ref imports) = raw.imports {
+        for import in &imports.value {
+            if let Some(ref prefix) = import.value.prefix {
+                ctx.include_prefixes.push(prefix.value.clone());
+            }
+        }
+    }
+}
+
 /// Shared between `validate()` and `analyze()`.
 fn build_task_table(tasks: &[Spanned<RawTask>], ctx: &mut AnalyzerContext) {
     for task in tasks.iter() {
@@ -737,7 +774,9 @@ fn validate_task_refs(
                 Ok(entry) => {
                     // Check for unknown task references
                     if let Some(dep_task_name) = entry.task_id() {
-                        if task_table.get_id(dep_task_name).is_none() {
+                        if task_table.get_id(dep_task_name).is_none()
+                            && !ctx.is_included_task(dep_task_name)
+                        {
                             let all_names: Vec<&str> =
                                 all_task_names.iter().map(|s| s.as_str()).collect();
                             let suggestion = find_similar(dep_task_name, &all_names, 0.6);
@@ -764,7 +803,7 @@ fn validate_task_refs(
     if let Some(ref depends_on) = raw.depends_on {
         for dep_spanned in &depends_on.value {
             let dep_name = &dep_spanned.value;
-            if task_table.get_id(dep_name).is_none() {
+            if task_table.get_id(dep_name).is_none() && !ctx.is_included_task(dep_name) {
                 let all_names: Vec<&str> = all_task_names.iter().map(|s| s.as_str()).collect();
                 let suggestion = find_similar(dep_name, &all_names, 0.6);
                 ctx.add_error(AnalyzeError::unknown_task(

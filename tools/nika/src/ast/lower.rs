@@ -15,10 +15,11 @@ use super::action::{ExecParams, FetchParams, InferParams, RetryConfig, TaskActio
 use super::agent::AgentParams;
 use super::analyzed::{
     AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
-    AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry,
-    AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod, McpTransport,
-    OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
+    AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer,
+    AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
+    McpTransport, OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
 };
+use super::include::IncludeSpec;
 use super::invoke::InvokeParams;
 use super::output::{OutputFormat, OutputPolicy, SchemaRef};
 use super::schema::SchemaVersion;
@@ -44,7 +45,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         tasks,
         mcp_servers,
         context_files: _,
-        imports: _,
+        imports,
         inputs,
         artifacts: _,
         log: _,
@@ -66,7 +67,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         model,
         mcp,
         context: None,
-        include: None,
+        include: lower_imports(imports),
         agents: None,
         skills: None,
         artifacts: None,
@@ -337,6 +338,27 @@ fn lower_inputs(
         None
     } else {
         Some(inputs.into_iter().collect())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Imports → Include
+// ---------------------------------------------------------------------------
+
+fn lower_imports(imports: Vec<AnalyzedImportSpec>) -> Option<Vec<IncludeSpec>> {
+    if imports.is_empty() {
+        None
+    } else {
+        Some(
+            imports
+                .into_iter()
+                .map(|imp| IncludeSpec {
+                    path: Some(imp.path),
+                    pkg: None,
+                    prefix: imp.prefix,
+                })
+                .collect(),
+        )
     }
 }
 

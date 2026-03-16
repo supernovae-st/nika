@@ -1060,7 +1060,8 @@ fn parse_imports(
     file_id: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<Vec<Spanned<RawImportSpec>>>>, ParseError> {
-    let imports_node = match map.get_node("imports") {
+    // Accept both "imports:" (canonical) and "include:" (legacy alias)
+    let imports_node = match map.get_node("imports").or_else(|| map.get_node("include")) {
         Some(node) => node,
         None => return Ok(None),
     };
