@@ -15,7 +15,7 @@ use serde_json;
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 
-use super::types::{RigAgentLoopResult, RigAgentStatus};
+use super::types::RigAgentLoopResult;
 use super::RigAgentLoop;
 
 impl RigAgentLoop {
@@ -77,7 +77,7 @@ impl RigAgentLoop {
     pub async fn chat_continue(&mut self, prompt: &str) -> Result<RigAgentLoopResult, NikaError> {
         // Auto-detect provider and use chat with history
         // Helper: check env var exists and is non-empty
-        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.is_empty());
+        let has_key = |key: &str| std::env::var(key).is_ok_and(|v| !v.trim().is_empty());
 
         if has_key("ANTHROPIC_API_KEY") {
             return self.chat_continue_claude(prompt).await;
@@ -93,6 +93,9 @@ impl RigAgentLoop {
         }
         if has_key("DEEPSEEK_API_KEY") {
             return self.chat_continue_deepseek(prompt).await;
+        }
+        if has_key("GEMINI_API_KEY") {
+            return self.chat_continue_gemini(prompt).await;
         }
         Err(NikaError::AgentValidationError {
             reason: "chat_continue requires one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY".to_string(),
@@ -126,9 +129,10 @@ impl RigAgentLoop {
         // Anthropic requires max_tokens to be set explicitly
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
-            .max_tokens(8192);
+            .max_tokens(effective_max_tokens);
 
         // Apply temperature using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
@@ -214,9 +218,10 @@ impl RigAgentLoop {
         // Build agent and chat with history
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
-            .max_tokens(8192);
+            .max_tokens(effective_max_tokens);
 
         // Apply temperature using native rig-core method
         if let Some(temp) = self.params.effective_temperature() {
@@ -291,7 +296,11 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or(rig::providers::mistral::MISTRAL_LARGE);
-        let agent = client.agent(model_name).max_tokens(8192).build();
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let agent = client
+            .agent(model_name)
+            .max_tokens(effective_max_tokens)
+            .build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -313,7 +322,7 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        let status = RigAgentStatus::NaturalCompletion;
+        let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
 
         self.event_log.emit(EventKind::AgentTurn {
@@ -353,7 +362,11 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or("llama-3.3-70b-versatile");
-        let agent = client.agent(model_name).max_tokens(8192).build();
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let agent = client
+            .agent(model_name)
+            .max_tokens(effective_max_tokens)
+            .build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -375,7 +388,7 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        let status = RigAgentStatus::NaturalCompletion;
+        let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
 
         self.event_log.emit(EventKind::AgentTurn {
@@ -418,7 +431,11 @@ impl RigAgentLoop {
             .model
             .as_deref()
             .unwrap_or(rig::providers::deepseek::DEEPSEEK_CHAT);
-        let agent = client.agent(model_name).max_tokens(8192).build();
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let agent = client
+            .agent(model_name)
+            .max_tokens(effective_max_tokens)
+            .build();
 
         let turn_index = (self.history.len() / 2 + 1) as u32;
 
@@ -440,13 +457,75 @@ impl RigAgentLoop {
         self.history.push(Message::user(prompt));
         self.history.push(Message::assistant(&response));
 
-        let status = RigAgentStatus::NaturalCompletion;
+        let status = self.determine_status(&response);
         let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
 
         self.event_log.emit(EventKind::AgentTurn {
             task_id: Arc::from(self.task_id.as_str()),
             turn_index,
             kind: "chat_continue_deepseek".to_string(),
+            metadata: Some(metadata),
+        });
+
+        // Check guardrails
+        let guardrail_result = self.check_guardrails(&response);
+        let guardrails_passed = guardrail_result.is_passed();
+
+        Ok(RigAgentLoopResult {
+            status: status.clone(),
+            turns: turn_index as usize,
+            final_output: serde_json::json!({ "response": response }),
+            total_tokens: 0,
+            confidence: status.confidence(),
+            retry_count: 0,
+            guardrails_passed,
+            cost_usd: 0.0,
+            partial_result: None,
+        })
+    }
+
+    /// Continue conversation with Gemini
+    async fn chat_continue_gemini(
+        &mut self,
+        prompt: &str,
+    ) -> Result<RigAgentLoopResult, NikaError> {
+        use rig::completion::Chat;
+
+        let client = rig::providers::gemini::Client::from_env();
+        let model_name = self.params.model.as_deref().unwrap_or("gemini-2.0-flash");
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let agent = client
+            .agent(model_name)
+            .max_tokens(effective_max_tokens)
+            .build();
+
+        let turn_index = (self.history.len() / 2 + 1) as u32;
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_gemini".to_string(),
+            metadata: None,
+        });
+
+        let response = agent
+            .chat(prompt, self.history.clone())
+            .await
+            .map_err(|e| NikaError::AgentExecutionError {
+                task_id: self.task_id.clone(),
+                reason: format!("gemini chat error: {}", e),
+            })?;
+
+        self.history.push(Message::user(prompt));
+        self.history.push(Message::assistant(&response));
+
+        let status = self.determine_status(&response);
+        let metadata = AgentTurnMetadata::text_only(&response, "end_turn");
+
+        self.event_log.emit(EventKind::AgentTurn {
+            task_id: Arc::from(self.task_id.as_str()),
+            turn_index,
+            kind: "chat_continue_gemini".to_string(),
             metadata: Some(metadata),
         });
 
