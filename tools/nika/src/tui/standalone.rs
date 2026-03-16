@@ -532,7 +532,7 @@ impl StandaloneState {
             workflow.model.as_deref().unwrap_or("(default)")
         ));
         result.push_str(&format!("│ • Tasks: {}\n", workflow.tasks.len()));
-        result.push_str(&format!("│ • Flows: {}\n", workflow.flow_count()));
+        result.push_str(&format!("│ • Edges: {}\n", workflow.flow_count()));
         result.push_str("│\n");
         result.push_str("╰─ ✓ Workflow is valid\n");
 
