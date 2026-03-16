@@ -1532,12 +1532,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 .workflow
                 .tasks
                 .iter()
-                .filter(|t| {
-                    t.for_each
-                        .as_ref()
-                        .map(|fe| fe.fail_fast)
-                        .unwrap_or(false)
-                })
+                .filter(|t| t.for_each.as_ref().map(|fe| fe.fail_fast).unwrap_or(false))
                 .map(|t| intern(&t.name))
                 .collect();
 
@@ -2889,7 +2884,7 @@ mod tests {
     async fn for_each_empty_array_completes_with_empty_result() {
         let workflow = create_for_each_workflow(
             "empty_loop",
-            "[]",      // empty JSON array
+            "[]", // empty JSON array
             "item",
             "echo {{with.item}}",
             None,
@@ -4179,8 +4174,8 @@ mod tests {
             "item",
             "test '{{with.item}}' != 'FAIL' && echo {{with.item}}",
             Some(1),
-            false,   // fail_fast = false
-            true,    // shell = true (command uses shell operators)
+            false, // fail_fast = false
+            true,  // shell = true (command uses shell operators)
         );
 
         let mut runner = Runner::new(workflow).unwrap();
@@ -4257,12 +4252,8 @@ mod tests {
 
     #[tokio::test]
     async fn audit_for_each_items_non_array_non_string_errors() {
-        let workflow = create_two_step_for_each_workflow(
-            "echo 42",
-            false,
-            "$step1",
-            "echo {{with.item}}",
-        );
+        let workflow =
+            create_two_step_for_each_workflow("echo 42", false, "$step1", "echo {{with.item}}");
 
         let mut runner = Runner::new(workflow).unwrap();
         let _ = runner.run().await;
@@ -4399,10 +4390,7 @@ mod tests {
             .validate("exhaust-test", r#"{"name": "Invalid"}"#)
             .await;
 
-        assert!(
-            result.is_err(),
-            "Should fail after exhausting all retries"
-        );
+        assert!(result.is_err(), "Should fail after exhausting all retries");
 
         let calls = call_count.load(std::sync::atomic::Ordering::SeqCst);
         assert_eq!(
@@ -4432,8 +4420,8 @@ mod tests {
             Box::pin(async move { Ok(r#"{"valid": true}"#.to_string()) })
         });
 
-        let mut engine = StructuredOutputEngine::new(spec, log.clone())
-            .with_infer_callback(callback);
+        let mut engine =
+            StructuredOutputEngine::new(spec, log.clone()).with_infer_callback(callback);
 
         let result = engine
             .validate("repair-test", r#"{"invalid_field": 123}"#)
@@ -4492,9 +4480,7 @@ mod tests {
         }));
         let mut engine = StructuredOutputEngine::new(spec, log);
 
-        let result = engine
-            .validate("addl-ok", r#"{"name": "test"}"#)
-            .await;
+        let result = engine.validate("addl-ok", r#"{"name": "test"}"#).await;
         assert!(result.is_ok(), "Known properties only should validate");
 
         let mut engine2 = StructuredOutputEngine::new(
@@ -4545,10 +4531,7 @@ mod tests {
         let mut engine = StructuredOutputEngine::new(spec, log);
 
         let result = engine
-            .validate(
-                "deep-ok",
-                r#"{"level1": {"level2": {"value": 42}}}"#,
-            )
+            .validate("deep-ok", r#"{"level1": {"level2": {"value": 42}}}"#)
             .await;
         assert!(result.is_ok(), "Deeply nested valid should pass");
 
@@ -4594,7 +4577,10 @@ mod tests {
         let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "string"}));
         let mut engine = StructuredOutputEngine::new(spec, Arc::new(EventLog::new()));
         let result = engine.validate("str-ok", r#""hello""#).await;
-        assert!(result.is_ok(), "Quoted string should validate as string type");
+        assert!(
+            result.is_ok(),
+            "Quoted string should validate as string type"
+        );
 
         // Number schema
         let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "number"}));
@@ -4656,10 +4642,7 @@ mod tests {
 
         let policy = spec.to_output_policy();
 
-        assert_eq!(
-            policy.format,
-            crate::ast::output::OutputFormat::Json,
-        );
+        assert_eq!(policy.format, crate::ast::output::OutputFormat::Json,);
 
         assert!(policy.schema.is_some());
 
