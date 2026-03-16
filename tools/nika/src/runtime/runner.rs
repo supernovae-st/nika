@@ -733,38 +733,45 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
             match result {
                 Ok(output) => {
-                    // Structured output validation via 4-layer engine
-                    // TODO: Wire InferCallback here for Layer 3 & 4 LLM retry/repair.
-                    //       Currently only Layers 1 & 2 (parse + schema) work in this path.
-                    //       The executor/verbs.rs path correctly wires with_infer_callback().
-                    let final_output = if let Some(ref structured_spec) = task.structured {
-                        let mut engine = StructuredOutputEngine::new(
-                            structured_spec.clone(),
-                            Arc::new(event_log.clone()),
-                        );
-                        match engine.validate(&task_id, &output).await {
-                            Ok(result) => {
-                                debug!(
-                                    task_id = %task_id,
-                                    layer = result.layer,
-                                    layer_name = %result.layer_name,
-                                    total_attempts = result.total_attempts,
-                                    "Structured output validation succeeded"
-                                );
-                                result.value.to_string()
+                    // Structured output validation via 4-layer engine.
+                    //
+                    // Skip if effective_output was set (the executor already validated
+                    // in verbs.rs via StructuredOutputEngine with InferCallback wired).
+                    // Only apply runner-level validation when structured: is set but
+                    // wasn't bridged to the executor (shouldn't happen, but defensive).
+                    let executor_already_validated = effective_output.is_some();
+                    let final_output = if !executor_already_validated {
+                        if let Some(ref structured_spec) = task.structured {
+                            let mut engine = StructuredOutputEngine::new(
+                                structured_spec.clone(),
+                                Arc::new(event_log.clone()),
+                            );
+                            match engine.validate(&task_id, &output).await {
+                                Ok(result) => {
+                                    debug!(
+                                        task_id = %task_id,
+                                        layer = result.layer,
+                                        layer_name = %result.layer_name,
+                                        total_attempts = result.total_attempts,
+                                        "Structured output validation succeeded (runner fallback)"
+                                    );
+                                    result.value.to_string()
+                                }
+                                Err(e) => {
+                                    event_log.emit(EventKind::TaskFailed {
+                                        task_id: Arc::clone(&task_id),
+                                        error: e.to_string(),
+                                        duration_ms: duration.as_millis() as u64,
+                                    });
+                                    return IterationResult {
+                                        store_id: task_id,
+                                        result: TaskResult::failed(e.to_string(), duration),
+                                        for_each_info,
+                                    };
+                                }
                             }
-                            Err(e) => {
-                                event_log.emit(EventKind::TaskFailed {
-                                    task_id: Arc::clone(&task_id),
-                                    error: e.to_string(),
-                                    duration_ms: duration.as_millis() as u64,
-                                });
-                                return IterationResult {
-                                    store_id: task_id,
-                                    result: TaskResult::failed(e.to_string(), duration),
-                                    for_each_info,
-                                };
-                            }
+                        } else {
+                            output
                         }
                     } else {
                         output
