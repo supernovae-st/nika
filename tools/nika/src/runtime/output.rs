@@ -99,6 +99,15 @@ fn extract_json_from_output(output: &str) -> Result<Value, String> {
         }
     }
 
+    // Strategy 4b: Greedy fallback — first '{'/[' to last '}'/']'
+    // Handles cases where braces inside JSON string values confuse depth tracking.
+    if let Some(last) = substr.rfind(end_char) {
+        let json_str = &substr[..last + 1];
+        if let Ok(v) = serde_json::from_str::<Value>(json_str) {
+            return Ok(v);
+        }
+    }
+
     // All strategies failed - return original error
     Err(format!(
         "Failed to extract JSON from output. First 200 chars: {}",
@@ -745,6 +754,16 @@ This is based on ancient wisdom."#;
         let input = r#"{"template": "Use {{variable}} syntax", "count": 1}"#;
         let result = extract_json_from_output(input).unwrap();
         assert_eq!(result["template"], "Use {{variable}} syntax");
+    }
+
+    #[test]
+    fn extract_json_unbalanced_braces_in_string_values() {
+        // Edge case: closing brace inside a JSON string value confuses depth tracking.
+        // Strategy 4b (greedy fallback) should handle this.
+        let input = r#"Here is the result: {"msg": "close brace } here", "ok": true}"#;
+        let result = extract_json_from_output(input).unwrap();
+        assert_eq!(result["msg"], "close brace } here");
+        assert_eq!(result["ok"], true);
     }
 
     #[test]
