@@ -329,7 +329,7 @@ Calls tools on MCP (Model Context Protocol) servers via the rmcp v0.16 SDK.
 - id: context
   invoke:
     mcp: novanet
-    tool: novanet_generate
+    tool: novanet_context
     params:
       focus_key: "qr-code"
       locale: "fr-FR"
@@ -387,7 +387,6 @@ Runs an LLM agent that can call tools across multiple turns until it completes i
     goal: "Find all entities related to QR codes and create a report"
     tools:
       - novanet::novanet_search
-      - novanet::novanet_traverse
       - nika:write
     max_iterations: 15
 ```
@@ -705,7 +704,7 @@ Decompose uses graph traversal (via MCP) to generate iteration items at runtime:
 ```yaml
 - id: generate_all
   decompose:
-    strategy: semantic           # Uses novanet_traverse MCP call
+    strategy: semantic           # Uses novanet_search(mode=walk) MCP call
     arc_family: ownership        # Follow ownership arcs
     source: $parent_entity       # Starting node
     max_depth: 2
@@ -715,17 +714,18 @@ Decompose uses graph traversal (via MCP) to generate iteration items at runtime:
     parallel: 4
   invoke:
     mcp: novanet
-    tool: novanet_generate
+    tool: novanet_context
     params:
       focus_key: "{{with.item}}"
       locale: "fr-FR"
+      mode: "block"
 ```
 
 **3 strategies:**
 
 | Strategy | How | Use Case |
 |----------|-----|----------|
-| `semantic` | Calls `novanet_traverse` MCP tool | Knowledge graph children |
+| `semantic` | Calls `novanet_search(mode=walk)` MCP tool | Knowledge graph children |
 | `static` | Resolves binding to array directly | Pre-computed lists |
 | `nested` | Recursive BFS with depth limiting | Multi-level tree processing |
 
@@ -1443,7 +1443,7 @@ tasks:
   - id: get_context
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "qr-code"
         locale: "fr-FR"
@@ -1544,8 +1544,7 @@ tasks:
         Save the report to ./output/qr-research.md
       tools:
         - novanet::novanet_search
-        - novanet::novanet_traverse
-        - novanet::novanet_generate
+        - novanet::novanet_context
         - nika:write
         - nika:read
       max_iterations: 20

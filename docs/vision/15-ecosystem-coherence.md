@@ -572,7 +572,7 @@ Les satellites utilisent les MCP tools comme "mains" pour executer des actions s
 
 | Category | Server | Key Tools |
 |----------|--------|-----------|
-| **Knowledge** | novanet | search, context, traverse, write, audit |
+| **Knowledge** | novanet | search, context, introspect, write, audit |
 | **Image** | image-gen | generate_image, edit_image, upscale |
 | **Browser** | browser | navigate, screenshot, extract |
 | **Code** | github | create_pr, create_issue, get_file |
