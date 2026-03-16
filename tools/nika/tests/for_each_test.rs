@@ -343,8 +343,8 @@ tasks:
     exec:
       command: "echo Done"
 "#;
-    let workflow = parse_analyzed(yaml)
-        .expect("for_each + depends_on should parse and analyze without error");
+    let workflow =
+        parse_analyzed(yaml).expect("for_each + depends_on should parse and analyze without error");
 
     let mut runner = Runner::new(workflow)
         .expect("for_each + depends_on should build DAG without false rejection");

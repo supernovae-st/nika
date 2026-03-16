@@ -391,12 +391,14 @@ fn task_dep_names(
 ) -> Result<Option<Vec<String>>, NikaError> {
     let mut deps = Vec::new();
     for id in depends.iter().chain(implicit.iter()) {
-        let name = table.get_name(*id).ok_or_else(|| NikaError::ValidationError {
-            reason: format!(
-                "Lowering: TaskId({}) not found in TaskTable (invariant violation)",
-                id.0
-            ),
-        })?;
+        let name = table
+            .get_name(*id)
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: format!(
+                    "Lowering: TaskId({}) not found in TaskTable (invariant violation)",
+                    id.0
+                ),
+            })?;
         deps.push(name.to_string());
     }
     Ok(if deps.is_empty() { None } else { Some(deps) })
@@ -1203,7 +1205,10 @@ mod tests {
         let dangling = TaskId(99);
 
         let result = task_dep_names(&[dangling], &[], &table);
-        assert!(result.is_err(), "Dangling TaskId should be rejected in lowering");
+        assert!(
+            result.is_err(),
+            "Dangling TaskId should be rejected in lowering"
+        );
     }
 
     #[test]
@@ -1213,7 +1218,9 @@ mod tests {
         let id_b = table.insert("b");
 
         let result = task_dep_names(&[id_a], &[id_b], &table);
-        let deps = result.expect("valid TaskIds should resolve").expect("should be Some");
+        let deps = result
+            .expect("valid TaskIds should resolve")
+            .expect("should be Some");
         assert_eq!(deps, vec!["a".to_string(), "b".to_string()]);
     }
 
@@ -1237,6 +1244,9 @@ mod tests {
         });
 
         let result = lower(wf);
-        assert!(result.is_err(), "lower() should reject dangling TaskId in depends_on");
+        assert!(
+            result.is_err(),
+            "lower() should reject dangling TaskId in depends_on"
+        );
     }
 }
