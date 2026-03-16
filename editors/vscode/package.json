@@ -1,0 +1,102 @@
+{
+  "name": "nika-lang",
+  "displayName": "Nika Workflow Language",
+  "description": "Language support for Nika (.nika.yaml) workflow files - syntax highlighting, completions, hover docs, go-to-definition, and diagnostics.",
+  "version": "0.1.0",
+  "publisher": "supernovae-studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuperNovae-studio/nika"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "nika",
+    "yaml",
+    "workflow",
+    "ai",
+    "llm",
+    "mcp"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.nika.yaml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "nika",
+        "aliases": [
+          "Nika Workflow",
+          "nika"
+        ],
+        "extensions": [
+          ".nika.yaml"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/nika-light.svg",
+          "dark": "./icons/nika-dark.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "nika",
+        "scopeName": "source.nika",
+        "path": "./syntaxes/nika.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Nika",
+      "properties": {
+        "nika.server.path": {
+          "type": "string",
+          "default": "nika",
+          "description": "Path to the nika binary. Uses PATH by default."
+        },
+        "nika.server.extraArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments passed to the nika lsp command."
+        },
+        "nika.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace communication between VS Code and the Nika language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
