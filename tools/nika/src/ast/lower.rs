@@ -530,7 +530,10 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         }),
         TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
             url: fetch.url.clone(),
-            method: HttpMethod::parse(&fetch.method).unwrap_or_default(),
+            method: HttpMethod::parse(&fetch.method).unwrap_or_else(|| {
+                tracing::warn!(method = %fetch.method, "Unknown HTTP method in lower, defaulting to GET");
+                HttpMethod::Get
+            }),
             headers: fetch
                 .headers
                 .iter()
