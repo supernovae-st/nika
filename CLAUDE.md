@@ -2,7 +2,7 @@
 
 Semantic YAML workflow engine for AI tasks.
 
-**v0.27.0** | 6,264 tests | Schema `@0.12` | [QR Code AI](https://qrcode-ai.com)
+**v0.27.0** | 6,259 tests | Schema `@0.12` | [QR Code AI](https://qrcode-ai.com)
 
 ## Why Nika Exists
 

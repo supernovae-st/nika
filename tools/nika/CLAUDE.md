@@ -70,7 +70,7 @@ src/
 ## Testing
 
 ```bash
-cargo test                    # 6,264 tests
+cargo test                    # 6,259 tests
 cargo test --features lsp     # Include LSP tests
 cargo clippy -- -D warnings   # Zero warnings policy
 cargo fmt                     # Format
