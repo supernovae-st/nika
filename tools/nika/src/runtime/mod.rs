@@ -6,6 +6,7 @@
 //!   - Includes decompose: modifier expansion
 //! - `output`: Output format handling and schema validation
 //! - `structured_output`: 4-layer StructuredOutputEngine for ~99.99% compliance
+//! - `submit_tool`: DynamicSubmitTool for provider-native structured output (Layer 0)
 //! - `rig_agent_loop`: Rig-based agentic execution
 //! - `spawn`: Nested agent spawning
 //! - `chat_workflow`: Chat-as-DAG wrapper
@@ -42,6 +43,7 @@ pub mod security;
 mod skill_injector;
 pub mod spawn;
 pub mod structured_output;
+pub mod submit_tool;
 
 // Re-export public types
 pub use builtin::{
@@ -78,5 +80,7 @@ pub use structured_output::{
 };
 
 pub use limit_tracker::LimitTracker;
+
+pub use submit_tool::DynamicSubmitTool;
 
 pub use partial::{PartialCheckpoint, PartialResult, StopReason};
