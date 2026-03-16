@@ -1063,10 +1063,7 @@ mod tests {
         };
 
         let result = Dag::from_analyzed(&workflow);
-        assert!(
-            result.is_err(),
-            "Dangling depends_on should be rejected"
-        );
+        assert!(result.is_err(), "Dangling depends_on should be rejected");
         let err = result.unwrap_err();
         assert!(
             err.to_string().contains("unknown"),
@@ -1139,9 +1136,6 @@ mod tests {
         };
 
         let result = Dag::from_analyzed(&workflow);
-        assert!(
-            result.is_err(),
-            "Dangling implicit_dep should be rejected"
-        );
+        assert!(result.is_err(), "Dangling implicit_dep should be rejected");
     }
 }

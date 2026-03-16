@@ -95,7 +95,6 @@ pub struct RawExecAction {
 
     /// Timeout in milliseconds
     pub timeout_ms: Option<Spanned<u64>>,
-
 }
 
 /// Parameters for the `fetch` verb (HTTP requests).

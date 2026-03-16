@@ -1986,7 +1986,10 @@ tasks:
     exec: "echo hello"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_err(), "task with multiple verbs should be rejected");
+        assert!(
+            result.is_err(),
+            "task with multiple verbs should be rejected"
+        );
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::InvalidType);
         assert!(
