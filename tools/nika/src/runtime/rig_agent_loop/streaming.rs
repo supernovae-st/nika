@@ -57,7 +57,8 @@ impl RigAgentLoop {
             request_builder = request_builder.temperature(f64::from(temp));
         }
 
-        let request = request_builder.max_tokens(8192).build();
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
+        let request = request_builder.max_tokens(effective_max_tokens).build();
 
         // Execute streaming request
         let mut stream =
@@ -206,10 +207,11 @@ impl RigAgentLoop {
             // CLI mode (no TUI): Use stream_prompt() for token tracking
             // Even without TUI, we need streaming to extract token usage from FinalResponse
             // Use preamble with injected skills
+            let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
             let mut builder = AgentBuilder::new(model)
                 .preamble(&preamble)
                 .tools(tools)
-                .max_tokens(8192);
+                .max_tokens(effective_max_tokens);
 
             // Apply temperature using native rig-core method
             if let Some(temp) = self.params.effective_temperature() {
@@ -318,10 +320,11 @@ impl RigAgentLoop {
         // Build agent with tools
         // Inject skills into system prompt if configured
         let preamble = self.inject_skills_into_prompt().await?;
+        let effective_max_tokens = self.params.effective_max_tokens().unwrap_or(8192) as u64;
         let mut builder = AgentBuilder::new(model)
             .preamble(&preamble)
             .tools(tools)
-            .max_tokens(8192);
+            .max_tokens(effective_max_tokens);
 
         if let Some(temp) = self.params.effective_temperature() {
             builder = builder.temperature(f64::from(temp));
