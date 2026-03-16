@@ -845,6 +845,137 @@ tasks:
 
     #[test]
     #[cfg(feature = "lsp")]
+    fn test_all_five_verbs_hover() {
+        for (verb, expected_fragment) in [
+            ("infer", "LLM Generation"),
+            ("exec", "Shell Command"),
+            ("fetch", "HTTP Request"),
+            ("invoke", "MCP Tool Call"),
+            ("agent", "Agentic Loop"),
+        ] {
+            let line = format!("    {}: \"test\"", verb);
+            let hover = check_verb_hover(&line, 4);
+            assert!(hover.is_some(), "Expected hover for verb '{}'", verb);
+            let h = hover.unwrap();
+            if let HoverContents::Markup(m) = h.contents {
+                assert!(
+                    m.value.contains(expected_fragment),
+                    "Verb '{}': expected '{}' in hover, got: {}",
+                    verb,
+                    expected_fragment,
+                    m.value
+                );
+            } else {
+                panic!("Expected markup for verb '{}'", verb);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_all_field_hovers() {
+        for (field, expected_fragment) in [
+            ("schema", "Schema Version"),
+            ("workflow", "Workflow Name"),
+            ("tasks", "Task List"),
+            ("id", "Task Identifier"),
+            ("with", "Data Bindings"),
+            ("for_each", "Parallel Iteration"),
+            ("context", "File Loading"),
+            ("include", "DAG Fusion"),
+            ("mcp", "MCP Server Configuration"),
+            ("provider", "Default LLM Provider"),
+        ] {
+            let line = format!("{}: value", field);
+            let hover = check_field_hover(&line, 0);
+            assert!(hover.is_some(), "Expected hover for field '{}'", field);
+            let h = hover.unwrap();
+            if let HoverContents::Markup(m) = h.contents {
+                assert!(
+                    m.value.contains(expected_fragment),
+                    "Field '{}': expected '{}', got: {}",
+                    field,
+                    expected_fragment,
+                    m.value
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_template_hover_inputs() {
+        let hover = check_template_hover("  text: {{inputs.name}}", 10);
+        assert!(hover.is_some());
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            assert!(m.value.contains("Workflow Input Reference"));
+        } else {
+            panic!("Expected markup content");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_template_hover_loop_item() {
+        let hover = check_template_hover("  infer: \"Process {{item}}\"", 20);
+        assert!(hover.is_some());
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            assert!(m.value.contains("Loop Item"));
+        } else {
+            panic!("Expected markup content");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_hover_cursor_outside_verb_range() {
+        // Cursor is at position 20, well past the verb keyword
+        let hover = check_verb_hover("    infer: \"some long prompt text here\"", 20);
+        assert!(hover.is_none(), "Should not hover when cursor is past verb");
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_hover_empty_line() {
+        let hover = compute_hover(
+            "schema: nika/workflow@0.12\n\ntasks:",
+            Position {
+                line: 1,
+                character: 0,
+            },
+        );
+        assert!(hover.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_hover_past_last_line() {
+        let hover = compute_hover(
+            "schema: nika/workflow@0.12",
+            Position {
+                line: 99,
+                character: 0,
+            },
+        );
+        assert!(hover.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_hover_multiple_templates_on_line() {
+        // Two templates on the same line, hover on the second one
+        let hover = check_template_hover("  text: \"{{with.a}} and {{with.b}}\"", 25);
+        assert!(hover.is_some());
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            assert!(m.value.contains("Binding Reference"));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
     fn test_compute_hover_with_ast_fallback() {
         let ast_index = AstIndex::new();
         let uri = Url::parse("file:///test.nika.yaml").unwrap();

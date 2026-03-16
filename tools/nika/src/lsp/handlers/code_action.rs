@@ -932,6 +932,197 @@ tasks:
 
     #[test]
     #[cfg(feature = "lsp")]
+    fn test_duplicate_task_fix() {
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let diagnostic = Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 5,
+                    character: 4,
+                },
+                end: Position {
+                    line: 5,
+                    character: 14,
+                },
+            },
+            severity: Some(DiagnosticSeverity::ERROR),
+            code: Some(NumberOrString::String("NIKA-141".to_string())),
+            source: Some("nika".to_string()),
+            message: "Duplicate task ID 'step1'".to_string(),
+            related_information: None,
+            tags: None,
+            code_description: None,
+            data: None,
+        };
+
+        let action = create_duplicate_task_fix(&diagnostic, &uri);
+        assert!(action.is_some());
+        if let Some(CodeActionOrCommand::CodeAction(ca)) = action {
+            assert!(ca.title.contains("Rename to"));
+            assert_eq!(ca.kind, Some(CodeActionKind::QUICKFIX));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_missing_field_fix_id() {
+        let text = "schema: nika/workflow@0.12\ntasks:\n  - infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let diagnostic = Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 2,
+                    character: 0,
+                },
+                end: Position {
+                    line: 2,
+                    character: 10,
+                },
+            },
+            severity: Some(DiagnosticSeverity::ERROR),
+            code: Some(NumberOrString::String("NIKA-145".to_string())),
+            source: Some("nika".to_string()),
+            message: "Missing required field 'id'".to_string(),
+            related_information: None,
+            tags: None,
+            code_description: None,
+            data: None,
+        };
+
+        let action = create_missing_field_fix(text, &diagnostic, &uri);
+        assert!(action.is_some());
+        if let Some(CodeActionOrCommand::CodeAction(ca)) = action {
+            assert!(ca.title.contains("id"), "Should suggest adding 'id' field");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_missing_field_fix_schema() {
+        let text = "workflow: test\ntasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let diagnostic = Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 10,
+                },
+            },
+            severity: Some(DiagnosticSeverity::ERROR),
+            code: Some(NumberOrString::String("NIKA-145".to_string())),
+            source: Some("nika".to_string()),
+            message: "Missing required field 'schema'".to_string(),
+            related_information: None,
+            tags: None,
+            code_description: None,
+            data: None,
+        };
+
+        let action = create_missing_field_fix(text, &diagnostic, &uri);
+        assert!(action.is_some());
+        if let Some(CodeActionOrCommand::CodeAction(ca)) = action {
+            assert!(ca.title.contains("schema"));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_refactoring_add_with_block() {
+        let text = "tasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let range = Range {
+            start: Position {
+                line: 1,
+                character: 0,
+            },
+            end: Position {
+                line: 1,
+                character: 14,
+            },
+        };
+
+        let actions = create_refactoring_actions(text, range, &uri);
+        assert!(
+            actions.iter().any(|a| {
+                if let CodeActionOrCommand::CodeAction(ca) = a {
+                    ca.title.contains("with:")
+                } else {
+                    false
+                }
+            }),
+            "Should offer 'Add with: block' refactoring on '- id:' lines"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_no_actions_for_unknown_diagnostic_code() {
+        let text = "schema: nika/workflow@0.12";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let diagnostic = Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 10,
+                },
+            },
+            severity: Some(DiagnosticSeverity::WARNING),
+            code: Some(NumberOrString::String("NIKA-999".to_string())),
+            source: Some("nika".to_string()),
+            message: "Some unknown warning".to_string(),
+            related_information: None,
+            tags: None,
+            code_description: None,
+            data: None,
+        };
+
+        let action = create_quickfix_for_diagnostic(text, &diagnostic, &uri);
+        assert!(
+            action.is_none(),
+            "Unknown NIKA codes should not produce quick fixes"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_code_actions_no_diagnostics_still_has_refactoring() {
+        let text = "tasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let range = Range {
+            start: Position {
+                line: 2,
+                character: 4,
+            },
+            end: Position {
+                line: 2,
+                character: 20,
+            },
+        };
+
+        let actions = compute_code_actions(text, range, &[], uri);
+        // Even without diagnostics, refactoring actions should be available
+        assert!(
+            actions.iter().any(|a| {
+                if let CodeActionOrCommand::CodeAction(ca) = a {
+                    ca.kind == Some(CodeActionKind::REFACTOR)
+                } else {
+                    false
+                }
+            }),
+            "Should still offer refactoring actions without diagnostics"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
     fn test_longest_common_subsequence() {
         assert_eq!(longest_common_subsequence_length("step1", "step1"), 5);
         assert_eq!(longest_common_subsequence_length("step1", "step2"), 4); // "step"

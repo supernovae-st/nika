@@ -638,6 +638,108 @@ tasks:
 
     #[test]
     #[cfg(feature = "lsp")]
+    fn test_find_task_location_quoted_id() {
+        let text = r#"
+tasks:
+  - id: "quoted_task"
+    infer: "Hello"
+"#;
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let location = find_task_location(text, "quoted_task", &uri);
+        assert!(location.is_some(), "Should find quoted task ID");
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_task_reference_with_path_syntax() {
+        let text = r#"
+tasks:
+  - id: api_call
+    fetch:
+      url: "https://example.com"
+  - id: process
+    with:
+      data: api_call.body.json
+    infer: "Process"
+"#;
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        // The path "api_call.body.json" should resolve to task "api_call"
+        let response = find_task_reference_definition(text, "      data: api_call.body.json", &uri);
+        assert!(
+            response.is_some(),
+            "Should resolve path-style task reference"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_definition_skips_json_values() {
+        let text = "tasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        // A line with a JSON object value should not be treated as a task ref
+        let response = find_task_reference_definition(text, "      data: {\"key\": \"val\"}", &uri);
+        assert!(response.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_definition_skips_array_values() {
+        let text = "tasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let response = find_task_reference_definition(text, "      items: [\"a\", \"b\"]", &uri);
+        assert!(response.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_definition_skips_string_values() {
+        let text = "tasks:\n  - id: step1\n    infer: \"test\"";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let response = find_task_reference_definition(text, "      prompt: \"hello world\"", &uri);
+        assert!(response.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_with_binding_location_multiple_bindings() {
+        let text = r#"
+- id: step3
+  with:
+    first: step1
+    second: step2
+  infer: "{{with.first}} and {{with.second}}"
+"#;
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+
+        let loc1 = find_with_binding_location(text, "first", &uri);
+        let loc2 = find_with_binding_location(text, "second", &uri);
+
+        assert!(loc1.is_some());
+        assert!(loc2.is_some());
+        assert_ne!(
+            loc1.unwrap().range.start.line,
+            loc2.unwrap().range.start.line
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_find_definition_empty_text() {
+        let text = "";
+        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let result = find_definition(
+            text,
+            Position {
+                line: 0,
+                character: 0,
+            },
+            uri,
+        );
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
     fn test_find_definition_with_ast_no_match() {
         let text = r#"schema: nika/workflow@0.12
 workflow: test
