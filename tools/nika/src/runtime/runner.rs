@@ -55,18 +55,16 @@ use std::path::PathBuf;
 /// - `Some(Vec<Value>)` if the value is an array or a parseable JSON array string
 /// - `None` if the value cannot be converted to an array
 fn value_to_array(value: &Value) -> Option<Vec<Value>> {
-    // First, try direct array access
+    // Fast path: direct array access
     if let Some(arr) = value.as_array() {
         return Some(arr.clone());
     }
 
-    // If it's a string, try to parse it as a JSON array
+    // String → try extract_json (handles markdown fences, bare JSON, brackets)
     if let Some(s) = value.as_str() {
-        let trimmed = s.trim();
-        // Only try to parse if it looks like a JSON array
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            if let Ok(parsed) = serde_json::from_str::<Vec<Value>>(trimmed) {
-                return Some(parsed);
+        if let Ok(extracted) = extract_json(s) {
+            if let Some(arr) = extracted.as_array() {
+                return Some(arr.clone());
             }
         }
     }
@@ -3295,6 +3293,62 @@ mod tests {
         let value = json!("[not valid json");
         let result = value_to_array(&value);
         assert!(result.is_none(), "Should return None for invalid JSON");
+    }
+
+    #[test]
+    fn test_value_to_array_markdown_fenced_json_array() {
+        let value = Value::String("```json\n[\"a\", \"b\", \"c\"]\n```".to_string());
+        let result = value_to_array(&value);
+        assert!(
+            result.is_some(),
+            "Should parse JSON array from markdown fence"
+        );
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0], json!("a"));
+        assert_eq!(arr[1], json!("b"));
+        assert_eq!(arr[2], json!("c"));
+    }
+
+    #[test]
+    fn test_value_to_array_plain_fenced_json_array() {
+        let value = Value::String("```\n[1, 2, 3]\n```".to_string());
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Should parse JSON array from plain fence");
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0], json!(1));
+        assert_eq!(arr[1], json!(2));
+        assert_eq!(arr[2], json!(3));
+    }
+
+    #[test]
+    fn test_value_to_array_bare_json_string_still_works() {
+        let value = Value::String("[\"x\", \"y\"]".to_string());
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Bare JSON array string should still work");
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0], json!("x"));
+        assert_eq!(arr[1], json!("y"));
+    }
+
+    #[test]
+    fn test_value_to_array_direct_array_value_still_works() {
+        let value = json!(["a", "b"]);
+        let result = value_to_array(&value);
+        assert!(result.is_some(), "Direct array value should still work");
+        let arr = result.unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0], json!("a"));
+        assert_eq!(arr[1], json!("b"));
+    }
+
+    #[test]
+    fn test_value_to_array_non_array_string_returns_none() {
+        let value = Value::String("just a string".to_string());
+        let result = value_to_array(&value);
+        assert!(result.is_none(), "Non-array string should return None");
     }
 
     #[test]
