@@ -1,7 +1,0 @@
----
-source: tests/tui_render_snapshot_test.rs
-expression: output
----
-⋯ 🔌  perplexity_search                            
-✓ 🔌  novanet_traverse                        4.0KB
-✓ 🔌  novanet_describe                        1.0KB

@@ -1,5 +1,0 @@
----
-source: tests/tui_render_snapshot_test.rs
-expression: output
----
-✓ 🔌  novanet_describe                        2.0KB

@@ -1,9 +1,0 @@
----
-source: tests/tui_render_snapshot_test.rs
-expression: output
----
-T1 🤔  thinking                                          1.2k
-T2 🔧  tool_use                                         300tk
-T3 📋  tool_result                                      500tk
-T4 🤔  thinking                                         800tk
-T5 ✨  response                                         400tk
