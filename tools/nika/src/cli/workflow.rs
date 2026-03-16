@@ -448,7 +448,7 @@ fn generate_ascii_dag(workflow: &nika::ast::Workflow) -> String {
     let edges = workflow.edges();
     if !edges.is_empty() {
         output.push_str("├─────────────────────────────────────────┤\n");
-        output.push_str("│ Flows:                                  │\n");
+        output.push_str("│ Edges:                                  │\n");
         for (source, target) in &edges {
             let flow_str = format!("  {} → {}", source, target);
             let flow_padding = 39usize.saturating_sub(flow_str.len());
