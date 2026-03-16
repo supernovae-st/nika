@@ -263,15 +263,6 @@ impl TaskExecutor {
                                     "Layer 0: tool injection succeeded"
                                 );
 
-                                self.event_log.emit(EventKind::StructuredOutputAttempt {
-                                    task_id: Arc::clone(task_id),
-                                    layer: 0,
-                                    layer_name: "tool_injection".to_string(),
-                                    attempt: 1,
-                                    success: true,
-                                    error: None,
-                                });
-
                                 // Still validate through the engine as safety net
                                 if let Some(spec) = policy.to_structured_spec() {
                                     let mut engine = StructuredOutputEngine::new(
@@ -281,6 +272,17 @@ impl TaskExecutor {
 
                                     match engine.validate(task_id.as_ref(), &tool_result).await {
                                         Ok(result) => {
+                                            // Emit success ONLY after validation passes
+                                            self.event_log.emit(
+                                                EventKind::StructuredOutputAttempt {
+                                                    task_id: Arc::clone(task_id),
+                                                    layer: 0,
+                                                    layer_name: "tool_injection".to_string(),
+                                                    attempt: 1,
+                                                    success: true,
+                                                    error: None,
+                                                },
+                                            );
                                             debug!(
                                                 task_id = %task_id,
                                                 layer = result.layer,
@@ -288,17 +290,35 @@ impl TaskExecutor {
                                             );
                                             return Ok(result.value.to_string());
                                         }
-                                        Err(_) => {
-                                            // Tool injection gave us something but it
-                                            // failed validation — fall through to streaming
+                                        Err(e) => {
+                                            // Emit failure when validation rejects tool output
+                                            self.event_log.emit(
+                                                EventKind::StructuredOutputAttempt {
+                                                    task_id: Arc::clone(task_id),
+                                                    layer: 0,
+                                                    layer_name: "tool_injection".to_string(),
+                                                    attempt: 1,
+                                                    success: false,
+                                                    error: Some(e.to_string()),
+                                                },
+                                            );
                                             debug!(
                                                 task_id = %task_id,
+                                                error = %e,
                                                 "Layer 0 result failed validation, falling through"
                                             );
                                         }
                                     }
                                 } else {
-                                    // No spec but we have a tool result — return it
+                                    // No spec — tool injection result used as-is
+                                    self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                        task_id: Arc::clone(task_id),
+                                        layer: 0,
+                                        layer_name: "tool_injection".to_string(),
+                                        attempt: 1,
+                                        success: true,
+                                        error: None,
+                                    });
                                     return Ok(tool_result);
                                 }
                             }
