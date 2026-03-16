@@ -1381,14 +1381,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                         // Create semaphore for concurrency limiting
                         let semaphore = Arc::new(Semaphore::new(concurrency));
-                        // Create cancellation flag for fail_fast
-                        let cancelled = Arc::new(AtomicBool::new(false));
+                        // Create cancellation token for fail_fast (notification-based, no busy-poll)
+                        let cancel = CancellationToken::new();
 
                         // Spawn one execution per item in the array
                         let var_name = fe.map(|f| f.as_var.as_str()).unwrap_or("item").to_string();
                         for (idx, item) in items.iter().enumerate() {
                             // Check if cancelled before spawning
-                            if fail_fast && cancelled.load(Ordering::Relaxed) {
+                            if fail_fast && cancel.is_cancelled() {
                                 debug!(
                                     task_id = %task.name,
                                     idx = idx,
@@ -1406,13 +1406,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             let item = item.clone();
                             let var_name = var_name.clone();
                             let semaphore = Arc::clone(&semaphore);
-                            let cancelled = Arc::clone(&cancelled);
+                            let cancel = cancel.clone();
                             let workflow_artifacts = workflow_artifacts.clone();
                             let artifact_base_path = artifact_base_path.clone();
 
                             join_set.spawn(async move {
                                 // Check cancellation BEFORE acquiring semaphore
-                                if cancelled.load(Ordering::SeqCst) {
+                                if cancel.is_cancelled() {
                                     return IterationResult {
                                         store_id: task_id,
                                         result: TaskResult::skipped(
@@ -1423,16 +1423,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     };
                                 }
 
-                                // Use tokio::select! to race semaphore acquisition
-                                // against cancellation check.
+                                // Race semaphore acquisition against cancellation token
                                 let _permit = tokio::select! {
                                     biased;
 
-                                    _ = async {
-                                        while !cancelled.load(Ordering::SeqCst) {
-                                            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                                        }
-                                    } => {
+                                    _ = cancel.cancelled() => {
                                         return IterationResult {
                                             store_id: task_id,
                                             result: TaskResult::skipped(
@@ -1460,7 +1455,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 };
 
                                 // Final check after acquiring permit
-                                if cancelled.load(Ordering::SeqCst) {
+                                if cancel.is_cancelled() {
                                     return IterationResult {
                                         store_id: task_id,
                                         result: TaskResult::skipped(
@@ -1483,9 +1478,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 )
                                 .await;
 
-                                // If failed and fail_fast, set cancellation flag
+                                // If failed and fail_fast, signal cancellation
                                 if !result.result.is_success() && fail_fast {
-                                    cancelled.store(true, Ordering::SeqCst);
+                                    cancel.cancel();
                                 }
 
                                 result
