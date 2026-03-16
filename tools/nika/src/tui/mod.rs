@@ -469,7 +469,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
 /// # Arguments
 ///
 /// * `workflow` - Optional workflow file to load
-/// * `initial_view` - Optional initial view (defaults to Explorer)
+/// * `initial_view` - Optional initial view (defaults to Studio)
 #[cfg(feature = "tui")]
 pub async fn run_tui_with_options(
     workflow: Option<std::path::PathBuf>,
@@ -484,7 +484,7 @@ pub async fn run_tui_with_options(
     // Create standalone state
     let state = StandaloneState::new(root.clone());
 
-    // Create app with initial view (default to Explorer)
+    // Create app with initial view (default to Studio)
     let mut app = App::new_standalone(state)?;
 
     if let Some(view) = initial_view {
