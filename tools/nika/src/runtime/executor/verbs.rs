@@ -609,12 +609,9 @@ impl TaskExecutor {
                         .redirect(reqwest::redirect::Policy::none())
                         .user_agent(format!("nika/{}", env!("CARGO_PKG_VERSION")))
                         .build()
-                        .unwrap_or_else(|e| {
-                            tracing::error!(
-                                "No-redirect HTTP client build failed: {e}. Using default."
-                            );
-                            reqwest::Client::new()
-                        }),
+                        .map_err(|e| NikaError::ProviderApiError {
+                            message: format!("HTTP client build failed: {e}"),
+                        })?,
                 )
             } else {
                 std::borrow::Cow::Borrowed(&self.http_client)
@@ -895,13 +892,21 @@ impl TaskExecutor {
 
                 // Extract text and try to parse as JSON
                 let text = tool_result.text();
-                serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text))
+                serde_json::from_str(&text).unwrap_or_else(|_| {
+                    tracing::trace!(task = %task_id, "MCP tool returned non-JSON text, wrapping as string");
+                    serde_json::Value::String(text)
+                })
             } else if let Some(resource) = &invoke.resource {
                 // Resource read path
                 let content = client.read_resource(resource).await?;
                 content
                     .text
-                    .map(|t| serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t)))
+                    .map(|t| {
+                        serde_json::from_str(&t).unwrap_or_else(|_| {
+                            tracing::trace!(task = %task_id, "MCP resource returned non-JSON text, wrapping as string");
+                            serde_json::Value::String(t)
+                        })
+                    })
                     .unwrap_or(serde_json::Value::Null)
             } else {
                 // validate() ensures this never happens
