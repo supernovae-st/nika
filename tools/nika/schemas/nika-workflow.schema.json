@@ -719,10 +719,15 @@
               "default": true,
               "description": "Enable Layer 1: rig Extractor (Rust type extraction)"
             },
+            "enable_tool_injection": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Layer 0: DynamicSubmitTool injection (v0.28+)"
+            },
             "enable_tool_use": {
               "type": "boolean",
               "default": true,
-              "description": "Enable Layer 2: Provider-native (tool_use / response_format)"
+              "description": "Legacy alias for enable_tool_injection"
             },
             "enable_retry": {
               "type": "boolean",
