@@ -593,7 +593,7 @@ NovaNet sert de memoire partagee pour tous les satellites via MCP.
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
 ║  NovaNet est le "cerveau" partage — une knowledge graph accessible via MCP    ║
-║  Chaque satellite peut lire/ecrire via les 8 tools MCP                        ║
+║  Chaque satellite peut lire/ecrire via les 7 tools MCP                        ║
 ║                                                                               ║
 ║  ┌─────────────────────────────────────────────────────────────────────────┐  ║
 ║  │                         NOVANET (Neo4j)                                  │  ║

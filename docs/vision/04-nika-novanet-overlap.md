@@ -15,7 +15,7 @@ flowchart LR
         direction TB
         B1["Knowledge storage"]
         B2["Schema management"]
-        B3["MCP Server (8 tools)"]
+        B3["MCP Server (7 tools)"]
         B4["Neo4j graph"]
         B5["Locale intelligence"]
         B6["Entity/Page/Block model"]

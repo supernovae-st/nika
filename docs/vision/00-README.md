@@ -65,7 +65,7 @@ flowchart LR
     subgraph KNOWING["🧠 NovaNet — The Brain"]
         KG[Knowledge Graph]
         ENT[59 NodeClasses]
-        MCP_S[8 MCP Tools]
+        MCP_S[7 MCP Tools]
     end
 
     subgraph DOING["🦋 Nika — The Body"]

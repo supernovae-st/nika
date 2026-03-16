@@ -382,7 +382,7 @@ flowchart TB
 - **159 ArcClasses** in 5 families (ownership, localization, semantic, generation, mining)
 - **5-6 layers per realm:** config, locale, geography, knowledge (Shared); config, foundation, structure, semantic, instruction, output (Org)
 
-### MCP Server (8 tools)
+### MCP Server (7 tools)
 
 | Tool | Purpose |
 |------|---------|
@@ -472,7 +472,7 @@ tasks:
 ```
 
 > [!IMPORTANT]
-> **Zero Cypher Rule** (ADR-003) — Nika never queries Neo4j directly. All graph access flows through NovaNet's 8 MCP tools. MCP is the abstraction boundary.
+> **Zero Cypher Rule** (ADR-003) — Nika never queries Neo4j directly. All graph access flows through NovaNet's 7 MCP tools. MCP is the abstraction boundary.
 
 ---
 

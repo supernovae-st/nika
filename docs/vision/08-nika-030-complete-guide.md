@@ -107,7 +107,7 @@ That's it. Nika calls your default LLM provider, gets the response, writes a tra
 
 ## What is NovaNet?
 
-NovaNet is a **knowledge graph** powered by Neo4j. It stores structured knowledge about entities, locales, and content — and exposes it to Nika through 8 MCP tools.
+NovaNet is a **knowledge graph** powered by Neo4j. It stores structured knowledge about entities, locales, and content — and exposes it to Nika through 7 MCP tools.
 
 ```mermaid
 flowchart TB
@@ -149,7 +149,7 @@ For the QR Code AI project, NovaNet contains:
 | **Locales** | `fr-FR`, `en-US`, `de-DE`, `ja-JP`... | 200+ |
 | **Knowledge atoms** | French expressions for "QR code", taboos for Japan, cultural refs for Germany | 1000+ |
 
-### The 8 MCP Tools
+### The 7 MCP Tools
 
 NovaNet exposes its knowledge through MCP (Model Context Protocol):
 

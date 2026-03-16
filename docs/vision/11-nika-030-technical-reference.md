@@ -104,7 +104,7 @@ flowchart TB
 
     subgraph NOVANET["NovaNet (Knowledge Graph)"]
         NEO4J["Neo4j\n59 NodeClasses\n159 ArcClasses"]
-        MCP_SRV["MCP Server\n8 tools"]
+        MCP_SRV["MCP Server\n7 tools"]
     end
 
     MCP_CLIENT <-->|"JSON-RPC 2.0\nstdio"| MCP_SRV
@@ -124,7 +124,7 @@ flowchart TB
 |------|--------|----------------|
 | **Brain** | NovaNet | Knows things — entities, locales, knowledge atoms, SEO data, denomination forms |
 | **Body** | Nika | Does things — runs workflows, calls LLMs, executes shell commands, manages tools |
-| **Nervous System** | MCP | Connects them — JSON-RPC 2.0 protocol, 8 tools, bidirectional |
+| **Nervous System** | MCP | Connects them — JSON-RPC 2.0 protocol, 7 tools, bidirectional |
 
 **The Golden Rule**: KNOWING goes to NovaNet. DOING goes to Nika. CONNECTING uses MCP.
 

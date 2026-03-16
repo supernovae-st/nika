@@ -28,7 +28,7 @@ flowchart LR
     subgraph BRAIN["NovaNet — The Brain"]
         direction TB
         B1["Knowledge Graph\n59 NodeClasses · 159 ArcClasses"]
-        B2["8 MCP Tools"]
+        B2["7 MCP Tools"]
         B3["200+ Locales\n6 knowledge atom types"]
         B4["CSR Quality Audit"]
     end
@@ -64,7 +64,7 @@ flowchart LR
 |--|--|--|
 | **Scale** | 373 files · 220,380 lines | 59 NodeClasses · 159 ArcClasses |
 | **Tests** | 6,610 passing | 1,210 passing |
-| **Capabilities** | 5 verbs · 7 providers · 11 builtin tools | 8 MCP tools · 200+ locales · 6 atom types |
+| **Capabilities** | 5 verbs · 7 providers · 11 builtin tools | 7 MCP tools · 200+ locales · 6 atom types |
 | **Observability** | 34 event types · NDJSON traces | CSR quality audit · denomination forms |
 | **Infrastructure** | 4 TUI views · 48 MCP aliases · 30+ transforms | Neo4j backend · 5 search modes · 4 context modes |
 
@@ -257,7 +257,7 @@ flowchart TB
         ORG["ORG (23 nodes)\nfoundation · structure · semantic\ninstruction · output"]
     end
 
-    subgraph TOOLS["8 MCP Tools"]
+    subgraph TOOLS["7 MCP Tools"]
         direction TB
         T1["novanet_describe\nBootstrap"]
         T2["novanet_introspect\nSchema info"]
