@@ -690,6 +690,16 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             .as_ref()
             .map(|o: &AnalyzedOutput| lower_output(o.clone()));
 
+        // Bridge structured: config to OutputPolicy for executor Layer 0 dispatch.
+        // If both output: and structured: are set, output: takes precedence (already lowered).
+        // If only structured: is set, synthesize an OutputPolicy so the executor
+        // can trigger Layer 0 tool injection and prompt schema instructions.
+        let effective_output = if lowered_output.is_some() {
+            lowered_output
+        } else {
+            task.structured.as_ref().map(|spec| spec.to_output_policy())
+        };
+
         // Check if task qualifies for schema validation retry
         let retry_config = Self::get_retry_config(&task);
 
@@ -705,7 +715,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 &executor,
                 &event_log,
                 start,
-                lowered_output.as_ref(),
+                effective_output.as_ref(),
             )
             .await
         } else {
@@ -716,7 +726,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     &lowered_action,
                     &bindings,
                     &datastore,
-                    lowered_output.as_ref(),
+                    effective_output.as_ref(),
                 )
                 .await;
             let duration = start.elapsed();
@@ -761,7 +771,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     };
 
                     let tr =
-                        make_task_result(final_output, lowered_output.as_ref(), duration).await;
+                        make_task_result(final_output, effective_output.as_ref(), duration).await;
                     if tr.is_success() {
                         event_log.emit(EventKind::TaskCompleted {
                             task_id: Arc::clone(&task_id),

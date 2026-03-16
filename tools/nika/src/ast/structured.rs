@@ -123,6 +123,18 @@ impl StructuredOutputSpec {
     pub fn enable_repair_or_default(&self) -> bool {
         self.enable_repair.unwrap_or(true)
     }
+
+    /// Convert to OutputPolicy for executor Layer 0 dispatch.
+    ///
+    /// The executor's `run_infer()` uses `OutputPolicy` to trigger Layer 0 tool injection
+    /// and prompt schema instructions. This bridges `structured:` config to that path.
+    pub fn to_output_policy(&self) -> super::output::OutputPolicy {
+        super::output::OutputPolicy {
+            format: super::output::OutputFormat::Json,
+            schema: Some(self.schema.clone()),
+            max_retries: self.max_retries,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for StructuredOutputSpec {
