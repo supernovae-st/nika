@@ -2037,4 +2037,601 @@ mod tests {
         ));
         assert!(matches!(&events[4].kind, EventKind::AgentComplete { .. }));
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WAVE 2 TESTS: NDJSON event system audit
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Helper: build one instance of every EventKind variant (all 34)
+    fn all_34_variants() -> Vec<EventKind> {
+        vec![
+            // Workflow (6)
+            EventKind::WorkflowStarted {
+                task_count: 3,
+                generation_id: "gen-1".into(),
+                workflow_hash: "abc123".into(),
+                nika_version: "0.27.0".into(),
+            },
+            EventKind::WorkflowCompleted {
+                final_output: Arc::new(serde_json::json!({"result": "ok"})),
+                total_duration_ms: 1234,
+            },
+            EventKind::WorkflowFailed {
+                error: "boom".into(),
+                failed_task: Some("task1".into()),
+            },
+            EventKind::WorkflowAborted {
+                reason: "timeout".into(),
+                duration_ms: 500,
+                running_tasks: vec!["t1".into(), "t2".into()],
+            },
+            EventKind::WorkflowPaused,
+            EventKind::WorkflowResumed,
+            // Task (4)
+            EventKind::TaskScheduled {
+                task_id: "t1".into(),
+                dependencies: vec!["t0".into()],
+            },
+            EventKind::TaskStarted {
+                task_id: "t1".into(),
+                verb: "infer".into(),
+                inputs: serde_json::json!({}),
+            },
+            EventKind::TaskCompleted {
+                task_id: "t1".into(),
+                output: Arc::new(serde_json::json!("done")),
+                duration_ms: 100,
+            },
+            EventKind::TaskFailed {
+                task_id: "t1".into(),
+                error: "fail".into(),
+                duration_ms: 50,
+            },
+            // Fine-grained (3)
+            EventKind::TemplateResolved {
+                task_id: "t1".into(),
+                template: "{{with.x}}".into(),
+                result: "hello".into(),
+            },
+            EventKind::ProviderCalled {
+                task_id: "t1".into(),
+                provider: "anthropic".into(),
+                model: "claude-3-haiku".into(),
+                prompt_len: 42,
+            },
+            EventKind::ProviderResponded {
+                task_id: "t1".into(),
+                request_id: Some("req-abc".into()),
+                input_tokens: 100,
+                output_tokens: 50,
+                cache_read_tokens: 10,
+                ttft_ms: Some(200),
+                finish_reason: "end_turn".into(),
+                cost_usd: 0.001,
+            },
+            // Context (1)
+            EventKind::ContextAssembled {
+                task_id: "t1".into(),
+                sources: vec![ContextSource {
+                    node: "entity-1".into(),
+                    tokens: 500,
+                }],
+                excluded: vec![ExcludedItem {
+                    node: "entity-2".into(),
+                    reason: "over budget".into(),
+                }],
+                total_tokens: 500,
+                budget_used_pct: 0.75,
+                truncated: false,
+            },
+            // MCP (5)
+            EventKind::McpInvoke {
+                task_id: "t1".into(),
+                call_id: "call-1".into(),
+                mcp_server: "novanet".into(),
+                tool: Some("novanet_search".into()),
+                resource: None,
+                params: Some(serde_json::json!({"query": "test"})),
+            },
+            EventKind::McpResponse {
+                task_id: "t1".into(),
+                call_id: "call-1".into(),
+                output_len: 256,
+                duration_ms: 80,
+                cached: false,
+                is_error: false,
+                response: Some(serde_json::json!({"found": 3})),
+            },
+            EventKind::McpConnected {
+                server_name: "novanet".into(),
+            },
+            EventKind::McpError {
+                server_name: "novanet".into(),
+                error: "connection refused".into(),
+            },
+            EventKind::McpRetry {
+                task_id: "t1".into(),
+                server_name: "novanet".into(),
+                operation: "novanet_search".into(),
+                attempt: 2,
+                max_attempts: 3,
+                error: "timeout".into(),
+            },
+            // Agent (4)
+            EventKind::AgentStart {
+                task_id: "agent1".into(),
+                max_turns: 10,
+                mcp_servers: vec!["novanet".into()],
+            },
+            EventKind::AgentTurn {
+                task_id: "agent1".into(),
+                turn_index: 1,
+                kind: "started".into(),
+                metadata: Some(AgentTurnMetadata {
+                    thinking: Some("Let me think...".into()),
+                    response_text: "Here is my response".into(),
+                    input_tokens: 100,
+                    output_tokens: 50,
+                    cache_read_tokens: 0,
+                    stop_reason: "end_turn".into(),
+                }),
+            },
+            EventKind::AgentComplete {
+                task_id: "agent1".into(),
+                turns: 3,
+                stop_reason: "natural_completion".into(),
+            },
+            EventKind::AgentSpawned {
+                parent_task_id: "agent1".into(),
+                child_task_id: "sub-agent1".into(),
+                depth: 1,
+            },
+            // Guardrails (3)
+            EventKind::GuardrailPassed {
+                task_id: "t1".into(),
+                guardrail_type: "length".into(),
+                description: "max 1000 chars".into(),
+            },
+            EventKind::GuardrailFailed {
+                task_id: "t1".into(),
+                guardrail_type: "schema".into(),
+                description: "JSON schema".into(),
+                message: "missing field 'title'".into(),
+            },
+            EventKind::GuardrailEscalation {
+                task_id: "t1".into(),
+                guardrail_type: "llm".into(),
+                guardrail_id: "safety-check".into(),
+                message: "content flagged".into(),
+                severity: "high".into(),
+                suggested_action: Some("human review".into()),
+            },
+            // Builtin (2)
+            EventKind::Log {
+                level: "info".into(),
+                message: "step completed".into(),
+                task_id: Some("t1".into()),
+            },
+            EventKind::Custom {
+                name: "my_event".into(),
+                payload: serde_json::json!({"key": "val"}),
+                task_id: None,
+            },
+            // Artifact (2)
+            EventKind::ArtifactWritten {
+                task_id: "t1".into(),
+                path: "/tmp/output.json".into(),
+                size: 1024,
+                format: "json".into(),
+            },
+            EventKind::ArtifactFailed {
+                task_id: "t1".into(),
+                path: "/tmp/output.json".into(),
+                reason: "permission denied".into(),
+            },
+            // Structured Output (2)
+            EventKind::StructuredOutputAttempt {
+                task_id: "t1".into(),
+                layer: 1,
+                layer_name: "rig_extractor".into(),
+                attempt: 1,
+                success: true,
+                error: None,
+            },
+            EventKind::StructuredOutputSuccess {
+                task_id: "t1".into(),
+                layer: 1,
+                layer_name: "rig_extractor".into(),
+                total_attempts: 1,
+            },
+            // Limits (2)
+            EventKind::LimitReached {
+                task_id: "t1".into(),
+                limit_type: "turns".into(),
+                value: 10.0,
+                threshold: 10.0,
+                action: "complete_partial".into(),
+            },
+            EventKind::PartialCompletion {
+                task_id: "t1".into(),
+                progress: 0.8,
+                result_preview: "partial result...".into(),
+            },
+        ]
+    }
+
+    #[test]
+    fn wave2_variant_count_is_34() {
+        let variants = all_34_variants();
+        assert_eq!(
+            variants.len(),
+            34,
+            "EventKind should have exactly 34 variants"
+        );
+    }
+
+    #[test]
+    fn wave2_all_variants_serialize_deserialize_roundtrip() {
+        for (i, variant) in all_34_variants().into_iter().enumerate() {
+            let json = serde_json::to_string(&variant)
+                .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
+            let back: EventKind = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("variant {i} failed to deserialize: {e}\nJSON: {json}"));
+            assert_eq!(variant, back, "variant {i} round-trip mismatch");
+        }
+    }
+
+    #[test]
+    fn wave2_ndjson_no_embedded_newlines() {
+        // NDJSON = one JSON object per line, no embedded newlines
+        for (i, variant) in all_34_variants().into_iter().enumerate() {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert!(
+                !json.contains('\n'),
+                "variant {i} contains embedded newline in JSON: {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn wave2_full_event_envelope_ndjson_valid() {
+        let log = EventLog::new();
+        log.emit(EventKind::WorkflowStarted {
+            task_count: 1,
+            generation_id: "g1".into(),
+            workflow_hash: "h1".into(),
+            nika_version: "0.27.0".into(),
+        });
+        let events = log.events();
+        let event = &events[0];
+        let json = serde_json::to_string(event).unwrap();
+        assert!(!json.contains('\n'));
+        // Verify envelope fields
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed.get("id").is_some());
+        assert!(parsed.get("timestamp_ms").is_some());
+        assert!(parsed.get("kind").is_some());
+    }
+
+    #[test]
+    fn wave2_event_ids_monotonic_under_contention() {
+        use std::thread;
+        let log = EventLog::new();
+        let threads: Vec<_> = (0..20)
+            .map(|_| {
+                let log = log.clone();
+                thread::spawn(move || {
+                    for _ in 0..50 {
+                        log.emit(EventKind::WorkflowPaused);
+                    }
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        let events = log.events();
+        assert_eq!(events.len(), 1000);
+        // All IDs must be unique and form a contiguous range 0..1000
+        let mut ids: Vec<u64> = events.iter().map(|e| e.id).collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 1000, "IDs must be unique");
+        assert_eq!(ids[0], 0);
+        assert_eq!(ids[999], 999);
+    }
+
+    #[test]
+    fn wave2_timestamps_monotonically_nondecreasing() {
+        let log = EventLog::new();
+        for _ in 0..100 {
+            log.emit(EventKind::WorkflowPaused);
+        }
+        let events = log.events();
+        for window in events.windows(2) {
+            assert!(
+                window[1].timestamp_ms >= window[0].timestamp_ms,
+                "Timestamps must be monotonically non-decreasing"
+            );
+        }
+    }
+
+    #[test]
+    fn wave2_timestamps_are_relative_not_epoch() {
+        let log = EventLog::new();
+        log.emit(EventKind::WorkflowPaused);
+        let events = log.events();
+        // Relative timestamps should be small (< 1 second)
+        assert!(
+            events[0].timestamp_ms < 1000,
+            "First event timestamp {} should be < 1s (relative to start)",
+            events[0].timestamp_ms
+        );
+    }
+
+    #[test]
+    fn wave2_broadcast_channel_lagged_on_overflow() {
+        // EventLog broadcast capacity is 512
+        // new_with_broadcast returns (EventLog, Receiver)
+        let (log, mut rx) = EventLog::new_with_broadcast();
+
+        // Emit 600 events (exceeds 512 capacity)
+        for _ in 0..600 {
+            log.emit(EventKind::WorkflowPaused);
+        }
+
+        // The receiver should experience lag (missed events)
+        let mut lagged = false;
+        loop {
+            match rx.try_recv() {
+                Ok(_) => {}
+                Err(broadcast::error::TryRecvError::Lagged(_n)) => {
+                    lagged = true;
+                    // After lag, drain remaining
+                    while rx.try_recv().is_ok() {}
+                    break;
+                }
+                Err(broadcast::error::TryRecvError::Empty) => break,
+                Err(broadcast::error::TryRecvError::Closed) => break,
+            }
+        }
+        // Should have experienced lag because 600 > 512
+        assert!(
+            lagged,
+            "Expected broadcast lag when emitting 600 events into 512 capacity channel"
+        );
+        // But all 600 events should be in the log (log is unbounded)
+        assert_eq!(log.events().len(), 600);
+    }
+
+    // Dead variant tests: these 3 variants are defined but never emitted in runtime code
+    #[test]
+    fn wave2_guardrail_escalation_is_dead_variant() {
+        // GuardrailEscalation is defined but never emitted in runtime.
+        // Only appears in tests. This test documents that fact.
+        let variant = EventKind::GuardrailEscalation {
+            task_id: "t1".into(),
+            guardrail_type: "llm".into(),
+            guardrail_id: "check-1".into(),
+            message: "flagged".into(),
+            severity: "high".into(),
+            suggested_action: None,
+        };
+        // It serializes fine -- it's just never emitted
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(json.contains("guardrail_escalation"));
+    }
+
+    #[test]
+    fn wave2_limit_reached_is_dead_variant() {
+        // LimitReached is defined but never emitted in runtime code
+        let variant = EventKind::LimitReached {
+            task_id: "t1".into(),
+            limit_type: "turns".into(),
+            value: 10.0,
+            threshold: 10.0,
+            action: "fail".into(),
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(json.contains("limit_reached"));
+    }
+
+    #[test]
+    fn wave2_partial_completion_is_dead_variant() {
+        // PartialCompletion is defined but never emitted in runtime code
+        let variant = EventKind::PartialCompletion {
+            task_id: "t1".into(),
+            progress: 0.5,
+            result_preview: "half done".into(),
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(json.contains("partial_completion"));
+    }
+
+    #[test]
+    fn wave2_optional_fields_serialized_as_null_when_none() {
+        // ProviderResponded's request_id and ttft_ms are Option but WITHOUT
+        // skip_serializing_if, so they serialize as null (not omitted).
+        let variant = EventKind::ProviderResponded {
+            task_id: "t1".into(),
+            request_id: None,
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: "end_turn".into(),
+            cost_usd: 0.0,
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        // These are present as null (not omitted) since no skip_serializing_if
+        assert!(
+            json.contains("\"request_id\":null"),
+            "None should serialize as null: {json}"
+        );
+        assert!(
+            json.contains("\"ttft_ms\":null"),
+            "None should serialize as null: {json}"
+        );
+    }
+
+    #[test]
+    fn wave2_skip_serializing_if_omits_none_fields() {
+        // Fields WITH skip_serializing_if should be truly absent when None
+        let variant = EventKind::GuardrailEscalation {
+            task_id: "t1".into(),
+            guardrail_type: "llm".into(),
+            guardrail_id: "check".into(),
+            message: "flagged".into(),
+            severity: "high".into(),
+            suggested_action: None, // has skip_serializing_if
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(
+            !json.contains("suggested_action"),
+            "skip_serializing_if should omit None: {json}"
+        );
+    }
+
+    #[test]
+    fn wave2_optional_fields_present_when_some() {
+        let variant = EventKind::ProviderResponded {
+            task_id: "t1".into(),
+            request_id: Some("req-1".into()),
+            input_tokens: 100,
+            output_tokens: 50,
+            cache_read_tokens: 0,
+            ttft_ms: Some(150),
+            finish_reason: "end_turn".into(),
+            cost_usd: 0.001,
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(
+            json.contains("\"request_id\":\"req-1\""),
+            "Some fields should contain value: {json}"
+        );
+        assert!(
+            json.contains("\"ttft_ms\":150"),
+            "Some fields should contain value: {json}"
+        );
+    }
+
+    #[test]
+    fn wave2_task_id_extraction_all_variants() {
+        let variants = all_34_variants();
+        // Variants WITH task_id (26 of them)
+        let with_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_some()).collect();
+        // Variants WITHOUT task_id (8): 6 workflow + McpConnected + McpError
+        let without_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_none()).collect();
+
+        // Custom has task_id: None in our test data, so it goes in without
+        // Log has task_id: Some("t1"), so it goes in with
+        assert_eq!(
+            with_task_id.len(),
+            25,
+            "25 variants should have task_id (including Log with Some)"
+        );
+        assert_eq!(
+            without_task_id.len(),
+            9,
+            "9 variants should lack task_id (workflow-level + McpConnected + McpError + Custom with None)"
+        );
+    }
+
+    #[test]
+    fn wave2_workflow_completed_wraps_json_as_string() {
+        // WorkflowCompleted.final_output is Arc<Value>.
+        // When the output IS a JSON object, it gets double-serialized
+        // if the runner wraps it as a string first.
+        let inner = serde_json::json!({"key": "value"});
+        let variant = EventKind::WorkflowCompleted {
+            final_output: Arc::new(inner.clone()),
+            total_duration_ms: 100,
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let output = &parsed["final_output"];
+        // The output should be a proper JSON object, not a string containing JSON
+        assert!(
+            output.is_object(),
+            "final_output should be a JSON object, not a string: {output}"
+        );
+    }
+
+    #[test]
+    fn wave2_cloned_eventlog_shares_events() {
+        let log1 = EventLog::new();
+        let log2 = log1.clone();
+        log1.emit(EventKind::WorkflowPaused);
+        log2.emit(EventKind::WorkflowResumed);
+        // Both clones should see 2 events (shared Arc)
+        assert_eq!(log1.events().len(), 2);
+        assert_eq!(log2.events().len(), 2);
+    }
+
+    #[test]
+    fn wave2_serde_tag_is_snake_case() {
+        // Verify serde(rename_all = "snake_case") works correctly
+        let variant = EventKind::WorkflowStarted {
+            task_count: 1,
+            generation_id: "g".into(),
+            workflow_hash: "h".into(),
+            nika_version: "v".into(),
+        };
+        let json = serde_json::to_string(&variant).unwrap();
+        assert!(
+            json.contains("\"type\":\"workflow_started\""),
+            "Tag should be snake_case: {json}"
+        );
+
+        let variant2 = EventKind::McpRetry {
+            task_id: "t".into(),
+            server_name: "s".into(),
+            operation: "op".into(),
+            attempt: 1,
+            max_attempts: 3,
+            error: "e".into(),
+        };
+        let json2 = serde_json::to_string(&variant2).unwrap();
+        assert!(
+            json2.contains("\"type\":\"mcp_retry\""),
+            "Tag should be snake_case: {json2}"
+        );
+    }
+
+    #[test]
+    fn wave2_is_workflow_event_correct() {
+        let workflow_events = vec![
+            EventKind::WorkflowStarted {
+                task_count: 1,
+                generation_id: "g".into(),
+                workflow_hash: "h".into(),
+                nika_version: "v".into(),
+            },
+            EventKind::WorkflowCompleted {
+                final_output: Arc::new(serde_json::json!(null)),
+                total_duration_ms: 0,
+            },
+            EventKind::WorkflowFailed {
+                error: "e".into(),
+                failed_task: None,
+            },
+            EventKind::WorkflowAborted {
+                reason: "r".into(),
+                duration_ms: 0,
+                running_tasks: vec![],
+            },
+            EventKind::WorkflowPaused,
+            EventKind::WorkflowResumed,
+        ];
+        for wf in &workflow_events {
+            assert!(wf.is_workflow_event(), "{:?} should be workflow event", wf);
+        }
+        // Non-workflow events should return false
+        let non_wf = EventKind::TaskStarted {
+            task_id: "t".into(),
+            verb: "infer".into(),
+            inputs: serde_json::json!({}),
+        };
+        assert!(!non_wf.is_workflow_event());
+    }
 }
