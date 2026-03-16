@@ -253,7 +253,13 @@ impl RunContext {
 
         // Use jsonpath for path resolution (handles both dots and array indices)
         // Arc<Value> derefs to &Value, so this works without changes
-        jsonpath::resolve(&output, remaining).ok().flatten()
+        match jsonpath::resolve(&output, remaining) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for task output");
+                None
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -315,7 +321,13 @@ impl RunContext {
                 } else {
                     // context.files.alias.field → nested path
                     let remaining = parts[3..].join(".");
-                    jsonpath::resolve(value, &remaining).ok().flatten()
+                    match jsonpath::resolve(value, &remaining) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for context file");
+                            None
+                        }
+                    }
                 }
             }
             "session" => {
@@ -327,7 +339,13 @@ impl RunContext {
                 } else {
                     // context.session.field → nested path
                     let remaining = parts[2..].join(".");
-                    jsonpath::resolve(session, &remaining).ok().flatten()
+                    match jsonpath::resolve(session, &remaining) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for session");
+                            None
+                        }
+                    }
                 }
             }
             _ => None,
@@ -404,7 +422,13 @@ impl RunContext {
         } else {
             // inputs.param.field → nested path in default value
             let remaining = parts[2..].join(".");
-            jsonpath::resolve(&default_value, &remaining).ok().flatten()
+            match jsonpath::resolve(&default_value, &remaining) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::debug!(path = %remaining, error = %e, "JSONPath resolution failed for input default");
+                    None
+                }
+            }
         }
     }
 }
