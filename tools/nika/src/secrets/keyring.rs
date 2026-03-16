@@ -418,7 +418,7 @@ mod tests {
 
         #[test]
         #[ignore = "Requires real OS keychain access — causes macOS popup"]
-        fn test_spn_keyring_not_found() {
+        fn test_nika_keyring_not_found() {
             // Test that querying a non-existent key returns NotFound
             let result = NikaKeyring::get("nonexistent_provider_test_xyz");
             assert!(matches!(
