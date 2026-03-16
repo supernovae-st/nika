@@ -1194,6 +1194,17 @@ fn input_value_to_string<'a>(value: &'a Value, path: &str) -> Result<Cow<'a, str
 
 /// Check if position is inside a JSON string
 fn is_in_json_context(template: &str, pos: usize) -> bool {
+    // First check: the template must look like a JSON structure at the top level.
+    // A template starting with `{` (after whitespace) indicates JSON object context.
+    // This avoids false positives from natural language with unbalanced quotes
+    // like: He said "hello {{with.msg}}"
+    let trimmed = template.trim_start();
+    let looks_like_json = trimmed.starts_with('{') || trimmed.starts_with('[');
+    if !looks_like_json {
+        return false;
+    }
+
+    // Second check: count quote parity to determine if we're inside a JSON string value
     let before = &template[..pos];
     let mut in_string = false;
     let mut escaped = false;
