@@ -2404,11 +2404,12 @@ mod tests {
         assert_eq!(log.events().len(), 600);
     }
 
-    // Dead variant tests: these 3 variants are defined but never emitted in runtime code
+    // Dead variant tests: LimitReached and PartialCompletion are defined but never emitted in runtime code.
+    // GuardrailEscalation IS emitted at runtime/rig_agent_loop/thinking.rs:99.
     #[test]
-    fn wave2_guardrail_escalation_is_dead_variant() {
-        // GuardrailEscalation is defined but never emitted in runtime.
-        // Only appears in tests. This test documents that fact.
+    fn wave2_guardrail_escalation_serialization() {
+        // GuardrailEscalation IS emitted in runtime (thinking.rs:99 on guardrail escalation).
+        // This test verifies serialization.
         let variant = EventKind::GuardrailEscalation {
             task_id: "t1".into(),
             guardrail_type: "llm".into(),

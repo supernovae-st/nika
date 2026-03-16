@@ -36,7 +36,7 @@ src/
 | 090-099 | JSONPath/IO |
 | 100-109 | MCP |
 | 110-119 | Agent |
-| 140-149 | AST analysis (Phase 2) |
+| 140-151 | AST analysis (Phase 2) |
 | 200-219 | File tools + Builtin tools |
 | 280-289 | Artifacts |
 | 300-309 | Structured output |

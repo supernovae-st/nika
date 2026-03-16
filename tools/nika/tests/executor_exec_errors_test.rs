@@ -339,9 +339,7 @@ async fn test_exec_template_missing_binding() {
     assert!(
         matches!(
             err,
-            NikaError::BindingError { .. }
-                | NikaError::TemplateError { .. }
-                | NikaError::Execution(_)
+            NikaError::TemplateError { .. } | NikaError::Execution(_)
         ),
         "Expected binding/template error, got: {err:?}"
     );

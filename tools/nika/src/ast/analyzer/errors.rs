@@ -173,12 +173,6 @@ pub enum AnalyzeErrorKind {
     InvalidValue,
     /// Missing required field
     MissingField,
-    /// Invalid template expression
-    InvalidTemplate,
-    /// Unknown flow definition
-    UnknownFlow,
-    /// Unknown MCP server
-    UnknownMcpServer,
     /// Feature not available in this schema version
     UnsupportedFeature,
     /// Invalid binding expression in `with:` block
@@ -195,11 +189,8 @@ impl AnalyzeErrorKind {
     /// - NIKA-143: Cyclic dependency
     /// - NIKA-144: Invalid field value
     /// - NIKA-145: Missing required field
-    /// - NIKA-146: Invalid template expression
-    /// - NIKA-147: Unknown flow definition
-    /// - NIKA-148: Unknown MCP server
     /// - NIKA-149: Feature not available in schema version
-    /// - NIKA-150: Invalid binding expression
+    /// - NIKA-151: Invalid binding expression
     pub fn code(&self) -> &'static str {
         match self {
             Self::UnknownTask => "NIKA-140",
@@ -208,11 +199,8 @@ impl AnalyzeErrorKind {
             Self::CyclicDependency => "NIKA-143",
             Self::InvalidValue => "NIKA-144",
             Self::MissingField => "NIKA-145",
-            Self::InvalidTemplate => "NIKA-146",
-            Self::UnknownFlow => "NIKA-147",
-            Self::UnknownMcpServer => "NIKA-148",
             Self::UnsupportedFeature => "NIKA-149",
-            Self::InvalidBinding => "NIKA-150",
+            Self::InvalidBinding => "NIKA-151",
         }
     }
 }
@@ -284,7 +272,7 @@ impl<T> AnalyzeResult<T> {
 /// A wrapper that combines [`AnalyzeError`] with source code for rich terminal display.
 ///
 /// This implements [`miette::Diagnostic`] to show:
-/// - Error code (NIKA-140-149)
+/// - Error code (NIKA-140-151)
 /// - Source code snippet with highlighted span
 /// - "Did you mean?" suggestions
 /// - Additional notes
@@ -462,11 +450,8 @@ mod tests {
         assert_eq!(AnalyzeErrorKind::CyclicDependency.code(), "NIKA-143");
         assert_eq!(AnalyzeErrorKind::InvalidValue.code(), "NIKA-144");
         assert_eq!(AnalyzeErrorKind::MissingField.code(), "NIKA-145");
-        assert_eq!(AnalyzeErrorKind::InvalidTemplate.code(), "NIKA-146");
-        assert_eq!(AnalyzeErrorKind::UnknownFlow.code(), "NIKA-147");
-        assert_eq!(AnalyzeErrorKind::UnknownMcpServer.code(), "NIKA-148");
         assert_eq!(AnalyzeErrorKind::UnsupportedFeature.code(), "NIKA-149");
-        assert_eq!(AnalyzeErrorKind::InvalidBinding.code(), "NIKA-150");
+        assert_eq!(AnalyzeErrorKind::InvalidBinding.code(), "NIKA-151");
     }
 
     #[test]
@@ -617,11 +602,8 @@ tasks:
             (AnalyzeErrorKind::CyclicDependency, "NIKA-143"),
             (AnalyzeErrorKind::InvalidValue, "NIKA-144"),
             (AnalyzeErrorKind::MissingField, "NIKA-145"),
-            (AnalyzeErrorKind::InvalidTemplate, "NIKA-146"),
-            (AnalyzeErrorKind::UnknownFlow, "NIKA-147"),
-            (AnalyzeErrorKind::UnknownMcpServer, "NIKA-148"),
             (AnalyzeErrorKind::UnsupportedFeature, "NIKA-149"),
-            (AnalyzeErrorKind::InvalidBinding, "NIKA-150"),
+            (AnalyzeErrorKind::InvalidBinding, "NIKA-151"),
         ];
 
         for (kind, expected_code) in kinds {

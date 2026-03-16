@@ -19,7 +19,7 @@
 //! - NIKA-110-119: Agent errors
 //! - NIKA-120-129: Resilience errors
 //! - NIKA-130-139: TUI errors
-//! - NIKA-140-149: AST analysis errors (Phase 2 analyzer)
+//! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
 //!
 //! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)
@@ -126,12 +126,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // SCHEMA ERRORS (010-019)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-011] Task '{task_id}' failed: {reason}")]
-    TaskFailed { task_id: String, reason: String },
-
-    #[error("[NIKA-012] Task '{task_id}' timed out after {timeout_ms}ms")]
-    TaskTimeout { task_id: String, timeout_ms: u64 },
-
     #[error("[NIKA-013] Schema file not found for task '{task_id}': {path}")]
     #[diagnostic(
         code(nika::schema_file_not_found),
@@ -165,13 +159,6 @@ pub enum NikaError {
         help("Each task must have a unique ID. Rename one of the duplicate tasks.")
     )]
     DuplicateTaskId { task_id: String },
-
-    #[error("[NIKA-025] Task '{task_id}' cannot run: dependency '{dependency}' failed")]
-    #[diagnostic(
-        code(nika::dependency_failed),
-        help("A task in the dependency chain failed. Check earlier task failures for the root cause.")
-    )]
-    TaskDependencyFailed { task_id: String, dependency: String },
 
     #[error("[NIKA-026] Dependency chain failed: {count} task(s) blocked by failed dependencies")]
     #[diagnostic(
@@ -217,9 +204,6 @@ pub enum NikaError {
     #[error("[NIKA-096] Execution error: {0}")]
     Execution(String),
 
-    #[error("[NIKA-040] Binding resolution failed: {reason}")]
-    BindingError { reason: String },
-
     #[error("[NIKA-041] Template error in '{template}': {reason}")]
     TemplateError { template: String, reason: String },
 
@@ -238,9 +222,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     #[error("[NIKA-050] Invalid path syntax: {path}")]
     InvalidPath { path: String },
-
-    #[error("[NIKA-051] Task '{task_id}' not found in datastore")]
-    TaskNotFound { task_id: String },
 
     #[error("[NIKA-052] Path '{path}' not found (task may not have JSON output)")]
     PathNotFound { path: String },
@@ -273,9 +254,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     // BINDING VALIDATION (070-079)
     // ═══════════════════════════════════════════
-    #[error("[NIKA-070] Duplicate alias '{alias}' in with: block")]
-    DuplicateAlias { alias: String },
-
     #[error("[NIKA-071] Unknown alias '{{{{with.{alias}}}}}' - not declared in with: block")]
     UnknownAlias { alias: String, task_id: String },
 
@@ -321,9 +299,6 @@ pub enum NikaError {
     // ═══════════════════════════════════════════
     #[error("[NIKA-090] JSONPath '{path}' is not supported in v0.1 (use $.a.b or $.a[0].b)")]
     JsonPathUnsupported { path: String },
-
-    #[error("[NIKA-091] JSONPath '{path}' matched nothing in output")]
-    JsonPathNoMatch { path: String, task_id: String },
 
     #[error("[NIKA-093] IO error: {0}")]
     IoError(#[from] std::io::Error),
@@ -631,15 +606,12 @@ impl NikaError {
             Self::SchemaValidationFailed { .. } => "NIKA-005",
             Self::HomeDirectoryNotFound => "NIKA-006",
             // Schema errors
-            Self::TaskFailed { .. } => "NIKA-011",
-            Self::TaskTimeout { .. } => "NIKA-012",
             Self::SchemaFileNotFound { .. } => "NIKA-013",
             Self::SchemaFileInvalid { .. } => "NIKA-014",
             // DAG errors
             Self::CycleDetected { .. } => "NIKA-020",
             Self::MissingDependency { .. } => "NIKA-021",
             Self::DuplicateTaskId { .. } => "NIKA-022",
-            Self::TaskDependencyFailed { .. } => "NIKA-025",
             Self::DependencyChainFailed { .. } => "NIKA-026",
             Self::TaskCancelled { .. } => "NIKA-027",
             // Provider errors
@@ -649,13 +621,11 @@ impl NikaError {
             Self::InvalidConfig { .. } => "NIKA-033",
             // Binding/Template errors
             Self::Execution(_) => "NIKA-096",
-            Self::BindingError { .. } => "NIKA-040",
             Self::TemplateError { .. } => "NIKA-041",
             Self::BindingNotFound { .. } => "NIKA-042",
             Self::BindingTypeMismatch { .. } => "NIKA-043",
             // Path/Task errors
             Self::InvalidPath { .. } => "NIKA-050",
-            Self::TaskNotFound { .. } => "NIKA-051",
             Self::PathNotFound { .. } => "NIKA-052",
             Self::BlockedCommand { .. } => "NIKA-053",
             Self::InvalidTaskId { .. } => "NIKA-055",
@@ -665,7 +635,6 @@ impl NikaError {
             Self::SchemaFailed { .. } => "NIKA-061",
             Self::SerializationError { .. } => "NIKA-062",
             // With block errors
-            Self::DuplicateAlias { .. } => "NIKA-070",
             Self::UnknownAlias { .. } => "NIKA-071",
             Self::NullValue { .. } => "NIKA-072",
             Self::InvalidTraversal { .. } => "NIKA-073",
@@ -676,7 +645,6 @@ impl NikaError {
             Self::WithCircularDep { .. } => "NIKA-082",
             // JSONPath/IO errors
             Self::JsonPathUnsupported { .. } => "NIKA-090",
-            Self::JsonPathNoMatch { .. } => "NIKA-091",
             Self::IoError(_) => "NIKA-093",
             Self::JsonError(_) => "NIKA-094",
             Self::YamlParse(_) => "NIKA-095",
@@ -740,8 +708,7 @@ impl NikaError {
     pub fn is_recoverable(&self) -> bool {
         matches!(
             self,
-            Self::TaskTimeout { .. }
-                | Self::McpNotConnected { .. }
+            Self::McpNotConnected { .. }
                 | Self::ProviderApiError { .. }
                 | Self::McpToolError { .. }
                 | Self::Timeout { .. }
@@ -771,8 +738,6 @@ impl FixSuggestion for NikaError {
                 Some("Set NIKA_HOME environment variable to specify Nika home directory")
             }
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
-            NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
-            NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),
             NikaError::SchemaFileNotFound { .. } => {
                 Some("Check the schema file path is correct relative to the workflow file")
             }
@@ -794,12 +759,8 @@ impl FixSuggestion for NikaError {
             }
             NikaError::InvalidConfig { .. } => Some("Check configuration value is valid"),
             NikaError::Execution(_) => Some("Check command/URL is valid"),
-            NikaError::BindingError { .. } => Some("Check binding syntax and source task output"),
             NikaError::TemplateError { .. } => Some("Use {{with.alias}} format with with: block"),
             NikaError::InvalidPath { .. } => Some("Use format: task_id.field.subfield"),
-            NikaError::TaskNotFound { .. } => {
-                Some("Verify task_id exists and has run successfully")
-            }
             NikaError::PathNotFound { .. } => Some("Add '?? default' or ensure task outputs JSON"),
             NikaError::BlockedCommand { .. } => {
                 Some("Use shell: true to opt-in to shell execution, or use a different command")
@@ -813,7 +774,6 @@ impl FixSuggestion for NikaError {
             NikaError::InvalidJson { .. } => Some("Ensure output is valid JSON"),
             NikaError::SchemaFailed { .. } => Some("Fix output to match declared schema"),
             NikaError::SerializationError { .. } => Some("Check data structure is serializable"),
-            NikaError::DuplicateAlias { .. } => Some("Use unique alias names in with: block"),
             NikaError::UnknownAlias { .. } => {
                 Some("Declare the alias in with: block before referencing")
             }
@@ -830,9 +790,6 @@ impl FixSuggestion for NikaError {
             }
             NikaError::WithCircularDep { .. } => Some("Remove the circular dependency"),
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),
-            NikaError::JsonPathNoMatch { .. } => {
-                Some("Check the path exists in source task output")
-            }
             NikaError::IoError(_) => Some("Check file path and permissions"),
             NikaError::JsonError(_) => Some("Check JSON syntax"),
             // MCP errors
@@ -963,9 +920,6 @@ impl FixSuggestion for NikaError {
                 Some("All validation layers failed. Check your schema is valid and the prompt provides enough context for the LLM to generate conforming output.")
             }
             // Task dependency/lifecycle errors
-            NikaError::TaskDependencyFailed { .. } => {
-                Some("A dependency task failed. Check upstream task errors.")
-            }
             NikaError::DependencyChainFailed { .. } => {
                 Some("Dependency chain failed. Fix upstream task errors first.")
             }
@@ -1054,31 +1008,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
     // SCHEMA ERRORS (010-019)
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_task_failed_error() {
-        let err = NikaError::TaskFailed {
-            task_id: "gen".to_string(),
-            reason: "timeout".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-011");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-011]"));
-        assert!(msg.contains("gen"));
-        assert!(msg.contains("timeout"));
-    }
-
-    #[test]
-    fn test_task_timeout_error() {
-        let err = NikaError::TaskTimeout {
-            task_id: "slow_task".to_string(),
-            timeout_ms: 5000,
-        };
-        assert_eq!(err.code(), "NIKA-012");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-012]"));
-        assert!(msg.contains("5000"));
-    }
 
     #[test]
     fn test_schema_file_not_found_error() {
@@ -1195,16 +1124,6 @@ mod tests {
     }
 
     #[test]
-    fn test_binding_error() {
-        let err = NikaError::BindingError {
-            reason: "undefined reference".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-040");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-040]"));
-    }
-
-    #[test]
     fn test_template_error_with_path() {
         let err = NikaError::TemplateError {
             template: "{{with.result}}".to_string(),
@@ -1253,17 +1172,6 @@ mod tests {
         assert_eq!(err.code(), "NIKA-050");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-050]"));
-    }
-
-    #[test]
-    fn test_task_not_found_error() {
-        let err = NikaError::TaskNotFound {
-            task_id: "missing_task".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-051");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-051]"));
-        assert!(msg.contains("missing_task"));
     }
 
     #[test]
@@ -1338,17 +1246,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
     // WITH BLOCK VALIDATION (070-079)
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_duplicate_alias_error() {
-        let err = NikaError::DuplicateAlias {
-            alias: "result".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-070");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-070]"));
-        assert!(msg.contains("result"));
-    }
 
     #[test]
     fn test_unknown_alias_error() {
@@ -1452,17 +1349,6 @@ mod tests {
         assert_eq!(err.code(), "NIKA-090");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-090]"));
-    }
-
-    #[test]
-    fn test_jsonpath_no_match_error() {
-        let err = NikaError::JsonPathNoMatch {
-            path: "$.missing.field".to_string(),
-            task_id: "source_task".to_string(),
-        };
-        assert_eq!(err.code(), "NIKA-091");
-        let msg = err.to_string();
-        assert!(msg.contains("[NIKA-091]"));
     }
 
     #[test]
@@ -1743,9 +1629,9 @@ mod tests {
 
     #[test]
     fn test_fix_suggestion_for_all_recoverable_errors() {
-        let err = NikaError::TaskTimeout {
-            task_id: "slow".to_string(),
-            timeout_ms: 5000,
+        let err = NikaError::Timeout {
+            operation: "slow_op".to_string(),
+            duration_ms: 5000,
         };
         let suggestion = <NikaError as FixSuggestion>::fix_suggestion(&err);
         assert!(suggestion.is_some());
@@ -1794,15 +1680,6 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════════════════
     // IS_RECOVERABLE TESTS
     // ═══════════════════════════════════════════════════════════════════════════
-
-    #[test]
-    fn test_is_recoverable_task_timeout() {
-        let err = NikaError::TaskTimeout {
-            task_id: "x".into(),
-            timeout_ms: 1000,
-        };
-        assert!(err.is_recoverable());
-    }
 
     #[test]
     fn test_is_recoverable_mcp_not_connected() {
@@ -1949,10 +1826,6 @@ mod tests {
 
     #[test]
     fn test_all_binding_errors_have_correct_codes() {
-        assert_eq!(
-            NikaError::BindingError { reason: "x".into() }.code(),
-            "NIKA-040"
-        );
         assert_eq!(
             NikaError::BindingNotFound { alias: "x".into() }.code(),
             "NIKA-042"
