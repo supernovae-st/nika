@@ -128,17 +128,7 @@ pub enum ChatPanel {
     Input,
 }
 
-#[allow(dead_code)] // API methods for future use
 impl ChatPanel {
-    /// Get all panels in order for Tab cycling
-    pub fn all() -> &'static [ChatPanel] {
-        &[
-            ChatPanel::Conversation,
-            ChatPanel::Activity,
-            ChatPanel::Input,
-        ]
-    }
-
     /// Get next panel (Tab key)
     pub fn next(self) -> ChatPanel {
         match self {

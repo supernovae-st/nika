@@ -252,17 +252,6 @@ impl NativeRuntime {
     pub fn config(&self) -> Option<&LoadConfig> {
         self.config.as_ref()
     }
-
-    /// Convert ChatRole to mistral.rs TextMessageRole.
-    #[cfg(feature = "native-inference")]
-    #[allow(dead_code)] // Will be used for streaming support
-    fn convert_role(role: ChatRole) -> TextMessageRole {
-        match role {
-            ChatRole::System => TextMessageRole::System,
-            ChatRole::User => TextMessageRole::User,
-            ChatRole::Assistant => TextMessageRole::Assistant,
-        }
-    }
 }
 
 impl Default for NativeRuntime {
