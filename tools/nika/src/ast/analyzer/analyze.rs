@@ -548,11 +548,6 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         system: raw.system.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
-        stop: raw
-            .stop
-            .as_ref()
-            .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
-            .unwrap_or_default(),
         thinking: raw.thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
         span: raw.prompt.span,
@@ -575,8 +570,6 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
             })
             .unwrap_or_default(),
         timeout_ms: raw.timeout_ms.as_ref().map(|s| s.value),
-        capture_stdout: raw.capture_stdout.as_ref().map(|s| s.value).unwrap_or(true),
-        capture_stderr: raw.capture_stderr.as_ref().map(|s| s.value).unwrap_or(true),
         span: raw.command.span,
     }
 }

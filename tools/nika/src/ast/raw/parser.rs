@@ -434,7 +434,6 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             system: None,
             temperature: None,
             max_tokens: None,
-            stop: None,
             thinking: None,
             thinking_budget: None,
         }),
@@ -451,7 +450,6 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                 system: get_string_field(file, m, "system")?,
                 temperature: get_f64_field(file, m, "temperature")?,
                 max_tokens: get_u32_field(file, m, "max_tokens")?,
-                stop: parse_string_array(file, m, "stop")?,
                 thinking: get_bool_field(file, m, "thinking")?.or(get_bool_field(
                     file,
                     m,
@@ -480,8 +478,6 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
             working_dir: None,
             env: None,
             timeout_ms: None,
-            capture_stdout: None,
-            capture_stderr: None,
         }),
         // Full form
         Node::Mapping(m) => {
@@ -499,8 +495,6 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                 env: parse_string_map(file, m, "env")?,
                 timeout_ms: get_u64_field(file, m, "timeout_ms")?
                     .or(get_u64_field(file, m, "timeout")?),
-                capture_stdout: get_bool_field(file, m, "capture_stdout")?,
-                capture_stderr: get_bool_field(file, m, "capture_stderr")?,
             })
         }
         _ => Err(ParseError {

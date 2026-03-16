@@ -509,7 +509,6 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             system: infer.system.clone(),
             temperature: infer.temperature,
             max_tokens: infer.max_tokens,
-            stop: vec![],
             thinking: infer.extended_thinking,
             thinking_budget: infer.thinking_budget.map(|b| b as u32),
             span: Span::dummy(),
@@ -524,8 +523,6 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 .unwrap_or_default(),
             timeout_ms: exec.timeout,
-            capture_stdout: true,
-            capture_stderr: false,
             span: Span::dummy(),
         }),
         TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
@@ -705,7 +702,6 @@ mod tests {
                 system: Some("You are helpful".to_string()),
                 temperature: Some(0.7),
                 max_tokens: Some(100),
-                stop: vec![],
                 thinking: Some(true),
                 thinking_budget: Some(8192),
                 span: Span::dummy(),
@@ -760,8 +756,6 @@ mod tests {
                 working_dir: Some("/app".to_string()),
                 env,
                 timeout_ms: Some(30000),
-                capture_stdout: true,
-                capture_stderr: false,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "build")

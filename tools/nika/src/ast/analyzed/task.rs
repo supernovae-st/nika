@@ -140,9 +140,6 @@ pub struct AnalyzedInferAction {
     /// Maximum tokens to generate
     pub max_tokens: Option<u32>,
 
-    /// Stop sequences
-    pub stop: Vec<String>,
-
     /// Enable extended thinking
     pub thinking: Option<bool>,
 
@@ -170,12 +167,6 @@ pub struct AnalyzedExecAction {
 
     /// Timeout in milliseconds
     pub timeout_ms: Option<u64>,
-
-    /// Capture stdout
-    pub capture_stdout: bool,
-
-    /// Capture stderr
-    pub capture_stderr: bool,
 
     /// Span of the action
     pub span: Span,

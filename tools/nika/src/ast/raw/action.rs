@@ -71,9 +71,6 @@ pub struct RawInferAction {
     /// Maximum tokens to generate
     pub max_tokens: Option<Spanned<u32>>,
 
-    /// Stop sequences
-    pub stop: Option<Spanned<Vec<Spanned<String>>>>,
-
     /// Enable extended thinking (Claude)
     pub thinking: Option<Spanned<bool>>,
 
@@ -99,11 +96,6 @@ pub struct RawExecAction {
     /// Timeout in milliseconds
     pub timeout_ms: Option<Spanned<u64>>,
 
-    /// Capture stdout
-    pub capture_stdout: Option<Spanned<bool>>,
-
-    /// Capture stderr
-    pub capture_stderr: Option<Spanned<bool>>,
 }
 
 /// Parameters for the `fetch` verb (HTTP requests).
