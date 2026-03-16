@@ -500,6 +500,11 @@ impl TaskExecutor {
             let mut cmd = tokio::process::Command::new("sh");
             cmd.arg("-c").arg(resolved_cmd.as_ref());
 
+            // Set working directory if specified
+            if let Some(ref cwd) = params.cwd {
+                cmd.current_dir(cwd);
+            }
+
             // Add environment variables if specified
             if let Some(ref env_vars) = params.env {
                 for (key, value) in env_vars {
@@ -534,6 +539,11 @@ impl TaskExecutor {
 
             let mut cmd = tokio::process::Command::new(&parts[0]);
             cmd.args(&parts[1..]);
+
+            // Set working directory if specified
+            if let Some(ref cwd) = params.cwd {
+                cmd.current_dir(cwd);
+            }
 
             // Add environment variables if specified
             if let Some(ref env_vars) = params.env {
