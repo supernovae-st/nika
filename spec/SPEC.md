@@ -4,7 +4,7 @@
 
 | Version | Schema | Status | Last Updated | Code Alignment |
 |---------|--------|--------|--------------|----------------|
-| **0.1** | `nika/workflow@0.1` | Stable | 2025-01-02 | **Aligned** |
+| **0.12** | `nika/workflow@0.12` | Stable | 2026-03-16 | **Aligned** |
 
 **Source of Truth:** This spec. Code follows spec.
 
@@ -13,7 +13,7 @@
 ## Quick Reference
 
 ```yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -24,15 +24,12 @@ tasks:
       format: json
 
   - id: recommend
+    depends_on: [weather]
     with:
       forecast: weather.summary
       temp: weather.temp ?? 20
     infer:
       prompt: "Weather: {{with.forecast}} at {{with.temp}}C"
-
-flows:
-  - source: weather
-    target: recommend
 ```
 
 ---
@@ -46,7 +43,7 @@ Same terms everywhere: Code, Spec, Docs, CLI.
 | Workflow | `Workflow` | root | Workflow definition |
 | Task | `Task` | `tasks[].id` | Single unit of work |
 | Action | `TaskAction` | `infer`/`exec`/`fetch` | What the task does |
-| Flow | `Flow` | `flows[]` | DAG edge |
+| Dependency | `depends_on` | `depends_on[]` | DAG edge (per-task) |
 | With | `BindingSpec` | `with:` | Data dependencies |
 | Output | `OutputPolicy` | `output:` | Format & validation |
 | Store | `RunContext` | (runtime) | Task outputs |
@@ -58,11 +55,10 @@ Same terms everywhere: Code, Spec, Docs, CLI.
 ## 2. Workflow
 
 ```yaml
-schema: "nika/workflow@0.1"    # Required - must match exactly
+schema: "nika/workflow@0.12"   # Required - must match exactly
 provider: claude               # Default: "claude"
 model: claude-sonnet-4-6  # Optional override
-tasks: [...]                   # Required
-flows: [...]                   # Optional (default: [])
+tasks: [...]                   # Required (each task may have depends_on)
 ```
 
 ### Providers
@@ -81,7 +77,6 @@ pub struct Workflow {
     pub provider: String,
     pub model: Option<String>,
     pub tasks: Vec<Arc<Task>>,
-    pub flows: Vec<Flow>,
 }
 ```
 
@@ -112,6 +107,7 @@ Pattern: `^[a-z][a-z0-9_]*$` (snake_case)
 ```rust
 pub struct Task {
     pub id: String,
+    pub depends_on: Vec<String>,
     pub binding_spec: Option<BindingSpec>,
     pub output: Option<OutputPolicy>,
     pub action: TaskAction,
@@ -180,20 +176,31 @@ pub struct FetchParams {
 
 ---
 
-## 5. Flow (DAG)
+## 5. Dependencies (DAG)
+
+Dependencies are declared per-task using `depends_on:`:
 
 ```yaml
-flows:
-  - source: task_a
-    target: task_b
+tasks:
+  - id: task_a
+    infer: "Generate something"
 
-  # Fan-out
-  - source: start
-    target: [a, b, c]
+  # Simple dependency
+  - id: task_b
+    depends_on: [task_a]
+    infer: "Process: {{with.result}}"
 
-  # Fan-in
-  - source: [a, b]
-    target: aggregate
+  # Fan-out: start feeds a, b, c
+  - id: a
+    depends_on: [start]
+  - id: b
+    depends_on: [start]
+  - id: c
+    depends_on: [start]
+
+  # Fan-in: aggregate waits for a and b
+  - id: aggregate
+    depends_on: [a, b]
 ```
 
 ### Execution Order
@@ -201,20 +208,6 @@ flows:
 - Tasks with no dependencies run immediately (parallel)
 - Tasks wait for ALL upstream dependencies
 - Tasks only run if ALL dependencies succeeded
-
-### Rust Type
-
-```rust
-pub struct Flow {
-    pub source: FlowEndpoint,
-    pub target: FlowEndpoint,
-}
-
-pub enum FlowEndpoint {
-    Single(String),
-    Multiple(Vec<String>),
-}
-```
 
 ---
 
@@ -405,7 +398,7 @@ pub enum TaskStatus {
 
 | Code | Error | Fix |
 |------|-------|-----|
-| NIKA-010 | Invalid schema version | Use `"nika/workflow@0.1"` |
+| NIKA-010 | Invalid schema version | Use `"nika/workflow@0.12"` |
 
 ### Path (050-056)
 
@@ -439,7 +432,7 @@ pub enum TaskStatus {
 | Code | Error | Fix |
 |------|-------|-----|
 | NIKA-080 | Task not in DAG | Verify task exists |
-| NIKA-081 | Task not upstream | Add flow or change source |
+| NIKA-081 | Task not upstream | Add depends_on or fix source |
 | NIKA-082 | Circular dependency | Remove cycle |
 
 ### JSONPath (090-092)
@@ -483,7 +476,7 @@ pub enum TaskStatus {
 ## Complete Example
 
 ```yaml
-schema: "nika/workflow@0.1"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -500,6 +493,7 @@ tasks:
       format: json
 
   - id: recommend
+    depends_on: [weather, flights]
     with:
       forecast: weather.summary
       temp: weather.temp ?? 20
@@ -514,8 +508,4 @@ tasks:
     output:
       format: json
       schema: .nika/schemas/recommendation.json
-
-flows:
-  - source: [weather, flights]
-    target: recommend
 ```
