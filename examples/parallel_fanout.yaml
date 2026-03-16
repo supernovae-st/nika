@@ -9,40 +9,35 @@ tasks:
       format: text
 
   - id: analyst_a
-    use:
+    depends_on: [start]
+    with:
       topic: start
     infer:
-      prompt: "Analyze '{{use.topic}}' from economic perspective"
+      prompt: "Analyze '{{with.topic}}' from economic perspective"
 
   - id: analyst_b
-    use:
+    depends_on: [start]
+    with:
       topic: start
     infer:
-      prompt: "Analyze '{{use.topic}}' from social perspective"
+      prompt: "Analyze '{{with.topic}}' from social perspective"
 
   - id: analyst_c
-    use:
+    depends_on: [start]
+    with:
       topic: start
     infer:
-      prompt: "Analyze '{{use.topic}}' from environmental perspective"
+      prompt: "Analyze '{{with.topic}}' from environmental perspective"
 
   - id: synthesize
-    use:
+    depends_on: [analyst_a, analyst_b, analyst_c]
+    with:
       economic: analyst_a
       social: analyst_b
       environmental: analyst_c
     infer:
       prompt: |
         Combine these analyses:
-        - Economic: {{use.economic}}
-        - Social: {{use.social}}
-        - Environmental: {{use.environmental}}
-
-flows:
-  # Fan-out: start → [a, b, c]
-  - source: start
-    target: [analyst_a, analyst_b, analyst_c]
-
-  # Fan-in: [a, b, c] → synthesize
-  - source: [analyst_a, analyst_b, analyst_c]
-    target: synthesize
+        - Economic: {{with.economic}}
+        - Social: {{with.social}}
+        - Environmental: {{with.environmental}}

@@ -2,7 +2,7 @@
 #
 # Demonstrates the for_each binding reference feature:
 # - $alias format: for_each: "$locales"
-# - Template format: for_each: "{{use.locales}}"
+# - Template format: for_each: "{{with.locales}}"
 #
 # This workflow is AGENTIC:
 # - Discovers locales from NovaNet (not hardcoded or LLM-generated)
@@ -72,7 +72,8 @@ tasks:
   # Step 2: Process each locale using $alias binding reference
   # This demonstrates for_each: "$locales" syntax with NovaNet data
   - id: process_locales
-    use:
+    depends_on: [discover_locales, discover_entity]
+    with:
       locales: discover_locales
       entity: discover_entity
     for_each: "$locales.rows"
@@ -82,7 +83,7 @@ tasks:
         # Tagline Generation Task
 
         ## Entity Context from NovaNet
-        {{use.entity}}
+        {{with.entity}}
 
         ## Target Locale
         Code: {{locale.code}}
@@ -133,7 +134,8 @@ tasks:
 
   # Step 3: Aggregate all taglines into a summary
   - id: aggregate_taglines
-    use:
+    depends_on: [process_locales, discover_entity, discover_locales]
+    with:
       all_taglines: process_locales
       entity: discover_entity
       original_locales: discover_locales
@@ -142,13 +144,13 @@ tasks:
         # Tagline Aggregation Task
 
         ## Entity Context
-        {{use.entity}}
+        {{with.entity}}
 
         ## Discovered Locales from NovaNet
-        {{use.original_locales}}
+        {{with.original_locales}}
 
         ## Generated Taglines
-        {{use.all_taglines}}
+        {{with.all_taglines}}
 
         ## Instructions
         Analyze the collection of localized taglines and provide:
@@ -222,21 +224,3 @@ tasks:
                   enum: [low, medium, high]
               required: [locale, suggestion, priority]
         required: [entity_key, total_taglines, locales_covered, regions_covered, quality_assessment, recommendations]
-
-flows:
-  # Phase 1: Discovery tasks run in parallel (no edges = parallel)
-  # discover_locales and discover_entity have no dependencies
-
-  # Phase 2: Processing depends on both discoveries
-  - source: discover_locales
-    target: process_locales
-  - source: discover_entity
-    target: process_locales
-
-  # Phase 3: Aggregation depends on processing and original context
-  - source: process_locales
-    target: aggregate_taglines
-  - source: discover_entity
-    target: aggregate_taglines
-  - source: discover_locales
-    target: aggregate_taglines

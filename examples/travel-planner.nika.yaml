@@ -70,57 +70,61 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: weather
-    use:
+    depends_on: [destination, get_date, duration]
+    with:
       date: get_date
       dest: destination
       days: duration
     infer:
       prompt: |
-        Current date: {{use.date}}
-        Destination: {{use.dest}}
-        Duration: {{use.days}}
+        Current date: {{with.date}}
+        Destination: {{with.dest}}
+        Duration: {{with.days}}
 
         Provide a brief weather forecast for this trip.
         Include: temperature range, rain probability, what to pack.
         Keep it to 3-4 sentences.
 
   - id: flights
-    use:
+    depends_on: [destination, duration, budget]
+    with:
       dest: destination
       days: duration
       money: budget
     infer:
       prompt: |
-        Destination: {{use.dest}}
-        Duration: {{use.days}}
-        Budget: {{use.money}}
+        Destination: {{with.dest}}
+        Duration: {{with.days}}
+        Budget: {{with.money}}
 
         Suggest flight options (economy class).
         Include: typical price range, best airlines, flight duration.
         Keep it to 3-4 sentences.
 
   - id: hotels
-    use:
+    depends_on: [destination, duration, budget]
+    with:
       dest: destination
       days: duration
       money: budget
       hobbies: interests
     infer:
       prompt: |
-        Destination: {{use.dest}}
-        Duration: {{use.days}}
-        Budget: {{use.money}}
-        Interests: {{use.hobbies}}
+        Destination: {{with.dest}}
+        Duration: {{with.days}}
+        Budget: {{with.money}}
+        Interests: {{with.hobbies}}
 
         Suggest 2-3 neighborhoods to stay in and hotel budget per night.
         Keep it to 4-5 sentences.
 
   - id: visa_info
-    use:
+    depends_on: [destination]
+    with:
       dest: destination
     infer:
       prompt: |
-        Destination: {{use.dest}}
+        Destination: {{with.dest}}
 
         Brief visa requirements for EU citizens.
         Keep it to 2-3 sentences.
@@ -130,46 +134,50 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: food_spots
-    use:
+    depends_on: [budget, interests, destination]
+    with:
       dest: destination
       money: budget
     infer:
       prompt: |
-        Destination: {{use.dest}}
+        Destination: {{with.dest}}
         Interest: Food & Cuisine
-        Budget: {{use.money}}
+        Budget: {{with.money}}
 
         Recommend 5 must-try food experiences (mix of cheap eats and special dinners).
         Keep it brief, one line per recommendation.
 
   - id: cultural_sites
-    use:
+    depends_on: [interests, destination]
+    with:
       dest: destination
     infer:
       prompt: |
-        Destination: {{use.dest}}
+        Destination: {{with.dest}}
         Interest: Temples & Culture
 
         Recommend 5 must-visit temples and cultural sites.
         Keep it brief, one line per recommendation.
 
   - id: tech_attractions
-    use:
+    depends_on: [interests, destination]
+    with:
       dest: destination
     infer:
       prompt: |
-        Destination: {{use.dest}}
+        Destination: {{with.dest}}
         Interest: Technology & Innovation
 
         Recommend 5 tech-related attractions (robot restaurants, electronics districts, etc).
         Keep it brief, one line per recommendation.
 
   - id: nightlife
-    use:
+    depends_on: [interests, destination]
+    with:
       dest: destination
     infer:
       prompt: |
-        Destination: {{use.dest}}
+        Destination: {{with.dest}}
         Interest: Nightlife
 
         Recommend 5 nightlife spots (bars, clubs, entertainment districts).
@@ -180,7 +188,8 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: activities_summary
-    use:
+    depends_on: [food_spots, cultural_sites, tech_attractions, nightlife]
+    with:
       food: food_spots
       culture: cultural_sites
       tech: tech_attractions
@@ -190,21 +199,22 @@ tasks:
         Combine these activity recommendations into a cohesive list:
 
         FOOD:
-        {{use.food}}
+        {{with.food}}
 
         CULTURE:
-        {{use.culture}}
+        {{with.culture}}
 
         TECH:
-        {{use.tech}}
+        {{with.tech}}
 
         NIGHTLIFE:
-        {{use.night}}
+        {{with.night}}
 
         Create a TOP 10 must-do list, mixing categories. One line per item.
 
   - id: logistics_summary
-    use:
+    depends_on: [weather, flights, hotels, visa_info]
+    with:
       weather_info: weather
       flight_info: flights
       hotel_info: hotels
@@ -214,16 +224,16 @@ tasks:
         Summarize the travel logistics:
 
         WEATHER:
-        {{use.weather_info}}
+        {{with.weather_info}}
 
         FLIGHTS:
-        {{use.flight_info}}
+        {{with.flight_info}}
 
         HOTELS:
-        {{use.hotel_info}}
+        {{with.hotel_info}}
 
         VISA:
-        {{use.visa}}
+        {{with.visa}}
 
         Create a brief "Before You Go" checklist. Keep it to 5-6 bullet points.
 
@@ -232,7 +242,8 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: daily_itinerary
-    use:
+    depends_on: [duration, activities_summary, weather, destination]
+    with:
       dest: destination
       days: duration
       money: budget
@@ -243,17 +254,17 @@ tasks:
         Create a day-by-day itinerary for this trip:
 
         TRIP INFO:
-        - Destination: {{use.dest}}
-        - Duration: {{use.days}}
-        - Budget: {{use.money}}
+        - Destination: {{with.dest}}
+        - Duration: {{with.days}}
+        - Budget: {{with.money}}
 
         WEATHER CONSIDERATIONS:
-        {{use.weather_info}}
+        {{with.weather_info}}
 
         TOP ACTIVITIES:
-        {{use.activities}}
+        {{with.activities}}
 
-        Create a {{use.days}} itinerary with morning, afternoon, evening for each day.
+        Create a {{with.days}} itinerary with morning, afternoon, evening for each day.
         Keep each day to 3-4 lines.
 
   # ═══════════════════════════════════════════════════════════════
@@ -261,7 +272,8 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: budget_breakdown
-    use:
+    depends_on: [budget, destination, logistics_summary]
+    with:
       money: budget
       days: duration
       dest: destination
@@ -270,12 +282,12 @@ tasks:
       prompt: |
         Create a budget breakdown:
 
-        - Total budget: {{use.money}}
-        - Duration: {{use.days}}
-        - Destination: {{use.dest}}
+        - Total budget: {{with.money}}
+        - Duration: {{with.days}}
+        - Destination: {{with.dest}}
 
         LOGISTICS:
-        {{use.logistics}}
+        {{with.logistics}}
 
         Estimate costs for: flights, accommodation, food, activities, transport, misc.
         Show daily average and total. Keep it brief.
@@ -285,7 +297,8 @@ tasks:
   # ═══════════════════════════════════════════════════════════════
 
   - id: final_report
-    use:
+    depends_on: [logistics_summary, daily_itinerary, budget_breakdown, get_date, destination, duration, budget]
+    with:
       dest: destination
       days: duration
       money: budget
@@ -298,62 +311,18 @@ tasks:
         Create the FINAL TRAVEL PLAN:
 
         ═══════════════════════════════════════
-        TRIP: {{use.dest}} | {{use.days}} | {{use.money}}
-        DATE: {{use.date}}
+        TRIP: {{with.dest}} | {{with.days}} | {{with.money}}
+        DATE: {{with.date}}
         ═══════════════════════════════════════
 
         BEFORE YOU GO:
-        {{use.logistics}}
+        {{with.logistics}}
 
         DAILY ITINERARY:
-        {{use.itinerary}}
+        {{with.itinerary}}
 
         BUDGET:
-        {{use.costs}}
+        {{with.costs}}
 
         Format this as a clean, professional travel plan.
         Add a brief "Pro Tips" section at the end (3-4 tips).
-
-flows:
-  # Phase 1 → Phase 2 (fan-out: destination feeds 4 parallel research tasks)
-  - source: destination
-    target: [weather, flights, hotels, visa_info]
-
-  - source: get_date
-    target: weather
-
-  - source: duration
-    target: [weather, flights, hotels, daily_itinerary]
-
-  - source: budget
-    target: [flights, hotels, food_spots, budget_breakdown]
-
-  # Phase 1 → Phase 3 (fan-out: interests feeds 4 activity tasks)
-  - source: interests
-    target: [food_spots, cultural_sites, tech_attractions, nightlife]
-
-  - source: destination
-    target: [food_spots, cultural_sites, tech_attractions, nightlife]
-
-  # Phase 3 → Phase 4 (fan-in: activities consolidate)
-  - source: [food_spots, cultural_sites, tech_attractions, nightlife]
-    target: activities_summary
-
-  # Phase 2 → Phase 4 (fan-in: logistics consolidate)
-  - source: [weather, flights, hotels, visa_info]
-    target: logistics_summary
-
-  # Phase 4 → Phase 5 (sequential)
-  - source: [activities_summary, weather]
-    target: daily_itinerary
-
-  - source: destination
-    target: [daily_itinerary, budget_breakdown]
-
-  # Phase 4 → Phase 6 (parallel with Phase 5)
-  - source: logistics_summary
-    target: budget_breakdown
-
-  # Phase 5+6 → Phase 7 (final fan-in)
-  - source: [logistics_summary, daily_itinerary, budget_breakdown, get_date, destination, duration, budget]
-    target: final_report

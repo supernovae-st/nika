@@ -30,11 +30,8 @@ tasks:
 
   # Show the result
   - id: show_count
-    use:
+    depends_on: [count_entities]
+    with:
       count: count_entities
     exec:
-      command: "echo 'Entity count from NovaNet: {{use.count}}'"
-
-flows:
-  - source: count_entities
-    target: show_count
+      command: "echo 'Entity count from NovaNet: {{with.count}}'"

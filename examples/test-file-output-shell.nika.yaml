@@ -28,6 +28,7 @@ tasks:
 
   # Step 2: Get stats
   - id: get_stats
+    depends_on: [setup]
     invoke:
       mcp: novanet
       tool: novanet_describe
@@ -36,6 +37,7 @@ tasks:
 
   # Step 3: Search
   - id: search
+    depends_on: [setup]
     invoke:
       mcp: novanet
       tool: novanet_search
@@ -45,36 +47,25 @@ tasks:
 
   # Step 4: Save stats using tee with shell mode
   - id: save_stats
-    use:
+    depends_on: [get_stats]
+    with:
       data: get_stats
     exec:
-      command: "echo {{use.data|shell}} > /tmp/nika-shell-output/stats.txt && echo 'Stats saved'"
+      command: "echo {{with.data|shell}} > /tmp/nika-shell-output/stats.txt && echo 'Stats saved'"
       shell: true
 
   # Step 5: Save search using tee with shell mode
   - id: save_search
-    use:
+    depends_on: [search]
+    with:
       data: search
     exec:
-      command: "echo {{use.data|shell}} > /tmp/nika-shell-output/search.txt && echo 'Search saved'"
+      command: "echo {{with.data|shell}} > /tmp/nika-shell-output/search.txt && echo 'Search saved'"
       shell: true
 
   # Step 6: Show files with shell mode
   - id: show_files
+    depends_on: [save_stats, save_search]
     exec:
       command: "echo '=== Files created ===' && ls -la /tmp/nika-shell-output/ && echo '=== stats.txt ===' && cat /tmp/nika-shell-output/stats.txt | head -c 500"
       shell: true
-
-flows:
-  - source: setup
-    target: get_stats
-  - source: setup
-    target: search
-  - source: get_stats
-    target: save_stats
-  - source: search
-    target: save_search
-  - source: save_stats
-    target: show_files
-  - source: save_search
-    target: show_files

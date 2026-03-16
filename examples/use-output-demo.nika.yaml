@@ -36,7 +36,8 @@ tasks:
   # =========================================================================
 
   - id: recommend
-    use:
+    depends_on: [weather, flights]
+    with:
       # Simple path
       forecast: weather.summary
       city: weather.city
@@ -53,19 +54,15 @@ tasks:
 
     infer:
       prompt: |
-        # Travel to {{use.city}}
+        # Travel to {{with.city}}
 
-        Weather: {{use.forecast}} ({{use.temp}} C)
-        Rating: {{use.rating}}/5
-        Notes: {{use.notes}}
+        Weather: {{with.forecast}} ({{with.temp}} C)
+        Rating: {{with.rating}}/5
+        Notes: {{with.notes}}
 
-        Flight: {{use.airline}} for ${{use.price}}
+        Flight: {{with.airline}} for ${{with.price}}
 
         Create a recommendation.
 
     output:
       format: json
-
-flows:
-  - source: [weather, flights]
-    target: recommend

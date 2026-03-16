@@ -31,6 +31,7 @@ tasks:
 
   # Step 2: Search with Perplexity MCP
   - id: search_topic
+    depends_on: [setup]
     invoke:
       mcp: perplexity
       tool: perplexity_search_web
@@ -40,70 +41,56 @@ tasks:
 
   # Step 3: Extract key points using LLM (binding from step 2)
   - id: extract_points
-    use:
+    depends_on: [search_topic]
+    with:
       search_results: search_topic
     infer: |
       Based on these search results about knowledge graphs for AI:
 
-      {{use.search_results}}
+      {{with.search_results}}
 
       Extract the top 3 most important trends. Format as a numbered list.
 
   # Step 4: Save search results to file
   - id: save_search
-    use:
+    depends_on: [search_topic]
+    with:
       results: search_topic
     exec:
-      command: "echo {{use.results|shell}} > /tmp/nika-test-output/01-search-results.txt && echo 'Saved search results'"
+      command: "echo {{with.results|shell}} > /tmp/nika-test-output/01-search-results.txt && echo 'Saved search results'"
       shell: true
 
   # Step 5: Save extracted points to file
   - id: save_points
-    use:
+    depends_on: [extract_points]
+    with:
       points: extract_points
     exec:
-      command: "echo {{use.points|shell}} > /tmp/nika-test-output/02-key-points.txt && echo 'Saved key points'"
+      command: "echo {{with.points|shell}} > /tmp/nika-test-output/02-key-points.txt && echo 'Saved key points'"
       shell: true
 
   # Step 6: Generate final summary (binding from previous steps)
   - id: generate_summary
-    use:
+    depends_on: [extract_points]
+    with:
       points: extract_points
     infer: |
       Create a 2-sentence executive summary based on:
 
-      {{use.points}}
+      {{with.points}}
 
   # Step 7: Save summary to file
   - id: save_summary
-    use:
+    depends_on: [generate_summary]
+    with:
       summary: generate_summary
     exec:
-      command: "echo {{use.summary|shell}} > /tmp/nika-test-output/03-summary.txt && echo 'Saved summary'"
+      command: "echo {{with.summary|shell}} > /tmp/nika-test-output/03-summary.txt && echo 'Saved summary'"
       shell: true
 
   # Step 8: List output files
   - id: list_output
+    depends_on: [save_search, save_points, save_summary]
     exec:
       command: "echo '=== Output Files ===' && ls -la /tmp/nika-test-output/"
       shell: true
-
-flows:
-  - source: setup
-    target: search_topic
-  - source: search_topic
-    target: extract_points
-  - source: search_topic
-    target: save_search
-  - source: extract_points
-    target: save_points
-  - source: extract_points
-    target: generate_summary
-  - source: generate_summary
-    target: save_summary
-  - source: save_search
-    target: list_output
-  - source: save_points
-    target: list_output
-  - source: save_summary
-    target: list_output

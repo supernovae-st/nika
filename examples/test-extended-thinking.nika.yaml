@@ -84,7 +84,8 @@ tasks:
 
   # Step 2: Complex SEO competitive analysis with extended thinking
   - id: competitive_analysis
-    use:
+    depends_on: [discover_entity, discover_category, discover_relations, get_seo_schema]
+    with:
       entity: discover_entity
       category: discover_category
       relations: discover_relations
@@ -94,16 +95,16 @@ tasks:
         # SEO Competitive Analysis Task
 
         ## Entity Context from NovaNet
-        {{use.entity}}
+        {{with.entity}}
 
         ## Category Context
-        {{use.category}}
+        {{with.category}}
 
         ## Related Entities (Graph Traversal)
-        {{use.relations}}
+        {{with.relations}}
 
         ## SEO Schema Context
-        {{use.seo_schema}}
+        {{with.seo_schema}}
 
         ## Task
         Analyze the competitive landscape for this entity's keywords.
@@ -219,7 +220,8 @@ tasks:
 
   # Step 3: Generate content strategy based on analysis
   - id: content_strategy
-    use:
+    depends_on: [competitive_analysis, discover_entity, discover_category]
+    with:
       analysis: competitive_analysis
       entity: discover_entity
       category: discover_category
@@ -228,13 +230,13 @@ tasks:
         # Content Strategy Development
 
         ## Competitive Analysis Results
-        {{use.analysis}}
+        {{with.analysis}}
 
         ## Entity Context
-        {{use.entity}}
+        {{with.entity}}
 
         ## Category Context
-        {{use.category}}
+        {{with.category}}
 
         ## Task
         Develop a comprehensive content strategy that:
@@ -322,25 +324,3 @@ tasks:
                   enum: [daily, weekly, monthly, quarterly]
               required: [metric, target, measurement_frequency]
         required: [entity_key, category_key, strategy_name, executive_summary, content_pillars, quarterly_roadmap, kpis]
-
-flows:
-  # Phase 1: All discovery tasks run in parallel (no edges = parallel)
-  # discover_entity, discover_category, discover_relations, get_seo_schema
-
-  # Phase 2: Competitive analysis depends on all discovery tasks
-  - source: discover_entity
-    target: competitive_analysis
-  - source: discover_category
-    target: competitive_analysis
-  - source: discover_relations
-    target: competitive_analysis
-  - source: get_seo_schema
-    target: competitive_analysis
-
-  # Phase 3: Strategy depends on analysis and context
-  - source: competitive_analysis
-    target: content_strategy
-  - source: discover_entity
-    target: content_strategy
-  - source: discover_category
-    target: content_strategy

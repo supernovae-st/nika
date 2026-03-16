@@ -11,16 +11,13 @@ tasks:
       format: json
 
   - id: recommend
-    use:
+    depends_on: [get_weather]
+    with:
       weather: get_weather
       temp: get_weather.temp ?? 20
     infer:
       prompt: |
-        Weather: {{use.weather}}
-        Temperature: {{use.temp}}C
+        Weather: {{with.weather}}
+        Temperature: {{with.temp}}C
 
         Recommend an activity for this weather.
-
-flows:
-  - source: get_weather
-    target: recommend

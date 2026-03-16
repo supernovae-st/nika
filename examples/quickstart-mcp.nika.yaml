@@ -32,12 +32,9 @@ tasks:
 
   # Step 2: Use LLM to summarize the schema
   - id: summarize
-    use:
+    depends_on: [get_schema]
+    with:
       schema: get_schema
     infer: |
       Summarize this NovaNet knowledge graph schema in 2-3 sentences:
-      {{use.schema}}
-
-flows:
-  - source: get_schema
-    target: summarize
+      {{with.schema}}

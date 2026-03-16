@@ -13,39 +13,35 @@ tasks:
       command: "echo 'The future of AI assistants'"
 
   - id: claude_view
-    use:
+    depends_on: [topic]
+    with:
       subject: topic
     infer:
       prompt: |
-        Give a brief (2-3 sentences) perspective on: {{use.subject}}
+        Give a brief (2-3 sentences) perspective on: {{with.subject}}
       model: haiku
 
   - id: openai_view
-    use:
+    depends_on: [topic]
+    with:
       subject: topic
     infer:
       prompt: |
-        Give a brief (2-3 sentences) perspective on: {{use.subject}}
+        Give a brief (2-3 sentences) perspective on: {{with.subject}}
       provider: openai
       model: gpt-4o-mini
 
   - id: synthesis
-    use:
+    depends_on: [claude_view, openai_view]
+    with:
       claude: claude_view
       gpt: openai_view
     infer:
       prompt: |
         Compare these two AI perspectives:
 
-        CLAUDE: {{use.claude}}
+        CLAUDE: {{with.claude}}
 
-        GPT: {{use.gpt}}
+        GPT: {{with.gpt}}
 
         What's similar? What's different? (2-3 sentences)
-
-flows:
-  - source: topic
-    target: [claude_view, openai_view]
-
-  - source: [claude_view, openai_view]
-    target: synthesis

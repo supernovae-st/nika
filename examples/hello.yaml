@@ -9,11 +9,8 @@ tasks:
       format: text
 
   - id: response
-    use:
+    depends_on: [greeting]
+    with:
       msg: greeting
     infer:
-      prompt: "Reply to: {{use.msg}}"
-
-flows:
-  - source: greeting
-    target: response
+      prompt: "Reply to: {{with.msg}}"

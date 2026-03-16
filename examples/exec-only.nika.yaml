@@ -14,12 +14,9 @@ tasks:
       command: "date"
 
   - id: combine
-    use:
+    depends_on: [list_files, show_date]
+    with:
       files: list_files
       date: show_date
     exec:
-      command: "echo 'Files:' && echo '{{use.files}}' && echo 'Date: {{use.date}}'"
-
-flows:
-  - source: [list_files, show_date]
-    target: combine
+      command: "echo 'Files:' && echo '{{with.files}}' && echo 'Date: {{with.date}}'"

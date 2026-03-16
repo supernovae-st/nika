@@ -48,10 +48,11 @@ tasks:
   # Step 3: Search keywords (simulated - DataForSEO MCP pas encore intégré)
   # Pour l'instant on utilise les données qu'on a déjà récupérées
   - id: keyword_data
-    use:
+    depends_on: [load_entity]
+    with:
       entity: load_entity
     infer: |
-      Basé sur l'entity: {{use.entity}}
+      Basé sur l'entity: {{with.entity}}
 
       Voici les données de recherche réelles (DataForSEO France):
       - "qr code": 135,000/mois, MEDIUM competition
@@ -68,14 +69,15 @@ tasks:
 
   # Step 4: Generate EntityNative data (what we would write)
   - id: generate_native
-    use:
+    depends_on: [load_entity, get_slugification, keyword_data]
+    with:
       entity: load_entity
       slug_rules: get_slugification
       keywords: keyword_data
     infer: |
-      Entity: {{use.entity}}
-      Slugification rules: {{use.slug_rules}}
-      Keywords: {{use.keywords}}
+      Entity: {{with.entity}}
+      Slugification rules: {{with.slug_rules}}
+      Keywords: {{with.keywords}}
 
       Génère le JSON pour créer EntityNative:qr-code@fr-FR avec:
       1. denomination_forms (text, title, abbrev, url)
@@ -89,13 +91,3 @@ tasks:
         "winning_keyword": "...",
         "slug": "..."
       }
-
-flows:
-  - source: load_entity
-    target: keyword_data
-  - source: load_entity
-    target: generate_native
-  - source: get_slugification
-    target: generate_native
-  - source: keyword_data
-    target: generate_native

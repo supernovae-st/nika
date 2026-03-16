@@ -13,29 +13,32 @@ tasks:
       command: "cat src/main.rs | head -50"
 
   - id: security
-    use:
+    depends_on: [read_code]
+    with:
       code: read_code
     infer:
       prompt: |
         Analyze this code for security issues:
-        {{use.code}}
+        {{with.code}}
 
         List any security concerns briefly.
       model: haiku  # Fast/cheap
 
   - id: quality
-    use:
+    depends_on: [read_code]
+    with:
       code: read_code
     infer:
       prompt: |
         Analyze this code for quality issues:
-        {{use.code}}
+        {{with.code}}
 
         List any code quality concerns briefly.
       model: haiku
 
   - id: report
-    use:
+    depends_on: [security, quality]
+    with:
       security_review: security
       quality_review: quality
     infer:
@@ -43,14 +46,7 @@ tasks:
         Create a brief code review summary:
 
         SECURITY:
-        {{use.security_review}}
+        {{with.security_review}}
 
         QUALITY:
-        {{use.quality_review}}
-
-flows:
-  - source: read_code
-    target: [security, quality]
-
-  - source: [security, quality]
-    target: report
+        {{with.quality_review}}

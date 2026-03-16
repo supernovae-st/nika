@@ -53,7 +53,8 @@ tasks:
 
   # Step 3: Select target entity and get its full context
   - id: get_entity_context
-    use:
+    depends_on: [discover_entities]
+    with:
       entities: discover_entities
     invoke:
       mcp: novanet
@@ -61,12 +62,13 @@ tasks:
       params:
         describe: entity
         # Use first discovered entity dynamically
-        entity_key: "{{use.entities.rows[0].key}}"
+        entity_key: "{{with.entities.rows[0].key}}"
 
   # Step 4: Generate keywords with strict schema validation
   # Uses discovered entity context, not hardcoded "QR code"
   - id: generate_keywords
-    use:
+    depends_on: [get_entity_context, get_schema_context]
+    with:
       entity: get_entity_context
       schema: get_schema_context
     infer:
@@ -74,10 +76,10 @@ tasks:
         # SEO Keyword Generation Task
 
         ## Entity Context from NovaNet
-        {{use.entity}}
+        {{with.entity}}
 
         ## Schema Context
-        {{use.schema}}
+        {{with.schema}}
 
         ## Task
         Generate 3 SEO keywords for this entity's product/service.
@@ -137,7 +139,8 @@ tasks:
 
   # Step 5: Analyze the keywords and produce a structured report
   - id: analyze_keywords
-    use:
+    depends_on: [get_entity_context, generate_keywords]
+    with:
       entity: get_entity_context
       keywords: generate_keywords
     infer:
@@ -145,10 +148,10 @@ tasks:
         # Keyword Analysis Task
 
         ## Entity Context
-        {{use.entity}}
+        {{with.entity}}
 
         ## Generated Keywords
-        {{use.keywords}}
+        {{with.keywords}}
 
         Analyze these SEO keywords in the context of the entity.
         Calculate statistics and provide recommendations based on:
@@ -196,23 +199,3 @@ tasks:
                   type: string
               required: [keyword, action, reason]
         required: [entity_key, stats, recommendations]
-
-flows:
-  # Parallel discovery tasks (no dependencies)
-  # discover_entities and get_schema_context run in parallel
-
-  # get_entity_context depends on discover_entities
-  - source: discover_entities
-    target: get_entity_context
-
-  # generate_keywords depends on both entity and schema context
-  - source: get_entity_context
-    target: generate_keywords
-  - source: get_schema_context
-    target: generate_keywords
-
-  # analyze_keywords depends on entity context and generated keywords
-  - source: get_entity_context
-    target: analyze_keywords
-  - source: generate_keywords
-    target: analyze_keywords
