@@ -145,7 +145,7 @@ pub fn parse_workflow(yaml: &str) -> Result<Workflow, NikaError> {
     })?;
 
     // Phase 3: Analyzed → Runtime Workflow
-    Ok(lower(analyzed))
+    lower(analyzed)
 }
 
 /// Parse a YAML workflow and return the AnalyzedWorkflow directly.

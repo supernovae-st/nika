@@ -24,6 +24,7 @@ use super::invoke::InvokeParams;
 use super::output::{OutputFormat, OutputPolicy, SchemaRef};
 use super::schema::SchemaVersion;
 use super::workflow::{McpConfigInline, Task, Workflow};
+use crate::error::NikaError;
 use crate::source::Span;
 
 // ---------------------------------------------------------------------------
@@ -34,7 +35,7 @@ use crate::source::Span;
 ///
 /// The analyzed workflow is consumed. All `TaskId` references are resolved
 /// back to string names via the embedded [`TaskTable`].
-pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
+pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
     let AnalyzedWorkflow {
         schema_version,
         name: _,
@@ -55,12 +56,12 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
 
     let tasks: Vec<Arc<Task>> = tasks
         .into_iter()
-        .map(|t| Arc::new(lower_task(t, &task_table)))
-        .collect();
+        .map(|t| lower_task(t, &task_table).map(Arc::new))
+        .collect::<Result<_, _>>()?;
     let mcp = lower_mcp_servers(mcp_servers);
     let inputs = lower_inputs(inputs);
 
-    Workflow {
+    Ok(Workflow {
         schema: schema_version.as_str().to_string(),
         provider: provider.unwrap_or_else(|| "claude".to_string()),
         model,
@@ -73,15 +74,15 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Workflow {
         log: None,
         inputs,
         tasks,
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Task
 // ---------------------------------------------------------------------------
 
-fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
-    let flow = task_dep_names(&task.depends_on, &task.implicit_deps, table);
+fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> {
+    let flow = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
     let action = lower_action(task.action, task.provider, task.model, task.retry);
     let output = task.output.map(lower_output);
@@ -95,7 +96,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
     let concurrency = fe_concurrency.or(task.concurrency.map(|c| c as usize));
     let fail_fast = fe_fail_fast.or(task.fail_fast);
 
-    Task {
+    Ok(Task {
         id: task.name,
         with_spec,
         output,
@@ -109,7 +110,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
         log: None,
         flow,
         structured: task.structured,
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -379,21 +380,26 @@ fn lower_imports(imports: Vec<AnalyzedImportSpec>) -> Option<Vec<IncludeSpec>> {
 }
 
 /// Build per-task dependency list for the runtime `flow` field.
+///
+/// Returns `Err` if any `TaskId` is not found in the `TaskTable`.
+/// This is defense-in-depth: the analyzer should have validated all
+/// references, so a missing ID here indicates an invariant violation.
 fn task_dep_names(
     depends: &[TaskId],
     implicit: &[TaskId],
     table: &TaskTable,
-) -> Option<Vec<String>> {
-    let deps: Vec<String> = depends
-        .iter()
-        .chain(implicit.iter())
-        .filter_map(|id| table.get_name(*id).map(String::from))
-        .collect();
-    if deps.is_empty() {
-        None
-    } else {
-        Some(deps)
+) -> Result<Option<Vec<String>>, NikaError> {
+    let mut deps = Vec::new();
+    for id in depends.iter().chain(implicit.iter()) {
+        let name = table.get_name(*id).ok_or_else(|| NikaError::ValidationError {
+            reason: format!(
+                "Lowering: TaskId({}) not found in TaskTable (invariant violation)",
+                id.0
+            ),
+        })?;
+        deps.push(name.to_string());
     }
+    Ok(if deps.is_empty() { None } else { Some(deps) })
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +678,7 @@ mod tests {
     #[test]
     fn lower_empty_workflow() {
         let wf = dummy_workflow();
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert_eq!(lowered.schema, "nika/workflow@0.12");
         assert_eq!(lowered.provider, "claude");
         assert!(lowered.tasks.is_empty());
@@ -685,7 +691,7 @@ mod tests {
         let mut wf = dummy_workflow();
         wf.provider = Some("openai".to_string());
         wf.model = Some("gpt-4o".to_string());
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert_eq!(lowered.provider, "openai");
         assert_eq!(lowered.model.as_deref(), Some("gpt-4o"));
     }
@@ -724,7 +730,7 @@ mod tests {
             span: Span::dummy(),
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert_eq!(lowered.tasks.len(), 1);
         let task = &lowered.tasks[0];
         assert_eq!(task.id, "step1");
@@ -761,7 +767,7 @@ mod tests {
             ..dummy_task(id, "build")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         match &lowered.tasks[0].action {
             TaskAction::Exec { exec: e } => {
                 assert_eq!(e.command, "npm run build");
@@ -799,7 +805,7 @@ mod tests {
             ..dummy_task(id, "fetch_data")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         match &lowered.tasks[0].action {
             TaskAction::Fetch { fetch } => {
                 assert_eq!(fetch.url, "https://api.example.com");
@@ -830,7 +836,7 @@ mod tests {
             ..dummy_task(id, "call_tool")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         match &lowered.tasks[0].action {
             TaskAction::Invoke { invoke } => {
                 assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
@@ -860,7 +866,7 @@ mod tests {
             ..dummy_task(id, "researcher")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         match &lowered.tasks[0].action {
             TaskAction::Agent { agent } => {
                 assert_eq!(agent.prompt, "Research AI papers");
@@ -892,7 +898,7 @@ mod tests {
             ..dummy_task(id_c, "c")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
 
         // Task-level flow field
         assert!(lowered.tasks[0].flow.is_none()); // a: no deps
@@ -922,7 +928,7 @@ mod tests {
             ..dummy_task(id, "par")
         });
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         let task = &lowered.tasks[0];
         let items = task.for_each.as_ref().unwrap();
         assert!(items.is_array());
@@ -1023,7 +1029,7 @@ mod tests {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("t");
         wf.tasks.push(dummy_task(id, "t"));
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(lowered.tasks[0].with_spec.is_none());
     }
 
@@ -1041,7 +1047,7 @@ mod tests {
             dir: Some("./output".to_string()),
             ..Default::default()
         });
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(
             lowered.artifacts.is_none(),
             "lower() drops workflow-level artifacts"
@@ -1054,7 +1060,7 @@ mod tests {
     fn lower_drops_workflow_log() {
         let mut wf = dummy_workflow();
         wf.log = Some(crate::ast::logging::LogConfig::default());
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(
             lowered.log.is_none(),
             "lower() drops workflow-level log config"
@@ -1074,7 +1080,7 @@ mod tests {
             },
         );
         wf.agents = Some(agents);
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(
             lowered.agents.is_none(),
             "lower() drops workflow-level agents"
@@ -1091,7 +1097,7 @@ mod tests {
         let mut task = dummy_task(id, "t");
         task.artifact = Some(crate::ast::artifact::ArtifactSpec::Enabled(true));
         wf.tasks.push(task);
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(
             lowered.tasks[0].artifact.is_none(),
             "lower_task() sets artifact to None"
@@ -1106,7 +1112,7 @@ mod tests {
         let mut task = dummy_task(id, "t");
         task.log = Some(crate::ast::logging::LogConfig::default());
         wf.tasks.push(task);
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(
             lowered.tasks[0].log.is_none(),
             "lower_task() sets log to None"
@@ -1124,7 +1130,7 @@ mod tests {
         let mut task = dummy_task(id, "t");
         task.structured = Some(StructuredOutputSpec::with_file_schema("./schema.json"));
         wf.tasks.push(task);
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         let structured = lowered.tasks[0]
             .structured
             .as_ref()
@@ -1145,7 +1151,7 @@ mod tests {
         task.log = Some(crate::ast::logging::LogConfig::default());
         wf.tasks.push(task);
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         assert!(lowered.tasks[0].artifact.is_none());
         assert!(lowered.tasks[0].log.is_none());
 
@@ -1176,7 +1182,7 @@ mod tests {
         });
         wf.tasks.push(task);
 
-        let lowered = lower(wf);
+        let lowered = lower(wf).unwrap();
         // The infer action does not carry retry config; it is silently dropped
         match &lowered.tasks[0].action {
             TaskAction::Infer { infer } => {
@@ -1184,5 +1190,53 @@ mod tests {
             }
             _ => panic!("expected Infer action"),
         }
+    }
+
+    // =========================================================================
+    // Defense-in-depth: task_dep_names must reject dangling TaskIds
+    // =========================================================================
+
+    #[test]
+    fn task_dep_names_rejects_dangling_task_id() {
+        let mut table = TaskTable::new();
+        table.insert("step1");
+        let dangling = TaskId(99);
+
+        let result = task_dep_names(&[dangling], &[], &table);
+        assert!(result.is_err(), "Dangling TaskId should be rejected in lowering");
+    }
+
+    #[test]
+    fn task_dep_names_valid_ids_resolve() {
+        let mut table = TaskTable::new();
+        let id_a = table.insert("a");
+        let id_b = table.insert("b");
+
+        let result = task_dep_names(&[id_a], &[id_b], &table);
+        let deps = result.expect("valid TaskIds should resolve").expect("should be Some");
+        assert_eq!(deps, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn task_dep_names_empty_returns_none() {
+        let table = TaskTable::new();
+        let result = task_dep_names(&[], &[], &table);
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[test]
+    fn lower_rejects_dangling_task_id_in_deps() {
+        let mut wf = dummy_workflow();
+        let id_a = wf.task_table.insert("a");
+        let id_b = wf.task_table.insert("b");
+
+        wf.tasks.push(dummy_task(id_a, "a"));
+        wf.tasks.push(AnalyzedTask {
+            depends_on: vec![TaskId(99)], // dangling
+            ..dummy_task(id_b, "b")
+        });
+
+        let result = lower(wf);
+        assert!(result.is_err(), "lower() should reject dangling TaskId in depends_on");
     }
 }
