@@ -42,11 +42,11 @@ WORKFLOW EXECUTION:
     nika check <file> --strict    Validate + test MCP connections
 
 INTERACTIVE MODES:
-    nika ui                       TUI (Explorer view by default)
+    nika ui                       TUI (Studio view by default)
     nika ui --view=chat           TUI Chat view
-    nika ui --view=editor         TUI Editor view
+    nika ui --view=runner         TUI Runner view
     nika chat                     TUI Chat (shortcut)
-    nika studio [file]            TUI Editor (shortcut)
+    nika studio [file]            TUI Studio (shortcut)
 
 CONFIGURATION:
     nika config list              Show all config values
@@ -67,9 +67,9 @@ PROVIDER MANAGEMENT:
     nika provider migrate         Move env vars to keychain
 
 MCP SERVER MANAGEMENT:
-    nika mcp list -w flow.yaml    List servers in workflow
-    nika mcp test flow.yaml srv   Test server connection
-    nika mcp tools flow.yaml srv  List available tools
+    nika mcp list -w workflow.yaml List servers in workflow
+    nika mcp test workflow.yaml s  Test server connection
+    nika mcp tools workflow.yaml s List available tools
 
 TRACES:
     nika trace list               List execution traces
@@ -90,10 +90,10 @@ ENVIRONMENT VARIABLES:
     NIKA_MODEL_PATH               Native inference model path
 
 TUI VIEWS (in nika ui):
-    [e] Explorer   File browser + DAG preview
-    [c] Chat       AI agent conversation
-    [d] Editor     YAML workflow editor
-    [r] Runner     Real-time execution
+    [1/s] Studio     File browser + YAML editor + DAG preview
+    [2/r] Runner     Real-time execution monitoring
+    [3/c] Chat       AI agent conversation
+    [4/,] Settings   Provider config, theme, preferences
 
 DOCUMENTATION:
     https://github.com/SuperNovae-studio/nika"#;
