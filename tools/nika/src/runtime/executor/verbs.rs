@@ -505,10 +505,14 @@ impl TaskExecutor {
                 cmd.current_dir(cwd);
             }
 
-            // Add environment variables if specified
+            // Add environment variables if specified (validate first)
             if let Some(ref env_vars) = params.env {
+                let pairs: Vec<(String, String)> = env_vars
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                crate::runtime::security::validate_env_vars(&pairs)?;
                 for (key, value) in env_vars {
-                    // Resolve templates in env values
                     let resolved_value = template_resolve(value, bindings, datastore)?;
                     cmd.env(key, resolved_value.as_ref());
                 }
@@ -545,10 +549,14 @@ impl TaskExecutor {
                 cmd.current_dir(cwd);
             }
 
-            // Add environment variables if specified
+            // Add environment variables if specified (validate first)
             if let Some(ref env_vars) = params.env {
+                let pairs: Vec<(String, String)> = env_vars
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                crate::runtime::security::validate_env_vars(&pairs)?;
                 for (key, value) in env_vars {
-                    // Resolve templates in env values
                     let resolved_value = template_resolve(value, bindings, datastore)?;
                     cmd.env(key, resolved_value.as_ref());
                 }

