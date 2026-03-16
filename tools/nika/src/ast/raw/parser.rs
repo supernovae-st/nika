@@ -370,6 +370,25 @@ fn parse_action(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<RawTaskAction>, ParseError> {
+    // Reject tasks with multiple verbs (must have exactly 0 or 1)
+    let verb_keys = ["infer", "exec", "fetch", "invoke", "agent"];
+    let found: Vec<&str> = verb_keys
+        .iter()
+        .filter(|k| map.get_node(k).is_some())
+        .copied()
+        .collect();
+    if found.len() > 1 {
+        let span = marked_span_to_span(file, map.span());
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span,
+            message: format!(
+                "task has multiple verbs ({}); each task must have exactly one",
+                found.join(", ")
+            ),
+        });
+    }
+
     // Check for infer verb
     if let Some(node) = map.get_node("infer") {
         let action = parse_infer_action(file, node)?;
@@ -1961,6 +1980,26 @@ tasks:
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::MissingField);
         assert!(err.message.contains("prompt"));
+    }
+
+    #[test]
+    fn test_parse_rejects_multiple_verbs_in_task() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: ambiguous
+    infer: "Generate something"
+    exec: "echo hello"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "task with multiple verbs should be rejected");
+        let err = result.unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::InvalidType);
+        assert!(
+            err.message.contains("multiple verbs"),
+            "error should mention multiple verbs, got: {}",
+            err.message
+        );
     }
 
     #[test]
