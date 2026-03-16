@@ -1491,6 +1491,16 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 result
                             });
                         }
+                    } else {
+                        // Empty for_each array: store empty array result immediately
+                        debug!(
+                            task_id = %task.name,
+                            "for_each items array is empty, storing empty result"
+                        );
+                        self.datastore.insert(
+                            intern(&task.name),
+                            TaskResult::success(Value::Array(vec![]), std::time::Duration::ZERO),
+                        );
                     }
                 } else {
                     // Regular task without for_each
@@ -2857,6 +2867,53 @@ mod tests {
             error_msg.contains("not found"),
             "Error should mention path segment not found, got: {}",
             error_msg
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH EMPTY ARRAY EDGE CASE
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn for_each_empty_array_completes_with_empty_result() {
+        let workflow = create_for_each_workflow(
+            "empty_loop",
+            "[]",      // empty JSON array
+            "item",
+            "echo {{with.item}}",
+            None,
+            true,
+            false,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Workflow with empty for_each should succeed, got: {:?}",
+            result.err()
+        );
+
+        // Parent task should have a result (empty array, not missing)
+        let parent_result = runner.datastore.get("empty_loop");
+        assert!(
+            parent_result.is_some(),
+            "for_each with empty array should store a result"
+        );
+
+        let result = parent_result.unwrap();
+        assert!(
+            result.is_success(),
+            "for_each with empty array should be success"
+        );
+
+        // Output should be an empty array "[]"
+        let output = result.output_str();
+        assert_eq!(
+            output.trim(),
+            "[]",
+            "for_each with empty array should produce empty array, got: {}",
+            output
         );
     }
 
