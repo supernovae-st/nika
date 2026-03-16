@@ -1,0 +1,54 @@
+# Test: output/11-structured-file-schema
+# Tests: Structured output with file-based JSON Schema
+# Expected: Schema file resolved, validated at check-time and enforced at runtime
+# Validates: NIKA-013/014 check-time validation + Layer 0 tool injection
+
+schema: "nika/workflow@0.12"
+workflow: test-structured-file-schema
+description: "Test structured output with file-based schemas"
+
+provider: claude
+
+tasks:
+  # Test 1: output.schema as file path
+  - id: output_file_schema
+    description: "Generate user profile using file-based schema via output:"
+    infer:
+      prompt: "Generate a realistic user profile with name, age (25-40), and email."
+    output:
+      format: json
+      schema: ./schemas/user-profile.json
+
+  # Test 2: structured shorthand with file path
+  - id: structured_file_schema
+    description: "Generate user profile using file-based schema via structured:"
+    infer:
+      prompt: "Generate a different user profile with name, age (30-50), and email."
+    structured: ./schemas/user-profile.json
+
+  # Test 3: structured with file path + Layer 0 tool injection
+  - id: structured_with_tool_injection
+    description: "Generate user profile with tool injection enabled"
+    infer:
+      prompt: "Generate a user profile for a software engineer."
+    structured:
+      schema: ./schemas/user-profile.json
+      enable_tool_injection: true
+      max_retries: 2
+      enable_repair: true
+
+  # Test 4: Verify outputs from all approaches
+  - id: verify
+    with:
+      output_result: $output_file_schema
+      structured_result: $structured_file_schema
+      injected_result: $structured_with_tool_injection
+    infer:
+      prompt: |
+        Confirm these three user profiles are valid JSON with name, age, email:
+
+        Output schema result: {{with.output_result}}
+        Structured schema result: {{with.structured_result}}
+        Tool injection result: {{with.injected_result}}
+
+        Reply with: "All 3 profiles valid" if they all have the required fields.
