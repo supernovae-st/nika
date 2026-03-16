@@ -448,7 +448,13 @@ impl RegexGuardrail {
     fn get_compiled(&self) -> Option<&regex::Regex> {
         // OnceLock::get_or_init is stable; we store Option<Regex> to handle errors
         self.compiled
-            .get_or_init(|| regex::Regex::new(&self.pattern).ok())
+            .get_or_init(|| match regex::Regex::new(&self.pattern) {
+                Ok(re) => Some(re),
+                Err(e) => {
+                    tracing::warn!(pattern = %self.pattern, error = %e, "Invalid guardrail regex pattern");
+                    None
+                }
+            })
             .as_ref()
     }
 
@@ -617,7 +623,13 @@ impl LlmGuardrail {
     /// Returns None if pattern is invalid (should be caught by validate()).
     fn get_compiled_pass_pattern(&self) -> Option<&regex::Regex> {
         self.compiled_pass_pattern
-            .get_or_init(|| regex::Regex::new(&self.pass_pattern).ok())
+            .get_or_init(|| match regex::Regex::new(&self.pass_pattern) {
+                Ok(re) => Some(re),
+                Err(e) => {
+                    tracing::warn!(pattern = %self.pass_pattern, error = %e, "Invalid guardrail pass_pattern regex");
+                    None
+                }
+            })
             .as_ref()
     }
 
