@@ -1939,7 +1939,7 @@ mod tests {
     /// Helper to create a minimal workflow with exec tasks
     fn create_exec_workflow(
         tasks: Vec<(&str, &str)>,
-        flows: Vec<(&str, &str)>,
+        edges: Vec<(&str, &str)>,
     ) -> AnalyzedWorkflow {
         let mut task_table = TaskTable::new();
         for (id, _) in &tasks {
@@ -1950,7 +1950,7 @@ mod tests {
             .into_iter()
             .map(|(id, cmd)| {
                 let task_id = task_table.get_id(id).unwrap();
-                let depends_on: Vec<_> = flows
+                let depends_on: Vec<_> = edges
                     .iter()
                     .filter(|(_, tgt)| *tgt == id)
                     .filter_map(|(src, _)| task_table.get_id(src))
