@@ -11,7 +11,7 @@ src/
 ├── error.rs             # NikaError (40+ variants, NIKA-XXX codes)
 ├── core/                # Zero-dep definitions
 │   ├── providers.rs     # KNOWN_PROVIDERS (18: 6 LLM + 11 MCP + 1 Local)
-│   ├── models.rs        # KNOWN_MODELS (16 curated for native inference)
+│   ├── models.rs        # KNOWN_MODELS (15 curated for native inference)
 │   └── mcp_aliases.rs   # MCP_ALIASES (48 server shortcuts)
 ├── ast/                 # Three-phase YAML → Runtime
 │   ├── raw/             # Phase 1: YAML → Raw AST (spans preserved)
@@ -59,7 +59,7 @@ src/
 | Path | Purpose |
 |------|---------|
 | `src/core/providers.rs` | KNOWN_PROVIDERS (18) |
-| `src/core/models.rs` | KNOWN_MODELS (16) |
+| `src/core/models.rs` | KNOWN_MODELS (15) |
 | `src/core/mcp_aliases.rs` | MCP_ALIASES (48) |
 | `src/ast/lower.rs` | Three-phase lowering |
 | `src/runtime/executor.rs` | Task dispatch |
