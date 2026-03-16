@@ -44,6 +44,9 @@ pub struct WriteResult {
     pub lines_written: usize,
 }
 
+/// Maximum write size: 10 MB
+const MAX_WRITE_SIZE: usize = 10 * 1024 * 1024;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // WRITE TOOL
 // ═══════════════════════════════════════════════════════════════════════════
@@ -73,6 +76,18 @@ impl WriteTool {
 
         // Check permission
         self.ctx.check_permission(ToolOperation::Write)?;
+
+        // Check content size limit
+        if params.content.len() > MAX_WRITE_SIZE {
+            return Err(NikaError::ToolError {
+                code: ToolErrorCode::WriteFailed.code(),
+                message: format!(
+                    "Content size ({} bytes) exceeds maximum write size ({} bytes)",
+                    params.content.len(),
+                    MAX_WRITE_SIZE
+                ),
+            });
+        }
 
         // Fail if file already exists (use Edit for modifications)
         if path.exists() {
@@ -307,6 +322,35 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Permission"));
+    }
+
+    #[tokio::test]
+    async fn test_write_rejects_oversized_content() {
+        let (temp_dir, ctx) = setup_test().await;
+        let file_path = temp_dir
+            .path()
+            .join("huge.txt")
+            .to_string_lossy()
+            .to_string();
+
+        // 11MB exceeds the 10MB limit
+        let oversized = "x".repeat(11 * 1024 * 1024);
+
+        let tool = WriteTool::new(ctx);
+        let result = tool
+            .execute(WriteParams {
+                file_path,
+                content: oversized,
+            })
+            .await;
+
+        assert!(result.is_err(), "oversized content should be rejected");
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("exceeds"),
+            "error should mention size limit, got: {}",
+            err
+        );
     }
 
     #[tokio::test]
