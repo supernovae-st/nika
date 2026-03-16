@@ -132,6 +132,24 @@ pub enum NikaError {
     #[error("[NIKA-012] Task '{task_id}' timed out after {timeout_ms}ms")]
     TaskTimeout { task_id: String, timeout_ms: u64 },
 
+    #[error("[NIKA-013] Schema file not found for task '{task_id}': {path}")]
+    #[diagnostic(
+        code(nika::schema_file_not_found),
+        help("Ensure the schema file exists relative to the workflow file")
+    )]
+    SchemaFileNotFound { task_id: String, path: String },
+
+    #[error("[NIKA-014] Invalid JSON in schema file for task '{task_id}': {path}: {reason}")]
+    #[diagnostic(
+        code(nika::schema_file_invalid),
+        help("Ensure the schema file contains valid JSON")
+    )]
+    SchemaFileInvalid {
+        task_id: String,
+        path: String,
+        reason: String,
+    },
+
     // ═══════════════════════════════════════════
     // DAG ERRORS (020-029)
     // ═══════════════════════════════════════════
@@ -615,6 +633,8 @@ impl NikaError {
             // Schema errors
             Self::TaskFailed { .. } => "NIKA-011",
             Self::TaskTimeout { .. } => "NIKA-012",
+            Self::SchemaFileNotFound { .. } => "NIKA-013",
+            Self::SchemaFileInvalid { .. } => "NIKA-014",
             // DAG errors
             Self::CycleDetected { .. } => "NIKA-020",
             Self::MissingDependency { .. } => "NIKA-021",
@@ -753,6 +773,12 @@ impl FixSuggestion for NikaError {
             NikaError::YamlParse(_) => Some("Check YAML syntax: indentation and quoting"),
             NikaError::TaskFailed { .. } => Some("Check task configuration and dependencies"),
             NikaError::TaskTimeout { .. } => Some("Increase timeout or optimize the task"),
+            NikaError::SchemaFileNotFound { .. } => {
+                Some("Check the schema file path is correct relative to the workflow file")
+            }
+            NikaError::SchemaFileInvalid { .. } => {
+                Some("Ensure the schema file contains valid JSON (not YAML)")
+            }
             NikaError::CycleDetected { .. } => {
                 Some("Remove circular dependencies from your workflow")
             }
@@ -1052,6 +1078,34 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-012]"));
         assert!(msg.contains("5000"));
+    }
+
+    #[test]
+    fn test_schema_file_not_found_error() {
+        let err = NikaError::SchemaFileNotFound {
+            task_id: "extract".to_string(),
+            path: "./schemas/user.json".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-013");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-013]"));
+        assert!(msg.contains("extract"));
+        assert!(msg.contains("./schemas/user.json"));
+    }
+
+    #[test]
+    fn test_schema_file_invalid_error() {
+        let err = NikaError::SchemaFileInvalid {
+            task_id: "generate".to_string(),
+            path: "./schemas/broken.json".to_string(),
+            reason: "expected value at line 1".to_string(),
+        };
+        assert_eq!(err.code(), "NIKA-014");
+        let msg = err.to_string();
+        assert!(msg.contains("[NIKA-014]"));
+        assert!(msg.contains("generate"));
+        assert!(msg.contains("broken.json"));
+        assert!(msg.contains("expected value"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

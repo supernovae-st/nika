@@ -6,6 +6,7 @@ use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};
 use colored::Colorize;
 use std::path::{Path, PathBuf};
 
+use nika::ast::output::SchemaRef;
 use nika::ast::schema_validator::WorkflowSchemaValidator;
 use nika::ast::{expand_includes, parse_workflow, TaskAction};
 use nika::dag::{validate_bindings, Dag};
@@ -747,6 +748,25 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     flow_graph.detect_cycles()?;
     validate_bindings(&workflow, &flow_graph)?;
 
+    // Phase 4: Validate structured output schema files
+    let mut schema_count = 0u32;
+    for task in &workflow.tasks {
+        // Check output.schema file references
+        if let Some(ref output) = task.output {
+            if let Some(SchemaRef::File(ref path)) = output.schema {
+                validate_schema_file(&task.id, path, base_path).await?;
+                schema_count += 1;
+            }
+        }
+        // Check structured.schema file references
+        if let Some(ref spec) = task.structured {
+            if let SchemaRef::File(ref path) = spec.schema {
+                validate_schema_file(&task.id, path, base_path).await?;
+                schema_count += 1;
+            }
+        }
+    }
+
     println!("{} Workflow '{}' is valid", "✓".green(), file);
     println!("  Provider: {}", workflow.provider);
     println!(
@@ -755,6 +775,42 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
     );
     println!("  Tasks: {}", workflow.tasks.len());
     println!("  Flows: {}", workflow.flow_count());
+    if schema_count > 0 {
+        println!("  Schemas: {} validated", schema_count);
+    }
+
+    Ok(())
+}
+
+/// Validate a schema file exists and contains valid JSON.
+async fn validate_schema_file(
+    task_id: &str,
+    path: &str,
+    base_path: &Path,
+) -> Result<(), NikaError> {
+    let resolved = base_path.join(path);
+    if !resolved.exists() {
+        return Err(NikaError::SchemaFileNotFound {
+            task_id: task_id.to_string(),
+            path: path.to_string(),
+        });
+    }
+
+    let content =
+        tokio::fs::read_to_string(&resolved)
+            .await
+            .map_err(|e| NikaError::SchemaFileNotFound {
+                task_id: task_id.to_string(),
+                path: format!("{}: {}", path, e),
+            })?;
+
+    serde_json::from_str::<serde_json::Value>(&content).map_err(|e| {
+        NikaError::SchemaFileInvalid {
+            task_id: task_id.to_string(),
+            path: path.to_string(),
+            reason: e.to_string(),
+        }
+    })?;
 
     Ok(())
 }
@@ -779,6 +835,20 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
     let flow_graph = Dag::from_workflow(&workflow)?;
     flow_graph.detect_cycles()?;
     validate_bindings(&workflow, &flow_graph)?;
+
+    // Validate structured output schema files
+    for task in &workflow.tasks {
+        if let Some(ref output) = task.output {
+            if let Some(SchemaRef::File(ref path)) = output.schema {
+                validate_schema_file(&task.id, path, base_path).await?;
+            }
+        }
+        if let Some(ref spec) = task.structured {
+            if let SchemaRef::File(ref path) = spec.schema {
+                validate_schema_file(&task.id, path, base_path).await?;
+            }
+        }
+    }
 
     // Phase 3: MCP parameter validation (strict mode)
     println!(
