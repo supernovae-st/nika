@@ -202,10 +202,7 @@ impl TaskExecutor {
                             tokio::fs::read_to_string(path)
                                 .await
                                 .map_err(|e| NikaError::SchemaFailed {
-                                    details: format!(
-                                        "Failed to read schema '{}': {}",
-                                        path, e
-                                    ),
+                                    details: format!("Failed to read schema '{}': {}", path, e),
                                 })
                                 .and_then(|content| {
                                     serde_json::from_str(&content).map_err(|e| {
@@ -222,11 +219,8 @@ impl TaskExecutor {
 
                     if let Ok(schema_value) = schema_value {
                         let submit_tool =
-                            crate::runtime::submit_tool::DynamicSubmitTool::new(
-                                schema_value,
-                            );
-                        let tools: Vec<Box<dyn rig::tool::ToolDyn>> =
-                            vec![Box::new(submit_tool)];
+                            crate::runtime::submit_tool::DynamicSubmitTool::new(schema_value);
+                        let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(submit_tool)];
 
                         debug!(
                             task_id = %task_id,
@@ -242,10 +236,7 @@ impl TaskExecutor {
                             error: None,
                         });
 
-                        match provider
-                            .infer_with_tools(&prompt, tools, model)
-                            .await
-                        {
+                        match provider.infer_with_tools(&prompt, tools, model).await {
                             Ok(tool_result) => {
                                 debug!(
                                     task_id = %task_id,
@@ -253,16 +244,14 @@ impl TaskExecutor {
                                     "Layer 0: tool injection succeeded"
                                 );
 
-                                self.event_log.emit(
-                                    EventKind::StructuredOutputAttempt {
-                                        task_id: Arc::clone(task_id),
-                                        layer: 0,
-                                        layer_name: "tool_injection".to_string(),
-                                        attempt: 1,
-                                        success: true,
-                                        error: None,
-                                    },
-                                );
+                                self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                    task_id: Arc::clone(task_id),
+                                    layer: 0,
+                                    layer_name: "tool_injection".to_string(),
+                                    attempt: 1,
+                                    success: true,
+                                    error: None,
+                                });
 
                                 // Still validate through the engine as safety net
                                 if let Some(spec) = policy.to_structured_spec() {
@@ -271,10 +260,7 @@ impl TaskExecutor {
                                         Arc::new(self.event_log.clone()),
                                     );
 
-                                    match engine
-                                        .validate(task_id.as_ref(), &tool_result)
-                                        .await
-                                    {
+                                    match engine.validate(task_id.as_ref(), &tool_result).await {
                                         Ok(result) => {
                                             debug!(
                                                 task_id = %task_id,
@@ -303,16 +289,14 @@ impl TaskExecutor {
                                     error = %e,
                                     "Layer 0 failed, falling through to streaming"
                                 );
-                                self.event_log.emit(
-                                    EventKind::StructuredOutputAttempt {
-                                        task_id: Arc::clone(task_id),
-                                        layer: 0,
-                                        layer_name: "tool_injection".to_string(),
-                                        attempt: 1,
-                                        success: false,
-                                        error: Some(e.to_string()),
-                                    },
-                                );
+                                self.event_log.emit(EventKind::StructuredOutputAttempt {
+                                    task_id: Arc::clone(task_id),
+                                    layer: 0,
+                                    layer_name: "tool_injection".to_string(),
+                                    attempt: 1,
+                                    success: false,
+                                    error: Some(e.to_string()),
+                                });
                                 // Fall through to streaming path
                             }
                         }
@@ -1013,12 +997,46 @@ impl TaskExecutor {
         }
 
         // Create rig-based agent loop
-        let mut agent_loop = RigAgentLoop::new(
+        let agent_loop = RigAgentLoop::new(
             task_id.to_string(),
             resolved_agent,
             self.event_log.clone(),
             mcp_clients,
         )?;
+
+        // Inject DynamicSubmitTool if structured output is configured.
+        // For agent verb, submit_result is available but NOT forced —
+        // the agent calls it when ready (unlike infer: which uses tool_choice: Required).
+        let mut agent_loop = if let Some(policy) = output_policy {
+            if policy.is_structured() {
+                if let Some(schema_ref) = &policy.schema {
+                    let schema_value = match schema_ref {
+                        crate::ast::output::SchemaRef::Inline(v) => Some(v.clone()),
+                        crate::ast::output::SchemaRef::File(path) => {
+                            match tokio::fs::read_to_string(path).await {
+                                Ok(content) => serde_json::from_str(&content).ok(),
+                                Err(_) => None,
+                            }
+                        }
+                    };
+                    if let Some(schema) = schema_value {
+                        debug!(
+                            task_id = %task_id,
+                            "Agent: injecting DynamicSubmitTool for structured output"
+                        );
+                        agent_loop.with_structured_output(schema)
+                    } else {
+                        agent_loop
+                    }
+                } else {
+                    agent_loop
+                }
+            } else {
+                agent_loop
+            }
+        } else {
+            agent_loop
+        };
 
         let start = std::time::Instant::now();
 

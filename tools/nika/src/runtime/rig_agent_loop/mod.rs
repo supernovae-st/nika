@@ -46,6 +46,7 @@ use crate::error::NikaError;
 use crate::event::EventLog;
 use crate::mcp::McpClient;
 use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
+use crate::runtime::submit_tool::DynamicSubmitTool;
 use crate::runtime::SkillInjector;
 use crate::tools::{
     EditTool, GlobTool, GrepTool, PermissionMode, ReadTool, ToolContext, WriteTool,
@@ -338,6 +339,25 @@ impl RigAgentLoop {
         self.skill_injector = Some(injector);
         self.skills_map = Some(skills_map);
         self.base_dir = Some(base_dir);
+        self
+    }
+
+    /// Inject a `DynamicSubmitTool` for structured output enforcement.
+    ///
+    /// When the task has an output policy with a JSON schema, this adds
+    /// `submit_result` as an available tool. Unlike `infer:` (which forces
+    /// `tool_choice: Required`), the agent can call `submit_result` when
+    /// ready — it's available but not forced.
+    ///
+    /// # Arguments
+    /// * `schema` - JSON Schema as `serde_json::Value` for the expected output
+    pub fn with_structured_output(mut self, schema: serde_json::Value) -> Self {
+        let submit_tool = DynamicSubmitTool::new(schema);
+        self.tools.push(Box::new(submit_tool));
+        tracing::debug!(
+            task_id = %self.task_id,
+            "Added DynamicSubmitTool (submit_result) to agent tools"
+        );
         self
     }
 
