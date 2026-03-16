@@ -330,19 +330,51 @@ pub fn compute_semantic_tokens_with_ast(
     uri: &Url,
     text: &str,
 ) -> Vec<RawToken> {
-    // If we have a cached AST, use text-based scanning enriched with AST info
-    // (The text scanner already produces good results; the AST mainly helps
-    // confirm task names and MCP servers for declaration modifiers.)
-    if let Some(cached) = ast_index.get(uri) {
-        if cached.analyzed.is_some() {
-            // Use text-based tokens as the base (they produce accurate positions)
-            // The AST confirms the semantic classification
-            return compute_semantic_tokens(text);
+    // Start with text-based tokens (accurate positions from line scanning)
+    let mut tokens = compute_semantic_tokens(text);
+
+    // If we have a cached analyzed AST, enrich tokens with semantic info
+    let task_names: std::collections::HashSet<String> =
+        ast_index.get_task_names(uri).into_iter().collect();
+
+    if task_names.is_empty() {
+        return tokens;
+    }
+
+    // Collect source lines for text extraction
+    let lines: Vec<&str> = text.lines().collect();
+
+    // Enrich VARIABLE tokens: cross-reference with AST-known task names
+    // to confirm declaration modifiers on task ID definitions
+    for token in &mut tokens {
+        if token.token_type != TOKEN_TYPE_VARIABLE {
+            continue;
+        }
+
+        // Extract the token text from source
+        let line_idx = token.line as usize;
+        if line_idx >= lines.len() {
+            continue;
+        }
+        let line = lines[line_idx];
+        let start = token.start as usize;
+        let end = start + token.length as usize;
+        if end > line.len() {
+            continue;
+        }
+        let token_text = &line[start..end];
+
+        // If this token text matches an AST-known task name,
+        // ensure the declaration modifier is set for id: definitions
+        if task_names.contains(token_text) {
+            let trimmed = line.trim();
+            if trimmed.starts_with("- id:") {
+                token.token_modifiers |= TOKEN_MOD_DECLARATION;
+            }
         }
     }
 
-    // Fallback: no cached AST
-    compute_semantic_tokens(text)
+    tokens
 }
 
 /// Delta-encode raw tokens into LSP SemanticTokens format
@@ -1057,5 +1089,93 @@ tasks:
             decl_tokens.len() >= 2,
             "Should find at least 2 task ID declarations"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_ast_enrichment_declaration_modifiers_match_task_names() {
+        // Workflow with 3 tasks: the AST enrichment should confirm declaration
+        // modifiers only for tokens whose text matches AST-known task names
+        let text = r#"schema: nika/workflow@0.12
+workflow: pipeline
+tasks:
+  - id: fetch_data
+    exec: "curl http://example.com"
+  - id: transform
+    depends_on: [fetch_data]
+    exec: "jq '.data'"
+  - id: publish
+    depends_on: [transform]
+    infer: "Summarize the results"
+"#;
+        let uri = Url::parse("file:///enrichment-test.nika.yaml").unwrap();
+        let ast_index = AstIndex::new();
+        ast_index.parse_document(&uri, text, 0);
+
+        // Verify AST knows all 3 task names
+        let task_names = ast_index.get_task_names(&uri);
+        assert_eq!(task_names.len(), 3, "AST should know 3 task names");
+        assert!(task_names.contains(&"fetch_data".to_string()));
+        assert!(task_names.contains(&"transform".to_string()));
+        assert!(task_names.contains(&"publish".to_string()));
+
+        let tokens = compute_semantic_tokens_with_ast(&ast_index, &uri, text);
+        let lines: Vec<&str> = text.lines().collect();
+
+        // Collect all VARIABLE tokens and extract their text
+        let var_tokens: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.token_type == TOKEN_TYPE_VARIABLE)
+            .collect();
+
+        // Declaration tokens: VARIABLE + TOKEN_MOD_DECLARATION set
+        let decl_tokens: Vec<_> = var_tokens
+            .iter()
+            .filter(|t| t.token_modifiers & TOKEN_MOD_DECLARATION != 0)
+            .collect();
+
+        // Should have exactly 3 task ID declarations (fetch_data, transform, publish)
+        assert_eq!(
+            decl_tokens.len(),
+            3,
+            "Should find exactly 3 task ID declarations, got: {:?}",
+            decl_tokens
+        );
+
+        // Each declaration token text should match an AST-known task name
+        for tok in &decl_tokens {
+            let line_text = lines[tok.line as usize];
+            let tok_text = &line_text[tok.start as usize..(tok.start + tok.length) as usize];
+            assert!(
+                task_names.contains(&tok_text.to_string()),
+                "Declaration token '{}' should be an AST-known task name",
+                tok_text
+            );
+        }
+
+        // Reference tokens: VARIABLE with NO declaration modifier
+        let ref_tokens: Vec<_> = var_tokens
+            .iter()
+            .filter(|t| t.token_modifiers & TOKEN_MOD_DECLARATION == 0)
+            .collect();
+
+        // Should have exactly 2 references (fetch_data in depends_on, transform in depends_on)
+        assert_eq!(
+            ref_tokens.len(),
+            2,
+            "Should find exactly 2 task ID references, got: {:?}",
+            ref_tokens
+        );
+
+        // Each reference token text should also match an AST-known task name
+        for tok in &ref_tokens {
+            let line_text = lines[tok.line as usize];
+            let tok_text = &line_text[tok.start as usize..(tok.start + tok.length) as usize];
+            assert!(
+                task_names.contains(&tok_text.to_string()),
+                "Reference token '{}' should be an AST-known task name",
+                tok_text
+            );
+        }
     }
 }
