@@ -717,7 +717,7 @@ async fn run_workflow(
         workflow.model.as_deref().unwrap_or("(default)").cyan()
     );
 
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow)?;
     let output = runner.run().await?;
 
     if !output.is_empty() {

@@ -38,7 +38,7 @@ struct TestResult {
 
 async fn run_workflow_full(workflow: AnalyzedWorkflow, timeout_secs: u64) -> TestResult {
     let (event_log, mut rx) = EventLog::new_with_broadcast();
-    let mut runner = Runner::with_event_log(workflow, event_log);
+    let mut runner = Runner::with_event_log(workflow, event_log).unwrap();
     let handle = tokio::spawn(async move { runner.run().await });
 
     let mut result = TestResult {

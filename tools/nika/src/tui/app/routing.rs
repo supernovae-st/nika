@@ -526,7 +526,14 @@ impl App {
         self.workflow_done = false;
 
         // 6. Create Runner with quiet mode (no console output)
-        let mut runner = Runner::with_event_log(workflow, event_log).quiet();
+        let mut runner = match Runner::with_event_log(workflow, event_log) {
+            Ok(r) => r.quiet(),
+            Err(e) => {
+                self.set_status(&format!("DAG error: {}", e));
+                tracing::error!("Failed to construct Runner DAG: {}", e);
+                return;
+            }
+        };
 
         // 7. Spawn Runner in background task
         self.spawn_tracked(async move {

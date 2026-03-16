@@ -310,7 +310,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).expect("Should parse workflow");
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
 
     let result = runner.run().await;
 
@@ -566,7 +566,7 @@ tasks:
         let yaml = yaml.to_string();
         handles.spawn(async move {
             let workflow = parse_analyzed(&yaml).expect("Should parse workflow");
-            let mut runner = Runner::new(workflow);
+            let mut runner = Runner::new(workflow).unwrap();
             let result = runner.run().await;
             (i, result.is_ok())
         });

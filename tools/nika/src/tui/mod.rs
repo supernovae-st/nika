@@ -283,7 +283,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
 
     // 3. Create Runner with the broadcast-enabled EventLog and quiet mode
     // quiet() suppresses console output that would interfere with the TUI
-    let mut runner = Runner::with_event_log(workflow, event_log).quiet();
+    let mut runner = Runner::with_event_log(workflow, event_log)?.quiet();
 
     // 4. Spawn Runner in background task
     let runner_handle = tokio::spawn(async move {

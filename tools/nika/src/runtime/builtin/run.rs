@@ -282,7 +282,7 @@ impl BuiltinTool for RunTool {
             );
 
             // Create runner and inject context if provided
-            let mut runner = Runner::new(workflow).quiet();
+            let mut runner = Runner::new(workflow)?.quiet();
 
             // Inject parent context into child workflow's datastore
             if let Some(context) = params.get_context()? {

@@ -109,7 +109,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(workflow: AnalyzedWorkflow) -> Self {
+    pub fn new(workflow: AnalyzedWorkflow) -> Result<Self, NikaError> {
         Self::with_event_log(workflow, EventLog::new())
     }
 
@@ -117,15 +117,18 @@ impl Runner {
     ///
     /// Use `EventLog::new_with_broadcast()` to create an EventLog that
     /// sends events to TUI in real-time.
-    pub fn with_event_log(workflow: AnalyzedWorkflow, event_log: EventLog) -> Self {
-        // DAG construction should not fail for validated workflows.
-        // This is a programming invariant: callers must validate before constructing Runner.
-        let flow_graph = Dag::from_analyzed(&workflow).unwrap_or_else(|e| {
-            panic!(
-                "BUG: Dag::from_analyzed failed for {} tasks — workflow must be validated before Runner: {e}",
-                workflow.tasks.len()
-            )
-        });
+    ///
+    /// # Errors
+    ///
+    /// Returns `NikaError::ValidationError` if DAG construction fails
+    /// (e.g. the workflow contains cycles or invalid dependencies).
+    pub fn with_event_log(
+        workflow: AnalyzedWorkflow,
+        event_log: EventLog,
+    ) -> Result<Self, NikaError> {
+        let flow_graph = Dag::from_analyzed(&workflow).map_err(|e| NikaError::ValidationError {
+            reason: format!("DAG construction failed: {e}"),
+        })?;
         let datastore = RunContext::new();
 
         // Bridge MCP servers to old FxHashMap<String, McpConfigInline> for TaskExecutor
@@ -142,7 +145,7 @@ impl Runner {
         // Generate unique ID for this execution (used for trace files)
         let generation_id = format!("gen-{}", uuid::Uuid::new_v4());
 
-        Self {
+        Ok(Self {
             workflow,
             flow_graph,
             datastore,
@@ -154,7 +157,7 @@ impl Runner {
             paused: Arc::new(AtomicBool::new(false)),
             resume_notify: Arc::new(Notify::new()),
             resolved_assets: ResolvedAssets::default(),
-        }
+        })
     }
 
     /// Enable quiet mode to suppress console output (for TUI mode)
@@ -1745,16 +1748,18 @@ mod tests {
     #[test]
     fn test_runner_quiet_mode() {
         // Default should not be quiet
-        let runner = Runner::new(make_empty_workflow());
+        let runner = Runner::new(make_empty_workflow()).unwrap();
         assert!(!runner.quiet, "Runner should not be quiet by default");
 
         // quiet() should enable quiet mode
-        let runner = Runner::new(make_empty_workflow()).quiet();
+        let runner = Runner::new(make_empty_workflow()).unwrap().quiet();
         assert!(runner.quiet, "Runner should be quiet after .quiet()");
 
         // Can chain with with_event_log
         let event_log = crate::event::EventLog::new();
-        let runner = Runner::with_event_log(make_empty_workflow(), event_log).quiet();
+        let runner = Runner::with_event_log(make_empty_workflow(), event_log)
+            .unwrap()
+            .quiet();
         assert!(runner.quiet, "Runner should be quiet when chained");
     }
 
@@ -1767,7 +1772,7 @@ mod tests {
         use serde_json::json;
 
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow).with_initial_context(
+        let runner = Runner::new(workflow).unwrap().with_initial_context(
             "__parent_context__",
             json!({"key": "value", "nested": {"deep": true}}),
         );
@@ -1792,6 +1797,7 @@ mod tests {
         let workflow = make_empty_workflow();
         let event_log = EventLog::new();
         let runner = Runner::with_event_log(workflow, event_log)
+            .unwrap()
             .quiet()
             .with_initial_context("test_ctx", json!({"test": 123}));
 
@@ -1888,7 +1894,7 @@ mod tests {
             false, // no shell
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -1924,7 +1930,7 @@ mod tests {
             false,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         runner.run().await.unwrap();
 
         let parent_result = runner.datastore.get("ordered");
@@ -2025,7 +2031,7 @@ mod tests {
     #[tokio::test]
     async fn event_sequence_for_single_task() {
         let workflow = create_exec_workflow(vec![("greet", "echo hello")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         let result = runner.run().await.unwrap();
         assert_eq!(result, "hello");
@@ -2075,7 +2081,7 @@ mod tests {
             vec![("greet", "echo hello"), ("shout", "echo DONE")],
             vec![("greet", "shout")],
         );
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2119,7 +2125,7 @@ mod tests {
             vec![("task_a", "echo A"), ("task_b", "echo B")],
             vec![], // No dependencies = parallel
         );
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2156,7 +2162,7 @@ mod tests {
             vec![("a", "echo 1"), ("b", "echo 2"), ("c", "echo 3")],
             vec![("a", "b"), ("b", "c")],
         );
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2175,7 +2181,7 @@ mod tests {
             vec![("fast", "echo quick"), ("slow", "sleep 0.1 && echo done")],
             vec![("fast", "slow")],
         );
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2201,7 +2207,7 @@ mod tests {
     #[tokio::test]
     async fn failed_task_emits_task_failed_event() {
         let workflow = create_exec_workflow(vec![("fail", "exit 1")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         // Workflow run() returns Ok even when individual tasks fail
         runner
@@ -2221,7 +2227,7 @@ mod tests {
     async fn template_resolved_event_captures_before_and_after() {
         // Create workflow with task that has a command
         let workflow = create_exec_workflow(vec![("echo_test", "echo hello world")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2244,7 +2250,7 @@ mod tests {
     #[tokio::test]
     async fn event_log_to_json_serializes_correctly() {
         let workflow = create_exec_workflow(vec![("simple", "echo test")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2273,7 +2279,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "echo B")],
             vec![], // No flows = no dependencies
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 2, "Both tasks should be ready");
@@ -2290,7 +2296,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "echo B"), ("c", "echo C")],
             vec![("a", "b"), ("b", "c")],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1, "Only first task should be ready");
@@ -2300,7 +2306,7 @@ mod tests {
     #[test]
     fn get_ready_tasks_excludes_completed_tasks() {
         let workflow = create_exec_workflow(vec![("only", "echo x")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Initially task is ready
         let ready = runner.get_ready_tasks();
@@ -2320,7 +2326,7 @@ mod tests {
     #[test]
     fn all_done_returns_false_when_tasks_pending() {
         let workflow = create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         assert!(!runner.all_done(), "Not all tasks are done initially");
     }
@@ -2328,7 +2334,7 @@ mod tests {
     #[test]
     fn all_done_returns_true_when_all_completed() {
         let workflow = create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Mark all tasks as done
         runner.datastore.insert(
@@ -2348,7 +2354,7 @@ mod tests {
         // Chain: a -> b (b is final)
         let workflow =
             create_exec_workflow(vec![("a", "echo A"), ("b", "echo B")], vec![("a", "b")]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Mark tasks as done
         runner.datastore.insert(
@@ -2368,7 +2374,7 @@ mod tests {
     #[test]
     fn get_final_output_returns_none_when_no_results() {
         let workflow = create_exec_workflow(vec![("only", "echo x")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let output = runner.get_final_output();
         assert!(output.is_none(), "No output when tasks not complete");
@@ -2380,7 +2386,7 @@ mod tests {
             vec![("a", "echo A"), ("b", "exit 1")],
             vec![], // Both are final tasks (no successors)
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // a succeeds, b fails
         runner.datastore.insert(
@@ -2417,7 +2423,7 @@ mod tests {
             false,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2446,7 +2452,7 @@ mod tests {
             false,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         // Workflow completes but parent task may be marked as failed
         assert!(result.is_ok() || result.is_err());
@@ -2464,7 +2470,7 @@ mod tests {
             false,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(result.is_ok(), "Workflow should complete");
 
@@ -2517,7 +2523,7 @@ mod tests {
             None,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2549,7 +2555,7 @@ mod tests {
             Some(2),
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2581,7 +2587,7 @@ mod tests {
             None,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(result.is_ok(), "Workflow should complete");
 
@@ -2618,7 +2624,7 @@ mod tests {
             None,
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2753,7 +2759,7 @@ mod tests {
             "echo {{with.item}}",
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2778,7 +2784,7 @@ mod tests {
             "echo {{with.item}}",
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let _ = runner.run().await;
 
         let task_result = runner.datastore.get("step2");
@@ -2806,7 +2812,7 @@ mod tests {
             "echo {{with.item}}",
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let result = runner.run().await;
         assert!(
             result.is_ok(),
@@ -2831,7 +2837,7 @@ mod tests {
             "echo {{with.item}}",
         );
 
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
         let _ = runner.run().await;
 
         let task_result = runner.datastore.get("step2");
@@ -2858,16 +2864,36 @@ mod tests {
     fn with_event_log_uses_provided_event_log() {
         let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
         let custom_log = EventLog::new();
-        let runner = Runner::with_event_log(workflow, custom_log);
+        let runner = Runner::with_event_log(workflow, custom_log).unwrap();
 
         // The runner should use the provided event log
         assert!(runner.event_log().events().is_empty());
     }
 
+    #[test]
+    fn new_and_with_event_log_return_result() {
+        // Valid workflow should return Ok
+        let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
+        let result = Runner::new(workflow);
+        assert!(
+            result.is_ok(),
+            "Runner::new should return Ok for a valid workflow"
+        );
+
+        // Valid workflow with custom event log should return Ok
+        let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
+        let event_log = EventLog::new();
+        let result = Runner::with_event_log(workflow, event_log);
+        assert!(
+            result.is_ok(),
+            "Runner::with_event_log should return Ok for a valid workflow"
+        );
+    }
+
     #[tokio::test]
     async fn workflow_completed_event_has_duration() {
         let workflow = create_exec_workflow(vec![("quick", "echo fast")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2890,7 +2916,7 @@ mod tests {
     #[tokio::test]
     async fn workflow_started_event_has_generation_id() {
         let workflow = create_exec_workflow(vec![("a", "echo A")], vec![]);
-        let mut runner = Runner::new(workflow);
+        let mut runner = Runner::new(workflow).unwrap();
 
         runner.run().await.unwrap();
 
@@ -2919,7 +2945,7 @@ mod tests {
     #[test]
     fn test_cancel_token_default() {
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Should not be cancelled by default
         assert!(
@@ -2934,7 +2960,7 @@ mod tests {
         let token = CancellationToken::new();
         let token_clone = token.clone();
 
-        let runner = Runner::new(workflow).with_cancel_token(token);
+        let runner = Runner::new(workflow).unwrap().with_cancel_token(token);
 
         // Cancelling the original token should be reflected
         token_clone.cancel();
@@ -2944,7 +2970,7 @@ mod tests {
     #[test]
     fn test_cancel_token_cloning() {
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let token1 = runner.cancel_token();
         let token2 = runner.cancel_token();
@@ -2961,7 +2987,9 @@ mod tests {
         let workflow = create_exec_workflow(vec![("slow", "sleep 10")], vec![]);
         let token = CancellationToken::new();
 
-        let mut runner = Runner::new(workflow).with_cancel_token(token.clone());
+        let mut runner = Runner::new(workflow)
+            .unwrap()
+            .with_cancel_token(token.clone());
 
         // Cancel before starting
         token.cancel();
@@ -2993,7 +3021,7 @@ mod tests {
         let token = CancellationToken::new();
         let token_clone = token.clone();
 
-        let mut runner = Runner::new(workflow).with_cancel_token(token);
+        let mut runner = Runner::new(workflow).unwrap().with_cancel_token(token);
 
         // Spawn the workflow run in background
         let handle = tokio::spawn(async move { runner.run().await });
@@ -3030,7 +3058,9 @@ mod tests {
 
         let event_log = EventLog::new();
         let event_log_clone = event_log.clone();
-        let mut runner = Runner::with_event_log(workflow, event_log).with_cancel_token(token);
+        let mut runner = Runner::with_event_log(workflow, event_log)
+            .unwrap()
+            .with_cancel_token(token);
 
         // Spawn the workflow
         let run_handle = tokio::spawn(async move { runner.run().await });
@@ -3066,7 +3096,7 @@ mod tests {
     #[test]
     fn test_pause_state_default() {
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Should not be paused by default
         assert!(
@@ -3078,7 +3108,7 @@ mod tests {
     #[test]
     fn test_pause_and_resume() {
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Initially not paused
         assert!(!runner.is_paused());
@@ -3098,7 +3128,7 @@ mod tests {
     #[test]
     fn test_pause_handles_cloning() {
         let workflow = make_empty_workflow();
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let (paused1, notify1) = runner.pause_handles();
         let (paused2, _notify2) = runner.pause_handles();
@@ -3133,7 +3163,7 @@ mod tests {
     fn test_pause_emits_events() {
         let workflow = make_empty_workflow();
         let event_log = EventLog::new();
-        let runner = Runner::with_event_log(workflow, event_log.clone());
+        let runner = Runner::with_event_log(workflow, event_log.clone()).unwrap();
 
         // Pause and resume
         runner.pause();
@@ -3161,7 +3191,7 @@ mod tests {
         let workflow = create_exec_workflow(vec![("task1", "echo done")], vec![]);
         let event_log = EventLog::new();
         let event_log_clone = event_log.clone();
-        let mut runner = Runner::with_event_log(workflow, event_log);
+        let mut runner = Runner::with_event_log(workflow, event_log).unwrap();
 
         // Pause before running
         runner.pause();
@@ -3587,7 +3617,7 @@ mod tests {
 
     #[test]
     fn test_find_root_failure_none_when_empty() {
-        let runner = Runner::new(make_empty_workflow());
+        let runner = Runner::new(make_empty_workflow()).unwrap();
         assert!(
             runner.find_root_failure().is_none(),
             "Empty workflow has no failures"
@@ -3597,7 +3627,7 @@ mod tests {
     #[test]
     fn test_find_root_failure_none_when_all_succeed() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Simulate successful completions
         runner.datastore.insert(
@@ -3621,7 +3651,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3649,7 +3679,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![("a", "b"), ("b", "c")],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3679,7 +3709,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let pending = runner.get_pending_tasks();
         assert_eq!(pending.len(), 3);
@@ -3694,7 +3724,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3712,7 +3742,7 @@ mod tests {
     #[test]
     fn test_get_pending_tasks_empty_when_all_done() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3730,7 +3760,7 @@ mod tests {
     #[test]
     fn test_get_pending_tasks_excludes_failed() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3748,7 +3778,7 @@ mod tests {
     #[test]
     fn test_get_ready_tasks_no_deps() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 2, "Tasks with no deps should all be ready");
@@ -3758,7 +3788,7 @@ mod tests {
     fn test_get_ready_tasks_blocked_by_incomplete_dep() {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         let ready = runner.get_ready_tasks();
         assert_eq!(ready.len(), 1);
@@ -3769,7 +3799,7 @@ mod tests {
     fn test_get_ready_tasks_unblocked_after_dep_success() {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3784,7 +3814,7 @@ mod tests {
     #[test]
     fn test_get_ready_tasks_skips_already_done() {
         let workflow = create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3803,7 +3833,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![("a", "b"), ("b", "c")],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Mark a as failed
         runner.datastore.insert(
@@ -3856,7 +3886,7 @@ mod tests {
             ],
             vec![("a", "b"), ("a", "c")],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Mark a as failed
         runner.datastore.insert(
@@ -3877,7 +3907,7 @@ mod tests {
     fn test_dependency_failure_emits_events() {
         let workflow =
             create_exec_workflow(vec![("a", "echo a"), ("b", "echo b")], vec![("a", "b")]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),
@@ -3911,14 +3941,14 @@ mod tests {
 
     #[test]
     fn test_all_done_empty_workflow() {
-        let runner = Runner::new(make_empty_workflow());
+        let runner = Runner::new(make_empty_workflow()).unwrap();
         assert!(runner.all_done(), "Empty workflow is trivially done");
     }
 
     #[test]
     fn test_all_done_false_when_pending() {
         let workflow = create_exec_workflow(vec![("a", "echo a")], vec![]);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
         assert!(!runner.all_done());
     }
 
@@ -3928,7 +3958,7 @@ mod tests {
             vec![("a", "echo a"), ("b", "echo b"), ("c", "echo c")],
             vec![],
         );
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         runner.datastore.insert(
             intern("a"),

@@ -186,7 +186,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     assert!(
@@ -216,7 +216,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     assert!(
@@ -245,7 +245,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     // Workflow should complete (not panic) even with partial failures
@@ -273,7 +273,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     assert!(
@@ -303,7 +303,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     assert!(
@@ -343,7 +343,7 @@ tasks:
 "#;
 
     let workflow = parse_analyzed(yaml).unwrap();
-    let mut runner = Runner::new(workflow);
+    let mut runner = Runner::new(workflow).unwrap();
     let result = runner.run().await;
 
     assert!(

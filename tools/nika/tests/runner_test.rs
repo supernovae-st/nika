@@ -34,7 +34,7 @@ tasks:
       prompt: "Test prompt"
 "#;
         let workflow = parse_workflow(yaml);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         // Runner should be created without panic
         let event_log = runner.event_log();
@@ -53,7 +53,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let event_log = EventLog::new();
-        let runner = Runner::with_event_log(workflow, event_log);
+        let runner = Runner::with_event_log(workflow, event_log).unwrap();
 
         assert!(runner.event_log().is_empty());
     }
@@ -77,7 +77,7 @@ tasks:
         let workflow = parse_workflow(yaml);
         assert_eq!(workflow.tasks.len(), 3);
 
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
         assert!(runner.event_log().is_empty());
     }
 }
@@ -375,7 +375,7 @@ tasks:
       command: "echo test"
 "#;
         let workflow = parse_workflow(yaml);
-        let runner = Runner::new(workflow);
+        let runner = Runner::new(workflow).unwrap();
 
         assert!(runner.event_log().is_empty());
     }
@@ -392,7 +392,7 @@ tasks:
 "#;
         let workflow = parse_workflow(yaml);
         let (event_log, _rx) = EventLog::new_with_broadcast();
-        let runner = Runner::with_event_log(workflow, event_log);
+        let runner = Runner::with_event_log(workflow, event_log).unwrap();
 
         assert!(runner.event_log().is_empty());
     }
