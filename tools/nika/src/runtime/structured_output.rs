@@ -104,8 +104,8 @@ pub struct StructuredOutputEngine {
     spec: StructuredOutputSpec,
     /// Event log for observability
     log: Arc<EventLog>,
-    /// Cached compiled schema (for validation speed)
-    compiled_schema: Option<Value>,
+    /// Cached compiled schema (for validation speed, Arc for cheap cloning)
+    compiled_schema: Option<Arc<Value>>,
     /// Callback for LLM inference in Layer 3 & 4
     ///
     /// When set, enables actual LLM retries and repairs instead of just re-validation.
@@ -158,8 +158,9 @@ impl StructuredOutputEngine {
         self
     }
 
-    /// Load and cache the schema for validation
-    pub async fn load_schema(&mut self) -> Result<&Value, NikaError> {
+    /// Load and cache the schema for validation.
+    /// Returns an `Arc<Value>` for cheap cloning across async boundaries.
+    pub async fn load_schema(&mut self) -> Result<Arc<Value>, NikaError> {
         if self.compiled_schema.is_none() {
             let schema = match &self.spec.schema {
                 SchemaRef::Inline(v) => v.clone(),
@@ -174,10 +175,10 @@ impl StructuredOutputEngine {
                     })?
                 }
             };
-            self.compiled_schema = Some(schema);
+            self.compiled_schema = Some(Arc::new(schema));
         }
         self.compiled_schema
-            .as_ref()
+            .clone()
             .ok_or_else(|| NikaError::SchemaFailed {
                 details: "Schema compilation produced None (internal error)".to_string(),
             })
@@ -199,8 +200,8 @@ impl StructuredOutputEngine {
         let task_id: Arc<str> = Arc::from(task_id);
         let mut total_attempts: u32 = 0;
 
-        // Load schema for validation
-        let schema = self.load_schema().await?.clone();
+        // Load schema for validation (Arc clone is cheap)
+        let schema = self.load_schema().await?;
 
         // Layer 1: rig Extractor (skip for now - requires compile-time types)
         // In future: use rig's Extractor with schemars-derived types
