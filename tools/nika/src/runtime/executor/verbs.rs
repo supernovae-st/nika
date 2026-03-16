@@ -881,7 +881,7 @@ impl TaskExecutor {
                 let content = client.read_resource(resource).await?;
                 content
                     .text
-                    .and_then(|t| serde_json::from_str(&t).ok())
+                    .map(|t| serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t)))
                     .unwrap_or(serde_json::Value::Null)
             } else {
                 // validate() ensures this never happens
@@ -1123,5 +1123,41 @@ impl TaskExecutor {
             .unwrap_or("");
 
         Ok(response.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn resource_text_non_json_returns_string() {
+        let text = "Hello, this is plain text from a resource";
+        let content_text: Option<String> = Some(text.to_string());
+        let result: serde_json::Value = content_text
+            .map(|t| serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t)))
+            .unwrap_or(serde_json::Value::Null);
+        assert!(
+            result.is_string(),
+            "Non-JSON text should be String, not Null"
+        );
+        assert_eq!(result.as_str().unwrap(), text);
+    }
+
+    #[test]
+    fn resource_text_json_returns_parsed() {
+        let text = r#"{"key": "value"}"#;
+        let content_text: Option<String> = Some(text.to_string());
+        let result: serde_json::Value = content_text
+            .map(|t| serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t)))
+            .unwrap_or(serde_json::Value::Null);
+        assert!(result.is_object());
+    }
+
+    #[test]
+    fn resource_text_none_returns_null() {
+        let content_text: Option<String> = None;
+        let result: serde_json::Value = content_text
+            .map(|t| serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t)))
+            .unwrap_or(serde_json::Value::Null);
+        assert!(result.is_null());
     }
 }
