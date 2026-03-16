@@ -291,6 +291,23 @@ fn lower_retry(retry: AnalyzedRetry) -> RetryConfig {
     }
 }
 
+fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
+    let retry = match action {
+        TaskAction::Fetch { fetch } => fetch.retry.as_ref(),
+        _ => None,
+    };
+    retry.map(|r| AnalyzedRetry {
+        max_attempts: r.max_attempts,
+        delay_ms: r.backoff_ms,
+        backoff: if (r.multiplier - 1.0).abs() > f64::EPSILON {
+            Some(r.multiplier)
+        } else {
+            None
+        },
+        span: Span::dummy(),
+    })
+}
+
 // ---------------------------------------------------------------------------
 // MCP servers
 // ---------------------------------------------------------------------------
@@ -444,7 +461,7 @@ pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
             implicit_deps: vec![],
             output,
             for_each,
-            retry: None,
+            retry: unlower_retry(&task.action),
             decompose: task.decompose.clone(),
             concurrency: task.concurrency.map(|c| c as u32),
             fail_fast: task.fail_fast,
