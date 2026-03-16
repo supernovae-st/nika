@@ -1134,7 +1134,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             } else {
                                 // $alias or $alias.nested.path format
                                 let mut segments = alias.split('.');
-                                let base_alias = segments.next().unwrap();
+                                let Some(base_alias) = segments.next() else {
+                                    continue;
+                                };
 
                                 match bindings.get_resolved(base_alias, &self.datastore) {
                                     Ok(base_value) => {
@@ -1266,7 +1268,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 if let Some(end) = after.find("}}") {
                                     let path = &after[..end];
                                     let mut parts = path.split('.');
-                                    let alias = parts.next().unwrap();
+                                    let Some(alias) = parts.next() else {
+                                        continue;
+                                    };
 
                                     match bindings.get_resolved(alias, &self.datastore) {
                                         Ok(base_value) => {
