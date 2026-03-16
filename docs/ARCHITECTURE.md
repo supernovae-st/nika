@@ -74,8 +74,7 @@ src/
 │   └── agent.rs      # AgentParams (NEW)
 │
 ├── dag/              # DAG validation
-│   ├── flow.rs       # Flow, FlowEndpoint
-│   └── validate.rs   # Cycle detection
+│   └── validate.rs   # Cycle detection, depends_on resolution
 │
 ├── runtime/          # Execution engine
 │   ├── runner.rs     # Workflow runner
@@ -167,10 +166,10 @@ impl McpClient {
 
 ---
 
-## Workflow Schema v0.8.0
+## Workflow Schema v0.12
 
 ```yaml
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 
 # MCP server configurations
@@ -193,6 +192,7 @@ tasks:
         forms: ["text", "title"]
 
   - id: generate_locales
+    depends_on: [context]
     for_each: ["en-US", "fr-FR", "de-DE"]
     as: locale
     invoke:
@@ -203,6 +203,7 @@ tasks:
         locale: "{{with.locale}}"
 
   - id: synthesize
+    depends_on: [context, generate_locales]
     with:
       ctx: context
       results: generate_locales
@@ -211,12 +212,6 @@ tasks:
       mcp: [novanet]
       max_turns: 10
       tool_choice: auto
-
-flows:
-  - source: context
-    target: generate_locales
-  - source: [context, generate_locales]
-    target: synthesize
 ```
 
 ---
@@ -225,7 +220,7 @@ flows:
 
 ```
 1. Parse YAML workflow
-2. Build DAG from flows
+2. Build DAG from depends_on declarations
 3. Validate (cycles, missing deps)
 4. Connect MCP servers
 5. Execute tasks in topological order:
