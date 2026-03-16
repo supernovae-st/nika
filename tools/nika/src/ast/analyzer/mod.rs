@@ -75,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    fn test_analyze_empty_workflow() {
+    fn test_analyze_empty_workflow_is_rejected() {
         let raw = RawWorkflow {
             schema: Spanned::new(
                 "nika/workflow@0.10".to_string(),
@@ -85,6 +85,6 @@ mod tests {
         };
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_err(), "empty tasks array should be rejected");
     }
 }

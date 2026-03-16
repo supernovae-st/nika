@@ -94,54 +94,64 @@ impl Dag {
 
             // Process explicit depends_on edges
             for dep_id in &task.depends_on {
-                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
-                    if dep_name == task.name {
-                        continue; // Skip self-references
+                let dep_name = workflow.task_table.get_name(*dep_id).ok_or_else(|| {
+                    NikaError::MissingDependency {
+                        task_id: task.name.clone(),
+                        dep_id: format!("TaskId({})", dep_id.0),
                     }
-                    if !seen_deps.insert(dep_name) {
-                        continue; // Already processed
-                    }
+                })?;
 
-                    let src_arc = task_set
-                        .get(dep_name)
-                        .cloned()
-                        .unwrap_or_else(|| intern(dep_name));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                if dep_name == task.name {
+                    continue; // Skip self-references
                 }
+                if !seen_deps.insert(dep_name) {
+                    continue; // Already processed
+                }
+
+                let src_arc = task_set
+                    .get(dep_name)
+                    .cloned()
+                    .unwrap_or_else(|| intern(dep_name));
+
+                adjacency
+                    .entry(Arc::clone(&src_arc))
+                    .or_default()
+                    .push(Arc::clone(&tgt_arc));
+                predecessors
+                    .entry(Arc::clone(&tgt_arc))
+                    .or_default()
+                    .push(src_arc);
             }
 
             // Process implicit dependencies (from with: bindings)
             for dep_id in &task.implicit_deps {
-                if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
-                    if dep_name == task.name {
-                        continue; // Skip self-references
+                let dep_name = workflow.task_table.get_name(*dep_id).ok_or_else(|| {
+                    NikaError::MissingDependency {
+                        task_id: task.name.clone(),
+                        dep_id: format!("TaskId({})", dep_id.0),
                     }
-                    if !seen_deps.insert(dep_name) {
-                        continue; // Already in depends_on, skip duplicate
-                    }
+                })?;
 
-                    let src_arc = task_set
-                        .get(dep_name)
-                        .cloned()
-                        .unwrap_or_else(|| intern(dep_name));
-
-                    adjacency
-                        .entry(Arc::clone(&src_arc))
-                        .or_default()
-                        .push(Arc::clone(&tgt_arc));
-                    predecessors
-                        .entry(Arc::clone(&tgt_arc))
-                        .or_default()
-                        .push(src_arc);
+                if dep_name == task.name {
+                    continue; // Skip self-references
                 }
+                if !seen_deps.insert(dep_name) {
+                    continue; // Already in depends_on, skip duplicate
+                }
+
+                let src_arc = task_set
+                    .get(dep_name)
+                    .cloned()
+                    .unwrap_or_else(|| intern(dep_name));
+
+                adjacency
+                    .entry(Arc::clone(&src_arc))
+                    .or_default()
+                    .push(Arc::clone(&tgt_arc));
+                predecessors
+                    .entry(Arc::clone(&tgt_arc))
+                    .or_default()
+                    .push(src_arc);
             }
         }
 
@@ -981,5 +991,157 @@ mod tests {
         assert!(dag.has_path("a", "f"));
         assert!(dag.has_path("b", "e"));
         assert!(!dag.has_path("d", "e"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DANGLING DEPENDS_ON VALIDATION
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_dangling_depends_on_returns_error() {
+        // Build workflow where task "b" has a depends_on pointing to a TaskId
+        // that doesn't exist in the TaskTable (simulating internal invariant violation).
+        let mut task_table = TaskTable::new();
+        task_table.insert("a");
+        task_table.insert("b");
+
+        let id_a = task_table.get_id("a").unwrap();
+        let id_b = task_table.get_id("b").unwrap();
+
+        // TaskId(99) doesn't exist in the table — this is the dangling reference
+        let dangling_id = TaskId(99);
+
+        let tasks = vec![
+            AnalyzedTask {
+                id: id_a,
+                name: "a".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: vec![],
+                implicit_deps: vec![],
+                output: None,
+                for_each: None,
+                retry: None,
+                decompose: None,
+                concurrency: None,
+                fail_fast: None,
+                artifact: None,
+                log: None,
+                structured: None,
+                span: Span::dummy(),
+            },
+            AnalyzedTask {
+                id: id_b,
+                name: "b".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: vec![dangling_id], // dangling!
+                implicit_deps: vec![],
+                output: None,
+                for_each: None,
+                retry: None,
+                decompose: None,
+                concurrency: None,
+                fail_fast: None,
+                artifact: None,
+                log: None,
+                structured: None,
+                span: Span::dummy(),
+            },
+        ];
+
+        let workflow = AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
+        };
+
+        let result = Dag::from_analyzed(&workflow);
+        assert!(
+            result.is_err(),
+            "Dangling depends_on should be rejected"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.to_string().contains("unknown"),
+            "Error should mention unknown dependency, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_dangling_implicit_dep_returns_error() {
+        // Same as above but for implicit_deps (from with: bindings)
+        let mut task_table = TaskTable::new();
+        task_table.insert("x");
+        task_table.insert("y");
+
+        let id_x = task_table.get_id("x").unwrap();
+        let id_y = task_table.get_id("y").unwrap();
+
+        let dangling_id = TaskId(42);
+
+        let tasks = vec![
+            AnalyzedTask {
+                id: id_x,
+                name: "x".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: vec![],
+                implicit_deps: vec![],
+                output: None,
+                for_each: None,
+                retry: None,
+                decompose: None,
+                concurrency: None,
+                fail_fast: None,
+                artifact: None,
+                log: None,
+                structured: None,
+                span: Span::dummy(),
+            },
+            AnalyzedTask {
+                id: id_y,
+                name: "y".to_string(),
+                description: None,
+                action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+                provider: None,
+                model: None,
+                with_spec: WithSpec::default(),
+                depends_on: vec![],
+                implicit_deps: vec![dangling_id], // dangling!
+                output: None,
+                for_each: None,
+                retry: None,
+                decompose: None,
+                concurrency: None,
+                fail_fast: None,
+                artifact: None,
+                log: None,
+                structured: None,
+                span: Span::dummy(),
+            },
+        ];
+
+        let workflow = AnalyzedWorkflow {
+            task_table,
+            tasks,
+            ..Default::default()
+        };
+
+        let result = Dag::from_analyzed(&workflow);
+        assert!(
+            result.is_err(),
+            "Dangling implicit_dep should be rejected"
+        );
     }
 }

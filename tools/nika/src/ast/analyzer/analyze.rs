@@ -1123,8 +1123,8 @@ mod tests {
 
     #[test]
     fn test_analyze_schema_suggestion() {
-        // Is valid
-        let raw = make_raw_workflow("nika/workflow@0.9", vec![]);
+        // Valid schema with at least one task
+        let raw = make_raw_workflow("nika/workflow@0.9", vec![make_raw_task("step1")]);
         let result = analyze(raw);
         assert!(result.is_ok());
     }
