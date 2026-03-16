@@ -86,9 +86,9 @@ ahrefs:
 # ============================================================================
 
 novanet:
-  # NovaNet MCP Server v0.20.0 - knowledge graph access (8 tools)
+  # NovaNet MCP Server v0.21.0 - knowledge graph access (7 tools)
   # Tools: novanet_describe, novanet_search, novanet_context, novanet_introspect,
-  #        novanet_write, novanet_audit, novanet_batch, novanet_query
+  #        novanet_write, novanet_audit, novanet_query
   command: cargo
   args:
     - run

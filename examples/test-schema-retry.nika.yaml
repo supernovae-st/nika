@@ -37,9 +37,12 @@ tasks:
   - id: discover_entities
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (e:Entity) RETURN e.key AS key, e.name AS name LIMIT 5"
+        query: "*"
+        mode: fulltext
+        kinds: ["Entity"]
+        limit: 5
 
   # Step 2: Get schema introspection (parallel with entity discovery)
   - id: get_schema_context

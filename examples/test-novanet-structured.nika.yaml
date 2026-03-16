@@ -2,8 +2,8 @@
 #
 # Demonstrates complete NovaNet + Nika integration:
 # 1. novanet_describe: Load entity context
-# 2. novanet_atoms: Get locale-specific terms
-# 3. novanet_generate: Full RLM-on-KG context assembly
+# 2. novanet_context (knowledge): Get locale-specific terms
+# 3. novanet_context (block): Full RLM-on-KG context assembly
 # 4. Structured output with inline schema validation
 #
 # This workflow is AGENTIC:
@@ -42,17 +42,23 @@ tasks:
   - id: discover_entities
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (e:Entity) RETURN e.key AS key, e.name AS name ORDER BY e.key LIMIT 5"
+        query: "*"
+        mode: fulltext
+        kinds: ["Entity"]
+        limit: 5
 
   # Step 1b: Discover available locales from NovaNet (parallel with 1a)
   - id: discover_locales
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (l:Locale) RETURN l.code AS code, l.name AS name ORDER BY l.code LIMIT 5"
+        query: "*"
+        mode: fulltext
+        kinds: ["Locale"]
+        limit: 5
 
   # ============================================================================
   # PHASE 2: Context Assembly (depends on discovery)
@@ -77,9 +83,10 @@ tasks:
       locales: discover_locales
     invoke:
       mcp: novanet
-      tool: novanet_atoms
+      tool: novanet_context
       params:
         locale: "{{with.locales.rows[0].code}}"
+        mode: knowledge
         atom_type: term
         domain: technology
 
@@ -91,7 +98,7 @@ tasks:
       locales: discover_locales
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "{{with.entities.rows[0].key}}"
         locale: "{{with.locales.rows[0].code}}"

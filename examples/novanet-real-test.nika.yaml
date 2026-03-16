@@ -20,13 +20,15 @@ mcp:
       RUST_LOG: info
 
 tasks:
-  # Query NovaNet for entity count
+  # Query NovaNet for entities
   - id: count_entities
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (e:Entity) RETURN count(e) AS count"
+        query: "*"
+        mode: fulltext
+        kinds: ["Entity"]
 
   # Show the result
   - id: show_count

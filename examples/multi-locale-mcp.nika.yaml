@@ -27,7 +27,7 @@ tasks:
     as: locale
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "page:landing-page"
         locale: "{{use.locale}}"

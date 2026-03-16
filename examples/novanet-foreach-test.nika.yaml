@@ -26,6 +26,9 @@ tasks:
     as: pattern
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (e:Entity) WHERE e.slug CONTAINS '{{use.pattern}}' RETURN e.slug AS slug LIMIT 3"
+        query: "{{use.pattern}}"
+        mode: fulltext
+        kinds: ["Entity"]
+        limit: 3

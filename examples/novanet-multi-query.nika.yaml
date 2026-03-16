@@ -25,21 +25,26 @@ mcp:
       RUST_LOG: warn
 
 tasks:
-  # Query 1: Count entities by different labels in parallel
+  # Query 1: Search nodes by different kinds in parallel
   - id: count_by_pattern
     for_each: ["Entity", "EntityNative", "Page", "Block", "Locale"]
     as: label
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (n:{{with.label}}) RETURN count(n) AS count, '{{with.label}}' AS label"
+        query: "*"
+        mode: fulltext
+        kinds: ["{{with.label}}"]
 
   # Query 2: Sample some entities
   - id: sample_entities
     depends_on: [count_by_pattern]
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: "MATCH (e:Entity) RETURN e.slug AS slug LIMIT 5"
+        query: "*"
+        mode: fulltext
+        kinds: ["Entity"]
+        limit: 5

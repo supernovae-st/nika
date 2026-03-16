@@ -41,20 +41,12 @@ tasks:
   - id: discover_locales
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: |
-          MATCH (l:Locale)
-          WITH l,
-               CASE
-                 WHEN l.code STARTS WITH 'fr' THEN 'Europe'
-                 WHEN l.code STARTS WITH 'es' THEN 'Americas'
-                 WHEN l.code STARTS WITH 'ja' OR l.code STARTS WITH 'zh' THEN 'Asia'
-                 ELSE 'Other'
-               END AS region
-          RETURN l.code AS code, l.name AS language, region
-          ORDER BY region, l.code
-          LIMIT 6
+        query: "*"
+        mode: fulltext
+        kinds: ["Locale"]
+        limit: 6
 
   # Step 1b: Discover an entity for tagline context (parallel with 1a)
   - id: discover_entity

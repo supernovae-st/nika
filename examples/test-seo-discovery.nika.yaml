@@ -36,9 +36,11 @@ tasks:
   - id: get_slugification
     invoke:
       mcp: novanet
-      tool: novanet_traverse
+      tool: novanet_search
       params:
+        mode: walk
         start_key: fr-FR
+        direction: outgoing
         arc_families:
           - ownership
         target_kinds:

@@ -21,11 +21,11 @@ mcp:
       NEO4J_PASSWORD: password
 
 tasks:
-  # Call an MCP tool to generate content
+  # Call an MCP tool to assemble generation context
   - id: generate_content
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "entity:qr-code"
         locale: "fr-FR"

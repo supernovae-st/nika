@@ -114,10 +114,11 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_assemble
+      tool: novanet_context
       params:
         focus_key: "entity:{{use.parsed.entity_key}}"
         locale: "{{use.parsed.locale}}"
+        mode: assemble
         strategy: breadth
         token_budget: 8000
         max_depth: 3
@@ -136,9 +137,10 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_atoms
+      tool: novanet_context
       params:
         locale: "{{use.parsed.locale}}"
+        mode: knowledge
         atom_type: all
         limit: 100
     output:
@@ -173,21 +175,15 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: |
-          // Find SEOKeywords targeting this EntityNative
-          MATCH (en:EntityNative {key: '{{use.parsed.full_key}}'})-[:TARGETS_KEYWORD]->(kw:SEOKeyword)
-          OPTIONAL MATCH (kw)-[:FOR_LOCALE]->(l:Locale {code: '{{use.parsed.locale}}'})
-          RETURN kw.key AS key,
-                 kw.keyword AS keyword,
-                 kw.slug_form AS slug_form,
-                 kw.search_volume AS search_volume,
-                 kw.difficulty AS difficulty,
-                 kw.intent AS intent,
-                 kw.source AS source
-          ORDER BY kw.search_volume DESC
-          LIMIT 20
+        mode: walk
+        start_key: "{{use.parsed.full_key}}"
+        direction: outgoing
+        arc_kinds: ["TARGETS_KEYWORD"]
+        target_kinds: ["SEOKeyword"]
+        max_depth: 1
+        limit: 20
     output:
       format: json
     artifact:
@@ -200,17 +196,15 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: |
-          // Find parent page structure for no-repetition check
-          MATCH (e:Entity {key: 'entity:{{use.parsed.entity_key}}'})<-[:REPRESENTS]-(p:Page)
-          OPTIONAL MATCH (p)-[:SUBTOPIC_OF]->(parent:Page)
-          OPTIONAL MATCH (parent)-[:HAS_NATIVE]->(pn:PageNative)-[:FOR_LOCALE]->(l:Locale {code: '{{use.parsed.locale}}'})
-          RETURN p.key AS page_key,
-                 parent.key AS parent_page_key,
-                 pn.slug AS parent_slug,
-                 pn.full_path AS parent_full_path
+        mode: walk
+        start_key: "entity:{{use.parsed.entity_key}}"
+        direction: incoming
+        arc_kinds: ["REPRESENTS"]
+        target_kinds: ["Page"]
+        max_depth: 2
+        include_properties: true
     output:
       format: json
     artifact:
@@ -223,20 +217,12 @@ tasks:
     flow: [parse_input]
     invoke:
       mcp: novanet
-      tool: novanet_query
+      tool: novanet_search
       params:
-        cypher: |
-          // Find keywords with convergence (multiple entities targeting them)
-          MATCH (en:EntityNative)-[:TARGETS_KEYWORD]->(kw:SEOKeyword)
-          WHERE kw.key CONTAINS '{{use.parsed.locale}}'
-          WITH kw, count(DISTINCT en) AS convergence_count
-          WHERE convergence_count > 1
-          RETURN kw.key AS keyword_key,
-                 kw.keyword AS keyword,
-                 convergence_count,
-                 1.0 + (convergence_count * 0.2) AS convergence_boost
-          ORDER BY convergence_count DESC
-          LIMIT 10
+        query: "{{use.parsed.locale}}"
+        mode: fulltext
+        kinds: ["SEOKeyword"]
+        limit: 10
     output:
       format: json
     artifact:
@@ -524,18 +510,19 @@ tasks:
     flow: [parse_input, calculate_slug_scores, get_locale_atoms]
 
   # ═══════════════════════════════════════════════════════════════════════════════
-  # STAGE 6: Validate Before Write (novanet_check)
+  # STAGE 6: Validate Before Write (novanet_write dry_run)
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: validate_write
-    description: "Validate EntityNative update before persisting (novanet_check)"
+    description: "Validate EntityNative update before persisting (novanet_write dry_run)"
     use:
       parsed: parse_input
       content: generate_entity_native
     invoke:
       mcp: novanet
-      tool: novanet_check
+      tool: novanet_write
       params:
+        dry_run: true
         operation: update_props
         class: EntityNative
         key: "{{use.parsed.full_key}}"
@@ -734,7 +721,7 @@ tasks:
       echo "  📂 seo/              - Keywords, parent page, convergence"
       echo "  📂 analysis/         - Slug scoring breakdown"
       echo "  📂 content/          - Generated EntityNative (JSON + YAML)"
-      echo "  📂 validation/       - novanet_check result"
+      echo "  📂 validation/       - novanet_write dry_run result"
       echo "  📂 output/           - novanet_write result"
       echo "  📂 audit/            - Post-write CSR audit"
       echo "  📂 reports/          - Summary (MD + JSON)"
@@ -778,7 +765,7 @@ tasks:
 #                                    │
 #                                    ▼
 #                            validate_write
-#                            [novanet_check]
+#                            [novanet_write dry_run]
 #                                    │
 #                                    ▼ (if valid)
 #                          write_entity_native
