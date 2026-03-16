@@ -216,6 +216,15 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // 6b. Validate tasks array is non-empty
+    if raw.tasks.value.is_empty() {
+        ctx.errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::InvalidValue,
+            raw.tasks.span,
+            "tasks array must not be empty; workflow requires at least one task",
+        ));
+    }
+
     // 7. Build task table (first pass - collect all task IDs)
     build_task_table(&raw.tasks.value, &mut ctx);
 
@@ -1972,5 +1981,19 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result.errors.len(), 1);
         assert_eq!(result.errors[0].kind, AnalyzeErrorKind::MissingField);
+    }
+
+    #[test]
+    fn test_analyze_rejects_empty_tasks_array() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![]);
+        let result = analyze(raw);
+        assert!(result.is_err(), "empty tasks array should be rejected");
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0].kind, AnalyzeErrorKind::InvalidValue);
+        assert!(
+            result.errors[0].message.contains("empty"),
+            "error should mention empty, got: {}",
+            result.errors[0].message
+        );
     }
 }
