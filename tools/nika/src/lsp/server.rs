@@ -288,6 +288,28 @@ impl LanguageServer for NikaLanguageServer {
             handlers::symbols::compute_document_symbols_with_ast(&self.ast_index, uri, &text);
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
     }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = &params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let raw_tokens = handlers::semantic_tokens::compute_semantic_tokens_with_ast(
+            &self.ast_index,
+            uri,
+            &text,
+        );
+        let encoded = handlers::semantic_tokens::encode_tokens(raw_tokens);
+
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: encoded,
+        })))
+    }
 }
 
 // Stub when LSP feature is disabled

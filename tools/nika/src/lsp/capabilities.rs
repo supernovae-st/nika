@@ -5,6 +5,9 @@
 #[cfg(feature = "lsp")]
 use tower_lsp::lsp_types::*;
 
+#[cfg(feature = "lsp")]
+use super::handlers::semantic_tokens::semantic_token_legend;
+
 /// Build the server capabilities advertised to the client
 #[cfg(feature = "lsp")]
 pub fn server_capabilities() -> ServerCapabilities {
@@ -75,7 +78,16 @@ pub fn server_capabilities() -> ServerCapabilities {
         folding_range_provider: None,
         selection_range_provider: None,
         linked_editing_range_provider: None,
-        semantic_tokens_provider: None,
+        semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+            SemanticTokensOptions {
+                legend: semantic_token_legend(),
+                full: Some(SemanticTokensFullOptions::Bool(true)),
+                range: None,
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: Some(false),
+                },
+            },
+        )),
         moniker_provider: None,
         inlay_hint_provider: None,
         inline_value_provider: None,
@@ -126,6 +138,28 @@ mod tests {
     fn test_capabilities_have_definition() {
         let caps = server_capabilities();
         assert!(caps.definition_provider.is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_capabilities_have_semantic_tokens() {
+        let caps = server_capabilities();
+        assert!(
+            caps.semantic_tokens_provider.is_some(),
+            "Should advertise semantic tokens support"
+        );
+        if let Some(SemanticTokensServerCapabilities::SemanticTokensOptions(opts)) =
+            caps.semantic_tokens_provider
+        {
+            assert_eq!(opts.legend.token_types.len(), 7);
+            assert_eq!(opts.legend.token_modifiers.len(), 2);
+            assert!(matches!(
+                opts.full,
+                Some(SemanticTokensFullOptions::Bool(true))
+            ));
+        } else {
+            panic!("Expected SemanticTokensOptions");
+        }
     }
 
     #[test]
