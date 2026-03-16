@@ -446,7 +446,7 @@ fn analyze_task(
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value),
         artifact: None,
         log: None,
-        structured: None,
+        structured: raw.structured.clone(),
         span: raw.span,
     };
 

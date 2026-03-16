@@ -13,6 +13,7 @@ use super::mcp::{RawMcpConfig, RawMcpServer};
 use super::task::{RawForEach, RawOutputConfig, RawRetryConfig, RawTask};
 use super::workflow::{RawContextConfig, RawImportSpec, RawPkgConfig, RawWorkflow};
 use crate::ast::decompose::{DecomposeSpec, DecomposeStrategy};
+use crate::ast::structured::StructuredOutputSpec;
 use crate::source::{ByteOffset, FileId, Span, Spanned};
 
 /// Errors that can occur during parsing.
@@ -816,6 +817,37 @@ fn parse_output(
     }
 }
 
+/// Parse structured: configuration (StructuredOutputSpec).
+///
+/// Supports shorthand (string path) or full mapping form:
+/// ```yaml
+/// structured: ./schemas/user.json          # shorthand
+/// structured:                               # full form
+///   schema: ./schemas/user.json
+///   max_retries: 3
+/// ```
+fn parse_structured(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<StructuredOutputSpec>, ParseError> {
+    match map.get_node("structured") {
+        Some(node) => {
+            let span = node_to_span(file, node);
+            // Convert YAML node to JSON value, then deserialize via serde_json.
+            // StructuredOutputSpec's custom Deserialize handles both string and map forms.
+            let json_value = node_to_json(node);
+            let spec: StructuredOutputSpec =
+                serde_json::from_value(json_value).map_err(|e| ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span,
+                    message: format!("invalid structured output config: {e}"),
+                })?;
+            Ok(Some(spec))
+        }
+        None => Ok(None),
+    }
+}
+
 // ============================================================================
 // Main Parser
 // ============================================================================
@@ -1218,6 +1250,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let for_each = parse_for_each(file_id, map)?;
     let retry = parse_retry(file_id, map)?;
     let decompose = parse_decompose(file_id, map)?;
+    let structured = parse_structured(file_id, map)?;
 
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
@@ -1246,6 +1279,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         decompose,
         concurrency: standalone_concurrency,
         fail_fast: standalone_fail_fast,
+        structured,
     };
 
     Ok(Spanned::new(task, span))

@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 
 use super::action::RawTaskAction;
 use crate::ast::decompose::DecomposeSpec;
+use crate::ast::structured::StructuredOutputSpec;
 use crate::source::{Span, Spanned};
 
 /// A raw task as parsed from YAML.
@@ -61,6 +62,9 @@ pub struct RawTask {
 
     /// Standalone fail_fast (used with decompose when no for_each)
     pub fail_fast: Option<Spanned<bool>>,
+
+    /// Structured output specification (JSON schema enforcement)
+    pub structured: Option<StructuredOutputSpec>,
 
     /// The span of the entire task block
     pub span: Span,
