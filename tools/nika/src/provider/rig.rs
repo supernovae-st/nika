@@ -397,6 +397,7 @@ impl RigProvider {
     /// * `prompt` - The text prompt to send
     /// * `tools` - Tools to inject (typically a single DynamicSubmitTool)
     /// * `model` - Optional model override
+    /// * `max_tokens` - Optional max tokens for the response (default: 8192)
     ///
     /// # Returns
     /// The tool call arguments as a string (the structured JSON output)
@@ -405,18 +406,20 @@ impl RigProvider {
         prompt: &str,
         tools: Vec<Box<dyn ToolDyn>>,
         model: Option<&str>,
+        max_tokens: Option<u32>,
     ) -> Result<String, RigInferError> {
         use rig::agent::AgentBuilder;
         use rig::message::ToolChoice as RigToolChoice;
 
         let model_id = model.unwrap_or_else(|| self.default_model());
+        let max_tok = max_tokens.map(|v| v as u64).unwrap_or(8192);
 
         macro_rules! build_agent_with_tools {
             ($client:expr) => {{
                 let agent = AgentBuilder::new($client.completion_model(model_id))
                     .tools(tools)
                     .tool_choice(RigToolChoice::Required)
-                    .max_tokens(8192)
+                    .max_tokens(max_tok)
                     .build();
                 agent
                     .prompt(prompt)

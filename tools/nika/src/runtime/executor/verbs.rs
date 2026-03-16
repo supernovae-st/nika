@@ -252,7 +252,10 @@ impl TaskExecutor {
                             error: None,
                         });
 
-                        match provider.infer_with_tools(&prompt, tools, model).await {
+                        match provider
+                            .infer_with_tools(&prompt, tools, model, infer.max_tokens)
+                            .await
+                        {
                             Ok(tool_result) => {
                                 debug!(
                                     task_id = %task_id,
