@@ -436,6 +436,98 @@ fn verb_value_completions(verb: &str) -> Vec<CompletionItem> {
                 ..Default::default()
             },
         ],
+        "fetch" => vec![
+            CompletionItem {
+                label: "url".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("url: ${1:https://}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String("Required. Request URL.".to_string())),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "method".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("method: ${1|GET,POST,PUT,DELETE,PATCH|}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "HTTP method. Default: GET.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "headers".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some(
+                    "headers:\n  ${1:Content-Type}: ${2:application/json}".to_string(),
+                ),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String("HTTP request headers.".to_string())),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "body".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("body: ${1}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Request body (string or object).".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "retry".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("retry:\n  max_attempts: ${1:3}\n  delay: ${2:1s}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Retry configuration for failed requests.".to_string(),
+                )),
+                ..Default::default()
+            },
+        ],
+        "invoke" => vec![
+            CompletionItem {
+                label: "mcp".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("mcp: ${1:server}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Required. MCP server name (from mcp: block).".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "tool".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("tool: ${1:tool-name}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Required. MCP tool name to invoke.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "params".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("params:\n  ${1:key}: ${2:value}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Tool parameters (key-value pairs).".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "resource".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("resource: ${1:resource-uri}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "MCP resource URI to read (alternative to tool).".to_string(),
+                )),
+                ..Default::default()
+            },
+        ],
         "agent" => vec![
             CompletionItem {
                 label: "prompt".to_string(),
@@ -921,19 +1013,27 @@ tasks:
 
     #[test]
     #[cfg(feature = "lsp")]
-    fn test_verb_value_completions_with_ast_invoke_has_no_base() {
-        use super::super::super::ast_index::AstIndex;
+    fn test_verb_value_completions_invoke_has_sub_fields() {
+        // invoke verb should have mcp, tool, params, resource completions
+        let items = verb_value_completions("invoke");
+        assert!(items.iter().any(|i| i.label == "mcp"));
+        assert!(items.iter().any(|i| i.label == "tool"));
+        assert!(items.iter().any(|i| i.label == "params"));
+        assert!(items.iter().any(|i| i.label == "resource"));
+        assert_eq!(items.len(), 4);
+    }
 
-        let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
-
-        // For invoke verb, base completions are empty (not implemented)
-        // Only MCP server names would be added from AST
-        let items = verb_value_completions_with_ast("invoke", &index, &uri);
-
-        // invoke has no base completions in verb_value_completions
-        // so items should be empty without a parsed document
-        assert!(items.is_empty());
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_verb_value_completions_fetch_has_sub_fields() {
+        // fetch verb should have url, method, headers, body, retry completions
+        let items = verb_value_completions("fetch");
+        assert!(items.iter().any(|i| i.label == "url"));
+        assert!(items.iter().any(|i| i.label == "method"));
+        assert!(items.iter().any(|i| i.label == "headers"));
+        assert!(items.iter().any(|i| i.label == "body"));
+        assert!(items.iter().any(|i| i.label == "retry"));
+        assert_eq!(items.len(), 5);
     }
 
     #[test]
