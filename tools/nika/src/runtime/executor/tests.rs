@@ -1253,6 +1253,7 @@ fn test_build_json_schema_instruction_text_format() {
         format: OutputFormat::Text,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(
@@ -1267,6 +1268,7 @@ fn test_build_json_schema_instruction_json_no_schema() {
         format: OutputFormat::Json,
         schema: None,
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(
@@ -1289,6 +1291,7 @@ fn test_build_json_schema_instruction_json_inline_schema() {
         format: OutputFormat::Json,
         schema: Some(SchemaRef::Inline(schema.clone())),
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(result.is_some());
@@ -1305,6 +1308,7 @@ fn test_build_json_schema_instruction_json_file_schema() {
         format: OutputFormat::Json,
         schema: Some(SchemaRef::File("schemas/user.json".to_string())),
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(result.is_some());
@@ -1321,6 +1325,7 @@ fn test_build_json_schema_instruction_yaml_format() {
         format: OutputFormat::Yaml,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(
@@ -1335,6 +1340,7 @@ fn test_build_json_schema_instruction_markdown_format() {
         format: OutputFormat::Markdown,
         schema: Some(SchemaRef::Inline(json!({"type": "object"}))),
         max_retries: None,
+        source_structured_spec: None,
     };
     let result = TaskExecutor::build_json_schema_instruction(Some(&policy));
     assert!(
@@ -1451,6 +1457,7 @@ async fn test_run_infer_mock_with_json_schema_injection() {
             "properties": { "name": { "type": "string" } }
         }))),
         max_retries: None,
+        source_structured_spec: None,
     };
 
     // With output policy, the prompt gets schema instruction appended

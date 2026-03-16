@@ -238,6 +238,7 @@ pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
         format: lower_output_format(output.format),
         schema: output.schema.map(SchemaRef::Inline),
         max_retries: None,
+        source_structured_spec: None,
     }
 }
 

@@ -319,6 +319,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::File(schema_path)),
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Valid JSON object
@@ -356,6 +357,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: Some(SchemaRef::Inline(inline_schema)),
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Valid JSON with required field
@@ -406,6 +408,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: None, // No schema validation
             max_retries: None,
+            source_structured_spec: None,
         };
 
         let result = make_task_result(
@@ -430,6 +433,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         let result = make_task_result(
@@ -457,6 +461,7 @@ mod tests {
             format: OutputFormat::Text,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Even valid JSON should be treated as text
@@ -578,6 +583,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Generate large JSON array
@@ -599,6 +605,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // JSON with various Unicode characters
@@ -658,6 +665,7 @@ mod tests {
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         let result = make_task_result(
@@ -784,6 +792,7 @@ This is based on ancient wisdom."#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Simulate LLM output with markdown code block
@@ -819,6 +828,7 @@ Enjoy your reading!"#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Empty output with JSON format returns null
@@ -837,6 +847,7 @@ Enjoy your reading!"#;
             format: OutputFormat::Json,
             schema: None,
             max_retries: None,
+            source_structured_spec: None,
         };
 
         // Whitespace-only output also returns null

@@ -128,11 +128,14 @@ impl StructuredOutputSpec {
     ///
     /// The executor's `run_infer()` uses `OutputPolicy` to trigger Layer 0 tool injection
     /// and prompt schema instructions. This bridges `structured:` config to that path.
+    /// The original spec is preserved in `source_structured_spec` so that
+    /// `to_structured_spec()` can roundtrip without losing layer toggle config.
     pub fn to_output_policy(&self) -> super::output::OutputPolicy {
         super::output::OutputPolicy {
             format: super::output::OutputFormat::Json,
             schema: Some(self.schema.clone()),
             max_retries: self.max_retries,
+            source_structured_spec: Some(self.clone()),
         }
     }
 }

@@ -75,6 +75,12 @@ pub struct OutputPolicy {
     /// Maximum retry attempts on validation failure (default: 2)
     #[serde(default)]
     pub max_retries: Option<u8>,
+
+    /// Original StructuredOutputSpec when this policy was bridged from `structured:`.
+    /// Preserves user's layer toggle config (enable_tool_injection, enable_repair, etc.)
+    /// that would otherwise be lost in the OutputPolicy→StructuredOutputSpec roundtrip.
+    #[serde(skip)]
+    pub source_structured_spec: Option<super::structured::StructuredOutputSpec>,
 }
 
 impl OutputPolicy {
@@ -89,18 +95,25 @@ impl OutputPolicy {
     /// Convert to StructuredOutputSpec for use with StructuredOutputEngine.
     ///
     /// Returns None if this policy doesn't require structured output.
-    /// Uses simple defaults for layer configuration (all layers enabled).
+    /// If this policy was bridged from a `structured:` config (via `to_output_policy()`),
+    /// returns the original spec with all user-configured layer toggles preserved.
+    /// Otherwise, constructs a spec with permissive defaults (all layers enabled).
     pub fn to_structured_spec(&self) -> Option<super::structured::StructuredOutputSpec> {
         if !self.is_structured() {
             return None;
         }
 
-        // schema is guaranteed to exist due to is_structured() check
+        // Return original spec if available (preserves user's layer toggles)
+        if let Some(ref spec) = self.source_structured_spec {
+            return Some(spec.clone());
+        }
+
+        // Fallback: construct spec from OutputPolicy fields (output: block path)
         let schema = self.schema.clone().unwrap();
         Some(super::structured::StructuredOutputSpec {
             schema,
-            enable_extractor: None,      // Use defaults
-            enable_tool_injection: None, // Use defaults
+            enable_extractor: None,
+            enable_tool_injection: None,
             enable_retry: Some(true),
             enable_repair: Some(true),
             max_retries: self.max_retries,
