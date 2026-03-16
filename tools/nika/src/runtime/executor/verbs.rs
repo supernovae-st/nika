@@ -185,6 +185,145 @@ impl TaskExecutor {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // LAYER 0: Tool Injection (DynamicSubmitTool)
+        // ═══════════════════════════════════════════════════════════════════
+        // If structured output is configured, try tool injection first.
+        // The LLM is forced to call submit_result() with schema-compliant JSON.
+        // If it succeeds, we still validate the result. If it fails, we fall
+        // through to streaming + post-processing (Layers 1-3).
+        if let Some(policy) = output_policy {
+            if policy.is_structured() {
+                if let Some(schema_ref) = &policy.schema {
+                    // Resolve schema to Value
+                    let schema_value = match schema_ref {
+                        crate::ast::output::SchemaRef::Inline(v) => Ok(v.clone()),
+                        crate::ast::output::SchemaRef::File(path) => {
+                            tokio::fs::read_to_string(path)
+                                .await
+                                .map_err(|e| NikaError::SchemaFailed {
+                                    details: format!(
+                                        "Failed to read schema '{}': {}",
+                                        path, e
+                                    ),
+                                })
+                                .and_then(|content| {
+                                    serde_json::from_str(&content).map_err(|e| {
+                                        NikaError::SchemaFailed {
+                                            details: format!(
+                                                "Invalid JSON in schema '{}': {}",
+                                                path, e
+                                            ),
+                                        }
+                                    })
+                                })
+                        }
+                    };
+
+                    if let Ok(schema_value) = schema_value {
+                        let submit_tool =
+                            crate::runtime::submit_tool::DynamicSubmitTool::new(
+                                schema_value,
+                            );
+                        let tools: Vec<Box<dyn rig::tool::ToolDyn>> =
+                            vec![Box::new(submit_tool)];
+
+                        debug!(
+                            task_id = %task_id,
+                            "Layer 0: attempting tool injection via DynamicSubmitTool"
+                        );
+
+                        self.event_log.emit(EventKind::StructuredOutputAttempt {
+                            task_id: Arc::clone(task_id),
+                            layer: 0,
+                            layer_name: "tool_injection".to_string(),
+                            attempt: 1,
+                            success: false, // Will be updated on success
+                            error: None,
+                        });
+
+                        match provider
+                            .infer_with_tools(&prompt, tools, model)
+                            .await
+                        {
+                            Ok(tool_result) => {
+                                debug!(
+                                    task_id = %task_id,
+                                    result_len = tool_result.len(),
+                                    "Layer 0: tool injection succeeded"
+                                );
+
+                                self.event_log.emit(
+                                    EventKind::StructuredOutputAttempt {
+                                        task_id: Arc::clone(task_id),
+                                        layer: 0,
+                                        layer_name: "tool_injection".to_string(),
+                                        attempt: 1,
+                                        success: true,
+                                        error: None,
+                                    },
+                                );
+
+                                // Still validate through the engine as safety net
+                                if let Some(spec) = policy.to_structured_spec() {
+                                    let mut engine = StructuredOutputEngine::new(
+                                        spec,
+                                        Arc::new(self.event_log.clone()),
+                                    );
+
+                                    match engine
+                                        .validate(task_id.as_ref(), &tool_result)
+                                        .await
+                                    {
+                                        Ok(result) => {
+                                            debug!(
+                                                task_id = %task_id,
+                                                layer = result.layer,
+                                                "Layer 0 + validation succeeded"
+                                            );
+                                            return Ok(result.value.to_string());
+                                        }
+                                        Err(_) => {
+                                            // Tool injection gave us something but it
+                                            // failed validation — fall through to streaming
+                                            debug!(
+                                                task_id = %task_id,
+                                                "Layer 0 result failed validation, falling through"
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    // No spec but we have a tool result — return it
+                                    return Ok(tool_result);
+                                }
+                            }
+                            Err(e) => {
+                                debug!(
+                                    task_id = %task_id,
+                                    error = %e,
+                                    "Layer 0 failed, falling through to streaming"
+                                );
+                                self.event_log.emit(
+                                    EventKind::StructuredOutputAttempt {
+                                        task_id: Arc::clone(task_id),
+                                        layer: 0,
+                                        layer_name: "tool_injection".to_string(),
+                                        attempt: 1,
+                                        success: false,
+                                        error: Some(e.to_string()),
+                                    },
+                                );
+                                // Fall through to streaming path
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // STREAMING PATH (Layers 1-3 fallback)
+        // ═══════════════════════════════════════════════════════════════════
         // Use infer_stream_with_options when LLM control options are set
         // Otherwise fall back to infer_stream.
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
@@ -234,18 +373,17 @@ impl TaskExecutor {
             cost_usd: 0.0,
         });
 
-        // Structured output validation via StructuredOutputEngine
-        // Added InferCallback for real Layer 3 & 4 LLM retry/repair
+        // Structured output validation via StructuredOutputEngine (Layers 1-3)
         // If output policy requires JSON with schema, validate and repair the output
         if let Some(policy) = output_policy {
             if policy.is_structured() {
                 if let Some(spec) = policy.to_structured_spec() {
                     debug!(
                         task_id = %task_id,
-                        "Validating structured output via StructuredOutputEngine"
+                        "Validating structured output via StructuredOutputEngine (Layers 1-3)"
                     );
 
-                    // Create inference callback for Layer 3 & 4
+                    // Create inference callback for Layer 2 & 3
                     // This allows the engine to actually call the LLM for retries and repairs
                     let infer_callback: InferCallback = {
                         let provider = provider.clone();
@@ -269,7 +407,7 @@ impl TaskExecutor {
                             .with_infer_callback(infer_callback)
                             .with_original_prompt(prompt.to_string());
 
-                    // Validate through 4-layer defense system
+                    // Validate through defense system (Layers 1-3)
                     let result = engine
                         .validate(task_id.as_ref(), &stream_result.text)
                         .await?;
