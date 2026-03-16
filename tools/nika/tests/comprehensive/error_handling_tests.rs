@@ -93,9 +93,10 @@ tasks: []
 "#;
 
     let result = parse_workflow(yaml);
-    assert!(result.is_ok(), "Empty tasks array is valid YAML");
-    let workflow = result.unwrap();
-    assert!(workflow.tasks.is_empty());
+    assert!(
+        result.is_err(),
+        "Empty tasks array should be rejected by analyzer"
+    );
 }
 
 #[test]
