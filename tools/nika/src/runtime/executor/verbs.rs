@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::mpsc;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
 use uuid::Uuid;
 
 use crate::ast::output::OutputPolicy;
@@ -216,6 +216,22 @@ impl TaskExecutor {
                                 })
                         }
                     };
+
+                    if let Err(ref e) = schema_value {
+                        warn!(
+                            task_id = %task_id,
+                            error = %e,
+                            "Layer 0: schema resolution failed, skipping tool injection"
+                        );
+                        self.event_log.emit(EventKind::StructuredOutputAttempt {
+                            task_id: Arc::clone(task_id),
+                            layer: 0,
+                            layer_name: "tool_injection".to_string(),
+                            attempt: 0,
+                            success: false,
+                            error: Some(format!("Schema resolution failed: {}", e)),
+                        });
+                    }
 
                     if let Ok(schema_value) = schema_value {
                         let submit_tool =
@@ -1014,8 +1030,27 @@ impl TaskExecutor {
                         crate::ast::output::SchemaRef::Inline(v) => Some(v.clone()),
                         crate::ast::output::SchemaRef::File(path) => {
                             match tokio::fs::read_to_string(path).await {
-                                Ok(content) => serde_json::from_str(&content).ok(),
-                                Err(_) => None,
+                                Ok(content) => match serde_json::from_str(&content) {
+                                    Ok(v) => Some(v),
+                                    Err(e) => {
+                                        warn!(
+                                            task_id = %task_id,
+                                            path = %path,
+                                            error = %e,
+                                            "Agent: invalid JSON in schema file, skipping tool injection"
+                                        );
+                                        None
+                                    }
+                                },
+                                Err(e) => {
+                                    warn!(
+                                        task_id = %task_id,
+                                        path = %path,
+                                        error = %e,
+                                        "Agent: failed to read schema file, skipping tool injection"
+                                    );
+                                    None
+                                }
                             }
                         }
                     };
