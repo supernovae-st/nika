@@ -193,8 +193,8 @@ impl Command {
                 let rest = parts.get(1).map(|s| s.trim()).unwrap_or("");
                 if rest.starts_with("http://") || rest.starts_with("https://") {
                     return Command::FetchError {
-                        error: format!("❌ '{}' n'est pas nécessaire!", first),
-                        hint: "Nika fait le HTTP pour toi. Syntaxe: /fetch <url>".to_string(),
+                        error: format!("❌ '{}' is not needed!", first),
+                        hint: "Nika handles HTTP for you. Syntax: /fetch <url>".to_string(),
                         example: format!("💡 /fetch {}", rest),
                     };
                 }
@@ -202,8 +202,8 @@ impl Command {
             // "http" or "https" without "://"
             if (first == "http" || first == "https") && !args.contains("://") {
                 return Command::FetchError {
-                    error: "❌ URL malformée (manque ://)".to_string(),
-                    hint: "L'URL doit inclure le protocole complet".to_string(),
+                    error: "❌ Malformed URL (missing ://)".to_string(),
+                    hint: "URL must include the full protocol".to_string(),
                     example: "💡 /fetch https://api.github.com/zen".to_string(),
                 };
             }
@@ -228,16 +228,16 @@ impl Command {
                     }
                 }
                 return Command::FetchError {
-                    error: format!("❌ Méthode '{}' mais pas d'URL", url.to_uppercase()),
-                    hint: "Mets l'URL avant la méthode, ou juste l'URL (GET par défaut)"
+                    error: format!("❌ Method '{}' but no URL", url.to_uppercase()),
+                    hint: "Put the URL before the method, or just the URL (GET by default)"
                         .to_string(),
                     example: "💡 /fetch https://httpbin.org/get".to_string(),
                 };
             }
 
             return Command::FetchError {
-                error: "❌ URL invalide (pas de http:// ou https://)".to_string(),
-                hint: format!("Tu as tapé: '{}'", url),
+                error: "❌ Invalid URL (no http:// or https://)".to_string(),
+                hint: format!("You typed: '{}'", url),
                 example: "💡 /fetch https://catfact.ninja/fact".to_string(),
             };
         }
@@ -249,8 +249,8 @@ impl Command {
 
         if !VALID_METHODS.contains(&method.as_str()) {
             return Command::FetchError {
-                error: format!("❌ Méthode HTTP '{}' inconnue", method),
-                hint: format!("Méthodes valides: {}", VALID_METHODS.join(", ")),
+                error: format!("❌ Unknown HTTP method '{}'", method),
+                hint: format!("Valid methods: {}", VALID_METHODS.join(", ")),
                 example: format!("💡 /fetch {} GET", url),
             };
         }

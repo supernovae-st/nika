@@ -15,9 +15,9 @@
 //! # Example
 //!
 //! ```text
-//! @1 USER: Analyse ce fichier
-//! @2 ASSISTANT: Voici l'analyse...
-//! @3 USER: Traduis @2 en français    ◄── Reference @2
+//! @1 USER: Analyze this file
+//! @2 ASSISTANT: Here is the analysis...
+//! @3 USER: Translate @2 to French    ◄── Reference @2
 //! @4 USER: // Independent task       ◄── Parallel (no edge from @3)
 //! ```
 
@@ -775,7 +775,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mentions_to_bindings_use_entry_is_eager() {
+    fn test_mentions_to_bindings_entry_is_eager() {
         // Verify bindings are eager (not lazy)
         let spec = mentions_to_bindings(&ResolvedMention::Single(1));
         assert!(!spec["ref_1"].lazy);
