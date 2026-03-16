@@ -726,6 +726,11 @@ impl McpClient {
             cache.clear();
         }
 
+        // Clear schema cache — schemas may change after server restart
+        if let Some(ref validator) = self.validator {
+            validator.cache().clear();
+        }
+
         self.connected.store(false, Ordering::SeqCst);
         Ok(())
     }
