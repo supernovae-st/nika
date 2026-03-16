@@ -182,8 +182,12 @@ mod tests {
 
         std::env::set_var(key, "");
         let secret = get_secret("deepseek").await;
-        // Empty string is treated as not set
-        assert!(secret.is_none());
+
+        // With nika-daemon, the daemon may return a real secret from keychain
+        // even when env var is empty, so we only assert None without daemon.
+        if !daemon_available() {
+            assert!(secret.is_none(), "empty env var should be treated as not set");
+        }
 
         // Restore
         match original {
