@@ -66,7 +66,7 @@ pub type InferCallback = Arc<
 >;
 
 /// Layer names for event tracking
-const LAYER_2_NAME: &str = "provider_native";
+const LAYER_2_NAME: &str = "extract_validate";
 const LAYER_3_NAME: &str = "retry_with_feedback";
 const LAYER_4_NAME: &str = "llm_repair";
 
@@ -206,10 +206,10 @@ impl StructuredOutputEngine {
         // In future: use rig's Extractor with schemars-derived types
         // For now, we rely on Layers 2-4 which work with runtime schemas
 
-        // Layer 2: Provider-Native validation
-        // The provider should have already received the schema via tool_use/response_format
-        // Here we just validate what the provider returned
-        if self.spec.enable_tool_injection.unwrap_or(true) {
+        // Layer 2: Extract + Validate
+        // Extract JSON from the raw output and validate against the schema.
+        // This always runs — it's the core post-processing validation step.
+        {
             total_attempts += 1;
             let layer_result = self
                 .try_layer_2(&task_id, raw_output, &schema, total_attempts)
@@ -770,7 +770,7 @@ mod tests {
         assert!(result.is_ok());
         let r = result.unwrap();
         assert_eq!(r.layer, 2);
-        assert_eq!(r.layer_name, "provider_native");
+        assert_eq!(r.layer_name, "extract_validate");
         assert_eq!(r.value["name"], "Alice");
     }
 

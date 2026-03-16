@@ -1937,7 +1937,7 @@ mod tests {
     fn test_structured_output_validation_failed_error() {
         let err = NikaError::StructuredOutputValidationFailed {
             task_id: "validate_output".to_string(),
-            layer: "provider_native".to_string(),
+            layer: "extract_validate".to_string(),
             attempt: 2,
             errors: vec![
                 "missing required field 'id'".to_string(),
@@ -1948,7 +1948,7 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-301]"));
         assert!(msg.contains("validate_output"));
-        assert!(msg.contains("provider_native"));
+        assert!(msg.contains("extract_validate"));
         assert!(msg.contains("attempt 2"));
         assert!(msg.contains("2 errors"));
     }

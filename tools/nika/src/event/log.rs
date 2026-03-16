@@ -457,15 +457,15 @@ pub enum EventKind {
     ///
     /// Emitted for each layer/retry attempt in the 4-layer defense system:
     /// - Layer 1: rig Extractor (Rust types with JsonSchema)
-    /// - Layer 2: Provider-Native (tool_use / response_format)
+    /// - Layer 2: Extract + Validate (post-processing)
     /// - Layer 3: Retry with Feedback
     /// - Layer 4: LLM Repair
     StructuredOutputAttempt {
         /// Task ID for correlation
         task_id: Arc<str>,
-        /// Layer number (1-4)
+        /// Layer number (0-4)
         layer: u8,
-        /// Human-readable layer name (e.g., "rig_extractor", "provider_native")
+        /// Human-readable layer name (e.g., "tool_injection", "extract_validate")
         layer_name: String,
         /// Attempt number within this layer (1-based)
         attempt: u32,
@@ -1380,7 +1380,7 @@ mod tests {
         log.emit(EventKind::StructuredOutputAttempt {
             task_id: "extract_task".into(),
             layer: 2,
-            layer_name: "provider_native".to_string(),
+            layer_name: "extract_validate".to_string(),
             attempt: 2,
             success: false,
             error: Some("Missing required field 'name'".to_string()),
@@ -1399,7 +1399,7 @@ mod tests {
         } = &events[0].kind
         {
             assert_eq!(*layer, 2);
-            assert_eq!(layer_name, "provider_native");
+            assert_eq!(layer_name, "extract_validate");
             assert_eq!(*attempt, 2);
             assert!(!*success);
             assert_eq!(error.as_ref().unwrap(), "Missing required field 'name'");
@@ -1483,7 +1483,7 @@ mod tests {
         let event = EventKind::StructuredOutputSuccess {
             task_id: "task1".into(),
             layer: 2,
-            layer_name: "provider_native".to_string(),
+            layer_name: "extract_validate".to_string(),
             total_attempts: 3,
         };
 
@@ -1491,7 +1491,7 @@ mod tests {
         assert_eq!(json["type"], "structured_output_success");
         assert_eq!(json["task_id"], "task1");
         assert_eq!(json["layer"], 2);
-        assert_eq!(json["layer_name"], "provider_native");
+        assert_eq!(json["layer_name"], "extract_validate");
         assert_eq!(json["total_attempts"], 3);
     }
 
@@ -1510,7 +1510,7 @@ mod tests {
         let success = EventKind::StructuredOutputSuccess {
             task_id: "extract2".into(),
             layer: 2,
-            layer_name: "provider_native".to_string(),
+            layer_name: "extract_validate".to_string(),
             total_attempts: 1,
         };
         assert_eq!(success.task_id(), Some("extract2"));
@@ -1535,7 +1535,7 @@ mod tests {
         log.emit(EventKind::StructuredOutputAttempt {
             task_id: "parse_json".into(),
             layer: 2,
-            layer_name: "provider_native".to_string(),
+            layer_name: "extract_validate".to_string(),
             attempt: 1,
             success: false,
             error: Some("Schema validation failed".to_string()),
