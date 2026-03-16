@@ -1032,4 +1032,163 @@ mod tests {
         let lowered = lower(wf);
         assert!(lowered.tasks[0].with_spec.is_none());
     }
+
+    // =========================================================================
+    // Pipeline audit tests: document intentional drops and gaps
+    // =========================================================================
+
+    /// lower() explicitly drops workflow-level artifacts.
+    /// The Runner reads AnalyzedWorkflow.artifacts directly (runner.rs:1035),
+    /// so this drop is intentional for the CLI path (lower -> unlower roundtrip).
+    #[test]
+    fn lower_drops_workflow_artifacts() {
+        let mut wf = dummy_workflow();
+        wf.artifacts = Some(crate::ast::artifact::ArtifactsConfig {
+            dir: Some("./output".to_string()),
+            ..Default::default()
+        });
+        let lowered = lower(wf);
+        assert!(
+            lowered.artifacts.is_none(),
+            "lower() drops workflow-level artifacts"
+        );
+    }
+
+    /// lower() explicitly drops workflow-level log config.
+    /// The Runner reads AnalyzedWorkflow.log directly.
+    #[test]
+    fn lower_drops_workflow_log() {
+        let mut wf = dummy_workflow();
+        wf.log = Some(crate::ast::logging::LogConfig::default());
+        let lowered = lower(wf);
+        assert!(
+            lowered.log.is_none(),
+            "lower() drops workflow-level log config"
+        );
+    }
+
+    /// lower() explicitly drops workflow-level agents.
+    /// The Runner resolves agents from AnalyzedWorkflow at boot.
+    #[test]
+    fn lower_drops_workflow_agents() {
+        let mut wf = dummy_workflow();
+        let mut agents = IndexMap::new();
+        agents.insert(
+            "researcher".to_string(),
+            crate::ast::agent_def::AgentDef::From {
+                from: "./agents/researcher.yaml".to_string(),
+            },
+        );
+        wf.agents = Some(agents);
+        let lowered = lower(wf);
+        assert!(
+            lowered.agents.is_none(),
+            "lower() drops workflow-level agents"
+        );
+    }
+
+    /// lower_task() hardcodes artifact to None regardless of AnalyzedTask.artifact.
+    /// The Runner reads AnalyzedTask.artifact directly (runner.rs:811),
+    /// so this is intentional for the execution path.
+    #[test]
+    fn lower_task_artifact_always_none() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        let mut task = dummy_task(id, "t");
+        task.artifact = Some(crate::ast::artifact::ArtifactSpec::Enabled(true));
+        wf.tasks.push(task);
+        let lowered = lower(wf);
+        assert!(
+            lowered.tasks[0].artifact.is_none(),
+            "lower_task() sets artifact to None"
+        );
+    }
+
+    /// lower_task() hardcodes log to None regardless of AnalyzedTask.log.
+    #[test]
+    fn lower_task_log_always_none() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        let mut task = dummy_task(id, "t");
+        task.log = Some(crate::ast::logging::LogConfig::default());
+        wf.tasks.push(task);
+        let lowered = lower(wf);
+        assert!(
+            lowered.tasks[0].log.is_none(),
+            "lower_task() sets log to None"
+        );
+    }
+
+    /// lower_task() passes structured through as-is. This is correct because
+    /// the Runner also reads AnalyzedTask.structured directly for OutputPolicy.
+    #[test]
+    fn lower_task_structured_passthrough() {
+        use crate::ast::structured::StructuredOutputSpec;
+
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        let mut task = dummy_task(id, "t");
+        task.structured = Some(StructuredOutputSpec::with_file_schema("./schema.json"));
+        wf.tasks.push(task);
+        let lowered = lower(wf);
+        let structured = lowered.tasks[0]
+            .structured
+            .as_ref()
+            .expect("structured should pass through lower_task");
+        assert!(matches!(structured.schema, SchemaRef::File(ref p) if p == "./schema.json"));
+    }
+
+    /// The lower -> unlower roundtrip loses task-level artifact and log
+    /// because lower_task() sets both to None. This is a known gap:
+    /// CLI path goes lower -> expand_includes -> unlower -> Runner,
+    /// so artifact/log on AnalyzedTask are only available via the TUI path.
+    #[test]
+    fn unlower_roundtrip_loses_task_artifact_and_log() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        let mut task = dummy_task(id, "t");
+        task.artifact = Some(crate::ast::artifact::ArtifactSpec::Enabled(true));
+        task.log = Some(crate::ast::logging::LogConfig::default());
+        wf.tasks.push(task);
+
+        let lowered = lower(wf);
+        assert!(lowered.tasks[0].artifact.is_none());
+        assert!(lowered.tasks[0].log.is_none());
+
+        let unl = unlower(lowered);
+        assert!(
+            unl.tasks[0].artifact.is_none(),
+            "lower->unlower roundtrip loses task artifact (known gap)"
+        );
+        assert!(
+            unl.tasks[0].log.is_none(),
+            "lower->unlower roundtrip loses task log (known gap)"
+        );
+    }
+
+    /// retry is only wired to fetch actions via lower_fetch(). For infer/exec/invoke,
+    /// task.retry is silently ignored by lower_action(). The Runner handles retry
+    /// separately for structured output via get_retry_config().
+    #[test]
+    fn lower_retry_only_applies_to_fetch() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("infer_retry");
+        let mut task = dummy_task(id, "infer_retry");
+        task.retry = Some(AnalyzedRetry {
+            max_attempts: 3,
+            delay_ms: 1000,
+            backoff: Some(2.0),
+            span: Span::dummy(),
+        });
+        wf.tasks.push(task);
+
+        let lowered = lower(wf);
+        // The infer action does not carry retry config; it is silently dropped
+        match &lowered.tasks[0].action {
+            TaskAction::Infer { infer } => {
+                assert!(infer.prompt.is_empty(), "default infer has empty prompt");
+            }
+            _ => panic!("expected Infer action"),
+        }
+    }
 }

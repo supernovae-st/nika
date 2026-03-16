@@ -1831,3 +1831,298 @@ async fn test_extract_decompose_nodes_from_object_without_known_fields_fails() {
     let result = executor.extract_decompose_nodes(json!({"data": [1, 2, 3]}));
     assert!(result.is_err());
 }
+
+// ═══════════════════════════════════════════════════════════════
+// DEEP AUDIT: EXEC VERB — EDGE CASES AND BUGS
+// ═══════════════════════════════════════════════════════════════
+
+/// AUDIT: exec with per-task timeout should actually cancel quickly.
+///
+/// BUG DOCUMENTED: `tokio::time::timeout` cancels the future but does
+/// NOT call `kill()` on the spawned OS child process. The child process
+/// may continue running as an orphan. `kill_on_drop(true)` is never set.
+#[tokio::test]
+async fn audit_exec_timeout_fires_promptly() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "sleep 60".to_string(),
+            shell: None,
+            timeout: Some(1),
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_timeout");
+    let start = std::time::Instant::now();
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+    let elapsed = start.elapsed();
+
+    assert!(result.is_err(), "Should timeout");
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "Timeout should fire in ~1s, took {:?}",
+        elapsed
+    );
+    match result.unwrap_err() {
+        NikaError::Execution(msg) => {
+            assert!(msg.contains("timed out"), "Expected timeout, got: {}", msg);
+        }
+        err => panic!("Expected Execution error, got: {:?}", err),
+    }
+    // GAP: The sleep 60 child process may still be alive.
+    // Fix: call cmd.kill_on_drop(true) before spawning.
+}
+
+/// AUDIT: exec with JSON object binding breaks shlex in shell-free mode.
+///
+/// When {{with.data}} resolves to a JSON object like {"key":"value"},
+/// the compact serialization `{"key":"value"}` contains double quotes.
+/// shlex::split treats these as shell quoting — the `{` is outside
+/// quotes but `key` is inside quotes, producing unexpected splitting.
+#[tokio::test]
+async fn audit_exec_json_object_binding_breaks_shlex() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let mut bindings = ResolvedBindings::new();
+    bindings.set("data", json!({"key": "value"}));
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "echo {{with.data}}".to_string(),
+            shell: None,
+            timeout: None,
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_json_shlex");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    // Document actual behavior: shlex may produce unexpected results
+    // because JSON's double quotes interact with shlex quoting rules.
+    // The test documents whichever behavior actually occurs.
+    match result {
+        Ok(output) => {
+            // shlex managed to parse it somehow
+            assert!(
+                output.contains("key"),
+                "JSON content should appear: {}",
+                output
+            );
+        }
+        Err(err) => {
+            // shlex failed to parse — this IS the bug
+            let msg = err.to_string();
+            assert!(
+                msg.contains("parse command") || msg.contains("unbalanced"),
+                "Expected shlex parse error: {}",
+                msg
+            );
+        }
+    }
+}
+
+/// AUDIT: exec stderr is captured in error message on failure.
+#[tokio::test]
+async fn audit_exec_stderr_in_error_message() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "sh -c 'echo AUDIT_ERROR >&2 && exit 1'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_stderr");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("AUDIT_ERROR"),
+        "Error should contain stderr, got: {}",
+        err_msg
+    );
+}
+
+/// AUDIT: exec output trailing whitespace is trimmed.
+#[tokio::test]
+async fn audit_exec_output_trimmed() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "printf 'hello\\n\\n\\n'".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_trim");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+    assert_eq!(result, "hello", "Output should be trimmed: '{}'", result);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEEP AUDIT: SECURITY BLOCKLIST — BYPASS VECTORS
+// ═══════════════════════════════════════════════════════════════
+
+/// AUDIT: Blocklist bypass via extra whitespace between arguments.
+///
+/// BUG: "rm  -rf  /" (double spaces) does NOT contain "rm -rf /"
+/// (single space). The blocklist uses `String::contains()` which
+/// requires exact character match including whitespace.
+#[tokio::test]
+async fn audit_blocklist_extra_spaces_bypass() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "rm  -rf  /".to_string(),
+            shell: None,
+            timeout: None,
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_spaces");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    if result.is_ok() {
+        panic!(
+            "GAP CONFIRMED: 'rm  -rf  /' bypasses blocklist! \
+             contains() needs exact whitespace. Fix: normalize \
+             whitespace before blocklist check."
+        );
+    }
+    // If blocked, the security check caught it
+}
+
+/// AUDIT: Blocklist bypass via tab characters between arguments.
+///
+/// BUG: Tabs (0x09) pass control char validation. But "rm\t-rf\t/"
+/// does not match blocklist pattern "rm -rf /" (which uses spaces).
+#[tokio::test]
+async fn audit_blocklist_tab_bypass() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "rm\t-rf\t/".to_string(),
+            shell: None,
+            timeout: None,
+            cwd: None,
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_tabs");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await;
+
+    if result.is_ok() {
+        panic!(
+            "GAP CONFIRMED: 'rm\\t-rf\\t/' bypasses blocklist! \
+             Tabs pass control char check but blocklist patterns use \
+             spaces. Fix: normalize whitespace before blocklist check."
+        );
+    }
+}
+
+/// AUDIT: Blocklist bypass via reordered flags.
+///
+/// "rm -f -r /" is semantically identical to "rm -rf /"
+/// but does not match the blocklist pattern.
+#[test]
+fn audit_blocklist_flag_reorder_bypass() {
+    let result = crate::runtime::security::check_blocklist("rm -f -r /");
+    if result.is_ok() {
+        // This is a known limitation of pattern-based blocklists.
+        // Not necessarily a bug, but worth documenting.
+    } else {
+        // If caught, great
+    }
+}
+
+/// AUDIT: Blocklist correctly catches newline-embedded patterns.
+#[test]
+fn audit_blocklist_newline_still_caught() {
+    let cmd = "echo safe\nrm -rf /";
+    let result = crate::runtime::security::check_blocklist(cmd);
+    // The substring "rm -rf /" is present after the newline
+    assert!(
+        result.is_err(),
+        "Newline-separated 'rm -rf /' should be caught by contains()"
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEEP AUDIT: EXEC CWD WIRING
+// ═══════════════════════════════════════════════════════════════
+
+/// AUDIT: Verify cwd parameter is actually wired to Command.
+///
+/// BUG POTENTIAL: The `cwd` field exists in ExecParams but run_exec()
+/// may not call `cmd.current_dir(cwd)`.
+#[tokio::test]
+async fn audit_exec_cwd_is_wired() {
+    let executor = TaskExecutor::new("mock", None, None, EventLog::new());
+    let bindings = ResolvedBindings::new();
+    let datastore = RunContext::new();
+
+    let action = TaskAction::Exec {
+        exec: ExecParams {
+            command: "pwd".to_string(),
+            shell: Some(true),
+            timeout: None,
+            cwd: Some("/tmp".to_string()),
+            env: None,
+        },
+    };
+
+    let task_id: Arc<str> = Arc::from("audit_cwd");
+    let result = executor
+        .execute(&task_id, &action, &bindings, &datastore, None)
+        .await
+        .unwrap();
+
+    // On macOS, /tmp is symlinked to /private/tmp
+    assert!(
+        result == "/tmp" || result == "/private/tmp",
+        "GAP: cwd not wired. Expected /tmp or /private/tmp, got: '{}'",
+        result
+    );
+}

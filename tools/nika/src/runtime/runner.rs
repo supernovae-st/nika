@@ -5,7 +5,7 @@
 //! - JoinSet for efficient parallel task collection
 //! - Tokio handles all concurrency (no artificial limits)
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -1527,6 +1527,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 FxHashMap::default();
 
+            // Track which parent tasks have fail_fast enabled (for result collection)
+            let fail_fast_parents: FxHashSet<Arc<str>> = self
+                .workflow
+                .tasks
+                .iter()
+                .filter(|t| {
+                    t.for_each
+                        .as_ref()
+                        .map(|fe| fe.fail_fast)
+                        .unwrap_or(false)
+                })
+                .map(|t| intern(&t.name))
+                .collect();
+
             // Track if we've already triggered abort_all for fail_fast
             let mut fail_fast_triggered = false;
 
@@ -1609,11 +1623,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     .insert(Arc::clone(&store_id), task_result.clone());
 
                                 // If this is a for_each failure with fail_fast,
-                                // abort all remaining in-flight tasks immediately
-                                if !success && !skipped && for_each_info.is_some() && !fail_fast_triggered {
-                                    // Check if the parent task had fail_fast enabled
-                                    // We detect this by checking if we're in a for_each context
-                                    // and the task failed (not skipped - skipped means already cancelled)
+                                // abort all remaining in-flight tasks immediately.
+                                // Only abort if the PARENT task had fail_fast enabled.
+                                let parent_has_fail_fast = for_each_info
+                                    .as_ref()
+                                    .map(|(parent_id, _)| fail_fast_parents.contains(parent_id))
+                                    .unwrap_or(false);
+                                if !success && !skipped && parent_has_fail_fast && !fail_fast_triggered {
                                     fail_fast_triggered = true;
                                     debug!(
                                         store_id = %store_id,
@@ -4032,5 +4048,626 @@ mod tests {
             runner.all_done(),
             "All tasks have results (success, failed, or dep-failed)"
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT: FOR_EACH EDGE CASES
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn audit_for_each_empty_array_produces_empty_result() {
+        let workflow = create_for_each_workflow(
+            "empty_loop",
+            "[]",
+            "item",
+            "echo {{with.item}}",
+            None,
+            true,
+            false,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Empty for_each should complete successfully: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("empty_loop");
+        assert!(task_result.is_some(), "Task result should exist");
+
+        let tr = task_result.unwrap();
+        assert!(tr.is_success(), "Empty for_each should succeed");
+
+        // The output should be an empty array [], NOT the output of running
+        // the task body once as a regular task.
+        let output = tr.output_str();
+        let parsed: Result<Vec<Value>, _> = serde_json::from_str(&output);
+        assert!(
+            parsed.is_ok(),
+            "Output should be valid JSON array, got: {}",
+            output
+        );
+        assert_eq!(
+            parsed.unwrap().len(),
+            0,
+            "Empty for_each should produce empty array, got: {}",
+            output
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_single_item_array_works() {
+        let workflow = create_for_each_workflow(
+            "single",
+            r#"["only_one"]"#,
+            "item",
+            "echo {{with.item}}",
+            None,
+            true,
+            false,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Single-item for_each should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("single");
+        assert!(task_result.is_some(), "Task result should exist");
+
+        let tr = task_result.unwrap();
+        assert!(tr.is_success(), "Task should succeed");
+
+        let output = tr.output_str();
+        let parsed: Vec<Value> = serde_json::from_str(&output)
+            .unwrap_or_else(|_| panic!("Output should be JSON array, got: {}", output));
+        assert_eq!(parsed.len(), 1, "Should have exactly one result");
+        let first_str = parsed[0].as_str().unwrap_or("");
+        assert!(
+            first_str.contains("only_one"),
+            "Single result should contain 'only_one', got: {}",
+            first_str
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_nested_json_items_bound_correctly() {
+        let workflow = create_for_each_workflow(
+            "nested_items",
+            r#"[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]"#,
+            "person",
+            "echo {{with.person}}",
+            None,
+            true,
+            true,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Nested JSON for_each should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("nested_items");
+        assert!(task_result.is_some(), "Task result should exist");
+
+        let tr = task_result.unwrap();
+        assert!(tr.is_success(), "Task should succeed");
+
+        let output = tr.output_str();
+        assert!(
+            output.contains("Alice") && output.contains("Bob"),
+            "Output should contain both names from nested JSON items, got: {}",
+            output
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_fail_fast_false_continues_after_failure() {
+        // BUG TEST: With fail_fast=false, ALL iterations should run even when
+        // one fails. Previously, abort_all was called unconditionally.
+        let workflow = create_for_each_workflow(
+            "continue_on_fail",
+            r#"["ok1", "FAIL", "ok2"]"#,
+            "item",
+            "test '{{with.item}}' != 'FAIL' && echo {{with.item}}",
+            Some(1),
+            false,   // fail_fast = false
+            true,    // shell = true (command uses shell operators)
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let _result = runner.run().await;
+
+        let task_result = runner.datastore.get("continue_on_fail");
+        assert!(task_result.is_some(), "Parent task result should exist");
+
+        let ok1_result = runner.datastore.get("continue_on_fail[0]");
+        let fail_result = runner.datastore.get("continue_on_fail[1]");
+        let ok2_result = runner.datastore.get("continue_on_fail[2]");
+
+        assert!(ok1_result.is_some(), "First iteration result should exist");
+        assert!(
+            fail_result.is_some(),
+            "Second iteration result should exist"
+        );
+        assert!(
+            ok2_result.is_some(),
+            "Third iteration result should exist (fail_fast=false)"
+        );
+
+        assert!(
+            ok1_result.unwrap().is_success(),
+            "First iteration should succeed"
+        );
+        assert!(
+            !fail_result.unwrap().is_success(),
+            "Second iteration should fail"
+        );
+        assert!(
+            ok2_result.unwrap().is_success(),
+            "Third iteration should succeed (not aborted by fail_fast=false)"
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_with_depends_on_runs_after_dependency() {
+        let workflow = create_two_step_for_each_workflow(
+            r#"echo '["red", "green", "blue"]'"#,
+            true,
+            "$step1",
+            "echo color={{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "for_each with depends_on should complete: {:?}",
+            result.err()
+        );
+
+        let step1_result = runner.datastore.get("step1");
+        assert!(step1_result.is_some());
+        assert!(step1_result.unwrap().is_success());
+
+        let step2_result = runner.datastore.get("step2");
+        assert!(step2_result.is_some());
+        let tr = step2_result.unwrap();
+        assert!(
+            tr.is_success(),
+            "step2 should succeed, got error: {:?}",
+            tr.error()
+        );
+
+        let output = tr.output_str();
+        assert!(
+            output.contains("red") && output.contains("green") && output.contains("blue"),
+            "for_each with depends_on should produce all 3 colors, got: {}",
+            output
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_items_non_array_non_string_errors() {
+        let workflow = create_two_step_for_each_workflow(
+            "echo 42",
+            false,
+            "$step1",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let _ = runner.run().await;
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+
+        let tr = task_result.unwrap();
+        assert!(
+            !tr.is_success(),
+            "for_each with non-array binding should fail"
+        );
+        let error_msg = tr.error().expect("should have error");
+        assert!(
+            error_msg.contains("non-array"),
+            "Error should mention non-array, got: {}",
+            error_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_for_each_large_array_with_concurrency() {
+        let items: Vec<String> = (0..20).map(|i| format!("\"item{}\"", i)).collect();
+        let items_json = format!("[{}]", items.join(", "));
+
+        let workflow = create_for_each_workflow(
+            "large_batch",
+            &items_json,
+            "x",
+            "echo {{with.x}}",
+            Some(4),
+            true,
+            false,
+        );
+
+        let mut runner = Runner::new(workflow).unwrap();
+        let result = runner.run().await;
+        assert!(
+            result.is_ok(),
+            "Large for_each should complete: {:?}",
+            result.err()
+        );
+
+        let task_result = runner.datastore.get("large_batch");
+        assert!(task_result.is_some());
+        let tr = task_result.unwrap();
+        assert!(tr.is_success(), "Large batch should succeed");
+
+        let output = tr.output_str();
+        let parsed: Vec<Value> = serde_json::from_str(&output)
+            .unwrap_or_else(|_| panic!("Should be JSON array, got: {}", output));
+        assert_eq!(
+            parsed.len(),
+            20,
+            "Should have 20 results from large batch, got: {}",
+            parsed.len()
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT: STRUCTURED OUTPUT ENGINE EDGE CASES
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn audit_structured_output_layer3_with_mock_callback_succeeds() {
+        use crate::runtime::structured_output::{InferCallback, StructuredOutputEngine};
+
+        let log = Arc::new(EventLog::new());
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "age": { "type": "integer" }
+            },
+            "required": ["name", "age"]
+        });
+        let mut spec = StructuredOutputSpec::with_inline_schema(schema);
+        spec.max_retries = Some(2);
+        spec.enable_retry = Some(true);
+
+        let callback: InferCallback = Arc::new(move |_prompt: String| {
+            Box::pin(async move { Ok(r#"{"name": "Fixed", "age": 42}"#.to_string()) })
+        });
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback)
+            .with_original_prompt("Generate a user".to_string());
+
+        let result = engine
+            .validate("retry-test", r#"{"name": "Incomplete"}"#)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Layer 3 should succeed with mock callback: {:?}",
+            result.err()
+        );
+        let r = result.unwrap();
+        assert_eq!(r.layer, 3, "Should have succeeded at Layer 3");
+        assert_eq!(r.value["name"], "Fixed");
+        assert_eq!(r.value["age"], 42);
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_layer3_exhausts_retries() {
+        use crate::runtime::structured_output::{InferCallback, StructuredOutputEngine};
+
+        let log = Arc::new(EventLog::new());
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "score": { "type": "number" }
+            },
+            "required": ["name", "score"]
+        });
+        let mut spec = StructuredOutputSpec::with_inline_schema(schema);
+        spec.max_retries = Some(2);
+        spec.enable_retry = Some(true);
+        spec.enable_repair = Some(false);
+
+        let call_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let call_count_clone = Arc::clone(&call_count);
+        let callback: InferCallback = Arc::new(move |_prompt: String| {
+            call_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async move { Ok(r#"{"name": "Still Wrong"}"#.to_string()) })
+        });
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback)
+            .with_original_prompt("test".to_string());
+
+        let result = engine
+            .validate("exhaust-test", r#"{"name": "Invalid"}"#)
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should fail after exhausting all retries"
+        );
+
+        let calls = call_count.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            calls, 2,
+            "Layer 3 should call LLM exactly max_retries times, got: {}",
+            calls
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_layer4_repair_succeeds() {
+        use crate::runtime::structured_output::{InferCallback, StructuredOutputEngine};
+
+        let log = Arc::new(EventLog::new());
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "valid": { "type": "boolean" }
+            },
+            "required": ["valid"]
+        });
+        let mut spec = StructuredOutputSpec::with_inline_schema(schema);
+        spec.enable_retry = Some(false);
+        spec.enable_repair = Some(true);
+
+        let callback: InferCallback = Arc::new(move |_prompt: String| {
+            Box::pin(async move { Ok(r#"{"valid": true}"#.to_string()) })
+        });
+
+        let mut engine = StructuredOutputEngine::new(spec, log.clone())
+            .with_infer_callback(callback);
+
+        let result = engine
+            .validate("repair-test", r#"{"invalid_field": 123}"#)
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Layer 4 repair should succeed: {:?}",
+            result.err()
+        );
+        let r = result.unwrap();
+        assert_eq!(r.layer, 4, "Should have succeeded at Layer 4");
+        assert_eq!(r.value["valid"], true);
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_validates_array_schema() {
+        use crate::runtime::structured_output::StructuredOutputEngine;
+
+        let log = Arc::new(EventLog::new());
+        let schema = json!({
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+        });
+        let spec = StructuredOutputSpec::with_inline_schema(schema);
+        let mut engine = StructuredOutputEngine::new(spec, log);
+
+        let result = engine.validate("arr-ok", r#"["hello", "world"]"#).await;
+        assert!(result.is_ok(), "String array should validate");
+
+        let mut engine2 = StructuredOutputEngine::new(
+            StructuredOutputSpec::with_inline_schema(json!({
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1
+            })),
+            Arc::new(EventLog::new()),
+        );
+        let result = engine2.validate("arr-empty", "[]").await;
+        assert!(result.is_err(), "Empty array should fail minItems check");
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_validates_additional_properties_false() {
+        use crate::runtime::structured_output::StructuredOutputEngine;
+
+        let log = Arc::new(EventLog::new());
+        let spec = StructuredOutputSpec::with_inline_schema(json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        }));
+        let mut engine = StructuredOutputEngine::new(spec, log);
+
+        let result = engine
+            .validate("addl-ok", r#"{"name": "test"}"#)
+            .await;
+        assert!(result.is_ok(), "Known properties only should validate");
+
+        let mut engine2 = StructuredOutputEngine::new(
+            StructuredOutputSpec::with_inline_schema(json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            })),
+            Arc::new(EventLog::new()),
+        );
+        let result = engine2
+            .validate("addl-bad", r#"{"name": "test", "extra": true}"#)
+            .await;
+        assert!(
+            result.is_err(),
+            "Extra properties should fail when additionalProperties=false"
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_validates_deeply_nested_schema() {
+        use crate::runtime::structured_output::StructuredOutputEngine;
+
+        let log = Arc::new(EventLog::new());
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "level1": {
+                    "type": "object",
+                    "properties": {
+                        "level2": {
+                            "type": "object",
+                            "properties": {
+                                "value": { "type": "integer" }
+                            },
+                            "required": ["value"]
+                        }
+                    },
+                    "required": ["level2"]
+                }
+            },
+            "required": ["level1"]
+        });
+        let spec = StructuredOutputSpec::with_inline_schema(schema);
+        let mut engine = StructuredOutputEngine::new(spec, log);
+
+        let result = engine
+            .validate(
+                "deep-ok",
+                r#"{"level1": {"level2": {"value": 42}}}"#,
+            )
+            .await;
+        assert!(result.is_ok(), "Deeply nested valid should pass");
+
+        let mut engine2 = StructuredOutputEngine::new(
+            StructuredOutputSpec::with_inline_schema(json!({
+                "type": "object",
+                "properties": {
+                    "level1": {
+                        "type": "object",
+                        "properties": {
+                            "level2": {
+                                "type": "object",
+                                "properties": {
+                                    "value": { "type": "integer" }
+                                },
+                                "required": ["value"]
+                            }
+                        },
+                        "required": ["level2"]
+                    }
+                },
+                "required": ["level1"]
+            })),
+            Arc::new(EventLog::new()),
+        );
+        let result = engine2
+            .validate(
+                "deep-bad",
+                r#"{"level1": {"level2": {"value": "not_a_number"}}}"#,
+            )
+            .await;
+        assert!(
+            result.is_err(),
+            "Wrong type at deep level should fail validation"
+        );
+    }
+
+    #[tokio::test]
+    async fn audit_structured_output_validates_primitive_types() {
+        use crate::runtime::structured_output::StructuredOutputEngine;
+
+        // String schema
+        let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "string"}));
+        let mut engine = StructuredOutputEngine::new(spec, Arc::new(EventLog::new()));
+        let result = engine.validate("str-ok", r#""hello""#).await;
+        assert!(result.is_ok(), "Quoted string should validate as string type");
+
+        // Number schema
+        let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "number"}));
+        let mut engine = StructuredOutputEngine::new(spec, Arc::new(EventLog::new()));
+        let result = engine.validate("num-ok", "42.5").await;
+        assert!(result.is_ok(), "Number should validate as number type");
+
+        // Boolean schema
+        let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "boolean"}));
+        let mut engine = StructuredOutputEngine::new(spec, Arc::new(EventLog::new()));
+        let result = engine.validate("bool-ok", "true").await;
+        assert!(result.is_ok(), "Boolean should validate as boolean type");
+
+        // Null schema
+        let spec = StructuredOutputSpec::with_inline_schema(json!({"type": "null"}));
+        let mut engine = StructuredOutputEngine::new(spec, Arc::new(EventLog::new()));
+        let result = engine.validate("null-ok", "null").await;
+        assert!(result.is_ok(), "null should validate as null type");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT: BUILD_RETRY_PROMPT TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn audit_build_retry_prompt_includes_all_components() {
+        let schema = json!({"type": "object", "required": ["name"]});
+        let prompt = Runner::build_retry_prompt(
+            "Generate a user",
+            &schema,
+            r#"{"broken": true}"#,
+            "missing required field: name",
+        );
+
+        assert!(
+            prompt.contains("Generate a user"),
+            "Should contain original prompt"
+        );
+        assert!(
+            prompt.contains(r#"{"broken": true}"#),
+            "Should contain the actual previous output"
+        );
+        assert!(
+            prompt.contains("missing required field: name"),
+            "Should contain validation errors"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUDIT: LOWERING OF STRUCTURED FIELD
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn audit_to_output_policy_preserves_structured_spec() {
+        let schema = json!({"type": "object"});
+        let mut spec = StructuredOutputSpec::with_inline_schema(schema.clone());
+        spec.max_retries = Some(5);
+        spec.enable_repair = Some(false);
+
+        let policy = spec.to_output_policy();
+
+        assert_eq!(
+            policy.format,
+            crate::ast::output::OutputFormat::Json,
+        );
+
+        assert!(policy.schema.is_some());
+
+        assert_eq!(policy.max_retries, Some(5));
+
+        assert!(policy.source_structured_spec.is_some());
+        let roundtripped = policy.source_structured_spec.unwrap();
+        assert_eq!(roundtripped.max_retries, Some(5));
+        assert_eq!(roundtripped.enable_repair, Some(false));
     }
 }
