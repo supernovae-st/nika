@@ -122,7 +122,7 @@ Native content generation from NovaNet knowledge graph.
 
 ```
 Features:
-├── Full NovaNet MCP tool suite (8 tools)
+├── Full NovaNet MCP tool suite (7 tools)
 ├── Context assembly with token budget
 ├── ADR-033 denomination forms (text/title/abbrev/url)
 ├── Culturally-native generation (NOT translation)

@@ -185,7 +185,7 @@ tasks:
   - id: context
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         entity: "qr-code"
         locale: "fr-FR"
@@ -197,7 +197,7 @@ tasks:
     as: locale
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         entity: "qr-code"
         locale: "{{with.locale}}"
@@ -290,7 +290,7 @@ Nika v0.2 connects to NovaNet via MCP:
 ```
 NIKA WORKFLOW
      │
-     │ invoke: novanet_generate
+     │ invoke: novanet_context
      ▼
 NOVANET MCP
      │

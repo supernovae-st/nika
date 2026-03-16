@@ -833,7 +833,7 @@ tasks:
   - id: generate_content
     invoke:
       mcp: novanet              # Server name
-      tool: novanet_generate    # Tool name
+      tool: novanet_context     # Tool name
       params:
         focus_key: "entity:qr-code"
         locale: "fr-FR"

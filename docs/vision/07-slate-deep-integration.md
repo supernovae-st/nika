@@ -376,7 +376,7 @@ satellites:
   - id: get_context
     model_slot: atlas
     invoke:
-      tool: novanet_generate
+      tool: novanet_context
       server: novanet
       params:
         focus_key: "homepage"

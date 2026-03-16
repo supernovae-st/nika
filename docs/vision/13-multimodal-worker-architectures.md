@@ -1624,7 +1624,7 @@ MCP tools act as "hands" for satellites, extending what they can do beyond pure 
 
 | Category | Tools | Capability Added |
 |----------|-------|------------------|
-| **Knowledge** | `novanet_context`, `novanet_search`, `novanet_traverse` | Entity knowledge, SEO data, locale context |
+| **Knowledge** | `novanet_context`, `novanet_search` | Entity knowledge, SEO data, locale context |
 | **Files** | `nika:read`, `nika:write`, `nika:edit`, `nika:glob` | File system access |
 | **Web** | `browser:navigate`, `browser:screenshot`, `browser:extract` | Web browsing, scraping |
 | **Image** | `image-gen:generate`, `image-gen:edit`, `image-gen:upscale` | Image creation/modification |
@@ -1665,7 +1665,6 @@ satellites:
       # Knowledge Graph (NovaNet)
       - novanet_context
       - novanet_search
-      - novanet_traverse
       # Web Browsing
       - browser:navigate
       - browser:screenshot

@@ -178,7 +178,7 @@ The "intelligence database". Shows everything NovaNet provides.
 | Entity card | Key, denomination forms (text/title/abbrev/url), class | novanet_context |
 | Locale info | BCP-47 code, flag, register, audience type | novanet_context |
 | Knowledge atoms | Expressions (with usage notes), taboos (with warnings), audience traits | novanet_context(mode=knowledge) |
-| Graph neighbors | Mini tree showing entity's immediate connections (arcs + targets) | novanet_traverse |
+| Graph neighbors | Mini tree showing entity's immediate connections (arcs + targets) | novanet_search (mode: walk) |
 | Last MCP call | Tool name, params, response time, status | Live MCP client |
 
 **Visual treatment:**
