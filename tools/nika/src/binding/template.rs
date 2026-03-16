@@ -969,7 +969,8 @@ pub fn resolve_for_shell<'a>(
     }
     let has_with = template.contains("with.");
     let has_context = template.contains("context.");
-    if !has_with && !has_context {
+    let has_inputs = template.contains("inputs.");
+    if !has_with && !has_context && !has_inputs {
         return Ok(Cow::Borrowed(template));
     }
 
@@ -1054,8 +1055,8 @@ pub fn resolve_for_shell<'a>(
 
     // Pass 2: Context bindings (shell-escaped)
     if has_context && result.contains("context.") {
-        let intermediate = result;
-        let mut result = String::with_capacity(intermediate.len() + 64);
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
         let mut last_end = 0;
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
@@ -1091,7 +1092,45 @@ pub fn resolve_for_shell<'a>(
         }
 
         result.push_str(&intermediate[last_end..]);
-        return Ok(Cow::Owned(result));
+    }
+
+    // Pass 3: Input bindings (shell-escaped)
+    if has_inputs && result.contains("inputs.") {
+        let intermediate = std::mem::take(&mut result);
+        result = String::with_capacity(intermediate.len() + 64);
+        let mut last_end = 0;
+        let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
+
+        for cap in INPUTS_RE.captures_iter(&intermediate) {
+            let m = cap.get(0).unwrap();
+            let param_name = &cap[1];
+
+            result.push_str(&intermediate[last_end..m.start()]);
+
+            let full_path = format!("inputs.{}", param_name);
+
+            match datastore.resolve_input_path(&full_path) {
+                Some(value) => {
+                    let replacement = input_value_to_string(&value, &full_path)?;
+                    let escaped = escape_for_shell(&replacement);
+                    result.push_str(&escaped);
+                }
+                None => {
+                    input_errors.push(full_path);
+                }
+            }
+
+            last_end = m.end();
+        }
+
+        if !input_errors.is_empty() {
+            return Err(NikaError::TemplateError {
+                template: input_errors.join(", "),
+                reason: "Input binding(s) not resolved. Check your 'inputs:' block in workflow or provide defaults.".to_string(),
+            });
+        }
+
+        result.push_str(&intermediate[last_end..]);
     }
 
     Ok(Cow::Owned(result))
@@ -2895,5 +2934,242 @@ mod v028_template_tests {
         let declared: FxHashSet<String> = FxHashSet::default();
         let result = validate_with_refs("{{inputs.locale}}", &declared, "task1");
         assert!(result.is_ok());
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DEEP AUDIT: is_in_json_context heuristic
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// AUDIT: is_in_json_context false positive with unbalanced quotes.
+    ///
+    /// BUG: The heuristic counts double-quote characters before the
+    /// template position. Regular text with an odd number of quotes
+    /// before a template triggers JSON escaping unnecessarily.
+    #[test]
+    fn audit_is_in_json_context_false_positive_unbalanced() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("msg", json!("line1\nline2"));
+        let ds = empty_datastore();
+
+        // Template with an unmatched quote before the placeholder.
+        // Not a JSON structure at all — just natural language with a quote.
+        let template = r#"He said "hello {{with.msg}}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // If is_in_json_context triggers, the newline is escaped to literal \n.
+        // If it does NOT trigger, the raw newline is preserved.
+        let has_escaped_newline = result.contains("\\n");
+        let has_raw_newline = result.contains('\n');
+
+        if has_escaped_newline && !has_raw_newline {
+            // BUG CONFIRMED: The heuristic saw an odd number of quotes
+            // and assumed JSON context. The newline was escaped when it
+            // should not have been.
+            //
+            // Impact: LLM prompts like `He said "hello {{with.msg}}"` get
+            // values incorrectly JSON-escaped (newlines become literal \n,
+            // backslashes get doubled, etc.).
+            //
+            // Fix: Use a proper JSON parser or require an explicit |json
+            // modifier instead of auto-detecting based on quote parity.
+            panic!(
+                "GAP CONFIRMED: is_in_json_context false positive! \
+                 Non-JSON template '{}' has value JSON-escaped. \
+                 Result: '{}'",
+                template, result
+            );
+        }
+        // If raw newline preserved, the heuristic was correct here.
+        assert!(
+            has_raw_newline,
+            "Newline should be preserved (not JSON-escaped): '{}'",
+            result
+        );
+    }
+
+    /// AUDIT: is_in_json_context correct detection for actual JSON.
+    #[test]
+    fn audit_is_in_json_context_correct_for_real_json() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("name", json!("line1\nline2"));
+        let ds = empty_datastore();
+
+        let template = r#"{"user": "{{with.name}}"}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // In actual JSON context, newlines should be escaped
+        assert!(
+            result.contains("\\n"),
+            "Newline should be JSON-escaped in JSON context: '{}'",
+            result
+        );
+        assert!(
+            !result.contains('\n'),
+            "Raw newline must not appear in JSON context: '{}'",
+            result
+        );
+    }
+
+    /// AUDIT: is_in_json_context with balanced quotes (even count).
+    #[test]
+    fn audit_is_in_json_context_balanced_quotes_outside() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("val", json!("test\nvalue"));
+        let ds = empty_datastore();
+
+        // Two balanced quotes BEFORE the template — even count = NOT in JSON
+        let template = r#"He said "hi" then {{with.val}}"#;
+        let result = resolve(template, &bindings, &ds).unwrap();
+
+        // With balanced quotes, template is outside JSON string
+        // The newline should be raw, not escaped
+        assert!(
+            result.contains('\n'),
+            "Outside JSON context, newline should be raw: '{}'",
+            result
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DEEP AUDIT: resolve_for_shell missing inputs support
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// AUDIT: resolve_for_shell does NOT resolve {{inputs.X}} templates.
+    ///
+    /// BUG: resolve_for_shell checks for has_with and has_context but
+    /// does NOT check has_inputs. Templates with {{inputs.param}} are
+    /// silently left unresolved.
+    #[test]
+    fn audit_resolve_for_shell_missing_inputs_support() {
+        let bindings = ResolvedBindings::new();
+        let store = RunContext::new();
+
+        let mut inputs = FxHashMap::default();
+        inputs.insert("topic".to_string(), json!("AI safety"));
+        store.set_inputs(inputs);
+
+        let result = resolve_for_shell("echo {{inputs.topic}}", &bindings, &store).unwrap();
+
+        // BUG: resolve_for_shell does not support {{inputs.*}}
+        // It checks has_with and has_context but NOT has_inputs.
+        // The template is left unresolved.
+        if result.contains("{{inputs.topic}}") {
+            // GAP CONFIRMED: inputs not resolved
+            panic!(
+                "GAP CONFIRMED: resolve_for_shell does not resolve \
+                 inputs templates. Result: '{}'. Fix: add has_inputs \
+                 check alongside has_with and has_context.",
+                result
+            );
+        }
+        // If it IS resolved, the bug has been fixed
+        assert!(result.contains("AI safety"));
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DEEP AUDIT: normalize_bracket_notation edge cases
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// AUDIT: bracket notation with negative index.
+    #[test]
+    fn audit_bracket_notation_negative_index() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["a", "b", "c"]));
+        let ds = empty_datastore();
+
+        // Negative index is NOT supported by the simple resolver
+        let result = resolve("{{with.items[-1]}}", &bindings, &ds);
+        // Should either error or handle gracefully
+        assert!(
+            result.is_err(),
+            "Negative array index should not resolve: {:?}",
+            result
+        );
+    }
+
+    /// AUDIT: bracket notation with non-numeric index.
+    #[test]
+    fn audit_bracket_notation_non_numeric() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("data", json!({"key": "value"}));
+        let ds = empty_datastore();
+
+        // Object key access via bracket notation
+        // normalize_bracket_notation converts [key] to .key
+        let result = resolve("{{with.data[key]}}", &bindings, &ds);
+        // The bracket "key" is converted to dot notation .key
+        // Then resolve_alias_path tries to navigate data.key
+        if let Ok(ref value) = result {
+            assert_eq!(value, "value", "Object key bracket access works: {}", value);
+        }
+        // If it errors, bracket notation for non-numeric is not supported
+    }
+
+    /// AUDIT: bracket notation at root level.
+    #[test]
+    fn audit_bracket_notation_root_array() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("list", json!(["first", "second", "third"]));
+        let ds = empty_datastore();
+
+        let result = resolve("{{with.list[2]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "third");
+    }
+
+    /// AUDIT: multiple bracket notations in same path.
+    #[test]
+    fn audit_bracket_notation_nested_arrays() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("matrix", json!([[1, 2], [3, 4]]));
+        let ds = empty_datastore();
+
+        let result = resolve("{{with.matrix[1][0]}}", &bindings, &ds).unwrap();
+        assert_eq!(result, "3");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // DEEP AUDIT: resolve_with Shell transform double-application
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// AUDIT: verify Shell transform and escape_for_shell produce same result.
+    ///
+    /// In resolve_with(), when transforms contain "shell":
+    /// 1. TransformExpr("shell").apply() is called (result discarded)
+    /// 2. escape_for_shell() is called separately (result used)
+    ///
+    /// Both SHOULD produce identical output. This test verifies that.
+    #[test]
+    fn audit_shell_transform_vs_escape_for_shell_consistency() {
+        let test_cases = vec![
+            "simple",
+            "hello world",
+            "it's a test",
+            "double\"quote",
+            "",
+            "special;chars|here",
+            "$(whoami)",
+            "`uname`",
+            "$HOME/.ssh",
+            "line1\nline2",
+            "tab\there",
+        ];
+
+        for input in test_cases {
+            // Method 1: escape_for_shell (used by resolve_with)
+            let method1 = escape_for_shell(input);
+
+            // Method 2: TransformOp::Shell (also applied but discarded)
+            use crate::binding::transform::TransformOp;
+            let json_val = json!(input);
+            let method2_val = TransformOp::Shell.apply(&json_val).unwrap();
+            let method2 = method2_val.as_str().unwrap().to_string();
+
+            assert_eq!(
+                method1, method2,
+                "Shell escaping methods differ for input '{}': \
+                 escape_for_shell='{}' vs TransformOp::Shell='{}'",
+                input, method1, method2
+            );
+        }
     }
 }
