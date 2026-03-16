@@ -512,7 +512,8 @@ impl Dag {
 mod tests {
     use super::*;
     use crate::ast::analyzed::{
-        AnalyzedInferAction, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, TaskId, TaskTable,
+        AnalyzedForEach, AnalyzedInferAction, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow,
+        TaskId, TaskTable,
     };
     use crate::binding::WithSpec;
     use crate::source::Span;
@@ -1137,5 +1138,62 @@ mod tests {
 
         let result = Dag::from_analyzed(&workflow);
         assert!(result.is_err(), "Dangling implicit_dep should be rejected");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOR_EACH SAFETY: Prove no false rejections
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_for_each_workflow_dag_construction_succeeds() {
+        // Prove that for_each tasks with depends_on pass through Dag::from_analyzed
+        // without triggering false MissingDependency errors.
+        // for_each expansion happens at RUNTIME (runner.rs), not here.
+        let mut task_table = TaskTable::new();
+        task_table.insert("produce");
+        task_table.insert("process");
+        task_table.insert("aggregate");
+
+        let id_produce = task_table.get_id("produce").unwrap();
+        let id_process = task_table.get_id("process").unwrap();
+
+        let workflow = AnalyzedWorkflow {
+            tasks: vec![
+                AnalyzedTask {
+                    name: "produce".to_string(),
+                    ..Default::default()
+                },
+                AnalyzedTask {
+                    name: "process".to_string(),
+                    depends_on: vec![id_produce],
+                    for_each: Some(AnalyzedForEach {
+                        items: r#"["a", "b", "c"]"#.to_string(),
+                        as_var: "item".to_string(),
+                        parallel: Some(3),
+                        fail_fast: true,
+                        span: Span::dummy(),
+                    }),
+                    ..Default::default()
+                },
+                AnalyzedTask {
+                    name: "aggregate".to_string(),
+                    depends_on: vec![id_process],
+                    ..Default::default()
+                },
+            ],
+            task_table,
+            ..Default::default()
+        };
+
+        let result = Dag::from_analyzed(&workflow);
+        assert!(
+            result.is_ok(),
+            "for_each workflow should build DAG without false rejections: {:?}",
+            result.err()
+        );
+
+        let dag = result.unwrap();
+        assert!(dag.has_path("produce", "process"));
+        assert!(dag.has_path("process", "aggregate"));
     }
 }
