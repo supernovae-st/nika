@@ -387,6 +387,61 @@ impl RigProvider {
         }
     }
 
+    /// Infer with injected tools for structured output enforcement.
+    ///
+    /// Builds a single-turn agent with the given tools and `tool_choice: Required`.
+    /// The LLM is forced to call one of the injected tools, returning structured output
+    /// as the tool call arguments. Used by DynamicSubmitTool (Layer 0).
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to send
+    /// * `tools` - Tools to inject (typically a single DynamicSubmitTool)
+    /// * `model` - Optional model override
+    ///
+    /// # Returns
+    /// The tool call arguments as a string (the structured JSON output)
+    pub async fn infer_with_tools(
+        &self,
+        prompt: &str,
+        tools: Vec<Box<dyn ToolDyn>>,
+        model: Option<&str>,
+    ) -> Result<String, RigInferError> {
+        use rig::agent::AgentBuilder;
+        use rig::message::ToolChoice as RigToolChoice;
+
+        let model_id = model.unwrap_or_else(|| self.default_model());
+
+        macro_rules! build_agent_with_tools {
+            ($client:expr) => {{
+                let agent = AgentBuilder::new($client.completion_model(model_id))
+                    .tools(tools)
+                    .tool_choice(RigToolChoice::Required)
+                    .max_tokens(8192)
+                    .build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }};
+        }
+
+        match self {
+            RigProvider::Claude(client) => build_agent_with_tools!(client),
+            RigProvider::OpenAI(client) => build_agent_with_tools!(client),
+            RigProvider::Mistral(client) => build_agent_with_tools!(client),
+            RigProvider::Groq(client) => build_agent_with_tools!(client),
+            RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
+            RigProvider::Gemini(client) => build_agent_with_tools!(client),
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => {
+                // Native inference doesn't support tool calling
+                Err(RigInferError::PromptError(
+                    "Native inference does not support tool-based structured output".to_string(),
+                ))
+            }
+        }
+    }
+
     /// Text completion with full control over LLM parameters
     ///
     /// # Arguments
