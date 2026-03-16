@@ -108,7 +108,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Task {
         artifact: None,
         log: None,
         flow,
-        structured: None,
+        structured: task.structured,
     }
 }
 
