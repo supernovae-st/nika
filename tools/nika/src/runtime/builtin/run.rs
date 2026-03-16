@@ -398,7 +398,7 @@ mod tests {
         let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
         writeln!(
             temp_file,
-            r#"schema: nika/workflow@0.2
+            r#"schema: nika/workflow@0.12
 workflow: test-workflow
 tasks:
   - id: hello
@@ -428,7 +428,7 @@ tasks:
         let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
         writeln!(
             temp_file,
-            r#"schema: nika/workflow@0.2
+            r#"schema: nika/workflow@0.12
 workflow: test-output
 tasks:
   - id: greet
@@ -481,7 +481,7 @@ tasks:
         let mut temp_file = NamedTempFile::with_suffix(".nika.yml").unwrap();
         writeln!(
             temp_file,
-            r#"schema: nika/workflow@0.2
+            r#"schema: nika/workflow@0.12
 workflow: test-yml
 tasks:
   - id: test
@@ -564,7 +564,7 @@ tasks:
         let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
         writeln!(
             temp_file,
-            r#"schema: nika/workflow@0.2
+            r#"schema: nika/workflow@0.12
 workflow: test-response
 tasks:
   - id: test
@@ -715,7 +715,7 @@ tasks:
         let mut temp_file = NamedTempFile::with_suffix(".nika.yaml").unwrap();
         writeln!(
             temp_file,
-            r#"schema: nika/workflow@0.2
+            r#"schema: nika/workflow@0.12
 workflow: test-timeout-clamp
 tasks:
   - id: test

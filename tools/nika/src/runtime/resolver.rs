@@ -360,7 +360,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_assets_empty() {
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -398,7 +398,7 @@ mod tests {
         );
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -450,7 +450,7 @@ temperature: 0.5
         );
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -492,7 +492,7 @@ temperature: 0.5
         );
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -534,7 +534,7 @@ You are an expert SEO content writer.
         skills.insert("seo".to_string(), "skills/seo.skill.md".to_string());
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -564,7 +564,7 @@ You are an expert SEO content writer.
         skills.insert("missing".to_string(), "nonexistent.skill.md".to_string());
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -629,7 +629,7 @@ system: "You are a researcher."
         skills.insert("skill2".to_string(), "skills/skill2.skill.md".to_string());
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -689,7 +689,7 @@ system: "You are an agent with defaults."
         );
 
         let workflow = crate::ast::Workflow {
-            schema: "nika/workflow@0.6".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,

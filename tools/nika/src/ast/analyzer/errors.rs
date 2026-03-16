@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_rich_error_has_source_code() {
-        let source = "schema: nika/workflow@0.9\ntasks:\n  - id: test\n";
+        let source = "schema: nika/workflow@0.12\ntasks:\n  - id: test\n";
         let err = AnalyzeError::missing_field(make_span(30, 40), "infer");
         let rich = RichAnalyzeError::new(err, source, "test.yaml");
 
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_format_error_output() {
-        let source = r#"schema: "nika/workflow@0.9"
+        let source = r#"schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello"

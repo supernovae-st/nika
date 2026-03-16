@@ -1303,7 +1303,7 @@ mod tests {
     use super::*;
 
     const SIMPLE_WORKFLOW: &str = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test-workflow
 description: "A test workflow"
 provider: claude
@@ -1325,7 +1325,7 @@ tasks:
         assert!(result.is_ok(), "Parse failed: {:?}", result.err());
         let workflow = result.unwrap();
 
-        assert_eq!(workflow.schema.value, "nika/workflow@0.10");
+        assert_eq!(workflow.schema.value, "nika/workflow@0.12");
         assert_eq!(workflow.name(), "test-workflow");
         assert_eq!(
             workflow.description.as_ref().unwrap().value,
@@ -1380,7 +1380,7 @@ tasks: []
 
     #[test]
     fn test_span_tracking() {
-        let yaml = r#"schema: "nika/workflow@0.10"
+        let yaml = r#"schema: "nika/workflow@0.12"
 workflow: my-workflow
 tasks:
   - id: hello
@@ -1403,7 +1403,7 @@ tasks:
     #[test]
     fn test_parse_infer_shorthand() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer: "Generate a headline"
@@ -1424,7 +1424,7 @@ tasks:
     #[test]
     fn test_parse_infer_full_form() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer:
@@ -1457,7 +1457,7 @@ tasks:
     #[test]
     fn test_parse_exec_shorthand() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: build
     exec: "npm run build"
@@ -1477,7 +1477,7 @@ tasks:
     #[test]
     fn test_parse_exec_full_form() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: build
     exec:
@@ -1507,7 +1507,7 @@ tasks:
     #[test]
     fn test_parse_fetch_action() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: api_call
     fetch:
@@ -1535,7 +1535,7 @@ tasks:
     #[test]
     fn test_parse_invoke_action() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: mcp_call
     invoke:
@@ -1561,7 +1561,7 @@ tasks:
     #[test]
     fn test_parse_agent_action() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: research
     agent:
@@ -1827,7 +1827,7 @@ tasks:
     #[test]
     fn test_parse_for_each_array() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: parallel
     for_each: ["a", "b", "c"]
@@ -1847,7 +1847,7 @@ tasks:
     #[test]
     fn test_parse_for_each_binding() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: parallel
     for_each: "{{with.items}}"
@@ -1863,7 +1863,7 @@ tasks:
     #[test]
     fn test_parse_retry_config() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: resilient
     retry:
@@ -1884,7 +1884,7 @@ tasks:
     #[test]
     fn test_parse_output_config() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: structured
     output:
@@ -1911,7 +1911,7 @@ tasks:
     #[test]
     fn test_parse_infer_missing_prompt() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer:
@@ -1928,7 +1928,7 @@ tasks:
     #[test]
     fn test_parse_fetch_missing_url() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: api_call
     fetch:
@@ -1945,7 +1945,7 @@ tasks:
     #[test]
     fn test_parse_invoke_missing_tool() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: mcp_call
     invoke:
@@ -1962,7 +1962,7 @@ tasks:
     #[test]
     fn test_parse_agent_missing_prompt() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: research
     agent:
@@ -1999,7 +1999,7 @@ tasks:
     #[test]
     fn test_parse_invalid_temperature() {
         let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: generate
     infer:

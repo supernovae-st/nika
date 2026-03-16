@@ -36,7 +36,7 @@
 //! }
 //!
 //! let yaml = r#"
-//! schema: nika/workflow@0.9
+//! schema: nika/workflow@0.12
 //! workflow: example
 //! "#;
 //!
@@ -427,7 +427,7 @@ ref2: *root
     fn test_typical_workflow_size() {
         // A realistic Nika workflow should always pass
         let yaml = r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 workflow: test-workflow
 
 context:
@@ -455,7 +455,7 @@ tasks:
 "#;
 
         let result: serde_json::Value = from_str_with_budget(yaml).unwrap();
-        assert_eq!(result["schema"], "nika/workflow@0.9");
+        assert_eq!(result["schema"], "nika/workflow@0.12");
         assert_eq!(result["workflow"], "test-workflow");
     }
 }

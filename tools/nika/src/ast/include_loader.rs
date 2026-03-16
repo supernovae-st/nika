@@ -321,7 +321,7 @@ mod tests {
 
     fn make_test_workflow() -> Workflow {
         Workflow {
-            schema: "nika/workflow@0.9".to_string(),
+            schema: "nika/workflow@0.12".to_string(),
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -461,7 +461,7 @@ mod tests {
 
         // Create included workflow
         let included_yaml = r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: helper
@@ -526,7 +526,7 @@ tasks:
         std::fs::write(
             temp_dir.path().join("a.nika.yaml"),
             r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: a_task
@@ -538,7 +538,7 @@ tasks:
         std::fs::write(
             temp_dir.path().join("b.nika.yaml"),
             r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: b_task
@@ -587,7 +587,7 @@ tasks:
         std::fs::write(
             temp_dir.path().join("lib.nika.yaml"),
             r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 provider: openai
 model: gpt-4
 context:
@@ -641,7 +641,7 @@ tasks:
         std::fs::write(
             &parent_file,
             r#"
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 provider: claude
 tasks:
   - id: secret

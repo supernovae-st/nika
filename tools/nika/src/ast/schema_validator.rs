@@ -217,7 +217,7 @@ mod tests {
     fn test_valid_minimal_workflow_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello world"
@@ -284,7 +284,7 @@ tasks:
     fn test_unknown_field_in_invoke_params_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 mcp:
   novanet:
     command: cargo
@@ -316,7 +316,7 @@ tasks:
     fn test_missing_required_invoke_mcp_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: describe
     invoke:
@@ -350,7 +350,7 @@ tasks:
     fn test_unknown_field_at_workflow_level_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 unknown_field: "should fail"
 tasks:
   - id: step1
@@ -380,7 +380,7 @@ tasks:
     fn test_valid_invoke_workflow_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 provider: claude
 mcp:
   novanet:
@@ -427,7 +427,7 @@ tasks:
     fn test_task_without_verb_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     output:
@@ -444,7 +444,7 @@ tasks:
     fn test_multiple_verbs_in_task_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello"
@@ -461,7 +461,7 @@ tasks:
     fn test_valid_agent_params_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 mcp:
   novanet:
     command: cargo
@@ -491,7 +491,7 @@ tasks:
     fn test_invalid_depth_limit_fails() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: orchestrator
     agent:
@@ -554,7 +554,7 @@ tasks:
     fn test_valid_lazy_binding_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     infer: "Hello"
@@ -583,7 +583,7 @@ tasks:
     fn test_for_each_binding_expression_passes() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: process
     for_each: "{{with.items}}"
@@ -606,7 +606,7 @@ tasks:
     fn test_error_message_includes_path() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let yaml = r#"
-schema: "nika/workflow@0.5"
+schema: "nika/workflow@0.12"
 tasks:
   - id: step1
     invoke:
@@ -629,7 +629,7 @@ tasks:
     fn test_validate_value_works() {
         let validator = WorkflowSchemaValidator::new().unwrap();
         let value = json!({
-            "schema": "nika/workflow@0.5",
+            "schema": "nika/workflow@0.12",
             "tasks": [
                 {
                     "id": "step1",
@@ -650,7 +650,7 @@ tasks:
 fn test_builtin_invoke_tool_without_mcp_passes() {
     let validator = WorkflowSchemaValidator::new().unwrap();
     let yaml = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 tasks:
   - id: write_file
     invoke:

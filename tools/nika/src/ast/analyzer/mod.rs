@@ -49,7 +49,7 @@
 //! Uses Jaro-Winkler similarity (strsim) for "did you mean?" suggestions:
 //!
 //! - Unknown task "taks1" → did you mean "task1"?
-//! - Invalid schema "nika/workfow@0.10" → did you mean "nika/workflow@0.10"?
+//! - Invalid schema "nika/workfow@0.10" → did you mean "nika/workflow@0.12"?
 
 mod analyze;
 mod errors;
@@ -78,7 +78,7 @@ mod tests {
     fn test_analyze_empty_workflow_is_rejected() {
         let raw = RawWorkflow {
             schema: Spanned::new(
-                "nika/workflow@0.10".to_string(),
+                "nika/workflow@0.12".to_string(),
                 Span::new(FileId(0), 0, 18),
             ),
             ..Default::default()
