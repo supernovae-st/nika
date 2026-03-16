@@ -1144,42 +1144,62 @@ mod tests {
     // FOR_EACH SAFETY: Prove no false rejections
     // ═══════════════════════════════════════════════════════════════
 
+    /// Build a single AnalyzedTask with optional for_each config.
+    fn make_task(
+        name: &str,
+        id: TaskId,
+        depends_on: Vec<TaskId>,
+        for_each: Option<AnalyzedForEach>,
+    ) -> AnalyzedTask {
+        AnalyzedTask {
+            id,
+            name: name.to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on,
+            implicit_deps: vec![],
+            output: None,
+            for_each,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        }
+    }
+
     #[test]
     fn test_for_each_workflow_dag_construction_succeeds() {
         // Prove that for_each tasks with depends_on pass through Dag::from_analyzed
         // without triggering false MissingDependency errors.
         // for_each expansion happens at RUNTIME (runner.rs), not here.
         let mut task_table = TaskTable::new();
-        task_table.insert("produce");
-        task_table.insert("process");
-        task_table.insert("aggregate");
-
-        let id_produce = task_table.get_id("produce").unwrap();
-        let id_process = task_table.get_id("process").unwrap();
+        let id_produce = task_table.insert("produce");
+        let id_process = task_table.insert("process");
+        let _id_agg = task_table.insert("aggregate");
 
         let workflow = AnalyzedWorkflow {
             tasks: vec![
-                AnalyzedTask {
-                    name: "produce".to_string(),
-                    ..Default::default()
-                },
-                AnalyzedTask {
-                    name: "process".to_string(),
-                    depends_on: vec![id_produce],
-                    for_each: Some(AnalyzedForEach {
+                make_task("produce", id_produce, vec![], None),
+                make_task(
+                    "process",
+                    id_process,
+                    vec![id_produce],
+                    Some(AnalyzedForEach {
                         items: r#"["a", "b", "c"]"#.to_string(),
                         as_var: "item".to_string(),
                         parallel: Some(3),
                         fail_fast: true,
                         span: Span::dummy(),
                     }),
-                    ..Default::default()
-                },
-                AnalyzedTask {
-                    name: "aggregate".to_string(),
-                    depends_on: vec![id_process],
-                    ..Default::default()
-                },
+                ),
+                make_task("aggregate", _id_agg, vec![id_process], None),
             ],
             task_table,
             ..Default::default()
