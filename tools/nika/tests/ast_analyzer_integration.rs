@@ -6,8 +6,6 @@ use nika::ast::analyzer::{analyze, AnalyzeErrorKind};
 use nika::ast::raw::{parse, RawWorkflow};
 use nika::source::{ByteOffset, FileId};
 
-mod common;
-
 /// Helper to parse YAML and return RawWorkflow
 fn parse_yaml(yaml: &str) -> Result<RawWorkflow, String> {
     let file_id = FileId(0);

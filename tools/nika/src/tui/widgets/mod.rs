@@ -12,8 +12,8 @@
 //! - StatusBar: Bottom status bar with provider/MCP status
 //! - Header: Top header with view title and navigation hints
 
-// Allow unused code in widgets - many are planned for future TUI enhancements
-// Kept blanket allow - 40+ widgets in pre-built library
+// Pre-built widget library — many widgets staged for future TUI views.
+// Individual #[allow(dead_code)] on structs where needed.
 #![allow(dead_code)]
 
 mod activity_stack;
@@ -113,7 +113,7 @@ pub use mission_control::{
     ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
     TurnMetrics,
 };
-// Verb input system for Chat view
+// Verb input parsing for Chat view
 pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
 // Mention system for Chat view
 pub use mention_system::{
