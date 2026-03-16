@@ -5,7 +5,9 @@
 //! - `executor`: Individual task execution (infer, exec, fetch, invoke, agent)
 //!   - Includes decompose: modifier expansion
 //! - `output`: Output format handling and schema validation
-//! - `structured_output`: 4-layer StructuredOutputEngine for ~99.99% compliance
+//! - `structured_output`: 5-layer defense system for ~99.99% JSON compliance
+//!   - Layer 0: DynamicSubmitTool injection (executor/verbs.rs + rig_agent_loop)
+//!   - Layers 2-4: Extract+Validate, Retry, LLM Repair (StructuredOutputEngine)
 //! - `submit_tool`: DynamicSubmitTool for provider-native structured output (Layer 0)
 //! - `rig_agent_loop`: Rig-based agentic execution
 //! - `spawn`: Nested agent spawning

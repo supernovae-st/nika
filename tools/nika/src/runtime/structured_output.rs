@@ -1,11 +1,18 @@
 //! Structured Output Engine
 //!
-//! 4-layer defense system for ~99.99% JSON Schema compliance:
+//! 5-layer defense system for ~99.99% JSON Schema compliance:
 //!
-//! - **Layer 1**: rig Extractor (Rust types with JsonSchema via schemars)
-//! - **Layer 2**: Provider-Native (tool_use / response_format)
+//! - **Layer 0**: Tool Injection (DynamicSubmitTool via `submit_tool` module)
+//!   - Handled OUTSIDE the engine, in `executor/verbs.rs` (infer) and
+//!     `rig_agent_loop` (agent). Uses `tool_choice: Required` to force
+//!     provider-side schema enforcement.
+//! - **Layer 1**: rig Extractor (Rust types with JsonSchema via schemars — future)
+//! - **Layer 2**: Extract + Validate (extract JSON from output, validate against schema)
 //! - **Layer 3**: Retry with Feedback (re-prompt with validation errors)
 //! - **Layer 4**: LLM Repair (separate call to fix invalid JSON)
+//!
+//! Layer 0 is non-blocking: if tool injection fails (native provider, timeout),
+//! execution falls through to streaming + Layers 2-4.
 //!
 //! Each layer emits `StructuredOutputAttempt` events for observability.
 //! Success emits `StructuredOutputSuccess` with total attempt count.
@@ -47,7 +54,7 @@ use crate::event::{EventKind, EventLog};
 
 use super::output::{extract_json, format_validation_errors, validate_schema_ref};
 
-/// Callback type for LLM inference during retry/repair (Layer 3 & 4)
+/// Callback type for LLM inference during retry/repair (Layers 3 & 4)
 ///
 /// This callback is invoked when the engine needs to re-call the LLM:
 /// - Layer 3: Retry with validation error feedback
@@ -76,15 +83,17 @@ pub struct StructuredOutputResult {
     pub total_attempts: u32,
 }
 
-/// 4-layer structured output validation engine
+/// Post-processing structured output validation engine (Layers 2-4)
 ///
 /// Attempts validation through multiple layers until success or exhaustion.
 /// All attempts are tracked via events for observability.
 ///
-/// ## Layers
+/// Layer 0 (DynamicSubmitTool injection) is handled externally in `executor/verbs.rs`
+/// and `rig_agent_loop/mod.rs` BEFORE this engine is invoked.
 ///
-/// - **Layer 1**: rig Extractor (not implemented - requires compile-time types)
-/// - **Layer 2**: Provider-Native - validates JSON extraction from raw output
+/// ## Layers (this engine)
+///
+/// - **Layer 2**: Extract + Validate - extracts JSON from raw output and validates against schema
 /// - **Layer 3**: Retry with Feedback - re-calls LLM with validation errors (requires `infer_fn`)
 /// - **Layer 4**: LLM Repair - calls repair model to fix invalid JSON (requires `infer_fn`)
 ///
