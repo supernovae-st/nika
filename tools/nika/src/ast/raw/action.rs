@@ -22,7 +22,7 @@ pub enum RawTaskAction {
     /// MCP tool invocation: invoke: tool_name or invoke: { tool: name, params: {...} }
     Invoke(Spanned<RawInvokeAction>),
 
-    /// Autonomous agent: agent: { goal: "..." }
+    /// Autonomous agent: agent: { prompt: "..." }
     Agent(Spanned<RawAgentAction>),
 }
 
@@ -163,8 +163,8 @@ impl RawInvokeAction {
 /// Parameters for the `agent` verb (autonomous agent execution).
 #[derive(Debug, Clone, Default)]
 pub struct RawAgentAction {
-    /// The goal for the agent to achieve
-    pub goal: Spanned<String>,
+    /// The prompt for the agent to execute
+    pub prompt: Spanned<String>,
 
     /// Available tools for the agent
     pub tools: Option<Spanned<Vec<Spanned<String>>>>,

@@ -185,7 +185,7 @@ fn task_verb_symbol(
             ("🔌", format!("invoke: {}", tool), SymbolKind::METHOD)
         }
         AnalyzedTaskAction::Agent(params) => {
-            let detail = truncate_prompt(&params.goal, 30);
+            let detail = truncate_prompt(&params.prompt, 30);
             ("🐔", format!("agent: {}", detail), SymbolKind::METHOD)
         }
     };

@@ -568,17 +568,17 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         }
     };
 
-    // Agent can use either 'goal' or 'prompt' for the main instruction
-    let goal = get_string_field(file, m, "goal")?
-        .or(get_string_field(file, m, "prompt")?)
+    // Agent uses 'prompt' as primary field, 'goal' as legacy fallback
+    let prompt = get_string_field(file, m, "prompt")?
+        .or(get_string_field(file, m, "goal")?)
         .ok_or_else(|| ParseError {
             kind: ParseErrorKind::MissingField,
             span,
-            message: "agent action requires 'goal' or 'prompt' field".to_string(),
+            message: "agent action requires 'prompt' field (or legacy 'goal')".to_string(),
         })?;
 
     Ok(RawAgentAction {
-        goal,
+        prompt,
         tools: parse_string_array(file, m, "tools")?,
         max_iterations: get_u32_field(file, m, "max_iterations")?.or(get_u32_field(
             file,
@@ -1552,7 +1552,7 @@ schema: "nika/workflow@0.10"
 tasks:
   - id: research
     agent:
-      goal: "Research AI trends"
+      prompt: "Research AI trends"
       tools:
         - nika:read
         - nika:write
@@ -1563,11 +1563,55 @@ tasks:
 
         match &task.value.action {
             Some(RawTaskAction::Agent(action)) => {
-                assert_eq!(action.value.goal.value, "Research AI trends");
+                assert_eq!(action.value.prompt.value, "Research AI trends");
                 let tools = action.value.tools.as_ref().unwrap();
                 assert_eq!(tools.value.len(), 2);
                 assert_eq!(tools.value[0].value, "nika:read");
                 assert_eq!(action.value.max_iterations.as_ref().unwrap().value, 10);
+            }
+            _ => panic!("Expected Agent action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_prompt_is_primary_field() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: research
+    agent:
+      prompt: "Research AI trends"
+      max_turns: 10
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("research").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Agent(action)) => {
+                // Field must be named `prompt`, not `goal`
+                assert_eq!(action.value.prompt.value, "Research AI trends");
+            }
+            _ => panic!("Expected Agent action"),
+        }
+    }
+
+    #[test]
+    fn test_parse_agent_goal_legacy_fallback() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: research
+    agent:
+      goal: "Legacy goal syntax"
+      max_turns: 5
+"#;
+        let workflow = parse(yaml, FileId(0)).unwrap();
+        let task = workflow.get_task("research").unwrap();
+
+        match &task.value.action {
+            Some(RawTaskAction::Agent(action)) => {
+                // Legacy `goal:` should still work as fallback
+                assert_eq!(action.value.prompt.value, "Legacy goal syntax");
             }
             _ => panic!("Expected Agent action"),
         }
@@ -1903,7 +1947,7 @@ tasks:
     }
 
     #[test]
-    fn test_parse_agent_missing_goal() {
+    fn test_parse_agent_missing_prompt() {
         let yaml = r#"
 schema: "nika/workflow@0.10"
 tasks:
@@ -1916,7 +1960,7 @@ tasks:
 
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::MissingField);
-        assert!(err.message.contains("goal"));
+        assert!(err.message.contains("prompt"));
     }
 
     #[test]

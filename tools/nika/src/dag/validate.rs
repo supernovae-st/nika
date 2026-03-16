@@ -94,7 +94,7 @@ fn extract_templates_from_action(action: &AnalyzedTaskAction) -> Vec<String> {
             }
         }
         AnalyzedTaskAction::Agent(agent) => {
-            templates.push(agent.goal.clone());
+            templates.push(agent.prompt.clone());
         }
     }
 
@@ -822,7 +822,7 @@ mod tests {
             ],
             "writer",
             AnalyzedTaskAction::Agent(AnalyzedAgentAction {
-                goal: "Write about {{with.topic}}".to_string(),
+                prompt: "Write about {{with.topic}}".to_string(),
                 ..Default::default()
             }),
             with_spec,
@@ -1138,7 +1138,7 @@ mod tests {
     #[test]
     fn extract_templates_agent_goal() {
         let action = AnalyzedTaskAction::Agent(AnalyzedAgentAction {
-            goal: "Research {{with.topic}}".to_string(),
+            prompt: "Research {{with.topic}}".to_string(),
             ..Default::default()
         });
         let templates = extract_templates_from_action(&action);

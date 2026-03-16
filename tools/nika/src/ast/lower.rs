@@ -202,7 +202,7 @@ fn lower_agent(
     model: Option<String>,
 ) -> AgentParams {
     AgentParams {
-        prompt: agent.goal,
+        prompt: agent.prompt,
         system: None,
         provider,
         model,
@@ -553,7 +553,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             span: Span::dummy(),
         }),
         TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(AnalyzedAgentAction {
-            goal: agent.prompt.clone(),
+            prompt: agent.prompt.clone(),
             tools: agent.tools.clone(),
             max_iterations: agent.max_turns,
             max_tokens: agent.max_tokens,
@@ -854,7 +854,7 @@ mod tests {
         let id = wf.task_table.insert("researcher");
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
-                goal: "Research AI papers".to_string(),
+                prompt: "Research AI papers".to_string(),
                 tools: vec!["nika:read".to_string(), "nika:write".to_string()],
                 max_iterations: Some(10),
                 max_tokens: Some(4096),

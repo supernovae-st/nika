@@ -620,7 +620,7 @@ fn analyze_invoke(raw: &RawInvokeAction) -> AnalyzedInvokeAction {
 
 fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
     AnalyzedAgentAction {
-        goal: raw.goal.value.clone(),
+        prompt: raw.prompt.value.clone(),
         tools: raw
             .tools
             .as_ref()
@@ -634,7 +634,7 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
-        span: raw.goal.span,
+        span: raw.prompt.span,
     }
 }
 
@@ -1515,7 +1515,7 @@ mod tests {
         let mut task = make_raw_task("task1");
         task.action = Some(RawTaskAction::Agent(Spanned::new(
             RawAgentAction {
-                goal: Spanned::new("Do something".to_string(), make_span(0, 12)),
+                prompt: Spanned::new("Do something".to_string(), make_span(0, 12)),
                 tools: None,
                 max_iterations: None,
                 max_tokens: None,
@@ -1613,7 +1613,7 @@ mod tests {
         ));
         task.action = Some(RawTaskAction::Agent(Spanned::new(
             RawAgentAction {
-                goal: Spanned::new("Goal".to_string(), make_span(0, 4)),
+                prompt: Spanned::new("Goal".to_string(), make_span(0, 4)),
                 tools: None,
                 max_iterations: None,
                 max_tokens: None,

@@ -273,8 +273,8 @@ pub struct AnalyzedInvokeAction {
 /// Analyzed agent action.
 #[derive(Debug, Clone, Default)]
 pub struct AnalyzedAgentAction {
-    /// The goal for the agent
-    pub goal: String,
+    /// The prompt for the agent
+    pub prompt: String,
 
     /// Available tools
     pub tools: Vec<String>,
