@@ -500,6 +500,9 @@ impl TaskExecutor {
             let mut cmd = tokio::process::Command::new("sh");
             cmd.arg("-c").arg(resolved_cmd.as_ref());
 
+            // Strip sensitive env vars from child process
+            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
+
             // Set working directory if specified
             if let Some(ref cwd) = params.cwd {
                 cmd.current_dir(cwd);
@@ -543,6 +546,9 @@ impl TaskExecutor {
 
             let mut cmd = tokio::process::Command::new(&parts[0]);
             cmd.args(&parts[1..]);
+
+            // Strip sensitive env vars from child process
+            crate::runtime::security::strip_sensitive_env_vars(&mut cmd);
 
             // Set working directory if specified
             if let Some(ref cwd) = params.cwd {

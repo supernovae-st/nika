@@ -209,6 +209,25 @@ pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
     Ok(())
 }
 
+/// Returns the list of sensitive env var names that should be stripped
+/// from child processes to prevent API key leakage.
+pub fn sensitive_env_vars() -> Vec<&'static str> {
+    // Collect from KNOWN_PROVIDERS
+    let mut vars: Vec<&'static str> = crate::core::providers::KNOWN_PROVIDERS
+        .iter()
+        .map(|p| p.env_var)
+        .collect();
+    vars.dedup();
+    vars
+}
+
+/// Remove sensitive API key env vars from a Command before spawning.
+pub fn strip_sensitive_env_vars(cmd: &mut tokio::process::Command) {
+    for var in sensitive_env_vars() {
+        cmd.env_remove(var);
+    }
+}
+
 /// Full security validation for exec commands
 ///
 /// Combines control character validation and blocklist checking.
@@ -689,6 +708,15 @@ mod tests {
         let vars = vec![("ld_preload".to_string(), "/tmp/evil.so".to_string())];
         let result = validate_env_vars(&vars);
         assert!(result.is_err(), "lowercase LD_PRELOAD should be blocked");
+    }
+
+    #[test]
+    fn test_sensitive_env_vars_strips_api_keys() {
+        let vars = sensitive_env_vars();
+        assert!(vars.contains(&"ANTHROPIC_API_KEY"));
+        assert!(vars.contains(&"OPENAI_API_KEY"));
+        assert!(vars.contains(&"MISTRAL_API_KEY"));
+        assert!(!vars.contains(&"HOME"));
     }
 
     #[test]
