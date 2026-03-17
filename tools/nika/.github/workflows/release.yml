@@ -36,16 +36,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - name: Run all tests
-        run: cargo nextest run --features tui,jobs
+        run: cargo nextest run --features tui
 
       - name: Run production verification tests
-        run: cargo nextest run --test production_verification_test --features tui,jobs
+        run: cargo nextest run --test production_verification_test --features tui
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --features tui,jobs -- -D warnings
+        run: cargo clippy --features tui -- -D warnings
 
   # ============================================================================
   # INTEGRATION TESTS (Neo4j + NovaNet MCP)
@@ -107,7 +107,7 @@ jobs:
           NOVANET_MCP_NEO4J_USER: neo4j
           NOVANET_MCP_NEO4J_PASSWORD: novanetpassword
           RUST_LOG: info
-        run: cargo nextest run --features tui,jobs -- --ignored
+        run: cargo nextest run --features tui -- --ignored
 
       - name: Validate example workflows
         run: |
@@ -139,19 +139,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - name: Phase 1 - Reasoning Capture
-        run: cargo nextest run --features tui,jobs test_phase1 test_reasoning
+        run: cargo nextest run --features tui test_phase1 test_reasoning
 
       - name: Phase 2 - spawn_agent
-        run: cargo nextest run --features tui,jobs test_phase2 spawn_agent
+        run: cargo nextest run --features tui test_phase2 spawn_agent
 
       - name: Phase 3 - novanet_introspect
-        run: cargo nextest run --features tui,jobs test_phase3
+        run: cargo nextest run --features tui test_phase3
 
       - name: Phase 4 - decompose
-        run: cargo nextest run --features tui,jobs test_phase4 decompose
+        run: cargo nextest run --features tui test_phase4 decompose
 
       - name: Phase 5 - lazy bindings
-        run: cargo nextest run --features tui,jobs test_phase5 lazy_binding
+        run: cargo nextest run --features tui test_phase5 lazy_binding
 
   # ============================================================================
   # CHAT UX v2 VERIFICATION
@@ -177,10 +177,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - name: Run Chat UX widget tests
-        run: cargo nextest run --features tui,jobs --test chat_ux_test
+        run: cargo nextest run --features tui --test chat_ux_test
 
       - name: Run conversational agent tests
-        run: cargo nextest run --features tui,jobs --test conversational_agent_test
+        run: cargo nextest run --features tui --test conversational_agent_test
 
       - name: Validate Chat UX workflows
         run: |
