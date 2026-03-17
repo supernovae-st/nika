@@ -154,7 +154,26 @@ pub fn parse(path: &str) -> Result<Vec<Segment>, NikaError> {
 ///
 /// Uses references internally, clones once at the end.
 pub fn apply(value: &Value, segments: &[Segment]) -> Option<Value> {
-    let mut current = value;
+    // Auto-parse JSON strings before traversal so that exec: output
+    // like '{"name":"Nika"}' can be accessed via $task.name
+    let parsed;
+    let mut current = if let Value::String(s) = value {
+        let trimmed = s.trim();
+        if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+            || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+        {
+            if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+                parsed = v;
+                &parsed
+            } else {
+                value
+            }
+        } else {
+            value
+        }
+    } else {
+        value
+    };
 
     for segment in segments {
         current = match segment {
