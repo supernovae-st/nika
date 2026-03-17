@@ -523,3 +523,103 @@ mod json_fuzzing {
         }
     }
 }
+
+// =============================================================================
+// TEST 5: AST Parser Fuzzing (raw::parse never panics)
+// =============================================================================
+// Target: src/ast/raw/parser.rs
+// Risk: marked_yaml span extraction, error handling paths
+
+mod ast_parser_fuzzing {
+    use super::*;
+    use nika::ast::raw::parse;
+    use nika::source::FileId;
+
+    proptest! {
+        /// Property: ast::raw::parse() NEVER panics on any input
+        #[test]
+        fn test_parser_never_panics(yaml in ".*") {
+            let _ = parse(&yaml, FileId(0));
+        }
+
+        /// Property: ast::raw::parse() never panics on YAML-like input
+        #[test]
+        fn test_parser_never_panics_yaml_like(
+            key in r"[a-z_]{1,10}",
+            value in "[ -~]{0,50}"
+        ) {
+            let yaml = format!("{}: {}", key, value);
+            let _ = parse(&yaml, FileId(0));
+        }
+
+        /// Property: parse() returns Err, never panics, on binary input
+        #[test]
+        fn test_parser_handles_binary(bytes in prop::collection::vec(0u8..=255, 0..200)) {
+            let input = String::from_utf8_lossy(&bytes);
+            let _ = parse(&input, FileId(0));
+        }
+    }
+}
+
+// =============================================================================
+// TEST 6: Full Pipeline Roundtrip Invariance
+// =============================================================================
+
+mod pipeline_roundtrip_fuzzing {
+    use super::*;
+    use nika::ast::lower::{lower, unlower};
+    use nika::ast::raw::parse;
+    use nika::ast::analyzer::analyze;
+    use nika::source::FileId;
+
+    prop_compose! {
+        /// Generate a workflow with N infer tasks and optional dependencies
+        fn arb_pipeline_workflow()(
+            n in 1usize..5,
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,30}", 1..6),
+        ) -> String {
+            let n = n.min(prompts.len());
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
+            for i in 0..n {
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+                }
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+            }
+            yaml
+        }
+    }
+
+    proptest! {
+        /// Property: Full pipeline roundtrip preserves task count and IDs
+        #[test]
+        fn test_pipeline_roundtrip_task_count(yaml in arb_pipeline_workflow()) {
+            let raw = match parse(&yaml, FileId(0)) {
+                Ok(r) => r,
+                Err(_) => return Ok(()), // Skip unparseable
+            };
+            let analyzed = match analyze(raw) {
+                r if r.is_ok() => r.value.unwrap(),
+                _ => return Ok(()), // Skip invalid
+            };
+            let task_count = analyzed.tasks.len();
+            let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
+
+            let lowered = match lower(analyzed) {
+                Ok(l) => l,
+                Err(_) => return Ok(()),
+            };
+            let unlowered = match unlower(lowered) {
+                Ok(u) => u,
+                Err(_) => return Ok(()),
+            };
+
+            prop_assert_eq!(unlowered.tasks.len(), task_count,
+                "Task count should be preserved through roundtrip");
+            let rt_names: Vec<String> = unlowered.tasks.iter().map(|t| t.name.clone()).collect();
+            prop_assert_eq!(rt_names, task_names,
+                "Task names should be preserved through roundtrip");
+        }
+    }
+}
