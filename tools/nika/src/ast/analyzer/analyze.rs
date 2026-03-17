@@ -778,8 +778,16 @@ fn analyze_retry(raw: &crate::ast::raw::RawRetryConfig, span: Span) -> AnalyzedR
 /// included tasks into the DAG.
 fn collect_include_prefixes(raw: &RawWorkflow, ctx: &mut AnalyzerContext) {
     if let Some(ref imports) = raw.imports {
+        let mut seen = HashSet::new();
         for import in &imports.value {
             if let Some(ref prefix) = import.value.prefix {
+                if !seen.insert(prefix.value.clone()) {
+                    ctx.add_error(AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        prefix.span,
+                        format!("duplicate import prefix '{}'", prefix.value),
+                    ));
+                }
                 ctx.include_prefixes.push(prefix.value.clone());
             }
         }
@@ -1121,7 +1129,7 @@ fn detect_cycles_dfs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::raw::{RawMcpConfig, RawMcpServer, RawTask, RawWorkflow};
+    use crate::ast::raw::{RawImportSpec, RawMcpConfig, RawMcpServer, RawTask, RawWorkflow};
     use crate::source::{FileId, Spanned};
     use indexmap::IndexMap;
 
@@ -2196,6 +2204,79 @@ mod tests {
         assert!(
             result.is_ok(),
             "task ID with dots is valid: {:?}",
+            result.errors
+        );
+    }
+
+    // ====================================================================
+    // Duplicate import prefix detection
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_duplicate_import_prefix() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("main")]);
+        let imports = vec![
+            Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./lib1.nika.yaml".to_string(), make_span(0, 20)),
+                    prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
+                    span: make_span(0, 30),
+                },
+                make_span(0, 30),
+            ),
+            Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./lib2.nika.yaml".to_string(), make_span(0, 20)),
+                    prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
+                    span: make_span(0, 30),
+                },
+                make_span(0, 30),
+            ),
+        ];
+        raw.imports = Some(Spanned::new(imports, make_span(0, 100)));
+
+        let result = analyze(raw);
+        assert!(
+            result.is_err(),
+            "duplicate import prefix should be rejected"
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.message.contains("duplicate import prefix")),
+            "error should mention duplicate prefix: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_distinct_import_prefixes_ok() {
+        let mut raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("main")]);
+        let imports = vec![
+            Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./lib1.nika.yaml".to_string(), make_span(0, 20)),
+                    prefix: Some(Spanned::new("seo_".to_string(), make_span(0, 4))),
+                    span: make_span(0, 30),
+                },
+                make_span(0, 30),
+            ),
+            Spanned::new(
+                RawImportSpec {
+                    path: Spanned::new("./lib2.nika.yaml".to_string(), make_span(0, 20)),
+                    prefix: Some(Spanned::new("content_".to_string(), make_span(0, 8))),
+                    span: make_span(0, 30),
+                },
+                make_span(0, 30),
+            ),
+        ];
+        raw.imports = Some(Spanned::new(imports, make_span(0, 100)));
+
+        let result = analyze(raw);
+        assert!(
+            result.is_ok(),
+            "distinct prefixes should be accepted: {:?}",
             result.errors
         );
     }
