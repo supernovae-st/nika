@@ -227,14 +227,14 @@ fn lower_agent(
         mcp: agent.mcp,
         tools: agent.tools,
         max_turns: agent.max_iterations,
-        token_budget: None,
+        token_budget: agent.token_budget,
         stop_sequences: Vec::new(),
         scope: None,
         extended_thinking: None,
         thinking_budget: None,
         depth_limit: None,
         tool_choice: None,
-        temperature: None,
+        temperature: agent.temperature.map(|t| t as f32),
         max_tokens: agent.max_tokens,
         skills: if agent.skills.is_empty() {
             None
@@ -640,6 +640,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .unwrap_or_default(),
             mcp: agent.mcp.clone(),
             system: agent.system.clone(),
+            temperature: agent.temperature.map(f64::from),
+            token_budget: agent.token_budget,
             span: Span::dummy(),
         }),
     }
@@ -936,6 +938,8 @@ mod tests {
                 skills: vec!["writing".to_string()],
                 mcp: vec![],
                 system: None,
+                temperature: None,
+                token_budget: None,
                 span: Span::dummy(),
             }),
             provider: Some("claude".to_string()),
@@ -1819,6 +1823,8 @@ mod tests {
                 skills: vec![],
                 mcp: vec![],
                 system: None,
+                temperature: None,
+                token_budget: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "agent_task")

@@ -288,6 +288,12 @@ pub struct AnalyzedAgentAction {
     /// System prompt (agent persona)
     pub system: Option<String>,
 
+    /// Temperature for LLM sampling
+    pub temperature: Option<f64>,
+
+    /// Token budget for the agent
+    pub token_budget: Option<u32>,
+
     /// Span of the action
     pub span: Span,
 }

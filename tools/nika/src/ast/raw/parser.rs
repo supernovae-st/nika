@@ -615,6 +615,8 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         model: get_string_field(file, m, "model")?,
         mcp: parse_string_array(file, m, "mcp")?,
         system: get_string_field(file, m, "system")?,
+        temperature: get_f64_field(file, m, "temperature")?,
+        token_budget: get_u32_field(file, m, "token_budget")?,
     })
 }
 

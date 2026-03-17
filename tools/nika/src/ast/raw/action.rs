@@ -181,6 +181,12 @@ pub struct RawAgentAction {
     /// MCP servers for tool access
     pub mcp: Option<Spanned<Vec<Spanned<String>>>>,
 
+    /// Temperature for LLM sampling
+    pub temperature: Option<Spanned<f64>>,
+
+    /// Token budget for the agent
+    pub token_budget: Option<Spanned<u32>>,
+
     /// System prompt (agent persona)
     pub system: Option<Spanned<String>>,
 }

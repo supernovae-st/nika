@@ -754,6 +754,8 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
         system: raw.system.as_ref().map(|s| s.value.clone()),
+        temperature: raw.temperature.as_ref().map(|s| s.value),
+        token_budget: raw.token_budget.as_ref().map(|s| s.value),
         span: raw.prompt.span,
     }
 }
@@ -1762,6 +1764,8 @@ mod tests {
                 model: None,
                 mcp: None,
                 system: None,
+                temperature: None,
+                token_budget: None,
             },
             make_span(0, 50),
         )));
@@ -1864,6 +1868,8 @@ mod tests {
                 model: None,
                 mcp: None,
                 system: None,
+                temperature: None,
+                token_budget: None,
             },
             make_span(0, 50),
         )));
