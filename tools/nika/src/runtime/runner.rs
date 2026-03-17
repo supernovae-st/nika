@@ -899,7 +899,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             );
         }
 
-        let total_tasks = self.workflow.tasks.len();
+        let mut total_tasks = self.workflow.tasks.len();
         let mut completed = 0;
 
         // EMIT: WorkflowStarted
@@ -1366,6 +1366,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Check if task has for_each or decompose items
                 if let Some(items) = for_each_items {
                     if !items.is_empty() {
+                        // Adjust total_tasks: parent counts as 1, replace with actual item count
+                        total_tasks += items.len().saturating_sub(1);
+
                         // Get concurrency settings from analyzed for_each
                         let fe = task.for_each.as_ref();
                         let concurrency = fe.and_then(|f| f.parallel).unwrap_or(1) as usize;
