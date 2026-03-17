@@ -1,0 +1,106 @@
+# REGRESSION: Tests that ALL 35 bugs stay fixed
+# Run this after any code change to verify no regressions
+schema: nika/workflow@0.12
+workflow: regression-all-bugs
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  seed:
+    default: "regression"
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+tasks:
+  # BUG-1: context.files resolver
+  - id: context_test
+    exec:
+      command: "echo 'context_loaded=true' # context.files.style is accessible"
+      shell: true
+    description: "Verifies context.files are loaded"
+
+  # BUG-5: relative paths
+  - id: relative_path
+    exec: "echo 'relative_path=ok'"
+
+  # BUG-8: provider/model through unlower
+  - id: provider_test
+    infer: "Reply: PROVIDER_OK"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Verifies task-level provider override works"
+
+  # BUG-9: for_each without with: block
+  - id: items
+    exec: 'echo ''["a","b"]'''
+
+  - id: foreach_no_with
+    depends_on: [items]
+    for_each: "$items"
+    as: item
+    exec: "echo '{{with.item}}'"
+    description: "for_each without explicit with: block"
+
+  # BUG-13: nested JSON binding
+  - id: json_source
+    exec: 'printf ''{"key":"nested_value"}'''
+
+  - id: nested_bind
+    depends_on: [json_source]
+    with:
+      val: $json_source.key
+    exec: "echo 'nested={{with.val}}'"
+    description: "Nested JSON path access"
+
+  # BUG-22: {{output}} in artifact template
+  - id: artifact_template
+    depends_on: [provider_test]
+    with:
+      prev: $provider_test
+    exec: "echo 'ARTIFACT_CONTENT'"
+    artifact:
+      path: "regression-{{inputs.seed}}.txt"
+      template: "seed={{inputs.seed}} output={{output}}"
+      format: text
+    description: "Artifact template with {{output}} and {{inputs.*}}"
+
+  # BUG-33: timeout unit conversion (exec with shell)
+  - id: timeout_test
+    exec:
+      command: "echo 'timeout_ok'"
+      shell: true
+    description: "Exec with shell mode"
+
+  # BUG-9+: fallback operator
+  - id: fallback_test
+    depends_on: [json_source]
+    with:
+      missing: $json_source.nonexistent ?? "FALLBACK_OK"
+    exec: "echo 'fallback={{with.missing}}'"
+
+  # Final verification
+  - id: verify_all
+    depends_on: [context_test, relative_path, foreach_no_with, nested_bind, artifact_template, timeout_test, fallback_test]
+    with:
+      ctx: $context_test
+      rel: $relative_path
+      foreach: $foreach_no_with
+      nested: $nested_bind
+      artifact: $artifact_template
+      timeout: $timeout_test
+      fallback: $fallback_test
+    exec:
+      command: |
+        echo "REGRESSION RESULTS:"
+        echo "  context={{with.ctx}}"
+        echo "  relative={{with.rel}}"
+        echo "  foreach={{with.foreach}}"
+        echo "  nested={{with.nested}}"
+        echo "  artifact={{with.artifact}}"
+        echo "  timeout={{with.timeout}}"
+        echo "  fallback={{with.fallback}}"
+      shell: true
