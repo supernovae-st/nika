@@ -229,11 +229,14 @@ impl ResponseCache {
     }
 
     /// Generate cache key from tool name and params.
+    ///
+    /// Uses canonical JSON serialization (sorted keys) so that semantically
+    /// identical objects with different key insertion order produce the same key.
     fn cache_key(tool: &str, params: &Value) -> String {
         let mut hasher = FxHasher::default();
-        // Serialize params to canonical JSON for consistent hashing.
-        // Falls back to Debug format if JSON serialization fails (unlikely for Value).
-        let params_str = match serde_json::to_string(params) {
+        // Canonicalize: sort object keys recursively, then serialize.
+        let canonical = Self::canonicalize_value(params);
+        let params_str = match serde_json::to_string(&canonical) {
             Ok(s) => s,
             Err(e) => {
                 tracing::warn!(
@@ -246,6 +249,25 @@ impl ResponseCache {
         };
         params_str.hash(&mut hasher);
         format!("{}:{:016x}", tool, hasher.finish())
+    }
+
+    /// Recursively sort all object keys in a JSON Value for canonical serialization.
+    fn canonicalize_value(value: &Value) -> Value {
+        match value {
+            Value::Object(map) => {
+                let mut sorted: serde_json::Map<String, Value> = serde_json::Map::new();
+                let mut keys: Vec<&String> = map.keys().collect();
+                keys.sort();
+                for key in keys {
+                    sorted.insert(key.clone(), Self::canonicalize_value(&map[key]));
+                }
+                Value::Object(sorted)
+            }
+            Value::Array(arr) => {
+                Value::Array(arr.iter().map(Self::canonicalize_value).collect())
+            }
+            other => other.clone(),
+        }
     }
 
     /// Get a cached result if it exists and is not expired.
@@ -2058,21 +2080,11 @@ mod tests {
     // Wave 2: Deep Audit - Bug-Proving Tests
     // ========================================================================
 
-    // ---- BUG: Cache key depends on non-canonical JSON serialization ----
-    // ResponseCache::cache_key() uses serde_json::to_string(params) which
-    // does NOT guarantee deterministic key ordering for JSON objects.
-    // Two semantically identical JSON objects with different key orderings
-    // produce different cache keys, causing cache misses.
-    //
-    // In practice, serde_json::Map preserves insertion order, so two Maps
-    // constructed with different insertion order will serialize differently.
-    //
-    // FIX: Either:
-    // 1. Sort keys before hashing (canonical JSON)
-    // 2. Use a hash that's key-order independent (hash each k-v pair and XOR/sum)
-    // 3. Normalize the Value before serialization
+    // ---- FIXED: Cache key uses canonical JSON serialization ----
+    // cache_key() now canonicalizes JSON (sorts keys recursively) before hashing,
+    // so semantically identical objects always match regardless of insertion order.
     #[test]
-    fn wave2_cache_key_non_canonical_json_ordering() {
+    fn wave2_cache_key_canonical_json_ordering() {
         use serde_json::json;
 
         // Build two semantically identical JSON objects with different key ordering.
@@ -2100,45 +2112,15 @@ mod tests {
         let key_a = ResponseCache::cache_key("test_tool", &value_a);
         let key_b = ResponseCache::cache_key("test_tool", &value_b);
 
-        // BUG: The two JSON values are semantically identical but may produce
-        // different cache keys because serde_json::to_string preserves Map insertion order.
-        //
-        // Note: On current serde_json versions with "preserve_order" feature,
-        // Map uses IndexMap which preserves insertion order.
-        // Without "preserve_order", Map uses BTreeMap which sorts keys.
-        // If BTreeMap is used, this test won't fail (the serializations will match).
-        //
-        // We test both the serialization and the cache key:
-        if json_a != json_b {
-            // Keys are in different order - the cache keys WILL differ (BUG)
-            assert_ne!(
-                key_a, key_b,
-                "BUG PROVEN: Same logical JSON with different key order produces different \
-                 cache keys. json_a='{}', json_b='{}'",
-                json_a, json_b
-            );
-        } else {
-            // BTreeMap mode: keys are sorted, so serializations match.
-            // The bug is latent - it depends on the "preserve_order" feature.
-            // Document the fragility: the code RELIES on BTreeMap sorting.
-            assert_eq!(
-                key_a, key_b,
-                "Cache keys match (BTreeMap mode). But if serde_json's preserve_order \
-                 feature is enabled, this test would FAIL. The code is fragile: it depends \
-                 on serde_json::Map being BTreeMap for correctness."
-            );
-
-            // Prove the fragility by showing the code doesn't explicitly sort
-            // We verify the cache_key function hashes the raw serialization
-            // without any normalization step.
-            let raw_serialization = serde_json::to_string(&value_a).unwrap();
-            assert!(
-                !raw_serialization.is_empty(),
-                "Cache key is based on raw serialization without normalization. \
-                 BUG: No explicit canonical form is enforced. Correctness depends \
-                 on serde_json::Map implementation detail (BTreeMap vs IndexMap)."
-            );
-        }
+        // FIXED: cache_key now canonicalizes JSON (sorts keys recursively),
+        // so semantically identical objects always produce the same cache key
+        // regardless of key insertion order or serde_json Map implementation.
+        assert_eq!(
+            key_a, key_b,
+            "Canonical cache keys should match regardless of key insertion order. \
+             json_a='{}', json_b='{}'",
+            json_a, json_b
+        );
     }
 
     // ---- BUG: evict_oldest() is O(n log n) under contention ----
