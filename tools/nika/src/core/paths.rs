@@ -98,9 +98,15 @@ pub fn nika_home() -> PathBuf {
     }
 
     // Default to ~/.nika/
-    dirs::home_dir()
-        .map(|h| h.join(NIKA_DIR_NAME))
-        .expect("Could not determine home directory. Set NIKA_HOME environment variable.")
+    match dirs::home_dir() {
+        Some(h) => h.join(NIKA_DIR_NAME),
+        None => {
+            tracing::warn!(
+                "Could not determine home directory. Falling back to /tmp/.nika.                  Set NIKA_HOME environment variable to override."
+            );
+            PathBuf::from("/tmp").join(NIKA_DIR_NAME)
+        }
+    }
 }
 
 /// Returns the Nika home directory, or None if it cannot be determined.
