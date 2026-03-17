@@ -709,6 +709,12 @@ mod pipeline_roundtrip_fuzzing {
         };
         let task_count = analyzed.tasks.len();
         let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
+        // Capture dependency counts before `analyzed` is consumed by lower()
+        let orig_dep_counts: Vec<usize> = analyzed
+            .tasks
+            .iter()
+            .map(|t| t.depends_on.len() + t.implicit_deps.len())
+            .collect();
 
         let lowered = lower(analyzed).expect("Analyzed workflow should lower");
         let unlowered = unlower(lowered).expect("Lowered workflow should unlower");
@@ -727,13 +733,12 @@ mod pipeline_roundtrip_fuzzing {
 
         // Verify dependency counts are preserved (names merge with implicit_deps
         // but total must not grow)
-        for (original, roundtripped) in analyzed.tasks.iter().zip(unlowered.tasks.iter()) {
-            let orig_dep_count = original.depends_on.len() + original.implicit_deps.len();
+        for (roundtripped, &orig_count) in unlowered.tasks.iter().zip(orig_dep_counts.iter()) {
             let rt_dep_count = roundtripped.depends_on.len() + roundtripped.implicit_deps.len();
             prop_assert!(
-                rt_dep_count <= orig_dep_count + 1, // +1 tolerance for merged deps
+                rt_dep_count <= orig_count + 1, // +1 tolerance for merged deps
                 "Dependencies should be preserved: original={}, roundtripped={}",
-                orig_dep_count,
+                orig_count,
                 rt_dep_count
             );
         }
