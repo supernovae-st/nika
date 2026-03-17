@@ -52,6 +52,12 @@ pub struct RawWorkflow {
     /// Artifact output configuration
     pub artifacts: Option<Spanned<serde_json::Value>>,
 
+    /// Log configuration
+    pub log: Option<Spanned<serde_json::Value>>,
+
+    /// Reusable agent definitions
+    pub agents: Option<Spanned<serde_json::Value>>,
+
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
 

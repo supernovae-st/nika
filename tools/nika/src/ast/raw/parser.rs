@@ -969,6 +969,24 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         None => None,
     };
 
+    // Parse log config
+    workflow.log = match map.get_node("log") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
+    // Parse agents config
+    workflow.agents = match map.get_node("agents") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 

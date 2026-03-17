@@ -241,7 +241,35 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 6c. Validate tasks array is non-empty
+    // 6c. Parse workflow-level log config
+    if let Some(ref log_spanned) = raw.log {
+        match serde_json::from_value(log_spanned.value.clone()) {
+            Ok(config) => workflow.log = Some(config),
+            Err(e) => tracing::warn!(error = %e, "Failed to parse workflow log: config"),
+        }
+    }
+
+    // 6d. Parse workflow-level agents config
+    if let Some(ref agents_spanned) = raw.agents {
+        if let serde_json::Value::Object(map) = &agents_spanned.value {
+            let mut agents = indexmap::IndexMap::new();
+            for (name, def_value) in map {
+                match serde_json::from_value(def_value.clone()) {
+                    Ok(def) => { agents.insert(name.clone(), def); }
+                    Err(e) => tracing::warn!(
+                        agent = %name,
+                        error = %e,
+                        "Failed to parse agent definition"
+                    ),
+                }
+            }
+            if !agents.is_empty() {
+                workflow.agents = Some(agents);
+            }
+        }
+    }
+
+    // 6e. Validate tasks array is non-empty
     if raw.tasks.value.is_empty() {
         ctx.errors.push(AnalyzeError::new(
             AnalyzeErrorKind::InvalidValue,
