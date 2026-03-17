@@ -1,18 +1,13 @@
-//! Activity Stack Widget
+//! Activity data types
 //!
-//! Shows hot (executing), warm (recent), and queued operations.
+//! Hot (executing), warm (recent), and queued activity items.
+//! Used by ChatView for real-time task status display.
 
 use std::time::{Duration, Instant};
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Widget},
-};
+use ratatui::style::Color;
 
 use crate::tui::theme::VerbColor;
-use crate::tui::utils::truncate_str;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks for theme-aware rendering)
@@ -21,10 +16,6 @@ use crate::tui::utils::truncate_str;
 const DEFAULT_HOT_COLOR: Color = Color::Rgb(251, 146, 60); // orange
 const DEFAULT_WARM_COLOR: Color = Color::Rgb(250, 204, 21); // yellow
 const DEFAULT_QUEUED_COLOR: Color = Color::Rgb(156, 163, 175); // gray
-const DEFAULT_BORDER_COLOR: Color = Color::Rgb(75, 85, 99); // gray
-const DEFAULT_HIGHLIGHT_COLOR: Color = Color::Rgb(139, 92, 246); // violet (focused)
-const DEFAULT_SUCCESS_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // gray
 const DEFAULT_VIOLET_COLOR: Color = Color::Rgb(139, 92, 246); // violet
 const DEFAULT_AMBER_COLOR: Color = Color::Rgb(245, 158, 11); // amber
 
@@ -143,233 +134,6 @@ impl ActivityItem {
     }
 }
 
-/// Activity stack widget
-pub struct ActivityStack<'a> {
-    items: &'a [ActivityItem],
-    frame: u8,
-    /// UX: Whether this panel is focused
-    focused: bool,
-    /// UX: Highlight color for focused state
-    highlight_color: Option<Color>,
-}
-
-impl<'a> ActivityStack<'a> {
-    pub fn new(items: &'a [ActivityItem]) -> Self {
-        Self {
-            items,
-            frame: 0,
-            focused: false,
-            highlight_color: None,
-        }
-    }
-
-    pub fn frame(mut self, frame: u8) -> Self {
-        self.frame = frame;
-        self
-    }
-
-    /// UX: Set focused state for visual feedback
-    pub fn focused(mut self, focused: bool) -> Self {
-        self.focused = focused;
-        self
-    }
-
-    /// UX: Set highlight color for focused border
-    pub fn highlight_color(mut self, color: Color) -> Self {
-        self.highlight_color = Some(color);
-        self
-    }
-
-    fn render_spinner(&self) -> &'static str {
-        let spinners = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
-        spinners[(self.frame as usize) % spinners.len()]
-    }
-}
-
-impl Widget for ActivityStack<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.height < 4 {
-            return;
-        }
-
-        // UX: Focus indicators
-        let border_color = if self.focused {
-            self.highlight_color.unwrap_or(DEFAULT_HIGHLIGHT_COLOR)
-        } else {
-            DEFAULT_BORDER_COLOR
-        };
-        let title = if self.focused {
-            " ▸ 🎯 ACTIVITY STACK "
-        } else {
-            " 🎯 ACTIVITY STACK "
-        };
-        let mut title_style = Style::default().fg(border_color);
-        if self.focused {
-            title_style = title_style.add_modifier(Modifier::BOLD);
-        }
-
-        let block = Block::default()
-            .title(title)
-            .title_style(title_style)
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(border_color));
-
-        let inner = block.inner(area);
-        block.render(area, buf);
-
-        // Group items by temperature
-        let hot: Vec<_> = self
-            .items
-            .iter()
-            .filter(|i| i.temp == ActivityTemp::Hot)
-            .collect();
-        let warm: Vec<_> = self
-            .items
-            .iter()
-            .filter(|i| i.temp == ActivityTemp::Warm)
-            .collect();
-        let queued: Vec<_> = self
-            .items
-            .iter()
-            .filter(|i| i.temp == ActivityTemp::Queued)
-            .collect();
-
-        let mut y = inner.y;
-
-        // Hot section
-        if !hot.is_empty() && y < inner.y + inner.height {
-            let (header, color) = ActivityTemp::Hot.header();
-            buf.set_string(
-                inner.x,
-                y,
-                header,
-                Style::default().fg(color).add_modifier(Modifier::BOLD),
-            );
-            y += 1;
-
-            for item in hot.iter().take(2) {
-                if y >= inner.y + inner.height {
-                    break;
-                }
-
-                let spinner = self.render_spinner();
-                let elapsed = item
-                    .elapsed()
-                    .map(|d| format!("{:.1}s", d.as_secs_f64()))
-                    .unwrap_or_default();
-
-                let line = format!(
-                    "└── {} {}:{}  {} {}",
-                    item.verb_icon(),
-                    item.verb,
-                    item.id,
-                    spinner,
-                    elapsed
-                );
-                buf.set_string(inner.x, y, &line, Style::default().fg(item.verb_color()));
-
-                // Token info
-                if let Some((t_in, t_out)) = item.tokens {
-                    let token_x = inner.x + line.chars().count() as u16 + 1;
-                    if token_x < inner.x + inner.width {
-                        buf.set_string(
-                            token_x,
-                            y,
-                            format!("{}/{} tok", t_out, t_in),
-                            Style::default().fg(Color::DarkGray),
-                        );
-                    }
-                }
-                y += 1;
-            }
-        }
-
-        // Warm section
-        if !warm.is_empty() && y < inner.y + inner.height {
-            if !hot.is_empty() {
-                y += 1; // spacing
-            }
-
-            if y < inner.y + inner.height {
-                let (header, color) = ActivityTemp::Warm.header();
-                buf.set_string(inner.x, y, header, Style::default().fg(color));
-                y += 1;
-            }
-
-            for item in warm.iter().take(3) {
-                if y >= inner.y + inner.height {
-                    break;
-                }
-
-                let dur = item
-                    .duration
-                    .map(|d| format!("{:.1}s", d.as_secs_f64()))
-                    .unwrap_or_default();
-
-                let prefix = format!("├── {} {}:{}", item.verb_icon(), item.verb, item.id);
-                buf.set_string(inner.x, y, &prefix, Style::default().fg(Color::DarkGray));
-
-                // Success marker and duration
-                let success_x = inner.x + prefix.chars().count() as u16 + 1;
-                if success_x < inner.x + inner.width {
-                    let detail = item.detail.as_deref().unwrap_or("");
-                    let detail_short = truncate_str(detail, 20);
-                    buf.set_string(
-                        success_x,
-                        y,
-                        format!("✅ {} {}", dur, detail_short),
-                        Style::default().fg(DEFAULT_SUCCESS_COLOR),
-                    );
-                }
-                y += 1;
-            }
-        }
-
-        // Queued section
-        if !queued.is_empty() && y < inner.y + inner.height {
-            if !hot.is_empty() || !warm.is_empty() {
-                y += 1; // spacing
-            }
-
-            if y < inner.y + inner.height {
-                let (header, color) = ActivityTemp::Queued.header();
-                buf.set_string(inner.x, y, header, Style::default().fg(color));
-                y += 1;
-            }
-
-            for item in queued.iter().take(3) {
-                if y >= inner.y + inner.height {
-                    break;
-                }
-
-                let waiting = item.waiting_on.as_deref().unwrap_or("dependencies");
-                buf.set_string(
-                    inner.x,
-                    y,
-                    format!(
-                        "├── {} {}:{}  ○ waiting on {}",
-                        item.verb_icon(),
-                        item.verb,
-                        item.id,
-                        waiting
-                    ),
-                    Style::default().fg(DEFAULT_MUTED_COLOR),
-                );
-                y += 1;
-            }
-        }
-
-        // Empty state
-        if hot.is_empty() && warm.is_empty() && queued.is_empty() && y < inner.y + inner.height {
-            buf.set_string(
-                inner.x,
-                y,
-                "(no activity)",
-                Style::default().fg(DEFAULT_MUTED_COLOR),
-            );
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -456,25 +220,6 @@ mod tests {
 
         let (header, _) = ActivityTemp::Queued.header();
         assert!(header.contains("QUEUED"));
-    }
-
-    #[test]
-    fn test_activity_stack_frame() {
-        let items = vec![];
-        let stack = ActivityStack::new(&items).frame(5);
-        assert_eq!(stack.frame, 5);
-    }
-
-    #[test]
-    fn test_render_spinner() {
-        let items = vec![];
-        let stack = ActivityStack::new(&items).frame(0);
-        let s1 = stack.render_spinner();
-
-        let stack = ActivityStack::new(&items).frame(1);
-        let s2 = stack.render_spinner();
-
-        assert_ne!(s1, s2);
     }
 
     #[test]

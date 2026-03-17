@@ -5,8 +5,6 @@
 //! - Timeline: Task execution timeline with markers
 //! - Gauge: Progress bar with label
 //! - Dag: Task dependency graph visualization
-//! - McpLog: MCP call history display
-//! - AgentTurns: Agent turn history display
 //! - Sparkline: Mini chart for metrics
 //! - ScrollIndicator: Vertical scrollbar for panels
 //! - StatusBar: Bottom status bar with provider/MCP status
@@ -18,7 +16,6 @@
 
 mod activity_stack;
 mod agent_steps;
-mod agent_turns;
 mod animation;
 mod chat_dag_panel;
 mod chat_edge_line;
@@ -37,7 +34,6 @@ mod infer_stream_box;
 mod matrix_decrypt;
 mod matrix_rain;
 mod mcp_call_box;
-mod mcp_log;
 mod mention_system;
 mod mission_control;
 mod nika_intro;
@@ -62,7 +58,6 @@ pub mod panels;
 // Progress widgets for M5 UX Polish
 pub mod progress;
 
-pub use agent_turns::{AgentTurns, TurnEntry};
 // Animation utilities
 pub use animation::{AnimationState, AnimationTicker, Easing};
 // Chat DAG widgets
@@ -85,8 +80,8 @@ pub use session_context::{
 pub use mcp_call_box::{McpCallBox, McpCallData, McpCallStatus, DEFAULT_MAX_RETRIES};
 // Streaming inference display (data types + widget for ChatView)
 pub use infer_stream_box::{InferStatus, InferStreamBox, InferStreamData};
-// Hot/warm/cold activity stack
-pub use activity_stack::{ActivityItem, ActivityStack, ActivityTemp};
+// Hot/warm/cold activity data types (ActivityStack widget is dead, data types used by ChatView)
+pub use activity_stack::{ActivityItem, ActivityTemp};
 // Command palette (⌘K)
 pub use command_palette::{default_commands, CommandPalette, CommandPaletteState, PaletteCommand};
 // DAG widgets
@@ -99,7 +94,6 @@ pub use dag_ascii::DagAscii;
 // They're internal implementation details for dag_ascii.
 pub use gauge::Gauge;
 pub use header::Header;
-pub use mcp_log::{McpEntry, McpLog};
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
 pub use sparkline::{
     AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation,
