@@ -210,7 +210,8 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
         tool: Some(invoke.tool),
         params: invoke.params,
         resource: None,
-        timeout: invoke.timeout_ms,
+        // Convert milliseconds (YAML) to seconds (runtime)
+        timeout: invoke.timeout_ms.map(|ms| ms / 1000),
     }
 }
 
