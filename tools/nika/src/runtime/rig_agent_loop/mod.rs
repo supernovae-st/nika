@@ -219,6 +219,9 @@ impl RigAgentLoop {
         let task_id_arc: Arc<str> = task_id.as_str().into();
 
         // Filter builtin tools based on params.tools
+        // "builtin" keyword means ALL builtin tools (core + file)
+        let all_builtins_requested = params.tools.iter().any(|t| t == "builtin");
+
         // Extract the nika:* tools from params.tools for filtering
         let requested_nika_tools: Vec<&str> = params
             .tools
@@ -286,7 +289,7 @@ impl RigAgentLoop {
             .copied()
             .collect();
 
-        if !file_tools_requested.is_empty() {
+        if all_builtins_requested || !file_tools_requested.is_empty() {
             // Create ToolContext with current working directory and YoloMode
             // (agents need full access to perform their tasks)
             let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -294,27 +297,27 @@ impl RigAgentLoop {
 
             use super::builtin::FileToolAdapter;
 
-            if file_tools_requested.contains(&"nika:read") {
+            if all_builtins_requested || file_tools_requested.contains(&"nika:read") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(ReadTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if file_tools_requested.contains(&"nika:write") {
+            if all_builtins_requested || file_tools_requested.contains(&"nika:write") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(WriteTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if file_tools_requested.contains(&"nika:edit") {
+            if all_builtins_requested || file_tools_requested.contains(&"nika:edit") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(EditTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if file_tools_requested.contains(&"nika:glob") {
+            if all_builtins_requested || file_tools_requested.contains(&"nika:glob") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GlobTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
-            if file_tools_requested.contains(&"nika:grep") {
+            if all_builtins_requested || file_tools_requested.contains(&"nika:grep") {
                 tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GrepTool::new(tool_ctx)),
                 ))));
