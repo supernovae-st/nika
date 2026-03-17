@@ -934,8 +934,9 @@ impl TaskExecutor {
                     })
                     .unwrap_or(serde_json::Value::Null)
             } else {
-                // validate() ensures this never happens
-                unreachable!("validate() ensures tool or resource is set")
+                return Err(NikaError::Execution(
+                    "invoke: task requires either 'tool' or 'resource' field".to_string(),
+                ));
             };
 
             Ok::<(serde_json::Value, bool, Arc<McpClient>), NikaError>((result, is_error, client))

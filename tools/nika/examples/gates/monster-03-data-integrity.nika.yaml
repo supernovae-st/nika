@@ -1,0 +1,66 @@
+# MONSTER-03: Data integrity — verify NO data corruption through the pipeline
+schema: nika/workflow@0.12
+workflow: monster-03-integrity
+
+tasks:
+  # Test 1: Newlines preserved
+  - id: multiline
+    exec:
+      command: "printf 'line1\nline2\nline3'"
+      shell: true
+
+  - id: check_multiline
+    depends_on: [multiline]
+    with:
+      data: $multiline
+    exec:
+      command: "echo '{{with.data}}' | wc -l | tr -d ' '"
+      shell: true
+    description: "Should count 3 lines if newlines preserved"
+
+  # Test 2: Special chars survive round-trip
+  - id: special
+    exec: "printf 'quotes: \\\"double\\\" and tabs:\\there'"
+
+  - id: check_special
+    depends_on: [special]
+    with:
+      data: $special
+    exec: "echo 'GOT: {{with.data}}'"
+
+  # Test 3: JSON object survives binding
+  - id: json_obj
+    exec: 'printf ''{"nested":{"deep":{"value":42}}}'''
+
+  - id: check_json
+    depends_on: [json_obj]
+    with:
+      val: $json_obj.nested.deep.value
+    exec: "echo 'DEEP_VALUE={{with.val}}'"
+    description: "3-level deep JSON access should return 42"
+
+  # Test 4: Empty string vs null
+  - id: empty_str
+    exec: "printf ''"
+
+  - id: check_empty
+    depends_on: [empty_str]
+    with:
+      data: $empty_str ?? "WAS_NULL"
+    exec: "echo 'EMPTY={{with.data}}'"
+    description: "Empty string should NOT trigger ?? fallback"
+
+  # Test 5: Large data through binding
+  - id: large
+    exec:
+      command: "python3 -c \"print('A' * 50000)\""
+      shell: true
+
+  - id: check_large
+    depends_on: [large]
+    with:
+      data: $large
+    exec:
+      command: "echo '{{with.data}}' | wc -c | tr -d ' '"
+      shell: true
+    description: "50KB data should survive binding (check char count)"
