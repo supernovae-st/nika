@@ -7,6 +7,7 @@
 //! - `run_invoke`: MCP tool calls
 //! - `run_agent`: Multi-turn agentic loops
 
+use futures::FutureExt;
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -1134,8 +1135,30 @@ impl TaskExecutor {
             agent_loop.run_mock().await?
         } else {
             // Use run_auto() which dispatches to run_claude() or run_openai()
-            // based on the provider field we just set
-            agent_loop.run_auto().await?
+            // based on the provider field we just set.
+            // Wrap in catch_unwind to convert rig-core panics to NikaErrors.
+            let run_future = agent_loop.run_auto();
+            match std::panic::AssertUnwindSafe(run_future).catch_unwind().await {
+                Ok(result) => result?,
+                Err(panic_info) => {
+                    let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                        s.to_string()
+                    } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        "unknown panic in agent execution".to_string()
+                    };
+                    tracing::error!(
+                        task_id = %task_id,
+                        panic_message = %msg,
+                        "Agent execution panicked (likely rig-core internal error)"
+                    );
+                    return Err(NikaError::AgentExecutionError {
+                        task_id: task_id.to_string(),
+                        reason: format!("Agent panicked: {}", msg),
+                    });
+                }
+            }
         };
 
         let duration_ms = start.elapsed().as_millis() as u64;
@@ -1182,10 +1205,28 @@ impl TaskExecutor {
         // Extract response from final_output wrapper
         // Agent returns {"response": <value>} — value may be a string, object, array, number, etc.
         // Strings are returned as-is (no extra quotes), other types are serialized to JSON.
+        // If "response" key is missing, fall back to the entire final_output.
         let response = match result.final_output.get("response") {
             Some(serde_json::Value::String(s)) => s.clone(),
             Some(v) => v.to_string(),
-            None => String::new(),
+            None => {
+                // No "response" key — serialize the entire final_output if non-empty
+                if result.final_output.is_object()
+                    && result.final_output.as_object().map_or(true, |o| o.is_empty())
+                {
+                    tracing::warn!(
+                        task_id = %task_id,
+                        "Agent returned empty final_output, using empty string"
+                    );
+                    String::new()
+                } else {
+                    tracing::debug!(
+                        task_id = %task_id,
+                        "Agent final_output missing 'response' key, using full output"
+                    );
+                    result.final_output.to_string()
+                }
+            }
         };
 
         Ok(response)

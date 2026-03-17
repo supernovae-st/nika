@@ -394,6 +394,24 @@ impl RigAgentLoop {
     /// # Arguments
     /// * `schema` - JSON Schema as `serde_json::Value` for the expected output
     pub fn with_structured_output(mut self, schema: serde_json::Value) -> Self {
+        // Validate schema is a proper JSON Schema object to prevent rig-core panics
+        let schema = if schema.get("type").is_none() {
+            tracing::warn!(
+                task_id = %self.task_id,
+                "output.schema missing 'type' field, wrapping in object schema"
+            );
+            // Wrap bare schema in a proper object schema
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "result": schema
+                },
+                "required": ["result"]
+            })
+        } else {
+            schema
+        };
+
         let submit_tool = DynamicSubmitTool::new(schema);
         self.tools.push(Arc::new(submit_tool));
         tracing::debug!(
