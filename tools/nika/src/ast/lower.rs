@@ -305,9 +305,7 @@ fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
     retry.map(|r| AnalyzedRetry {
         max_attempts: r.max_attempts,
         delay_ms: r.backoff_ms,
-        backoff: if r.multiplier.is_nan()
-            || (r.multiplier - 1.0).abs() <= BACKOFF_UNITY_TOLERANCE
-        {
+        backoff: if r.multiplier.is_nan() || (r.multiplier - 1.0).abs() <= BACKOFF_UNITY_TOLERANCE {
             None
         } else {
             Some(r.multiplier)
@@ -489,7 +487,9 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             for_each,
             retry: unlower_retry(&task.action),
             decompose: task.decompose.clone(),
-            concurrency: task.concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
+            concurrency: task
+                .concurrency
+                .map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
             fail_fast: task.fail_fast,
             artifact: task.artifact.clone(),
             log: task.log.clone(),
