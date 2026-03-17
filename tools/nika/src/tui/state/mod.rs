@@ -1031,55 +1031,6 @@ impl TuiState {
                 self.dirty.notifications = true;
             }
 
-            // ═══════════════════════════════════════════
-            // LIMIT EVENTS
-            // ═══════════════════════════════════════════
-            EventKind::LimitReached {
-                task_id,
-                limit_type,
-                value,
-                threshold,
-                action,
-            } => {
-                let emoji = match limit_type.as_str() {
-                    "turns" => "[TURNS]",
-                    "tokens" => "[TOKENS]",
-                    "cost" => "[COST]",
-                    "duration" => "[TIME]",
-                    _ => "[LIMIT]",
-                };
-                self.add_notification(Notification::warning(
-                    format!(
-                        "{} [{}] Limit reached: {} ({:.0}/{:.0}) -> {}",
-                        emoji, task_id, limit_type, value, threshold, action
-                    ),
-                    timestamp_ms,
-                ));
-                self.dirty.notifications = true;
-            }
-
-            EventKind::PartialCompletion {
-                task_id,
-                progress,
-                result_preview,
-            } => {
-                let progress_pct = (progress * 100.0).round() as u32;
-                // UTF-8 safe truncation
-                let preview = if result_preview.chars().count() > 50 {
-                    let truncated: String = result_preview.chars().take(47).collect();
-                    format!("{}...", truncated)
-                } else {
-                    result_preview.clone()
-                };
-                self.add_notification(Notification::info(
-                    format!(
-                        "[{}] Partial completion ({}%): {}",
-                        task_id, progress_pct, preview
-                    ),
-                    timestamp_ms,
-                ));
-                self.dirty.notifications = true;
-            }
         }
     }
 

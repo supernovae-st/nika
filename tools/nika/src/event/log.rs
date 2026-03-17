@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 34 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/structured-output/limits)
+//! - EventKind: 32 variants across 10 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/structured-output)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -489,37 +489,6 @@ pub enum EventKind {
         total_attempts: u32,
     },
 
-    // ═══════════════════════════════════════════════════════════════
-    // LIMIT EVENTS
-    // ═══════════════════════════════════════════════════════════════
-    /// Limit reached during agent execution
-    ///
-    /// Emitted when an agent execution limit is hit (turns, tokens, cost, or duration).
-    /// The action field indicates what was done in response.
-    LimitReached {
-        /// Task ID for correlation
-        task_id: Arc<str>,
-        /// Limit type: "turns", "tokens", "cost", "duration"
-        limit_type: String,
-        /// Current value when limit was reached
-        value: f64,
-        /// Configured threshold
-        threshold: f64,
-        /// Action taken: "complete_partial", "fail", "escalate"
-        action: String,
-    },
-    /// Agent completed with partial results due to limit
-    ///
-    /// Emitted when an agent gracefully completes with partial results
-    /// after hitting a limit with action: complete_partial.
-    PartialCompletion {
-        /// Task ID for correlation
-        task_id: Arc<str>,
-        /// Progress percentage (0.0-1.0)
-        progress: f64,
-        /// Preview of partial result (truncated if long)
-        result_preview: String,
-    },
 }
 
 impl EventKind {
@@ -546,9 +515,7 @@ impl EventKind {
             | Self::StructuredOutputSuccess { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
             | Self::GuardrailFailed { task_id, .. }
-            | Self::GuardrailEscalation { task_id, .. }
-            | Self::LimitReached { task_id, .. }
-            | Self::PartialCompletion { task_id, .. } => Some(task_id),
+            | Self::GuardrailEscalation { task_id, .. } => Some(task_id),
             // AgentSpawned uses parent_task_id as the primary task reference
             Self::AgentSpawned { parent_task_id, .. } => Some(parent_task_id),
             // Log and Custom may optionally have task_id
@@ -1834,216 +1801,14 @@ mod tests {
         assert_eq!(escalation.task_id(), Some("esc1"));
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // Limit events tests
-    // ═══════════════════════════════════════════════════════════════
 
-    #[test]
-    fn limit_reached_event() {
-        let log = EventLog::new();
-
-        log.emit(EventKind::LimitReached {
-            task_id: "agent_task".into(),
-            limit_type: "turns".to_string(),
-            value: 20.0,
-            threshold: 20.0,
-            action: "complete_partial".to_string(),
-        });
-
-        let events = log.filter_task("agent_task");
-        assert_eq!(events.len(), 1);
-
-        if let EventKind::LimitReached {
-            limit_type,
-            value,
-            threshold,
-            action,
-            ..
-        } = &events[0].kind
-        {
-            assert_eq!(limit_type, "turns");
-            assert!((value - 20.0).abs() < f64::EPSILON);
-            assert!((threshold - 20.0).abs() < f64::EPSILON);
-            assert_eq!(action, "complete_partial");
-        } else {
-            panic!("Expected LimitReached event");
-        }
-    }
-
-    #[test]
-    fn limit_reached_cost_event() {
-        let log = EventLog::new();
-
-        log.emit(EventKind::LimitReached {
-            task_id: "expensive_task".into(),
-            limit_type: "cost".to_string(),
-            value: 2.50,
-            threshold: 2.00,
-            action: "fail".to_string(),
-        });
-
-        let events = log.filter_task("expensive_task");
-        assert_eq!(events.len(), 1);
-
-        if let EventKind::LimitReached {
-            limit_type,
-            value,
-            threshold,
-            action,
-            ..
-        } = &events[0].kind
-        {
-            assert_eq!(limit_type, "cost");
-            assert!((value - 2.50).abs() < f64::EPSILON);
-            assert!((threshold - 2.00).abs() < f64::EPSILON);
-            assert_eq!(action, "fail");
-        } else {
-            panic!("Expected LimitReached event");
-        }
-    }
-
-    #[test]
-    fn partial_completion_event() {
-        let log = EventLog::new();
-
-        log.emit(EventKind::PartialCompletion {
-            task_id: "agent_task".into(),
-            progress: 0.75,
-            result_preview: "Generated 15 of 20 items...".to_string(),
-        });
-
-        let events = log.filter_task("agent_task");
-        assert_eq!(events.len(), 1);
-
-        if let EventKind::PartialCompletion {
-            progress,
-            result_preview,
-            ..
-        } = &events[0].kind
-        {
-            assert!((progress - 0.75).abs() < f64::EPSILON);
-            assert_eq!(result_preview, "Generated 15 of 20 items...");
-        } else {
-            panic!("Expected PartialCompletion event");
-        }
-    }
-
-    #[test]
-    fn limit_reached_serializes() {
-        let event = EventKind::LimitReached {
-            task_id: "task1".into(),
-            limit_type: "tokens".to_string(),
-            value: 50000.0,
-            threshold: 50000.0,
-            action: "complete_partial".to_string(),
-        };
-
-        let json = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "limit_reached");
-        assert_eq!(json["task_id"], "task1");
-        assert_eq!(json["limit_type"], "tokens");
-        assert_eq!(json["value"], 50000.0);
-        assert_eq!(json["threshold"], 50000.0);
-        assert_eq!(json["action"], "complete_partial");
-    }
-
-    #[test]
-    fn partial_completion_serializes() {
-        let event = EventKind::PartialCompletion {
-            task_id: "task1".into(),
-            progress: 0.5,
-            result_preview: "Partial results...".to_string(),
-        };
-
-        let json = serde_json::to_value(&event).unwrap();
-        assert_eq!(json["type"], "partial_completion");
-        assert_eq!(json["task_id"], "task1");
-        assert_eq!(json["progress"], 0.5);
-        assert_eq!(json["result_preview"], "Partial results...");
-    }
-
-    #[test]
-    fn limit_events_task_id_extraction() {
-        let limit = EventKind::LimitReached {
-            task_id: "limit1".into(),
-            limit_type: "duration".to_string(),
-            value: 300.0,
-            threshold: 300.0,
-            action: "escalate".to_string(),
-        };
-        assert_eq!(limit.task_id(), Some("limit1"));
-
-        let partial = EventKind::PartialCompletion {
-            task_id: "partial1".into(),
-            progress: 0.8,
-            result_preview: "Almost done".to_string(),
-        };
-        assert_eq!(partial.task_id(), Some("partial1"));
-    }
-
-    #[test]
-    fn limit_events_full_workflow() {
-        // Simulates an agent hitting limit and completing partially
-        let log = EventLog::new();
-
-        // Agent starts
-        log.emit(EventKind::AgentStart {
-            task_id: "research_agent".into(),
-            max_turns: 20,
-            mcp_servers: vec!["novanet".to_string()],
-        });
-
-        // Agent runs for a while...
-        log.emit(EventKind::AgentTurn {
-            task_id: "research_agent".into(),
-            turn_index: 15,
-            kind: "continue".to_string(),
-            metadata: None,
-        });
-
-        // Limit reached
-        log.emit(EventKind::LimitReached {
-            task_id: "research_agent".into(),
-            limit_type: "turns".to_string(),
-            value: 20.0,
-            threshold: 20.0,
-            action: "complete_partial".to_string(),
-        });
-
-        // Partial completion
-        log.emit(EventKind::PartialCompletion {
-            task_id: "research_agent".into(),
-            progress: 0.8,
-            result_preview: "Found 16 of 20 expected results...".to_string(),
-        });
-
-        // Agent completes
-        log.emit(EventKind::AgentComplete {
-            task_id: "research_agent".into(),
-            turns: 20,
-            stop_reason: "limit_reached".to_string(),
-        });
-
-        let events = log.filter_task("research_agent");
-        assert_eq!(events.len(), 5);
-
-        // Check sequence
-        assert!(matches!(&events[0].kind, EventKind::AgentStart { .. }));
-        assert!(matches!(&events[1].kind, EventKind::AgentTurn { .. }));
-        assert!(matches!(&events[2].kind, EventKind::LimitReached { .. }));
-        assert!(matches!(
-            &events[3].kind,
-            EventKind::PartialCompletion { .. }
-        ));
-        assert!(matches!(&events[4].kind, EventKind::AgentComplete { .. }));
-    }
 
     // ═══════════════════════════════════════════════════════════════
     // WAVE 2 TESTS: NDJSON event system audit
     // ═══════════════════════════════════════════════════════════════
 
-    /// Helper: build one instance of every EventKind variant (all 34)
-    fn all_34_variants() -> Vec<EventKind> {
+    /// Helper: build one instance of every EventKind variant (all 32)
+    fn all_32_variants() -> Vec<EventKind> {
         vec![
             // Workflow (6)
             EventKind::WorkflowStarted {
@@ -2244,35 +2009,22 @@ mod tests {
                 layer_name: "rig_extractor".into(),
                 total_attempts: 1,
             },
-            // Limits (2)
-            EventKind::LimitReached {
-                task_id: "t1".into(),
-                limit_type: "turns".into(),
-                value: 10.0,
-                threshold: 10.0,
-                action: "complete_partial".into(),
-            },
-            EventKind::PartialCompletion {
-                task_id: "t1".into(),
-                progress: 0.8,
-                result_preview: "partial result...".into(),
-            },
         ]
     }
 
     #[test]
-    fn wave2_variant_count_is_34() {
-        let variants = all_34_variants();
+    fn wave2_variant_count_is_32() {
+        let variants = all_32_variants();
         assert_eq!(
             variants.len(),
-            34,
-            "EventKind should have exactly 34 variants"
+            32,
+            "EventKind should have exactly 32 variants"
         );
     }
 
     #[test]
     fn wave2_all_variants_serialize_deserialize_roundtrip() {
-        for (i, variant) in all_34_variants().into_iter().enumerate() {
+        for (i, variant) in all_32_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant)
                 .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
             let back: EventKind = serde_json::from_str(&json)
@@ -2284,7 +2036,7 @@ mod tests {
     #[test]
     fn wave2_ndjson_no_embedded_newlines() {
         // NDJSON = one JSON object per line, no embedded newlines
-        for (i, variant) in all_34_variants().into_iter().enumerate() {
+        for (i, variant) in all_32_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant).unwrap();
             assert!(
                 !json.contains('\n'),
@@ -2423,31 +2175,6 @@ mod tests {
         assert!(json.contains("guardrail_escalation"));
     }
 
-    #[test]
-    fn wave2_limit_reached_is_dead_variant() {
-        // LimitReached is defined but never emitted in runtime code
-        let variant = EventKind::LimitReached {
-            task_id: "t1".into(),
-            limit_type: "turns".into(),
-            value: 10.0,
-            threshold: 10.0,
-            action: "fail".into(),
-        };
-        let json = serde_json::to_string(&variant).unwrap();
-        assert!(json.contains("limit_reached"));
-    }
-
-    #[test]
-    fn wave2_partial_completion_is_dead_variant() {
-        // PartialCompletion is defined but never emitted in runtime code
-        let variant = EventKind::PartialCompletion {
-            task_id: "t1".into(),
-            progress: 0.5,
-            result_preview: "half done".into(),
-        };
-        let json = serde_json::to_string(&variant).unwrap();
-        assert!(json.contains("partial_completion"));
-    }
 
     #[test]
     fn wave2_optional_fields_serialized_as_null_when_none() {
@@ -2518,7 +2245,7 @@ mod tests {
 
     #[test]
     fn wave2_task_id_extraction_all_variants() {
-        let variants = all_34_variants();
+        let variants = all_32_variants();
         // Variants WITH task_id (26 of them)
         let with_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_some()).collect();
         // Variants WITHOUT task_id (8): 6 workflow + McpConnected + McpError
@@ -2528,8 +2255,8 @@ mod tests {
         // Log has task_id: Some("t1"), so it goes in with
         assert_eq!(
             with_task_id.len(),
-            25,
-            "25 variants should have task_id (including Log with Some)"
+            23,
+            "23 variants should have task_id (including Log with Some)"
         );
         assert_eq!(
             without_task_id.len(),
