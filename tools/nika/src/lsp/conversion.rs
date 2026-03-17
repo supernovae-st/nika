@@ -32,7 +32,8 @@ pub fn span_to_range(span: &Span, source: &str) -> Range {
 /// Convert a byte offset to an LSP Position (line, character)
 ///
 /// LSP uses 0-based line numbers and UTF-16 code unit offsets for characters.
-/// For simplicity, we use character counts (which works for ASCII and most UTF-8).
+/// Characters outside the BMP (emoji, CJK supplementary) require 2 UTF-16 units
+/// (a surrogate pair), so we use `ch.len_utf16()` instead of counting code points.
 ///
 /// # Arguments
 ///
@@ -51,7 +52,7 @@ pub fn offset_to_position(offset: usize, source: &str) -> Position {
             line += 1;
             col = 0;
         } else {
-            col += 1;
+            col += ch.len_utf16() as u32;
         }
     }
 
@@ -88,7 +89,7 @@ pub fn position_to_offset(pos: Position, source: &str) -> usize {
             current_line += 1;
             current_col = 0;
         } else {
-            current_col += 1;
+            current_col += ch.len_utf16() as u32;
         }
     }
 
@@ -318,6 +319,158 @@ mod tests {
                 source
             ),
             0
+        );
+    }
+
+    // ── UTF-16 surrogate pair tests ──────────────────────────────────
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_offset_to_position_emoji() {
+        // 🚀 is U+1F680, outside BMP → 2 UTF-16 code units (surrogate pair)
+        // In UTF-8: 4 bytes (0xF0 0x9F 0x9A 0x80)
+        let source = "a🚀b";
+        // 'a' at byte 0 → character 0
+        assert_eq!(
+            offset_to_position(0, source),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        // '🚀' starts at byte 1 → character 1
+        assert_eq!(
+            offset_to_position(1, source),
+            Position {
+                line: 0,
+                character: 1
+            }
+        );
+        // 'b' starts at byte 5 → character 3 (1 for 'a' + 2 for '🚀')
+        assert_eq!(
+            offset_to_position(5, source),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_position_to_offset_emoji() {
+        let source = "a🚀b";
+        // character 0 → byte 0 ('a')
+        assert_eq!(
+            position_to_offset(
+                Position {
+                    line: 0,
+                    character: 0
+                },
+                source
+            ),
+            0
+        );
+        // character 1 → byte 1 (start of '🚀')
+        assert_eq!(
+            position_to_offset(
+                Position {
+                    line: 0,
+                    character: 1
+                },
+                source
+            ),
+            1
+        );
+        // character 3 → byte 5 ('b', after 2 UTF-16 units for emoji)
+        assert_eq!(
+            position_to_offset(
+                Position {
+                    line: 0,
+                    character: 3
+                },
+                source
+            ),
+            5
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_roundtrip_emoji() {
+        let source = "hello 🌍 world\nsecond 🎉 line";
+        // Test roundtrip for char-boundary offsets only (mid-emoji offsets can't roundtrip)
+        // "hello 🌍 world\nsecond 🎉 line"
+        //  0     5 6    10 11   15 16 17     22 23 24     28 29
+        for offset in [0, 5, 6, 10, 11, 15, 16, 22, 23, 24, 28, 29] {
+            if offset <= source.len() {
+                let pos = offset_to_position(offset, source);
+                let back = position_to_offset(pos, source);
+                assert_eq!(
+                    back, offset,
+                    "Roundtrip failed for offset {}: pos=({},{}), got {}",
+                    offset, pos.line, pos.character, back
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_offset_to_position_cjk_supplementary() {
+        // 𠀀 is U+20000 (CJK Unified Ideographs Extension B) → 2 UTF-16 code units
+        // In UTF-8: 4 bytes
+        let source = "x𠀀y";
+        // 'x' at byte 0 → character 0
+        assert_eq!(
+            offset_to_position(0, source),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        // '𠀀' starts at byte 1 → character 1
+        assert_eq!(
+            offset_to_position(1, source),
+            Position {
+                line: 0,
+                character: 1
+            }
+        );
+        // 'y' starts at byte 5 → character 3 (1 for 'x' + 2 for '𠀀')
+        assert_eq!(
+            offset_to_position(5, source),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_offset_to_position_bmp_non_ascii() {
+        // BMP characters like é (U+00E9) and ñ (U+00F1) are 1 UTF-16 code unit
+        // but 2 bytes in UTF-8
+        let source = "café";
+        // 'c' at byte 0 → char 0
+        // 'a' at byte 1 → char 1
+        // 'f' at byte 2 → char 2
+        // 'é' at byte 3 → char 3 (2 UTF-8 bytes, 1 UTF-16 unit)
+        assert_eq!(
+            offset_to_position(3, source),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
+        // End of string: byte 5 → char 4
+        assert_eq!(
+            offset_to_position(5, source),
+            Position {
+                line: 0,
+                character: 4
+            }
         );
     }
 }
