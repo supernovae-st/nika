@@ -266,10 +266,16 @@ tasks:
     infer: "test""#,
                     invalid_schema, task_id
                 );
-                // Should parse YAML but fail schema validation (not panic)
-                let parsed: Result<serde_json::Value, _> = serde_yaml::from_str(&yaml);
-                // Even if YAML is valid, schema validation would catch it
-                prop_assert!(parsed.is_ok() || parsed.is_err());
+                // Should not panic — either parse error or schema validation error
+                let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
+                match result {
+                    Ok(raw) => {
+                        let analyzed = nika::ast::analyzer::analyze(raw);
+                        prop_assert!(analyzed.is_err(),
+                            "Invalid schema '{}' should fail analysis", invalid_schema);
+                    }
+                    Err(_) => {} // Parse error is fine too
+                }
             }
         }
 
@@ -342,17 +348,13 @@ tasks:
 
 mod dag_fuzzing {
     use super::*;
+    use nika::ast::analyzer::analyze;
+    use nika::ast::raw::parse;
+    use nika::source::FileId;
 
     prop_compose! {
         /// Generate valid task IDs (snake_case only)
         fn arb_valid_task_id()(id in r"[a-z][a-z0-9_]{0,20}") -> String {
-            id
-        }
-    }
-
-    prop_compose! {
-        /// Generate invalid task IDs (contains invalid chars)
-        fn arb_invalid_task_id()(id in r"[A-Z\-\.][a-zA-Z0-9\-_]{0,10}") -> String {
             id
         }
     }
@@ -367,7 +369,7 @@ mod dag_fuzzing {
                 .map(|(i, t)| format!("{}{}", t, i))
                 .collect();
 
-            let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: linear\ntasks:\n");
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
             for (i, task) in unique_tasks.iter().enumerate() {
                 yaml.push_str(&format!("  - id: {}\n", task));
                 if i > 0 {
@@ -383,35 +385,34 @@ mod dag_fuzzing {
         /// Property: Valid snake_case task IDs pass validation
         #[test]
         fn test_valid_task_id_passes(id in arb_valid_task_id()) {
-            // Snake case pattern: lowercase + underscores only
             let is_valid = id.chars().all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_');
             prop_assert!(is_valid, "Generated ID should be valid snake_case: {}", id);
         }
 
-        /// Property: DAG validation never panics on arbitrary workflows
+        /// Property: Linear DAGs pass full Nika pipeline without panics
         #[test]
         fn test_dag_validation_never_panics(yaml in arb_linear_dag()) {
-            // Parse and validate - should never panic
-            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            let raw = parse(&yaml, FileId(0)).expect("Linear DAG YAML should parse");
+            let result = analyze(raw);
+            prop_assert!(result.is_ok(),
+                "Linear DAG should pass analysis: {:?}", result.errors);
         }
 
-        /// Property: Self-referencing task fails validation (never panics)
+        /// Property: Self-referencing task detected as cycle by analyzer
         #[test]
         fn test_self_reference_fails(task_id in arb_valid_task_id()) {
             let yaml = format!(
-                r#"schema: nika/workflow@0.12
-workflow: self_ref
-tasks:
-  - id: {}
-    depends_on: [{}]
-    infer: "test""#,
+                "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"test\"\n",
                 task_id, task_id
             );
-            // Should not panic - should either parse and fail validation, or fail parse
-            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            if let Ok(raw) = parse(&yaml, FileId(0)) {
+                let result = analyze(raw);
+                prop_assert!(result.is_err(),
+                    "Self-referencing task '{}' should fail analysis", task_id);
+            }
         }
 
-        /// Property: Cyclic dependencies detected (never panics)
+        /// Property: Cyclic dependencies detected by analyzer
         #[test]
         fn test_cycle_detection(
             task1 in arb_valid_task_id(),
@@ -419,49 +420,42 @@ tasks:
         ) {
             if task1 != task2 {
                 let yaml = format!(
-                    r#"schema: nika/workflow@0.12
-workflow: cycle
-tasks:
-  - id: {}
-    depends_on: [{}]
-    infer: "first"
-  - id: {}
-    depends_on: [{}]
-    infer: "second""#,
+                    "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"first\"\n  - id: {}\n    depends_on: [{}]\n    infer: \"second\"\n",
                     task1, task2, task2, task1
                 );
-                // Should not panic - cycles should be detected
-                let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+                if let Ok(raw) = parse(&yaml, FileId(0)) {
+                    let result = analyze(raw);
+                    prop_assert!(result.is_err(),
+                        "Cycle {}<->{} should fail analysis", task1, task2);
+                }
             }
         }
 
-        /// Property: Referencing non-existent task fails (never panics)
+        /// Property: Referencing non-existent task detected by analyzer
         #[test]
         fn test_nonexistent_task_fails(
             task1 in arb_valid_task_id(),
-            nonexistent in arb_valid_task_id()
+            ghost in arb_valid_task_id()
         ) {
-            if task1 != nonexistent {
-                let yaml = format!(
-                    r#"schema: nika/workflow@0.12
-workflow: missing
-tasks:
-  - id: {}
-    infer: "exists"
-  - id: {}
-    depends_on: [{}]
-    infer: "ghost""#,
-                    task1, nonexistent, task1
-                );
-                // Should not panic
-                let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            // task1 exists, task2 depends_on task1 (valid), but task2's ID
+            // is ghost which is different from task1 — no error expected here.
+            // Instead: task depends_on a nonexistent ID.
+            let nonexistent = format!("{}__missing", ghost);
+            let yaml = format!(
+                "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"test\"\n",
+                task1, nonexistent
+            );
+            if let Ok(raw) = parse(&yaml, FileId(0)) {
+                let result = analyze(raw);
+                prop_assert!(result.is_err(),
+                    "Reference to nonexistent '{}' should fail analysis", nonexistent);
             }
         }
 
-        /// Property: Large DAGs don't cause stack overflow
+        /// Property: Large DAGs don't cause stack overflow in analyzer
         #[test]
         fn test_large_dag_no_overflow(depth in 10usize..50) {
-            let mut yaml = String::from("schema: nika/workflow@0.12\nworkflow: deep\ntasks:\n");
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
             for i in 0..depth {
                 yaml.push_str(&format!("  - id: task_{}\n", i));
                 if i > 0 {
@@ -470,8 +464,10 @@ tasks:
                 yaml.push_str(&format!("    infer: \"level {}\"\n", i));
             }
 
-            // Should not cause stack overflow
-            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            let raw = parse(&yaml, FileId(0)).expect("Linear DAG YAML should parse");
+            let result = analyze(raw);
+            prop_assert!(result.is_ok(),
+                "Large linear DAG (depth={}) should pass: {:?}", depth, result.errors);
         }
     }
 }
