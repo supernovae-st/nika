@@ -870,7 +870,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         }
 
         // Load context files if workflow has context_files
-        let base_path = std::env::current_dir().unwrap_or_default();
+        let base_path = std::env::current_dir().unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "Failed to get current directory, using '.'");
+            std::path::PathBuf::from(".")
+        });
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
                 load_context_analyzed(&self.workflow.context_files, &base_path).await?;
@@ -1080,9 +1083,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         "Expanding decompose modifier"
                     );
                     // Resolve bindings for decompose source
-                    let bindings =
-                        ResolvedBindings::from_with_spec(Some(&task.with_spec), &self.datastore)
-                            .unwrap_or_default();
+                    let bindings = match ResolvedBindings::from_with_spec(
+                        Some(&task.with_spec),
+                        &self.datastore,
+                    ) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            tracing::warn!(
+                                task_id = %task.name,
+                                error = %e,
+                                "Failed to resolve bindings for decompose, using empty"
+                            );
+                            ResolvedBindings::default()
+                        }
+                    };
                     // Expand decompose using executor (with timeout to prevent silent hangs)
                     let decompose_result = tokio::time::timeout(
                         DECOMPOSE_TIMEOUT,
@@ -1120,11 +1134,20 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                     if for_each.is_binding() {
                         // Binding reference ($alias, {{with.alias}}, {{inputs.xxx}})
-                        let bindings = ResolvedBindings::from_with_spec(
+                        let bindings = match ResolvedBindings::from_with_spec(
                             Some(&task.with_spec),
                             &self.datastore,
-                        )
-                        .unwrap_or_default();
+                        ) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                tracing::warn!(
+                                    task_id = %task.name,
+                                    error = %e,
+                                    "Failed to resolve bindings for for_each, using empty"
+                                );
+                                ResolvedBindings::default()
+                            }
+                        };
 
                         if let Some(alias) = items_str.strip_prefix('$') {
                             // Check for $inputs.xxx format first (workflow inputs)
