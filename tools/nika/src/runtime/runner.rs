@@ -917,6 +917,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 "→".cyan(),
                 total_tasks
             );
+
+            // IMP-5: Warn if no task has output or artifact config
+            let has_observable_output = self.workflow.tasks.iter().any(|t| {
+                t.output.is_some() || t.artifact.is_some()
+            });
+            if !has_observable_output && total_tasks > 1 {
+                println!(
+                    "  {} {}\n",
+                    "⚠".yellow(),
+                    "No tasks have output: or artifact: config — results won't be persisted"
+                        .yellow()
+                );
+            }
         }
 
         loop {
