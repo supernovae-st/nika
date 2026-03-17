@@ -168,6 +168,17 @@ fn get_f64_field(
                 span,
                 message: format!("'{}' must be a number", key),
             })?;
+            if !value.is_finite() {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span,
+                    message: format!(
+                        "'{}' must be a finite number (got {})",
+                        key,
+                        s.as_str()
+                    ),
+                });
+            }
             Ok(Some(Spanned::new(value, span)))
         }
         Some(node) => Err(ParseError {
@@ -2017,5 +2028,77 @@ tasks:
 
         let err = result.unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::InvalidType);
+    }
+
+    #[test]
+    fn parse_rejects_yaml_nan_temperature() {
+        // YAML .nan is rendered as ".nan" by marked_yaml, rejected by Rust's parse::<f64>()
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "hello"
+      temperature: .nan
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "YAML .nan temperature should be rejected");
+    }
+
+    #[test]
+    fn parse_rejects_nan_string_temperature() {
+        // "NaN" parses as f64::NaN successfully — caught by is_finite() check
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "hello"
+      temperature: NaN
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "NaN temperature should be rejected");
+        let err = result.unwrap_err();
+        assert!(
+            err.message.contains("finite") || err.message.contains("number"),
+            "Error should mention finite or number: {}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn parse_rejects_infinity_temperature() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "hello"
+      temperature: .inf
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "Infinity temperature should be rejected");
+    }
+
+    #[test]
+    fn parse_rejects_inf_string_temperature() {
+        // "inf" parses as f64::INFINITY — caught by is_finite() check
+        let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: test\n    infer:\n      prompt: \"hello\"\n      temperature: inf\n";
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "inf temperature should be rejected");
+    }
+
+    #[test]
+    fn parse_rejects_negative_infinity_temperature() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: test
+    infer:
+      prompt: "hello"
+      temperature: -.inf
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "Negative infinity should be rejected");
     }
 }
