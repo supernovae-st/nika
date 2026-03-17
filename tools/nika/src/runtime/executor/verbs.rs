@@ -1212,7 +1212,7 @@ impl TaskExecutor {
             None => {
                 // No "response" key — serialize the entire final_output if non-empty
                 if result.final_output.is_object()
-                    && result.final_output.as_object().map_or(true, |o| o.is_empty())
+                    && result.final_output.as_object().is_none_or(|o| o.is_empty())
                 {
                     tracing::warn!(
                         task_id = %task_id,
