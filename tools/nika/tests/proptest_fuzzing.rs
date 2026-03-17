@@ -676,7 +676,8 @@ mod pipeline_roundtrip_fuzzing {
         );
         let rt_names: Vec<String> = unlowered.tasks.iter().map(|t| t.name.clone()).collect();
         prop_assert_eq!(
-            rt_names, task_names,
+            rt_names,
+            task_names,
             "Task names should be preserved through roundtrip"
         );
         Ok(())
