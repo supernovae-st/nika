@@ -49,9 +49,9 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         context_files,
         imports,
         inputs,
-        artifacts: _,
-        log: _,
-        agents: _,
+        artifacts,
+        log,
+        agents,
         span: _,
     } = analyzed;
 
@@ -85,10 +85,10 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         mcp,
         context,
         include: lower_imports(imports),
-        agents: None,
+        agents: agents.map(|m| m.into_iter().collect()),
         skills: None,
-        artifacts: None,
-        log: None,
+        artifacts,
+        log,
         inputs,
         tasks,
     })
@@ -123,8 +123,8 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         concurrency,
         fail_fast,
         action,
-        artifact: None,
-        log: None,
+        artifact: task.artifact.clone(),
+        log: task.log.clone(),
         flow,
         structured: task.structured,
     })
@@ -1110,10 +1110,9 @@ mod tests {
     // =========================================================================
 
     /// lower() explicitly drops workflow-level artifacts.
-    /// The Runner reads AnalyzedWorkflow.artifacts directly (runner.rs:1035),
-    /// so this drop is intentional for the CLI path (lower -> unlower roundtrip).
+    /// lower() preserves workflow-level artifacts through the pipeline.
     #[test]
-    fn lower_drops_workflow_artifacts() {
+    fn lower_preserves_workflow_artifacts() {
         let mut wf = dummy_workflow();
         wf.artifacts = Some(crate::ast::artifact::ArtifactsConfig {
             dir: Some("./output".to_string()),
@@ -1121,28 +1120,30 @@ mod tests {
         });
         let lowered = lower(wf).unwrap();
         assert!(
-            lowered.artifacts.is_none(),
-            "lower() drops workflow-level artifacts"
+            lowered.artifacts.is_some(),
+            "lower() must preserve workflow-level artifacts"
+        );
+        assert_eq!(
+            lowered.artifacts.as_ref().unwrap().dir.as_deref(),
+            Some("./output")
         );
     }
 
-    /// lower() explicitly drops workflow-level log config.
-    /// The Runner reads AnalyzedWorkflow.log directly.
+    /// lower() preserves workflow-level log config.
     #[test]
-    fn lower_drops_workflow_log() {
+    fn lower_preserves_workflow_log() {
         let mut wf = dummy_workflow();
         wf.log = Some(crate::ast::logging::LogConfig::default());
         let lowered = lower(wf).unwrap();
         assert!(
-            lowered.log.is_none(),
-            "lower() drops workflow-level log config"
+            lowered.log.is_some(),
+            "lower() must preserve workflow-level log config"
         );
     }
 
-    /// lower() explicitly drops workflow-level agents.
-    /// The Runner resolves agents from AnalyzedWorkflow at boot.
+    /// lower() preserves workflow-level agents.
     #[test]
-    fn lower_drops_workflow_agents() {
+    fn lower_preserves_workflow_agents() {
         let mut wf = dummy_workflow();
         let mut agents = IndexMap::new();
         agents.insert(
@@ -1154,16 +1155,15 @@ mod tests {
         wf.agents = Some(agents);
         let lowered = lower(wf).unwrap();
         assert!(
-            lowered.agents.is_none(),
-            "lower() drops workflow-level agents"
+            lowered.agents.is_some(),
+            "lower() must preserve workflow-level agents"
         );
+        assert!(lowered.agents.as_ref().unwrap().contains_key("researcher"));
     }
 
-    /// lower_task() hardcodes artifact to None regardless of AnalyzedTask.artifact.
-    /// The Runner reads AnalyzedTask.artifact directly (runner.rs:811),
-    /// so this is intentional for the execution path.
+    /// lower_task() preserves task-level artifact config.
     #[test]
-    fn lower_task_artifact_always_none() {
+    fn lower_task_preserves_artifact() {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("t");
         let mut task = dummy_task(id, "t");
@@ -1171,14 +1171,14 @@ mod tests {
         wf.tasks.push(task);
         let lowered = lower(wf).unwrap();
         assert!(
-            lowered.tasks[0].artifact.is_none(),
-            "lower_task() sets artifact to None"
+            lowered.tasks[0].artifact.is_some(),
+            "lower_task() must preserve artifact config"
         );
     }
 
-    /// lower_task() hardcodes log to None regardless of AnalyzedTask.log.
+    /// lower_task() preserves task-level log config.
     #[test]
-    fn lower_task_log_always_none() {
+    fn lower_task_preserves_log() {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("t");
         let mut task = dummy_task(id, "t");
@@ -1186,8 +1186,8 @@ mod tests {
         wf.tasks.push(task);
         let lowered = lower(wf).unwrap();
         assert!(
-            lowered.tasks[0].log.is_none(),
-            "lower_task() sets log to None"
+            lowered.tasks[0].log.is_some(),
+            "lower_task() must preserve log config"
         );
     }
 
@@ -1212,10 +1212,9 @@ mod tests {
 
     /// The lower -> unlower roundtrip loses task-level artifact and log
     /// because lower_task() sets both to None. This is a known gap:
-    /// CLI path goes lower -> expand_includes -> unlower -> Runner,
-    /// so artifact/log on AnalyzedTask are only available via the TUI path.
+    /// Task artifact/log are preserved through the lower→unlower round-trip.
     #[test]
-    fn unlower_roundtrip_loses_task_artifact_and_log() {
+    fn roundtrip_preserves_task_artifact_and_log() {
         let mut wf = dummy_workflow();
         let id = wf.task_table.insert("t");
         let mut task = dummy_task(id, "t");
@@ -1224,17 +1223,23 @@ mod tests {
         wf.tasks.push(task);
 
         let lowered = lower(wf).unwrap();
-        assert!(lowered.tasks[0].artifact.is_none());
-        assert!(lowered.tasks[0].log.is_none());
+        assert!(
+            lowered.tasks[0].artifact.is_some(),
+            "lower() must preserve task artifact"
+        );
+        assert!(
+            lowered.tasks[0].log.is_some(),
+            "lower() must preserve task log"
+        );
 
         let unl = unlower(lowered).unwrap();
         assert!(
-            unl.tasks[0].artifact.is_none(),
-            "lower->unlower roundtrip loses task artifact (known gap)"
+            unl.tasks[0].artifact.is_some(),
+            "unlower() must restore task artifact"
         );
         assert!(
-            unl.tasks[0].log.is_none(),
-            "lower->unlower roundtrip loses task log (known gap)"
+            unl.tasks[0].log.is_some(),
+            "unlower() must restore task log"
         );
     }
 
