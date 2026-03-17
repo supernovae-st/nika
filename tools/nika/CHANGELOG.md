@@ -7,6 +7,468 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.30.3](https://github.com/supernovae-st/nika/releases/tag/v0.30.3) - 2026-03-17
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.3 — A+++ QUALITY PASS                                     |
+|                                                                             |
+|     34 property tests | CRLF compliance | NaN safety | Zero clippy         |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **34 algebraic property tests** — determinism, symmetry, monotonicity, roundtrip
+  fuzzing across parser, pipeline, lower, and for_each modules
+- `insta` snapshot tests for all 8 `AnalyzeErrorKind` variants
+- UTF-16 position encoding tests for LSP
+- CRLF/`\r` line ending roundtrip tests for LSP spec 3.17 compliance
+- Self-cycle-via-with detection test for DAG validation
+- Backoff tolerance boundary tests for `unlower()` roundtrip
+
+### Fixed
+
+- **NaN/Infinity rejection** in f64 fields during YAML parsing
+- **CRLF line endings** — handle isolated `\r` and `\r\r\n` per LSP spec 3.17
+- Clamp `thinking_budget` u64→u32 instead of silent truncation
+- Widen token counters u32→u64 to prevent silent overflow in runtime and TUI
+- Canonicalize JSON keys in MCP response cache for consistent hashing
+- Replace home dir panic with graceful `/tmp` fallback
+- Partial sort O(n) cache eviction in MCP layer
+- Preserve non-string JSON in agent response extraction
+- Normalize whitespace in security blocklist to prevent bypass
+- Reject NaN/Infinity in f64 fields during parsing
+- Deconflict ParseErrorKind codes NIKA-001..005 → NIKA-160..164
+- Harden `unlower()` to reject dangling dependency names
+
+### Refactored
+
+- Nuclear delete dead widgets: McpLog, AgentTurns, ActivityStack
+- Nuclear delete dead EventKind variants: LimitReached, PartialCompletion
+- Remove 18 unnecessary u64-to-u64 casts (clippy)
+
+### Performance
+
+- `Arc<Value>` for cached schema in MCP response cache
+- Partial sort for O(n) cache eviction
+
+---
+
+## [0.30.2](https://github.com/supernovae-st/nika/releases/tag/v0.30.2) - 2026-03-16
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.2 — DEEP AUDIT + SECURITY HARDENING                       |
+|                                                                             |
+|     34 deep audit tests | LD_PRELOAD blocked | API key stripping           |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **34 deep audit tests** from 5-agent sweep covering runtime, binding, agent
+- `validate_with_spec` (renamed from `validate_wiring`) for DAG validation
+- `for_each + depends_on` survives full pipeline E2E test
+
+### Fixed
+
+- **Security: block LD_PRELOAD** and dangerous env vars in exec verb
+- **Security: strip API key env vars** from exec child processes
+- **10MB size limit** on WriteTool to prevent abuse
+- Reject empty tasks array in analyzer phase (NIKA error)
+- Reject tasks with multiple verbs instead of silent drop
+- Rename agent verb field from `goal` to `prompt`
+- Fix 4 bugs in `chat_continue` provider dispatch
+- Use `effective_max_tokens` in streaming instead of hardcoded 8192
+- Prevent u32 token overflow before widening to u64
+- Eliminate `is_in_json_context` false positives in binding resolution
+- Wire exec `cwd` parameter to child process
+- Store empty array result for `for_each` with empty items
+- Log warning on invalid guardrail regex instead of silent ignore
+- Propagate HTTP client build error with MCP trace logging
+- Harden `task_dep_names` to reject dangling TaskIds in lowering
+- Replace ambiguous `turn_index` formula with explicit `turn_count` field
+
+### Refactored
+
+- Nuclear delete dead error variants + fix NIKA-150 collision
+- Remove dead fields: `stop`, `capture_stdout`, `capture_stderr` from AST
+- Nuclear compress CLAUDE.md files (599 → 205 lines)
+- Remove unreachable!() in retry verb match
+
+### Performance
+
+- Replace busy-poll `AtomicBool` with `CancellationToken` in `for_each`
+
+---
+
+## [0.30.1](https://github.com/supernovae-st/nika/releases/tag/v0.30.1) - 2026-03-16
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.1 — LSP INTELLIGENCE + VS CODE EXTENSION                  |
+|                                                                             |
+|     Semantic tokens | Go to Definition | VS Code extension                 |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **VS Code extension** for Nika workflow language (`editors/vscode/`)
+- **Semantic tokens provider** with 34 TDD tests — syntax-aware highlighting
+- **Go to Definition** for `include:` paths in LSP
+- `invoke:` and `fetch:` verb sub-field completions in LSP
+- `didChangeConfiguration` handler for LSP
+- Enriched semantic tokens with AST declaration modifiers
+- Exhaustive tests for hover, definition, and code_action handlers
+
+### Fixed
+
+- `unlower()` extracts retry config from FetchParams
+- Runner `with_event_log` returns `Result` instead of panic
+- Resource read falls back to `String(text)` not `Null`
+- Layer 0 success event emitted after validation, not before
+- Strip markdown fences in `value_to_array` for `for_each`
+- MCP: log `service.cancel()` errors instead of silencing
+- MCP: clear schema cache on disconnect
+- Structured: preserve layer toggles through `OutputPolicy` roundtrip
+- Bridge structured config to executor for Layer 0 dispatch
+- Rename stale "Flows:" display label to "Edges:"
+- Translate remaining French strings to English
+
+### Refactored
+
+- Remove dead code: `NativeRuntime::convert_role`, `ChatPanel::all`
+- Rename Flows to Edges in check output and TUI
+
+---
+
+## [0.30.0](https://github.com/supernovae-st/nika/releases/tag/v0.30.0) - 2026-03-16
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.0 — STRUCTURED OUTPUT + TOOL INJECTION                    |
+|                                                                             |
+|     DynamicSubmitTool | 5-layer architecture | structured: YAML field       |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **`structured:` YAML field** wired through 3-phase AST pipeline
+- **DynamicSubmitTool** implementing `rig::ToolDyn` trait for structured output
+- **5-layer structured output architecture**:
+  - Layer 0: DynamicSubmitTool injection into `run_infer`
+  - Layer 1: Provider-native structured output
+  - Layer 2: Extract + validate (renamed from `provider_native`)
+  - Layer 3-4: Fallback layers
+- `infer_with_tools` for tool-injected structured output on provider
+- `enable_tool_injection` field in JSON Schema
+- `nika check` validates structured output schema files
+- Structured file schema E2E workflow test
+
+### Fixed
+
+- Greedy fallback for JSON extraction with unbalanced braces
+- Pass `max_tokens` through to `infer_with_tools`
+- Add warnings for silent schema resolution failures
+- Correct binding syntax in examples and parser comments
+
+### Refactored
+
+- Remove deprecated `flows:` from 23 example workflows
+- Rename `enable_tool_use` to `enable_tool_injection`
+- Rename Layer 2 from "provider_native" to "extract_validate"
+- Remove `flow.rs`/`FlowEndpoint` from architecture docs
+- Slim CLAUDE.md files — each level owns ONE concern
+- Delete 40 stale brainstorm, plans, research docs
+
+---
+
+## [0.29.2](https://github.com/supernovae-st/nika/releases/tag/v0.29.2) - 2026-03-15
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.29.2 — PROVIDER ALIASES + ARTIFACT BINDINGS                  |
+|                                                                             |
+|     use→with nuclear | Provider dedup | Artifact paths with {{with.*}}      |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **`{{with.*}}` and `{{output}}` bindings** in artifact paths
+- **Provider aliases** and `has_env_key()` helper in core module
+- 18 executor tests for verbs and decompose
+
+### Fixed
+
+- Schema version references @0.10 → @0.12 across CLI and examples
+- Add `$` prefix to bare binding refs in 51 workflow files (NIKA-150)
+- Remove `{{date}}` from exec commands (NIKA-071)
+- Fix direct-ref syntax in feature-test-complete `save_result`
+- Move aspirational test files to `pending/`, fix lazy binding
+- Fix `{{date}}` and direct-ref syntax in 3 expert examples
+- Update NovaNet tool names to v0.20.0 API across examples
+
+### Refactored
+
+- **`use→with` nuclear migration** across all sources:
+  - Rename `UseEntry` → `BindingEntry`, `WiringSpec` → `BindingSpec`
+  - Rename error variants `Use*` → `With*`
+  - Rename `validate_wiring` → `validate_with_spec`
+  - Rename `use-*` → `with-*` binding example files
+  - Purge legacy "wiring" naming from `entry.rs`
+  - Delete dead `animation_frame` constants
+- Delete dead `jobs_integration_test.rs` (28 phantom tests)
+- Remove dead `test_fixtures` and `test_utils` modules
+- Remove 17 dead `NikaError` variants
+- Remove unused `tui-tree-widget` dependency
+- Re-inline chat submodules into `messages.rs`
+- Drop 5 orphaned test/spec files, 3 orphaned workflow directories (76 files)
+- Fix stale doc counts to match actual code/test output
+
+---
+
+## [0.29.1](https://github.com/supernovae-st/nika/releases/tag/v0.29.1) - 2026-03-15
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.29.1 — use→with NUCLEAR MIGRATION                            |
+|                                                                             |
+|     Complete binding syntax migration | Schema @0.12 everywhere             |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- Provider deduplication via `KNOWN_PROVIDERS` constant across 6 consumers
+- Comprehensive tests for secrets module
+
+### Changed
+
+- **Complete `use→with` migration** across ALL sources:
+  - AST, binding, LSP, init, TUI, runtime, artifacts, events, examples
+  - All 146 example workflows migrated to `with:` syntax
+  - Schema updated from `@0.9`/`@0.10` to `@0.12`
+  - JSON schema definitions and regex updated
+  - 4 init template tiers migrated
+  - Backward-compat `{{use.}}` preserved in `for_each` with prefix offset fix
+
+### Fixed
+
+- Security: harden `normalize_path` against traversal swallowing
+- Backward-compat for `{{use.}}` in `for_each` + fix prefix offset
+- Correct provider count assertion for `nika-daemon` feature
+
+### Refactored
+
+- Wire UI state slice in app events, routing, tests, and monitor view
+- Remove dead `atomic_write_async` function from util
+- Nuclear rewrite CLAUDE.md files for v0.27 accuracy
+
+---
+
+## [0.29.0](https://github.com/supernovae-st/nika/releases/tag/v0.29.0) - 2026-03-15
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.29.0 — INDEXED DAG + RUNTIME REDESIGN                        |
+|                                                                             |
+|     Vec-based adjacency | Runner on AnalyzedWorkflow | TUI domain slices   |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **TUI domain state slices**: `McpState`, `AgentState`, `NotificationState`, `UiState`
+- 17 tests for `models.rs` edge cases
+- 27 tests for runner dependency/retry/pending/failure paths
+- 17 tests for executor infer/schema/provider paths
+- `InferenceBackend` and `DynInferenceBackend` trait tests
+
+### Changed
+
+- **Runner accepts `AnalyzedWorkflow` directly** — no more legacy bridge
+- Rewritten `runner.rs` to use AnalyzedWorkflow natively
+- `TaskStatus` renamed to `TaskOutcome`
+- `RuntimeContext` renamed to `WorkflowMeta`
+- Default `for_each` concurrency to `Some(1)` when unspecified
+
+### Fixed
+
+- Test count corrections: 6,157 → 5,640 → 5,054 across docs
+
+### Refactored
+
+- Wire TUI domain slices: remove duplicate fields from `TuiState`
+- Reduce public API surface in `lib.rs`
+- Remove incorrect `#[allow(dead_code)]` annotations
+- Migrate 6 integration test files to `AnalyzedWorkflow`
+- Consolidate 10 wiring checkpoint files into 4 focused files
+- Strengthen weak assertions in runner, binding, DAG, and security tests
+
+### Performance
+
+- **Feature-gate `git2`+`openssl`** behind `tui` feature — faster builds
+- **DirtyFlags in render pipeline** — skip unchanged frames
+- **Active-view-only ticking** — only tick visible view each frame
+- **Cache JSON formatting** in MonitorView
+- **Cache DAG construction** in MonitorView
+- **Stop full `Clear` every frame** — use conditional redraw
+- Return `Cow<str>` from `value_to_display` to avoid clones
+
+---
+
+## [0.28.2](https://github.com/supernovae-st/nika/releases/tag/v0.28.2) - 2026-03-14
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.28.2 — DEAD CODE NUCLEAR + PIPELINE FEATURES                 |
+|                                                                             |
+|     decompose: support | Flat MCP config | Version comment cleanup          |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- `decompose:` + standalone `concurrency`/`fail_fast` support in pipeline
+- Flat MCP config format (without `servers:` wrapper)
+
+### Fixed
+
+- Deduplicate edges in `Dag::from_workflow()`
+- Add `concurrency`/`fail_fast` fields to `AnalyzedTask` constructors
+- Unwrap in `mention.rs` replaced with fallible parse
+
+### Refactored
+
+- **Nuclear version comment cleanup** — strip version annotations from:
+  AST, DAG, io/template, MCP, provider, runtime, secrets, TUI (core, views,
+  widgets), chat view, binding resolver, LSP handlers, `cosmic_theme`
+- Extract command modules from `main.rs` into `src/cli/`
+- Remove dead `backup/`, `daemon/`, `sync/`, `setup/` CLI modules
+- Remove `notify` dependency
+- Migrate remaining test files to `parse_workflow()`
+- Migrate MCP tests to `servers:` format
+- Remove stale version markers from comments and docs
+
+---
+
+## [0.28.1](https://github.com/supernovae-st/nika/releases/tag/v0.28.1) - 2026-03-14
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.28.1 — THREE-PHASE AST PIPELINE                              |
+|                                                                             |
+|     YAML → Raw → Analyzed → Lower | Unified pipeline | backon retry        |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **Three-phase AST pipeline**: YAML → Raw → Analyzed → Lower (Legacy)
+- Unified pipeline `YAML→Raw→Analyzed→Legacy` wired in `main.rs`
+- `lower.rs` for Analyzed → Legacy AST conversion
+- `SchemaVersion` extracted to `ast/schema.rs`
+- SSE MCP server warnings at both parsing and lowering phases
+
+### Fixed
+
+- Wire per-task timeout to invoke and exec verbs (NIKA-105)
+- Nested path + JSON parsing in `for_each` Pattern 2 (`$alias`)
+- Use parsed `fail_fast` value instead of hardcoded `true`
+- Improve panic message in `Runner::with_event_log`
+
+### Refactored
+
+- Split `validate()` from `analyze()` in analyzer
+- Replace hand-rolled retry loops with `backon` crate (NIKA-103)
+- Remove dead NIKA-122/123 variants from `NikaError`
+- Remove dead code in core modules
+- Migrate TUI, runtime, and `main.rs` from `serde_yaml` to `parse_workflow()`
+- Simplify redundant error handling in `parse_workflow`
+
+---
+
+## [0.28.0](https://github.com/supernovae-st/nika/releases/tag/v0.28.0) - 2026-03-13
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.28.0 — MCP CLIENT POOL + BINDING REDESIGN                    |
+|                                                                             |
+|     McpClientPool | v0.28 bindings | FxHashMap hot paths | spn→nika done   |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **McpClientPool** for centralized MCP lifecycle management
+- **v0.28 binding redesign** — `with:` block + typed paths + transforms
+- MCP CancellationToken propagation to invoke operations
+- TTL-based tool definition cache for MCP
+- `ChatInvoke` and `ChatAgent` handlers with MCP support in TUI
+
+### Fixed
+
+- MCP: invalidate tool and response caches on disconnect (NIKA-104)
+- Registry: replace `versions.last().unwrap()` with safe `ok_or_else`
+- Jobs: replace chrono `Duration::from_std().unwrap()` with safe fallback
+- CLI: replace unsafe `unwrap`/`expect` with proper error handling
+- Stale hardcoded user-agent strings replaced with dynamic version
+- NIKA-041 code collision → NIKA-096
+- UTF-8 boundary panic in string truncation (PERF-3c)
+- Clippy warnings: `manual_strip`, `type_complexity`
+- Keyring: prevent macOS Keychain popup storms with `NIKA_SKIP_KEYCHAIN`
+- TUI: error handling for OpenInStudio file loading
+
+### Refactored
+
+- **Complete spn→nika migration**:
+  - `SpnKeyring` → `NikaKeyring`
+  - Config paths `~/.spn/` → `~/.nika/`
+  - `spn-daemon` feature → `nika-daemon`
+  - Contract tests migrated from `spn` to `nika` CLI
+  - SERVICE_NAME from "spn" to "nika"
+- Split `executor.rs` and `rig_agent_loop.rs` into directory modules
+- Remove 18 stale `dead_code` annotations + delete 2 dead functions
+- Remove legacy spn→nika migration code from keyring
+- Remove deprecated CLI commands: `Tui`, `sync_all_legacy`
+- Remove deprecated Provider/Template error variants + NativeClient alias
+- Remove legacy SPN_HOME_ENV/SPN_DIR_NAME constants
+- Align 13 contract tests with actual CLI behavior
+- Delete 295 outdated documentation files (-192K lines)
+- Remove unused dependencies + add build profiles
+
+### Performance
+
+- **Migrate `HashMap` to `FxHashMap`** in hot-path modules (AST, runtime)
+- Optimize `template.rs` with `Cow<str>` to avoid string clones
+- Deduplicate streaming code with `consume_rig_stream` helper
+
+---
+
 ## [0.27.0](https://github.com/supernovae-st/nika/releases/tag/v0.27.0) - 2026-03-12
 
 ```
