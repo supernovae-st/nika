@@ -698,6 +698,21 @@ fn analyze_mcp_server(
         McpTransport::Stdio
     };
 
+    // SSE servers are accepted by the analyzer but dropped during lowering
+    if transport == McpTransport::Sse {
+        ctx.add_warning(
+            AnalyzeError::new(
+                AnalyzeErrorKind::UnsupportedFeature,
+                span,
+                format!(
+                    "SSE MCP server '{}' will be dropped during execution (no runtime support)",
+                    name
+                ),
+            )
+            .with_suggestion("use a stdio-based MCP server instead"),
+        );
+    }
+
     // Stdio servers require a non-empty command field
     if transport == McpTransport::Stdio {
         let has_command = raw
@@ -2083,7 +2098,17 @@ mod tests {
         raw.mcp = Some(Spanned::new(mcp_config, make_span(5, 65)));
 
         let result = analyze(raw);
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "SSE server should not cause error");
+        // SSE server should produce a warning about being dropped
+        assert!(
+            !result.warnings.is_empty(),
+            "SSE server should produce a warning"
+        );
+        assert!(
+            result.warnings[0].message.contains("SSE"),
+            "warning should mention SSE, got: {}",
+            result.warnings[0].message
+        );
     }
 
     #[test]
