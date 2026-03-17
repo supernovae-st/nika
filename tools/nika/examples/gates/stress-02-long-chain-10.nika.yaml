@@ -1,0 +1,43 @@
+# STRESS-02: 10-task chain — data must flow through ALL 10 tasks
+schema: nika/workflow@0.12
+workflow: stress-02-chain-10
+
+tasks:
+  - id: t1
+    exec: "echo 'START'"
+  - id: t2
+    depends_on: [t1]
+    with: { d: $t1 }
+    exec: "echo '2({{with.d}})'"
+  - id: t3
+    depends_on: [t2]
+    with: { d: $t2 }
+    exec: "echo '3({{with.d}})'"
+  - id: t4
+    depends_on: [t3]
+    with: { d: $t3 }
+    exec: "echo '4({{with.d}})'"
+  - id: t5
+    depends_on: [t4]
+    with: { d: $t4 }
+    exec: "echo '5({{with.d}})'"
+  - id: t6
+    depends_on: [t5]
+    with: { d: $t5 }
+    exec: "echo '6({{with.d}})'"
+  - id: t7
+    depends_on: [t6]
+    with: { d: $t6 }
+    exec: "echo '7({{with.d}})'"
+  - id: t8
+    depends_on: [t7]
+    with: { d: $t7 }
+    exec: "echo '8({{with.d}})'"
+  - id: t9
+    depends_on: [t8]
+    with: { d: $t8 }
+    exec: "echo '9({{with.d}})'"
+  - id: t10
+    depends_on: [t9]
+    with: { d: $t9 }
+    exec: "echo '10({{with.d}})'"

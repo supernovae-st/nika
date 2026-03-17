@@ -1,0 +1,28 @@
+# STRESS-01: Nested-like for_each — for_each output feeds into another for_each
+schema: nika/workflow@0.12
+workflow: stress-01-nested-foreach
+
+tasks:
+  - id: categories
+    exec: 'echo ''["fruits","colors"]'''
+
+  - id: expand_categories
+    depends_on: [categories]
+    for_each: "$categories"
+    as: category
+    exec:
+      command: |
+        if [ "{{with.category}}" = "fruits" ]; then
+          echo '["apple","banana"]'
+        else
+          echo '["red","blue"]'
+        fi
+      shell: true
+    description: "Each category produces an array"
+
+  - id: process_items
+    depends_on: [expand_categories]
+    with:
+      all: $expand_categories
+    exec: "echo 'All items: {{with.all}}'"
+    description: "Should have both arrays from the for_each"

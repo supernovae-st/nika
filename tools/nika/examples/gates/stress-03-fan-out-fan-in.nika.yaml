@@ -1,0 +1,53 @@
+# STRESS-03: Fan-out/fan-in — 1 task splits into 8 parallel, then merges
+schema: nika/workflow@0.12
+workflow: stress-03-fan
+
+tasks:
+  - id: source
+    exec: "echo 'DATA'"
+
+  - id: p1
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P1({{with.d}})'"
+  - id: p2
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P2({{with.d}})'"
+  - id: p3
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P3({{with.d}})'"
+  - id: p4
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P4({{with.d}})'"
+  - id: p5
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P5({{with.d}})'"
+  - id: p6
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P6({{with.d}})'"
+  - id: p7
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P7({{with.d}})'"
+  - id: p8
+    depends_on: [source]
+    with: { d: $source }
+    exec: "echo 'P8({{with.d}})'"
+
+  - id: merge
+    depends_on: [p1, p2, p3, p4, p5, p6, p7, p8]
+    with:
+      r1: $p1
+      r2: $p2
+      r3: $p3
+      r4: $p4
+      r5: $p5
+      r6: $p6
+      r7: $p7
+      r8: $p8
+    exec: "echo '{{with.r1}}|{{with.r2}}|{{with.r3}}|{{with.r4}}|{{with.r5}}|{{with.r6}}|{{with.r7}}|{{with.r8}}'"

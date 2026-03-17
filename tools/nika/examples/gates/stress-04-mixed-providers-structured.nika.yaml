@@ -1,0 +1,26 @@
+# STRESS-04: Same structured schema, 2 providers, results merged
+schema: nika/workflow@0.12
+workflow: stress-04-mixed
+
+tasks:
+  - id: openai_cities
+    infer: "List 3 European capitals. Return as JSON array of strings only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+
+  - id: xai_cities
+    infer: "List 3 Asian capitals. Return as JSON array of strings only."
+    provider: xai
+    model: grok-3-fast
+    max_tokens: 100
+
+  - id: merge
+    depends_on: [openai_cities, xai_cities]
+    with:
+      eu: $openai_cities
+      asia: $xai_cities
+    exec:
+      command: "echo 'EU={{with.eu}} ASIA={{with.asia}}'"
+      shell: true
+    description: "Merge results from 2 different providers"
