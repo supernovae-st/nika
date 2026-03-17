@@ -507,7 +507,14 @@ impl App {
         };
 
         // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
-        let workflow = crate::ast::unlower(workflow);
+        let workflow = match crate::ast::unlower(workflow) {
+            Ok(w) => w,
+            Err(e) => {
+                self.set_status(&format!("Unlower error: {}", e));
+                tracing::error!("Failed to unlower workflow: {}", e);
+                return;
+            }
+        };
 
         // 3. Create EventLog with broadcast channel for TUI
         let (event_log, event_rx) = EventLog::new_with_broadcast();

@@ -417,7 +417,7 @@ fn task_dep_names(
 /// Fields that were dropped during lowering (`context_files`, `imports`,
 /// `agents`, `artifacts`, `log`, `name`, `description`) are set to their
 /// defaults since they have already been consumed/expanded.
-pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
+pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
     let schema_version = SchemaVersion::parse(&workflow.schema).unwrap_or(SchemaVersion::V12);
 
     // Build TaskTable and convert tasks
@@ -434,16 +434,25 @@ pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
         let task = Arc::try_unwrap(task).unwrap_or_else(|arc| (*arc).clone());
         let id = task_table.get_id(&task.id).expect("task just inserted");
 
-        // Resolve flow dependencies to TaskIds
-        let depends_on: Vec<TaskId> = task
-            .flow
-            .as_ref()
-            .map(|deps| {
-                deps.iter()
-                    .filter_map(|name| task_table.get_id(name))
-                    .collect()
-            })
-            .unwrap_or_default();
+        // Resolve flow dependencies to TaskIds (reject dangling names)
+        let depends_on: Vec<TaskId> = match task.flow.as_ref() {
+            Some(deps) => {
+                let mut ids = Vec::with_capacity(deps.len());
+                for name in deps {
+                    let dep_id =
+                        task_table.get_id(name).ok_or_else(|| NikaError::ValidationError {
+                            reason: format!(
+                                "Unlowering: dependency '{}' not found in TaskTable \
+                                 (invariant violation)",
+                                name
+                            ),
+                        })?;
+                    ids.push(dep_id);
+                }
+                ids
+            }
+            None => vec![],
+        };
 
         let action = unlower_action(&task.action);
         let output = task.output.as_ref().map(unlower_output);
@@ -489,7 +498,7 @@ pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
         .map(|m| m.into_iter().collect())
         .unwrap_or_default();
 
-    AnalyzedWorkflow {
+    Ok(AnalyzedWorkflow {
         schema_version,
         name: None,
         description: None,
@@ -507,7 +516,7 @@ pub fn unlower(workflow: Workflow) -> AnalyzedWorkflow {
             .agents
             .map(|m| m.into_iter().collect::<IndexMap<_, _>>()),
         span: Span::dummy(),
-    }
+    })
 }
 
 fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
@@ -1157,7 +1166,7 @@ mod tests {
         assert!(lowered.tasks[0].artifact.is_none());
         assert!(lowered.tasks[0].log.is_none());
 
-        let unl = unlower(lowered);
+        let unl = unlower(lowered).unwrap();
         assert!(
             unl.tasks[0].artifact.is_none(),
             "lower->unlower roundtrip loses task artifact (known gap)"
@@ -1248,5 +1257,40 @@ mod tests {
             result.is_err(),
             "lower() should reject dangling TaskId in depends_on"
         );
+    }
+
+    #[test]
+    fn unlower_rejects_dangling_dep_name() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("producer");
+        wf.tasks.push(dummy_task(id, "producer"));
+
+        // Lower to Workflow, then tamper with flow to create dangling ref
+        let mut lowered = lower(wf).unwrap();
+        let task = Arc::make_mut(&mut lowered.tasks[0]);
+        task.flow = Some(vec!["nonexistent_task".to_string()]);
+
+        // unlower should reject the dangling name
+        let result = unlower(lowered);
+        assert!(
+            result.is_err(),
+            "unlower should reject dangling dep name"
+        );
+    }
+
+    #[test]
+    fn unlower_valid_deps_resolve() {
+        let mut wf = dummy_workflow();
+        let id_a = wf.task_table.insert("step_a");
+        let id_b = wf.task_table.insert("step_b");
+        let mut task_b = dummy_task(id_b, "step_b");
+        task_b.depends_on = vec![id_a];
+        wf.tasks.push(dummy_task(id_a, "step_a"));
+        wf.tasks.push(task_b);
+
+        let lowered = lower(wf).unwrap();
+        // Roundtrip should succeed when all deps are valid
+        let result = unlower(lowered);
+        assert!(result.is_ok(), "unlower should succeed with valid deps: {:?}", result.err());
     }
 }

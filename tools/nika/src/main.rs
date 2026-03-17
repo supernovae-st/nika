@@ -696,7 +696,7 @@ async fn run_workflow(
     let workflow = expand_includes(workflow, base_path)?;
 
     // Bridge: convert old Workflow back to AnalyzedWorkflow for Runner
-    let mut workflow = nika::ast::unlower(workflow);
+    let mut workflow = nika::ast::unlower(workflow)?;
 
     if let Some(p) = provider_override {
         workflow.provider = Some(p);
