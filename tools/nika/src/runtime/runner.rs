@@ -5,7 +5,8 @@
 //! - JoinSet for efficient parallel task collection
 //! - Tokio handles all concurrency (no artificial limits)
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use indexmap::IndexMap;
+use rustc_hash::FxHashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -1527,8 +1528,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
 
             // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
-            let mut for_each_results: FxHashMap<Arc<str>, Vec<(usize, TaskResult)>> =
-                FxHashMap::default();
+            // Use IndexMap to preserve insertion order (deterministic iteration)
+            let mut for_each_results: IndexMap<Arc<str>, Vec<(usize, TaskResult)>> =
+                IndexMap::new();
 
             // Track which parent tasks have fail_fast enabled (for result collection)
             let fail_fast_parents: FxHashSet<Arc<str>> = self
