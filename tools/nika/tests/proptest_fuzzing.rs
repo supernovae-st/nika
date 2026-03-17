@@ -567,9 +567,9 @@ mod ast_parser_fuzzing {
 
 mod pipeline_roundtrip_fuzzing {
     use super::*;
+    use nika::ast::analyzer::analyze;
     use nika::ast::lower::{lower, unlower};
     use nika::ast::raw::parse;
-    use nika::ast::analyzer::analyze;
     use nika::source::FileId;
 
     prop_compose! {

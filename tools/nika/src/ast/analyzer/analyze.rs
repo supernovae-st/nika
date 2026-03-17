@@ -868,9 +868,7 @@ fn validate_task_id(name: &str, span: Span, ctx: &mut AnalyzerContext) -> bool {
                 span,
                 format!("task ID '{}' contains invalid characters", name),
             )
-            .with_suggestion(
-                "use only alphanumeric characters, hyphens, underscores, and dots",
-            ),
+            .with_suggestion("use only alphanumeric characters, hyphens, underscores, and dots"),
         );
         return false;
     }
@@ -2253,7 +2251,10 @@ mod tests {
     fn test_analyze_task_id_dollar_prefix() {
         let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("$reserved")]);
         let result = analyze(raw);
-        assert!(result.is_err(), "task ID starting with $ should be rejected");
+        assert!(
+            result.is_err(),
+            "task ID starting with $ should be rejected"
+        );
     }
 
     #[test]

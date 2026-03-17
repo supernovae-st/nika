@@ -1311,12 +1311,7 @@ mod tests {
         let unlowered = unlower(lowered).unwrap();
 
         assert!(
-            unlowered.tasks[0]
-                .retry
-                .as_ref()
-                .unwrap()
-                .backoff
-                .is_none(),
+            unlowered.tasks[0].retry.as_ref().unwrap().backoff.is_none(),
             "backoff of 1.0 should roundtrip as None"
         );
     }
@@ -1351,12 +1346,7 @@ mod tests {
         let unlowered = unlower(lowered).unwrap();
 
         assert!(
-            unlowered.tasks[0]
-                .retry
-                .as_ref()
-                .unwrap()
-                .backoff
-                .is_none(),
+            unlowered.tasks[0].retry.as_ref().unwrap().backoff.is_none(),
             "backoff within tolerance of 1.0 should roundtrip as None"
         );
     }

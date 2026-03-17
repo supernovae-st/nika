@@ -172,11 +172,7 @@ fn get_f64_field(
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidType,
                     span,
-                    message: format!(
-                        "'{}' must be a finite number (got {})",
-                        key,
-                        s.as_str()
-                    ),
+                    message: format!("'{}' must be a finite number (got {})", key, s.as_str()),
                 });
             }
             Ok(Some(Spanned::new(value, span)))
