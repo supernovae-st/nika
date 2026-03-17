@@ -473,4 +473,66 @@ mod tests {
             }
         );
     }
+
+    // ── Additional UTF-16 coverage ──────────────────────────────────
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_offset_greek_alpha() {
+        // αβγ: each 2 UTF-8 bytes, 1 UTF-16 unit
+        let source = "αβγ";
+        // 'γ' at byte 4 → character 2
+        assert_eq!(
+            offset_to_position(4, source),
+            Position {
+                line: 0,
+                character: 2
+            }
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_offset_emoji_multiline() {
+        let source = "line1 🎉\nline2 🌍";
+        // 🎉 at byte 6 (4 bytes), '\n' at byte 10, 'l' of line2 at byte 11
+        let pos = offset_to_position(11, source);
+        assert_eq!(pos.line, 1);
+        assert_eq!(pos.character, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_position_to_offset_after_emoji() {
+        let source = "🎉b";
+        // '🎉' = 2 UTF-16 units, 'b' at UTF-16 character 2
+        let offset = position_to_offset(
+            Position {
+                line: 0,
+                character: 2,
+            },
+            source,
+        );
+        assert_eq!(offset, 4); // 'b' at byte 4
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_consecutive_emoji() {
+        let source = "🎉🌍🚀x";
+        // Each emoji: 4 UTF-8 bytes, 2 UTF-16 units
+        // 'x' at byte 12, UTF-16 character 6
+        let pos = offset_to_position(12, source);
+        assert_eq!(pos.character, 6);
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_yaml_with_emoji_positions() {
+        let source = "prompt: \"Hello 🌍!\"\ntasks:";
+        let tasks_offset = source.find("tasks").unwrap();
+        let pos = offset_to_position(tasks_offset, source);
+        assert_eq!(pos.line, 1);
+        assert_eq!(pos.character, 0);
+    }
 }
