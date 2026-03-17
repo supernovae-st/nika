@@ -51,11 +51,11 @@ pub struct InferStreamData {
     /// Model name
     pub model: String,
     /// Tokens input
-    pub tokens_in: u32,
+    pub tokens_in: u64,
     /// Tokens output (so far)
-    pub tokens_out: u32,
+    pub tokens_out: u64,
     /// Max tokens
-    pub max_tokens: u32,
+    pub max_tokens: u64,
     /// Temperature
     pub temperature: f32,
     /// Duration
@@ -83,13 +83,13 @@ impl InferStreamData {
         }
     }
 
-    pub fn with_tokens(mut self, input: u32, output: u32) -> Self {
+    pub fn with_tokens(mut self, input: u64, output: u64) -> Self {
         self.tokens_in = input;
         self.tokens_out = output;
         self
     }
 
-    pub fn with_max_tokens(mut self, max: u32) -> Self {
+    pub fn with_max_tokens(mut self, max: u64) -> Self {
         self.max_tokens = max;
         self
     }
@@ -120,7 +120,7 @@ impl InferStreamData {
     }
 
     /// Update tokens during streaming
-    pub fn update_tokens(&mut self, output: u32) {
+    pub fn update_tokens(&mut self, output: u64) {
         self.tokens_out = output;
     }
 

@@ -26,11 +26,11 @@ pub struct InferBox {
     /// Generated response (streamed)
     pub response: String,
     /// Input tokens
-    pub tokens_in: u32,
+    pub tokens_in: u64,
     /// Output tokens
-    pub tokens_out: u32,
+    pub tokens_out: u64,
     /// Thinking tokens (Claude extended thinking)
-    pub thinking_tokens: Option<u32>,
+    pub thinking_tokens: Option<u64>,
     /// Execution state
     pub state: BoxState,
     /// Is prompt section expanded
@@ -89,14 +89,14 @@ impl InferBox {
     }
 
     /// Set token counts
-    pub fn with_tokens(mut self, input: u32, output: u32) -> Self {
+    pub fn with_tokens(mut self, input: u64, output: u64) -> Self {
         self.tokens_in = input;
         self.tokens_out = output;
         self
     }
 
     /// Set thinking tokens
-    pub fn with_thinking(mut self, tokens: u32) -> Self {
+    pub fn with_thinking(mut self, tokens: u64) -> Self {
         self.thinking_tokens = Some(tokens);
         self
     }
@@ -125,7 +125,7 @@ impl InferBox {
     }
 
     /// Calculate cost based on token counts and model
-    pub fn calculate_cost(input_tokens: u32, output_tokens: u32, model: &str) -> f64 {
+    pub fn calculate_cost(input_tokens: u64, output_tokens: u64, model: &str) -> f64 {
         let (input_rate, output_rate) = match model {
             m if m.contains("claude") => (3.0, 15.0), // $3/M in, $15/M out
             m if m.contains("gpt-4") => (5.0, 15.0),

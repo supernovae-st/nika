@@ -383,17 +383,17 @@ impl StepStatus {
 #[derive(Debug, Clone, Default)]
 pub struct TokenUsage {
     /// Input tokens (prompt + context)
-    pub input_tokens: u32,
+    pub input_tokens: u64,
     /// Output tokens (response)
-    pub output_tokens: u32,
+    pub output_tokens: u64,
     /// Cache read tokens (if supported by provider)
-    pub cache_read_tokens: Option<u32>,
+    pub cache_read_tokens: Option<u64>,
     /// Cache write tokens (if supported by provider)
-    pub cache_write_tokens: Option<u32>,
+    pub cache_write_tokens: Option<u64>,
 }
 
 impl TokenUsage {
-    pub fn new(input: u32, output: u32) -> Self {
+    pub fn new(input: u64, output: u64) -> Self {
         Self {
             input_tokens: input,
             output_tokens: output,
@@ -402,7 +402,7 @@ impl TokenUsage {
         }
     }
 
-    pub fn total(&self) -> u32 {
+    pub fn total(&self) -> u64 {
         self.input_tokens + self.output_tokens
     }
 
@@ -488,9 +488,9 @@ impl ToolCallMetadata {
 #[derive(Debug, Clone, Default)]
 pub struct StreamingProgress {
     /// Tokens generated so far
-    pub tokens_generated: u32,
+    pub tokens_generated: u64,
     /// Expected total tokens (if known)
-    pub tokens_expected: Option<u32>,
+    pub tokens_expected: Option<u64>,
     /// Characters received
     pub chars_received: usize,
     /// Is currently streaming
@@ -600,7 +600,7 @@ pub struct ModelInfo {
     /// Temperature setting
     pub temperature: Option<f32>,
     /// Max tokens setting
-    pub max_tokens: Option<u32>,
+    pub max_tokens: Option<u64>,
     /// System prompt preview (truncated)
     pub system_prompt_preview: Option<String>,
 }
@@ -632,7 +632,7 @@ impl ModelInfo {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Format a number with thousands separator: 1234567 → "1,234,567"
-fn format_number(n: u32) -> String {
+fn format_number(n: u64) -> String {
     let s = n.to_string();
     let mut result = String::new();
     for (i, c) in s.chars().rev().enumerate() {
@@ -1566,7 +1566,7 @@ impl<'a> AgentStepsWidget<'a> {
                 ];
                 if let Some(size) = tool.result_size {
                     content.push(Span::styled(
-                        format!(" ({} chars)", format_number(size as u32)),
+                        format!(" ({} chars)", format_number(size as u64)),
                         Style::default().fg(COLOR_DIMMED),
                     ));
                 }

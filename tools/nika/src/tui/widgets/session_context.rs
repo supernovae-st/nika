@@ -199,8 +199,8 @@ pub struct ActiveOperation {
     pub id: String,
     pub verb: String,
     pub started: Instant,
-    pub tokens_in: Option<u32>,
-    pub tokens_out: Option<u32>,
+    pub tokens_in: Option<u64>,
+    pub tokens_out: Option<u64>,
 }
 
 impl ActiveOperation {

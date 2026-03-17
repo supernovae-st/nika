@@ -233,7 +233,7 @@ impl ChatView {
     /// Don't create InferStream box - use streaming_decrypt for visual effect instead.
     /// The streaming decrypt provides the matrix reveal effect, while InferStream boxes
     /// were redundant and blocked the decrypt from showing.
-    pub fn start_infer_stream(&mut self, model: &str, _tokens_in: u32, _max_tokens: u32) {
+    pub fn start_infer_stream(&mut self, model: &str, _tokens_in: u64, _max_tokens: u64) {
         // Don't add to inline_content - let streaming_decrypt handle the visual
         // The matrix decrypt effect is the WOW feature, not the INFER boxes
 
@@ -246,7 +246,7 @@ impl ChatView {
 
     /// Append content to current inference stream
     /// Updated to handle TaskBox::Infer (tokens only) - Matrix effect handles text
-    pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u32) {
+    pub fn append_infer_content(&mut self, chunk: &str, tokens_out: u64) {
         // Update TaskBox::Infer token count (if present)
         // Handle Task(TaskBox::Infer)
         for content in self.inline_content.iter_mut().rev() {

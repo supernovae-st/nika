@@ -49,7 +49,7 @@ pub struct ActivityItem {
     pub temp: ActivityTemp,
     pub started: Option<Instant>,
     pub duration: Option<Duration>,
-    pub tokens: Option<(u32, u32)>, // (in, out)
+    pub tokens: Option<(u64, u64)>, // (in, out)
     pub waiting_on: Option<String>,
     pub detail: Option<String>,
     pub frame: u8,
@@ -105,7 +105,7 @@ impl ActivityItem {
         }
     }
 
-    pub fn with_tokens(mut self, tokens_in: u32, tokens_out: u32) -> Self {
+    pub fn with_tokens(mut self, tokens_in: u64, tokens_out: u64) -> Self {
         self.tokens = Some((tokens_in, tokens_out));
         self
     }

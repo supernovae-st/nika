@@ -27,9 +27,9 @@ pub struct AgentBox {
     /// Maximum turns
     pub max_turns: u32,
     /// Input tokens
-    pub tokens_in: u32,
+    pub tokens_in: u64,
     /// Output tokens
-    pub tokens_out: u32,
+    pub tokens_out: u64,
     /// Estimated cost (USD)
     pub cost: f64,
     /// Number of tool calls made
@@ -95,7 +95,7 @@ impl AgentBox {
     }
 
     /// Set token counts
-    pub fn with_tokens(mut self, input: u32, output: u32) -> Self {
+    pub fn with_tokens(mut self, input: u64, output: u64) -> Self {
         self.tokens_in = input;
         self.tokens_out = output;
         self
@@ -279,7 +279,7 @@ impl AgentBox {
     }
 
     /// Format tokens for display
-    fn format_tokens(tokens: u32) -> String {
+    fn format_tokens(tokens: u64) -> String {
         if tokens >= 1_000_000 {
             format!("{:.1}M", tokens as f64 / 1_000_000.0)
         } else if tokens >= 1_000 {
