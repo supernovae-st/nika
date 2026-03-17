@@ -314,19 +314,30 @@ impl ResponseCache {
     }
 
     /// Evict the oldest entries to make room for new ones.
+    ///
+    /// Uses partial sort (`select_nth_unstable_by_key`) for O(n) eviction
+    /// instead of O(n log n) full sort.
     fn evict_oldest(&self) {
-        // Remove ~10% of entries (the oldest ones)
-        let to_remove = self.config.max_entries / 10;
-        let mut oldest: Vec<(String, Instant)> = self
+        let to_remove = (self.config.max_entries / 10).max(1);
+        let mut entries: Vec<(String, Instant)> = self
             .entries
             .iter()
             .map(|e| (e.key().clone(), e.created_at))
             .collect();
 
-        oldest.sort_by_key(|(_, created)| *created);
+        if entries.len() <= to_remove {
+            // Fewer entries than eviction target — remove all
+            for (key, _) in &entries {
+                self.entries.remove(key);
+            }
+            return;
+        }
 
-        for (key, _) in oldest.into_iter().take(to_remove.max(1)) {
-            self.entries.remove(&key);
+        // Partial sort: partition so the `to_remove` oldest are at the front
+        entries.select_nth_unstable_by_key(to_remove - 1, |(_, created)| *created);
+
+        for (key, _) in entries.iter().take(to_remove) {
+            self.entries.remove(key);
         }
     }
 
