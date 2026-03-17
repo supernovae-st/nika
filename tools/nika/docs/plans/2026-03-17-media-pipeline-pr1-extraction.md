@@ -424,7 +424,7 @@ if !media_blocks.is_empty() {
         .iter()
         .map(|b| b.content_type.clone())
         .collect();
-    event_log.push(EventKind::MediaExtracted {
+    self.event_log.emit(EventKind::MediaExtracted {
         task_id: task_id.clone(),
         block_count: media_blocks.len() as u32,
         content_types,

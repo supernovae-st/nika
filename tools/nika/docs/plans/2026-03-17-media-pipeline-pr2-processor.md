@@ -876,7 +876,7 @@ let media_refs = if tool_result.has_media() {
         Ok(refs) => {
             // Emit events for each stored media
             for media_ref in &refs {
-                event_log.push(EventKind::MediaProcessed {
+                self.event_log.emit(EventKind::MediaProcessed {
                     task_id: task_id.clone(),
                     hash: media_ref.hash.clone(),
                     mime_type: media_ref.mime_type.clone(),
@@ -884,7 +884,7 @@ let media_refs = if tool_result.has_media() {
                     size_bytes: media_ref.size_bytes,
                     server_mime: None, // TODO: pass through from ContentBlock
                 });
-                event_log.push(EventKind::MediaStored {
+                self.event_log.emit(EventKind::MediaStored {
                     task_id: task_id.clone(),
                     hash: media_ref.hash.clone(),
                     path: media_ref.path.display().to_string(),
@@ -896,7 +896,7 @@ let media_refs = if tool_result.has_media() {
             refs
         }
         Err(e) => {
-            event_log.push(EventKind::MediaStoreFailed {
+            self.event_log.emit(EventKind::MediaStoreFailed {
                 task_id: task_id.clone(),
                 hash: String::new(),
                 reason: e.to_string(),

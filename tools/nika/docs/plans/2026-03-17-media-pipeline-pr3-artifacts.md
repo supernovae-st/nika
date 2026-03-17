@@ -466,7 +466,7 @@ Update variant count test (36 from PR2 -> 37 after PR3).
 Emit in the clean command handler:
 ```rust
 // After clean operation:
-event_log.push(EventKind::MediaCleanup {
+self.event_log.emit(EventKind::MediaCleanup {
     removed_count: removed,
     freed_bytes: freed,
     policy: if all { "all".into() } else { format!("older_than_{}", duration_str) },
