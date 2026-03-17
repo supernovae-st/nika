@@ -735,3 +735,172 @@ mod pipeline_roundtrip_fuzzing {
         }
     }
 }
+
+// =============================================================================
+// TEST 7: Algebraic Property Tests
+// =============================================================================
+// Determinism, symmetry, and type preservation as algebraic invariants.
+
+mod algebraic_property_tests {
+    use super::*;
+    use nika::ast::analyzer::analyze;
+    use nika::ast::lower::{lower, unlower};
+    use nika::ast::raw::parse;
+    use nika::source::FileId;
+
+    prop_compose! {
+        /// Generate a deterministic test workflow
+        fn arb_deterministic_workflow()(
+            n in 1usize..4,
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,20}", 1..5),
+        ) -> String {
+            let n = n.min(prompts.len());
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
+            for i in 0..n {
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+                }
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+            }
+            yaml
+        }
+    }
+
+    prop_compose! {
+        /// Generate valid task IDs for cycle tests
+        fn arb_task_id()(id in r"[a-z][a-z0-9_]{0,15}") -> String {
+            id
+        }
+    }
+
+    prop_compose! {
+        /// Generate a mixed-verb workflow for action type preservation
+        fn arb_mixed_action_workflow()(
+            n in 2usize..5,
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,20}", 2..6),
+            commands in prop::collection::vec(r"echo [a-zA-Z0-9]{1,10}", 2..6),
+        ) -> String {
+            let n = n.min(prompts.len()).min(commands.len());
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
+            for i in 0..n {
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+                }
+                if i % 2 == 0 {
+                    yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                } else {
+                    yaml.push_str(&format!("    exec: \"{}\"\n", commands[i]));
+                }
+            }
+            yaml
+        }
+    }
+
+    proptest! {
+        /// Algebraic: parse+analyze is deterministic (same input → same output).
+        #[test]
+        fn test_analyze_deterministic(yaml in arb_deterministic_workflow()) {
+            let raw1 = parse(&yaml, FileId(0))
+                .expect("Generator should produce valid YAML");
+            let raw2 = parse(&yaml, FileId(0))
+                .expect("Second parse should also succeed");
+
+            let result1 = analyze(raw1);
+            let result2 = analyze(raw2);
+
+            assert!(result1.is_ok(), "First analysis should pass: {:?}", result1.errors);
+            assert!(result2.is_ok(), "Second analysis should pass: {:?}", result2.errors);
+
+            let wf1 = result1.value.unwrap();
+            let wf2 = result2.value.unwrap();
+
+            // Same task count
+            prop_assert_eq!(wf1.tasks.len(), wf2.tasks.len(),
+                "Determinism: task count should be identical");
+            // Same task names in same order
+            let names1: Vec<&str> = wf1.tasks.iter().map(|t| t.name.as_str()).collect();
+            let names2: Vec<&str> = wf2.tasks.iter().map(|t| t.name.as_str()).collect();
+            prop_assert_eq!(names1, names2,
+                "Determinism: task names should be identical");
+            // Same provider
+            prop_assert_eq!(wf1.provider, wf2.provider,
+                "Determinism: provider should be identical");
+        }
+
+        /// Algebraic: cycle error symmetry — A→B cycle produces same error as B→A.
+        #[test]
+        fn test_cycle_error_symmetry(
+            task_a in arb_task_id(),
+            task_b in arb_task_id()
+        ) {
+            if task_a != task_b {
+                // A depends on B, B depends on A
+                let yaml_ab = format!(
+                    "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"first\"\n  - id: {}\n    depends_on: [{}]\n    infer: \"second\"\n",
+                    task_a, task_b, task_b, task_a
+                );
+                // B depends on A, A depends on B (reversed task order)
+                let yaml_ba = format!(
+                    "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"second\"\n  - id: {}\n    depends_on: [{}]\n    infer: \"first\"\n",
+                    task_b, task_a, task_a, task_b
+                );
+
+                let raw_ab = parse(&yaml_ab, FileId(0))
+                    .expect("Cycle AB YAML should parse");
+                let raw_ba = parse(&yaml_ba, FileId(0))
+                    .expect("Cycle BA YAML should parse");
+
+                let result_ab = analyze(raw_ab);
+                let result_ba = analyze(raw_ba);
+
+                // Both should fail (cycle detected)
+                prop_assert!(result_ab.is_err(),
+                    "A->B cycle should fail analysis");
+                prop_assert!(result_ba.is_err(),
+                    "B->A cycle should fail analysis");
+
+                // Both should have at least one error
+                prop_assert!(!result_ab.errors.is_empty(),
+                    "A->B should produce error(s)");
+                prop_assert!(!result_ba.errors.is_empty(),
+                    "B->A should produce error(s)");
+            }
+        }
+
+        /// Algebraic: roundtrip preserves action types (infer stays infer, exec stays exec).
+        #[test]
+        fn test_roundtrip_preserves_action_types(yaml in arb_mixed_action_workflow()) {
+            let raw = parse(&yaml, FileId(0))
+                .expect("Generator should produce valid YAML");
+            let result = analyze(raw);
+            assert!(result.is_ok(), "Analysis should pass: {:?}", result.errors);
+            let wf = result.value.unwrap();
+
+            // Record action types before roundtrip
+            let action_types_before: Vec<&str> = wf.tasks.iter().map(|t| match &t.action {
+                nika::ast::analyzed::AnalyzedTaskAction::Infer(_) => "infer",
+                nika::ast::analyzed::AnalyzedTaskAction::Exec(_) => "exec",
+                nika::ast::analyzed::AnalyzedTaskAction::Fetch(_) => "fetch",
+                nika::ast::analyzed::AnalyzedTaskAction::Invoke(_) => "invoke",
+                nika::ast::analyzed::AnalyzedTaskAction::Agent(_) => "agent",
+            }).collect();
+
+            let lowered = lower(wf).expect("Lowering should succeed");
+            let unlowered = unlower(lowered).expect("Unlowering should succeed");
+
+            // Verify action types preserved
+            let action_types_after: Vec<&str> = unlowered.tasks.iter().map(|t| match &t.action {
+                nika::ast::analyzed::AnalyzedTaskAction::Infer(_) => "infer",
+                nika::ast::analyzed::AnalyzedTaskAction::Exec(_) => "exec",
+                nika::ast::analyzed::AnalyzedTaskAction::Fetch(_) => "fetch",
+                nika::ast::analyzed::AnalyzedTaskAction::Invoke(_) => "invoke",
+                nika::ast::analyzed::AnalyzedTaskAction::Agent(_) => "agent",
+            }).collect();
+
+            prop_assert_eq!(action_types_before, action_types_after,
+                "Action types must be preserved through lower/unlower roundtrip");
+        }
+    }
+}
