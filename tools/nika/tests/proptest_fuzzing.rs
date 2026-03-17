@@ -680,20 +680,21 @@ mod pipeline_roundtrip_fuzzing {
     /// Shared roundtrip assertion: parse → analyze → lower → unlower preserves task count + IDs.
     /// All generators that call this produce valid workflow YAML, so every stage must succeed.
     fn assert_roundtrip(yaml: &str) -> Result<(), proptest::test_runner::TestCaseError> {
-        let raw = parse(yaml, FileId(0))
-            .expect("Generator should produce valid YAML");
+        let raw = parse(yaml, FileId(0)).expect("Generator should produce valid YAML");
         let analyzed = {
             let r = analyze(raw);
-            assert!(r.is_ok(), "Generator should produce analyzable workflow: {:?}", r.errors);
+            assert!(
+                r.is_ok(),
+                "Generator should produce analyzable workflow: {:?}",
+                r.errors
+            );
             r.value.unwrap()
         };
         let task_count = analyzed.tasks.len();
         let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
 
-        let lowered = lower(analyzed)
-            .expect("Analyzed workflow should lower");
-        let unlowered = unlower(lowered)
-            .expect("Lowered workflow should unlower");
+        let lowered = lower(analyzed).expect("Analyzed workflow should lower");
+        let unlowered = unlower(lowered).expect("Lowered workflow should unlower");
 
         prop_assert_eq!(
             unlowered.tasks.len(),

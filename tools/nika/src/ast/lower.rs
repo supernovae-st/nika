@@ -1618,7 +1618,10 @@ mod tests {
             ..dummy_workflow()
         };
         let lowered = lower(wf).unwrap();
-        assert_eq!(lowered.provider, "claude", "None provider should default to claude");
+        assert_eq!(
+            lowered.provider, "claude",
+            "None provider should default to claude"
+        );
         let unlowered = unlower(lowered).unwrap();
         assert_eq!(
             unlowered.provider,
