@@ -219,13 +219,16 @@ async fn write_single_artifact(
             }
         }
     } else if let Some(ref tpl) = output_spec.template {
-        // Resolve template with bindings
+        // Replace {{output}} with actual task output before template resolution
+        let tpl_with_output = tpl.replace("{{output}}", output);
+
+        // Resolve template with bindings (handles {{with.*}}, {{inputs.*}}, etc.)
         debug!(
             task_id = %task_id,
             template = %tpl,
             "Resolving artifact template"
         );
-        match template_resolve(tpl, bindings, datastore) {
+        match template_resolve(&tpl_with_output, bindings, datastore) {
             Ok(resolved) => resolved.into_owned(),
             Err(e) => {
                 warn!(
@@ -234,8 +237,8 @@ async fn write_single_artifact(
                     error = %e,
                     "Failed to resolve artifact template, using raw template"
                 );
-                // On template resolution failure, use the raw template
-                tpl.clone()
+                // On template resolution failure, use the pre-resolved template
+                tpl_with_output
             }
         }
     } else {
