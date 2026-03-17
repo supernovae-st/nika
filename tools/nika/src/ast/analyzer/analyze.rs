@@ -2391,4 +2391,23 @@ mod tests {
             result.errors
         );
     }
+
+    #[test]
+    fn test_analyze_self_cycle_via_with() {
+        // A task referencing itself via with: binding must be caught as a cycle
+        let mut task = make_raw_task("self_ref");
+        add_with_ref(&mut task, "data", "$self_ref");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+        assert!(result.is_err());
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency),
+            "self-cycle via with: should be detected: {:?}",
+            result.errors
+        );
+    }
 }
