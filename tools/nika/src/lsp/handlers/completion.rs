@@ -308,6 +308,75 @@ fn task_field_completions() -> Vec<CompletionItem> {
         },
     ];
 
+    // Task-level overrides
+    items.push(CompletionItem {
+        label: "provider".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Override LLM provider for this task.".to_string(),
+        )),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "model".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("model: ${1}".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Override model for this task.".to_string(),
+        )),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "depends_on".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("depends_on: [${1}]".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Task IDs that must complete before this task runs.".to_string(),
+        )),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "description".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("description: \"${1}\"".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "artifact".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("artifact:\n  path: ${1:output.txt}\n  format: ${2|text,json|}".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Persist task output to a file.".to_string(),
+        )),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "log".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("log:\n  level: ${1|debug,info,warn|}".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Task-level log configuration override.".to_string(),
+        )),
+        ..Default::default()
+    });
+    items.push(CompletionItem {
+        label: "structured".to_string(),
+        kind: Some(CompletionItemKind::PROPERTY),
+        insert_text: Some("structured:\n  schema:\n    type: object\n    properties:\n      ${1:field}:\n        type: ${2:string}\n    required: [${1:field}]".to_string()),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        documentation: Some(Documentation::String(
+            "Enforce JSON schema on task output.".to_string(),
+        )),
+        ..Default::default()
+    });
+
     // Add verb completions
     items.extend(verb_completions());
 
@@ -569,6 +638,46 @@ fn verb_value_completions(verb: &str) -> Vec<CompletionItem> {
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 documentation: Some(Documentation::String(
                     "Enable Claude's extended thinking mode.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "provider".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "LLM provider override for this agent.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "model".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("model: ${1}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Model override (e.g., gpt-4.1-mini, grok-3-fast).".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "system".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("system: |\n  ${1}".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "System prompt defining the agent's persona.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "tools".to_string(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                insert_text: Some("tools: [${1|builtin,nika:read,nika:write,nika:edit|}]".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                documentation: Some(Documentation::String(
+                    "Builtin tools: [builtin] for all, or specific nika:* tools.".to_string(),
                 )),
                 ..Default::default()
             },
