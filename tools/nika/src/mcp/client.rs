@@ -263,9 +263,7 @@ impl ResponseCache {
                 }
                 Value::Object(sorted)
             }
-            Value::Array(arr) => {
-                Value::Array(arr.iter().map(Self::canonicalize_value).collect())
-            }
+            Value::Array(arr) => Value::Array(arr.iter().map(Self::canonicalize_value).collect()),
             other => other.clone(),
         }
     }

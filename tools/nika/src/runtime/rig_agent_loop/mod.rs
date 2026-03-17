@@ -118,7 +118,6 @@ impl std::fmt::Debug for RigAgentLoop {
     }
 }
 
-
 // ═══════════════════════════════════════════════════════════
 // ArcToolAdapter: wrap Arc<dyn ToolDyn> as Box<dyn ToolDyn>
 // ═══════════════════════════════════════════════════════════
