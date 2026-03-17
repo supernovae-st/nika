@@ -717,6 +717,16 @@ async fn run_workflow(
         workflow.model.as_deref().unwrap_or("(default)").cyan()
     );
 
+    // IMP-1: Migration hint for old schema versions
+    if let Some(hint) = workflow.schema_version.migration_hint() {
+        println!(
+            "{} Schema {} is not the latest. Upgrade: {}",
+            "⚠".yellow(),
+            workflow.schema_version.as_str().yellow(),
+            hint.dimmed()
+        );
+    }
+
     let mut runner = Runner::new(workflow)?;
     let output = runner.run().await?;
 

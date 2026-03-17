@@ -120,6 +120,26 @@ impl SchemaVersion {
         self.version_number() >= min_version.version_number()
     }
 
+    /// Get a migration hint for upgrading from this schema version.
+    ///
+    /// Returns None for the latest version.
+    pub fn migration_hint(&self) -> Option<&'static str> {
+        match self {
+            Self::V01 => Some("@0.2 adds MCP servers, invoke: and agent: verbs"),
+            Self::V02 => Some("@0.3 adds for_each iteration and retry config"),
+            Self::V03 => Some("@0.4 adds decompose and structured output"),
+            Self::V04 => Some("@0.5 adds extended thinking and output format"),
+            Self::V05 => Some("@0.6 adds agents: definitions and skills:"),
+            Self::V06 => Some("@0.7 adds log: config and catch: error handling"),
+            Self::V07 => Some("@0.8 adds fetch: verb improvements"),
+            Self::V08 => Some("@0.9 adds context: files and imports:"),
+            Self::V09 => Some("@0.10 adds inputs: with defaults and artifacts:"),
+            Self::V10 => Some("@0.11 adds with: bindings replacing include:"),
+            Self::V11 => Some("@0.12 adds depends_on:, imports:, and ?? fallback operator"),
+            Self::V12 => None,
+        }
+    }
+
     /// Check if MCP servers are supported.
     pub fn supports_mcp(&self) -> bool {
         self.supports(Self::V02)
