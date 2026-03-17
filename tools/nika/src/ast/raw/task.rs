@@ -66,6 +66,9 @@ pub struct RawTask {
     /// Structured output specification (JSON schema enforcement)
     pub structured: Option<StructuredOutputSpec>,
 
+    /// Artifact output configuration (persists task output to files)
+    pub artifact: Option<Spanned<serde_json::Value>>,
+
     /// The span of the entire task block
     pub span: Span,
 }

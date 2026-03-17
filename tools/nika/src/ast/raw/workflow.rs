@@ -49,6 +49,9 @@ pub struct RawWorkflow {
     /// Input parameters with defaults
     pub inputs: Option<Spanned<IndexMap<Spanned<String>, Spanned<serde_json::Value>>>>,
 
+    /// Artifact output configuration
+    pub artifacts: Option<Spanned<serde_json::Value>>,
+
     /// Task definitions (order matters for implicit flow)
     pub tasks: Spanned<Vec<Spanned<RawTask>>>,
 

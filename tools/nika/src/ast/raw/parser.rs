@@ -960,6 +960,15 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
     // Parse inputs
     workflow.inputs = parse_inputs(file_id, map)?;
 
+    // Parse artifacts config
+    workflow.artifacts = match map.get_node("artifacts") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            Some(Spanned::new(node_to_json(node), span))
+        }
+        None => None,
+    };
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 
@@ -1279,6 +1288,16 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
     let decompose = parse_decompose(file_id, map)?;
     let structured = parse_structured(file_id, map)?;
 
+    // Parse artifact: config (task-level artifact output)
+    let artifact = match map.get_node("artifact") {
+        Some(node) => {
+            let span = node_to_span(file_id, node);
+            let value = node_to_json(node);
+            Some(Spanned::new(value, span))
+        }
+        None => None,
+    };
+
     // Parse standalone concurrency/fail_fast (used with decompose when no for_each)
     let standalone_concurrency = if for_each.is_none() {
         get_u32_field(file_id, map, "concurrency")?
@@ -1307,6 +1326,7 @@ fn parse_task(file_id: FileId, node: &Node) -> Result<Spanned<RawTask>, ParseErr
         concurrency: standalone_concurrency,
         fail_fast: standalone_fail_fast,
         structured,
+        artifact,
     };
 
     Ok(Spanned::new(task, span))

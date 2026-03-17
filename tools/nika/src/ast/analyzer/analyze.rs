@@ -234,7 +234,14 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
-    // 6b. Validate tasks array is non-empty
+    // 6b. Parse workflow-level artifacts config
+    if let Some(ref artifacts_spanned) = raw.artifacts {
+        if let Ok(config) = serde_json::from_value(artifacts_spanned.value.clone()) {
+            workflow.artifacts = Some(config);
+        }
+    }
+
+    // 6c. Validate tasks array is non-empty
     if raw.tasks.value.is_empty() {
         ctx.errors.push(AnalyzeError::new(
             AnalyzeErrorKind::InvalidValue,
@@ -494,7 +501,9 @@ fn analyze_task(
         decompose: raw.decompose.as_ref().map(|d| d.value.clone()),
         concurrency: raw.concurrency.as_ref().map(|s| s.value),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value),
-        artifact: None,
+        artifact: raw.artifact.as_ref().and_then(|s| {
+            serde_json::from_value(s.value.clone()).ok()
+        }),
         log: None,
         structured: raw.structured.clone(),
         span: raw.span,
