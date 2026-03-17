@@ -2,7 +2,7 @@
 //!
 //! Tests all Chat UX v2 widgets and features:
 //! - SessionContextBar
-//! - ActivityStack (hot/warm/cold)
+//! - ActivityItem/ActivityTemp (hot/warm/cold data types)
 //! - CommandPalette (keyboard navigation)
 //! - InferStreamBox (streaming display)
 //! - McpCallBox (inline MCP calls)
@@ -10,9 +10,9 @@
 #![cfg(feature = "tui")]
 
 use nika::tui::widgets::{
-    default_commands, ActivityItem, ActivityStack, ActivityTemp, CommandPaletteState, InferStatus,
-    InferStreamBox, InferStreamData, McpCallBox, McpCallData, McpCallStatus, McpServerInfo,
-    McpStatus, PaletteCommand, SessionContext, SessionContextBar,
+    default_commands, ActivityItem, ActivityTemp, CommandPaletteState, InferStatus, InferStreamBox,
+    InferStreamData, McpCallBox, McpCallData, McpCallStatus, McpServerInfo, McpStatus,
+    PaletteCommand, SessionContext, SessionContextBar,
 };
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -171,37 +171,6 @@ fn test_activity_temp_headers() {
 
     let (queued_header, _) = ActivityTemp::Queued.header();
     assert!(queued_header.contains("QUEUED"));
-}
-
-#[test]
-fn test_activity_stack_rendering() {
-    let items = vec![
-        ActivityItem::hot("task-1", "infer"),
-        ActivityItem::warm("task-2", "exec", Duration::from_secs(3)),
-        ActivityItem::queued("task-3", "fetch", "task-1"),
-    ];
-
-    let stack = ActivityStack::new(&items).frame(0);
-
-    let area = Rect::new(0, 0, 60, 15);
-    let mut buffer = Buffer::empty(area);
-    stack.render(area, &mut buffer);
-
-    let content = buffer_to_string(&buffer);
-    assert!(content.contains("ACTIVITY"));
-}
-
-#[test]
-fn test_activity_stack_empty() {
-    let items: Vec<ActivityItem> = vec![];
-    let stack = ActivityStack::new(&items);
-
-    let area = Rect::new(0, 0, 60, 10);
-    let mut buffer = Buffer::empty(area);
-    stack.render(area, &mut buffer);
-
-    let content = buffer_to_string(&buffer);
-    assert!(!content.trim().is_empty());
 }
 
 // ============================================================================
@@ -472,12 +441,6 @@ fn test_mcp_call_box_with_duration() {
 #[test]
 fn test_chat_ux_full_layout() {
     let ctx = SessionContext::new();
-    let activities = vec![
-        ActivityItem::hot("task-1", "infer"),
-        ActivityItem::queued("task-2", "exec", "task-1"),
-    ];
-    let mut palette_state = CommandPaletteState::new();
-    palette_state.commands = default_commands();
 
     let area = Rect::new(0, 0, 100, 40);
     let mut buffer = Buffer::empty(area);
@@ -487,10 +450,6 @@ fn test_chat_ux_full_layout() {
     SessionContextBar::new(&ctx)
         .compact()
         .render(bar_area, &mut buffer);
-
-    // Activity stack in sidebar
-    let stack_area = Rect::new(0, 3, 40, 15);
-    ActivityStack::new(&activities).render(stack_area, &mut buffer);
 
     // Verify buffer has content
     let content = buffer_to_string(&buffer);
