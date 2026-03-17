@@ -1,0 +1,16 @@
+# TRAP-06: Downstream task gets data containing template-like syntax
+# Tests that {{with.data}} containing "{{" is NOT re-interpreted
+schema: nika/workflow@0.12
+workflow: trap-06-no-injection
+
+tasks:
+  - id: produce
+    exec: 'echo "curly braces: {{ and }}"'
+    description: "Outputs text with curly braces"
+
+  - id: consume
+    depends_on: [produce]
+    with:
+      data: $produce
+    exec: "echo PASS"
+    description: "Should not error even if upstream output has {{ }}"
