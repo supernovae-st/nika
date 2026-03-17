@@ -188,9 +188,9 @@ pub(super) struct StreamingResult {
     /// The accumulated response text
     pub(super) response: String,
     /// Input tokens used (from token_usage())
-    pub(super) input_tokens: u32,
+    pub(super) input_tokens: u64,
     /// Output tokens used (from token_usage())
-    pub(super) output_tokens: u32,
+    pub(super) output_tokens: u64,
     /// Optional thinking/reasoning content (Claude extended thinking)
     pub(super) thinking: Option<String>,
 }

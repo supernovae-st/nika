@@ -74,8 +74,8 @@ impl RigAgentLoop {
         // PERF: Pre-allocate with expected capacity to avoid reallocation
         let mut response_parts: Vec<String> = Vec::with_capacity(16);
         let mut thinking_parts: Vec<String> = Vec::with_capacity(8);
-        let mut input_tokens: u32 = 0;
-        let mut output_tokens: u32 = 0;
+        let mut input_tokens: u64 = 0;
+        let mut output_tokens: u64 = 0;
 
         // Stream chunks with timeout protection to prevent infinite hangs
         loop {
@@ -127,8 +127,8 @@ impl RigAgentLoop {
                     StreamedAssistantContent::Final(final_resp) => {
                         // Extract token usage from final response
                         if let Some(usage) = final_resp.token_usage() {
-                            input_tokens = usage.input_tokens as u32;
-                            output_tokens = usage.output_tokens as u32;
+                            input_tokens = usage.input_tokens as u64;
+                            output_tokens = usage.output_tokens as u64;
                             // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
                                 let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
@@ -236,8 +236,8 @@ impl RigAgentLoop {
 
             let mut response_text = String::new();
             let mut thinking_text: Option<String> = None;
-            let mut input_tokens = 0u32;
-            let mut output_tokens = 0u32;
+            let mut input_tokens = 0u64;
+            let mut output_tokens = 0u64;
 
             // Consume stream, extracting text and token usage
             while let Some(chunk) = stream.next().await {
@@ -271,8 +271,8 @@ impl RigAgentLoop {
                         MultiTurnStreamItem::FinalResponse(resp) => {
                             response_text = resp.response().to_string();
                             let usage = resp.usage();
-                            input_tokens = usage.input_tokens as u32;
-                            output_tokens = usage.output_tokens as u32;
+                            input_tokens = usage.input_tokens as u64;
+                            output_tokens = usage.output_tokens as u64;
                         }
                         // Ignore tool calls and other items in CLI mode
                         _ => {}
@@ -347,8 +347,8 @@ impl RigAgentLoop {
 
         let mut response_text = String::new();
         let mut thinking_text: Option<String> = None;
-        let mut input_tokens = 0u32;
-        let mut output_tokens = 0u32;
+        let mut input_tokens = 0u64;
+        let mut output_tokens = 0u64;
         let mut tool_count = 0u32;
 
         // Per-chunk timeout to prevent hanging streams
@@ -456,8 +456,8 @@ impl RigAgentLoop {
                     MultiTurnStreamItem::FinalResponse(resp) => {
                         response_text = resp.response().to_string();
                         let usage = resp.usage();
-                        input_tokens = usage.input_tokens as u32;
-                        output_tokens = usage.output_tokens as u32;
+                        input_tokens = usage.input_tokens as u64;
+                        output_tokens = usage.output_tokens as u64;
 
                         // Send metrics to TUI
                         if let Some(ref tx) = self.stream_tx {

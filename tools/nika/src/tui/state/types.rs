@@ -289,7 +289,7 @@ pub struct TaskState {
     /// Error message (when failed)
     pub error: Option<String>,
     /// Token count (for infer/agent tasks)
-    pub tokens: Option<u32>,
+    pub tokens: Option<u64>,
     /// Provider name (e.g., "claude", "openai")
     pub provider: Option<String>,
     /// Model name (e.g., "claude-sonnet-4-6")
@@ -365,7 +365,7 @@ pub struct ContextAssembly {
     /// Items excluded
     pub excluded: Vec<ExcludedItem>,
     /// Total tokens
-    pub total_tokens: u32,
+    pub total_tokens: u64,
     /// Budget used percentage
     pub budget_used_pct: f32,
     /// Was truncated
@@ -384,7 +384,7 @@ pub struct AgentTurnState {
     /// Turn status
     pub status: String,
     /// Cumulative tokens
-    pub tokens: Option<u32>,
+    pub tokens: Option<u64>,
     /// Tool calls made this turn
     pub tool_calls: Vec<String>,
     /// Extended thinking content
@@ -438,19 +438,19 @@ pub enum Breakpoint {
 #[derive(Debug, Clone, Default)]
 pub struct Metrics {
     /// Total tokens consumed
-    pub total_tokens: u32,
+    pub total_tokens: u64,
     /// Total input tokens
-    pub input_tokens: u32,
+    pub input_tokens: u64,
     /// Total output tokens
-    pub output_tokens: u32,
+    pub output_tokens: u64,
     /// Total cache-read tokens (prompt caching)
-    pub cache_read_tokens: u32,
+    pub cache_read_tokens: u64,
     /// Total cost in USD
     pub cost_usd: f64,
     /// MCP call count by tool
     pub mcp_calls: HashMap<String, usize>,
     /// Token history (for sparkline)
-    pub token_history: Vec<u32>,
+    pub token_history: Vec<u64>,
     /// Latency history in ms (for sparkline)
     pub latency_history: Vec<u64>,
     /// Provider call count

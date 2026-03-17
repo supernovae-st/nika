@@ -35,8 +35,8 @@ use super::TaskExecutor;
 /// always produce at least 1 token (fixes off-by-one where `len / 4 == 0`
 /// for strings shorter than 4 characters).
 #[inline]
-fn estimate_tokens(char_len: usize) -> u32 {
-    char_len.div_ceil(4) as u32
+fn estimate_tokens(char_len: usize) -> u64 {
+    char_len.div_ceil(4) as u64
 }
 
 impl TaskExecutor {
@@ -170,7 +170,7 @@ impl TaskExecutor {
 
         // POLICY CHECK: token budget
         // Estimate tokens for budget check (actual usage tracked after call)
-        let estimated_tokens = estimate_tokens(prompt.len()) as u64;
+        let estimated_tokens = estimate_tokens(prompt.len());
         {
             let policy = self.policy_enforcer.read();
             let decision = policy.check_token_spend(estimated_tokens);
@@ -379,7 +379,7 @@ impl TaskExecutor {
         };
 
         // Record actual token spend
-        let actual_tokens = (stream_result.input_tokens + stream_result.output_tokens) as u64;
+        let actual_tokens = stream_result.input_tokens + stream_result.output_tokens;
         self.policy_enforcer
             .write()
             .record_token_spend(actual_tokens);
@@ -388,9 +388,9 @@ impl TaskExecutor {
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             request_id: None,
-            input_tokens: stream_result.input_tokens as u32,
-            output_tokens: stream_result.output_tokens as u32,
-            cache_read_tokens: stream_result.cached_input_tokens as u32,
+            input_tokens: stream_result.input_tokens,
+            output_tokens: stream_result.output_tokens,
+            cache_read_tokens: stream_result.cached_input_tokens,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
             cost_usd: 0.0,

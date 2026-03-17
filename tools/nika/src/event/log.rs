@@ -28,7 +28,7 @@ pub struct ContextSource {
     /// Node/source identifier
     pub node: String,
     /// Token count for this source
-    pub tokens: u32,
+    pub tokens: u64,
 }
 
 /// An item excluded from context assembly
@@ -69,14 +69,14 @@ pub struct AgentTurnMetadata {
     pub response_text: String,
 
     /// Input tokens used for this turn
-    pub input_tokens: u32,
+    pub input_tokens: u64,
 
     /// Output tokens generated for this turn
-    pub output_tokens: u32,
+    pub output_tokens: u64,
 
     /// Cache read tokens (Anthropic prompt caching)
     #[serde(default)]
-    pub cache_read_tokens: u32,
+    pub cache_read_tokens: u64,
 
     /// Stop reason: "end_turn", "tool_use", "max_tokens", "stop_sequence"
     pub stop_reason: String,
@@ -98,8 +98,8 @@ impl AgentTurnMetadata {
     /// Create metadata with token usage
     pub fn with_usage(
         response: impl Into<String>,
-        input_tokens: u32,
-        output_tokens: u32,
+        input_tokens: u64,
+        output_tokens: u64,
         stop_reason: impl Into<String>,
     ) -> Self {
         Self {
@@ -113,7 +113,7 @@ impl AgentTurnMetadata {
     }
 
     /// Total tokens (input + output)
-    pub fn total_tokens(&self) -> u32 {
+    pub fn total_tokens(&self) -> u64 {
         self.input_tokens + self.output_tokens
     }
 
@@ -219,11 +219,11 @@ pub enum EventKind {
         /// API request ID (for debugging with provider)
         request_id: Option<String>,
         /// Input tokens
-        input_tokens: u32,
+        input_tokens: u64,
         /// Output tokens
-        output_tokens: u32,
+        output_tokens: u64,
         /// Cache read tokens (if any)
-        cache_read_tokens: u32,
+        cache_read_tokens: u64,
         /// Time to first token (ms), if known
         ttft_ms: Option<u64>,
         /// Finish reason
@@ -243,7 +243,7 @@ pub enum EventKind {
         /// Items excluded (with reasons)
         excluded: Vec<ExcludedItem>,
         /// Total tokens in assembled context
-        total_tokens: u32,
+        total_tokens: u64,
         /// Budget utilization percentage
         budget_used_pct: f32,
         /// Was context truncated?
@@ -712,7 +712,7 @@ mod tests {
     }
 
     /// Create a ProviderResponded event with test defaults
-    fn provider_responded(task_id: &str, input_tokens: u32, output_tokens: u32) -> EventKind {
+    fn provider_responded(task_id: &str, input_tokens: u64, output_tokens: u64) -> EventKind {
         EventKind::ProviderResponded {
             task_id: Arc::from(task_id),
             request_id: Some("req-456".to_string()),

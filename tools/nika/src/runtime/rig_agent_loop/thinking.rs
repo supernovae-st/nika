@@ -342,8 +342,8 @@ impl RigAgentLoop {
         // Accumulate thinking, response, and token usage
         let mut thinking_parts: Vec<String> = Vec::new();
         let mut response_parts: Vec<String> = Vec::new();
-        let mut input_tokens: u32 = 0;
-        let mut output_tokens: u32 = 0;
+        let mut input_tokens: u64 = 0;
+        let mut output_tokens: u64 = 0;
 
         // Per-chunk timeout to prevent hanging streams
         loop {
@@ -383,8 +383,8 @@ impl RigAgentLoop {
                     StreamedAssistantContent::Final(final_resp) => {
                         // Extract token usage from final response
                         if let Some(usage) = final_resp.token_usage() {
-                            input_tokens = usage.input_tokens as u32;
-                            output_tokens = usage.output_tokens as u32;
+                            input_tokens = usage.input_tokens as u64;
+                            output_tokens = usage.output_tokens as u64;
                         }
                     }
                     _ => {

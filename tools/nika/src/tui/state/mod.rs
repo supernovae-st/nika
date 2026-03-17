@@ -716,7 +716,7 @@ impl TuiState {
                 }
 
                 // TIER 3.4: Token usage progression with cosmic pirate emojis
-                const CONTEXT_WINDOW: u32 = 100_000;
+                const CONTEXT_WINDOW: u64 = 100_000;
                 let pct = (self.metrics.total_tokens as f64 / CONTEXT_WINDOW as f64) * 100.0;
 
                 if pct > 95.0 {

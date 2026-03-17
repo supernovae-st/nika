@@ -455,8 +455,8 @@ impl RigAgentLoop {
         let metadata = AgentTurnMetadata {
             thinking: result.thinking,
             response_text: result.response.clone(),
-            input_tokens: total_input_tokens as u32,
-            output_tokens: total_output_tokens as u32,
+            input_tokens: total_input_tokens,
+            output_tokens: total_output_tokens,
             cache_read_tokens: 0,
             stop_reason: stop_reason.to_string(),
         };
