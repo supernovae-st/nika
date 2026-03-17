@@ -756,6 +756,9 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
         system: raw.system.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         token_budget: raw.token_budget.as_ref().map(|s| s.value),
+        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
+        thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
+        depth_limit: raw.depth_limit.as_ref().map(|s| s.value),
         span: raw.prompt.span,
     }
 }
@@ -1766,6 +1769,9 @@ mod tests {
                 system: None,
                 temperature: None,
                 token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
             },
             make_span(0, 50),
         )));
@@ -1870,6 +1876,9 @@ mod tests {
                 system: None,
                 temperature: None,
                 token_budget: None,
+                extended_thinking: None,
+                thinking_budget: None,
+                depth_limit: None,
             },
             make_span(0, 50),
         )));

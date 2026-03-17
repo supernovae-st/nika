@@ -189,6 +189,15 @@ pub struct RawAgentAction {
 
     /// System prompt (agent persona)
     pub system: Option<Spanned<String>>,
+
+    /// Enable extended thinking (Claude)
+    pub extended_thinking: Option<Spanned<bool>>,
+
+    /// Thinking budget tokens
+    pub thinking_budget: Option<Spanned<u32>>,
+
+    /// Max spawn_agent recursion depth
+    pub depth_limit: Option<Spanned<u32>>,
 }
 
 #[cfg(test)]

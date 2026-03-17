@@ -294,6 +294,15 @@ pub struct AnalyzedAgentAction {
     /// Token budget for the agent
     pub token_budget: Option<u32>,
 
+    /// Enable extended thinking (Claude)
+    pub extended_thinking: Option<bool>,
+
+    /// Thinking budget tokens
+    pub thinking_budget: Option<u32>,
+
+    /// Max spawn_agent recursion depth
+    pub depth_limit: Option<u32>,
+
     /// Span of the action
     pub span: Span,
 }

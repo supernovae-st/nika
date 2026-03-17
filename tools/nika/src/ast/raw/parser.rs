@@ -617,6 +617,9 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         system: get_string_field(file, m, "system")?,
         temperature: get_f64_field(file, m, "temperature")?,
         token_budget: get_u32_field(file, m, "token_budget")?,
+        extended_thinking: get_bool_field(file, m, "extended_thinking")?,
+        thinking_budget: get_u32_field(file, m, "thinking_budget")?,
+        depth_limit: get_u32_field(file, m, "depth_limit")?,
     })
 }
 
