@@ -14,10 +14,11 @@ use rustc_hash::FxHashMap;
 use super::action::{ExecParams, FetchParams, InferParams, RetryConfig, TaskAction};
 use super::agent::AgentParams;
 use super::analyzed::{
-    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
-    AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer,
-    AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
-    McpTransport, OutputFormat as AnalyzedOutputFormat, TaskId, TaskTable,
+    AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
+    AnalyzedForEach, AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction,
+    AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
+    AnalyzedWorkflow, HttpMethod, McpTransport, OutputFormat as AnalyzedOutputFormat, TaskId,
+    TaskTable,
 };
 use super::include::IncludeSpec;
 use super::invoke::InvokeParams;
@@ -45,7 +46,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         task_table,
         tasks,
         mcp_servers,
-        context_files: _,
+        context_files,
         imports,
         inputs,
         artifacts: _,
@@ -61,12 +62,28 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
     let mcp = lower_mcp_servers(mcp_servers);
     let inputs = lower_inputs(inputs);
 
+    // Convert AnalyzedContextFile → ContextConfig for the lowered Workflow
+    let context = if context_files.is_empty() {
+        None
+    } else {
+        let mut files = rustc_hash::FxHashMap::default();
+        for cf in &context_files {
+            if let Some(alias) = &cf.alias {
+                files.insert(alias.clone(), cf.path.clone());
+            }
+        }
+        Some(crate::ast::context::ContextConfig {
+            files,
+            session: None,
+        })
+    };
+
     Ok(Workflow {
         schema: schema_version.as_str().to_string(),
         provider: provider.unwrap_or_else(|| "claude".to_string()),
         model,
         mcp,
-        context: None,
+        context,
         include: lower_imports(imports),
         agents: None,
         skills: None,
@@ -510,6 +527,23 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         .map(|m| m.into_iter().collect())
         .unwrap_or_default();
 
+    // Restore context_files from Workflow.context (lost during lower round-trip)
+    let context_files = workflow
+        .context
+        .as_ref()
+        .map(|ctx| {
+            ctx.files
+                .iter()
+                .map(|(alias, path)| AnalyzedContextFile {
+                    path: path.clone(),
+                    alias: Some(alias.clone()),
+                    max_bytes: None,
+                    span: Span::dummy(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
     Ok(AnalyzedWorkflow {
         schema_version,
         name: None,
@@ -519,7 +553,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         task_table,
         tasks: analyzed_tasks,
         mcp_servers,
-        context_files: vec![],
+        context_files,
         imports: vec![],
         inputs,
         artifacts: workflow.artifacts,
@@ -1721,14 +1755,15 @@ mod tests {
         assert_eq!(rt_task.depends_on.len(), 2);
     }
 
-    /// L4: context_files are permanently dropped during lowering.
+    /// L4: context_files with aliases are preserved through round-trip.
+    /// Files without aliases are dropped (no key for ContextConfig map).
     #[test]
-    fn roundtrip_context_files_are_lost() {
+    fn roundtrip_context_files_preserved() {
         let wf = AnalyzedWorkflow {
             context_files: vec![
                 AnalyzedContextFile {
                     path: "README.md".to_string(),
-                    alias: None,
+                    alias: None, // No alias → dropped during round-trip
                     max_bytes: None,
                     span: Span::dummy(),
                 },
@@ -1742,12 +1777,22 @@ mod tests {
             ..dummy_workflow()
         };
         let lowered = lower(wf).unwrap();
-        assert!(lowered.context.is_none(), "context_files should be dropped");
-        let unlowered = unlower(lowered).unwrap();
         assert!(
-            unlowered.context_files.is_empty(),
-            "After roundtrip, context_files should be empty"
+            lowered.context.is_some(),
+            "context should be preserved in lowered Workflow"
         );
+        let ctx = lowered.context.as_ref().unwrap();
+        assert_eq!(ctx.files.len(), 1, "only aliased files survive the round-trip");
+        assert_eq!(ctx.files.get("schema"), Some(&"schema.json".to_string()));
+
+        let unlowered = unlower(lowered).unwrap();
+        assert_eq!(
+            unlowered.context_files.len(),
+            1,
+            "context_files with aliases should be restored"
+        );
+        assert_eq!(unlowered.context_files[0].alias.as_deref(), Some("schema"));
+        assert_eq!(unlowered.context_files[0].path, "schema.json");
     }
 
     /// L5: Agent `from` field is lost during roundtrip.
