@@ -539,20 +539,9 @@ fn navigate_segments(
     // Auto-parse JSON strings so exec: output like '{"name":"Nika"}'
     // can be navigated with segments like .name
     let parsed;
-    let root = if let Value::String(s) = value {
-        let trimmed = s.trim();
-        if (trimmed.starts_with('{') && trimmed.ends_with('}'))
-            || (trimmed.starts_with('[') && trimmed.ends_with(']'))
-        {
-            if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
-                parsed = v;
-                &parsed
-            } else {
-                value
-            }
-        } else {
-            value
-        }
+    let root = if let Some(v) = crate::binding::jsonpath::try_parse_json_str(value) {
+        parsed = v;
+        &parsed
     } else {
         value
     };

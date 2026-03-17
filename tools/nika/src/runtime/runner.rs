@@ -1166,30 +1166,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     });
                                 match base_result {
                                     Ok(base_value) => {
-                                        // Parse JSON strings before traversal
-                                        let parsed_value: Value;
-                                        let working_value: &Value = if let Some(s) =
-                                            base_value.as_str()
-                                        {
-                                            let trimmed = s.trim();
-                                            if (trimmed.starts_with('{') && trimmed.ends_with('}'))
-                                                || (trimmed.starts_with('[')
-                                                    && trimmed.ends_with(']'))
-                                            {
-                                                if let Ok(parsed) =
-                                                    serde_json::from_str::<Value>(trimmed)
-                                                {
-                                                    parsed_value = parsed;
-                                                    &parsed_value
-                                                } else {
-                                                    &base_value
-                                                }
+                                        // Auto-parse JSON strings before traversal
+                                        let parsed_value;
+                                        let working_value: &Value =
+                                            if let Some(v) = crate::binding::jsonpath::try_parse_json_str(&base_value) {
+                                                parsed_value = v;
+                                                &parsed_value
                                             } else {
                                                 &base_value
-                                            }
-                                        } else {
-                                            &base_value
-                                        };
+                                            };
 
                                         // Traverse nested path segments if present
                                         let mut value_ref: &Value = working_value;
@@ -1300,26 +1285,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                                     match bindings.get_resolved(alias, &self.datastore) {
                                         Ok(base_value) => {
-                                            let parsed_value: Value;
+                                            // Auto-parse JSON strings
+                                            let parsed_value;
                                             let working_value: &Value =
-                                                if let Some(s) = base_value.as_str() {
-                                                    let trimmed = s.trim();
-                                                    if (trimmed.starts_with('{')
-                                                        && trimmed.ends_with('}'))
-                                                        || (trimmed.starts_with('[')
-                                                            && trimmed.ends_with(']'))
-                                                    {
-                                                        if let Ok(parsed) =
-                                                            serde_json::from_str::<Value>(trimmed)
-                                                        {
-                                                            parsed_value = parsed;
-                                                            &parsed_value
-                                                        } else {
-                                                            &base_value
-                                                        }
-                                                    } else {
-                                                        &base_value
-                                                    }
+                                                if let Some(v) = crate::binding::jsonpath::try_parse_json_str(&base_value) {
+                                                    parsed_value = v;
+                                                    &parsed_value
                                                 } else {
                                                     &base_value
                                                 };

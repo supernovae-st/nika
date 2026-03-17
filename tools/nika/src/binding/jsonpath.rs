@@ -31,6 +31,28 @@ use serde_json_path::JsonPath;
 
 use crate::error::NikaError;
 
+/// Try to parse a JSON string Value into a structured Value.
+///
+/// If `value` is a `Value::String` containing valid JSON (object or array),
+/// returns the parsed Value. Otherwise returns `None`.
+///
+/// This is the single source of truth for the "auto-parse JSON strings"
+/// pattern used throughout the binding system (jsonpath, resolve, runner).
+pub fn try_parse_json_str(value: &Value) -> Option<Value> {
+    if let Value::String(s) = value {
+        let trimmed = s.trim();
+        if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+            || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+        {
+            serde_json::from_str::<Value>(trimmed).ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 /// Evaluate a RFC 9535 JSONPath expression against a JSON value.
 ///
 /// Returns:
@@ -157,20 +179,9 @@ pub fn apply(value: &Value, segments: &[Segment]) -> Option<Value> {
     // Auto-parse JSON strings before traversal so that exec: output
     // like '{"name":"Nika"}' can be accessed via $task.name
     let parsed;
-    let mut current = if let Value::String(s) = value {
-        let trimmed = s.trim();
-        if (trimmed.starts_with('{') && trimmed.ends_with('}'))
-            || (trimmed.starts_with('[') && trimmed.ends_with(']'))
-        {
-            if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
-                parsed = v;
-                &parsed
-            } else {
-                value
-            }
-        } else {
-            value
-        }
+    let mut current = if let Some(v) = try_parse_json_str(value) {
+        parsed = v;
+        &parsed
     } else {
         value
     };
