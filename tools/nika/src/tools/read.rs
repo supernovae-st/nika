@@ -357,20 +357,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_relative_path_rejected() {
-        let (_temp_dir, ctx) = setup_test().await;
+    async fn test_read_relative_path_resolved() {
+        let (temp_dir, ctx) = setup_test().await;
+
+        // Create a file at a relative path within the working dir
+        let file_path = temp_dir.path().join("relative.txt");
+        tokio::fs::write(&file_path, "relative content").await.unwrap();
 
         let tool = ReadTool::new(ctx);
         let result = tool
             .execute(ReadParams {
-                file_path: "relative/path.txt".to_string(),
+                file_path: "relative.txt".to_string(),
                 offset: None,
                 limit: None,
             })
             .await;
 
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("absolute"));
+        assert!(result.is_ok(), "relative path should resolve: {:?}", result.err());
+        assert!(result.unwrap().content.contains("relative content"));
     }
 
     #[tokio::test]

@@ -200,22 +200,21 @@ impl ToolContext {
 
     /// Validate a path is safe to access
     ///
+    /// Relative paths are resolved against the working directory.
     /// Returns the canonicalized path if valid.
     ///
     /// # Errors
     ///
-    /// - `RelativePath` if path is not absolute
     /// - `PathOutOfBounds` if path is outside working directory
     pub fn validate_path(&self, file_path: &str) -> Result<PathBuf, NikaError> {
-        let path = PathBuf::from(file_path);
+        let raw_path = PathBuf::from(file_path);
 
-        // Must be absolute
-        if !path.is_absolute() {
-            return Err(NikaError::ToolError {
-                code: ToolErrorCode::RelativePath.code(),
-                message: format!("Path must be absolute: {}", file_path),
-            });
-        }
+        // Resolve relative paths against working directory
+        let path = if raw_path.is_absolute() {
+            raw_path
+        } else {
+            self.working_dir.join(&raw_path)
+        };
 
         // Canonicalize to resolve .. and symlinks
         // For existing files: canonicalize directly
@@ -487,11 +486,14 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_path_absolute() {
+    fn test_validate_path_relative_resolved() {
         let ctx = test_context();
-        let result = ctx.validate_path("relative/path.txt");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("absolute"));
+        let result = ctx.validate_path("src/main.rs");
+        // Relative paths should be resolved against working_dir, not rejected
+        assert!(result.is_ok(), "relative path should resolve: {:?}", result.err());
+        let resolved = result.unwrap();
+        assert!(resolved.is_absolute(), "resolved path must be absolute");
+        assert!(resolved.ends_with("src/main.rs"));
     }
 
     #[test]
