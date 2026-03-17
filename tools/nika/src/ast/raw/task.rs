@@ -69,6 +69,9 @@ pub struct RawTask {
     /// Artifact output configuration (persists task output to files)
     pub artifact: Option<Spanned<serde_json::Value>>,
 
+    /// Log configuration override for this task
+    pub log: Option<Spanned<serde_json::Value>>,
+
     /// The span of the entire task block
     pub span: Span,
 }

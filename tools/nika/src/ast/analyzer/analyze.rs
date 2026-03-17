@@ -502,9 +502,31 @@ fn analyze_task(
         concurrency: raw.concurrency.as_ref().map(|s| s.value),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value),
         artifact: raw.artifact.as_ref().and_then(|s| {
-            serde_json::from_value(s.value.clone()).ok()
+            match serde_json::from_value(s.value.clone()) {
+                Ok(spec) => Some(spec),
+                Err(e) => {
+                    tracing::warn!(
+                        task_id = %raw.id.value,
+                        error = %e,
+                        "Failed to parse artifact: config, ignoring"
+                    );
+                    None
+                }
+            }
         }),
-        log: None,
+        log: raw.log.as_ref().and_then(|s| {
+            match serde_json::from_value(s.value.clone()) {
+                Ok(config) => Some(config),
+                Err(e) => {
+                    tracing::warn!(
+                        task_id = %raw.id.value,
+                        error = %e,
+                        "Failed to parse log: config, ignoring"
+                    );
+                    None
+                }
+            }
+        }),
         structured: raw.structured.clone(),
         span: raw.span,
     };

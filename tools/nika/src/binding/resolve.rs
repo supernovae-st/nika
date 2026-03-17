@@ -2412,6 +2412,36 @@ mod tests {
         assert_eq!(result, None);
     }
 
+    #[test]
+    fn navigate_segments_json_string_auto_parse() {
+        // Exec output is stored as Value::String containing JSON
+        let value = json!(r#"{"name":"Nika","version":"0.30"}"#);
+        let segments = vec![PathSegment::Field(Arc::from("name"))];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!("Nika")));
+    }
+
+    #[test]
+    fn navigate_segments_json_string_deep_access() {
+        let value = json!(r#"{"a":{"b":{"c":"deep"}}}"#);
+        let segments = vec![
+            PathSegment::Field(Arc::from("a")),
+            PathSegment::Field(Arc::from("b")),
+            PathSegment::Field(Arc::from("c")),
+        ];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, Some(json!("deep")));
+    }
+
+    #[test]
+    fn navigate_segments_plain_string_returns_none() {
+        // Non-JSON string should NOT be parsed
+        let value = json!("hello world");
+        let segments = vec![PathSegment::Field(Arc::from("name"))];
+        let result = navigate_segments(&value, &segments).unwrap();
+        assert_eq!(result, None);
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // validate_binding_type tests
     // ═══════════════════════════════════════════════════════════════
