@@ -1161,17 +1161,34 @@ impl TaskExecutor {
             "Agent loop completed"
         );
 
-        // Extract response text from final_output wrapper
-        // Agent returns {"response": "..."} but downstream expects raw LLM output
-        // for JSON extraction and schema validation
-        let response = result
-            .final_output
-            .get("response")
-            .and_then(|v| v.as_str())
-            // Fallback to empty string if no response field
-            .unwrap_or("");
+        // Telemetry: log non-string response types for observability
+        if let Some(v) = result.final_output.get("response") {
+            if !v.is_string() {
+                tracing::debug!(
+                    task_id = %task_id,
+                    response_type = match v {
+                        serde_json::Value::Object(_) => "object",
+                        serde_json::Value::Array(_) => "array",
+                        serde_json::Value::Number(_) => "number",
+                        serde_json::Value::Bool(_) => "boolean",
+                        serde_json::Value::Null => "null",
+                        _ => "unknown",
+                    },
+                    "Agent response is non-string JSON, serializing"
+                );
+            }
+        }
 
-        Ok(response.to_string())
+        // Extract response from final_output wrapper
+        // Agent returns {"response": <value>} — value may be a string, object, array, number, etc.
+        // Strings are returned as-is (no extra quotes), other types are serialized to JSON.
+        let response = match result.final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        Ok(response)
     }
 }
 
@@ -1316,5 +1333,118 @@ mod tests {
             extracted_bool, "",
             "BUG PROVEN: Boolean responses are also silently lost"
         );
+    }
+
+    // ========================================================================
+    // TDD tests for agent response extraction fix
+    // ========================================================================
+
+    #[test]
+    fn agent_response_preserves_json_object() {
+        let mut output = serde_json::Map::new();
+        let obj = serde_json::json!({"title": "Hello", "score": 42});
+        output.insert("response".to_string(), obj.clone());
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, r#"{"title":"Hello","score":42}"#);
+    }
+
+    #[test]
+    fn agent_response_preserves_json_array() {
+        let mut output = serde_json::Map::new();
+        let arr = serde_json::json!(["item1", "item2", "item3"]);
+        output.insert("response".to_string(), arr);
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, r#"["item1","item2","item3"]"#);
+    }
+
+    #[test]
+    fn agent_response_preserves_string() {
+        let mut output = serde_json::Map::new();
+        output.insert(
+            "response".to_string(),
+            serde_json::Value::String("Hello world".to_string()),
+        );
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, "Hello world");
+    }
+
+    #[test]
+    fn agent_response_handles_number() {
+        let mut output = serde_json::Map::new();
+        output.insert("response".to_string(), serde_json::json!(42));
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, "42");
+    }
+
+    #[test]
+    fn agent_response_handles_boolean() {
+        let mut output = serde_json::Map::new();
+        output.insert("response".to_string(), serde_json::json!(true));
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, "true");
+    }
+
+    #[test]
+    fn agent_response_handles_null() {
+        let mut output = serde_json::Map::new();
+        output.insert("response".to_string(), serde_json::Value::Null);
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, "null");
+    }
+
+    #[test]
+    fn agent_response_handles_missing_key() {
+        let output = serde_json::Map::new();
+        let final_output = serde_json::Value::Object(output);
+
+        let response = match final_output.get("response") {
+            Some(serde_json::Value::String(s)) => s.clone(),
+            Some(v) => v.to_string(),
+            None => String::new(),
+        };
+
+        assert_eq!(response, "");
     }
 }
