@@ -1,0 +1,21 @@
+# AUDIT-02: Structured output with xAI (test schema enforcement)
+schema: nika/workflow@0.12
+workflow: audit-02-structured-xai
+
+tasks:
+  - id: extract
+    infer: "Extract info: Tokyo is the capital of Japan with 14M people"
+    provider: xai
+    model: grok-3-fast
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          city:
+            type: string
+          country:
+            type: string
+          population:
+            type: string
+        required: [city, country, population]

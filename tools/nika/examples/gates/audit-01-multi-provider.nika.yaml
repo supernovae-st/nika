@@ -1,0 +1,23 @@
+# AUDIT-01: Multi-provider switching in same workflow
+schema: nika/workflow@0.12
+workflow: audit-01-multi-provider
+
+tasks:
+  - id: openai_task
+    infer: "Reply with exactly one word: OPENAI"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+
+  - id: xai_task
+    infer: "Reply with exactly one word: GROK"
+    provider: xai
+    model: grok-3-fast
+    max_tokens: 10
+
+  - id: verify
+    depends_on: [openai_task, xai_task]
+    with:
+      openai_result: $openai_task
+      xai_result: $xai_task
+    exec: "echo 'OpenAI={{with.openai_result}} | xAI={{with.xai_result}}'"

@@ -1,0 +1,26 @@
+# AUDIT-04: Diamond dependency pattern (A → B,C → D)
+schema: nika/workflow@0.12
+workflow: audit-04-diamond
+
+tasks:
+  - id: source
+    exec: "echo 'ROOT_DATA'"
+
+  - id: left
+    depends_on: [source]
+    with:
+      data: $source
+    exec: "echo 'LEFT({{with.data}})'"
+
+  - id: right
+    depends_on: [source]
+    with:
+      data: $source
+    exec: "echo 'RIGHT({{with.data}})'"
+
+  - id: merge
+    depends_on: [left, right]
+    with:
+      l: $left
+      r: $right
+    exec: "echo 'MERGED: {{with.l}} + {{with.r}}'"
