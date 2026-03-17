@@ -1139,7 +1139,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     continue;
                                 };
 
-                                match bindings.get_resolved(base_alias, &self.datastore) {
+                                // Try with: bindings first, then fall back to datastore
+                                let base_result = bindings
+                                    .get_resolved(base_alias, &self.datastore)
+                                    .or_else(|_| {
+                                        // Fall back to direct datastore lookup for $task_id
+                                        self.datastore
+                                            .get_output(base_alias)
+                                            .map(|arc| arc.as_ref().clone())
+                                            .ok_or_else(|| NikaError::BindingNotFound {
+                                                alias: base_alias.to_string(),
+                                            })
+                                    });
+                                match base_result {
                                     Ok(base_value) => {
                                         // Parse JSON strings before traversal
                                         let parsed_value: Value;
