@@ -1,0 +1,25 @@
+# GATE-1: context.files contains REAL file content
+# Validates BUG-1 fix: context.files transferred from raw to analyzed workflow
+#
+# Run: nika run examples/gates/gate-01-context-files.nika.yaml
+
+schema: nika/workflow@0.12
+workflow: gate-01-context-files
+description: "Validate context.files resolves at runtime"
+
+context:
+  files:
+    brand: ./context/brand.md
+    persona: ./context/persona.json
+
+tasks:
+  - id: use_context
+    infer: |
+      Summarize the following brand information in one sentence:
+      {{context.files.brand}}
+
+      Also mention the persona name from: {{context.files.persona}}
+    provider: claude
+    model: claude-haiku-4-5-20251001
+    max_tokens: 200
+    description: "Uses context.files bindings — should NOT fail with 'context not found'"

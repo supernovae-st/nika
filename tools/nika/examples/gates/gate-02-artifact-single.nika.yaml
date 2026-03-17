@@ -1,0 +1,22 @@
+# GATE-2: Artifact single file EXISTS on disk with correct content
+# Validates BUG-3 fix: artifact source resolution works
+#
+# Run: nika run examples/gates/gate-02-artifact-single.nika.yaml
+
+schema: nika/workflow@0.12
+workflow: gate-02-artifact-single
+description: "Validate single artifact file is written with content"
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: generate
+    infer: "Write exactly: GATE-02-PASS"
+    provider: claude
+    model: claude-haiku-4-5-20251001
+    max_tokens: 50
+    artifact:
+      path: gate-02-result.txt
+      format: text
+    description: "Should create gate-02-result.txt with non-empty content"

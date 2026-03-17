@@ -1,0 +1,19 @@
+# GATE-9: ?? operator returns fallback value
+#
+# Run: nika run examples/gates/gate-09-fallback-operator.nika.yaml
+
+schema: nika/workflow@0.12
+workflow: gate-09-fallback-operator
+description: "Validate ?? fallback operator works in with: bindings"
+
+tasks:
+  - id: produce
+    exec: "echo 'hello'"
+    description: "Produces a value"
+
+  - id: test_fallback
+    depends_on: [produce]
+    with:
+      safe_value: $produce.missing_field ?? "default_value"
+    exec: "echo 'value={{with.safe_value}}'"
+    description: "Should output 'value=default_value' since produce.missing_field doesn't exist"
