@@ -587,35 +587,124 @@ mod pipeline_roundtrip_fuzzing {
         }
     }
 
+    prop_compose! {
+        /// Generate workflow with `with:` bindings (implicit deps via $task_ref)
+        fn arb_with_workflow()(
+            n in 2usize..5,
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,30}", 2..6),
+        ) -> String {
+            let n = n.min(prompts.len());
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
+            // First task: standalone
+            yaml.push_str(&format!("  - id: task_0\n    infer: \"{}\"\n", prompts[0]));
+            // Remaining tasks: each binds previous via with:
+            for i in 1..n {
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                yaml.push_str(&format!("    with:\n      prev: $task_{}\n", i - 1));
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+            }
+            yaml
+        }
+    }
+
+    prop_compose! {
+        /// Generate workflow with mixed verbs (infer + exec)
+        fn arb_mixed_verb_workflow()(
+            n in 2usize..5,
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,30}", 2..6),
+            commands in prop::collection::vec(r"echo [a-zA-Z0-9]{1,15}", 2..6),
+        ) -> String {
+            let n = n.min(prompts.len()).min(commands.len());
+            let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
+            for i in 0..n {
+                yaml.push_str(&format!("  - id: task_{}\n", i));
+                if i > 0 {
+                    yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
+                }
+                if i % 2 == 0 {
+                    yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                } else {
+                    yaml.push_str(&format!("    exec: \"{}\"\n", commands[i]));
+                }
+            }
+            yaml
+        }
+    }
+
+    prop_compose! {
+        /// Generate diamond DAG: A → B, A → C, B → D, C → D
+        fn arb_diamond_workflow()(
+            prompts in prop::collection::vec(r"[a-zA-Z0-9 ]{1,20}", 4..5),
+        ) -> String {
+            format!(
+                "schema: nika/workflow@0.12\ntasks:\n\
+                 \x20 - id: root\n    infer: \"{}\"\n\
+                 \x20 - id: left\n    depends_on: [root]\n    infer: \"{}\"\n\
+                 \x20 - id: right\n    depends_on: [root]\n    infer: \"{}\"\n\
+                 \x20 - id: sink\n    depends_on: [left, right]\n    infer: \"{}\"\n",
+                prompts[0], prompts[1], prompts[2], prompts[3]
+            )
+        }
+    }
+
+    /// Shared roundtrip assertion: parse → analyze → lower → unlower preserves task count + IDs
+    fn assert_roundtrip(yaml: &str) -> Result<(), proptest::test_runner::TestCaseError> {
+        let raw = match parse(yaml, FileId(0)) {
+            Ok(r) => r,
+            Err(_) => return Ok(()), // Skip unparseable
+        };
+        let analyzed = match analyze(raw) {
+            r if r.is_ok() => r.value.unwrap(),
+            _ => return Ok(()), // Skip invalid
+        };
+        let task_count = analyzed.tasks.len();
+        let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
+
+        let lowered = match lower(analyzed) {
+            Ok(l) => l,
+            Err(_) => return Ok(()),
+        };
+        let unlowered = match unlower(lowered) {
+            Ok(u) => u,
+            Err(_) => return Ok(()),
+        };
+
+        prop_assert_eq!(
+            unlowered.tasks.len(),
+            task_count,
+            "Task count should be preserved through roundtrip"
+        );
+        let rt_names: Vec<String> = unlowered.tasks.iter().map(|t| t.name.clone()).collect();
+        prop_assert_eq!(
+            rt_names, task_names,
+            "Task names should be preserved through roundtrip"
+        );
+        Ok(())
+    }
+
     proptest! {
         /// Property: Full pipeline roundtrip preserves task count and IDs
         #[test]
         fn test_pipeline_roundtrip_task_count(yaml in arb_pipeline_workflow()) {
-            let raw = match parse(&yaml, FileId(0)) {
-                Ok(r) => r,
-                Err(_) => return Ok(()), // Skip unparseable
-            };
-            let analyzed = match analyze(raw) {
-                r if r.is_ok() => r.value.unwrap(),
-                _ => return Ok(()), // Skip invalid
-            };
-            let task_count = analyzed.tasks.len();
-            let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
+            assert_roundtrip(&yaml)?;
+        }
 
-            let lowered = match lower(analyzed) {
-                Ok(l) => l,
-                Err(_) => return Ok(()),
-            };
-            let unlowered = match unlower(lowered) {
-                Ok(u) => u,
-                Err(_) => return Ok(()),
-            };
+        /// Property: Workflows with `with:` bindings survive roundtrip
+        #[test]
+        fn test_pipeline_roundtrip_with_bindings(yaml in arb_with_workflow()) {
+            assert_roundtrip(&yaml)?;
+        }
 
-            prop_assert_eq!(unlowered.tasks.len(), task_count,
-                "Task count should be preserved through roundtrip");
-            let rt_names: Vec<String> = unlowered.tasks.iter().map(|t| t.name.clone()).collect();
-            prop_assert_eq!(rt_names, task_names,
-                "Task names should be preserved through roundtrip");
+        /// Property: Mixed-verb workflows survive roundtrip
+        #[test]
+        fn test_pipeline_roundtrip_mixed_verbs(yaml in arb_mixed_verb_workflow()) {
+            assert_roundtrip(&yaml)?;
+        }
+
+        /// Property: Diamond DAGs survive roundtrip
+        #[test]
+        fn test_pipeline_roundtrip_diamond(yaml in arb_diamond_workflow()) {
+            assert_roundtrip(&yaml)?;
         }
     }
 }
