@@ -1,0 +1,22 @@
+# E2E-03: Chain of tasks with bindings — data flows through pipeline
+schema: nika/workflow@0.12
+workflow: e2e-03-chain
+
+tasks:
+  - id: get_date
+    exec: "date +%Y-%m-%d"
+
+  - id: generate
+    depends_on: [get_date]
+    with:
+      today: $get_date
+    infer: "Today is {{with.today}}. Write a one-sentence fun fact about this date. Start with 'Fun fact:'"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+
+  - id: format
+    depends_on: [generate]
+    with:
+      fact: $generate
+    exec: "printf '## Daily Fun Fact\n%s\n' \"{{with.fact}}\""

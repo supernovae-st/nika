@@ -1,0 +1,21 @@
+# E2E-09: OpenAI structured output — tests BUG-4 fix
+schema: nika/workflow@0.12
+workflow: e2e-09-openai-structured
+
+tasks:
+  - id: extract
+    infer: "Extract: Paris is the capital of France with 2.1M people"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          city:
+            type: string
+          country:
+            type: string
+          population:
+            type: string
+        required: [city, country, population]

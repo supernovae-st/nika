@@ -1,0 +1,16 @@
+# E2E-06: Artifact write — file should exist on disk with content
+schema: nika/workflow@0.12
+workflow: e2e-06-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: generate
+    infer: "Write a haiku about Rust programming. Just the haiku, nothing else."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: rust-haiku.txt
+      format: text

@@ -1,0 +1,22 @@
+# E2E-05: for_each iteration — parallel task expansion
+schema: nika/workflow@0.12
+workflow: e2e-05-for-each
+
+tasks:
+  - id: get_items
+    exec: 'echo ''["apple","banana","cherry"]'''
+
+  - id: process
+    depends_on: [get_items]
+    for_each: "$get_items"
+    as: fruit
+    infer: "In one word, what color is a {{with.fruit}}?"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+
+  - id: collect
+    depends_on: [process]
+    with:
+      results: $process
+    exec: "echo 'Results: {{with.results}}'"

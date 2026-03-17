@@ -19,7 +19,7 @@ tasks:
       {{context.files.brand}}
 
       Also mention the persona name from: {{context.files.persona}}
-    provider: claude
-    model: claude-haiku-4-5-20251001
+    provider: openai
+    model: gpt-4.1-mini
     max_tokens: 200
     description: "Uses context.files bindings — should NOT fail with 'context not found'"

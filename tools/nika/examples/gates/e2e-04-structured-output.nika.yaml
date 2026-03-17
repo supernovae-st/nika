@@ -1,0 +1,23 @@
+# E2E-04: Structured output with JSON schema
+schema: nika/workflow@0.12
+workflow: e2e-04-structured
+
+tasks:
+  - id: extract
+    infer: "Extract metadata from this text: 'Rust 1.84 released on 2025-01-09 with async closures'"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          language:
+            type: string
+          version:
+            type: string
+          date:
+            type: string
+          feature:
+            type: string
+        required: [language, version, date, feature]
