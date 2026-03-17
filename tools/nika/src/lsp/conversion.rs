@@ -590,24 +590,39 @@ mod tests {
         // 'a'=byte 0, 'b'=byte 1, \r\n=bytes 2-3 (line break), 'c'=byte 4, 'd'=byte 5
         assert_eq!(
             offset_to_position(0, source),
-            Position { line: 0, character: 0 }, // 'a'
+            Position {
+                line: 0,
+                character: 0
+            }, // 'a'
         );
         assert_eq!(
             offset_to_position(1, source),
-            Position { line: 0, character: 1 }, // 'b'
+            Position {
+                line: 0,
+                character: 1
+            }, // 'b'
         );
         // Offset 2 is the \r: it's consumed as a line break, so position is line 1
         assert_eq!(
             offset_to_position(2, source),
-            Position { line: 0, character: 2 }, // at \r (end of line 0 content)
+            Position {
+                line: 0,
+                character: 2
+            }, // at \r (end of line 0 content)
         );
         assert_eq!(
             offset_to_position(4, source),
-            Position { line: 1, character: 0 }, // 'c'
+            Position {
+                line: 1,
+                character: 0
+            }, // 'c'
         );
         assert_eq!(
             offset_to_position(5, source),
-            Position { line: 1, character: 1 }, // 'd'
+            Position {
+                line: 1,
+                character: 1
+            }, // 'd'
         );
     }
 
@@ -616,19 +631,43 @@ mod tests {
     fn test_position_to_offset_crlf() {
         let source = "ab\r\ncd";
         assert_eq!(
-            position_to_offset(Position { line: 0, character: 0 }, source),
+            position_to_offset(
+                Position {
+                    line: 0,
+                    character: 0
+                },
+                source
+            ),
             0,
         );
         assert_eq!(
-            position_to_offset(Position { line: 0, character: 2 }, source),
+            position_to_offset(
+                Position {
+                    line: 0,
+                    character: 2
+                },
+                source
+            ),
             2, // end of visible content on line 0
         );
         assert_eq!(
-            position_to_offset(Position { line: 1, character: 0 }, source),
+            position_to_offset(
+                Position {
+                    line: 1,
+                    character: 0
+                },
+                source
+            ),
             4, // 'c'
         );
         assert_eq!(
-            position_to_offset(Position { line: 1, character: 1 }, source),
+            position_to_offset(
+                Position {
+                    line: 1,
+                    character: 1
+                },
+                source
+            ),
             5, // 'd'
         );
     }
@@ -658,15 +697,24 @@ mod tests {
         let source = "abc\rdef";
         assert_eq!(
             offset_to_position(3, source),
-            Position { line: 0, character: 3 }, // at \r (end of line 0 content)
+            Position {
+                line: 0,
+                character: 3
+            }, // at \r (end of line 0 content)
         );
         assert_eq!(
             offset_to_position(4, source),
-            Position { line: 1, character: 0 }, // 'd' is on line 1
+            Position {
+                line: 1,
+                character: 0
+            }, // 'd' is on line 1
         );
         assert_eq!(
             offset_to_position(6, source),
-            Position { line: 1, character: 2 }, // 'f'
+            Position {
+                line: 1,
+                character: 2
+            }, // 'f'
         );
     }
 
@@ -675,11 +723,23 @@ mod tests {
     fn test_position_to_offset_isolated_cr() {
         let source = "abc\rdef";
         assert_eq!(
-            position_to_offset(Position { line: 1, character: 0 }, source),
+            position_to_offset(
+                Position {
+                    line: 1,
+                    character: 0
+                },
+                source
+            ),
             4, // 'd'
         );
         assert_eq!(
-            position_to_offset(Position { line: 1, character: 2 }, source),
+            position_to_offset(
+                Position {
+                    line: 1,
+                    character: 2
+                },
+                source
+            ),
             6, // 'f'
         );
     }
@@ -691,11 +751,17 @@ mod tests {
         let source = "abc\r\r\ndef";
         assert_eq!(
             offset_to_position(4, source),
-            Position { line: 1, character: 0 }, // second \r (start of line 1 → line break)
+            Position {
+                line: 1,
+                character: 0
+            }, // second \r (start of line 1 → line break)
         );
         assert_eq!(
             offset_to_position(6, source),
-            Position { line: 2, character: 0 }, // 'd' on line 2
+            Position {
+                line: 2,
+                character: 0
+            }, // 'd' on line 2
         );
     }
 
@@ -706,7 +772,10 @@ mod tests {
         // Past end of \r should be on line 1
         assert_eq!(
             offset_to_position(4, source),
-            Position { line: 1, character: 0 },
+            Position {
+                line: 1,
+                character: 0
+            },
         );
     }
 
@@ -718,15 +787,24 @@ mod tests {
         // 'a'=0, \n=1, 'b'=2, \r=3, \n=4, 'c'=5, \r=6, 'd'=7
         assert_eq!(
             offset_to_position(2, source),
-            Position { line: 1, character: 0 }, // 'b'
+            Position {
+                line: 1,
+                character: 0
+            }, // 'b'
         );
         assert_eq!(
             offset_to_position(5, source),
-            Position { line: 2, character: 0 }, // 'c'
+            Position {
+                line: 2,
+                character: 0
+            }, // 'c'
         );
         assert_eq!(
             offset_to_position(7, source),
-            Position { line: 3, character: 0 }, // 'd'
+            Position {
+                line: 3,
+                character: 0
+            }, // 'd'
         );
     }
 
@@ -752,6 +830,12 @@ mod tests {
         let source = "caf\u{00e9}\rna\u{00ef}ve";
         // café = 5 bytes (c,a,f,é=2 bytes), \r=byte 5, n=byte 6
         let pos = offset_to_position(6, source);
-        assert_eq!(pos, Position { line: 1, character: 0 });
+        assert_eq!(
+            pos,
+            Position {
+                line: 1,
+                character: 0
+            }
+        );
     }
 }

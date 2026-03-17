@@ -1630,7 +1630,13 @@ mod tests {
         );
     }
 
-    /// L2: Markdown output format maps to Text during unlowering.
+    /// L2: `unlower_output` maps `OutputFormat::Markdown` to `AnalyzedOutputFormat::Text`.
+    ///
+    /// Note: `AnalyzedOutputFormat` has no `Markdown` variant, so `lower()` never
+    /// produces `OutputFormat::Markdown`. This test verifies `unlower_output()`
+    /// behavior directly by injecting a Markdown format into a lowered workflow.
+    /// The test exists because external YAML files or future code paths may produce
+    /// `OutputFormat::Markdown` that feeds into `unlower()`.
     #[test]
     fn roundtrip_markdown_output_becomes_text() {
         use crate::ast::output::OutputFormat as RuntimeOutputFormat;
@@ -1646,7 +1652,8 @@ mod tests {
             ..dummy_task(id, "md_task")
         });
         let lowered = lower(wf).unwrap();
-        // Manually change format to Markdown (simulating a Markdown output)
+        // Inject Markdown format into lowered workflow (cannot occur via lower(),
+        // but can occur when deserializing runtime YAML that uses "markdown").
         let lowered_clone = Workflow {
             tasks: lowered
                 .tasks

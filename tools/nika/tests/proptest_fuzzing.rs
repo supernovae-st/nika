@@ -830,9 +830,9 @@ mod algebraic_property_tests {
                 "Determinism: provider should be identical");
         }
 
-        /// Algebraic: cycle error symmetry — A→B cycle produces same error as B→A.
+        /// Algebraic: cycle detection is bidirectional — A→B and B→A both detected.
         #[test]
-        fn test_cycle_error_symmetry(
+        fn test_cycle_detection_bidirectional(
             task_a in arb_task_id(),
             task_b in arb_task_id()
         ) {
