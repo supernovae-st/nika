@@ -14,10 +14,10 @@ use std::collections::{HashMap, HashSet};
 use super::errors::{AnalyzeError, AnalyzeErrorKind, AnalyzeResult};
 use super::suggestions::find_similar;
 use crate::ast::analyzed::{
-    AnalyzedAgentAction, AnalyzedExecAction, AnalyzedFetchAction, AnalyzedForEach,
-    AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction, AnalyzedMcpServer,
-    AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow, HttpMethod,
-    McpTransport, OutputFormat, TaskId, TaskTable,
+    AnalyzedAgentAction, AnalyzedContextFile, AnalyzedExecAction, AnalyzedFetchAction,
+    AnalyzedForEach, AnalyzedImportSpec, AnalyzedInferAction, AnalyzedInvokeAction,
+    AnalyzedMcpServer, AnalyzedOutput, AnalyzedRetry, AnalyzedTask, AnalyzedTaskAction,
+    AnalyzedWorkflow, HttpMethod, McpTransport, OutputFormat, TaskId, TaskTable,
 };
 use crate::ast::raw::{
     RawAgentAction, RawExecAction, RawFetchAction, RawInferAction, RawInvokeAction, RawTask,
@@ -217,6 +217,20 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
             workflow
                 .inputs
                 .insert(key_spanned.value.clone(), val_spanned.value.clone());
+        }
+    }
+
+    // 6a. Analyze context files
+    if let Some(ref context) = raw.context {
+        if let Some(ref files) = context.value.files {
+            for (alias_spanned, path_spanned) in files {
+                workflow.context_files.push(AnalyzedContextFile {
+                    path: path_spanned.value.clone(),
+                    alias: Some(alias_spanned.value.clone()),
+                    max_bytes: None,
+                    span: path_spanned.span,
+                });
+            }
         }
     }
 
@@ -1142,7 +1156,9 @@ fn detect_cycles_dfs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::raw::{RawImportSpec, RawMcpConfig, RawMcpServer, RawTask, RawWorkflow};
+    use crate::ast::raw::{
+        RawContextConfig, RawImportSpec, RawMcpConfig, RawMcpServer, RawTask, RawWorkflow,
+    };
     use crate::source::{FileId, Spanned};
     use indexmap::IndexMap;
 
@@ -2408,6 +2424,70 @@ mod tests {
                 .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency),
             "self-cycle via with: should be detected: {:?}",
             result.errors
+        );
+    }
+
+    // ── BUG-1: context.files must be transferred from raw to analyzed ──
+
+    #[test]
+    fn test_context_files_transferred_to_analyzed() {
+        let task = make_raw_task("greet");
+        let mut raw = make_raw_workflow("nika/workflow@0.9", vec![task]);
+
+        // Add context with two files
+        let mut files = IndexMap::new();
+        files.insert(
+            Spanned::new("brand".to_string(), make_span(0, 5)),
+            Spanned::new("./context/brand.md".to_string(), make_span(0, 18)),
+        );
+        files.insert(
+            Spanned::new("persona".to_string(), make_span(0, 7)),
+            Spanned::new("./context/persona.json".to_string(), make_span(0, 22)),
+        );
+        raw.context = Some(Spanned::new(
+            RawContextConfig {
+                files: Some(files),
+            },
+            make_span(0, 50),
+        ));
+
+        let result = analyze(raw);
+        assert!(result.is_ok(), "analyze failed: {:?}", result.errors);
+
+        let workflow = result.value.unwrap();
+        assert_eq!(
+            workflow.context_files.len(),
+            2,
+            "expected 2 context files, got {}",
+            workflow.context_files.len()
+        );
+
+        // Verify aliases and paths are preserved
+        let aliases: Vec<&str> = workflow
+            .context_files
+            .iter()
+            .filter_map(|cf| cf.alias.as_deref())
+            .collect();
+        assert!(aliases.contains(&"brand"), "missing 'brand' alias");
+        assert!(aliases.contains(&"persona"), "missing 'persona' alias");
+
+        let paths: Vec<&str> = workflow.context_files.iter().map(|cf| cf.path.as_str()).collect();
+        assert!(paths.contains(&"./context/brand.md"));
+        assert!(paths.contains(&"./context/persona.json"));
+    }
+
+    #[test]
+    fn test_context_files_empty_when_no_context_block() {
+        let task = make_raw_task("greet");
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let workflow = result.value.unwrap();
+        assert!(
+            workflow.context_files.is_empty(),
+            "context_files should be empty when no context: block"
         );
     }
 }
