@@ -1440,6 +1440,51 @@ mod tests {
             .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
     }
 
+    #[test]
+    fn test_analyze_cyclic_dependency_three_tasks_via_with() {
+        // A → B → C → A via with: bindings (transitive implicit cycle)
+        let mut a = make_raw_task("a");
+        add_with_ref(&mut a, "x", "$c.out");
+
+        let mut b = make_raw_task("b");
+        add_with_ref(&mut b, "x", "$a.out");
+
+        let mut c = make_raw_task("c");
+        add_with_ref(&mut c, "x", "$b.out");
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![a, b, c]);
+        let result = analyze(raw);
+
+        assert!(result.is_err(), "3-task implicit cycle should be detected");
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency));
+    }
+
+    #[test]
+    fn test_analyze_complex_jsonpath_extracts_dep() {
+        // Deep JSONPath with transforms and default: $task1.data.items | sort | first(3) ?? []
+        let mut task2 = make_raw_task("task2");
+        add_with_ref(
+            &mut task2,
+            "items",
+            "$task1.data.items | sort | first(3) ?? []",
+        );
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("task1"), task2]);
+        let result = analyze(raw);
+        assert!(result.is_ok());
+
+        let wf = result.value.unwrap();
+        let t2 = wf.get_task_by_name("task2").unwrap();
+        assert_eq!(
+            t2.implicit_deps.len(),
+            1,
+            "should extract dep from complex JSONPath expression"
+        );
+    }
+
     // ====================================================================
     // imports: analysis
     // ====================================================================
