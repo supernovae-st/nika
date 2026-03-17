@@ -679,7 +679,11 @@ fn parse_for_each(
             let span = marked_span_to_span(file, seq.span());
             // Array literal - serialize to JSON string for storage
             let arr: Vec<serde_json::Value> = seq.iter().map(node_to_json).collect();
-            let items_str = serde_json::to_string(&arr).unwrap_or_default();
+            let items_str = serde_json::to_string(&arr).map_err(|e| ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: format!("failed to serialize for_each items: {}", e),
+            })?;
 
             Ok(Some(Spanned::new(
                 RawForEach {
