@@ -35,6 +35,8 @@ pub fn span_to_range(span: &Span, source: &str) -> Range {
 /// Characters outside the BMP (emoji, CJK supplementary) require 2 UTF-16 units
 /// (a surrogate pair), so we use `ch.len_utf16()` instead of counting code points.
 ///
+/// Line terminators per LSP spec 3.17: `\n`, `\r\n`, and `\r` (standalone).
+///
 /// # Arguments
 ///
 /// * `offset` - Byte offset into the source
@@ -43,19 +45,32 @@ pub fn span_to_range(span: &Span, source: &str) -> Range {
 pub fn offset_to_position(offset: usize, source: &str) -> Position {
     let mut line = 0u32;
     let mut col = 0u32;
+    let bytes = source.as_bytes();
+    let mut i = 0;
 
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
+    while i < offset.min(source.len()) {
+        let b = bytes[i];
+        if b == b'\n' {
             line += 1;
             col = 0;
-        } else if ch == '\r' {
-            // Skip \r — LSP spec treats \r\n as one line break.
-            // The \n that follows will handle line increment.
+            i += 1;
+        } else if b == b'\r' {
+            line += 1;
+            col = 0;
+            i += 1;
+            // If \r\n, consume the \n as part of the same line break
+            if i < offset.min(source.len()) && bytes[i] == b'\n' {
+                i += 1;
+            }
+        } else if b < 0x80 {
+            // ASCII — 1 UTF-16 code unit
+            col += 1;
+            i += 1;
         } else {
+            // Multi-byte UTF-8: decode char for correct UTF-16 length
+            let ch = source[i..].chars().next().unwrap();
             col += ch.len_utf16() as u32;
+            i += ch.len_utf8();
         }
     }
 
@@ -66,6 +81,8 @@ pub fn offset_to_position(offset: usize, source: &str) -> Position {
 }
 
 /// Convert an LSP Position to a byte offset
+///
+/// Line terminators per LSP spec 3.17: `\n`, `\r\n`, and `\r` (standalone).
 ///
 /// # Arguments
 ///
@@ -79,23 +96,45 @@ pub fn offset_to_position(offset: usize, source: &str) -> Position {
 pub fn position_to_offset(pos: Position, source: &str) -> usize {
     let mut current_line = 0u32;
     let mut current_col = 0u32;
+    let bytes = source.as_bytes();
+    let mut i = 0;
 
-    for (i, ch) in source.char_indices() {
+    while i < source.len() {
         if current_line == pos.line && current_col == pos.character {
             return i;
         }
-        if ch == '\n' {
-            // Check if we're at the requested line but past the character
+        let b = bytes[i];
+        if b == b'\n' {
             if current_line == pos.line {
-                return i; // Return position at end of line
+                return i; // Past end of requested line
             }
             current_line += 1;
             current_col = 0;
-        } else if ch == '\r' {
-            // Skip \r — LSP spec treats \r\n as one line break.
+            i += 1;
+        } else if b == b'\r' {
+            if current_line == pos.line {
+                return i; // Past end of requested line (at \r)
+            }
+            current_line += 1;
+            current_col = 0;
+            i += 1;
+            // If \r\n, consume the \n as part of the same line break
+            if i < source.len() && bytes[i] == b'\n' {
+                i += 1;
+            }
+        } else if b < 0x80 {
+            current_col += 1;
+            i += 1;
         } else {
+            let ch = source[i..].chars().next().unwrap();
             current_col += ch.len_utf16() as u32;
+            i += ch.len_utf8();
         }
+    }
+
+    // Check if we match exactly at end
+    if current_line == pos.line && current_col == pos.character {
+        return i;
     }
 
     source.len()
@@ -541,48 +580,34 @@ mod tests {
         assert_eq!(pos.character, 0);
     }
 
-    // ── Windows \r\n line ending tests ─────────────────────────────
+    // ── Line ending tests (LSP spec: \n, \r\n, and \r are all terminators) ──
 
     #[test]
     #[cfg(feature = "lsp")]
     fn test_offset_to_position_crlf() {
-        // "ab\r\ncd" — \r should be invisible to column counting
+        // "ab\r\ncd" — \r\n is a single line break
         let source = "ab\r\ncd";
-        // 'a'=byte 0, 'b'=byte 1, '\r'=byte 2, '\n'=byte 3, 'c'=byte 4, 'd'=byte 5
+        // 'a'=byte 0, 'b'=byte 1, \r\n=bytes 2-3 (line break), 'c'=byte 4, 'd'=byte 5
         assert_eq!(
             offset_to_position(0, source),
-            Position {
-                line: 0,
-                character: 0
-            } // 'a'
+            Position { line: 0, character: 0 }, // 'a'
         );
         assert_eq!(
             offset_to_position(1, source),
-            Position {
-                line: 0,
-                character: 1
-            } // 'b'
+            Position { line: 0, character: 1 }, // 'b'
         );
+        // Offset 2 is the \r: it's consumed as a line break, so position is line 1
         assert_eq!(
             offset_to_position(2, source),
-            Position {
-                line: 0,
-                character: 2
-            } // '\r' — at end of line content
+            Position { line: 0, character: 2 }, // at \r (end of line 0 content)
         );
         assert_eq!(
             offset_to_position(4, source),
-            Position {
-                line: 1,
-                character: 0
-            } // 'c'
+            Position { line: 1, character: 0 }, // 'c'
         );
         assert_eq!(
             offset_to_position(5, source),
-            Position {
-                line: 1,
-                character: 1
-            } // 'd'
+            Position { line: 1, character: 1 }, // 'd'
         );
     }
 
@@ -591,44 +616,20 @@ mod tests {
     fn test_position_to_offset_crlf() {
         let source = "ab\r\ncd";
         assert_eq!(
-            position_to_offset(
-                Position {
-                    line: 0,
-                    character: 0
-                },
-                source
-            ),
-            0 // 'a'
+            position_to_offset(Position { line: 0, character: 0 }, source),
+            0,
         );
         assert_eq!(
-            position_to_offset(
-                Position {
-                    line: 0,
-                    character: 2
-                },
-                source
-            ),
-            2 // end of visible content on line 0 (at '\r')
+            position_to_offset(Position { line: 0, character: 2 }, source),
+            2, // end of visible content on line 0
         );
         assert_eq!(
-            position_to_offset(
-                Position {
-                    line: 1,
-                    character: 0
-                },
-                source
-            ),
-            4 // 'c'
+            position_to_offset(Position { line: 1, character: 0 }, source),
+            4, // 'c'
         );
         assert_eq!(
-            position_to_offset(
-                Position {
-                    line: 1,
-                    character: 1
-                },
-                source
-            ),
-            5 // 'd'
+            position_to_offset(Position { line: 1, character: 1 }, source),
+            5, // 'd'
         );
     }
 
@@ -636,22 +637,121 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_roundtrip_crlf() {
         let source = "line1\r\nline2\r\nline3";
-        // Only test char-boundary offsets that are NOT the \r itself
-        for offset in [0, 1, 5, 7, 8, 12, 14, 15, 18] {
+        // Test non-line-ending offsets for exact roundtrip
+        for offset in [0, 1, 4, 7, 8, 11, 14, 15, 18] {
             if offset <= source.len() {
                 let pos = offset_to_position(offset, source);
                 let back = position_to_offset(pos, source);
-                // Offsets on \r (bytes 5, 12) map to the same position as the
-                // preceding char, so roundtrip returns the \r's byte offset.
-                // For non-\r offsets, roundtrip should be exact.
-                if source.as_bytes().get(offset) != Some(&b'\r') {
-                    assert_eq!(
-                        back, offset,
-                        "Roundtrip failed for offset {}: pos=({},{}), got {}",
-                        offset, pos.line, pos.character, back
-                    );
-                }
+                assert_eq!(
+                    back, offset,
+                    "Roundtrip failed for offset {}: pos=({},{}), got {}",
+                    offset, pos.line, pos.character, back
+                );
             }
         }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_isolated_cr_line_ending() {
+        // Old Mac style: \r alone is a line terminator per LSP spec
+        let source = "abc\rdef";
+        assert_eq!(
+            offset_to_position(3, source),
+            Position { line: 0, character: 3 }, // at \r (end of line 0 content)
+        );
+        assert_eq!(
+            offset_to_position(4, source),
+            Position { line: 1, character: 0 }, // 'd' is on line 1
+        );
+        assert_eq!(
+            offset_to_position(6, source),
+            Position { line: 1, character: 2 }, // 'f'
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_position_to_offset_isolated_cr() {
+        let source = "abc\rdef";
+        assert_eq!(
+            position_to_offset(Position { line: 1, character: 0 }, source),
+            4, // 'd'
+        );
+        assert_eq!(
+            position_to_offset(Position { line: 1, character: 2 }, source),
+            6, // 'f'
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_double_cr_before_lf() {
+        // \r\r\n should be TWO line breaks: first \r is standalone, second \r\n is a pair
+        let source = "abc\r\r\ndef";
+        assert_eq!(
+            offset_to_position(4, source),
+            Position { line: 1, character: 0 }, // second \r (start of line 1 → line break)
+        );
+        assert_eq!(
+            offset_to_position(6, source),
+            Position { line: 2, character: 0 }, // 'd' on line 2
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_cr_at_eof() {
+        let source = "abc\r";
+        // Past end of \r should be on line 1
+        assert_eq!(
+            offset_to_position(4, source),
+            Position { line: 1, character: 0 },
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_mixed_line_endings() {
+        // \n then \r\n then \r
+        let source = "a\nb\r\nc\rd";
+        // 'a'=0, \n=1, 'b'=2, \r=3, \n=4, 'c'=5, \r=6, 'd'=7
+        assert_eq!(
+            offset_to_position(2, source),
+            Position { line: 1, character: 0 }, // 'b'
+        );
+        assert_eq!(
+            offset_to_position(5, source),
+            Position { line: 2, character: 0 }, // 'c'
+        );
+        assert_eq!(
+            offset_to_position(7, source),
+            Position { line: 3, character: 0 }, // 'd'
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_roundtrip_isolated_cr() {
+        let source = "abc\rdef";
+        // Roundtrip for non-CR offsets
+        for offset in [0, 1, 2, 4, 5, 6] {
+            let pos = offset_to_position(offset, source);
+            let back = position_to_offset(pos, source);
+            assert_eq!(
+                back, offset,
+                "Roundtrip failed for offset {} in {:?}: pos=({},{}), got {}",
+                offset, source, pos.line, pos.character, back
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_unicode_with_isolated_cr() {
+        let source = "caf\u{00e9}\rna\u{00ef}ve";
+        // café = 5 bytes (c,a,f,é=2 bytes), \r=byte 5, n=byte 6
+        let pos = offset_to_position(6, source);
+        assert_eq!(pos, Position { line: 1, character: 0 });
     }
 }
