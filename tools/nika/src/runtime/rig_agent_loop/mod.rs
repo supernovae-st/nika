@@ -438,32 +438,75 @@ impl RigAgentLoop {
     /// - Enhanced prompt with skill content prepended, or
     /// - Original system prompt if no skills configured
     async fn inject_skills_into_prompt(&self) -> Result<String, NikaError> {
-        let base_prompt = self.params.system.as_deref();
+        let mut preamble = self
+            .params
+            .system
+            .as_deref()
+            .unwrap_or_default()
+            .to_string();
+
+        // Add tool routing guide when builtin tools are available
+        if !self.tools.is_empty() {
+            let tool_names: Vec<String> = self
+                .tools
+                .iter()
+                .filter_map(|t| {
+                    let name = t.name();
+                    if name.starts_with("nika_") {
+                        Some(name)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !tool_names.is_empty() {
+                preamble.push_str("\n\n## Available Tools\n");
+                for name in &tool_names {
+                    match name.as_str() {
+                        "nika_read" => preamble.push_str("- nika_read: Read file contents from disk\n"),
+                        "nika_write" => preamble.push_str("- nika_write: Create a NEW file (fails if exists)\n"),
+                        "nika_edit" => preamble.push_str("- nika_edit: Edit an EXISTING file by replacing text\n"),
+                        "nika_glob" => preamble.push_str("- nika_glob: Find files matching a pattern\n"),
+                        "nika_grep" => preamble.push_str("- nika_grep: Search file contents with regex\n"),
+                        "nika_complete" => preamble.push_str("- nika_complete: Signal task completion with structured result\n"),
+                        "nika_log" => preamble.push_str("- nika_log: Emit a log message (for observability only, not output)\n"),
+                        "nika_emit" => preamble.push_str("- nika_emit: Emit a named event with payload\n"),
+                        "nika_run" => preamble.push_str("- nika_run: Execute a sub-workflow\n"),
+                        _ => {}
+                    }
+                }
+                preamble.push_str("\nUse the MOST SPECIFIC tool for each action. Call nika_complete when done.\n");
+            }
+        }
 
         // Check if skill injection is configured
         let (Some(injector), Some(skills_map), Some(base_dir)) =
             (&self.skill_injector, &self.skills_map, &self.base_dir)
         else {
-            // Not configured - return base prompt as-is
-            return Ok(base_prompt.unwrap_or_default().to_string());
+            return Ok(preamble);
         };
 
         // Check if agent has skills defined
         let Some(skill_names) = &self.params.skills else {
-            // No skills on this agent - return base prompt
-            return Ok(base_prompt.unwrap_or_default().to_string());
+            return Ok(preamble);
         };
 
         if skill_names.is_empty() {
-            return Ok(base_prompt.unwrap_or_default().to_string());
+            return Ok(preamble);
         }
 
         // Convert Vec<String> to &[&str] for the inject() API
         let skill_refs: Vec<&str> = skill_names.iter().map(|s| s.as_str()).collect();
 
-        // Inject skills into the prompt
+        // Inject skills into the preamble
+        let preamble_ref = if preamble.is_empty() {
+            None
+        } else {
+            Some(preamble.as_str())
+        };
         injector
-            .inject(base_prompt, &skill_refs, skills_map, base_dir)
+            .inject(preamble_ref, &skill_refs, skills_map, base_dir)
             .await
     }
 
