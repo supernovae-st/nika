@@ -1,0 +1,17 @@
+# FEATURE: for_each with concurrency limit
+schema: nika/workflow@0.12
+workflow: feat-foreach-concurrency
+
+tasks:
+  - id: items
+    exec: 'echo ''["a","b","c","d","e","f"]'''
+
+  - id: process
+    depends_on: [items]
+    for_each: "$items"
+    as: item
+    concurrency: 2
+    exec:
+      command: "echo 'Processing {{with.item}} at '$(date +%S) && sleep 0.5"
+      shell: true
+    description: "concurrency:2 should process max 2 items at a time"

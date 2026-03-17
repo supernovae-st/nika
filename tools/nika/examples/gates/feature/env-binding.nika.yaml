@@ -1,0 +1,15 @@
+# FEATURE: $env.VAR binding
+schema: nika/workflow@0.12
+workflow: feat-env-binding
+
+tasks:
+  - id: read_env
+    exec:
+      command: "echo $HOME"
+      shell: true
+
+  - id: use_env
+    depends_on: [read_env]
+    with:
+      home: $read_env
+    exec: "echo 'HOME={{with.home}}'"

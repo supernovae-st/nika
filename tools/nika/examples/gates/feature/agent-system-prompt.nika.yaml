@@ -1,0 +1,14 @@
+# FEATURE: agent with system prompt
+schema: nika/workflow@0.12
+workflow: feat-agent-system
+
+tasks:
+  - id: agent_with_system
+    agent:
+      system: "You are a pirate. Always respond in pirate speak."
+      prompt: "What is 2+2? Reply in one sentence."
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 1
+      tools: [builtin]
+    description: "Agent with system prompt should respond like a pirate"
