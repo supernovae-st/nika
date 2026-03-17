@@ -107,7 +107,7 @@ impl RigAgentLoop {
         let model = client.completion_model(model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
-        let tools = std::mem::take(&mut self.tools);
+        let tools = self.tools_as_boxed();
 
         // Get max_turns
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;
@@ -184,7 +184,7 @@ impl RigAgentLoop {
         let model = client.completion_model(model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
-        let tools = std::mem::take(&mut self.tools);
+        let tools = self.tools_as_boxed();
 
         // Get max_turns
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;
@@ -369,7 +369,7 @@ impl RigAgentLoop {
         let model = client.completion_model(model_name);
 
         // Take ownership of tools for first attempt
-        let tools = std::mem::take(&mut self.tools);
+        let tools = self.tools_as_boxed();
         let max_turns = self.params.max_turns.unwrap_or(10) as usize;
         let base_prompt = self.params.prompt.clone();
 

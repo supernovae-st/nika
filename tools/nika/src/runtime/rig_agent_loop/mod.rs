@@ -85,7 +85,7 @@ pub struct RigAgentLoop {
     #[allow(dead_code)] // Will be used when run_claude is fully implemented
     mcp_clients: FxHashMap<String, Arc<McpClient>>,
     /// Pre-built tools from MCP clients
-    tools: Vec<Box<dyn rig::tool::ToolDyn>>,
+    tools: Vec<Arc<dyn rig::tool::ToolDyn>>,
     /// Conversation history for multi-turn chat.
     ///
     /// NOTE: This Vec is cloned on each `chat()` call because rig-core's API
@@ -115,6 +115,43 @@ impl std::fmt::Debug for RigAgentLoop {
             .field("tool_count", &self.tools.len())
             .field("history_len", &self.history.len())
             .finish_non_exhaustive()
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ArcToolAdapter: wrap Arc<dyn ToolDyn> as Box<dyn ToolDyn>
+// ═══════════════════════════════════════════════════════════
+
+/// Adapter that wraps `Arc<dyn ToolDyn>` so it can be used as `Box<dyn ToolDyn>`.
+///
+/// rig-core's `AgentBuilder::tools()` takes `Vec<Box<dyn ToolDyn>>`.
+/// We store tools as `Vec<Arc<dyn ToolDyn>>` so they survive across multiple
+/// agent runs (chat_continue, retries). This adapter clones the Arc cheaply
+/// and delegates all trait methods.
+struct ArcToolAdapter(Arc<dyn rig::tool::ToolDyn>);
+
+impl rig::tool::ToolDyn for ArcToolAdapter {
+    fn name(&self) -> String {
+        self.0.name()
+    }
+
+    fn definition<'a>(
+        &'a self,
+        prompt: String,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = rig::completion::ToolDefinition> + Send + 'a>,
+    > {
+        self.0.definition(prompt)
+    }
+
+    fn call<'a>(
+        &'a self,
+        args: String,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<String, rig::tool::ToolError>> + Send + 'a>,
+    > {
+        self.0.call(args)
     }
 }
 
@@ -166,7 +203,7 @@ impl RigAgentLoop {
                 mcp_clients.clone(),
                 params.mcp.clone(),
             );
-            tools.push(Box::new(spawn_tool));
+            tools.push(Arc::new(spawn_tool));
         }
 
         // Add builtin nika:* tools
@@ -205,33 +242,33 @@ impl RigAgentLoop {
 
         // Core builtin tools (only add if requested or no filter)
         if should_add("sleep") {
-            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(SleepTool))));
         }
         if should_add("log") {
-            tools.push(Box::new(
+            tools.push(Arc::new(
                 NikaBuiltinToolAdapter::new(Arc::new(LogTool))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
         if should_add("emit") {
-            tools.push(Box::new(
+            tools.push(Arc::new(
                 NikaBuiltinToolAdapter::new(Arc::new(EmitTool))
                     .with_event_log(Arc::clone(&event_log_arc), Arc::clone(&task_id_arc)),
             ));
         }
         if should_add("assert") {
-            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(AssertTool))));
         }
         if should_add("prompt") {
-            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                 PromptTool::default(),
             ))));
         }
         if should_add("run") {
-            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(RunTool))));
         }
         if should_add("complete") {
-            tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+            tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                 CompleteTool,
             ))));
         }
@@ -259,27 +296,27 @@ impl RigAgentLoop {
             use super::builtin::FileToolAdapter;
 
             if file_tools_requested.contains(&"nika:read") {
-                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(ReadTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
             if file_tools_requested.contains(&"nika:write") {
-                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(WriteTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
             if file_tools_requested.contains(&"nika:edit") {
-                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(EditTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
             if file_tools_requested.contains(&"nika:glob") {
-                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GlobTool::new(Arc::clone(&tool_ctx))),
                 ))));
             }
             if file_tools_requested.contains(&"nika:grep") {
-                tools.push(Box::new(NikaBuiltinToolAdapter::new(Arc::new(
+                tools.push(Arc::new(NikaBuiltinToolAdapter::new(Arc::new(
                     FileToolAdapter::new(GrepTool::new(tool_ctx)),
                 ))));
             }
@@ -359,7 +396,7 @@ impl RigAgentLoop {
     /// * `schema` - JSON Schema as `serde_json::Value` for the expected output
     pub fn with_structured_output(mut self, schema: serde_json::Value) -> Self {
         let submit_tool = DynamicSubmitTool::new(schema);
-        self.tools.push(Box::new(submit_tool));
+        self.tools.push(Arc::new(submit_tool));
         tracing::debug!(
             task_id = %self.task_id,
             "Added DynamicSubmitTool (submit_result) to agent tools"
@@ -410,12 +447,23 @@ impl RigAgentLoop {
             .await
     }
 
+    /// Create boxed tool copies from Arc-stored tools.
+    ///
+    /// Each call produces fresh `Box<dyn ToolDyn>` wrappers around the same
+    /// `Arc<dyn ToolDyn>` instances, so tools are never consumed.
+    fn tools_as_boxed(&self) -> Vec<Box<dyn rig::tool::ToolDyn>> {
+        self.tools
+            .iter()
+            .map(|t| Box::new(ArcToolAdapter(Arc::clone(t))) as Box<dyn rig::tool::ToolDyn>)
+            .collect()
+    }
+
     /// Build NikaMcpTool instances from MCP clients
     fn build_tools(
         mcp_names: &[String],
         mcp_clients: &FxHashMap<String, Arc<McpClient>>,
-    ) -> Result<Vec<Box<dyn rig::tool::ToolDyn>>, NikaError> {
-        let mut tools: Vec<Box<dyn rig::tool::ToolDyn>> = Vec::new();
+    ) -> Result<Vec<Arc<dyn rig::tool::ToolDyn>>, NikaError> {
+        let mut tools: Vec<Arc<dyn rig::tool::ToolDyn>> = Vec::new();
 
         for mcp_name in mcp_names {
             let client = mcp_clients
@@ -440,7 +488,7 @@ impl RigAgentLoop {
                     },
                     client.clone(),
                 );
-                tools.push(Box::new(tool));
+                tools.push(Arc::new(tool));
             }
         }
 
