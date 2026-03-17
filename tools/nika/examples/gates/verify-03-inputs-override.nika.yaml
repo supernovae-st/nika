@@ -1,0 +1,14 @@
+# VERIFY-03: inputs with CLI override
+schema: nika/workflow@0.12
+workflow: verify-03-inputs
+
+inputs:
+  name:
+    default: "DEFAULT"
+  count:
+    default: 1
+
+tasks:
+  - id: show
+    exec: "echo 'name={{inputs.name}} count={{inputs.count}}'"
+    description: "Should show DEFAULT values, or overrides if provided"
