@@ -1,0 +1,17 @@
+# DEEP-01: Test nika:read builtin via agent
+# Agent should be able to read a file using the builtin tool
+schema: nika/workflow@0.12
+workflow: deep-01-builtin-read
+
+tasks:
+  - id: read_test
+    agent:
+      prompt: |
+        Read the file at ./Cargo.toml using the nika:read tool.
+        Then tell me ONLY the package name and version from [package].
+        Format: "name=X version=Y"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent using nika:read builtin to read a real file"

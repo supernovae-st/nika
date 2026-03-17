@@ -1149,6 +1149,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 // $alias or $alias.nested.path format
                                 let mut segments = alias.split('.');
                                 let Some(base_alias) = segments.next() else {
+                                    self.datastore.insert(
+                                        intern(&task.name),
+                                        TaskResult::failed(
+                                            "for_each: empty alias after '$' prefix".to_string(),
+                                            std::time::Duration::ZERO,
+                                        ),
+                                    );
                                     continue;
                                 };
 

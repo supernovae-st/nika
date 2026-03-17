@@ -1,0 +1,28 @@
+# DEEP-03: Real MCP invoke with Perplexity search
+schema: nika/workflow@0.12
+workflow: deep-03-mcp-perplexity
+
+mcp:
+  perplexity:
+    command: npx
+    args: ["-y", "@anthropic/perplexity-mcp"]
+    env:
+      PERPLEXITY_API_KEY: "{{$env.PERPLEXITY_API_KEY}}"
+
+tasks:
+  - id: search
+    invoke:
+      mcp: perplexity
+      tool: perplexity_search_web
+      params:
+        query: "What is the latest Rust version released in 2025?"
+    description: "Search the web via Perplexity MCP"
+
+  - id: summarize
+    depends_on: [search]
+    with:
+      result: $search
+    infer: "Summarize this search result in one sentence: {{with.result}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

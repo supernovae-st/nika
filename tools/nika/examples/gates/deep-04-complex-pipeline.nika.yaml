@@ -1,0 +1,88 @@
+# DEEP-04: Complex real-world pipeline — research + analyze + generate + artifacts
+# Simulates a real content production workflow
+schema: nika/workflow@0.12
+workflow: deep-04-content-pipeline
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  topic:
+    default: "WebAssembly"
+  output_format:
+    default: "markdown"
+
+tasks:
+  # Stage 1: Data gathering (parallel)
+  - id: fetch_info
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Fetch reference data"
+
+  - id: get_date
+    exec: "date +%Y-%m-%d"
+
+  - id: get_hostname
+    exec: "hostname"
+
+  # Stage 2: Analysis (depends on fetch)
+  - id: analyze
+    depends_on: [fetch_info]
+    with:
+      raw_data: $fetch_info
+    infer: |
+      Analyze this data and extract 3 key points:
+      {{with.raw_data}}
+      Return as a JSON array of strings.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          points:
+            type: array
+            items:
+              type: string
+          summary:
+            type: string
+        required: [points, summary]
+    description: "Structured analysis of fetched data"
+
+  # Stage 3: Expand each point (for_each)
+  - id: expand
+    depends_on: [analyze]
+    for_each: "$analyze.points"
+    as: point
+    infer: "Write a 2-sentence paragraph about: {{with.point}}"
+    provider: xai
+    model: grok-3-fast
+    max_tokens: 100
+    description: "Expand each point using xAI"
+
+  # Stage 4: Compile (merge all results)
+  - id: compile
+    depends_on: [expand, get_date, get_hostname, analyze]
+    with:
+      paragraphs: $expand
+      date: $get_date
+      host: $get_hostname
+      summary: $analyze.summary
+    infer: |
+      Create a polished report combining:
+      - Summary: {{with.summary}}
+      - Paragraphs: {{with.paragraphs}}
+      - Date: {{with.date}}
+      - Generated on: {{with.host}}
+
+      Format as markdown with a title and sections.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 500
+    artifact:
+      path: "report-{{with.date}}.md"
+      template: "{{output}}"
+      format: text
+    description: "Final compilation with artifact output"
