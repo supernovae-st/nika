@@ -87,17 +87,17 @@ mod template_fuzzing {
         #[test]
         fn test_template_with_substitution_returns_owned(template in arb_template_with_alias()) {
             let alias_re = regex::Regex::new(r"\{\{\s*with\.(\w+)").unwrap();
-            if let Some(cap) = alias_re.captures(&template) {
-                let alias = &cap[1];
-                let mut bindings = ResolvedBindings::new();
-                bindings.set(alias, json!("value"));
-                let ds = empty_datastore();
+            let cap = alias_re.captures(&template)
+                .expect("arb_template_with_alias must produce {{with.alias}} patterns");
+            let alias = &cap[1];
+            let mut bindings = ResolvedBindings::new();
+            bindings.set(alias, json!("value"));
+            let ds = empty_datastore();
 
-                if let Ok(cow) = template_resolve(&template, &bindings, &ds) {
-                    // With substitution, should be owned
-                    assert!(matches!(cow, Cow::Owned(_)));
-                }
-            }
+            let cow = template_resolve(&template, &bindings, &ds)
+                .expect("Template with bound alias should resolve");
+            // With substitution, should be owned
+            assert!(matches!(cow, Cow::Owned(_)));
         }
 
         /// Property: Valid alias with binding always resolves successfully
@@ -266,7 +266,10 @@ tasks:
     infer: "test""#,
                     invalid_schema, task_id
                 );
-                // Should not panic — either parse error or schema validation error
+                // Should not panic — either parse error or schema validation error.
+                // NOTE: Parse failure is acceptable here because some random strings
+                // generate invalid YAML (e.g. tabs in wrong position, special chars).
+                // The important property is: invalid schemas NEVER pass analysis.
                 let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
                 match result {
                     Ok(raw) => {
@@ -274,7 +277,12 @@ tasks:
                         prop_assert!(analyzed.is_err(),
                             "Invalid schema '{}' should fail analysis", invalid_schema);
                     }
-                    Err(_) => {} // Parse error is fine too
+                    Err(_) => {
+                        // Parse error is acceptable: the generated schema string may
+                        // produce YAML that our parser rejects before reaching schema
+                        // validation. The key invariant (invalid schema ≠ success)
+                        // still holds since parse errors prevent execution.
+                    }
                 }
             }
         }
@@ -405,11 +413,11 @@ mod dag_fuzzing {
                 "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"test\"\n",
                 task_id, task_id
             );
-            if let Ok(raw) = parse(&yaml, FileId(0)) {
-                let result = analyze(raw);
-                prop_assert!(result.is_err(),
-                    "Self-referencing task '{}' should fail analysis", task_id);
-            }
+            let raw = parse(&yaml, FileId(0))
+                .expect("Self-reference YAML should parse (valid syntax)");
+            let result = analyze(raw);
+            prop_assert!(result.is_err(),
+                "Self-referencing task '{}' should fail analysis", task_id);
         }
 
         /// Property: Cyclic dependencies detected by analyzer
@@ -423,11 +431,11 @@ mod dag_fuzzing {
                     "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"first\"\n  - id: {}\n    depends_on: [{}]\n    infer: \"second\"\n",
                     task1, task2, task2, task1
                 );
-                if let Ok(raw) = parse(&yaml, FileId(0)) {
-                    let result = analyze(raw);
-                    prop_assert!(result.is_err(),
-                        "Cycle {}<->{} should fail analysis", task1, task2);
-                }
+                let raw = parse(&yaml, FileId(0))
+                    .expect("Cycle YAML should parse (valid syntax)");
+                let result = analyze(raw);
+                prop_assert!(result.is_err(),
+                    "Cycle {}<->{} should fail analysis", task1, task2);
             }
         }
 
@@ -437,19 +445,17 @@ mod dag_fuzzing {
             task1 in arb_valid_task_id(),
             ghost in arb_valid_task_id()
         ) {
-            // task1 exists, task2 depends_on task1 (valid), but task2's ID
-            // is ghost which is different from task1 — no error expected here.
-            // Instead: task depends_on a nonexistent ID.
+            // task depends_on a nonexistent ID (ghost + "__missing" suffix).
             let nonexistent = format!("{}__missing", ghost);
             let yaml = format!(
                 "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    depends_on: [{}]\n    infer: \"test\"\n",
                 task1, nonexistent
             );
-            if let Ok(raw) = parse(&yaml, FileId(0)) {
-                let result = analyze(raw);
-                prop_assert!(result.is_err(),
-                    "Reference to nonexistent '{}' should fail analysis", nonexistent);
-            }
+            let raw = parse(&yaml, FileId(0))
+                .expect("Nonexistent-dep YAML should parse (valid syntax)");
+            let result = analyze(raw);
+            prop_assert!(result.is_err(),
+                "Reference to nonexistent '{}' should fail analysis", nonexistent);
         }
 
         /// Property: Large DAGs don't cause stack overflow in analyzer
@@ -647,27 +653,23 @@ mod pipeline_roundtrip_fuzzing {
         }
     }
 
-    /// Shared roundtrip assertion: parse → analyze → lower → unlower preserves task count + IDs
+    /// Shared roundtrip assertion: parse → analyze → lower → unlower preserves task count + IDs.
+    /// All generators that call this produce valid workflow YAML, so every stage must succeed.
     fn assert_roundtrip(yaml: &str) -> Result<(), proptest::test_runner::TestCaseError> {
-        let raw = match parse(yaml, FileId(0)) {
-            Ok(r) => r,
-            Err(_) => return Ok(()), // Skip unparseable
-        };
-        let analyzed = match analyze(raw) {
-            r if r.is_ok() => r.value.unwrap(),
-            _ => return Ok(()), // Skip invalid
+        let raw = parse(yaml, FileId(0))
+            .expect("Generator should produce valid YAML");
+        let analyzed = {
+            let r = analyze(raw);
+            assert!(r.is_ok(), "Generator should produce analyzable workflow: {:?}", r.errors);
+            r.value.unwrap()
         };
         let task_count = analyzed.tasks.len();
         let task_names: Vec<String> = analyzed.tasks.iter().map(|t| t.name.clone()).collect();
 
-        let lowered = match lower(analyzed) {
-            Ok(l) => l,
-            Err(_) => return Ok(()),
-        };
-        let unlowered = match unlower(lowered) {
-            Ok(u) => u,
-            Err(_) => return Ok(()),
-        };
+        let lowered = lower(analyzed)
+            .expect("Analyzed workflow should lower");
+        let unlowered = unlower(lowered)
+            .expect("Lowered workflow should unlower");
 
         prop_assert_eq!(
             unlowered.tasks.len(),
