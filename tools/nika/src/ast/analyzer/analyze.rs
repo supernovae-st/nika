@@ -374,15 +374,14 @@ fn validate_task_feature_gates(
 
         // retry: is only effective on fetch: tasks — warn on other verbs
         if let Some(ref action) = task.action {
-            let is_fetch = matches!(action, RawTaskAction::Fetch(_));
-            if !is_fetch {
-                let verb_name = match action {
-                    RawTaskAction::Infer(_) => "infer",
-                    RawTaskAction::Exec(_) => "exec",
-                    RawTaskAction::Invoke(_) => "invoke",
-                    RawTaskAction::Agent(_) => "agent",
-                    RawTaskAction::Fetch(_) => unreachable!(),
-                };
+            let verb_name = match action {
+                RawTaskAction::Fetch(_) => None,
+                RawTaskAction::Infer(_) => Some("infer"),
+                RawTaskAction::Exec(_) => Some("exec"),
+                RawTaskAction::Invoke(_) => Some("invoke"),
+                RawTaskAction::Agent(_) => Some("agent"),
+            };
+            if let Some(verb_name) = verb_name {
                 ctx.add_warning(
                     AnalyzeError::new(
                         AnalyzeErrorKind::InvalidValue,
