@@ -1380,4 +1380,89 @@ mod tests {
             result.err()
         );
     }
+
+    // =========================================================================
+    // Roundtrip edge cases
+    // =========================================================================
+
+    #[test]
+    fn lower_unlower_roundtrip_for_each() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("iter");
+        wf.tasks.push(AnalyzedTask {
+            for_each: Some(AnalyzedForEach {
+                items: r#"["a","b","c"]"#.to_string(),
+                as_var: "item".to_string(),
+                parallel: Some(2),
+                fail_fast: true,
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "iter")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let t = &unlowered.tasks[0];
+        assert!(t.for_each.is_some(), "for_each should survive roundtrip");
+        let fe = t.for_each.as_ref().unwrap();
+        assert_eq!(fe.as_var, "item");
+        assert_eq!(fe.parallel, Some(2));
+    }
+
+    #[test]
+    fn lower_unlower_roundtrip_mcp_stdio() {
+        let mut wf = dummy_workflow();
+        let mut servers = IndexMap::new();
+        servers.insert(
+            "test".to_string(),
+            AnalyzedMcpServer {
+                name: "test".to_string(),
+                command: Some("node".to_string()),
+                args: vec!["server.js".to_string()],
+                env: IndexMap::new(),
+                cwd: None,
+                url: None,
+                transport: McpTransport::Stdio,
+                span: Span::dummy(),
+            },
+        );
+        wf.mcp_servers = servers;
+
+        let lowered = lower(wf).unwrap();
+        assert!(lowered.mcp.is_some(), "stdio server should be lowered");
+
+        let unlowered = unlower(lowered).unwrap();
+        assert_eq!(unlowered.mcp_servers.len(), 1);
+        assert!(unlowered.mcp_servers.contains_key("test"));
+        assert_eq!(
+            unlowered.mcp_servers["test"].command.as_deref(),
+            Some("node")
+        );
+    }
+
+    #[test]
+    fn lower_unlower_roundtrip_invoke_with_resource() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("read_res");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+                server: Some("novanet".to_string()),
+                tool: "".to_string(), // resource-only invoke
+                params: None,
+                timeout_ms: Some(10000),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "read_res")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let t = &unlowered.tasks[0];
+        match &t.action {
+            AnalyzedTaskAction::Invoke(inv) => {
+                assert_eq!(inv.server.as_deref(), Some("novanet"));
+            }
+            _ => panic!("expected Invoke action after roundtrip"),
+        }
+    }
 }
