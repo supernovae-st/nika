@@ -3,9 +3,11 @@
 > **3 PRs** to give Nika first-class binary media support.
 > Feature branches on `main`, merge + clean after each PR.
 
+**Baseline**: Nika `v0.30.3` (2026-03-17) — 6,625 tests, 32 EventKind variants, zero clippy warnings
 **Schema**: `@0.12` (no schema bump -- additive changes only)
 **Source of truth**: [23-multimodal-media-pipeline-design.md](../brainstorm/nika-evolution/23-multimodal-media-pipeline-design.md)
-**rmcp**: Stays on `0.16.0` (rig-core 0.32 pins `^0.16`, upgrade to 1.x blocked)
+**rmcp**: Stays on `0.16.0` — verified from cargo source: 5 RawContent variants, no `as_audio()`, ResourceContents untagged enum
+**rig-core**: `0.32` pins `^0.16` rmcp, upgrade to 1.x blocked
 
 ---
 
@@ -187,7 +189,8 @@ src/
 ## Event System Additions (Telemetry)
 
 5 new EventKind variants across PRs (new MEDIA EVENTS category).
-Current EventKind has **32 variants** across 10 categories. Media adds a new 11th category.
+Current EventKind has **32 variants** across 10 categories (verified v0.30.3: LimitReached + PartialCompletion deleted).
+Media adds a new 11th category.
 
 **IMPORTANT**: Use exhaustive `match` on `RawContent` (5 variants), NOT `if let` chains.
 `as_audio()` does NOT exist in rmcp 0.16 — pattern match on raw enum via `Deref`.
@@ -310,7 +313,7 @@ Each variant MUST be added to `EventKind::task_id()` match arm.
 | Verification | Custom | Read-back hash check, dedup check, size consistency |
 | E2E | Full workflow | image gen workflow -> CAS stored -> artifact copied -> integrity verified |
 | Guard | `count_all_variants` | Enforces EventKind variant count (32→33→36→37) |
-| Regression | `cargo test` | All 6,610 existing tests must pass |
+| Regression | `cargo test` | All 6,625 existing tests must pass (v0.30.3 baseline) |
 
 ---
 

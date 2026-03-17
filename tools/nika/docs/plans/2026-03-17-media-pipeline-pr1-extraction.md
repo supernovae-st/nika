@@ -623,7 +623,7 @@ fn test_text_only_result_has_no_media() {
 
 ## Verification Checklist
 
-- [ ] `cargo test` -- all existing 6,610+ tests pass
+- [ ] `cargo test` -- all existing 6,625 tests pass (v0.30.3 baseline)
 - [ ] `cargo clippy -- -D warnings` -- zero warnings
 - [ ] New tests cover: text, image, **audio**, resource, mixed, empty
 - [ ] Exhaustive match on `RawContent` — 5 variants handled
