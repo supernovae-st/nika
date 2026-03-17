@@ -33,6 +33,8 @@ node_modules/
 *.profraw
 coverage/
 tools/nika/target/
+tools/nika/target-main/
+tools/nika/src/target-main/
 
 # Worktrees
 .worktrees/
