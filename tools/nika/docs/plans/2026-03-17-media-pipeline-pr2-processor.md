@@ -540,10 +540,11 @@ impl MediaProcessor {
         block: &ContentBlock,
     ) -> Result<Option<MediaRef>, MediaError> {
         match block.content_type.as_str() {
-            "image" => {
+            // Image and Audio have identical shape: data (base64) + mime_type
+            "image" | "audio" => {
                 let data_b64 = block.data.as_ref().ok_or_else(|| {
                     MediaError::Base64DecodeFailed {
-                        reason: "image block has no data field".to_string(),
+                        reason: format!("{} block has no data field", block.content_type),
                     }
                 })?;
                 let mime_hint = block.mime_type.as_deref();
@@ -1151,6 +1152,35 @@ async fn test_pipeline_text_only_produces_no_media() {
 }
 
 #[tokio::test]
+async fn test_pipeline_audio_stored_in_cas() {
+    // Minimal valid WAV header (44 bytes RIFF header)
+    let wav_header: &[u8] = &[
+        0x52, 0x49, 0x46, 0x46, // "RIFF"
+        0x24, 0x00, 0x00, 0x00, // chunk size
+        0x57, 0x41, 0x56, 0x45, // "WAVE"
+        0x66, 0x6D, 0x74, 0x20, // "fmt "
+        0x10, 0x00, 0x00, 0x00, // subchunk1 size
+        0x01, 0x00, 0x01, 0x00, // PCM, mono
+        0x44, 0xAC, 0x00, 0x00, // 44100 Hz
+        0x88, 0x58, 0x01, 0x00, // byte rate
+        0x02, 0x00, 0x10, 0x00, // block align, bits per sample
+        0x64, 0x61, 0x74, 0x61, // "data"
+        0x00, 0x00, 0x00, 0x00, // data size
+    ];
+    let b64 = base64::engine::general_purpose::STANDARD.encode(wav_header);
+
+    let block = ContentBlock::audio(b64, "audio/wav".into());
+    let dir = tempfile::tempdir().unwrap();
+    let store = CasStore::new(dir.path().join("store"));
+    let processor = MediaProcessor::new(store);
+
+    let refs = processor.process_all(&[block]).await.unwrap();
+    assert_eq!(refs.len(), 1);
+    assert_eq!(refs[0].media_type, MediaType::Audio);
+    assert!(refs[0].path.exists());
+}
+
+#[tokio::test]
 async fn test_pipeline_invalid_base64_fails() {
     let block = ContentBlock::image("not-valid-base64!!!".into(), "image/png".into());
     let dir = tempfile::tempdir().unwrap();
@@ -1278,6 +1308,7 @@ fn test_media_store_failed_event() {
 | Error codes | NIKA-250..255 | **Shifted** to NIKA-251..256 (NIKA-250 taken by ContextLoadError) |
 | resolve_path() | No media support | **Extended** to intercept "media" segment and resolve TaskResult.media |
 | Template access | Direct `{{task.media}}` | **Via `with:` bindings** (consistent with Nika template architecture) |
+| process_block match | Only "image" arm | **Fixed v3.1**: `"image" \| "audio"` — audio has identical shape (data + mime_type), was silently dropped by `_ => Ok(None)` |
 
 ---
 
