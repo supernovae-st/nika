@@ -1989,4 +1989,82 @@ mod tests {
             result.errors[0].message
         );
     }
+
+    #[test]
+    fn test_retry_on_infer_emits_warning() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("my_task");
+        task.action = Some(RawTaskAction::Infer(Spanned::new(
+            RawInferAction {
+                prompt: Spanned::new("Generate something".to_string(), make_span(0, 18)),
+                ..Default::default()
+            },
+            make_span(0, 50),
+        )));
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                delay_ms: Some(Spanned::new(1000, make_span(0, 4))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+
+        // Should succeed (retry on infer is not an error)
+        assert!(
+            result.is_ok(),
+            "retry on infer should not be an error: {:?}",
+            result.errors
+        );
+        // But should emit a warning
+        assert!(
+            !result.warnings.is_empty(),
+            "retry on non-fetch verb should emit a warning"
+        );
+        assert!(
+            result.warnings[0].message.contains("retry"),
+            "Warning should mention retry, got: {}",
+            result.warnings[0].message
+        );
+    }
+
+    #[test]
+    fn test_retry_on_fetch_no_warning() {
+        use crate::ast::raw::RawRetryConfig;
+
+        let mut task = make_raw_task("my_fetch");
+        task.action = Some(RawTaskAction::Fetch(Spanned::new(
+            RawFetchAction {
+                url: Spanned::new("https://example.com".to_string(), make_span(0, 20)),
+                ..Default::default()
+            },
+            make_span(0, 50),
+        )));
+        task.retry = Some(Spanned::new(
+            RawRetryConfig {
+                max_attempts: Some(Spanned::new(3, make_span(0, 1))),
+                ..Default::default()
+            },
+            make_span(0, 30),
+        ));
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+
+        // Should succeed with no warnings
+        assert!(
+            result.is_ok(),
+            "retry on fetch should succeed: {:?}",
+            result.errors
+        );
+        assert!(
+            result.warnings.is_empty(),
+            "retry on fetch should NOT emit a warning, got: {:?}",
+            result.warnings
+        );
+    }
 }

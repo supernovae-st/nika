@@ -1030,7 +1030,6 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
-
         }
     }
 

@@ -134,7 +134,6 @@ impl ActivityItem {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

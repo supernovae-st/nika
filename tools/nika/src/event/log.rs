@@ -488,7 +488,6 @@ pub enum EventKind {
         /// Total attempts across all layers before success
         total_attempts: u32,
     },
-
 }
 
 impl EventKind {
@@ -1801,8 +1800,6 @@ mod tests {
         assert_eq!(escalation.task_id(), Some("esc1"));
     }
 
-
-
     // ═══════════════════════════════════════════════════════════════
     // WAVE 2 TESTS: NDJSON event system audit
     // ═══════════════════════════════════════════════════════════════
@@ -2174,7 +2171,6 @@ mod tests {
         let json = serde_json::to_string(&variant).unwrap();
         assert!(json.contains("guardrail_escalation"));
     }
-
 
     #[test]
     fn wave2_optional_fields_serialized_as_null_when_none() {

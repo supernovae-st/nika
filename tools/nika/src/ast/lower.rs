@@ -440,13 +440,15 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
                 let mut ids = Vec::with_capacity(deps.len());
                 for name in deps {
                     let dep_id =
-                        task_table.get_id(name).ok_or_else(|| NikaError::ValidationError {
-                            reason: format!(
-                                "Unlowering: dependency '{}' not found in TaskTable \
+                        task_table
+                            .get_id(name)
+                            .ok_or_else(|| NikaError::ValidationError {
+                                reason: format!(
+                                    "Unlowering: dependency '{}' not found in TaskTable \
                                  (invariant violation)",
-                                name
-                            ),
-                        })?;
+                                    name
+                                ),
+                            })?;
                     ids.push(dep_id);
                 }
                 ids
@@ -1272,10 +1274,7 @@ mod tests {
 
         // unlower should reject the dangling name
         let result = unlower(lowered);
-        assert!(
-            result.is_err(),
-            "unlower should reject dangling dep name"
-        );
+        assert!(result.is_err(), "unlower should reject dangling dep name");
     }
 
     #[test]
@@ -1291,6 +1290,10 @@ mod tests {
         let lowered = lower(wf).unwrap();
         // Roundtrip should succeed when all deps are valid
         let result = unlower(lowered);
-        assert!(result.is_ok(), "unlower should succeed with valid deps: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "unlower should succeed with valid deps: {:?}",
+            result.err()
+        );
     }
 }
