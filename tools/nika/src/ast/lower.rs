@@ -1605,4 +1605,202 @@ mod tests {
             _ => panic!("expected Invoke action after roundtrip"),
         }
     }
+
+    // =========================================================================
+    // Roundtrip documentation tests — prove known lossy conversions
+    // =========================================================================
+
+    /// L1: Provider None normalizes to "claude" during lowering.
+    #[test]
+    fn roundtrip_provider_none_becomes_claude() {
+        let wf = AnalyzedWorkflow {
+            provider: None,
+            ..dummy_workflow()
+        };
+        let lowered = lower(wf).unwrap();
+        assert_eq!(lowered.provider, "claude", "None provider should default to claude");
+        let unlowered = unlower(lowered).unwrap();
+        assert_eq!(
+            unlowered.provider,
+            Some("claude".to_string()),
+            "After roundtrip, provider is Some(\"claude\"), not None"
+        );
+    }
+
+    /// L2: Markdown output format maps to Text during unlowering.
+    #[test]
+    fn roundtrip_markdown_output_becomes_text() {
+        use crate::ast::output::OutputFormat as RuntimeOutputFormat;
+
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("md_task");
+        wf.tasks.push(AnalyzedTask {
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Text,
+                schema: None,
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "md_task")
+        });
+        let lowered = lower(wf).unwrap();
+        // Manually change format to Markdown (simulating a Markdown output)
+        let lowered_clone = Workflow {
+            tasks: lowered
+                .tasks
+                .iter()
+                .map(|t| {
+                    let mut task = (**t).clone();
+                    if let Some(ref mut out) = task.output {
+                        out.format = RuntimeOutputFormat::Markdown;
+                    }
+                    Arc::new(task)
+                })
+                .collect(),
+            ..lowered
+        };
+        let unlowered = unlower(lowered_clone).unwrap();
+        let out = unlowered.tasks[0].output.as_ref().unwrap();
+        assert_eq!(
+            out.format,
+            AnalyzedOutputFormat::Text,
+            "Markdown should collapse to Text after unlower"
+        );
+    }
+
+    /// L3: Implicit deps merge into depends_on and lose their distinct identity.
+    #[test]
+    fn roundtrip_implicit_deps_merge_into_depends_on() {
+        let mut wf = dummy_workflow();
+        let id_a = wf.task_table.insert("task_a");
+        let id_b = wf.task_table.insert("task_b");
+        wf.tasks.push(dummy_task(id_a, "task_a"));
+        wf.tasks.push(AnalyzedTask {
+            depends_on: vec![id_a],
+            implicit_deps: vec![id_a], // same dep as both explicit and implicit
+            ..dummy_task(id_b, "task_b")
+        });
+        let lowered = lower(wf).unwrap();
+        // Both explicit and implicit deps merged into flow
+        let flow = lowered.tasks[1].flow.as_ref().unwrap();
+        assert_eq!(flow.len(), 2, "Both deps should be merged into flow");
+        // After roundtrip, all appear in depends_on, implicit_deps is empty
+        let unlowered = unlower(lowered).unwrap();
+        let rt_task = &unlowered.tasks[1];
+        assert!(
+            rt_task.implicit_deps.is_empty(),
+            "After roundtrip, implicit_deps should be empty (merged into depends_on)"
+        );
+        assert_eq!(rt_task.depends_on.len(), 2);
+    }
+
+    /// L4: context_files are permanently dropped during lowering.
+    #[test]
+    fn roundtrip_context_files_are_lost() {
+        let wf = AnalyzedWorkflow {
+            context_files: vec![
+                AnalyzedContextFile {
+                    path: "README.md".to_string(),
+                    alias: None,
+                    max_bytes: None,
+                    span: Span::dummy(),
+                },
+                AnalyzedContextFile {
+                    path: "schema.json".to_string(),
+                    alias: Some("schema".to_string()),
+                    max_bytes: Some(4096),
+                    span: Span::dummy(),
+                },
+            ],
+            ..dummy_workflow()
+        };
+        let lowered = lower(wf).unwrap();
+        assert!(lowered.context.is_none(), "context_files should be dropped");
+        let unlowered = unlower(lowered).unwrap();
+        assert!(
+            unlowered.context_files.is_empty(),
+            "After roundtrip, context_files should be empty"
+        );
+    }
+
+    /// L5: Agent `from` field is lost during roundtrip.
+    #[test]
+    fn roundtrip_agent_from_field_is_lost() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("agent_task");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+                prompt: "do something".to_string(),
+                tools: vec![],
+                max_iterations: Some(5),
+                max_tokens: None,
+                from: Some("my_agent_def".to_string()),
+                skills: vec![],
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "agent_task")
+        });
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        match &unlowered.tasks[0].action {
+            AnalyzedTaskAction::Agent(agent) => {
+                assert_eq!(
+                    agent.from, None,
+                    "Agent `from` field should be None after roundtrip"
+                );
+            }
+            _ => panic!("expected Agent action after roundtrip"),
+        }
+    }
+
+    /// L6: SSE MCP servers are permanently dropped during lowering (only Stdio survives).
+    #[test]
+    fn roundtrip_sse_server_permanently_lost() {
+        let mut wf = dummy_workflow();
+        let mut servers = IndexMap::new();
+        servers.insert(
+            "sse_server".to_string(),
+            AnalyzedMcpServer {
+                name: "sse_server".to_string(),
+                command: None,
+                args: vec![],
+                env: IndexMap::new(),
+                cwd: None,
+                url: Some("https://example.com/mcp".to_string()),
+                transport: McpTransport::Sse,
+                span: Span::dummy(),
+            },
+        );
+        servers.insert(
+            "stdio_server".to_string(),
+            AnalyzedMcpServer {
+                name: "stdio_server".to_string(),
+                command: Some("npx server".to_string()),
+                args: vec!["--port".to_string(), "3000".to_string()],
+                env: IndexMap::new(),
+                cwd: None,
+                url: None,
+                transport: McpTransport::Stdio,
+                span: Span::dummy(),
+            },
+        );
+        wf.mcp_servers = servers;
+
+        let lowered = lower(wf).unwrap();
+        // Only stdio survives lowering
+        let mcp = lowered.mcp.as_ref().unwrap();
+        assert_eq!(mcp.len(), 1, "Only Stdio server should survive lowering");
+        assert!(mcp.contains_key("stdio_server"));
+
+        let unlowered = unlower(lowered).unwrap();
+        assert_eq!(
+            unlowered.mcp_servers.len(),
+            1,
+            "SSE server should be permanently lost after roundtrip"
+        );
+        assert!(unlowered.mcp_servers.contains_key("stdio_server"));
+        assert!(
+            !unlowered.mcp_servers.contains_key("sse_server"),
+            "SSE server should not exist after roundtrip"
+        );
+    }
 }
