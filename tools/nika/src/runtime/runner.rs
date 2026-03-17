@@ -1618,14 +1618,54 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
 
                                 if !self.quiet {
-                                    println!(
-                                        "  {} {} {} {}",
-                                        status, &*store_id, symbol_colored, duration_str
-                                    );
+                                    // IMP-3: Look up task description for richer progress output
+                                    let parent_name = store_id
+                                        .find('[')
+                                        .map(|i| &store_id[..i])
+                                        .unwrap_or(&store_id);
+                                    let desc = self
+                                        .workflow
+                                        .tasks
+                                        .iter()
+                                        .find(|t| t.name == parent_name)
+                                        .and_then(|t| t.description.as_deref());
+
+                                    if let Some(d) = desc {
+                                        println!(
+                                            "  {} {} {} {} — {}",
+                                            status,
+                                            &*store_id,
+                                            symbol_colored,
+                                            duration_str,
+                                            d.dimmed()
+                                        );
+                                    } else {
+                                        println!(
+                                            "  {} {} {} {}",
+                                            status, &*store_id, symbol_colored, duration_str
+                                        );
+                                    }
 
                                     if let Some(err) = task_result.error() {
                                         if !skipped {
                                             println!("      {} {}", "Error:".red(), err);
+                                        }
+                                    }
+
+                                    // IMP-4: Show intermediate output preview
+                                    if success {
+                                        let out = task_result.output_str();
+                                        if !out.is_empty() {
+                                            let preview = if out.len() > 120 {
+                                                format!("{}…", &out[..120])
+                                            } else {
+                                                out.into_owned()
+                                            };
+                                            println!(
+                                                "      {} {}",
+                                                "→".dimmed(),
+                                                preview.dimmed()
+                                            );
                                         }
                                     }
                                 }
