@@ -292,6 +292,11 @@ fn lower_retry(retry: AnalyzedRetry) -> RetryConfig {
     }
 }
 
+/// Practical tolerance for backoff unity comparison (0.01% relative difference).
+/// `f64::EPSILON` (~2.2e-16) is too strict for user-provided floats that may
+/// accumulate rounding from YAML parsing or arithmetic.
+const BACKOFF_UNITY_TOLERANCE: f64 = 0.0001;
+
 fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
     let retry = match action {
         TaskAction::Fetch { fetch } => fetch.retry.as_ref(),
@@ -300,7 +305,7 @@ fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
     retry.map(|r| AnalyzedRetry {
         max_attempts: r.max_attempts,
         delay_ms: r.backoff_ms,
-        backoff: if (r.multiplier - 1.0).abs() > f64::EPSILON {
+        backoff: if (r.multiplier - 1.0).abs() > BACKOFF_UNITY_TOLERANCE {
             Some(r.multiplier)
         } else {
             None
@@ -1275,6 +1280,85 @@ mod tests {
         // unlower should reject the dangling name
         let result = unlower(lowered);
         assert!(result.is_err(), "unlower should reject dangling dep name");
+    }
+
+    #[test]
+    fn unlower_retry_backoff_near_one() {
+        // Backoff of exactly 1.0 should roundtrip as None (no backoff)
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("fetcher");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: None,
+                follow_redirects: true,
+                span: Span::dummy(),
+            }),
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: None, // None → multiplier 1.0
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "fetcher")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+
+        assert!(
+            unlowered.tasks[0]
+                .retry
+                .as_ref()
+                .unwrap()
+                .backoff
+                .is_none(),
+            "backoff of 1.0 should roundtrip as None"
+        );
+    }
+
+    #[test]
+    fn unlower_retry_backoff_near_one_within_tolerance() {
+        // Backoff of 1.00005 (within BACKOFF_UNITY_TOLERANCE) should also → None
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("fetcher");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: None,
+                follow_redirects: true,
+                span: Span::dummy(),
+            }),
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: Some(1.00005), // Within tolerance of 1.0
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "fetcher")
+        });
+
+        let lowered = lower(wf).unwrap();
+        // Lowered multiplier is 1.00005
+        let unlowered = unlower(lowered).unwrap();
+
+        assert!(
+            unlowered.tasks[0]
+                .retry
+                .as_ref()
+                .unwrap()
+                .backoff
+                .is_none(),
+            "backoff within tolerance of 1.0 should roundtrip as None"
+        );
     }
 
     #[test]
