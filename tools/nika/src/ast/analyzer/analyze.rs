@@ -2350,4 +2350,44 @@ mod tests {
             result.errors
         );
     }
+
+    // ====================================================================
+    // Multi-error collection and self-cycle
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_collects_all_errors() {
+        // Workflow with 2 problems: duplicate task ID and unknown with: ref
+        let mut task1a = make_raw_task("task1");
+        add_with_ref(&mut task1a, "x", "$nonexistent");
+        let task1b = make_raw_task("task1"); // duplicate
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task1a, task1b]);
+        let result = analyze(raw);
+        assert!(result.is_err());
+        assert!(
+            result.errors.len() >= 2,
+            "analyzer should collect all errors, got {}: {:?}",
+            result.errors.len(),
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_self_cycle() {
+        let mut task = make_raw_task("loop_task");
+        add_depends_on(&mut task, &["loop_task"]);
+
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![task]);
+        let result = analyze(raw);
+        assert!(result.is_err());
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.kind == AnalyzeErrorKind::CyclicDependency),
+            "self-cycle should be detected: {:?}",
+            result.errors
+        );
+    }
 }
