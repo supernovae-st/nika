@@ -305,10 +305,12 @@ fn unlower_retry(action: &TaskAction) -> Option<AnalyzedRetry> {
     retry.map(|r| AnalyzedRetry {
         max_attempts: r.max_attempts,
         delay_ms: r.backoff_ms,
-        backoff: if (r.multiplier - 1.0).abs() > BACKOFF_UNITY_TOLERANCE {
-            Some(r.multiplier)
-        } else {
+        backoff: if r.multiplier.is_nan()
+            || (r.multiplier - 1.0).abs() <= BACKOFF_UNITY_TOLERANCE
+        {
             None
+        } else {
+            Some(r.multiplier)
         },
         span: Span::dummy(),
     })
@@ -487,7 +489,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             for_each,
             retry: unlower_retry(&task.action),
             decompose: task.decompose.clone(),
-            concurrency: task.concurrency.map(|c| c as u32),
+            concurrency: task.concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
             fail_fast: task.fail_fast,
             artifact: task.artifact.clone(),
             log: task.log.clone(),
@@ -623,7 +625,7 @@ fn unlower_for_each(
     Some(AnalyzedForEach {
         items: items_str,
         as_var: as_var.cloned().unwrap_or_else(|| "item".to_string()),
-        parallel: concurrency.map(|c| c as u32),
+        parallel: concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
         fail_fast: fail_fast.unwrap_or(true),
         span: Span::dummy(),
     })
@@ -1811,6 +1813,74 @@ mod tests {
         assert!(
             !unlowered.mcp_servers.contains_key("sse_server"),
             "SSE server should not exist after roundtrip"
+        );
+    }
+
+    /// L7: NaN backoff multiplier becomes None (not silently preserved).
+    ///
+    /// Before the fix, `(NaN - 1.0).abs() > 0.0001` evaluated to `false`
+    /// because NaN comparisons always return false, silently dropping the
+    /// multiplier as if it were 1.0.
+    #[test]
+    fn roundtrip_nan_multiplier_becomes_none() {
+        use crate::ast::action::{FetchParams, RetryConfig, TaskAction};
+
+        let action = TaskAction::Fetch {
+            fetch: FetchParams {
+                url: "https://example.com".to_string(),
+                method: "GET".to_string(),
+                headers: Default::default(),
+                body: None,
+                json: None,
+                timeout: None,
+                retry: Some(RetryConfig {
+                    max_attempts: 3,
+                    backoff_ms: 1000,
+                    multiplier: f64::NAN,
+                }),
+                follow_redirects: None,
+            },
+        };
+        let result = unlower_retry(&action);
+        assert!(result.is_some(), "Retry config should be preserved");
+        assert!(
+            result.unwrap().backoff.is_none(),
+            "NaN multiplier should become None, not be silently preserved"
+        );
+    }
+
+    /// L8: `task.description` is dropped during unlowering.
+    #[test]
+    fn roundtrip_task_description_is_lost() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("described");
+        wf.tasks.push(AnalyzedTask {
+            description: Some("Important task description".to_string()),
+            ..dummy_task(id, "described")
+        });
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        assert!(
+            unlowered.tasks[0].description.is_none(),
+            "Task description should be lost after roundtrip"
+        );
+    }
+
+    /// L9: `workflow.name` and `workflow.description` are dropped.
+    #[test]
+    fn roundtrip_workflow_name_description_lost() {
+        let mut wf = dummy_workflow();
+        wf.name = Some("My workflow".to_string());
+        wf.description = Some("Does important things".to_string());
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        assert!(
+            unlowered.name.is_none(),
+            "Workflow name should be lost after roundtrip"
+        );
+        assert!(
+            unlowered.description.is_none(),
+            "Workflow description should be lost after roundtrip"
         );
     }
 }
