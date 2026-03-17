@@ -296,3 +296,165 @@ tasks:
         })
     );
 }
+
+// ============================================================================
+// ANALYZER ERROR MESSAGE SNAPSHOTS (all 8 AnalyzeErrorKind variants)
+// ============================================================================
+
+use nika::ast::analyzer::analyze;
+use nika::ast::raw::parse;
+use nika::source::FileId;
+
+/// Helper: parse YAML → analyze → collect errors as "[CODE] message" strings.
+fn analyze_errors(yaml: &str) -> Vec<String> {
+    let raw = parse(yaml, FileId(0)).unwrap();
+    let result = analyze(raw);
+    result
+        .errors
+        .iter()
+        .map(|e| format!("[{}] {}", e.kind.code(), e))
+        .collect()
+}
+
+/// Helper: parse YAML → analyze → collect warnings as "[CODE] message" strings.
+fn analyze_warnings(yaml: &str) -> Vec<String> {
+    let raw = parse(yaml, FileId(0)).unwrap();
+    let result = analyze(raw);
+    result
+        .warnings
+        .iter()
+        .map(|e| format!("[{}] {}", e.kind.code(), e))
+        .collect()
+}
+
+#[test]
+fn snapshot_error_unknown_task() {
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: task1
+    depends_on: [nonexistent]
+    infer: "hello"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected UnknownTask error");
+    insta::assert_yaml_snapshot!("error_unknown_task", errors);
+}
+
+#[test]
+fn snapshot_error_duplicate_task() {
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: dup
+    infer: "hello"
+  - id: dup
+    infer: "world"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected DuplicateTask error");
+    insta::assert_yaml_snapshot!("error_duplicate_task", errors);
+}
+
+#[test]
+fn snapshot_error_invalid_schema() {
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@99.99
+tasks:
+  - id: task1
+    infer: "hello"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected InvalidSchema error");
+    insta::assert_yaml_snapshot!("error_invalid_schema", errors);
+}
+
+#[test]
+fn snapshot_error_cyclic_dependency() {
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: a
+    depends_on: [b]
+    infer: "hello"
+  - id: b
+    depends_on: [a]
+    infer: "world"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected CyclicDependency error");
+    insta::assert_yaml_snapshot!("error_cyclic_dependency", errors);
+}
+
+#[test]
+fn snapshot_error_invalid_value() {
+    // Task ID starting with '$' triggers InvalidValue
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: $bad_id
+    infer: "hello"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected InvalidValue error");
+    insta::assert_yaml_snapshot!("error_invalid_value", errors);
+}
+
+#[test]
+fn snapshot_error_missing_field() {
+    // MCP stdio server without 'command' triggers MissingField
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+mcp:
+  servers:
+    broken:
+      args: ["--flag"]
+tasks:
+  - id: task1
+    infer: "hello"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected MissingField error");
+    insta::assert_yaml_snapshot!("error_missing_field", errors);
+}
+
+#[test]
+fn snapshot_error_unsupported_feature() {
+    // SSE MCP server triggers UnsupportedFeature warning
+    let warnings = analyze_warnings(
+        r#"
+schema: nika/workflow@0.12
+mcp:
+  servers:
+    remote:
+      url: "https://example.com/sse"
+tasks:
+  - id: task1
+    infer: "hello"
+"#,
+    );
+    assert!(!warnings.is_empty(), "expected UnsupportedFeature warning");
+    insta::assert_yaml_snapshot!("error_unsupported_feature", warnings);
+}
+
+#[test]
+fn snapshot_error_invalid_binding() {
+    let errors = analyze_errors(
+        r#"
+schema: nika/workflow@0.12
+tasks:
+  - id: task1
+    with:
+      x: ""
+    infer: "hello"
+"#,
+    );
+    assert!(!errors.is_empty(), "expected InvalidBinding error");
+    insta::assert_yaml_snapshot!("error_invalid_binding", errors);
+}

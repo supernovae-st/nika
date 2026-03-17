@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 342
+expression: errors
+---
+- "[NIKA-140] unknown task 'nonexistent'"

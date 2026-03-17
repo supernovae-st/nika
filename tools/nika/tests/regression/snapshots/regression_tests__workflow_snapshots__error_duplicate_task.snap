@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 358
+expression: errors
+---
+- "[NIKA-141] duplicate task id 'dup'"

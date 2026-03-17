@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 372
+expression: errors
+---
+- "[NIKA-142] invalid schema version 'nika/workflow@99.99' (did you mean 'nika/workflow@0.9'?)"

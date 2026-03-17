@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 443
+expression: warnings
+---
+- "[NIKA-149] SSE MCP server 'remote' will be dropped during execution (no runtime support) (use a stdio-based MCP server instead)"

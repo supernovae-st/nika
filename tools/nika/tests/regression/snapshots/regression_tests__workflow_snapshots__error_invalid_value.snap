@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 405
+expression: errors
+---
+- "[NIKA-144] task ID '$bad_id' must not start with '$' (reserved for binding references) (remove the leading '$' from the task ID)"

@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 459
+expression: errors
+---
+- "[NIKA-151] invalid binding expression '': empty input"

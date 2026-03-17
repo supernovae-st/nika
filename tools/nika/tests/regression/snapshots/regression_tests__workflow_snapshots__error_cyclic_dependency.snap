@@ -1,0 +1,6 @@
+---
+source: tests/regression/workflow_snapshots.rs
+assertion_line: 390
+expression: errors
+---
+- "[NIKA-143] cyclic dependency detected: "
