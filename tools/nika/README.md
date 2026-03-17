@@ -1,7 +1,7 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.27.0-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.30.3-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-6264%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
@@ -43,16 +43,16 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.27.0 Features
+## v0.30 Features
 
-- **Language Improvements**
-  - `exec.env` - Environment variable injection for exec tasks
-  - `fetch.json` - Auto-serialize JSON body (sets Content-Type automatically)
-  - `inputs.xxx` references - Access workflow inputs in `use:` blocks
-  - `$inputs` binding - for_each accepts `$inputs.items` expressions
-- **TUI Panels Module** - TaskListPanel, TaskBoxFlow, BrowserPanel
-- **New Task Status** - `TaskStatus::Queued` and `TaskStatus::Skipped` variants
-- **6,264 tests passing** (full regression coverage)
+- **Structured Output** — DynamicSubmitTool + 5-layer architecture (v0.30.0)
+- **LSP Intelligence** — Semantic tokens, Go to Definition, VS Code extension (v0.30.1)
+- **Security Hardening** — Block LD_PRELOAD, strip API keys, AST hardening (v0.30.2)
+- **A+++ Quality Pass** — CRLF compliance, NaN fixes, 34 property tests (v0.30.3)
+- **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
+- **IndexedDag** — Vec-based adjacency list with Kahn's topological sort (v0.29.0)
+- **use→with Migration** — Complete binding syntax migration to `with:` (v0.29.1)
+- **5,204+ lib tests passing** | 34 proptests | Zero clippy warnings
 
 ## v0.22.0+ Features
 
@@ -253,10 +253,10 @@ cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.27.0)
-- **6,264 tests passing**
+### Test Breakdown (v0.30.3)
+- **5,204+ lib tests** + 34 property tests
 - Zero clippy warnings
-- Schema @0.11 validation in CI
+- Schema @0.12 validation in CI
 
 ## ARMADA Quality System
 

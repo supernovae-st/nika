@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.27.0-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.30.3-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -68,7 +68,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.21.1  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.30.3  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
@@ -97,29 +97,31 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.27.0
+## ✨ What's New in v0.30
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.27.0 — UNIFIED CLI: spn→nika FEATURE FUSION                            ║
+║  🦋 v0.30 — STRUCTURED OUTPUT + LSP + SECURITY HARDENING                       ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  🎯 UNIFIED CLI — All spn features now available via nika:                    ║
-║  ├── nika provider   — API key management (list, set, get, test, migrate)    ║
-║  ├── nika model      — Local model management (list, pull, info, search)     ║
-║  ├── nika mcp        — MCP server management (add, remove, list, test)       ║
-║  ├── nika sync       — Editor synchronization (enable, disable, status)      ║
-║  ├── nika setup      — Interactive onboarding (nika, novanet, claude-code)   ║
-║  ├── nika daemon     — Background service (start, stop, status)              ║
-║  ├── nika jobs       — Background jobs (submit, cancel, output, list)        ║
-║  └── nika backup     — Data backup (create, restore, list, prune)            ║
+║  ⚡ v0.30.0 — Structured Output + Tool Injection                              ║
+║  ├── DynamicSubmitTool — rig ToolDyn trait for structured output               ║
+║  ├── structured: field — Wired through 3-phase AST pipeline                   ║
+║  └── 5-layer structured output architecture                                   ║
 ║                                                                               ║
-║  🔧 CORE MODULE — Zero-dep provider/model/MCP definitions:                   ║
-║  ├── KNOWN_PROVIDERS — 6 LLM + 11 MCP + 1 Native (18 total)                  ║
-║  ├── KNOWN_MODELS    — 16+ curated models for native inference               ║
-║  └── MCP_ALIASES     — 48 server aliases for auto-configuration              ║
+║  🧠 v0.30.1 — LSP Intelligence + VS Code Extension                            ║
+║  ├── Semantic tokens, Go to Definition, verb completions                      ║
+║  └── Dedicated .nika.yaml language support for VS Code                        ║
 ║                                                                               ║
-║  📊 STATS: 6,264 tests | 6 providers | Zero clippy warnings | 0.x.x forever   ║
+║  🔒 v0.30.2 — Deep Audit + Security Hardening                                 ║
+║  ├── Block LD_PRELOAD, strip API keys from exec, 10MB write limit             ║
+║  └── AST hardening: reject multi-verb tasks, NaN, dangling deps              ║
+║                                                                               ║
+║  🔬 v0.30.3 — A+++ Quality Pass                                               ║
+║  ├── CRLF state machine (LSP 3.17 compliant), NaN bug fixes                  ║
+║  └── 34 property tests, silent-skip elimination                               ║
+║                                                                               ║
+║  📊 STATS: 5,204+ tests | 34 proptests | Zero clippy warnings | 0.x.x forever║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -1666,7 +1668,7 @@ flows:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.27.0 STATS                                 ║
+║                           🦋 NIKA v0.30.3 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
@@ -1734,7 +1736,7 @@ pie title 📊 Test Distribution (6,264 tests)
 
 | Crate | Version | Purpose |
 |:------|:-------:|:--------|
-| [![rig-core](https://img.shields.io/badge/rig--core-0.31-f97316?style=flat-square)](https://github.com/0xPlaygrounds/rig) | 0.31 | LLM agent framework |
+| [![rig-core](https://img.shields.io/badge/rig--core-0.32-f97316?style=flat-square)](https://github.com/0xPlaygrounds/rig) | 0.32 | LLM agent framework |
 | [![tokio](https://img.shields.io/badge/tokio-1.49-3b82f6?style=flat-square)](https://tokio.rs/) | 1.49 | Async runtime |
 | [![ratatui](https://img.shields.io/badge/ratatui-0.30-10b981?style=flat-square)](https://ratatui.rs/) | 0.30 | Terminal UI |
 | [![rmcp](https://img.shields.io/badge/rmcp-0.16-8b5cf6?style=flat-square)](https://github.com/anthropics/anthropic-cookbook) | 0.16 | MCP client SDK |
