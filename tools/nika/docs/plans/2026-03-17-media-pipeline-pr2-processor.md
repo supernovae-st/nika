@@ -309,8 +309,13 @@ pub fn mime_to_extension(mime: &str) -> String {
         return ext_list[0].to_string();
     }
 
-    // Fallback: extract from MIME subtype
-    mime.split('/').last().unwrap_or("bin").to_string()
+    // Fallback: extract from MIME subtype, SANITIZED to prevent path traversal
+    let raw = mime.split('/').last().unwrap_or("bin");
+    // Only keep alphanumeric + hyphen — strips '/', '..', etc.
+    let sanitized: String = raw.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+    if sanitized.is_empty() { "bin".to_string() } else { sanitized }
 }
 ```
 
@@ -498,7 +503,9 @@ impl CasStore {
     ) -> std::io::Result<(u32, u64)> {
         let mut removed = 0u32;
         let mut freed = 0u64;
-        let cutoff = std::time::SystemTime::now() - max_age;
+        let cutoff = std::time::SystemTime::now()
+            .checked_sub(max_age)
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
         let entries = self.list().await?;
         for (_, _, size, path) in entries {
@@ -522,9 +529,14 @@ impl CasStore {
         let mut removed = 0u32;
         let mut freed = 0u64;
         for (_, _, size, path) in entries {
-            if fs::remove_file(&path).await.is_ok() {
-                removed += 1;
-                freed += size;
+            match fs::remove_file(&path).await {
+                Ok(()) => {
+                    removed += 1;
+                    freed += size;
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "Failed to remove CAS file");
+                }
             }
         }
         Ok((removed, freed))
@@ -558,13 +570,20 @@ impl MediaProcessor {
         Self { store }
     }
 
-    /// Process a ContentBlock, storing binary data and returning a MediaRef
-    ///
-    /// Returns None for text-only blocks (they don't need media processing)
+    /// Process a ContentBlock, returning MediaRef only (convenience)
     pub async fn process_block(
         &self,
         block: &ContentBlock,
     ) -> Result<Option<MediaRef>, MediaError> {
+        Ok(self.process_block_with_result(block).await?.map(|(r, _)| r))
+    }
+
+    /// Process a ContentBlock, returning (MediaRef, StoreResult) for telemetry.
+    /// Returns None for text-only blocks (they don't need media processing).
+    pub async fn process_block_with_result(
+        &self,
+        block: &ContentBlock,
+    ) -> Result<Option<(MediaRef, super::store::StoreResult)>, MediaError> {
         match block.content_type.as_str() {
             // Image and Audio have identical shape: data (base64) + mime_type
             "image" | "audio" => {
@@ -586,8 +605,7 @@ impl MediaProcessor {
                         let media_block = self.decode_base64(blob, mime_hint, source_uri)?;
                         Ok(Some(self.store_block(media_block).await?))
                     } else {
-                        // Text-only resource -- not media
-                        Ok(None)
+                        Ok(None)  // Text-only resource -- not media
                     }
                 } else {
                     Ok(None)
@@ -598,19 +616,32 @@ impl MediaProcessor {
         }
     }
 
-    /// Process all blocks from a ToolCallResult, returning MediaRefs
+    /// Process all blocks, returning MediaRefs (convenience wrapper)
     pub async fn process_all(
         &self,
         blocks: &[ContentBlock],
     ) -> Result<Vec<MediaRef>, MediaError> {
-        let mut refs = Vec::new();
+        Ok(self.process_all_with_results(blocks).await?
+            .into_iter().map(|(r, _)| r).collect())
+    }
+
+    /// Process all blocks, returning (MediaRef, StoreResult) pairs for telemetry
+    pub async fn process_all_with_results(
+        &self,
+        blocks: &[ContentBlock],
+    ) -> Result<Vec<(MediaRef, super::store::StoreResult)>, MediaError> {
+        let mut results = Vec::new();
         for block in blocks {
-            if let Some(media_ref) = self.process_block(block).await? {
-                refs.push(media_ref);
+            if let Some(result) = self.process_block_with_result(block).await? {
+                results.push(result);
             }
         }
         Ok(refs)
     }
+
+    /// Maximum raw base64 input size (100MB base64 ≈ 75MB decoded).
+    /// Prevents OOM from malicious MCP servers sending huge payloads.
+    const MAX_BASE64_INPUT_BYTES: usize = 100 * 1024 * 1024; // 100MB
 
     /// Decode base64 data into a MediaBlock
     fn decode_base64(
@@ -619,6 +650,17 @@ impl MediaProcessor {
         mime_hint: Option<&str>,
         source_uri: Option<String>,
     ) -> Result<MediaBlock, MediaError> {
+        // Guard: reject oversized base64 BEFORE allocating decode buffer (OOM protection)
+        if data_b64.len() > Self::MAX_BASE64_INPUT_BYTES {
+            return Err(MediaError::Base64DecodeFailed {
+                reason: format!(
+                    "base64 input too large: {} bytes (max {})",
+                    data_b64.len(),
+                    Self::MAX_BASE64_INPUT_BYTES,
+                ),
+            });
+        }
+
         let data = base64::engine::general_purpose::STANDARD
             .decode(data_b64)
             .map_err(|e| MediaError::Base64DecodeFailed {
@@ -642,8 +684,16 @@ impl MediaProcessor {
         })
     }
 
-    /// Store a MediaBlock in CAS and return a MediaRef
-    async fn store_block(&self, block: MediaBlock) -> Result<MediaRef, MediaError> {
+    /// Store a MediaBlock in CAS and return (MediaRef, StoreResult)
+    async fn store_block(&self, block: MediaBlock) -> Result<(MediaRef, super::store::StoreResult), MediaError> {
+        // Guard: reject empty content — a 0-byte file is never valid media
+        // (prevents phantom CAS files when server MIME is provided but data is empty)
+        if block.data.is_empty() {
+            return Err(MediaError::Base64DecodeFailed {
+                reason: "decoded media content is empty (0 bytes)".to_string(),
+            });
+        }
+
         // Detect MIME type with cross-validation
         let ext_hint = block.mime_hint.as_deref().and_then(|m| {
             m.split('/').last()
@@ -662,14 +712,15 @@ impl MediaProcessor {
         // Store in CAS with read-back verification
         let store_result = self.store.store(&block.data, &hash, &extension).await?;
 
-        Ok(MediaRef {
+        let media_ref = MediaRef {
             hash,
             mime_type,
             media_type,
             size_bytes,
-            path: store_result.path,
+            path: store_result.path.clone(),
             extension,
-        })
+        };
+        Ok((media_ref, store_result))
     }
 }
 ```
@@ -899,25 +950,28 @@ let media_refs = if tool_result.has_media() {
     let store = CasStore::workspace_default();
     let processor = MediaProcessor::new(store);
 
-    match processor.process_all(&tool_result.content).await {
-        Ok(refs) => {
+    // NOTE: process_all_with_results returns (MediaRef, StoreResult) pairs
+    // so we can thread verified/deduplicated to telemetry events.
+    match processor.process_all_with_results(&tool_result.content).await {
+        Ok(results) => {
+            let refs: Vec<MediaRef> = results.iter().map(|(r, _)| r.clone()).collect();
             // Emit events for each stored media
-            for media_ref in &refs {
+            for (media_ref, store_result) in &results {
                 self.event_log.emit(EventKind::MediaProcessed {
                     task_id: task_id.clone(),
                     hash: media_ref.hash.clone(),
                     mime_type: media_ref.mime_type.clone(),
                     media_type: format!("{:?}", media_ref.media_type).to_lowercase(),
                     size_bytes: media_ref.size_bytes,
-                    server_mime: None, // TODO: pass through from ContentBlock
+                    server_mime: None, // Server MIME available via ContentBlock.mime_type
                 });
                 self.event_log.emit(EventKind::MediaStored {
                     task_id: task_id.clone(),
                     hash: media_ref.hash.clone(),
                     path: media_ref.path.display().to_string(),
                     size_bytes: media_ref.size_bytes,
-                    verified: true,   // store() does read-back verification
-                    deduplicated: false, // TODO: pass through from StoreResult
+                    verified: store_result.verified,
+                    deduplicated: store_result.deduplicated,
                 });
             }
             refs

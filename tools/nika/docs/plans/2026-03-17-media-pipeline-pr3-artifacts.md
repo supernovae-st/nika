@@ -243,21 +243,20 @@ async fn verify_media_integrity(run_context: &RunContext) -> Vec<String> {
         let result = entry.value();
 
         for (i, media_ref) in result.media.iter().enumerate() {
-            // Check file exists
-            if tokio::fs::metadata(&media_ref.path).await.is_err() {
-                warnings.push(format!(
-                    "NIKA-253: Task '{}' media[{}] missing: {}",
-                    task_id, i, media_ref.path.display()
-                ));
-                continue;
-            }
-
-            // Check file size matches
-            if let Ok(meta) = tokio::fs::metadata(&media_ref.path).await {
-                if meta.len() != media_ref.size_bytes {
+            // Single metadata() call — avoids TOCTOU between exists check and size check
+            match tokio::fs::metadata(&media_ref.path).await {
+                Ok(meta) => {
+                    if meta.len() != media_ref.size_bytes {
+                        warnings.push(format!(
+                            "Task '{}' media[{}] size mismatch: expected {}, got {}",
+                            task_id, i, media_ref.size_bytes, meta.len()
+                        ));
+                    }
+                }
+                Err(_) => {
                     warnings.push(format!(
-                        "Task '{}' media[{}] size mismatch: expected {}, got {}",
-                        task_id, i, media_ref.size_bytes, meta.len()
+                        "NIKA-253: Task '{}' media[{}] missing: {}",
+                        task_id, i, media_ref.path.display()
                     ));
                 }
             }
@@ -426,16 +425,22 @@ fn parse_duration(s: &str) -> Result<std::time::Duration, NikaError> {
         arg: "duration".into(),
         reason: format!("invalid number: '{}'", num_str),
     })?;
-    match unit {
-        "s" => Ok(std::time::Duration::from_secs(num)),
-        "m" => Ok(std::time::Duration::from_secs(num * 60)),
-        "h" => Ok(std::time::Duration::from_secs(num * 3600)),
-        "d" => Ok(std::time::Duration::from_secs(num * 86400)),
-        _ => Err(NikaError::InvalidArgument {
+    let multiplier: u64 = match unit {
+        "s" => 1,
+        "m" => 60,
+        "h" => 3600,
+        "d" => 86400,
+        _ => return Err(NikaError::InvalidArgument {
             arg: "duration".into(),
             reason: format!("unknown unit: '{}' (expected s/m/h/d)", unit),
         }),
-    }
+    };
+    // Use checked_mul to prevent arithmetic overflow on huge values
+    let secs = num.checked_mul(multiplier).ok_or_else(|| NikaError::InvalidArgument {
+        arg: "duration".into(),
+        reason: format!("duration too large: '{}' overflows", s),
+    })?;
+    Ok(std::time::Duration::from_secs(secs))
 }
 ```
 
