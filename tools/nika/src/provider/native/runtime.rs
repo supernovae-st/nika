@@ -416,8 +416,8 @@ impl InferenceBackend for NativeRuntime {
             },
             done: true,
             total_duration: None,
-            prompt_eval_count: Some(response.usage.prompt_tokens as u32),
-            eval_count: Some(response.usage.completion_tokens as u32),
+            prompt_eval_count: Some(response.usage.prompt_tokens as u64),
+            eval_count: Some(response.usage.completion_tokens as u64),
         })
     }
 

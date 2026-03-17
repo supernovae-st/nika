@@ -420,9 +420,9 @@ pub struct ChatResponse {
     /// Total duration in nanoseconds.
     pub total_duration: Option<u64>,
     /// Tokens generated.
-    pub eval_count: Option<u32>,
+    pub eval_count: Option<u64>,
     /// Prompt tokens.
-    pub prompt_eval_count: Option<u32>,
+    pub prompt_eval_count: Option<u64>,
 }
 
 impl ChatResponse {

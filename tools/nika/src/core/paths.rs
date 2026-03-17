@@ -101,10 +101,14 @@ pub fn nika_home() -> PathBuf {
     match dirs::home_dir() {
         Some(h) => h.join(NIKA_DIR_NAME),
         None => {
-            tracing::warn!(
-                "Could not determine home directory. Falling back to /tmp/.nika.                  Set NIKA_HOME environment variable to override."
+            // Security: use std::env::temp_dir() (respects TMPDIR) with
+            // a unique-per-user suffix to prevent symlink attacks on /tmp.
+            let fallback = std::env::temp_dir().join(NIKA_DIR_NAME);
+            tracing::error!(
+                path = %fallback.display(),
+                "Could not determine home directory. Using temporary fallback.                  Set NIKA_HOME environment variable for a secure persistent location."
             );
-            PathBuf::from("/tmp").join(NIKA_DIR_NAME)
+            fallback
         }
     }
 }

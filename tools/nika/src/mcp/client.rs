@@ -251,19 +251,39 @@ impl ResponseCache {
         format!("{}:{:016x}", tool, hasher.finish())
     }
 
+    /// Maximum nesting depth for JSON canonicalization to prevent stack overflow.
+    const MAX_CANONICALIZE_DEPTH: usize = 128;
+
     /// Recursively sort all object keys in a JSON Value for canonical serialization.
+    ///
+    /// Limits recursion depth to [`MAX_CANONICALIZE_DEPTH`] to prevent stack overflow
+    /// on adversarial input.
     fn canonicalize_value(value: &Value) -> Value {
+        Self::canonicalize_value_inner(value, 0)
+    }
+
+    fn canonicalize_value_inner(value: &Value, depth: usize) -> Value {
+        if depth >= Self::MAX_CANONICALIZE_DEPTH {
+            return value.clone();
+        }
         match value {
             Value::Object(map) => {
                 let mut sorted: serde_json::Map<String, Value> = serde_json::Map::new();
                 let mut keys: Vec<&String> = map.keys().collect();
                 keys.sort();
                 for key in keys {
-                    sorted.insert(key.clone(), Self::canonicalize_value(&map[key]));
+                    sorted.insert(
+                        key.clone(),
+                        Self::canonicalize_value_inner(&map[key], depth + 1),
+                    );
                 }
                 Value::Object(sorted)
             }
-            Value::Array(arr) => Value::Array(arr.iter().map(Self::canonicalize_value).collect()),
+            Value::Array(arr) => Value::Array(
+                arr.iter()
+                    .map(|v| Self::canonicalize_value_inner(v, depth + 1))
+                    .collect(),
+            ),
             other => other.clone(),
         }
     }

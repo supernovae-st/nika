@@ -287,9 +287,9 @@ tasks:
             }
         }
 
-        /// Property: for_each with empty array fails validation (never panics)
+        /// Property: for_each with empty array parses but doesn't panic
         #[test]
-        fn test_for_each_empty_array_fails(task_id in arb_task_id()) {
+        fn test_for_each_empty_array_parses_safely(task_id in arb_task_id()) {
             let yaml = format!(
                 r#"schema: nika/workflow@0.12
 workflow: test
@@ -300,15 +300,23 @@ tasks:
     exec: "echo {{{{item}}}}""#,
                 task_id
             );
-            // Should not panic during parse/validation
-            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            // Parser should handle empty for_each without panic.
+            // Empty array validation happens at runtime (validate_for_each).
+            let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
+            match result {
+                Ok(raw) => {
+                    // If parsed, analyze should also not panic
+                    let _ = nika::ast::analyzer::analyze(raw);
+                }
+                Err(_) => {} // Parse error is acceptable for edge cases
+            }
         }
 
-        /// Property: for_each with non-array fails validation (never panics)
+        /// Property: for_each with non-array scalar parses safely
         #[test]
-        fn test_for_each_non_array_fails(
+        fn test_for_each_non_array_parses_safely(
             task_id in arb_task_id(),
-            non_array in prop::sample::select(vec!["\"string\"", "123", "true", "null"])
+            non_array in prop::sample::select(vec!["plain_string", "123", "true"])
         ) {
             let yaml = format!(
                 r#"schema: nika/workflow@0.12
@@ -320,8 +328,15 @@ tasks:
     exec: "echo {{{{item}}}}""#,
                 task_id, non_array
             );
-            // Should not panic
-            let _ = serde_yaml::from_str::<serde_json::Value>(&yaml);
+            // Parser treats these as scalar strings. Should not panic.
+            let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
+            match result {
+                Ok(raw) => {
+                    // Non-binding, non-array for_each should not crash analyzer
+                    let _ = nika::ast::analyzer::analyze(raw);
+                }
+                Err(_) => {} // Parse error is acceptable
+            }
         }
 
         /// Property: Valid for_each arrays parse successfully
@@ -390,11 +405,18 @@ mod dag_fuzzing {
     }
 
     proptest! {
-        /// Property: Valid snake_case task IDs pass validation
+        /// Property: Valid snake_case task IDs are accepted by parser+analyzer
         #[test]
-        fn test_valid_task_id_passes(id in arb_valid_task_id()) {
-            let is_valid = id.chars().all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_');
-            prop_assert!(is_valid, "Generated ID should be valid snake_case: {}", id);
+        fn test_valid_task_id_accepted_by_parser(id in arb_valid_task_id()) {
+            let yaml = format!(
+                "schema: nika/workflow@0.12\ntasks:\n  - id: {}\n    infer: \"test\"\n",
+                id
+            );
+            let raw = parse(&yaml, FileId(0))
+                .expect("Valid task ID YAML should parse");
+            let result = analyze(raw);
+            prop_assert!(result.is_ok(),
+                "Valid task ID '{}' should pass analysis: {:?}", id, result.errors);
         }
 
         /// Property: Linear DAGs pass full Nika pipeline without panics
@@ -479,48 +501,50 @@ mod dag_fuzzing {
 }
 
 // =============================================================================
-// TEST 4: JSON Value Handling (bonus coverage)
+// TEST 4: Binding Storage Tests (Nika-specific)
 // =============================================================================
 
-mod json_fuzzing {
+mod binding_storage_fuzzing {
     use super::*;
+    use nika::binding::ResolvedBindings;
 
     proptest! {
-        /// Property: JSON serialization round-trips correctly
+        /// Property: Binding set+get roundtrip preserves values
         #[test]
-        fn test_json_roundtrip(s in "[ -~]{0,100}") {
-            let json = json!(s);
-            let serialized = serde_json::to_string(&json).unwrap();
-            let deserialized: serde_json::Value = serde_json::from_str(&serialized).unwrap();
-            prop_assert_eq!(json, deserialized);
+        fn test_binding_set_get_roundtrip(
+            alias in r"[a-z][a-z0-9_]{0,15}",
+            value in "[ -~]{0,50}"
+        ) {
+            let mut bindings = ResolvedBindings::new();
+            let json_val = json!(value.clone());
+            bindings.set(&alias, json_val.clone());
+            let got = bindings.get(&alias);
+            prop_assert!(got.is_some(), "Stored alias '{}' should be retrievable", alias);
+            prop_assert_eq!(got.unwrap(), &json_val);
         }
 
-        /// Property: Nested JSON access is consistent
+        /// Property: Getting an unset alias returns None
         #[test]
-        fn test_nested_json_access(
-            key in r"[a-z][a-z0-9_]{0,10}",
-            value in "[ -~]{0,30}"
-        ) {
-            let obj = json!({ key.clone(): value.clone() });
-            let accessed = obj.get(&key);
-            prop_assert!(accessed.is_some());
-            prop_assert_eq!(accessed.unwrap().as_str(), Some(value.as_str()));
+        fn test_binding_unset_returns_none(alias in r"[a-z][a-z0-9_]{0,15}") {
+            let bindings = ResolvedBindings::new();
+            prop_assert!(bindings.get(&alias).is_none(),
+                "Unset alias '{}' should return None", alias);
         }
 
-        /// Property: Array indexing is bounds-checked
+        /// Property: Multiple bindings are independent
         #[test]
-        fn test_array_bounds(
-            arr_len in 1usize..20,
-            index in 0usize..100
+        fn test_binding_independence(
+            alias1 in r"[a-z][a-z0-9_]{0,10}",
+            alias2 in r"[a-z][a-z0-9_]{0,10}",
+            value1 in "[ -~]{0,20}",
+            value2 in "[ -~]{0,20}"
         ) {
-            let arr: Vec<i32> = (0..arr_len as i32).collect();
-            let json_arr = json!(arr);
-
-            let accessed = json_arr.get(index);
-            if index < arr_len {
-                prop_assert!(accessed.is_some());
-            } else {
-                prop_assert!(accessed.is_none());
+            if alias1 != alias2 {
+                let mut bindings = ResolvedBindings::new();
+                bindings.set(&alias1, json!(value1.clone()));
+                bindings.set(&alias2, json!(value2.clone()));
+                prop_assert_eq!(bindings.get(&alias1).unwrap(), &json!(value1));
+                prop_assert_eq!(bindings.get(&alias2).unwrap(), &json!(value2));
             }
         }
     }
