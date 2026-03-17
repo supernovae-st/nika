@@ -1,0 +1,13 @@
+# AUDIT-12: NDJSON trace verification
+schema: nika/workflow@0.12
+workflow: audit-12-traces
+
+tasks:
+  - id: step1
+    exec: "echo 'trace_test'"
+
+  - id: step2
+    depends_on: [step1]
+    with:
+      data: $step1
+    exec: "echo 'received: {{with.data}}'"

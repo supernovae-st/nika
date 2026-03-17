@@ -1,0 +1,35 @@
+# AUDIT-08: with: transforms — | upper | lower | trim | json
+schema: nika/workflow@0.12
+workflow: audit-08-transforms
+
+tasks:
+  - id: source
+    exec: "echo '  Hello World  '"
+
+  - id: test_trim
+    depends_on: [source]
+    with:
+      trimmed: $source | trim
+    exec: "echo 'TRIMMED=[{{with.trimmed}}]'"
+    description: "trim should remove leading/trailing whitespace"
+
+  - id: test_upper
+    depends_on: [source]
+    with:
+      upper: $source | upper
+    exec: "echo 'UPPER={{with.upper}}'"
+    description: "upper should uppercase the string"
+
+  - id: test_lower
+    depends_on: [source]
+    with:
+      lower: $source | lower
+    exec: "echo 'LOWER={{with.lower}}'"
+    description: "lower should lowercase the string"
+
+  - id: test_chain
+    depends_on: [source]
+    with:
+      chained: $source | trim | upper
+    exec: "echo 'CHAINED={{with.chained}}'"
+    description: "Chained transforms: trim then upper"

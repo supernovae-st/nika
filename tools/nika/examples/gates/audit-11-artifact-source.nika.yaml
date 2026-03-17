@@ -1,0 +1,25 @@
+# AUDIT-11: Artifact source binding (BUG-3 fix verification)
+schema: nika/workflow@0.12
+workflow: audit-11-artifact-source
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: generate_data
+    exec: "echo 'SOURCE_CONTENT_FROM_EXEC'"
+    description: "Produces content to be saved via source binding"
+
+  - id: save_via_source
+    depends_on: [generate_data]
+    with:
+      data: $generate_data
+    infer: "This task output should NOT be in the file. Say WRONG."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    artifact:
+      path: source-test.txt
+      source: data
+      format: text
+    description: "Artifact source=data should write binding content, not LLM output"

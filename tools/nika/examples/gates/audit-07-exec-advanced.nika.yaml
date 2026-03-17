@@ -1,0 +1,35 @@
+# AUDIT-07: exec advanced — env vars, cwd, timeout, error handling
+schema: nika/workflow@0.12
+workflow: audit-07-exec-advanced
+
+tasks:
+  - id: with_env
+    exec: "echo USER=$USER HOME=$HOME"
+    description: "Exec should have access to system env vars"
+
+  - id: multiline
+    exec: "echo 'line1' && echo 'line2' && echo 'line3'"
+    description: "Multi-command exec with &&"
+
+  - id: json_output
+    exec: 'printf ''{"status":"ok","count":42}'''
+    description: "Exec producing JSON output"
+
+  - id: parse_json
+    depends_on: [json_output]
+    with:
+      status: $json_output.status
+      count: $json_output.count
+    exec: "echo 'Status={{with.status}} Count={{with.count}}'"
+    description: "Chain exec JSON output into nested binding"
+
+  - id: empty_output
+    exec: "true"
+    description: "Exec with no output (exit 0 but empty stdout)"
+
+  - id: after_empty
+    depends_on: [empty_output]
+    with:
+      prev: $empty_output ?? "was_empty"
+    exec: "echo 'Previous={{with.prev}}'"
+    description: "Binding from empty output should use ?? fallback"

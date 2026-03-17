@@ -1,0 +1,30 @@
+# TRAP-01: Same alias in multiple with: blocks — should each get their own value
+schema: nika/workflow@0.12
+workflow: trap-01-overwrite
+
+tasks:
+  - id: a
+    exec: "echo 'VALUE_A'"
+
+  - id: b
+    exec: "echo 'VALUE_B'"
+
+  - id: use_a
+    depends_on: [a]
+    with:
+      data: $a
+    exec: "echo 'FROM_A={{with.data}}'"
+
+  - id: use_b
+    depends_on: [b]
+    with:
+      data: $b
+    exec: "echo 'FROM_B={{with.data}}'"
+
+  - id: verify
+    depends_on: [use_a, use_b]
+    with:
+      ra: $use_a
+      rb: $use_b
+    exec: "echo '{{with.ra}} | {{with.rb}}'"
+    description: "Should be 'FROM_A=VALUE_A | FROM_B=VALUE_B' — not mixed up"
