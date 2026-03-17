@@ -534,7 +534,9 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             temperature: infer.temperature,
             max_tokens: infer.max_tokens,
             thinking: infer.extended_thinking,
-            thinking_budget: infer.thinking_budget.map(|b| b as u32),
+            thinking_budget: infer
+                .thinking_budget
+                .map(|b| u32::try_from(b).unwrap_or(u32::MAX)),
             span: Span::dummy(),
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
@@ -1462,6 +1464,41 @@ mod tests {
             backoff.is_none(),
             "backoff of exactly 1.0001 (at boundary, uses >) should be collapsed to None"
         );
+    }
+
+    #[test]
+    fn unlower_thinking_budget_clamps_to_u32_max() {
+        // thinking_budget in Workflow is u64, but AnalyzedInferAction uses u32.
+        // Values > u32::MAX must clamp to u32::MAX, not silently wrap to 0.
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("thinker");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "think hard".to_string(),
+                thinking: Some(true),
+                thinking_budget: Some(u32::MAX),
+                ..Default::default()
+            }),
+            ..dummy_task(id, "thinker")
+        });
+
+        let lowered = lower(wf).unwrap();
+        // lower converts u32 → u64 (lossless)
+        match &lowered.tasks[0].action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(infer.thinking_budget, Some(u32::MAX as u64));
+            }
+            _ => panic!("expected Infer"),
+        }
+
+        // Now test unlower with a value > u32::MAX
+        let unlowered = unlower(lowered).unwrap();
+        match &unlowered.tasks[0].action {
+            AnalyzedTaskAction::Infer(infer) => {
+                assert_eq!(infer.thinking_budget, Some(u32::MAX));
+            }
+            _ => panic!("expected Infer"),
+        }
     }
 
     #[test]
