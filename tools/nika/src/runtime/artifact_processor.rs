@@ -188,8 +188,37 @@ async fn write_single_artifact(
         .or(workflow_config.map(|c| c.mode))
         .unwrap_or(ArtifactMode::Overwrite);
 
-    // Determine content source - template or task output
-    let raw_content: String = if let Some(ref tpl) = output_spec.template {
+    // Determine content source: source binding > template > task output
+    let raw_content: String = if let Some(ref source_alias) = output_spec.source {
+        // Resolve from bindings (with: block or upstream task output)
+        debug!(
+            task_id = %task_id,
+            source = %source_alias,
+            "Resolving artifact source binding"
+        );
+        if let Some(value) = bindings.get(source_alias) {
+            match value {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            }
+        } else {
+            // Try datastore (task outputs stored by task ID)
+            match datastore.get_output(source_alias) {
+                Some(arc_value) => match arc_value.as_ref() {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                },
+                None => {
+                    warn!(
+                        task_id = %task_id,
+                        source = %source_alias,
+                        "Artifact source binding not found, falling back to task output"
+                    );
+                    output.to_string()
+                }
+            }
+        }
+    } else if let Some(ref tpl) = output_spec.template {
         // Resolve template with bindings
         debug!(
             task_id = %task_id,
@@ -210,7 +239,7 @@ async fn write_single_artifact(
             }
         }
     } else {
-        // No template - use task output directly
+        // No source or template - use task output directly
         output.to_string()
     };
 
@@ -701,6 +730,85 @@ mod tests {
 
         assert_eq!(result.written, 2);
         assert_eq!(result.paths.len(), 2);
+    }
+
+    // ========== BUG-3: artifact source resolution ==========
+
+    #[tokio::test]
+    async fn test_artifact_source_from_binding() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Set up bindings with a "report_data" alias
+        let mut bindings = ResolvedBindings::new();
+        bindings.set(
+            "report_data".to_string(),
+            serde_json::Value::String("Content from binding source".to_string()),
+        );
+        let datastore = RunContext::new();
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "report.txt".to_string(),
+            source: Some("report_data".to_string()),
+            template: None,
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "this is the task output (should NOT be written)",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "artifact should be written");
+        assert!(result.errors.is_empty(), "no errors expected");
+
+        // Verify file content comes from source binding, not task output
+        let content = std::fs::read_to_string(&result.paths[0]).unwrap();
+        assert_eq!(content, "Content from binding source");
+        assert!(!content.contains("should NOT be written"));
+    }
+
+    #[tokio::test]
+    async fn test_artifact_source_fallback_to_task_output() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::new();
+        let datastore = RunContext::new();
+
+        // source points to a non-existent binding → should fall back to task output
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "fallback.txt".to_string(),
+            source: Some("nonexistent".to_string()),
+            template: None,
+            format: Some(ArtifactFormat::Text),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "task output fallback",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+        )
+        .await;
+
+        assert_eq!(result.written, 1);
+        let content = std::fs::read_to_string(&result.paths[0]).unwrap();
+        assert_eq!(content, "task output fallback");
     }
 
     // ========== normalize_artifact_path tests ==========
