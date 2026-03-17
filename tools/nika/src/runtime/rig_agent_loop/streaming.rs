@@ -127,8 +127,8 @@ impl RigAgentLoop {
                     StreamedAssistantContent::Final(final_resp) => {
                         // Extract token usage from final response
                         if let Some(usage) = final_resp.token_usage() {
-                            input_tokens = usage.input_tokens as u64;
-                            output_tokens = usage.output_tokens as u64;
+                            input_tokens = usage.input_tokens;
+                            output_tokens = usage.output_tokens;
                             // Send final metrics to TUI
                             if let Some(ref tx) = self.stream_tx {
                                 let _ = tx.try_send(crate::provider::rig::StreamChunk::Metrics {
@@ -271,8 +271,8 @@ impl RigAgentLoop {
                         MultiTurnStreamItem::FinalResponse(resp) => {
                             response_text = resp.response().to_string();
                             let usage = resp.usage();
-                            input_tokens = usage.input_tokens as u64;
-                            output_tokens = usage.output_tokens as u64;
+                            input_tokens = usage.input_tokens;
+                            output_tokens = usage.output_tokens;
                         }
                         // Ignore tool calls and other items in CLI mode
                         _ => {}
@@ -456,8 +456,8 @@ impl RigAgentLoop {
                     MultiTurnStreamItem::FinalResponse(resp) => {
                         response_text = resp.response().to_string();
                         let usage = resp.usage();
-                        input_tokens = usage.input_tokens as u64;
-                        output_tokens = usage.output_tokens as u64;
+                        input_tokens = usage.input_tokens;
+                        output_tokens = usage.output_tokens;
 
                         // Send metrics to TUI
                         if let Some(ref tx) = self.stream_tx {

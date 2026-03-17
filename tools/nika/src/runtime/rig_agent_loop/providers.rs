@@ -158,7 +158,7 @@ impl RigAgentLoop {
             status: status.clone(),
             turns: 1, // rig handles turns internally, we report completion as 1
             final_output: serde_json::json!({ "response": result.response }),
-            total_tokens: result.input_tokens as u64 + result.output_tokens as u64,
+            total_tokens: result.input_tokens + result.output_tokens,
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
@@ -234,7 +234,7 @@ impl RigAgentLoop {
             status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": result.response }),
-            total_tokens: result.input_tokens as u64 + result.output_tokens as u64,
+            total_tokens: result.input_tokens + result.output_tokens,
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
@@ -397,8 +397,8 @@ impl RigAgentLoop {
             .stream_with_tools(model.clone(), &current_prompt, tools, max_turns)
             .await?;
 
-        total_input_tokens += result.input_tokens as u64;
-        total_output_tokens += result.output_tokens as u64;
+        total_input_tokens += result.input_tokens;
+        total_output_tokens += result.output_tokens;
 
         let mut status = self.determine_status(&result.response);
 
@@ -444,8 +444,8 @@ impl RigAgentLoop {
                 .stream_with_tools(model.clone(), &current_prompt, vec![], max_turns)
                 .await?;
 
-            total_input_tokens += result.input_tokens as u64;
-            total_output_tokens += result.output_tokens as u64;
+            total_input_tokens += result.input_tokens;
+            total_output_tokens += result.output_tokens;
 
             status = self.determine_status(&result.response);
         }

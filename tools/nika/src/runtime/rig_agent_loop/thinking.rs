@@ -383,8 +383,8 @@ impl RigAgentLoop {
                     StreamedAssistantContent::Final(final_resp) => {
                         // Extract token usage from final response
                         if let Some(usage) = final_resp.token_usage() {
-                            input_tokens = usage.input_tokens as u64;
-                            output_tokens = usage.output_tokens as u64;
+                            input_tokens = usage.input_tokens;
+                            output_tokens = usage.output_tokens;
                         }
                     }
                     _ => {
@@ -442,7 +442,7 @@ impl RigAgentLoop {
             status: status.clone(),
             turns: 1,
             final_output: serde_json::json!({ "response": response }),
-            total_tokens: input_tokens as u64 + output_tokens as u64,
+            total_tokens: input_tokens + output_tokens,
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
