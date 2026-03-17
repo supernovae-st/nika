@@ -1352,6 +1352,119 @@ mod tests {
     }
 
     #[test]
+    fn unlower_retry_backoff_just_over_tolerance() {
+        // 1.00011 is just OVER BACKOFF_UNITY_TOLERANCE (0.0001) — must survive roundtrip
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("fetcher");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: None,
+                follow_redirects: true,
+                span: Span::dummy(),
+            }),
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: Some(1.00011),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "fetcher")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        assert!(
+            backoff.is_some(),
+            "backoff of 1.00011 (just over tolerance) must NOT be collapsed to None"
+        );
+        assert!(
+            (backoff.unwrap() - 1.00011).abs() < f64::EPSILON * 100.0,
+            "backoff value should be preserved: got {}",
+            backoff.unwrap()
+        );
+    }
+
+    #[test]
+    fn unlower_retry_backoff_just_under_one_over_tolerance() {
+        // 0.99989 is just OVER tolerance on the low side — must survive roundtrip
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("fetcher");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: None,
+                follow_redirects: true,
+                span: Span::dummy(),
+            }),
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: Some(0.99989),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "fetcher")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        assert!(
+            backoff.is_some(),
+            "backoff of 0.99989 (just over tolerance on low side) must NOT be collapsed to None"
+        );
+        assert!(
+            (backoff.unwrap() - 0.99989).abs() < f64::EPSILON * 100.0,
+            "backoff value should be preserved: got {}",
+            backoff.unwrap()
+        );
+    }
+
+    #[test]
+    fn unlower_retry_backoff_exactly_at_tolerance_boundary() {
+        // 1.0001 is exactly at BACKOFF_UNITY_TOLERANCE — boundary is > not >=
+        // So (1.0001 - 1.0).abs() = 0.0001, which is NOT > 0.0001 → collapsed to None
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("fetcher");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: None,
+                follow_redirects: true,
+                span: Span::dummy(),
+            }),
+            retry: Some(AnalyzedRetry {
+                max_attempts: 3,
+                delay_ms: 1000,
+                backoff: Some(1.0001),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "fetcher")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let backoff = unlowered.tasks[0].retry.as_ref().unwrap().backoff;
+        assert!(
+            backoff.is_none(),
+            "backoff of exactly 1.0001 (at boundary, uses >) should be collapsed to None"
+        );
+    }
+
+    #[test]
     fn unlower_valid_deps_resolve() {
         let mut wf = dummy_workflow();
         let id_a = wf.task_table.insert("step_a");
