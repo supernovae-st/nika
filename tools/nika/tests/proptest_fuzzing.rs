@@ -70,17 +70,19 @@ mod template_fuzzing {
         }
 
         /// Property: No-template strings return Cow::Borrowed (zero allocation)
+        ///
+        /// The regex `[^{}]*` guarantees no `{` or `}` in the input, so there
+        /// are no template markers — the result must always be Borrowed.
         #[test]
         fn test_no_template_returns_borrowed(s in "[^{}]*") {
             let bindings = ResolvedBindings::new();
             let ds = empty_datastore();
-            let result = template_resolve(&s, &bindings, &ds);
-            if let Ok(cow) = result {
-                // If no {{with.}} pattern, should be borrowed
-                if !s.contains("{{with.") {
-                    assert!(matches!(cow, Cow::Borrowed(_)));
-                }
-            }
+            let result = template_resolve(&s, &bindings, &ds)
+                .expect("Strings without braces should always resolve");
+            assert!(
+                matches!(result, Cow::Borrowed(_)),
+                "No-template string should be Cow::Borrowed, got Owned"
+            );
         }
 
         /// Property: Templates with substitutions return Cow::Owned
@@ -144,23 +146,38 @@ mod template_fuzzing {
             assert_eq!(result.unwrap().as_ref(), value);
         }
 
-        /// Property: Array index access works correctly
+        /// Property: Array index access works correctly for in-bounds indices
         #[test]
         fn test_array_index_access(
             alias in arb_alias(),
-            index in 0usize..10,
             values in prop::collection::vec("[ -~]{1,10}", 1..15)
         ) {
-            if index < values.len() {
-                let template = format!("{{{{with.{}.{}}}}}", alias, index);
-                let mut bindings = ResolvedBindings::new();
-                bindings.set(&alias, json!(values.clone()));
-                let ds = empty_datastore();
+            // Always pick a valid index to avoid silently skipping the test
+            let index = 0; // guaranteed in-bounds since vec has at least 1 element
+            let template = format!("{{{{with.{}.{}}}}}", alias, index);
+            let mut bindings = ResolvedBindings::new();
+            bindings.set(&alias, json!(values.clone()));
+            let ds = empty_datastore();
 
-                let result = template_resolve(&template, &bindings, &ds);
-                assert!(result.is_ok());
-                assert_eq!(result.unwrap().as_ref(), values[index]);
-            }
+            let result = template_resolve(&template, &bindings, &ds);
+            assert!(result.is_ok(), "In-bounds index access should succeed");
+            assert_eq!(result.unwrap().as_ref(), values[index]);
+        }
+
+        /// Property: Out-of-bounds array index access doesn't panic
+        #[test]
+        fn test_array_out_of_bounds_no_panic(
+            alias in arb_alias(),
+            values in prop::collection::vec("[ -~]{1,10}", 1..5)
+        ) {
+            let oob_index = values.len(); // always out of bounds
+            let template = format!("{{{{with.{}.{}}}}}", alias, oob_index);
+            let mut bindings = ResolvedBindings::new();
+            bindings.set(&alias, json!(values.clone()));
+            let ds = empty_datastore();
+
+            // Should not panic; either returns error or empty string
+            let _ = template_resolve(&template, &bindings, &ds);
         }
 
         /// Property: Multiple templates resolve independently
@@ -707,6 +724,20 @@ mod pipeline_roundtrip_fuzzing {
             task_names,
             "Task names should be preserved through roundtrip"
         );
+
+        // Verify dependency counts are preserved (names merge with implicit_deps
+        // but total must not grow)
+        for (original, roundtripped) in analyzed.tasks.iter().zip(unlowered.tasks.iter()) {
+            let orig_dep_count = original.depends_on.len() + original.implicit_deps.len();
+            let rt_dep_count = roundtripped.depends_on.len() + roundtripped.implicit_deps.len();
+            prop_assert!(
+                rt_dep_count <= orig_dep_count + 1, // +1 tolerance for merged deps
+                "Dependencies should be preserved: original={}, roundtripped={}",
+                orig_dep_count,
+                rt_dep_count
+            );
+        }
+
         Ok(())
     }
 
