@@ -838,4 +838,34 @@ mod tests {
             }
         );
     }
+
+    /// Comprehensive char-boundary roundtrip: offset→position→offset for every
+    /// character boundary in a string containing ASCII, BMP (2- and 3-byte),
+    /// supplementary plane (4-byte / surrogate pair), and mixed line endings.
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_comprehensive_char_boundary_roundtrip() {
+        // Mix of: ASCII, 2-byte (é), 3-byte (€), 4-byte (🎵), line endings
+        let source = "A\u{00e9}\u{20ac}\u{1f3b5}\nB\r\nC\rD";
+        // Walk every char boundary and verify roundtrip
+        let mut byte_offset = 0;
+        for ch in source.chars() {
+            let pos = offset_to_position(byte_offset, source);
+            let recovered = position_to_offset(pos, source);
+            assert_eq!(
+                recovered, byte_offset,
+                "Roundtrip failed at byte_offset={byte_offset} (char '{ch}'): \
+                 pos=({},{}) recovered={recovered}",
+                pos.line, pos.character
+            );
+            byte_offset += ch.len_utf8();
+        }
+        // Also test at the end-of-string boundary
+        let pos = offset_to_position(byte_offset, source);
+        let recovered = position_to_offset(pos, source);
+        assert_eq!(
+            recovered, byte_offset,
+            "Roundtrip failed at end-of-string offset={byte_offset}"
+        );
+    }
 }
