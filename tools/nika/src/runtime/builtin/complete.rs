@@ -158,7 +158,8 @@ impl BuiltinTool for CompleteTool {
             "type": "object",
             "properties": {
                 "result": {
-                    "description": "The final result or answer for the task. Can be any JSON value."
+                    "type": "string",
+                    "description": "The final result or answer for the task. Serialize complex values as JSON strings."
                 },
                 "confidence": {
                     "type": "number",
@@ -376,6 +377,22 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Invalid JSON parameters"));
+    }
+
+    /// BUG-4: OpenAI rejects schemas where properties lack a "type" field.
+    /// This test prevents regressions by verifying all properties have one.
+    #[test]
+    fn test_all_properties_have_type_field() {
+        let tool = CompleteTool;
+        let schema = tool.parameters_schema();
+        let props = schema["properties"].as_object().expect("properties must be an object");
+        for (name, prop_schema) in props {
+            assert!(
+                prop_schema.get("type").is_some(),
+                "Property '{}' missing 'type' field — OpenAI will reject this schema",
+                name,
+            );
+        }
     }
 
     #[test]
