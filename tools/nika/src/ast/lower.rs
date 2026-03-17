@@ -221,10 +221,10 @@ fn lower_agent(
 ) -> AgentParams {
     AgentParams {
         prompt: agent.prompt,
-        system: None,
+        system: agent.system,
         provider,
         model,
-        mcp: Vec::new(),
+        mcp: agent.mcp,
         tools: agent.tools,
         max_turns: agent.max_iterations,
         token_budget: None,
@@ -638,6 +638,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .as_ref()
                 .map(|s| s.to_vec())
                 .unwrap_or_default(),
+            mcp: agent.mcp.clone(),
+            system: agent.system.clone(),
             span: Span::dummy(),
         }),
     }
@@ -932,6 +934,8 @@ mod tests {
                 max_tokens: Some(4096),
                 from: None,
                 skills: vec!["writing".to_string()],
+                mcp: vec![],
+                system: None,
                 span: Span::dummy(),
             }),
             provider: Some("claude".to_string()),
@@ -1813,6 +1817,8 @@ mod tests {
                 max_tokens: None,
                 from: Some("my_agent_def".to_string()),
                 skills: vec![],
+                mcp: vec![],
+                system: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "agent_task")

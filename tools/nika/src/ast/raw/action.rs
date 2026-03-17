@@ -171,6 +171,18 @@ pub struct RawAgentAction {
 
     /// Skills to inject into system prompt
     pub skills: Option<Spanned<Vec<Spanned<String>>>>,
+
+    /// Provider override (inside agent: block)
+    pub provider: Option<Spanned<String>>,
+
+    /// Model override (inside agent: block)
+    pub model: Option<Spanned<String>>,
+
+    /// MCP servers for tool access
+    pub mcp: Option<Spanned<Vec<Spanned<String>>>>,
+
+    /// System prompt (agent persona)
+    pub system: Option<Spanned<String>>,
 }
 
 #[cfg(test)]

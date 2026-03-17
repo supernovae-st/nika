@@ -611,6 +611,10 @@ fn parse_agent_action(file: FileId, node: &Node) -> Result<RawAgentAction, Parse
         max_tokens: get_u32_field(file, m, "max_tokens")?,
         from: get_string_field(file, m, "from")?,
         skills: parse_string_array(file, m, "skills")?,
+        provider: get_string_field(file, m, "provider")?,
+        model: get_string_field(file, m, "model")?,
+        mcp: parse_string_array(file, m, "mcp")?,
+        system: get_string_field(file, m, "system")?,
     })
 }
 

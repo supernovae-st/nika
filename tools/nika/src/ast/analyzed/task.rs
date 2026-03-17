@@ -282,6 +282,12 @@ pub struct AnalyzedAgentAction {
     /// Skills to inject
     pub skills: Vec<String>,
 
+    /// MCP servers for tool access
+    pub mcp: Vec<String>,
+
+    /// System prompt (agent persona)
+    pub system: Option<String>,
+
     /// Span of the action
     pub span: Span,
 }

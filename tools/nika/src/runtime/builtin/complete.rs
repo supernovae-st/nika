@@ -163,21 +163,14 @@ impl BuiltinTool for CompleteTool {
                 },
                 "confidence": {
                     "type": "number",
-                    "minimum": 0.0,
-                    "maximum": 1.0,
                     "description": "Confidence level in the result (0.0-1.0)"
                 },
                 "reasoning": {
                     "type": "string",
                     "description": "Explanation of how you arrived at this result"
-                },
-                "metadata": {
-                    "type": "object",
-                    "description": "Additional metadata about the result",
-                    "additionalProperties": false
                 }
             },
-            "required": ["result"],
+            "required": ["result", "confidence", "reasoning"],
             "additionalProperties": false
         })
     }

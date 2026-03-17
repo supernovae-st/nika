@@ -562,6 +562,17 @@ fn analyze_task(
     // Analyze action
     if let Some(ref action) = raw.action {
         task.action = analyze_action(action);
+
+        // Merge agent-block provider/model into task if not set at task level
+        if let RawTaskAction::Agent(ref agent_spanned) = action {
+            let agent = &agent_spanned.value;
+            if task.provider.is_none() {
+                task.provider = agent.provider.as_ref().map(|s| s.value.clone());
+            }
+            if task.model.is_none() {
+                task.model = agent.model.as_ref().map(|s| s.value.clone());
+            }
+        }
     }
 
     // Parse with: bindings
@@ -737,6 +748,12 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
+        mcp: raw
+            .mcp
+            .as_ref()
+            .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
+            .unwrap_or_default(),
+        system: raw.system.as_ref().map(|s| s.value.clone()),
         span: raw.prompt.span,
     }
 }
@@ -1741,6 +1758,10 @@ mod tests {
                 max_tokens: None,
                 from: None,
                 skills: None,
+                provider: None,
+                model: None,
+                mcp: None,
+                system: None,
             },
             make_span(0, 50),
         )));
@@ -1839,6 +1860,10 @@ mod tests {
                 max_tokens: None,
                 from: None,
                 skills: None,
+                provider: None,
+                model: None,
+                mcp: None,
+                system: None,
             },
             make_span(0, 50),
         )));
