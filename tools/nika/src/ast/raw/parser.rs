@@ -2105,4 +2105,52 @@ tasks:
         let result = parse(yaml, FileId(0));
         assert!(result.is_err(), "Negative infinity should be rejected");
     }
+
+    // --- Edge cases: empty/malformed input ---
+
+    #[test]
+    fn parse_empty_string_errors() {
+        let result = parse("", FileId(0));
+        assert!(result.is_err(), "empty string should fail to parse");
+    }
+
+    #[test]
+    fn parse_yaml_array_instead_of_map() {
+        let result = parse("- item1\n- item2", FileId(0));
+        assert!(result.is_err(), "YAML array root should be rejected");
+    }
+
+    #[test]
+    fn parse_temperature_zero_is_valid() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t
+    infer:
+      prompt: "hi"
+      temperature: 0.0
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "temperature 0.0 should be valid");
+    }
+
+    #[test]
+    fn parse_temperature_one_is_valid() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t
+    infer:
+      prompt: "hi"
+      temperature: 1.0
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "temperature 1.0 should be valid");
+    }
+
+    #[test]
+    fn parse_whitespace_only_errors() {
+        let result = parse("   \n\n  \t  ", FileId(0));
+        assert!(result.is_err(), "whitespace-only input should fail");
+    }
 }
