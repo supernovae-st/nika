@@ -102,20 +102,20 @@ jobs:
         working-directory: tools/nika
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build (native, docker features)
+      - name: Build (native, musl static)
         if: "!matrix.cross && matrix.docker"
         working-directory: tools/nika
-        run: cargo build --release --target ${{ matrix.target }} --no-default-features --features docker
+        run: cargo build --release --target ${{ matrix.target }} --no-default-features
 
       - name: Build (cross, full features)
         if: matrix.cross && !matrix.docker
         working-directory: tools/nika
         run: cross build --release --target ${{ matrix.target }}
 
-      - name: Build (cross, docker features)
+      - name: Build (cross, musl static)
         if: matrix.cross && matrix.docker
         working-directory: tools/nika
-        run: cross build --release --target ${{ matrix.target }} --no-default-features --features docker
+        run: cross build --release --target ${{ matrix.target }} --no-default-features
 
       - name: Extract version from tag
         id: version
