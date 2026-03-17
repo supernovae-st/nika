@@ -2,4 +2,4 @@
 source: tests/regression/workflow_snapshots.rs
 expression: error_msg
 ---
-[NIKA-001] Failed to parse workflow: [NIKA-002] missing required field 'schema'
+[NIKA-001] Failed to parse workflow: [NIKA-161] missing required field 'schema'

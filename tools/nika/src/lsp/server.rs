@@ -104,7 +104,7 @@ impl NikaLanguageServer {
         Diagnostic {
             range: span_to_range(&error.span, source),
             severity: Some(DiagnosticSeverity::ERROR),
-            code: Some(NumberOrString::String("NIKA-001".to_string())),
+            code: Some(NumberOrString::String(error.kind.code().to_string())),
             code_description: None,
             source: Some("nika".to_string()),
             message: error.message.clone(),

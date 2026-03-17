@@ -20,6 +20,7 @@
 //! - NIKA-120-129: Resilience errors
 //! - NIKA-130-139: TUI errors
 //! - NIKA-140-151: AST analysis errors (Phase 2 analyzer)
+//! - NIKA-160-164: Parse errors (Phase 1 parser — ParseErrorKind)
 //!
 //! Extended ranges:
 //! - NIKA-200-209: File Tool errors (ToolErrorCode in src/tools/mod.rs)

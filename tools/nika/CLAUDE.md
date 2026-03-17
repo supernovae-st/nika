@@ -37,6 +37,7 @@ src/
 | 100-109 | MCP |
 | 110-119 | Agent |
 | 140-151 | AST analysis (Phase 2) |
+| 160-164 | Parse errors (Phase 1 parser) |
 | 200-219 | File tools + Builtin tools |
 | 280-289 | Artifacts |
 | 300-309 | Structured output |

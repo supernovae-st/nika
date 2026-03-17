@@ -123,7 +123,7 @@ impl TuiDiagnostic {
         let (end_line, end_col) = offset_to_line_col(error.span.end.into(), source);
 
         Self {
-            code: "NIKA-001".to_string(),
+            code: error.kind.code().to_string(),
             message: error.message.clone(),
             severity: DiagnosticSeverity::Error,
             start_line,
@@ -448,7 +448,7 @@ tasks:
 
         engine.analyze(yaml);
         assert!(engine.has_errors());
-        assert!(engine.diagnostics().iter().any(|d| d.code == "NIKA-001"));
+        assert!(engine.diagnostics().iter().any(|d| d.code == "NIKA-160"));
     }
 
     #[test]

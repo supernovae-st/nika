@@ -44,13 +44,16 @@ pub enum ParseErrorKind {
 
 impl ParseErrorKind {
     /// Get the error code for this kind.
+    ///
+    /// Parse-phase errors use NIKA-160..164 to avoid collision with
+    /// the top-level NikaError workflow codes (NIKA-001..005).
     pub fn code(&self) -> &'static str {
         match self {
-            Self::Syntax => "NIKA-001",
-            Self::MissingField => "NIKA-002",
-            Self::InvalidType => "NIKA-003",
-            Self::UnknownField => "NIKA-004",
-            Self::InvalidSchema => "NIKA-005",
+            Self::Syntax => "NIKA-160",
+            Self::MissingField => "NIKA-161",
+            Self::InvalidType => "NIKA-162",
+            Self::UnknownField => "NIKA-163",
+            Self::InvalidSchema => "NIKA-164",
         }
     }
 }
