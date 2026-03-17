@@ -56,6 +56,10 @@ impl AnalyzerContext {
         self.errors.push(error);
     }
 
+    fn add_warning(&mut self, warning: AnalyzeError) {
+        self.warnings.push(warning);
+    }
+
     /// Check if a task name matches a declared include prefix.
     ///
     /// When `include:` declares `prefix: seo_`, references like `$seo_generate_title`
@@ -366,6 +370,31 @@ fn validate_task_feature_gates(
                 version_str,
                 "nika/workflow@0.3",
             ));
+        }
+
+        // retry: is only effective on fetch: tasks — warn on other verbs
+        if let Some(ref action) = task.action {
+            let is_fetch = matches!(action, RawTaskAction::Fetch(_));
+            if !is_fetch {
+                let verb_name = match action {
+                    RawTaskAction::Infer(_) => "infer",
+                    RawTaskAction::Exec(_) => "exec",
+                    RawTaskAction::Invoke(_) => "invoke",
+                    RawTaskAction::Agent(_) => "agent",
+                    RawTaskAction::Fetch(_) => unreachable!(),
+                };
+                ctx.add_warning(
+                    AnalyzeError::new(
+                        AnalyzeErrorKind::InvalidValue,
+                        retry.span,
+                        format!(
+                            "'retry' has no effect on '{}' tasks (only 'fetch' supports retry)",
+                            verb_name
+                        ),
+                    )
+                    .with_suggestion("move retry to a fetch task, or remove it"),
+                );
+            }
         }
     }
 
