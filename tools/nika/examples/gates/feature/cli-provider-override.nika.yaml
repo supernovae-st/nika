@@ -1,0 +1,6 @@
+schema: nika/workflow@0.12
+workflow: feat-cli-override
+tasks:
+  - id: test
+    infer: "Reply: CLI_OVERRIDE_OK"
+    max_tokens: 10

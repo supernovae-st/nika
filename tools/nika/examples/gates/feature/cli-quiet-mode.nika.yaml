@@ -1,0 +1,5 @@
+schema: nika/workflow@0.12
+workflow: feat-cli-quiet
+tasks:
+  - id: test
+    exec: "echo QUIET_OUTPUT"

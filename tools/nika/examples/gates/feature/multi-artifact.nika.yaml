@@ -1,0 +1,24 @@
+schema: nika/workflow@0.12
+workflow: feat-multi-artifact
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen1
+    exec: "echo 'FILE_ONE_CONTENT'"
+    artifact:
+      path: multi-1.txt
+      format: text
+  - id: gen2
+    exec: "echo 'FILE_TWO_CONTENT'"
+    artifact:
+      path: multi-2.txt
+      format: text
+  - id: gen3
+    depends_on: [gen1, gen2]
+    with:
+      f1: $gen1
+      f2: $gen2
+    exec: "echo '{{with.f1}}+{{with.f2}}'"
+    artifact:
+      path: multi-combined.txt
+      format: text

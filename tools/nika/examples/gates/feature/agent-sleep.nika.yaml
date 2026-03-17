@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-agent-sleep
+tasks:
+  - id: sleep_test
+    agent:
+      prompt: "Call nika_sleep with duration '1s', then call nika_complete with result='SLEPT_OK' confidence=1.0 reasoning='tested sleep'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]

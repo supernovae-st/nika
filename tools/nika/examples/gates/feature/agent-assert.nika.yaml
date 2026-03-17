@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-agent-assert
+tasks:
+  - id: assert_test
+    agent:
+      prompt: "Call nika_assert with condition=true and message='this should pass'. Then call nika_complete with result='ASSERT_OK' confidence=1.0 reasoning='assertion passed'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
