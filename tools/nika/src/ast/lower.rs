@@ -473,13 +473,16 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
 
         let with_spec = task.with_spec.clone().unwrap_or_default();
 
+        // Extract provider/model from lowered action (preserved inside InferParams/AgentParams)
+        let (task_provider, task_model) = extract_provider_model(&task.action);
+
         analyzed_tasks.push(AnalyzedTask {
             id,
             name: task.id.clone(),
             description: None,
             action,
-            provider: None, // Provider is at workflow level
-            model: None,    // Model is at workflow level
+            provider: task_provider,
+            model: task_model,
             with_spec,
             depends_on,
             implicit_deps: vec![],
@@ -526,6 +529,19 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
             .map(|m| m.into_iter().collect::<IndexMap<_, _>>()),
         span: Span::dummy(),
     })
+}
+
+/// Extract task-level provider and model from lowered TaskAction.
+///
+/// During lower → unlower round-trip, provider/model are stored inside
+/// InferParams/AgentParams. This extracts them so the Runner can pass them
+/// back through lower_action() at the TaskExecutor boundary.
+fn extract_provider_model(action: &TaskAction) -> (Option<String>, Option<String>) {
+    match action {
+        TaskAction::Infer { infer } => (infer.provider.clone(), infer.model.clone()),
+        TaskAction::Agent { agent } => (agent.provider.clone(), agent.model.clone()),
+        _ => (None, None),
+    }
 }
 
 fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
