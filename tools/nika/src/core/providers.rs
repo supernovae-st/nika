@@ -1,7 +1,7 @@
 //! Provider definitions for LLM and MCP services.
 //!
-//! This module defines the 18 known providers that nika supports, categorized as:
-//! - **LLM providers** (6): Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini
+//! This module defines the 19 known providers that nika supports, categorized as:
+//! - **LLM providers** (7): Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI
 //! - **MCP providers** (11): Neo4j, GitHub, Slack, Perplexity, Firecrawl, Supadata, etc.
 //! - **Local providers** (1): Native inference (mistral.rs)
 //!
@@ -57,16 +57,16 @@ impl Provider {
     }
 }
 
-/// All known providers (18 total).
+/// All known providers (19 total).
 ///
 /// ## Categories
 ///
-/// - **LLM (6)**: anthropic, openai, mistral, groq, deepseek, gemini
+/// - **LLM (7)**: anthropic, openai, mistral, groq, deepseek, gemini, xai
 /// - **MCP (11)**: neo4j, github, slack, perplexity, firecrawl, supadata, dataforseo, ahrefs, postgres, filesystem, memory
 /// - **Local (1)**: native (mistral.rs)
 pub static KNOWN_PROVIDERS: &[Provider] = &[
     // ═══════════════════════════════════════════════════════════════════════════
-    // LLM PROVIDERS (6)
+    // LLM PROVIDERS (7)
     // ═══════════════════════════════════════════════════════════════════════════
     Provider {
         id: "anthropic",
@@ -127,6 +127,16 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         category: ProviderCategory::Llm,
         requires_key: true,
         description: "Gemini Pro, Flash, and Ultra models",
+    },
+    Provider {
+        id: "xai",
+        name: "xAI Grok",
+        aliases: &["grok"],
+        env_var: "XAI_API_KEY",
+        key_prefix: None,
+        category: ProviderCategory::Llm,
+        requires_key: true,
+        description: "Grok models (Grok-3, Grok-4)",
     },
     // ═══════════════════════════════════════════════════════════════════════════
     // MCP PROVIDERS (11)
@@ -344,8 +354,8 @@ mod tests {
 
     #[test]
     fn test_known_providers_count() {
-        // 6 LLM + 11 MCP + 1 Local = 18 total
-        assert_eq!(KNOWN_PROVIDERS.len(), 18);
+        // 7 LLM + 11 MCP + 1 Local = 19 total
+        assert_eq!(KNOWN_PROVIDERS.len(), 19);
     }
 
     #[test]
@@ -354,7 +364,7 @@ mod tests {
         let mcp = providers_by_category(ProviderCategory::Mcp);
         let local = providers_by_category(ProviderCategory::Local);
 
-        assert_eq!(llm.len(), 6);
+        assert_eq!(llm.len(), 7);
         assert_eq!(mcp.len(), 11);
         assert_eq!(local.len(), 1);
     }

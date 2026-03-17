@@ -1,7 +1,7 @@
 //! Provider-specific execution methods
 //!
 //! Contains: run_mock, run_claude, run_openai, run_auto,
-//! run_mistral, run_groq, run_deepseek, run_gemini,
+//! run_mistral, run_groq, run_deepseek, run_gemini, run_xai,
 //! and the generic provider implementation with retry logic.
 
 use std::sync::Arc;
@@ -262,7 +262,7 @@ impl RigAgentLoop {
             let resolved = crate::core::find_provider(provider_name).ok_or_else(|| {
                 NikaError::AgentValidationError {
                     reason: format!(
-                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', or 'gemini'.",
+                        "Unknown provider: '{}'. Use 'claude', 'openai', 'mistral', 'groq', 'deepseek', 'gemini', or 'xai'.",
                         provider_name
                     ),
                 }
@@ -274,8 +274,9 @@ impl RigAgentLoop {
                 "groq" => self.run_groq().await,
                 "deepseek" => self.run_deepseek().await,
                 "gemini" => self.run_gemini().await,
+                "xai" => self.run_xai().await,
                 "native" => Err(NikaError::AgentValidationError {
-                    reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini) for agent tasks.".to_string(),
+                    reason: "Provider 'native' is not supported for agent: tasks. Native inference (mistral.rs) is only available for infer: tasks. Use a cloud provider (claude, openai, mistral, groq, deepseek, gemini, xai) for agent tasks.".to_string(),
                 }),
                 _ => Err(NikaError::AgentValidationError {
                     reason: format!("Provider '{}' is not supported for agent: tasks.", resolved.id),
@@ -294,13 +295,14 @@ impl RigAgentLoop {
                     "groq" => self.run_groq().await,
                     "deepseek" => self.run_deepseek().await,
                     "gemini" => self.run_gemini().await,
+                    "xai" => self.run_xai().await,
                     _ => continue,
                 };
             }
         }
 
         Err(NikaError::AgentValidationError {
-            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, or GEMINI_API_KEY.".to_string(),
+            reason: "No API key found. Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, MISTRAL_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.".to_string(),
         })
     }
 
@@ -349,6 +351,17 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "gemini-2.0-flash".to_string());
         let client = rig::providers::gemini::Client::from_env();
+        self.run_generic_provider_impl(client, &model_name).await
+    }
+
+    /// Run with xAI provider (requires XAI_API_KEY)
+    pub async fn run_xai(&mut self) -> Result<RigAgentLoopResult, NikaError> {
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "grok-3-fast".to_string());
+        let client = rig::providers::xai::Client::from_env();
         self.run_generic_provider_impl(client, &model_name).await
     }
 

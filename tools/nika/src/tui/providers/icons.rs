@@ -16,6 +16,7 @@ pub fn provider_icon(provider: &str) -> &'static str {
         "groq" => "⚡",
         "deepseek" => "🔬",
         "gemini" => "💎",
+        "xai" => "𝕏",
         // Local providers (1)
         "native" => "🦋",
         // MCP providers
@@ -33,13 +34,14 @@ pub fn provider_icon(provider: &str) -> &'static str {
 /// Get terminal-safe icon (no emoji) for a provider
 pub fn provider_icon_ascii(provider: &str) -> &'static str {
     match provider {
-        // LLM providers (6)
+        // LLM providers (7)
         "anthropic" => "[A]",
         "openai" => "[O]",
         "mistral" => "[M]",
         "groq" => "[G]",
         "deepseek" => "[D]",
         "gemini" => "[Gm]",
+        "xai" => "[X]",
         // Local providers (1)
         "native" => "[N]",
         // MCP providers
@@ -64,6 +66,7 @@ pub fn provider_color(provider: &str) -> Color {
         "groq" => compat::YELLOW_500,     // Yellow for Groq (fast)
         "deepseek" => compat::BLUE_500,   // Blue for DeepSeek
         "gemini" => compat::VIOLET_500,   // Violet for Gemini
+        "xai" => compat::SLATE_400,        // Slate for xAI/Grok
         // Local providers (1)
         "native" => compat::LIME_500, // Lime for native (local)
         // MCP providers - muted colors
@@ -87,6 +90,7 @@ pub fn provider_display_name(provider: &str) -> &'static str {
         "groq" => "Groq",
         "deepseek" => "DeepSeek",
         "gemini" => "Google Gemini",
+        "xai" => "xAI Grok",
         "native" => "Native (Local)",
         "neo4j" => "Neo4j",
         "github" => "GitHub",
@@ -101,7 +105,7 @@ pub fn provider_display_name(provider: &str) -> &'static str {
 /// Get category label for a provider
 pub fn provider_category(provider: &str) -> &'static str {
     match provider {
-        "anthropic" | "openai" | "mistral" | "groq" | "deepseek" | "gemini" => "LLM",
+        "anthropic" | "openai" | "mistral" | "groq" | "deepseek" | "gemini" | "xai" => "LLM",
         "native" => "Local",
         "neo4j" | "github" | "slack" | "perplexity" | "firecrawl" | "supadata" => "MCP",
         _ => "Unknown",
@@ -121,6 +125,7 @@ mod tests {
             "groq",
             "deepseek",
             "gemini",
+            "xai",
         ];
         for provider in providers {
             assert_ne!(

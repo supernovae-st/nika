@@ -25,7 +25,7 @@
     },
     "provider": {
       "type": "string",
-      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "native", "mock"],
+      "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
       "default": "claude",
       "description": "Default LLM provider for infer and agent tasks (native = local GGUF inference via mistral.rs)"
     },
@@ -333,7 +333,7 @@
             },
             "provider": {
               "type": "string",
-              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "native", "mock"],
+              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
               "description": "Provider override for this task (native = local GGUF inference)"
             },
             "model": {
@@ -547,7 +547,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "native", "mock"],
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
           "description": "Provider override (native = local GGUF inference)"
         },
         "model": {
@@ -894,7 +894,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "native", "mock"],
+          "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
           "description": "Provider override (native = local GGUF inference)"
         },
         "model": {

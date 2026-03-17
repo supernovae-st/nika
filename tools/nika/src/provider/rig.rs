@@ -32,7 +32,7 @@ use futures::StreamExt;
 use crate::provider::native::InferenceBackend;
 use rig::client::{CompletionClient, ProviderClient};
 use rig::completion::{CompletionModel as _, GetTokenUsage, Prompt, PromptError, ToolDefinition};
-use rig::providers::{anthropic, deepseek, gemini, groq, mistral, openai};
+use rig::providers::{anthropic, deepseek, gemini, groq, mistral, openai, xai};
 use rig::streaming::StreamedAssistantContent;
 use rig::tool::{ToolDyn, ToolError};
 use std::future::Future;
@@ -148,6 +148,8 @@ pub enum RigProvider {
     DeepSeek(deepseek::Client),
     /// Gemini (Google) provider - GEMINI_API_KEY
     Gemini(gemini::Client),
+    /// xAI (Grok) provider - XAI_API_KEY
+    XAi(xai::Client),
     /// Native local provider - GGUF models via mistral.rs
     /// Requires `native-inference` feature and explicit model loading.
     /// Now uses NativeRuntime directly with full streaming support.
@@ -186,6 +188,7 @@ impl RigProvider {
             "groq" => Ok(Self::groq()),
             "deepseek" => Ok(Self::deepseek()),
             "gemini" => Ok(Self::gemini()),
+            "xai" => Ok(Self::xai()),
             #[cfg(feature = "native-inference")]
             "native" => Ok(Self::native()),
             _ => Err(crate::error::NikaError::ProviderNotConfigured {
@@ -228,6 +231,12 @@ impl RigProvider {
     pub fn gemini() -> Self {
         let client = gemini::Client::from_env();
         RigProvider::Gemini(client)
+    }
+
+    /// Create an xAI (Grok) provider from environment variable XAI_API_KEY
+    pub fn xai() -> Self {
+        let client = xai::Client::from_env();
+        RigProvider::XAi(client)
     }
 
     /// Create a Native provider for local GGUF inference
@@ -285,6 +294,7 @@ impl RigProvider {
             RigProvider::Groq(_) => "groq",
             RigProvider::DeepSeek(_) => "deepseek",
             RigProvider::Gemini(_) => "gemini",
+            RigProvider::XAi(_) => "xai",
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native",
         }
@@ -311,6 +321,7 @@ impl RigProvider {
             RigProvider::Groq(_) => "llama-3.3-70b-versatile",
             RigProvider::DeepSeek(_) => "deepseek-chat",
             RigProvider::Gemini(_) => "gemini-2.0-flash",
+            RigProvider::XAi(_) => "grok-3-fast",
             // Native uses whatever model is loaded, no default
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => "native-model",
@@ -366,6 +377,13 @@ impl RigProvider {
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Gemini(client) => {
+                let agent = client.agent(model_id).max_tokens(8192).build();
+                agent
+                    .prompt(prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
+            RigProvider::XAi(client) => {
                 let agent = client.agent(model_id).max_tokens(8192).build();
                 agent
                     .prompt(prompt)
@@ -435,6 +453,7 @@ impl RigProvider {
             RigProvider::Groq(client) => build_agent_with_tools!(client),
             RigProvider::DeepSeek(client) => build_agent_with_tools!(client),
             RigProvider::Gemini(client) => build_agent_with_tools!(client),
+            RigProvider::XAi(client) => build_agent_with_tools!(client),
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native inference doesn't support tool calling
@@ -549,6 +568,17 @@ impl RigProvider {
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
+            RigProvider::XAi(client) => {
+                let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(temp) = options.temperature {
+                    builder = builder.temperature(temp);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(&full_prompt)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
                 // Native inference uses ChatOptions from native module
@@ -594,6 +624,7 @@ impl RigProvider {
                     "groq" => Some(Self::groq()),
                     "deepseek" => Some(Self::deepseek()),
                     "gemini" => Some(Self::gemini()),
+                    "xai" => Some(Self::xai()),
                     _ => continue,
                 };
             }
@@ -692,6 +723,7 @@ impl RigProvider {
             RigProvider::Groq(_) => has_key("GROQ_API_KEY"),
             RigProvider::DeepSeek(_) => has_key("DEEPSEEK_API_KEY"),
             RigProvider::Gemini(_) => has_key("GEMINI_API_KEY"),
+            RigProvider::XAi(_) => has_key("XAI_API_KEY"),
             #[cfg(feature = "native-inference")]
             RigProvider::Native(_) => {
                 // Native doesn't need API key, but requires model to be loaded
@@ -1059,6 +1091,16 @@ impl RigProvider {
                 consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
                     .await?;
             }
+            RigProvider::XAi(client) => {
+                let model = client.completion_model(model_id);
+                let request = model.completion_request(prompt).max_tokens(8192).build();
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
+            }
             // Native provider - uses infer_stream() for true token-by-token streaming
             #[cfg(feature = "native-inference")]
             RigProvider::Native(runtime) => {
@@ -1185,6 +1227,11 @@ impl RigProvider {
                     .await?;
             }
             RigProvider::Gemini(client) => {
+                let mut stream = build_request_with_options!(client);
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
+                    .await?;
+            }
+            RigProvider::XAi(client) => {
                 let mut stream = build_request_with_options!(client);
                 consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, false)
                     .await?;

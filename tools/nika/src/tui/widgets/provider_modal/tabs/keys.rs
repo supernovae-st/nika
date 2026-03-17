@@ -308,9 +308,9 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn test_provider_key_entry_all_providers_returns_6() {
+    fn test_provider_key_entry_all_providers_returns_7() {
         let entries = ProviderKeyEntry::all_providers();
-        assert_eq!(entries.len(), 6);
+        assert_eq!(entries.len(), 7);
     }
 
     #[test]
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn test_keys_tab_entry_count() {
         let tab = KeysTab::new(0, false, "");
-        assert_eq!(tab.entry_count(), 6);
+        assert_eq!(tab.entry_count(), 7);
     }
 
     #[test]
