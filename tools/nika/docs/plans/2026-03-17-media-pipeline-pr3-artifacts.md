@@ -94,8 +94,9 @@ impl ArtifactWriter {
         let resolved_path = resolver.resolve(&request.output_path);
 
         // 2. Use media extension instead of default "bin"
-        let resolved_path = if resolved_path.ends_with(".bin") {
-            resolved_path.replace(".bin", &format!(".{}", request.media_ref.extension))
+        // NOTE: Use strip_suffix, not replace — replace hits ALL occurrences in the path
+        let resolved_path = if let Some(stripped) = resolved_path.strip_suffix(".bin") {
+            format!("{}.{}", stripped, request.media_ref.extension)
         } else {
             resolved_path
         };
@@ -111,7 +112,7 @@ impl ArtifactWriter {
             return Err(NikaError::ArtifactSizeExceeded {
                 path: artifact_path.display().to_string(),
                 size: request.media_ref.size_bytes,
-                max: self.max_size,
+                max_size: self.max_size,
             });
         }
 
@@ -243,7 +244,7 @@ async fn verify_media_integrity(run_context: &RunContext) -> Vec<String> {
 
         for (i, media_ref) in result.media.iter().enumerate() {
             // Check file exists
-            if !media_ref.path.exists() {
+            if tokio::fs::metadata(&media_ref.path).await.is_err() {
                 warnings.push(format!(
                     "NIKA-253: Task '{}' media[{}] missing: {}",
                     task_id, i, media_ref.path.display()
@@ -640,7 +641,7 @@ fn test_media_resolve_path() {
 
     // Verify media is accessible via resolve_path (used by with: bindings)
     let context = RunContext::new();
-    context.store("gen_image".into(), result);
+    context.insert("gen_image".into(), result);
 
     // Full media array
     let resolved = context.resolve_path("gen_image.media");
@@ -662,7 +663,7 @@ fn test_media_resolve_path() {
 fn test_media_resolve_path_empty_media() {
     let result = TaskResult::success(json!({"text": "ok"}), Duration::from_secs(1));
     let context = RunContext::new();
-    context.store("text_task".into(), result);
+    context.insert("text_task".into(), result);
 
     // No media -> media array is empty, index returns None
     let resolved = context.resolve_path("text_task.media[0].path");
@@ -695,7 +696,7 @@ async fn test_e2e_integrity_check_passes() {
         }]);
 
     let context = RunContext::new();
-    context.store("t1".into(), result);
+    context.insert("t1".into(), result);
 
     let warnings = verify_media_integrity(&context).await;
     assert!(warnings.is_empty());
@@ -714,7 +715,7 @@ async fn test_e2e_integrity_check_detects_missing() {
         }]);
 
     let context = RunContext::new();
-    context.store("t1".into(), result);
+    context.insert("t1".into(), result);
 
     let warnings = verify_media_integrity(&context).await;
     assert_eq!(warnings.len(), 1);

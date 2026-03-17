@@ -108,7 +108,24 @@ pub enum MediaError {
 
 **Commit**: `feat(media): add NIKA-251..256 media error types`
 
-Also add a `From<MediaError> for NikaError` impl in `src/error.rs`:
+Also add `MediaError::code()` method to the enum:
+
+```rust
+impl MediaError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::MimeDetectionFailed { .. } => "NIKA-251",
+            Self::UnsupportedMediaType { .. } => "NIKA-252",
+            Self::MediaNotFound { .. } => "NIKA-253",
+            Self::HashMismatch { .. } => "NIKA-254",
+            Self::MediaStoreWrite { .. } => "NIKA-255",
+            Self::Base64DecodeFailed { .. } => "NIKA-256",
+        }
+    }
+}
+```
+
+And add `NikaError::MediaError` variant + exhaustive match arms in `src/error.rs`:
 
 ```rust
 // In error.rs, add variant (NIKA-250 is ContextLoadError, media starts at 251):
@@ -116,6 +133,15 @@ MediaError {
     #[source]
     source: crate::media::error::MediaError,
 },
+
+// CRITICAL: Add to ALL exhaustive match methods:
+// 1. code() — delegate to inner:
+Self::MediaError { source } => source.code(),
+
+// 2. is_recoverable() — MediaStoreWrite could be transient:
+Self::MediaError { source } => matches!(source, crate::media::MediaError::MediaStoreWrite { .. }),
+
+// 3. fix_suggestion() — add appropriate suggestions
 ```
 
 ### Task 2: Create MediaRef and MediaType types
