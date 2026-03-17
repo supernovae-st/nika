@@ -181,7 +181,8 @@ fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
     ExecParams {
         command: e.command,
         shell: Some(e.shell),
-        timeout: e.timeout_ms,
+        // Convert milliseconds (YAML) to seconds (runtime)
+        timeout: e.timeout_ms.map(|ms| ms / 1000),
         cwd: e.working_dir,
         env: if e.env.is_empty() {
             None
@@ -198,7 +199,8 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         headers: fetch.headers.into_iter().collect(),
         body: fetch.body,
         json: fetch.json,
-        timeout: fetch.timeout_ms,
+        // Convert milliseconds (YAML) to seconds (runtime)
+        timeout: fetch.timeout_ms.map(|ms| ms / 1000),
         retry: retry.map(lower_retry),
         follow_redirects: Some(fetch.follow_redirects),
     }
@@ -853,7 +855,7 @@ mod tests {
                 assert_eq!(e.command, "npm run build");
                 assert_eq!(e.shell, Some(true));
                 assert_eq!(e.cwd.as_deref(), Some("/app"));
-                assert_eq!(e.timeout, Some(30000));
+                assert_eq!(e.timeout, Some(30)); // 30000ms → 30s
                 let env = e.env.as_ref().unwrap();
                 assert_eq!(env.get("NODE_ENV").map(String::as_str), Some("production"));
             }
