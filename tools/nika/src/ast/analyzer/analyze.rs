@@ -792,6 +792,11 @@ fn build_task_table(tasks: &[Spanned<RawTask>], ctx: &mut AnalyzerContext) {
         let task_name = &task.value.id.value;
         let task_span = task.value.id.span;
 
+        // Validate task ID format before inserting
+        if !validate_task_id(task_name, task_span, ctx) {
+            continue;
+        }
+
         if let Some(first_span) = ctx.task_spans.get(task_name) {
             ctx.add_error(AnalyzeError::duplicate_task(
                 task_span,
@@ -803,6 +808,50 @@ fn build_task_table(tasks: &[Spanned<RawTask>], ctx: &mut AnalyzerContext) {
             ctx.task_spans.insert(task_name.clone(), task_span);
         }
     }
+}
+
+/// Validate task ID format: non-empty, alphanumeric with hyphens/underscores/dots,
+/// must not start with `$` (reserved for binding references).
+fn validate_task_id(name: &str, span: Span, ctx: &mut AnalyzerContext) -> bool {
+    if name.is_empty() {
+        ctx.add_error(AnalyzeError::new(
+            AnalyzeErrorKind::InvalidValue,
+            span,
+            "task ID must not be empty",
+        ));
+        return false;
+    }
+    if name.starts_with('$') {
+        ctx.add_error(
+            AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                span,
+                format!(
+                    "task ID '{}' must not start with '$' (reserved for binding references)",
+                    name
+                ),
+            )
+            .with_suggestion("remove the leading '$' from the task ID"),
+        );
+        return false;
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
+        ctx.add_error(
+            AnalyzeError::new(
+                AnalyzeErrorKind::InvalidValue,
+                span,
+                format!("task ID '{}' contains invalid characters", name),
+            )
+            .with_suggestion(
+                "use only alphanumeric characters, hyphens, underscores, and dots",
+            ),
+        );
+        return false;
+    }
+    true
 }
 
 /// Validate task references without building analyzed tasks.
@@ -2093,6 +2142,61 @@ mod tests {
             result.warnings.is_empty(),
             "retry on fetch should NOT emit a warning, got: {:?}",
             result.warnings
+        );
+    }
+
+    // ====================================================================
+    // Task ID format validation
+    // ====================================================================
+
+    #[test]
+    fn test_analyze_empty_task_id() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("")]);
+        let result = analyze(raw);
+        assert!(result.is_err(), "empty task ID should be rejected");
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.kind == AnalyzeErrorKind::InvalidValue),
+            "expected InvalidValue for empty task ID, got: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_task_id_with_spaces() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("my task")]);
+        let result = analyze(raw);
+        assert!(result.is_err(), "task ID with spaces should be rejected");
+    }
+
+    #[test]
+    fn test_analyze_task_id_dollar_prefix() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("$reserved")]);
+        let result = analyze(raw);
+        assert!(result.is_err(), "task ID starting with $ should be rejected");
+    }
+
+    #[test]
+    fn test_analyze_valid_task_id_with_hyphens_underscores() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("my-task_v2")]);
+        let result = analyze(raw);
+        assert!(
+            result.is_ok(),
+            "task ID with hyphens/underscores is valid: {:?}",
+            result.errors
+        );
+    }
+
+    #[test]
+    fn test_analyze_valid_task_id_with_dots() {
+        let raw = make_raw_workflow("nika/workflow@0.12", vec![make_raw_task("seo.keyword")]);
+        let result = analyze(raw);
+        assert!(
+            result.is_ok(),
+            "task ID with dots is valid: {:?}",
+            result.errors
         );
     }
 }
