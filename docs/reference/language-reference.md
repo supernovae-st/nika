@@ -362,7 +362,7 @@ With JSONPath extraction:
   infer: "Process these items: {{with.items}}"
 ```
 
-### `flow:` - Execution Dependencies
+### `depends_on:` - Execution Dependencies
 
 Ensure a task runs after another (without using its output):
 
@@ -527,7 +527,7 @@ workflow      ::= schema [metadata] tasks [flows]
 schema        ::= "schema:" string
 metadata      ::= [workflow] [description] [provider] [model] [mcp] [context] [inputs]
 tasks         ::= "tasks:" task+
-task          ::= "- id:" id [description] verb [with] [flow] [output] [retry]
+task          ::= "- id:" id [description] verb [with] [depends_on] [output] [retry]
 verb          ::= infer | exec | fetch | invoke | agent
 infer         ::= "infer:" (string | infer_params)
 exec          ::= "exec:" (string | exec_params)
@@ -536,7 +536,7 @@ invoke        ::= "invoke:" (string | invoke_params)
 agent         ::= "agent:" agent_params
 with          ::= "with:" { alias: target }+
 target        ::= id | { task: id, path: jsonpath }
-flow          ::= "flow:" (id | id+)
+depends_on    ::= "depends_on:" (id | id+)
 output        ::= "output:" { format: format [schema: schema] }
 ```
 

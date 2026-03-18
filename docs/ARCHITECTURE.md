@@ -144,7 +144,7 @@ pub struct AgentParams {
     pub model: Option<String>,
     pub mcp: Vec<String>,               // MCP servers to access
     pub max_turns: Option<u32>,
-    pub stop_conditions: Vec<String>,
+    pub stop_sequences: Vec<String>,
     pub scope: Option<String>,
 }
 ```
@@ -174,12 +174,11 @@ provider: claude
 
 # MCP server configurations
 mcp:
-  servers:
-    novanet:
-      command: "cargo"
-      args: ["run", "-p", "novanet-mcp"]
-      env:
-        NEO4J_URI: "bolt://localhost:7687"
+  novanet:
+    command: "cargo"
+    args: ["run", "-p", "novanet-mcp"]
+    env:
+      NEO4J_URI: "bolt://localhost:7687"
 
 tasks:
   - id: context

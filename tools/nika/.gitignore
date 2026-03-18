@@ -11,3 +11,4 @@ traces/
 
 # Package artifacts
 target/package/
+examples/gates/.test-output/

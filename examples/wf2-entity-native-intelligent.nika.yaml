@@ -27,7 +27,7 @@
 #   - Neo4j database with entities and SEOKeywords
 
 schema: "nika/workflow@0.10"
-workflow: wf2-entity-native-intelligent
+workdepends_on: wf2-entity-native-intelligent
 description: "Generate complete EntityNative with SEO-derived slug (ADR-030/032/033)"
 
 provider: claude
@@ -111,7 +111,7 @@ tasks:
     description: "Get full generation context for the entity"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_context
@@ -134,7 +134,7 @@ tasks:
     description: "Get locale-specific knowledge atoms (terms, expressions)"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_context
@@ -152,7 +152,7 @@ tasks:
     description: "Describe the entity for semantic understanding"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_describe
@@ -172,7 +172,7 @@ tasks:
     description: "Find SEOKeywords that target this entity (via TARGETS arc)"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_search
@@ -193,7 +193,7 @@ tasks:
     description: "Find parent Page to get parent slug (for no-repetition rule)"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_search
@@ -214,7 +214,7 @@ tasks:
     description: "Calculate convergence boost (multiple EntityNatives targeting same keyword)"
     use:
       parsed: parse_input
-    flow: [parse_input]
+    depends_on: [parse_input]
     invoke:
       mcp: novanet
       tool: novanet_search
@@ -381,7 +381,7 @@ tasks:
     artifact:
       path: analysis/slug-scoring.json
 
-    flow: [parse_input, query_seo_keywords, query_parent_page, query_convergence, get_entity_details, get_entity_context]
+    depends_on: [parse_input, query_seo_keywords, query_parent_page, query_convergence, get_entity_details, get_entity_context]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 5: Generate Complete EntityNative Content
@@ -507,7 +507,7 @@ tasks:
       - path: content/entity-native-generated.yaml
         format: yaml
 
-    flow: [parse_input, calculate_slug_scores, get_locale_atoms]
+    depends_on: [parse_input, calculate_slug_scores, get_locale_atoms]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 6: Validate Before Write (novanet_write dry_run)
@@ -550,7 +550,7 @@ tasks:
     artifact:
       path: validation/check-result.json
 
-    flow: [parse_input, generate_entity_native]
+    depends_on: [parse_input, generate_entity_native]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 7: Persist EntityNative (novanet_write)
@@ -595,7 +595,7 @@ tasks:
     artifact:
       path: output/write-result.json
 
-    flow: [parse_input, validate_write]
+    depends_on: [parse_input, validate_write]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 8: Post-Write Audit
@@ -605,7 +605,7 @@ tasks:
     description: "Run quality audit after write (CSR metrics)"
     use:
       parsed: parse_input
-    flow: [write_entity_native, parse_input]
+    depends_on: [write_entity_native, parse_input]
     invoke:
       mcp: novanet
       tool: novanet_audit
@@ -681,7 +681,7 @@ tasks:
       - path: reports/wf2-summary.json
         format: json
 
-    flow: [parse_input, write_entity_native, audit_result]
+    depends_on: [parse_input, write_entity_native, audit_result]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 10: Final Output
@@ -728,7 +728,7 @@ tasks:
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
-    flow: [parse_input, generate_summary]
+    depends_on: [parse_input, generate_summary]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE FLOW DIAGRAM
