@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 36 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output)
+//! - EventKind: 37 variants across 12 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -537,6 +537,19 @@ pub enum EventKind {
         /// Total attempts across all layers before success
         total_attempts: u32,
     },
+
+    // ═══════════════════════════════════════════
+    // MEDIA CLEANUP EVENTS
+    // ═══════════════════════════════════════════
+    /// Media store cleanup (GC) operation completed
+    MediaCleanup {
+        /// Number of files removed
+        removed: u64,
+        /// Total bytes freed
+        bytes_freed: u64,
+        /// Whether this was a dry-run (no files actually deleted)
+        dry_run: bool,
+    },
 }
 
 impl EventKind {
@@ -581,7 +594,8 @@ impl EventKind {
             | Self::WorkflowPaused
             | Self::WorkflowResumed
             | Self::McpConnected { .. }
-            | Self::McpError { .. } => None,
+            | Self::McpError { .. }
+            | Self::MediaCleanup { .. } => None,
         }
     }
 
@@ -1857,8 +1871,8 @@ mod tests {
     // WAVE 2 TESTS: NDJSON event system audit
     // ═══════════════════════════════════════════════════════════════
 
-    /// Helper: build one instance of every EventKind variant (all 36)
-    fn all_36_variants() -> Vec<EventKind> {
+    /// Helper: build one instance of every EventKind variant (all 37)
+    fn all_37_variants() -> Vec<EventKind> {
         vec![
             // Workflow (6)
             EventKind::WorkflowStarted {
@@ -2085,22 +2099,28 @@ mod tests {
                 layer_name: "rig_extractor".into(),
                 total_attempts: 1,
             },
+            // Media Cleanup (1)
+            EventKind::MediaCleanup {
+                removed: 5,
+                bytes_freed: 10240,
+                dry_run: false,
+            },
         ]
     }
 
     #[test]
-    fn wave2_variant_count_is_36() {
-        let variants = all_36_variants();
+    fn wave2_variant_count_is_37() {
+        let variants = all_37_variants();
         assert_eq!(
             variants.len(),
-            36,
-            "EventKind should have exactly 36 variants"
+            37,
+            "EventKind should have exactly 37 variants"
         );
     }
 
     #[test]
     fn wave2_all_variants_serialize_deserialize_roundtrip() {
-        for (i, variant) in all_36_variants().into_iter().enumerate() {
+        for (i, variant) in all_37_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant)
                 .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
             let back: EventKind = serde_json::from_str(&json)
@@ -2112,7 +2132,7 @@ mod tests {
     #[test]
     fn wave2_ndjson_no_embedded_newlines() {
         // NDJSON = one JSON object per line, no embedded newlines
-        for (i, variant) in all_36_variants().into_iter().enumerate() {
+        for (i, variant) in all_37_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant).unwrap();
             assert!(
                 !json.contains('\n'),
@@ -2320,10 +2340,10 @@ mod tests {
 
     #[test]
     fn wave2_task_id_extraction_all_variants() {
-        let variants = all_36_variants();
-        // Variants WITH task_id (26 of them)
+        let variants = all_37_variants();
+        // Variants WITH task_id (27 of them)
         let with_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_some()).collect();
-        // Variants WITHOUT task_id (8): 6 workflow + McpConnected + McpError
+        // Variants WITHOUT task_id (10): 6 workflow + McpConnected + McpError + Custom(None) + MediaCleanup
         let without_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_none()).collect();
 
         // Custom has task_id: None in our test data, so it goes in without
@@ -2335,8 +2355,8 @@ mod tests {
         );
         assert_eq!(
             without_task_id.len(),
-            9,
-            "9 variants should lack task_id (workflow-level + McpConnected + McpError + Custom with None)"
+            10,
+            "10 variants should lack task_id (workflow-level + McpConnected + McpError + Custom with None + MediaCleanup)"
         );
     }
 
