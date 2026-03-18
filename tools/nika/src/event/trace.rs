@@ -199,7 +199,7 @@ fn prune_traces_in_dir(trace_dir: &Path, max_traces: u32, retention_days: u32) {
     let mut pruned_count: u32 = 0;
     for path in &to_delete {
         if let Err(e) = fs::remove_file(path) {
-            tracing::warn!(
+            tracing::debug!(
                 path = %path.display(),
                 error = %e,
                 "Failed to prune trace file"
@@ -210,7 +210,7 @@ fn prune_traces_in_dir(trace_dir: &Path, max_traces: u32, retention_days: u32) {
     }
 
     if pruned_count > 0 {
-        tracing::warn!(
+        tracing::debug!(
             pruned = pruned_count,
             max_traces = max_traces,
             retention_days = retention_days,
