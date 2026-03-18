@@ -7,6 +7,8 @@ pub mod detect;
 pub mod error;
 pub mod processor;
 pub mod store;
+#[cfg(test)]
+mod tests_e2e;
 pub mod types;
 
 pub use detect::{detect_mime, DetectedMime, DetectionSource};
