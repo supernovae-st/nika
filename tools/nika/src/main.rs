@@ -23,7 +23,7 @@ use nika::runtime::Runner;
 const LONG_ABOUT: &str = r#"Nika - DAG workflow runner for AI tasks with MCP integration
 
 Execute YAML-defined workflows using 5 semantic verbs:
-  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Native)
+  infer:   LLM text generation (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, Native)
   exec:    Shell command execution
   fetch:   HTTP requests
   invoke:  MCP tool calls
@@ -88,6 +88,8 @@ ENVIRONMENT VARIABLES:
     MISTRAL_API_KEY               Mistral
     GROQ_API_KEY                  Groq
     DEEPSEEK_API_KEY              DeepSeek
+    GEMINI_API_KEY                Google Gemini
+    XAI_API_KEY                   xAI (Grok)
     NIKA_MODEL_PATH               Native inference model path
 
 TUI VIEWS (in nika ui):

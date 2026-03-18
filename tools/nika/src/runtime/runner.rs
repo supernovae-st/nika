@@ -28,7 +28,8 @@ use crate::ast::{InferParams, TaskAction};
 use crate::binding::ResolvedBindings;
 use crate::dag::Dag;
 use crate::error::NikaError;
-use crate::event::{EventKind, EventLog, TraceWriter};
+use crate::event::{prune_traces, EventKind, EventLog, TraceWriter};
+use crate::runtime::boot::TraceConfig;
 use crate::store::{RunContext, TaskResult};
 use crate::util::{intern, DECOMPOSE_TIMEOUT};
 
@@ -107,6 +108,8 @@ pub struct Runner {
     resume_notify: Arc<Notify>,
     /// Resolved agents and skills
     resolved_assets: ResolvedAssets,
+    /// Trace retention config (max_traces + retention_days)
+    trace_config: TraceConfig,
 }
 
 impl Runner {
@@ -158,6 +161,7 @@ impl Runner {
             paused: Arc::new(AtomicBool::new(false)),
             resume_notify: Arc::new(Notify::new()),
             resolved_assets: ResolvedAssets::default(),
+            trace_config: TraceConfig::default(),
         })
     }
 
@@ -167,6 +171,14 @@ impl Runner {
     /// All events are still emitted to the EventLog for TUI display.
     pub fn quiet(mut self) -> Self {
         self.quiet = true;
+        self
+    }
+
+    /// Set trace retention config for automatic pruning after each run.
+    ///
+    /// When omitted, defaults to 100 max traces and 7-day retention.
+    pub fn with_trace_config(mut self, config: TraceConfig) -> Self {
+        self.trace_config = config;
         self
     }
 
@@ -373,6 +385,7 @@ impl Runner {
     /// Write execution trace to .nika/traces/ (called on ALL exit paths).
     ///
     /// Traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
+    /// After writing, prunes old traces based on `trace_config` (max_traces + retention_days).
     fn write_trace(&self) {
         if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
             if let Err(e) = trace_writer.write_all(&self.event_log) {
@@ -381,6 +394,9 @@ impl Runner {
                 tracing::info!(path = %trace_writer.path().display(), "Trace written");
             }
         }
+
+        // Enforce retention: prune traces beyond max_traces / retention_days
+        prune_traces(self.trace_config.max_traces, self.trace_config.retention_days);
     }
 
     /// Check if a task qualifies for schema validation retry
@@ -1791,7 +1807,38 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         self.write_trace();
 
         if !self.quiet {
-            println!("\n{} Done!\n", "✓".green());
+            let elapsed = workflow_start.elapsed();
+            let elapsed_str = if elapsed.as_secs() >= 60 {
+                format!("{}m {:.1}s", elapsed.as_secs() / 60, elapsed.as_secs_f64() % 60.0)
+            } else {
+                format!("{:.1}s", elapsed.as_secs_f64())
+            };
+
+            // Compute total tokens and cost from events
+            let events = self.event_log.events();
+            let (total_tokens, total_cost) = events.iter().fold((0u64, 0.0f64), |(tokens, cost), e| {
+                if let EventKind::ProviderResponded { input_tokens, output_tokens, cost_usd, .. } = &e.kind {
+                    (tokens + input_tokens + output_tokens, cost + cost_usd)
+                } else {
+                    (tokens, cost)
+                }
+            });
+
+            if total_tokens > 0 {
+                println!(
+                    "\n{} Done! ({} | {} tokens | ${})\n",
+                    "✓".green(),
+                    elapsed_str.dimmed(),
+                    total_tokens.to_string().dimmed(),
+                    crate::provider::cost::format_cost(total_cost).trim_start_matches('$').dimmed()
+                );
+            } else {
+                println!(
+                    "\n{} Done! ({})\n",
+                    "✓".green(),
+                    elapsed_str.dimmed()
+                );
+            }
         }
 
         Ok(output)
