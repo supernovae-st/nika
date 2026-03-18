@@ -3,7 +3,7 @@
 > Complete findings from the Nika Evolution brainstorming session.
 > 13 research agents deployed. 373 source files audited. 6 papers analyzed. 5 competitors studied.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -36,7 +36,7 @@ flowchart LR
     subgraph BODY["Nika — The Body"]
         direction TB
         K1["Workflow Engine\n5 Verbs · 7 Providers"]
-        K2["373 files · 220K lines\n6,610 tests"]
+        K2["368 files · 217K lines\n6,725 tests"]
         K3["DAG + tokio runtime"]
         K4["48 MCP aliases\n4 TUI views"]
     end
@@ -60,16 +60,16 @@ flowchart LR
 
 ### Stats Snapshot
 
-| | Nika v0.27.0 | NovaNet v0.20.0 |
+| | Nika v0.30.3 | NovaNet v0.20.0 |
 |--|--|--|
-| **Scale** | 373 files · 220,380 lines | 59 NodeClasses · 159 ArcClasses |
-| **Tests** | 6,610 passing | 1,210 passing |
+| **Scale** | 368 files · 217,000 lines | 59 NodeClasses · 159 ArcClasses |
+| **Tests** | 6,725 passing | 1,210 passing |
 | **Capabilities** | 5 verbs · 7 providers · 11 builtin tools | 8 MCP tools · 200+ locales · 6 atom types |
-| **Observability** | 34 event types · NDJSON traces | CSR quality audit · denomination forms |
+| **Observability** | 32 event types · NDJSON traces | CSR quality audit · denomination forms |
 | **Infrastructure** | 4 TUI views · 48 MCP aliases · 30+ transforms | Neo4j backend · 5 search modes · 4 context modes |
 
 > [!NOTE]
-> Full feature inventory in [doc 01 — Current Features](./01-current-features.md). All stats verified against source code on 2026-03-14.
+> Full feature inventory in [doc 01 — Current Features](./01-current-features.md). All stats verified against source code on 2026-03-14. Counts exclude `src/target-main/` build artifacts (12 files, ~36K lines).
 
 ---
 
@@ -103,10 +103,10 @@ flowchart TB
 
     subgraph INFRA["Infrastructure"]
         direction LR
-        I1["provider/\n6 cloud + native\nrig-core"]
+        I1["provider/\n7 cloud + native\nrig-core"]
         I2["mcp/\nrmcp v0.16\nDashMap pool"]
-        I3["event/\n34 variants\nNDJSON traces"]
-        I4["core/\n18 providers\n48 MCP aliases"]
+        I3["event/\n32 variants\nNDJSON traces"]
+        I4["core/\n19 providers\n48 MCP aliases"]
     end
 
     PARSE --> PLAN --> EXEC
@@ -124,7 +124,7 @@ flowchart TB
 flowchart LR
     subgraph VERBS["5 Semantic Verbs — No New Verbs. Ever."]
         direction TB
-        V1["⚡ infer:\nLLM generation\n6 cloud + native"]
+        V1["⚡ infer:\nLLM generation\n7 cloud + native"]
         V2["📟 exec:\nShell command\nshell:false default"]
         V3["🛰️ fetch:\nHTTP request\nreqwest client"]
         V4["🔌 invoke:\nMCP tool call\nrmcp v0.16"]
@@ -189,7 +189,7 @@ flowchart TB
 
 - **Data structure**: `FxHashMap<Arc<str>, SmallVec<[Arc<str>; 4]>>` — 4 deps inline, heap if more
 - **Cycle detection**: 3-color DFS (White/Gray/Black)
-- **Implicit deps**: `use:`/`with:` bindings auto-create flow edges
+- **Implicit deps**: `with:` bindings auto-create flow edges
 - **Execution**: Layered topo-sort with `JoinSet` for parallel tasks within layers
 - **Concurrency**: `tokio::sync::Semaphore` limits parallel tasks
 - **Control**: `CancellationToken` via `tokio::select!`, `fail_fast: true` stops all on first error
@@ -199,7 +199,7 @@ flowchart TB
 <details>
 <summary>Binding & Transform — 3-pass template engine with 30+ operations</summary>
 
-- **Pass 1**: Resolve `{{use.xxx}}` / `{{with.xxx}}` from Egghead
+- **Pass 1**: Resolve `{{with.xxx}}` from RunContext
 - **Pass 2**: Resolve `{{context.files.xxx}}` from LoadedContext
 - **Pass 3**: Resolve `{{inputs.xxx}}` from workflow inputs
 - **Lazy bindings**: `lazy: true` defers resolution until first access
@@ -208,7 +208,7 @@ flowchart TB
 </details>
 
 <details>
-<summary>Event Sourcing — 34 event types across 6 categories</summary>
+<summary>Event Sourcing — 32 event types across 6 categories</summary>
 
 | Category | Events |
 |----------|--------|
@@ -234,9 +234,9 @@ flowchart TB
 </details>
 
 <details>
-<summary>Core Registry (v0.27) — Zero-dependency static definitions</summary>
+<summary>Core Registry (v0.30.3) — Zero-dependency static definitions</summary>
 
-- **KNOWN_PROVIDERS** (18): 6 LLM + 11 MCP + 1 Local
+- **KNOWN_PROVIDERS** (19): 7 LLM + 11 MCP + 1 Local
 - **KNOWN_MODELS** (16+): Text, vision, embedding models for native inference
 - **MCP_ALIASES** (48): 6 categories (AI/LLM, Data, Search, Dev, Comms, Files)
 - **MCP Config**: 3-level hierarchy (global → project → workflow)
@@ -351,7 +351,7 @@ flowchart LR
 > [!TIP]
 > The literature consistently validates three things Nika already does right:
 > 1. **Hybrid DAG+LLM architecture** — Swarms paper[^6] confirms this outperforms pure-swarm
-> 2. **Reference semantics via Egghead** — RLM paper's core insight, already implemented
+> 2. **Reference semantics via RunContext** — RLM paper's core insight, already implemented
 > 3. **Recursive spawning with depth limits** — THREAD paper's approach, already in `SpawnAgentTool`
 
 ---
@@ -371,8 +371,8 @@ quadrantChart
     quadrant-2 "Expressive but Forgetful"
     quadrant-3 "Rigid & Forgetful"
     quadrant-4 "Smart Memory, Low Flex"
-    "Nika v0.27": [0.35, 0.80]
-    "Nika v0.30 (target)": [0.85, 0.90]
+    "Nika v0.30.3": [0.35, 0.80]
+    "Nika v0.33 (target)": [0.85, 0.90]
     "Slate": [0.75, 0.85]
     "Claude Code": [0.30, 0.60]
     "LangGraph": [0.45, 0.50]
@@ -383,14 +383,14 @@ quadrantChart
 ### Slate — The Primary Reference
 
 > [!IMPORTANT]
-> **Core realization**: Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet.
+> **Core realization**: Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `RunContext` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet.
 
 | Where Slate Leads | Where Nika Leads | Priority |
 |---|---|---|
 | Context management (working memory) | YAML-first workflows (reproducible) | P-CONTEXT |
 | 4 model slots | NovaNet knowledge graph (unique) | P-MODEL |
 | Record compression | 200+ locales (no competitor) | P-RECORD |
-| Shaka/satellites split | 34-event observability | P-SHAKA |
+| Shaka/satellites split | 32-event observability | P-SHAKA |
 | Cross-session memory (files) | 4-layer structured output | P-MEMORY |
 | Adaptive decomposition | Rust performance | P-SHAKA |
 
@@ -406,12 +406,12 @@ quadrantChart
 | Knowledge graph | NovaNet | Manual | None | None | None |
 | Multi-locale | 200+ | None | None | None | None |
 | Memory | Session | Checkpoints | 3-type | None | Conversation |
-| Observability | 34 events | LangSmith | Basic | PRs | Conversation |
+| Observability | 32 events | LangSmith | Basic | PRs | Conversation |
 | Reproducibility | NDJSON traces | Low | Low | PR diffs | Low |
 | MCP | Native client | Plugin | None | None | Native |
 
 > [!WARNING]
-> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single Egghead. This gap is addressed by P-MEMORY.
+> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single RunContext. This gap is addressed by P-MEMORY.
 
 ---
 
@@ -467,9 +467,9 @@ flowchart LR
 >
 > | ID | Debt | Risk |
 > |---|---|---|
-> | D1 | Two binding systems coexist (`use:` + `with:`) | Confusion |
-> | D2 | Egghead has no eviction (unbounded memory growth) | OOM |
-> | D3 | Mixed locking (DashMap + RwLock in Egghead) | Complexity |
+> | D1 | Legacy `use:` binding syntax still referenced in some docs | Confusion |
+> | D2 | RunContext has no eviction (unbounded memory growth) | OOM |
+> | D3 | Mixed locking (DashMap + RwLock in RunContext) | Complexity |
 > | D4 | Context file loading has no size limits | OOM |
 > | D5 | Env var pollution from boot-time secret injection | Security |
 > | D6 | Limited JSONPath in binding resolution | Expressivity |
@@ -560,17 +560,17 @@ flowchart TD
     PC --> PMEM
     PMEM --> PI
 
-    subgraph W1["Wave 1 · v0.28 · schema @0.12"]
+    subgraph W1["Wave 1 · v0.31 · schema @0.13"]
         PM
         PE
     end
 
-    subgraph W2["Wave 2 · v0.29 · schema @0.13"]
+    subgraph W2["Wave 2 · v0.32 · schema @0.14"]
         PS
         PC
     end
 
-    subgraph W3["Wave 3 · v0.30"]
+    subgraph W3["Wave 3 · v0.33"]
         PMEM
         PI
     end
@@ -587,7 +587,7 @@ flowchart TD
 | **P-MODEL** | 4-slot model routing (edison/atlas/york/pythagoras) | Slate, THREAD[^1] | 1 | `model_slots` in `AnalyzedWorkflow` |
 | **P-RECORD** | LLM compression at task completion boundaries | Slate, Context-Folding[^2] | 1 | `Record` struct in `runtime/` |
 | **P-SHAKA** | Dynamic satellite dispatch via thread weaving | Slate, THREAD[^1], RLM[^3] | 2 | Orchestration mode in `runner.rs` |
-| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate, Context-Folding[^2] | 2 | Budget tracking in `Egghead` |
+| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate, Context-Folding[^2] | 2 | Budget tracking in `RunContext` |
 | **P-MEMORY** | NovaNet-backed cross-session episodic memory | Slate, Memory-R1[^4], CrewAI | 3 | New MCP tools for record storage |
 | **P-INTROSPECT** | 6 runtime introspection builtin tools | RLM[^3] | 3 | New tools in `runtime/builtin.rs` |
 
@@ -637,7 +637,7 @@ flowchart TB
         M2["YAML-first workflows"]
         M3["200+ locales"]
         M4["4-layer structured output"]
-        M5["34+ event observability"]
+        M5["32 event observability"]
         M6["7 LLM providers + native"]
         M7["Rust performance"]
         M8["Security (exec hardening)"]
@@ -660,7 +660,7 @@ flowchart TB
 
 | # | Agent Mission | Key Output |
 |---|---|---|
-| 1 | Deep-dive Nika architecture (all modules) | Module map (373 files, 22 modules) |
+| 1 | Deep-dive Nika architecture (all modules) | Module map (368 files, 21 modules) |
 | 2 | Research RLM, CodeAct, THREAD papers | 3 priority mappings |
 | 3 | Research Slate (Random Labs) | 8 concept analysis |
 | 4 | Research competing runtimes | 5-competitor matrix |
@@ -671,7 +671,7 @@ flowchart TB
 | 9 | Research agent memory architectures | Memory-R1 findings |
 | 10 | Research model routing in production | 4-slot design |
 | 11 | Deep audit Nika runtime internals | Architectural debt (6 items) |
-| 12 | Deep audit Nika AST + DAG internals | Two-phase architecture doc |
+| 12 | Deep audit Nika AST + DAG internals | Three-phase architecture doc |
 | 13 | Research context compression techniques | Context-Folding + Swarms analysis |
 
 ### Source Material
@@ -681,11 +681,11 @@ flowchart TB
 | Academic papers | 6 | RLM, CodeAct, THREAD, Context-Folding, LLM Swarms, Memory-R1 |
 | Competitor products | 5 | Slate, Claude Code, Codex, LangGraph, CrewAI |
 | Protocols | 3 | MCP, A2A, ACP |
-| Codebase | 373 files | 220,380 lines, every module audited |
+| Codebase | 368 files | 217,000 lines, every module audited |
 | Brainstorm docs | 7 | 01-features through 07-slate-integration |
 
 > [!TIP]
-> All codebase claims verified via direct source inspection on 2026-03-14. Paper citations link to arXiv or conference proceedings. Slate analysis based on published blog + npm documentation.
+> All codebase claims verified via direct source inspection on 2026-03-14. Counts exclude `src/target-main/` build artifacts (12 files, ~36K lines). Paper citations link to arXiv or conference proceedings. Slate analysis based on published blog + npm documentation.
 
 ---
 

@@ -1033,7 +1033,7 @@ tiktoken-rs = "0.9"           # Token counting (4.9M downloads, actively maintai
 7. **waly v0.1.4** -- crates.io (493 downloads) -- Simple WAL
 8. **Nika source** -- `tools/nika/src/event/trace.rs` (existing NDJSON TraceWriter)
 9. **Nika source** -- `tools/nika/src/io/atomic.rs` (existing atomic write primitives)
-10. **Nika source** -- `tools/nika/src/event/log.rs` (EventKind: 34+ variants, AgentTurnMetadata)
+10. **Nika source** -- `tools/nika/src/event/log.rs` (EventKind: 32 variants, AgentTurnMetadata)
 11. **Nika source** -- `tools/nika/src/event/emitter.rs` (EventEmitter trait, NoopEmitter)
 
 ## Methodology

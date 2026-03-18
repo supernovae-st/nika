@@ -3,7 +3,7 @@
 > Key papers and techniques relevant to Nika's evolution.
 > 6 papers analyzed. 3 evolution axes identified.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -60,7 +60,7 @@ flowchart LR
 
 | RLM Concept | Nika Equivalent | Gap |
 |-------------|----------------|-----|
-| REPL as working memory | `Egghead` + `use:` bindings | Nika already has this |
+| REPL as working memory | `RunContext` + `with:` bindings | Nika already has this |
 | Recursive sub-LM calls | `spawn_agent` (depth_limit 3-10) | Exists but static DAG |
 | Reference semantics | `$task` implicit output refs | Fully implemented |
 | Task decomposition | `decompose:` modifier | Exists via MCP traversal |
@@ -203,7 +203,7 @@ flowchart LR
 | Concept | Nika Equivalent | Gap |
 |---------|----------------|-----|
 | Branch | `spawn_agent` creates child agent | Exists |
-| Fold | `use: { result: $child }` | Manual, no compression |
+| Fold | `with: { result: $child }` | Manual, no compression |
 | Sub-trajectory | Agent turn history | No automatic folding |
 | Context bounds | `max_turns` per agent | Blunt instrument |
 
@@ -304,7 +304,7 @@ flowchart TB
 
 The literature consistently validates three things Nika already does right:
 1. **Hybrid DAG+LLM architecture** — Swarms paper confirms this outperforms pure-swarm
-2. **Reference semantics via Egghead** — RLM paper's core insight, already implemented
+2. **Reference semantics via RunContext** — RLM paper's core insight, already implemented
 3. **Recursive spawning with depth limits** — THREAD paper's approach, already in `SpawnAgentTool`
 
 ---

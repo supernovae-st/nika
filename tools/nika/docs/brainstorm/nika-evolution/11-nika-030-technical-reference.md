@@ -1,46 +1,52 @@
-# 11 — Nika v0.30 Technical Reference
+# 11 — Nika v0.33 Technical Reference
 
 > The complete Nika runtime, presented as a unified product.
 > What it is, how it works, every feature, every mechanism.
 
-**Nika** v0.30 target | **NovaNet** v0.20+ | Written 2026-03-14
+**Nika** v0.33 target | **NovaNet** v0.20+ | Written 2026-03-17
+
+> [!CAUTION]
+> **Document Status: Technical Design Specification**
+> This reference describes the TARGET architecture for Nika v0.33.
+> Sections marked ✅ are implemented in v0.30.3. Sections marked 🔮 are designed but not yet coded.
+> See [01-current-features.md](./01-current-features.md) for verified current state.
 
 ---
 
 ## Table of Contents
 
-1. [What Is Nika](#1-what-is-nika)
-2. [Architecture Overview](#2-architecture-overview)
-3. [The 5 Semantic Verbs](#3-the-5-semantic-verbs)
-4. [DAG Execution Engine](#4-dag-execution-engine)
-5. [Model Routing — 4 Slots](#5-model-routing--4-slots)
-6. [Agent System](#6-agent-system)
-7. [Record Engine](#7-record-engine)
-8. [Shaka Orchestration](#8-shaka-orchestration)
-9. [Context Budget Management](#9-context-budget-management)
-10. [Structured Output Pipeline](#10-structured-output-pipeline)
-11. [NovaNet Integration (MCP)](#11-novanet-integration-mcp)
-12. [Persistent Records](#12-persistent-records)
-13. [Runtime Introspection](#13-runtime-introspection)
-14. [Binding System & Data Flow](#14-binding-system--data-flow)
-15. [Artifact System](#15-artifact-system)
-16. [Security Model](#16-security-model)
-17. [Observability & Traces](#17-observability--traces)
-18. [CLI](#18-cli)
-19. [TUI — 4-View Architecture](#19-tui--4-view-architecture)
-20. [LSP](#20-lsp)
-21. [Stack & Numbers](#21-stack--numbers)
-22. [Complete Module Map](#22-complete-module-map)
+1. [What Is Nika](#1-what-is-nika) ✅
+2. [Architecture Overview](#2-architecture-overview) ✅
+3. [The 5 Semantic Verbs](#3-the-5-semantic-verbs) ✅
+4. [DAG Execution Engine](#4-dag-execution-engine) ✅
+5. [Model Routing — 4 Slots](#5-model-routing--4-slots) 🔮
+6. [Agent System](#6-agent-system) ✅
+7. [Record Engine](#7-record-engine) 🔮
+8. [Shaka Orchestration](#8-shaka-orchestration) 🔮
+9. [Context Budget Management](#9-context-budget-management) 🔮
+10. [Structured Output Pipeline](#10-structured-output-pipeline) ✅
+11. [NovaNet Integration (MCP)](#11-novanet-integration-mcp) ✅
+12. [Persistent Records](#12-persistent-records) 🔮
+13. [Runtime Introspection](#13-runtime-introspection) 🔮
+14. [Binding System & Data Flow](#14-binding-system--data-flow) ✅
+15. [Artifact System](#15-artifact-system) ✅
+16. [Security Model](#16-security-model) ✅
+17. [Observability & Traces](#17-observability--traces) ✅
+18. [CLI](#18-cli) ✅
+19. [TUI — 4-View Architecture](#19-tui--4-view-architecture) ✅
+20. [LSP](#20-lsp) ✅
+21. [Stack & Numbers](#21-stack--numbers) ✅
+22. [Complete Module Map](#22-complete-module-map) ✅
 
 ---
 
-## 1. What Is Nika
+## 1. What Is Nika ✅
 
 Nika is an AI workflow runtime written in Rust. You define tasks in a YAML file (`.nika.yaml`), Nika resolves the dependency graph, and executes them in parallel via tokio.
 
 ```mermaid
 flowchart LR
-    YAML["workflow.nika.yaml"] -->|parse| AST["Two-Phase AST\nRaw → Analyzed"]
+    YAML["workflow.nika.yaml"] -->|parse| AST["Three-Phase AST\nRaw → Analyzed → Lower"]
     AST -->|validate| DAG["DAG Resolution\ncycle detection\ndependency sort"]
     DAG -->|execute| RT["Tokio Runtime\nparallel tasks\nfail_fast"]
     RT -->|trace| NDJSON["Trace File\n.ndjson events"]
@@ -63,7 +69,7 @@ Two execution modes:
 
 ---
 
-## 2. Architecture Overview
+## 2. Architecture Overview ✅
 
 ```mermaid
 flowchart TB
@@ -93,7 +99,7 @@ flowchart TB
             SECRETS["secrets/\n5 files\nkeychain + daemon"]
         end
 
-        subgraph MGMT["Management (v0.27 spn fusion)"]
+        subgraph MGMT["Management (v0.30.3 spn fusion)"]
             PROV_CMD["nika provider\nAPI keys"]
             MODEL_CMD["nika model\nlocal models"]
             MCP_CMD["nika mcp\n48 aliases"]
@@ -130,7 +136,7 @@ flowchart TB
 
 ---
 
-## 3. The 5 Semantic Verbs
+## 3. The 5 Semantic Verbs ✅
 
 Every task uses exactly one verb. No more, no less.
 
@@ -225,7 +231,7 @@ flowchart LR
 
 ---
 
-## 4. DAG Execution Engine
+## 4. DAG Execution Engine ✅
 
 ```mermaid
 flowchart TB
@@ -255,12 +261,13 @@ flowchart TB
     style EXECUTE fill:#dcfce7,stroke:#16a34a
 ```
 
-### Two-Phase IR Architecture
+### Three-Phase IR Architecture
 
 | Phase | Module | Input | Output |
 |-------|--------|-------|--------|
 | **Raw Parse** | `ast/raw/parser.rs` | YAML string | `RawWorkflow` — unvalidated struct with raw strings |
 | **Analysis** | `ast/analyzer/analyze.rs` | `RawWorkflow` | `AnalyzedWorkflow` — resolved IDs, validated deps, typed actions |
+| **Lower** | `ast/lower/` | `AnalyzedWorkflow` | Final IR for execution |
 
 ### Parallel Execution
 
@@ -300,12 +307,12 @@ sequenceDiagram
   as: locale
   concurrency: 5
   fail_fast: true
-  infer: "Generate page in {{use.locale}}"
+  infer: "Generate page in {{with.locale}}"
 ```
 
 Creates N task instances running in a `tokio::JoinSet` with bounded concurrency.
 
-### DynamicDag (v0.30 — shaka mode)
+### DynamicDag (v0.33 — shaka mode)
 
 In `orchestration: shaka` mode, the DAG is mutable at runtime. The Shaka orchestrator can dispatch new satellites that get inserted into the live DAG.
 
@@ -314,11 +321,11 @@ In `orchestration: shaka` mode, the DAG is mutable at runtime. The Shaka orchest
 | `StableDag` | `orchestration: dag` (default) | Immutable after parse |
 | `DynamicDag` | `orchestration: shaka` | Tasks added at runtime by Shaka orchestrator |
 
-Source: `dag/stable.rs` (existing), `dag/dynamic.rs` (v0.30)
+Source: `dag/stable.rs` (existing), `dag/dynamic.rs` (v0.33)
 
 ---
 
-## 5. Model Routing — 4 Slots
+## 5. Model Routing — 4 Slots 🔮
 
 Route different cognitive tasks to different providers/models within a single workflow.
 
@@ -350,7 +357,7 @@ flowchart LR
 ### YAML Configuration
 
 ```yaml
-schema: nika/workflow@0.12
+schema: nika/workflow@0.13
 
 model_slots:
   edison:
@@ -408,11 +415,11 @@ tasks:
 Model routing enables significant cost reduction:
 
 ```
-WITHOUT routing (v0.27):
+WITHOUT routing (v0.30.3):
   All tasks use Claude Sonnet → $$$$ per task
   200 pages × 5 locales × 5 tasks = 5,000 calls at $$$$ each
 
-WITH routing (v0.30):
+WITH routing (v0.33):
   Planning (5%) → pythagoras ($$$$)
   Generation (35%) → edison ($$$$)
   Classification/formatting (60%) → atlas ($)
@@ -420,11 +427,11 @@ WITH routing (v0.30):
   Result: ~60% cost reduction on same pipeline
 ```
 
-Source: `provider/rig.rs` (existing), `ast/raw/model_slot.rs` (v0.28)
+Source: `provider/rig.rs` (existing), `ast/raw/model_slot.rs` (v0.31)
 
 ---
 
-## 6. Agent System
+## 6. Agent System ✅
 
 The `agent:` verb creates a multi-turn execution loop where the LLM iterates with tool access until task completion.
 
@@ -463,7 +470,7 @@ sequenceDiagram
 | `nika:glob` | File | Find files by pattern |
 | `nika:grep` | File | Search content with regex |
 
-**6 Introspection Tools (v0.30):**
+**6 Introspection Tools (v0.33):**
 
 | Tool | Returns |
 |------|---------|
@@ -519,7 +526,7 @@ Source: `runtime/rig_agent_loop/` (7 files), `runtime/builtin/` (13 files), `run
 
 ---
 
-## 7. Record Engine
+## 7. Record Engine 🔮
 
 Records are compressed representations of task execution, generated at the natural completion boundary. Downstream tasks receive records, not raw output.
 
@@ -589,11 +596,11 @@ WITH records:
   Task D receives: relevant records only → always within budget
 ```
 
-Source: `runtime/record.rs`, `runtime/record_compress.rs` (v0.28)
+Source: `runtime/record.rs`, `runtime/record_compress.rs` (v0.31)
 
 ---
 
-## 8. Shaka Orchestration
+## 8. Shaka Orchestration 🔮
 
 A new execution mode where a Shaka orchestrator dynamically dispatches satellites based on the goal and accumulated records.
 
@@ -626,7 +633,7 @@ sequenceDiagram
 ### YAML Configuration
 
 ```yaml
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 workflow: landing-page-generator
 
 orchestration: shaka              # Enables shaka/satellites mode
@@ -681,11 +688,11 @@ tasks:
 | `SatelliteInstance` | `runtime/satellite.rs` | Concrete instantiation with runtime parameters |
 | `DynamicDag` | `dag/dynamic.rs` | Mutable DAG that accepts new tasks at runtime |
 
-Source: `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` (v0.29)
+Source: `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` (v0.32)
 
 ---
 
-## 9. Context Budget Management
+## 9. Context Budget Management 🔮
 
 Working memory awareness at the runtime level. Each task declares its context budget. The runtime enforces this via record summaries.
 
@@ -749,11 +756,11 @@ Agent: "Budget critical → switching to atlas model"
 Agent: "Insufficient budget for spawn_agent → handling inline"
 ```
 
-Source: `runtime/context_budget.rs` (v0.29), `ast/raw/task.rs`
+Source: `runtime/context_budget.rs` (v0.32), `ast/raw/task.rs`
 
 ---
 
-## 10. Structured Output Pipeline
+## 10. Structured Output Pipeline ✅
 
 When an `infer:` or `agent:` task declares an `output.schema` (JSON Schema), Nika enforces the structure through a 4-layer pipeline.
 
@@ -802,7 +809,7 @@ Source: `runtime/structured_output.rs`, `ast/output.rs`, `ast/structured.rs`
 
 ---
 
-## 11. NovaNet Integration (MCP)
+## 11. NovaNet Integration (MCP) ✅
 
 Nika connects to NovaNet exclusively via MCP protocol. Zero Cypher in Nika.
 
@@ -915,7 +922,7 @@ Source: `mcp/` (12 files)
 
 ---
 
-## 12. Persistent Records
+## 12. Persistent Records 🔮
 
 Records compressed at task completion don't die with the workflow. Nika persists them in NovaNet's knowledge graph, enabling cross-session learning.
 
@@ -1002,11 +1009,11 @@ tasks:
       entity_link: qr-code     # Link to semantic entity
 ```
 
-Source: `runtime/record_memory.rs` (v0.30), `mcp/client.rs`
+Source: `runtime/record_memory.rs` (v0.33), `mcp/client.rs`
 
 ---
 
-## 13. Runtime Introspection
+## 13. Runtime Introspection 🔮
 
 6 read-only builtin tools that let agents examine their own state.
 
@@ -1044,11 +1051,11 @@ Agents make better decisions when they can observe their own state:
 
 These tools join the existing 12 builtins, bringing the total to **18 builtin tools**.
 
-Source: `runtime/builtin/` (v0.30 additions)
+Source: `runtime/builtin/` (v0.33 additions)
 
 ---
 
-## 14. Binding System & Data Flow
+## 14. Binding System & Data Flow ✅
 
 The binding system connects task outputs to task inputs.
 
@@ -1057,7 +1064,7 @@ flowchart LR
     TA["Task A\nuse.ctx: result_a"] -->|"$result_a"| TB["Task B\nwith: { data: '$result_a' }"]
     TA -->|"record"| TC["Task C\ngets Record, not raw"]
 
-    subgraph EGGHEAD["Egghead (in-memory)"]
+    subgraph RUNCONTEXT["RunContext (in-memory)"]
         DS1["result_a: { ... }"]
         DS2["result_b: { ... }"]
     end
@@ -1065,16 +1072,16 @@ flowchart LR
     TA -->|store| DS1
     TB -->|store| DS2
 
-    style EGGHEAD fill:#f3e8ff,stroke:#9333ea
+    style RUNCONTEXT fill:#f3e8ff,stroke:#9333ea
 ```
 
 ### Binding Types
 
 | Syntax | Type | Description |
 |--------|------|-------------|
-| `use.ctx: name` | Store | Store task result in Egghead under `name` |
+| `with.ctx: name` | Store | Store task result in RunContext under `name` |
 | `$name` | Reference | Reference a stored value |
-| `{{use.name}}` | Template | Inline template interpolation |
+| `{{with.name}}` | Template | Inline template interpolation |
 | `{{inputs.locale}}` | Input | Access workflow inputs |
 | `{{context.files.brand}}` | Context | Access loaded context files |
 | `for_each: $items` | Iteration | Iterate over stored array |
@@ -1113,7 +1120,7 @@ Source: `binding/` (9 files)
 
 ---
 
-## 15. Artifact System
+## 15. Artifact System ✅
 
 Secure file persistence for task outputs.
 
@@ -1150,7 +1157,7 @@ Source: `io/` (5 files), error codes NIKA-280 to NIKA-289
 
 ---
 
-## 16. Security Model
+## 16. Security Model ✅
 
 ```mermaid
 flowchart TB
@@ -1209,7 +1216,7 @@ Source: `runtime/security.rs`, `ast/budget.rs`, `io/security.rs`, `secrets/`
 
 ---
 
-## 17. Observability & Traces
+## 17. Observability & Traces ✅
 
 Every workflow run produces a NDJSON trace file with structured events.
 
@@ -1239,8 +1246,8 @@ Every workflow run produces a NDJSON trace file with structured events.
 | `TemplateResolved` | Template variables resolved |
 | `ArtifactWritten` | File written |
 | `ArtifactFailed` | File write failed |
-| `RecordCreated` | Record compressed (v0.28) |
-| `BudgetExceeded` | Context budget warning (v0.29) |
+| `RecordCreated` | Record compressed (v0.31) |
+| `BudgetExceeded` | Context budget warning (v0.32) |
 
 ### CLI Trace Commands
 
@@ -1254,9 +1261,9 @@ Source: `event/` (4 files): `emitter.rs`, `log.rs`, `trace.rs`
 
 ---
 
-## 18. CLI
+## 18. CLI ✅
 
-Complete CLI with spn features merged (v0.27).
+Complete CLI with spn features merged (v0.30.3).
 
 ### Command Reference
 
@@ -1305,7 +1312,7 @@ Source: `main.rs`, `core/` (8 files), `secrets/` (5 files)
 
 ---
 
-## 19. TUI — 4-View Architecture
+## 19. TUI — 4-View Architecture ✅
 
 ```mermaid
 flowchart LR
@@ -1372,7 +1379,7 @@ Source: `tui/` (153 files), `tui/views/` (11 files), `tui/widgets/` (100+ files)
 
 ---
 
-## 20. LSP
+## 20. LSP ✅
 
 Language Server Protocol for `.nika.yaml` files.
 
@@ -1389,7 +1396,7 @@ Source: `lsp/` (13 files)
 
 ---
 
-## 21. Stack & Numbers
+## 21. Stack & Numbers ✅
 
 ### Tech Stack
 
@@ -1409,31 +1416,33 @@ Source: `lsp/` (13 files)
 
 | Metric | Value |
 |--------|-------|
-| Lines of Rust | ~220,000 |
-| Source files | 378 |
-| Modules | 29 |
-| Tests | 6,600+ |
+| Lines of Rust | ~217,000 |
+| Source files | 368 |
+| Modules | 21 |
+| Tests | 6,725 |
 | Clippy warnings | 0 |
 | Semantic verbs | 5 |
-| Builtin tools | 12 (+ 6 introspection in v0.30 = 18) |
-| Cloud providers | 7 (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, Perplexity) |
+| Builtin tools | 12 (+ 6 introspection in v0.33 = 18) |
+| Cloud providers | 7 (Anthropic, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI) |
 | Local provider | 1 (mistral.rs / GGUF) |
 | MCP aliases | 48 preconfigured |
 | Known models | 16+ curated |
-| Known providers | 18 (6 LLM + 11 MCP + 1 local) |
+| Known providers | 19 (7 LLM + 11 MCP + 1 local) |
 | TUI views | 4 (Home, Studio, Runner, Chat) |
 | TUI widgets | 100+ |
 | Event types | 22+ |
 | Error codes | 40+ (NIKA-025 through NIKA-289) |
 | Test workflows | 103 |
 
+> Counts exclude `src/target-main/` build artifacts (12 files, ~36K lines).
+
 ---
 
-## 22. Complete Module Map
+## 22. Complete Module Map ✅
 
 ```mermaid
 flowchart TB
-    subgraph SRC["tools/nika/src/ — 378 files, 29 modules"]
+    subgraph SRC["tools/nika/src/ — 368 files, 21 modules"]
         direction TB
 
         subgraph PARSE_LAYER["Parsing Layer"]
@@ -1454,7 +1463,7 @@ flowchart TB
             SECRETS_M["secrets/ (5 files)\nkeychain, daemon\nfallback"]
         end
 
-        subgraph CORE_LAYER["Core Definitions (v0.27)"]
+        subgraph CORE_LAYER["Core Definitions (v0.30.3)"]
             CORE_M["core/ (8 files)\nproviders, models\nMCP aliases, paths"]
         end
 
@@ -1464,7 +1473,7 @@ flowchart TB
             INIT_M["init/ (10 files)\nworkflow wizard\n6 template tiers"]
         end
 
-        subgraph MGMT_LAYER["Management (v0.27 spn fusion)"]
+        subgraph MGMT_LAYER["Management (v0.30.3 spn fusion)"]
             JOBS_M["jobs/ (8 files)\nscheduler, daemon\nretry, notify"]
             SYNC_M["sync/ (4 files)\neditor sync\nconfig, operations"]
             SETUP_M["setup/ (2 files)\nonboarding wizard"]
@@ -1519,16 +1528,16 @@ flowchart TB
 | Artifact system (atomic writes) | Shipped | v0.18 | `io/` |
 | 4-view TUI | Shipped | v0.20-v0.22 | `tui/views/` |
 | Studio (editor + browser + DAG) | Shipped | v0.8-v0.22 | `tui/views/studio.rs` |
-| spn→nika CLI fusion | Shipped | v0.27 | `core/`, `secrets/`, `jobs/`, `sync/`, `setup/` |
+| spn→nika CLI fusion | Shipped | v0.30.3 | `core/`, `secrets/`, `jobs/`, `sync/`, `setup/` |
 | 12 builtin tools | Shipped | v0.15 | `runtime/builtin/` |
 | LSP | Shipped | v0.19+ | `lsp/` |
-| YAML bomb protection | Shipped | v0.27+ | `ast/budget.rs` |
-| **Model routing (4 slots)** | **Planned** | **v0.28** | `ast/raw/model_slot.rs`, `provider/rig.rs` |
-| **Record engine** | **Planned** | **v0.28** | `runtime/record.rs`, `runtime/record_compress.rs` |
-| **Shaka Orchestration** | **Planned** | **v0.29** | `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` |
-| **Context budget management** | **Planned** | **v0.29** | `runtime/context_budget.rs` |
-| **Persistent Records (NovaNet)** | **Planned** | **v0.30** | `runtime/record_memory.rs` |
-| **6 introspection tools** | **Planned** | **v0.30** | `runtime/builtin/` (6 new tools) |
+| YAML bomb protection | Shipped | v0.30.3+ | `ast/budget.rs` |
+| **Model routing (4 slots)** | **Planned** | **v0.31** | `ast/raw/model_slot.rs`, `provider/rig.rs` |
+| **Record engine** | **Planned** | **v0.31** | `runtime/record.rs`, `runtime/record_compress.rs` |
+| **Shaka Orchestration** | **Planned** | **v0.32** | `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` |
+| **Context budget management** | **Planned** | **v0.32** | `runtime/context_budget.rs` |
+| **Persistent Records (NovaNet)** | **Planned** | **v0.33** | `runtime/record_memory.rs` |
+| **6 introspection tools** | **Planned** | **v0.33** | `runtime/builtin/` (6 new tools) |
 
 ---
 
@@ -1536,19 +1545,19 @@ flowchart TB
 
 ```mermaid
 gantt
-    title Nika v0.28 → v0.30 Feature Roadmap
+    title Nika v0.31 → v0.33 Feature Roadmap
     dateFormat YYYY-MM-DD
     axisFormat %b
 
-    section Wave 1 (v0.28)
+    section Wave 1 (v0.31)
     P-MODEL: 4-slot model routing          :pm, 2026-04-01, 30d
     P-RECORD: Record compression           :pe, 2026-04-01, 30d
 
-    section Wave 2 (v0.29)
+    section Wave 2 (v0.32)
     P-SHAKA: Shaka orchestration           :ps, after pe, 45d
     P-CONTEXT: Context budgets             :pc, after pe, 30d
 
-    section Wave 3 (v0.30)
+    section Wave 3 (v0.33)
     P-MEMORY: NovaNet persistent records   :pmem, after ps, 30d
     P-INTROSPECT: 6 introspection tools    :pi, after ps, 20d
 ```

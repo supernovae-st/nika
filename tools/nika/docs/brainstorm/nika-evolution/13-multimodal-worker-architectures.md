@@ -1578,7 +1578,7 @@ satellites:
 
 ### Model Registry
 
-Nika's `KNOWN_MODELS` registry (v0.27.0) includes curated native models:
+Nika's `KNOWN_MODELS` registry (v0.30.3) includes curated native models:
 
 ```
 llama3.2:1b, llama3.2:3b, llama3.1:8b

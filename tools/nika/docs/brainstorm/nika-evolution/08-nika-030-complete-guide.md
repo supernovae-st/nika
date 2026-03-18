@@ -3,7 +3,13 @@
 > Everything you need to understand Nika v0.30 + NovaNet — explained with real examples.
 > What it is, how it works, what changed, and how to use it.
 
-**Nika** v0.27.0 → v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 → v0.33 · **NovaNet** v0.20.0 · Updated 2026-03-17
+
+> [!CAUTION]
+> **Document Status: Vision Document**
+> This guide describes the TARGET state for Nika v0.33. Features marked with ✅ exist in v0.30.3.
+> Features marked with 🔮 are planned but NOT YET IMPLEMENTED.
+> See [01-current-features.md](./01-current-features.md) for the actual current state.
 
 ---
 
@@ -12,7 +18,7 @@
 1. [What is Nika?](#what-is-nika)
 2. [What is NovaNet?](#what-is-novanet)
 3. [How They Work Together](#how-nika--novanet-work-together)
-4. [What's New in v0.30 — The 6 Features](#whats-new-in-v030)
+4. [What's New in v0.33 — The 6 Features](#whats-new-in-v033)
 5. [Feature 1: Model Slots](#feature-1-model-slots)
 6. [Feature 2: Records](#feature-2-records)
 7. [Feature 3: Shaka Orchestration](#feature-3-shaka-orchestration)
@@ -82,7 +88,7 @@ flowchart LR
 
 ```yaml
 # hello.nika.yaml — The simplest Nika workflow
-schema: nika/workflow@0.11
+schema: nika/workflow@0.12
 
 tasks:
   - id: greet
@@ -216,7 +222,7 @@ sequenceDiagram
 
 ```yaml
 # generate-page.nika.yaml — Real-world Nika + NovaNet
-schema: nika/workflow@0.11
+schema: nika/workflow@0.12
 provider: anthropic
 
 mcp:
@@ -291,13 +297,13 @@ tasks:
 
 ---
 
-## What's New in v0.30
+## What's New in v0.33 (Vision)
 
-v0.30 adds **6 new features** across 3 versions (waves). Here's the big picture:
+v0.33 adds **6 new features** across 3 versions (waves). Here's the big picture:
 
 ```mermaid
 flowchart TB
-    subgraph TODAY["v0.27 — Today"]
+    subgraph TODAY["v0.30.3 — Today"]
         T1["1 provider per workflow"]
         T2["Raw output passing\n(full text between tasks)"]
         T3["Static DAG\n(all tasks known at parse time)"]
@@ -306,7 +312,7 @@ flowchart TB
         T6["Agent is blind\n(can't see past tasks)"]
     end
 
-    subgraph TOMORROW["v0.30 — Target"]
+    subgraph TOMORROW["v0.33 — Target"]
         F1["✨ Model Slots\n4 models per workflow"]
         F2["✨ Records\ncompressed task results"]
         F3["✨ Shaka Mode\nLLM-driven orchestration"]
@@ -345,20 +351,20 @@ flowchart TB
 
 | Wave | Version | Schema | Features | Dependencies |
 |:----:|---------|--------|----------|--------------|
-| 1 | v0.28 | @0.12 | Model Slots + Records | None |
-| 2 | v0.29 | @0.13 | Shaka + Context Budget | Wave 1 |
-| 3 | v0.30 | @0.13 | Memory + Introspection | Wave 1 + 2 |
+| 1 | v0.31 | @0.13 | Model Slots + Records | None |
+| 2 | v0.32 | @0.14 | Shaka + Context Budget | Wave 1 |
+| 3 | v0.33 | @0.14 | Memory + Introspection | Wave 1 + 2 |
 
 ---
 
-## Feature 1: Model Slots
+## Feature 1: Model Slots 🔮
 
 ### The Problem
 
 Today, a workflow uses ONE LLM provider for everything:
 
 ```yaml
-# v0.27 — All tasks use the same model
+# v0.30.3 — All tasks use the same model
 provider: anthropic  # ← Claude Sonnet for EVERYTHING
 
 tasks:
@@ -377,8 +383,8 @@ tasks:
 `model_slots:` lets you define 4 named model slots per workflow, and assign tasks to the right slot:
 
 ```yaml
-# v0.28+ — Different models for different tasks
-schema: nika/workflow@0.12
+# v0.31+ — Different models for different tasks
+schema: nika/workflow@0.13
 
 model_slots:
   edison:                                    # For quality content generation
@@ -429,7 +435,7 @@ tasks:
 │  💰 COST COMPARISON (same workflow, same quality)                               │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  v0.27 (single provider):                                                       │
+│  v0.30.3 (single provider):                                                     │
 │  ─────────────────────────────────────────────────────────────                  │
 │  research:  Claude Sonnet  2K tokens × $0.003  = $0.006                        │
 │  plan:      Claude Sonnet  5K tokens × $0.003  = $0.015                        │
@@ -437,7 +443,7 @@ tasks:
 │  format:    Claude Sonnet  1K tokens × $0.003  = $0.003                        │
 │                                         TOTAL  = $0.033                        │
 │                                                                                 │
-│  v0.28 (model slots):                                                           │
+│  v0.31 (model slots):                                                           │
 │  ─────────────────────────────────────────────────────────────                  │
 │  research:  Groq           2K tokens × $0.0003 = $0.0006                       │
 │  plan:      Claude+think   5K tokens × $0.003  = $0.015                        │
@@ -453,7 +459,7 @@ tasks:
 
 ---
 
-## Feature 2: Records
+## Feature 2: Records 🔮
 
 ### The Problem
 
@@ -509,7 +515,7 @@ flowchart TB
 ### Before vs After
 
 ```
-v0.27 (raw passing):                    v0.28 (records):
+v0.30.3 (raw passing):                  v0.31 (records):
 ────────────────────                    ─────────────────
 Task A → 2,500 tokens                  Task A → Record: 300 tokens
 Task B gets 2,500                      Task B gets 300
@@ -539,14 +545,14 @@ pub struct Record {
 
 ---
 
-## Feature 3: Shaka Orchestration
+## Feature 3: Shaka Orchestration 🔮
 
 ### The Problem
 
 Today, Nika's DAG is **static** — you must define ALL tasks at write time:
 
 ```yaml
-# v0.27 — You must decide everything upfront
+# v0.30.3 — You must decide everything upfront
 tasks:
   - id: write_hero
     infer: "Write hero section"
@@ -563,8 +569,8 @@ tasks:
 `orchestration: shaka` adds a new execution mode where the **Shaka** dynamically dispatches tasks:
 
 ```yaml
-# v0.29 — The Shaka decides what to do
-schema: nika/workflow@0.13
+# v0.32 — The Shaka decides what to do
+schema: nika/workflow@0.14
 
 orchestration: shaka                   # ← NEW: enables shaka mode
 
@@ -661,14 +667,14 @@ sequenceDiagram
 ║  NIKA HAS TWO EXECUTION MODES                                                ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  Mode 1: orchestration: dag (default — like v0.27)                            ║
+║  Mode 1: orchestration: dag (default — like v0.30.3)                          ║
 ║  ─────────────────────────────────────────────────────────────                ║
 ║  • All tasks defined at write time                                            ║
 ║  • Execution order determined by DAG                                          ║
 ║  • Predictable, reproducible, deterministic                                   ║
 ║  • Best for: pipelines, batch processing, CI/CD                               ║
 ║                                                                               ║
-║  Mode 2: orchestration: shaka (new in v0.29)                                  ║
+║  Mode 2: orchestration: shaka (new in v0.32)                                  ║
 ║  ─────────────────────────────────────────────────────────────                ║
 ║  • Tasks are TEMPLATES dispatched by the Shaka                                ║
 ║  • Shaka decides what to run, when, and with what params                      ║
@@ -683,7 +689,7 @@ sequenceDiagram
 
 ---
 
-## Feature 4: Context Budget
+## Feature 4: Context Budget 🔮
 
 ### The Problem
 
@@ -746,7 +752,7 @@ flowchart TB
 
 ---
 
-## Feature 5: Persistent Memory (3-Tier Punk Records)
+## Feature 5: Persistent Memory (3-Tier Punk Records) 🔮
 
 ### The Problem
 
@@ -838,7 +844,7 @@ This means you can query past experience:
 
 ---
 
-## Feature 6: Runtime Introspection
+## Feature 6: Runtime Introspection 🔮
 
 ### The Problem
 
@@ -905,15 +911,15 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
 
 ### Complete Side-by-Side
 
-Here's the SAME use case (generate a landing page) in v0.27 vs v0.30:
+Here's the SAME use case (generate a landing page) in v0.30.3 vs v0.33:
 
 <table>
-<tr><th>v0.27 (today)</th><th>v0.30 (target)</th></tr>
+<tr><th>v0.30.3 (today)</th><th>v0.33 (target)</th></tr>
 <tr>
 <td>
 
 ```yaml
-schema: nika/workflow@0.11
+schema: nika/workflow@0.12
 provider: anthropic
 
 mcp:
@@ -933,37 +939,37 @@ tasks:
         mode: page
 
   - id: research
-    use:
+    with:
       ctx: $ctx
-    infer: "Research trends: {{use.ctx}}"
+    infer: "Research trends: {{with.ctx}}"
 
   - id: hero
-    use:
+    with:
       ctx: $ctx
       research: $research
-    infer: "Write hero: {{use.ctx}}
-            {{use.research}}"
+    infer: "Write hero: {{with.ctx}}
+            {{with.research}}"
 
   - id: features
-    use:
+    with:
       ctx: $ctx
       research: $research
-    infer: "Write features: {{use.ctx}}
-            {{use.research}}"
+    infer: "Write features: {{with.ctx}}
+            {{with.research}}"
 
   - id: assemble
-    use:
+    with:
       hero: $hero
       features: $features
-    infer: "Assemble: {{use.hero}}
-            {{use.features}}"
+    infer: "Assemble: {{with.hero}}
+            {{with.features}}"
 ```
 
 </td>
 <td>
 
 ```yaml
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 orchestration: shaka
 
 model_slots:
@@ -1079,7 +1085,7 @@ tasks:
 
 ---
 
-## Feature Compatibility Matrix
+## Feature Compatibility Matrix 🔮
 
 All 6 features work independently. You can adopt them incrementally:
 
@@ -1112,11 +1118,11 @@ Level 4 — Add memory:
 
 ## FAQ
 
-### "Is v0.30 backward compatible?"
+### "Is v0.33 backward compatible?"
 
-**Yes.** All new fields are optional. A v0.27 workflow runs unchanged on v0.30. You adopt features incrementally.
+**Yes (by design).** All new fields are optional. A v0.30.3 workflow will run unchanged on v0.33. You adopt features incrementally. Note: v0.33 features (model slots, records, shaka, context budget, memory, introspection) are **not yet implemented** — this describes the planned compatibility guarantee.
 
-### "Do I need NovaNet to use v0.30?"
+### "Do I need NovaNet to use v0.33?"
 
 **No.** Features 1-4 (model slots, records, shaka, context budget) work without NovaNet. Only Feature 5 (persistent memory) requires NovaNet.
 

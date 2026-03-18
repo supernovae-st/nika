@@ -3,7 +3,7 @@
 > Copying Slate's thread/record architecture into Nika, then going beyond.
 > Every concept mapped. Every claim verified. Every design grounded in existing code.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -110,10 +110,10 @@ flowchart LR
     subgraph NIKA["Nika Already Has"]
         NK["DAG Scheduler\n(runner.rs)"]
         NP["Tasks\n(5 verbs)"]
-        NRV["TaskResult\nin Egghead"]
+        NRV["TaskResult\nin RunContext"]
         NRAM["Agent context\nwindow"]
         NFS["NovaNet\nknowledge graph"]
-        NIPC["use: bindings\n(A.output → B)"]
+        NIPC["with: bindings\n(A.output → B)"]
         NFJ["for_each +\nconcurrency"]
     end
 
@@ -130,7 +130,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (shaka), memory budgets, and model routing. The kernel itself (`Runner` + `TaskExecutor` + `Egghead`) already works.
+> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (shaka), memory budgets, and model routing. The kernel itself (`Runner` + `TaskExecutor` + `RunContext`) already works.
 
 ---
 
@@ -147,11 +147,11 @@ flowchart LR
 | 5 | Thread Weaving | DAG execution (static) | Dynamic DAG + shaka loop | Real-time TUI visualization |
 | 6 | Shaka/Satellites | Flat agent loop | `orchestration: shaka` | Declarative YAML shakas |
 | 7 | Knowledge Overhang | NovaNet context + files | Record-based scaffolding | 200+ locale knowledge atoms |
-| 8 | Episodic Memory | In-memory `Egghead` | NovaNet `Record` | Graph-queryable, entity-linked |
+| 8 | Episodic Memory | In-memory `RunContext` | NovaNet `Record` | Graph-queryable, entity-linked |
 | 9 | Model Slots | Single provider | `model_slots:` in YAML | Per-workflow slots |
-| 10 | Composability | `use:` bindings | Record-aware bindings | Structured output + records |
+| 10 | Composability | `with:` bindings | Record-aware bindings | Structured output + records |
 | 11 | Parallel Threads | `for_each` + concurrency | Shaka parallel dispatch | Token budget + cost tracking |
-| 12 | Cross-model | Multi-provider (6+native) | Model slot per task | YAML-declared routing |
+| 12 | Cross-model | Multi-provider (7+native) | Model slot per task | YAML-declared routing |
 | 13 | OS Framing | DAG = kernel | Shaka = kernel upgrade | NovaNet = persistent storage |
 | 14 | Permissions | Command blocklist + shell-free | Already better | 4-layer security model |
 | 15 | build/plan agents | `agent:` verb | Shaka mode selection | Multiple shaka templates |
@@ -267,7 +267,7 @@ flowchart LR
     subgraph NIKA_HAS["Nika Has (after integration)"]
         N1["YAML satellite templates"]
         N2["NovaNet graph memory"]
-        N3["34 events + NDJSON"]
+        N3["32 events + NDJSON"]
         N4["Record budget + tokens"]
         N5["200+ locales"]
     end
@@ -285,9 +285,9 @@ flowchart LR
 | Dimension | Slate | Nika (after integration) |
 |-----------|-------|--------------------------|
 | Thread definition | TypeScript code | YAML satellite templates |
-| Record storage | In-memory session | `Egghead` + NovaNet graph |
+| Record storage | In-memory session | `RunContext` + NovaNet graph |
 | Cross-session | Session files | Knowledge graph (queryable) |
-| Observability | Basic logging | 34 EventKind variants[^3] + NDJSON |
+| Observability | Basic logging | 32 EventKind variants[^3] + NDJSON |
 | Cost control | None | Record budget + token tracking |
 | Knowledge source | None | NovaNet atoms (200+ locales) |
 | Reproducibility | Non-deterministic | DAG traces + replay |
@@ -303,7 +303,7 @@ flowchart LR
 > - NovaNet knowledge graph (59 NodeClasses, 159 ArcClasses)
 > - Entity-linked episodic memory with graph queries
 > - Knowledge atoms (Expression, Pattern, CultureRef, Taboo) across 200+ locales
-> - NDJSON trace files with full event sourcing (34 EventKind variants)
+> - NDJSON trace files with full event sourcing (32 EventKind variants)
 > - 4-layer structured output (parse → validate → retry → repair)
 > - DAG visualization in TUI with real-time thread/record view
 > - Record budget with per-workflow cost prediction
@@ -336,7 +336,7 @@ For each dimension in Slate's comparison table[^1], here's where Nika lands:
 <summary>📋 Full Shaka Workflow — Landing Page Generation</summary>
 
 ```yaml
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 workflow: generate-landing-page
 
 orchestration: shaka
@@ -389,7 +389,7 @@ satellites:
   - id: research
     model_slot: york
     context_budget: 4000
-    infer: "Research: {{use.topic}}"
+    infer: "Research: {{with.topic}}"
     record:
       compress: true
       max_tokens: 300
@@ -398,12 +398,12 @@ satellites:
   - id: write_section
     model_slot: edison
     context_budget: 8000
-    use:
+    with:
       context: $get_context
     infer: |
-      Write the {{use.section}} section for the landing page.
-      Entity context: {{use.context}}
-      Research: {{use.research_records}}
+      Write the {{with.section}} section for the landing page.
+      Entity context: {{with.context}}
+      Research: {{with.research_records}}
     record:
       compress: true
       retain: [content]
@@ -413,7 +413,7 @@ satellites:
     model_slot: pythagoras
     infer: |
       Review the following draft sections for quality and coherence:
-      {{use.drafts}}
+      {{with.drafts}}
       Check against QR Code AI brand guidelines and French locale conventions.
     record:
       compress: true
@@ -479,7 +479,7 @@ mindmap
         Nika's Additions
             YAML declarative
             NovaNet knowledge graph
-            34 events observability
+            32 events observability
             Record budget cost control
             200+ locales
         Result
@@ -511,4 +511,4 @@ mindmap
 
 [^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with 26 academic references. Thread-based episodic memory architecture. The "4 model slots" design is our proposal, inspired by Slate's cross-model composition (Sonnet + Codex).
 [^2]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Shaka/satellites separation cited in Slate blog.
-[^3]: Verified via `src/event/log.rs` — 34 `EventKind` variants as of v0.27.0.
+[^3]: Verified via `src/event/log.rs` — 32 `EventKind` variants as of v0.30.3 (LimitReached and PartialCompletion removed).

@@ -3,7 +3,7 @@
 > Comprehensive research on package registry design patterns for AI workflow engines.
 > Comparison of 7 registries. Architecture recommendation. Manifest and CLI proposals.
 
-**Nika** v0.27.0 -- **NovaNet** v0.20.0 -- Updated 2026-03-15
+**Nika** v0.30.3 -- **NovaNet** v0.20.0 -- Updated 2026-03-15
 
 ---
 
@@ -228,7 +228,7 @@ Nika's 5 package types map directly to the ecosystem architecture:
 **workflow** -- Complete DAG definitions that can be run directly or composed via `include:`.
 These are the primary "application" unit.
 
-**satellite** -- Specialized worker definitions (v0.30+ Shaka orchestration). Each satellite
+**satellite** -- Specialized worker definitions (v0.33+ Shaka orchestration). Each satellite
 specifies model, capabilities, tools. This is novel -- no existing registry supports this concept.
 
 **model** -- References to GGUF models with configuration (quantization, context length,
@@ -278,7 +278,7 @@ that can be shared across teams. Similar to n8n's credential concept.
 
 ### 3.2 Recommended Architecture for Nika
 
-**Phase 1 (Now -- v0.28): Git-Based with Static Index**
+**Phase 1 (Now -- v0.31): Git-Based with Static Index**
 
 Use GitHub repositories as package sources with a static JSON index:
 
@@ -307,7 +307,7 @@ Why Git-based first:
 - Familiar workflow for contributors (PR to publish)
 - Migration to custom server later is non-breaking (same API shape)
 
-**Phase 2 (v0.29-0.30): Lightweight API Server**
+**Phase 2 (v0.32-0.33): Lightweight API Server**
 
 Deploy a thin API server in front of the Git index:
 
@@ -656,7 +656,7 @@ nika pkg outdated      # Check for updates
 nika pkg search <q>    # Search registry
 ```
 
-And from v0.27 unified CLI (doc 15):
+And from v0.30.3 unified CLI (doc 15):
 
 ```
 nika add <name>        # Shorthand for nika pkg add
@@ -898,7 +898,7 @@ Before accepting a publish:
 
 ## 8. Implementation Roadmap
 
-### 8.1 Phase 1: Foundation (v0.28)
+### 8.1 Phase 1: Foundation (v0.31)
 
 **Goal:** Validate package format with real packages, zero new infrastructure.
 
@@ -919,7 +919,7 @@ Tasks:
 - Existing `PkgUri` parser unchanged (works for all types)
 - Existing `RegistryClient` gets a GitHub releases adapter
 
-### 8.2 Phase 2: API Server (v0.29-0.30)
+### 8.2 Phase 2: API Server (v0.32-0.33)
 
 **Goal:** Searchable registry with publishing support.
 

@@ -1,9 +1,9 @@
 # 09 — Use Cases Cookbook
 
 > 3 concrete use cases with complete YAML workflows.
-> Copy-paste ready. Each one demonstrates different v0.30 features.
+> Copy-paste ready. Each one demonstrates different v0.33 features.
 
-**Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.33 (target) · **NovaNet** v0.20.0 · Updated 2026-03-17
 
 ---
 
@@ -20,13 +20,13 @@
 
 **Scenario:** You have a data processing pipeline — scrape web data, analyze it with an LLM, generate a report, send it via API.
 
-**v0.30 features used:** Model Slots, Records, Context Budget
+**v0.33 features used:** Model Slots, Records, Context Budget
 
 ### The Workflow
 
 ```yaml
 # pipeline-report.nika.yaml — Automated data analysis pipeline
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 
 model_slots:
   edison:
@@ -166,23 +166,8 @@ tasks:
       command: "psql -c \"INSERT INTO reports (content, created_at) VALUES ('{{with.report}}', NOW())\""
       shell: true
 
-flows:
-  - source: scrape_hackernews
-    target: analyze_trends
-  - source: scrape_reddit
-    target: analyze_trends
-  - source: get_internal_data
-    target: analyze_metrics
-  - source: analyze_trends
-    target: generate_report
-  - source: analyze_metrics
-    target: generate_report
-  - source: generate_report
-    target: format_html
-  - source: format_html
-    target: send_email
-  - source: generate_report
-    target: save_to_db
+# Note: flows: was removed in @0.12. Dependencies are now
+# implicit via with: bindings and depends_on: on tasks.
 ```
 
 ### What happens at execution
@@ -246,8 +231,8 @@ flowchart TB
 │  ─────────────────────────────────────────────────                              │
 │  TOTAL                             11K       $0.0133                            │
 │                                                                                 │
-│  v0.27 (all Claude): 11K tokens × $0.003 = $0.033                             │
-│  v0.30 (model slots): $0.0133                                                  │
+│  v0.30.3 (all Claude): 11K tokens × $0.003 = $0.033                           │
+│  v0.33 (model slots): $0.0133                                                  │
 │  Savings: 60%                                                                   │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -259,13 +244,13 @@ flowchart TB
 
 **Scenario:** Generate localized landing pages for QR Code AI in 5 languages, using NovaNet's knowledge graph for entity context and cultural intelligence.
 
-**v0.30 features used:** ALL 6 features (Model Slots, Records, Shaka, Context Budget, Memory, Introspection)
+**v0.33 features used:** ALL 6 features (Model Slots, Records, Shaka, Context Budget, Memory, Introspection)
 
 ### The Workflow
 
 ```yaml
-# generate-multilingual.nika.yaml — Full v0.30 showcase
-schema: nika/workflow@0.13
+# generate-multilingual.nika.yaml — Full v0.33 showcase
+schema: nika/workflow@0.14
 orchestration: shaka
 
 model_slots:
@@ -555,13 +540,13 @@ sequenceDiagram
 
 **Scenario:** A coding agent that analyzes a codebase, plans changes, implements them, runs tests, and iterates until tests pass.
 
-**v0.30 features used:** Model Slots, Records, Shaka, Context Budget, Introspection
+**v0.33 features used:** Model Slots, Records, Shaka, Context Budget, Introspection
 
 ### The Workflow
 
 ```yaml
 # code-agent.nika.yaml — Coding agent with shaka mode
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 orchestration: shaka
 
 model_slots:
@@ -774,14 +759,14 @@ sequenceDiagram
 │  SIMPLE AGENT vs SHAKA CODING AGENT                                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Simple agent (v0.27):                                                          │
+│  Simple agent (v0.30.3):                                                        │
 │  • ONE long conversation with the LLM                                           │
 │  • Context grows with every tool call                                           │
 │  • After 20 tool calls → dumb zone → makes mistakes                            │
 │  • Can't switch models for different subtasks                                   │
 │  • Everything in one prompt = confused, unfocused                               │
 │                                                                                 │
-│  Shaka coding agent (v0.30):                                                    │
+│  Shaka coding agent (v0.33):                                                    │
 │  • Shaka PLANS what to do (with extended thinking)                             │
 │  • Each task (read, plan, implement, test) has fresh context                   │
 │  • Records pass only essential info (not 500 lines of code)                    │

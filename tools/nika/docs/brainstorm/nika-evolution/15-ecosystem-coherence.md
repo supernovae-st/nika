@@ -1,6 +1,6 @@
 # 15 — Nika Ecosystem Coherence
 
-> How everything fits together in Nika v0.30+.
+> How everything fits together in Nika v0.33+.
 > Master reference document capturing the unified view of all ecosystem pieces.
 
 **Status:** BRAINSTORM | **Date:** 2026-03-15
@@ -16,7 +16,7 @@ Decisions prises au cours des sessions de brainstorming (docs 12-17).
 | DataStore → **RunContext** | VALIDATED | Doc 14 | Industry standard name, 205 refs to rename |
 | Approach C + **Progressive Disclosure** | VALIDATED | Doc 13 | 3 levels: minimal/medium/full |
 | **Egghead** removed from naming | VALIDATED | Doc 12 + 14 | Was proposed, rejected — RunContext preferred |
-| spn **deprecated**, all via `nika` | VALIDATED | v0.27.0 | Already implemented |
+| spn **deprecated**, all via `nika` | VALIDATED | v0.30.3 | Already implemented |
 | **Vegapunk names** (Shaka, Edison, Atlas, Punk Records, Satellite) | VALIDATED | Doc 12 | One Piece-inspired naming |
 | **AgentRecord → Record** | VALIDATED | Doc 12 | Simpler name for NDJSON entries |
 | **3-Tier Memory** (HOT/WARM/COLD) | VALIDATED | Doc 12 | RunContext → Punk Records → NovaNet |
@@ -38,11 +38,11 @@ Decisions prises au cours des sessions de brainstorming (docs 12-17).
 
 ## 2. The Big Picture Architecture
 
-L'architecture complete de Nika v0.30+ avec tous les layers interconnectes.
+L'architecture complete de Nika v0.33+ avec tous les layers interconnectes.
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════════════════╗
-║                           NIKA v0.30+ ECOSYSTEM ARCHITECTURE                              ║
+║                           NIKA v0.33+ ECOSYSTEM ARCHITECTURE                              ║
 ╠═══════════════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                           ║
 ║  ┌──────────────────────────────────────────────────────────────────────────────────────┐ ║
@@ -277,7 +277,7 @@ Exemple concret d'une requete traversant tout l'ecosysteme.
 
 ## 4. One CLI: `nika`
 
-Depuis v0.27.0, TOUT passe par un seul CLI unifie. `spn` est deprecated.
+Depuis v0.30.3, TOUT passe par un seul CLI unifie. `spn` est deprecated.
 
 ```bash
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1052,11 +1052,11 @@ context:
 
 ## Summary
 
-Ce document capture l'ecosysteme coherent de Nika v0.30+ :
+Ce document capture l'ecosysteme coherent de Nika v0.33+ :
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║                         NIKA v0.30+ ECOSYSTEM SUMMARY                         ║
+║                         NIKA v0.33+ ECOSYSTEM SUMMARY                         ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
 ║  🎯 ORCHESTRATION                                                             ║
@@ -1094,5 +1094,5 @@ Ce document capture l'ecosysteme coherent de Nika v0.30+ :
 1. Valider les decisions PROPOSED avec l'equipe
 2. Implementer RunContext rename (doc 14)
 3. Designer le schema SatelliteCard pour NovaNet
-4. Prototyper Shaka orchestrator (v0.29)
+4. Prototyper Shaka orchestrator (v0.32)
 5. Definir le package registry (skills.sh ou autre)

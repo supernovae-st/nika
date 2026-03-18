@@ -5,14 +5,14 @@
 > evolution corpus. Includes current state comparison, 10 new proposals, YAGNI decisions,
 > and wave mapping.
 
-**Date**: 2026-03-16 | **Nika version**: v0.27.0 | **Schema**: @0.12
+**Date**: 2026-03-17 | **Nika version**: v0.30.3 | **Schema**: @0.12 (current)
 
 ---
 
 ## Table of Contents
 
 1. [Research Methodology](#1-research-methodology)
-2. [Nika v0.27 Current State](#2-nika-v027-current-state)
+2. [Nika v0.30.3 Current State](#2-nika-v0303-current-state)
 3. [Jungo Migration Context](#3-jungo-migration-context)
 4. [Research Findings Summary](#4-research-findings-summary)
 5. [10 New Feature Proposals](#5-10-new-feature-proposals)
@@ -42,7 +42,7 @@ Five parallel research agents were launched on 2026-03-16 to gather current indu
 Each finding was validated against:
 - Nika's 20 existing evolution documents (01-20)
 - The 6 planned priorities (P-MODEL through P-INTROSPECT)
-- Nika's current source code (220K lines, 373 files)
+- Nika's current source code (217K lines, 368 files)
 - The 14 Jungo migration proposals from the other brainstorm session
 
 **Filter criterion**: Only features NOT already in the roadmap and aligned with Nika's
@@ -50,21 +50,23 @@ DNA (YAML-first, CLI-first, Rust, declarative, MCP-only) were retained.
 
 ---
 
-## 2. Nika v0.27 Current State
+## 2. Nika v0.30.3 Current State
 
 ### 2.1 Scale
 
 | Metric | Value | Verification |
 |--------|-------|--------------|
-| Lines of Rust code | ~220,000 | `find src -name '*.rs' -exec cat {} + \| wc -l` |
-| Source files | 373 | `find src -name '*.rs' \| wc -l` |
-| Tests passing | 6,610 | `cargo test -- --list \| grep "test$" \| wc -l` |
-| Source modules | 11 | `ls -d src/*/` |
-| EventKind variants | 34 | `src/event/log.rs` |
+| Lines of Rust code | ~217,000 | `find src -name '*.rs' -not -path '*/target-main/*' -exec cat {} + \| wc -l` |
+| Source files | 368 | `find src -name '*.rs' -not -path '*/target-main/*' \| wc -l` |
+| Tests passing | 6,725 | `cargo test -- --list \| grep "test$" \| wc -l` |
+| Source modules | 21 | `ls -d src/*/` |
+| EventKind variants | 32 | `src/event/log.rs` |
 | Provider definitions | 20+ | `src/core/providers.rs` |
 | Model definitions | 36 | `src/core/models.rs` |
 | MCP aliases | 48+ | `src/core/mcp_aliases.rs` |
 | Error codes (NIKA-XXX) | 000-429 | 14 ranges across `src/error.rs` |
+
+> Counts exclude `src/target-main/` build artifacts (12 files, ~36K lines).
 
 ### 2.2 The 5 Sacred Verbs
 
@@ -147,7 +149,7 @@ DNA (YAML-first, CLI-first, Rust, declarative, MCP-only) were retained.
 | `nika:glob` | Find files by glob pattern |
 | `nika:grep` | Search file contents with regex |
 
-### 2.5 Event System (34 EventKind Variants)
+### 2.5 Event System (32 EventKind Variants)
 
 Nika emits NDJSON trace events across 11 categories:
 
@@ -255,7 +257,7 @@ Raw YAML -> RawWorkflow (schema validation)
 2. **YAML-first declarative** -- Not Python, not notebooks, not visual builders
 3. **Knowledge atoms** -- 200+ locales, multi-language content at entity level
 4. **5-layer structured output** -- 99.99% JSON compliance
-5. **34+ event observability** -- Complete execution trace in NDJSON
+5. **32 event observability** -- Complete execution trace in NDJSON
 6. **7 cloud + 1 native provider** -- Multi-provider with auto-detect
 7. **Rust performance** -- Single binary, no runtime, ~10x faster than Python frameworks
 8. **Security hardening** -- Shell-free exec by default, MCP-only NovaNet access
@@ -419,7 +421,7 @@ replay events up to the failure point, skip completed tasks, resume from the fai
 - Standard attributes: `gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`,
   `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reason`.
 - Adopted by Langfuse, Arize Phoenix, Traceloop OpenLLMetry.
-- Nika's 34 event types map cleanly to OTel spans.
+- Nika's 32 event types map cleanly to OTel spans.
 
 **LLM observability landscape**:
 
@@ -591,7 +593,7 @@ nika eval --ci --threshold 0.8                    # CI mode: exit 1 if below thr
 - Reuses structured output validation for JSON schema checks
 - Eval reports integrate with `nika trace` for drill-down
 
-**Effort**: M | **Impact**: Very High | **Dependencies**: None (can build on v0.27)
+**Effort**: M | **Impact**: Very High | **Dependencies**: None (can build on v0.30.3)
 
 ---
 
@@ -609,7 +611,7 @@ no structured gate in the DAG with approve/reject routing.
 
 ```yaml
 # content-approval.nika.yaml
-nika: "@0.13"
+nika: "@0.14"
 
 tasks:
   draft:
@@ -708,7 +710,7 @@ nika resume run-abc123 --set "tasks.C.fetch.timeout=60s"
 **How it works**:
 
 1. **On normal run**: Every `TaskCompleted` event in the NDJSON trace includes the
-   full task output. This is already the case in v0.27.
+   full task output. This is already the case in v0.30.3.
 
 2. **On resume**: The executor reads the trace file. For each task marked `Completed`,
    it injects the cached output into the DAG context instead of re-executing.
@@ -1004,13 +1006,13 @@ nika pkg install @supernovae/web-researcher
 
 ### A4: OpenTelemetry Export
 
-**The gap**: Nika emits 34 event types as NDJSON traces. These are excellent
+**The gap**: Nika emits 32 event types as NDJSON traces. These are excellent
 for debugging but cannot be fed into production monitoring systems (Grafana,
 DataDog, Honeycomb, Jaeger) without custom parsing. The industry has converged
 on OpenTelemetry GenAI semantic conventions.
 
 **What exists today**:
-- 34 NDJSON event types with rich metadata
+- 32 NDJSON event types with rich metadata
 - `nika trace` command for viewing traces
 - No OTel export, no OTLP endpoint configuration
 - `ProviderResponded` already has the fields that map to OTel GenAI attributes
@@ -1076,7 +1078,7 @@ telemetry:
 verb level (`infer: { model: ... }`). But there's no clean way to say "this task
 uses a fast model, that task uses a smart model" at the task level. The planned
 P-MODEL 4-slot system (edison/atlas/york/pythagoras) is the full solution, but
-a simple per-task `model:` field is a quick win for v0.28.
+a simple per-task `model:` field is a quick win for v0.31.
 
 **What exists today**:
 - Workflow-level: `provider: claude`, `model: claude-sonnet-4-6`
@@ -1111,11 +1113,11 @@ tasks:
 3. Workflow-level (`model:`) -- existing
 4. Provider auto-detect (`RigProvider::auto()`) -- default
 
-**This is a stepping stone to P-MODEL**: When the 4-slot system arrives in v0.28,
+**This is a stepping stone to P-MODEL**: When the 4-slot system arrives in v0.31,
 per-task `model:` becomes syntactic sugar for slot selection:
 
 ```yaml
-# v0.28 with P-MODEL
+# v0.31 with P-MODEL
 tasks:
   fast-task:
     model: atlas         # Maps to atlas slot (fast/tactical)
@@ -1386,9 +1388,9 @@ where 24h latency is acceptable.
 
 | Wave | Version | Schema | Priorities |
 |------|---------|--------|------------|
-| Wave 1 | v0.28 | @0.12 | P-MODEL (4-slot routing) + P-RECORD (LLM compression) |
-| Wave 2 | v0.29 | @0.13 | P-SHAKA (orchestration) + P-CONTEXT (token budgets) |
-| Wave 3 | v0.30 | | P-MEMORY (3-tier Punk Records) + P-INTROSPECT (6 runtime tools) |
+| Wave 1 | v0.31 | @0.13 | P-MODEL (4-slot routing) + P-RECORD (LLM compression) |
+| Wave 2 | v0.32 | @0.14 | P-SHAKA (orchestration) + P-CONTEXT (token budgets) |
+| Wave 3 | v0.33 | | P-MEMORY (3-tier Punk Records) + P-INTROSPECT (6 runtime tools) |
 
 ### 7.2 Proposed Enriched Waves
 
@@ -1396,14 +1398,14 @@ The 10 new proposals are distributed across waves based on dependencies and
 synergies with the existing 6 priorities:
 
 ```
-Wave 1 — v0.28 "Measure & Test"
+Wave 1 — v0.31 "Measure & Test"
 ├── P-MODEL (4-slot model routing)        ← existing
 ├── P-RECORD (LLM compression)           ← existing
 ├── B1: Per-task model override           ← NEW (stepping stone for P-MODEL)
 ├── S1: nika eval                         ← NEW (independent, high impact)
 └── A1: Cost tracking & budget            ← NEW (leverages existing events)
 
-Wave 2 — v0.29 "Production-Ready"
+Wave 2 — v0.32 "Production-Ready"
 ├── P-SHAKA (dynamic orchestration)       ← existing
 ├── P-CONTEXT (token budget per task)     ← existing
 ├── S2: HITL gate primitive               ← NEW (needs B3)
@@ -1411,7 +1413,7 @@ Wave 2 — v0.29 "Production-Ready"
 ├── A2: Workflow composition              ← NEW (synergy with P-SHAKA)
 └── B3: Conditional branching (when:)     ← NEW (needed by S2)
 
-Wave 3 — v0.30 "Intelligence"
+Wave 3 — v0.33 "Intelligence"
 ├── P-MEMORY (3-tier Punk Records)        ← existing
 ├── P-INTROSPECT (6 runtime tools)        ← existing
 ├── A3: Agent skills                      ← NEW (synergy with P-MEMORY)
@@ -1443,9 +1445,9 @@ Wave 3 — v0.30 "Intelligence"
 
 | Version | Schema | New Syntax Elements |
 |---------|--------|---------------------|
-| v0.28 | @0.12 (unchanged) | `budget:`, `model:` (task-level), `.eval.yaml` format |
-| v0.29 | @0.13 (bump) | `gate:`, `when:`, `invoke: { workflow: ... }`, `for_each:` |
-| v0.30 | @0.13 (unchanged) | `.skill.yaml` format, `artifact.format: binary/base64` |
+| v0.31 | @0.13 (bump) | `budget:`, `model:` (task-level), `.eval.yaml` format |
+| v0.32 | @0.14 (bump) | `gate:`, `when:`, `invoke: { workflow: ... }`, `for_each:` |
+| v0.33 | @0.14 (unchanged) | `.skill.yaml` format, `artifact.format: binary/base64` |
 
 ---
 
@@ -1453,7 +1455,7 @@ Wave 3 — v0.30 "Intelligence"
 
 ### 8.1 Feature Matrix
 
-| Feature | v0.27 (Current) | v0.28 (Wave 1) | v0.29 (Wave 2) | v0.30 (Wave 3) |
+| Feature | v0.30.3 (Current) | v0.31 (Wave 1) | v0.32 (Wave 2) | v0.33 (Wave 3) |
 |---------|-----------------|-----------------|-----------------|-----------------|
 | **Verbs** | 5 (infer/exec/fetch/invoke/agent) | 5 (same) | 5 + gate: | 5 + gate: |
 | **Builtins** | 12 (7 core + 5 file) | 12 (same) | 12 (same) | 18 (+6 introspect) |
@@ -1465,58 +1467,58 @@ Wave 3 — v0.30 "Intelligence"
 | **Composition** | include/nika:run | Same | + DAG-of-DAGs + for_each | Same |
 | **Branching** | None | None | + `when:` clause | Same |
 | **Artifacts** | Text/Json/Yaml | Same | Same | + Binary/Base64 |
-| **Observability** | NDJSON (34 events) | Same | Same | + OTel export |
+| **Observability** | NDJSON (32 events) | Same | Same | + OTel export |
 | **Memory** | None | + P-RECORD (compression) | + P-CONTEXT (budgets) | + 3-tier memory |
 | **Skills** | None | None | None | + `.skill.yaml` |
 
 ### 8.2 CLI Command Growth
 
 ```
-v0.27:  nika {run, check, ui, chat, studio, init, new, provider, mcp, model,
-              pkg, completion, config, schema, doctor, workflow, trace, lsp}
-        = 18 commands
+v0.30.3:  nika {run, check, ui, chat, studio, init, new, provider, mcp, model,
+                pkg, completion, config, schema, doctor, workflow, trace, lsp}
+          = 18 commands
 
-v0.28:  + nika eval
+v0.31:  + nika eval
         = 19 commands
 
-v0.29:  + nika resume
+v0.32:  + nika resume
         = 20 commands
 
-v0.30:  (no new top-level commands, OTel is config-based)
+v0.33:  (no new top-level commands, OTel is config-based)
         = 20 commands
 ```
 
 ### 8.3 Event System Growth
 
 ```
-v0.27:  34 EventKind variants across 11 categories
+v0.30.3:  32 EventKind variants across 11 categories
 
-v0.28:  + BudgetWarning, BudgetExceeded, EvalCaseStarted, EvalCaseCompleted,
+v0.31:  + BudgetWarning, BudgetExceeded, EvalCaseStarted, EvalCaseCompleted,
           EvalAssertPassed, EvalAssertFailed
         = 40 events
 
-v0.29:  + GatePresented, GateResolved, RunResumed, TaskSkipped, TaskRetried,
+v0.32:  + GatePresented, GateResolved, RunResumed, TaskSkipped, TaskRetried,
           WorkflowInvoked, WorkflowReturned, ConditionEvaluated
         = 48 events
 
-v0.30:  + SkillLoaded, ArtifactBinaryWritten, OTelSpanExported
+v0.33:  + SkillLoaded, ArtifactBinaryWritten, OTelSpanExported
         = 51 events
 ```
 
 ### 8.4 Error Code Growth
 
 ```
-v0.27:  14 ranges (NIKA-000 through NIKA-429)
+v0.30.3:  14 ranges (NIKA-000 through NIKA-429)
 
-v0.28:  + NIKA-500-509 (Eval errors)
+v0.31:  + NIKA-500-509 (Eval errors)
         + NIKA-510-519 (Budget errors)
 
-v0.29:  + NIKA-520-529 (Gate errors)
+v0.32:  + NIKA-520-529 (Gate errors)
         + NIKA-530-539 (Resume errors)
         + NIKA-540-549 (Condition errors)
         + NIKA-550-559 (Composition errors)
 
-v0.30:  + NIKA-560-569 (Skill errors)
+v0.33:  + NIKA-560-569 (Skill errors)
         + NIKA-570-579 (Binary artifact errors)
         + NIKA-580-589 (OTel errors)
 ```
@@ -1539,7 +1541,7 @@ v0.30:  + NIKA-560-569 (Skill errors)
 
 | Doc | Title | Key Inputs |
 |-----|-------|------------|
-| [01](./01-current-features.md) | Current Features | Complete v0.27 inventory |
+| [01](./01-current-features.md) | Current Features | Complete v0.30.3 inventory |
 | [03](./03-competitive-landscape.md) | Competitive Landscape | Positioning matrix |
 | [05](./05-evolution-roadmap.md) | Evolution Roadmap | 6 priorities, 3 waves |
 | [08](./08-nika-030-complete-guide.md) | v0.30 Complete Guide | User-facing feature guide |
@@ -1581,12 +1583,12 @@ v0.30:  + NIKA-560-569 (Skill errors)
 ```
                     Expressivity
                          ↑
-                         │        ★ Nika v0.30 [0.85, 0.95]
+                         │        ★ Nika v0.33 [0.85, 0.95]
                          │          (with all proposals)
                          │
                          │     · Slate [0.75, 0.85]
                          │
-          Nika v0.27     │
+          Nika v0.30.3   │
            [0.35, 0.80]  │
                          │
                          │  · Claude Code [0.30, 0.60]

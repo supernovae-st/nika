@@ -1,9 +1,9 @@
 # 🦋 Nika Evolution — Research & Strategy
 
 > Comprehensive research corpus for Nika's next evolution phase.
-> 26 research agents deployed. 6 papers analyzed. 5 competitors mapped. 26 research documents produced.
+> 26 research agents deployed. 6 papers analyzed. 5 competitors mapped. 30 research documents produced.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-17
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-17
 
 ---
 
@@ -39,16 +39,18 @@ mindmap
       19 Package Registry Design
       20 Agent Memory Architectures
       21 AI Workflow Landscape
-      21 AI Eval & Observability
-      21 Durable Execution Patterns
+      25 AI Eval & Observability
+      26 Durable Execution Patterns
       22 New Features Proposals
     Design
       23 Multimodal Media Pipeline
+      24 CAS Blake3 Rust Patterns
+      27 Binary Multimodal Flow
 ```
 
 | # | Document | Purpose | Key Output |
 |:-:|----------|---------|------------|
-| [01](./01-current-features.md) | **Current Features** | Exhaustive Nika v0.27 + NovaNet v0.20 inventory | 373 files, 220K lines, 6,610 tests[^1] |
+| [01](./01-current-features.md) | **Current Features** | Exhaustive Nika v0.30.3 + NovaNet v0.20 inventory | 368 files, 217K lines, 6,725 tests[^1] |
 | [02](./02-scientific-literature.md) | **Scientific Literature** | RLM, CodeAct, THREAD, Context-Folding, Swarms | 6 papers → 6 priorities |
 | [03](./03-competitive-landscape.md) | **Competitive Landscape** | Slate, Claude Code, Codex, LangGraph, CrewAI | Competitive positioning |
 | [04](./04-nika-novanet-overlap.md) | **Nika × NovaNet Overlap** | Boundary rules, synergy opportunities | Golden Rule definition |
@@ -69,11 +71,17 @@ mindmap
 | [19](./19-package-registry-design.md) | **Package Registry Design** | `nika pkg` design and distribution | Package system architecture |
 | [20](./20-agent-memory-architectures.md) | **Agent Memory Architectures** | Memory patterns for AI agents | 3-tier memory design validation |
 | [21](./21-ai-workflow-landscape-march2026.md) | **AI Workflow Landscape** | Dify HITL, Amp Checks, LangSmith memory, AutoGen MCP | Industry trends March 2026 |
-| [21](./21-ai-eval-testing-observability.md) | **AI Eval & Observability** | Langfuse, OTel GenAI, promptfoo, Braintrust | Eval-as-code patterns |
-| [21](./21-durable-execution-checkpoint-patterns.md) | **Durable Execution Patterns** | Restate, Temporal, context engineering | Journal-based recovery |
+| [22](./22-new-features-proposals-march2026.md) | **New Features Proposals** | 10 new features + YAGNI + wave mapping + gap analysis | Synthesis document |
+| [23](./23-multimodal-media-pipeline-design.md) | **Multimodal Media Pipeline** | B+ design: MediaRef + CAS-ready blake3 layout | Implementation blueprint |
+| [24](./24-cas-blake3-rust-patterns.md) | **CAS Blake3 Rust Patterns** | Content-addressable storage with blake3 hashing | CAS implementation patterns |
+| [25](./25-ai-eval-testing-observability.md) | **AI Eval & Observability** | Langfuse, OTel GenAI, promptfoo, Braintrust | Eval-as-code patterns |
+| [26](./26-durable-execution-checkpoint-patterns.md) | **Durable Execution Patterns** | Restate, Temporal, context engineering | Journal-based recovery |
+| [27](./27-binary-multimodal-flow-patterns.md) | **Binary Multimodal Flow** | Binary data handling in multimodal pipelines | Flow pattern reference |
 | — | [MCP Ecosystem Raw](./mcp-ecosystem-march-2026.md) | Raw MCP server catalog | 100+ servers cataloged |
-| **[22](./22-new-features-proposals-march2026.md)** | **New Features Proposals** | **10 new features + YAGNI + wave mapping + gap analysis** | **Synthesis document** |
-| **[23](./23-multimodal-media-pipeline-design.md)** | **Multimodal Media Pipeline** | **B+ design: MediaRef + CAS-ready blake3 layout** | **Implementation blueprint** |
+| — | [MCP Media Servers](./mcp-media-servers-catalog-2026.md) | MCP media server catalog | Media server inventory |
+| — | [Agent Memory Rust Patterns](./research-agent-memory-rust-patterns.md) | Rust patterns for agent memory | Implementation patterns |
+| — | [Rust Binary Handling](./research-rust-binary-handling.md) | Rust binary data handling research | Binary handling patterns |
+| — | [CAS Crates 2026](./research-cas-crates-2026.md) | CAS crate ecosystem survey | Crate comparison |
 
 ---
 
@@ -136,17 +144,17 @@ flowchart TD
     PC --> PMEM
     PMEM --> PI
 
-    subgraph W1["Wave 1 · v0.28 · schema @0.12"]
+    subgraph W1["Wave 1 · v0.31 · schema @0.13"]
         PM
         PR
     end
 
-    subgraph W2["Wave 2 · v0.29 · schema @0.13"]
+    subgraph W2["Wave 2 · v0.32 · schema @0.14"]
         PS
         PC
     end
 
-    subgraph W3["Wave 3 · v0.30"]
+    subgraph W3["Wave 3 · v0.33"]
         PMEM
         PI
     end
@@ -164,14 +172,14 @@ flowchart TD
 | **P-MODEL** | 4-slot model routing (edison/atlas/york/pythagoras) | Slate cross-model[^2], THREAD[^3] | `model_slots` in `AnalyzedWorkflow` |
 | **P-RECORD** | LLM compression at task completion boundaries | Slate episodes[^2], Context-Folding[^4] | `Record` struct in `runtime/` |
 | **P-SHAKA** | Dynamic satellite dispatch via thread weaving | Slate strategy/tactics[^2], AlphaZero[^5] | Orchestration mode in `runner.rs` |
-| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate dumb zone[^2], Context-Folding[^4] | Budget tracking in `Egghead` |
+| **P-CONTEXT** | Working memory awareness, token budget tracking | Slate dumb zone[^2], Context-Folding[^4] | Budget tracking in `RunContext` |
 | **P-MEMORY** | 3-tier memory: Egghead (HOT/RAM) → Punk Records (WARM/NDJSON disk) → NovaNet (COLD/promoted) | Slate sessions[^2], Memory-R1[^6] | `RecordLog` for WARM tier, MCP tools for COLD promotion |
 | **P-INTROSPECT** | 6 runtime introspection builtin tools | RLM REPL[^7] | New tools in `runtime/builtin.rs` |
 
 </details>
 
 > [!TIP]
-> **Core Insight** — Nika's DAG IS Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM.
+> **Core Insight** — Nika's DAG IS Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `RunContext` IS RAM.
 > We don't BUILD Slate — we UPGRADE the kernel with 4 additions, then persist via NovaNet.
 
 ---
@@ -187,8 +195,8 @@ quadrantChart
     quadrant-2 "Expressive but Forgetful"
     quadrant-3 "Rigid & Forgetful"
     quadrant-4 "Smart Memory, Low Flex"
-    "Nika v0.27": [0.35, 0.80]
-    "Nika v0.30 (target)": [0.85, 0.90]
+    "Nika v0.30.3": [0.35, 0.80]
+    "Nika v0.33 (target)": [0.85, 0.90]
     "Slate": [0.75, 0.85]
     "Claude Code": [0.30, 0.60]
     "LangGraph": [0.45, 0.50]
@@ -242,15 +250,15 @@ quadrantChart
 <details>
 <summary>💻 Codebase Verification</summary>
 
-All claims verified against actual source code on 2026-03-14:
+All claims verified against actual source code on 2026-03-17:
 
 | Claim | Verified Value | Method |
 |-------|---------------|--------|
-| Rust files | 373 | `find src -name '*.rs' \| wc -l` |
-| Lines of code | 220,380 | `find src -name '*.rs' -exec cat {} + \| wc -l` |
-| Tests passing | 6,610 | `cargo test -- --list \| grep "test$" \| wc -l` |
-| Modules | 11 | `ls -d src/*/` |
-| EventKind variants | 34 | Comment in `src/event/log.rs` |
+| Rust files | 368 | `find src -name '*.rs' -not -path '*/target-main/*' \| wc -l` |
+| Lines of code | 217,304 | `find src -name '*.rs' -not -path '*/target-main/*' -exec cat {} + \| wc -l` |
+| Tests passing | 6,725 | `cargo test -- --list \| grep "test$" \| wc -l` |
+| Modules | 21 | `ls -d src/*/` |
+| EventKind variants | 32 | Comment in `src/event/log.rs` |
 | Provider definitions | 20+ | `src/core/providers.rs` |
 | Model definitions | 36 | `src/core/models.rs` |
 | MCP aliases | 48+ | `src/core/mcp_aliases.rs` |
@@ -262,7 +270,7 @@ All claims verified against actual source code on 2026-03-14:
 - **26 research agents** deployed in parallel (13 original + 5 March 2026 web research + 8 multimodal media pipeline)
 - **12-step ultrathink** sequential analysis (Slate → Nika concept mapping)
 - **11-step ultrathink** multimodal media pipeline design (rmcp types, CAS patterns, industry validation)
-- **26 research documents** produced (01-features through 23-multimodal-media-pipeline)
+- **30 research documents** produced (01-features through 27-binary-multimodal-flow + 4 unnumbered research files)
 - **Full Slate blog** scraped and analyzed (26 academic references in blog)
 - **March 2026 research**: 5 agents covering workflow trends, MCP ecosystem, durable execution, eval/observability, SEO AI tools
 - **Multimodal research**: 8 agents covering MCP media servers, binary handling patterns, rmcp types, blake3 CAS, Rust ecosystem
@@ -277,7 +285,7 @@ All claims verified against actual source code on 2026-03-14:
 
 ---
 
-[^1]: Verified via `cargo test -- --list | grep "test$" | wc -l` on 2026-03-14. See [01-current-features.md](./01-current-features.md) for full inventory.
+[^1]: Verified via `cargo test -- --list | grep "test$" | wc -l` on 2026-03-17. Counts exclude `src/target-main/` build artifacts (12 files, ~36K lines). See [01-current-features.md](./01-current-features.md) for full inventory.
 [^2]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with thread-based episodic memory architecture. The "4 model slots" design (edison/atlas/york/pythagoras) is our proposal, inspired by Slate's cross-model composition support (Sonnet + Codex).
 [^3]: THREAD: Thinking Deeper with Recursive Spawning — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402)
 [^4]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967)

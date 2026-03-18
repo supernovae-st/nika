@@ -3,7 +3,7 @@
 > Analysis of competing agent runtimes, coding agents, and protocols.
 > 5 competitors mapped. 3 protocols analyzed. Positioning defined.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -169,14 +169,14 @@ flowchart LR
 | Security | Shell-free exec, command blocklist, path validation | Not documented |
 | Structured output | 4-layer validation (parse → validate → retry → repair) | Not documented |
 | Multi-locale | 200+ locales via NovaNet knowledge atoms | English-focused |
-| Observability | 34 event types, NDJSON traces, TUI with DAG view | Basic logging |
+| Observability | 32 event types, NDJSON traces, TUI with DAG view | Basic logging |
 | Cost control | Token tracking per task, budget awareness | No token budgeting |
 | Record persistence | 3-tier: Egghead (HOT) → Punk Records (WARM/NDJSON) → NovaNet (COLD/promoted, graph-queryable) | Session files only |
 
 </details>
 
 > [!TIP]
-> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
+> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `RunContext` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
 
 ---
 
@@ -224,7 +224,7 @@ flowchart LR
 |--------|-----------|------|
 | Language | Python | Rust (YAML DSL) |
 | Graph model | StateGraph with conditional edges | DAG with 5 verbs |
-| State | Shared state dict | Egghead + bindings |
+| State | Shared state dict | RunContext + bindings |
 | Checkpointing | Built-in persistence | Event log (replay) |
 | Performance | Python (slow) | Rust + tokio (fast) |
 | MCP | Via langchain-mcp | Native rmcp |
@@ -243,11 +243,11 @@ flowchart LR
 |--------|--------|------|
 | Agent model | Role-based (researcher, writer, etc.) | Verb-based (infer, exec, agent) |
 | Coordination | Sequential/hierarchical | DAG with parallel + for_each |
-| Memory | Short/long-term/entity memory (3 types) | Egghead (session only) |
+| Memory | Short/long-term/entity memory (3 types) | RunContext (session only) |
 | Tools | Custom tool definitions | MCP tools + 11 builtins |
 
 > [!WARNING]
-> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single Egghead. This gap is addressed by P-MEMORY and P-RECORD in the [Evolution Roadmap](./05-evolution-roadmap.md).
+> CrewAI's **3-type memory system** (short-term, long-term, entity) is more mature than Nika's single RunContext. This gap is addressed by P-MEMORY and P-RECORD in the [Evolution Roadmap](./05-evolution-roadmap.md).
 
 ---
 
@@ -323,8 +323,8 @@ quadrantChart
     quadrant-2 "Expressive but Forgetful"
     quadrant-3 "Rigid & Forgetful"
     quadrant-4 "Smart Memory, Low Flex"
-    "Nika v0.27": [0.35, 0.80]
-    "Nika v0.30 (target)": [0.85, 0.90]
+    "Nika v0.30.3": [0.35, 0.80]
+    "Nika v0.33 (target)": [0.85, 0.90]
     "Slate": [0.75, 0.85]
     "Claude Code": [0.30, 0.60]
     "LangGraph": [0.45, 0.50]
@@ -351,7 +351,7 @@ mindmap
             tokio concurrency
             Sub-millisecond DAG validation
         Observability
-            34 event types
+            32 event types
             NDJSON traces
             Full token tracking
         Security

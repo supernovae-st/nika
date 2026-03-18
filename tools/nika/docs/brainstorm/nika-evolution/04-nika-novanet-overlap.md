@@ -3,7 +3,7 @@
 > Identifying duplication, synergies, and boundary decisions.
 > 6 overlap areas analyzed. 4 duplication risks mapped. 4 synergy opportunities identified.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -79,10 +79,10 @@ tasks:
         brand: ./context/brand.md
 
   - id: generate
-    use:
+    with:
       graph: $graph_ctx
       brand: "{{context.files.brand}}"
-    infer: "Generate using both: {{use.graph}} {{use.brand}}"
+    infer: "Generate using both: {{with.graph}} {{with.brand}}"
 ```
 
 </details>
@@ -92,7 +92,7 @@ tasks:
 | Capability | NovaNet | Nika | Verdict |
 |-----------|---------|------|---------|
 | Schema definition | 59 NodeClasses, YAML source | `nika-workflow.schema.json` | **No overlap** |
-| Schema validation | `novanet_write(dry_run=true)` | Two-phase AST analyzer | **No overlap** |
+| Schema validation | `novanet_write(dry_run=true)` | Three-phase AST analyzer | **No overlap** |
 | Schema introspection | `novanet_introspect` | LSP diagnostics | **Different domains** |
 
 > [!NOTE]
@@ -113,7 +113,7 @@ tasks:
 
 | Capability | NovaNet | Nika | Verdict |
 |-----------|---------|------|---------|
-| Persistent state | Neo4j (durable) | Egghead (in-memory) | **Gap in Nika** |
+| Persistent state | Neo4j (durable) | RunContext (in-memory) | **Gap in Nika** |
 | Cross-session | Graph persists forever | Session files only | **Gap in Nika** |
 | Concurrent access | Neo4j transactions | DashMap lock-free | Both handle concurrency |
 
@@ -125,7 +125,7 @@ tasks:
 | Capability | NovaNet | Nika | Verdict |
 |-----------|---------|------|---------|
 | Quality audit | `novanet_audit` (CSR metrics) | None | NovaNet only |
-| Event sourcing | None | 34 EventKind variants | Nika only |
+| Event sourcing | None | 32 EventKind variants | Nika only |
 | Trace storage | None | NDJSON files | Nika only |
 | Data lineage | Arc-based provenance | None | NovaNet only |
 
@@ -192,7 +192,7 @@ flowchart LR
 >
 > Nika builds its own episodic memory system (P-MEMORY) that duplicates NovaNet's entity/knowledge storage.
 >
-> **Recommendation:** Nika's episodic memory follows a 3-tier architecture: HOT (Egghead DashMap RAM, single run), WARM (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), COLD (NovaNet `Record` node class, permanent, promoted records only). Nika writes promoted records via `novanet_write`, reads via `novanet_search`. NovaNet handles permanent persistence, search, and cleanup for the COLD tier only.
+> **Recommendation:** Nika's episodic memory follows a 3-tier architecture: HOT (RunContext DashMap RAM, single run), WARM (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), COLD (NovaNet `Record` node class, permanent, promoted records only). Nika writes promoted records via `novanet_write`, reads via `novanet_search`. NovaNet handles permanent persistence, search, and cleanup for the COLD tier only.
 >
 > **Why:** Most records live locally in Punk Records (WARM tier). Only high-value records are promoted to NovaNet (COLD tier) for cross-run, cross-agent reuse. NovaNet is not the whole memory system — it's the durable, graph-queryable long-term store.
 
@@ -292,7 +292,7 @@ tasks:
     params: { focus_key: "homepage", locale: "fr-FR" }
 
   - id: write_content
-    use:
+    with:
       ctx: $generate_page
     infer: "Generate landing page"
     # After generation, auto-invoke:
@@ -320,10 +320,10 @@ tasks:
       kinds: ["ModelBenchmark"]  # New NodeClass
 
   - id: translate
-    use:
+    with:
       model: "$route.best_model"
     infer: "Translate to French"
-    provider: "{{use.model.provider}}"
+    provider: "{{with.model.provider}}"
 ```
 
 </details>
@@ -344,7 +344,7 @@ tasks:
       traverse: HAS_CHILD  # NovaNet arc
       source: $entity
       max_items: 10         # Optional limit
-    infer: "Generate for {{use.item}}"
+    infer: "Generate for {{with.item}}"
 ```
 
 </details>

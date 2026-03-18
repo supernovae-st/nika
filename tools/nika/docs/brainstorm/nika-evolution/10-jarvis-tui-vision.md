@@ -1,9 +1,9 @@
-# 10 — Nika v0.30 TUI: The Jarvis Vision
+# 10 — Nika v0.33 TUI: The Jarvis Vision
 
 > The complete visual design specification for Nika's shaka-mode TUI.
 > Every panel, every data point, every color — designed to feel like piloting an AI.
 
-**Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.33 · **NovaNet** v0.20.0 · Updated 2026-03-14
 
 ---
 
@@ -13,7 +13,7 @@
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 🦋 NIKA v0.30                generate-multilingual.nika.yaml                                                ┃
+┃ 🦋 NIKA v0.33                generate-multilingual.nika.yaml                                                ┃
 ┃ ┈ Shaka Mode ┈              Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
 ┣━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 ┃ 🎯 SHAKA         ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
@@ -333,7 +333,7 @@ The "heads-up display" — always visible, always current.
 
 ```
 Create a hyper-detailed UI mockup of a futuristic terminal-based AI workflow
-orchestrator called "Nika v0.30 — Shaka Runner". This is the user's view
+orchestrator called "Nika v0.33 — Shaka Runner". This is the user's view
 when piloting an AI — it should feel like JARVIS from Iron Man, but as a
 real terminal application. Dark, information-dense, every pixel meaningful.
 
@@ -348,7 +348,7 @@ OVERALL AESTHETIC:
 - Aspect ratio: 21:9 ultrawide (cinematic cockpit feeling)
 
 HEADER BAR (full width, ~3% height):
-- Left: Butterfly emoji + "NIKA v0.30" in bright white (#fdf6e3)
+- Left: Butterfly emoji + "NIKA v0.33" in bright white (#fdf6e3)
 - Center: Workflow filename "generate-multilingual.nika.yaml" in dimmed text
 - Right side cluster: "Round 4/8" (cyan), quality dot "◉ 0.91" (green),
   cost "$0.037" (gold), timer "⏱ 47.2s" (dimmed)
@@ -504,7 +504,7 @@ RENDER AS:
 ### Prompt 2: Architecture Blueprint (The Brain/Body Diagram)
 
 ```
-Create a technical engineering blueprint diagram of the "Nika v0.30" AI
+Create a technical engineering blueprint diagram of the "Nika v0.33" AI
 orchestrator architecture. The style is a hybrid between a vintage aerospace
 schematic and a cyberpunk neural network visualization. Dark blueprint
 background (#002b36).
@@ -523,7 +523,7 @@ Around it, 5 smaller icons representing the 5 semantic verbs:
 - 🔌 invoke (plug, teal)
 - 🐔 agent (stylized bird, purple)
 
-ORBITAL RING 1 — "v0.30 Features" (6 modules orbiting the core):
+ORBITAL RING 1 — "v0.33 Features" (6 modules orbiting the core):
 Arranged in a circle around the kernel, connected by circuit traces:
 
 1. TOP: SHAKA_ORCHESTRATOR
@@ -657,7 +657,7 @@ Render style: technical illustration with subtle sci-fi elements.
 ### Prompt 3: The Poster (Marketing/Keynote Quality)
 
 ```
-Create a cinematic hero image for "Nika v0.30 — Your AI Orchestrator" that
+Create a cinematic hero image for "Nika v0.33 — Your AI Orchestrator" that
 could be used in a keynote presentation or product launch. The image should
 evoke the feeling of JARVIS from Iron Man — an AI copilot that sees
 everything, knows everything, and orchestrates everything.
@@ -685,7 +685,7 @@ COMPOSITION:
     - Glowing blue spine with data flowing in both directions
 
 SURROUNDING ELEMENTS:
-- Top: "NIKA v0.30" in large, clean, white monospace text
+- Top: "NIKA v0.33" in large, clean, white monospace text
 - Below butterfly: "The AI Orchestrator" in smaller teal text
 - Bottom: 6 feature badges in a horizontal row:
   "Model Slots" | "Records" | "Shaka" | "Context Budget" | "Memory" | "Introspect"
@@ -708,7 +708,7 @@ TEXT OVERLAYS (small, positioned around the butterfly):
 - "KNOWING × DOING × CONNECTING" (the golden rule)
 - "5 Verbs. 4 Models. 1 DAG."
 - "NovaNet remembers. Nika executes."
-- Version: "v0.30 • YAML-first • Knowledge-aware • Shaka-driven"
+- Version: "v0.33 • YAML-first • Knowledge-aware • Shaka-driven"
 
 COLOR TREATMENT:
 - Predominantly dark with selective color accents
@@ -734,7 +734,7 @@ MCP connection point.
 ```
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                            ║
-║  JARVIS (Iron Man)              NIKA v0.30 (SuperNovae)                    ║
+║  JARVIS (Iron Man)              NIKA v0.33 (SuperNovae)                    ║
 ║  ─────────────────              ────────────────────────                    ║
 ║                                                                            ║
 ║  "Sir, I've analyzed the        Shaka: "I should run hero                ║

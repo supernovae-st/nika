@@ -166,23 +166,8 @@ tasks:
       command: "psql -c \"INSERT INTO reports (content, created_at) VALUES ('{{with.report}}', NOW())\""
       shell: true
 
-flows:
-  - source: scrape_hackernews
-    target: analyze_trends
-  - source: scrape_reddit
-    target: analyze_trends
-  - source: get_internal_data
-    target: analyze_metrics
-  - source: analyze_trends
-    target: generate_report
-  - source: analyze_metrics
-    target: generate_report
-  - source: generate_report
-    target: format_html
-  - source: format_html
-    target: send_email
-  - source: generate_report
-    target: save_to_db
+# Note: flows: was removed in @0.12. Dependencies are now
+# implicit via with: bindings and depends_on: on tasks.
 ```
 
 ### What happens at execution

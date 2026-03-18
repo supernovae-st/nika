@@ -2,7 +2,7 @@
 
 > **Date**: 2026-03-15
 > **Status**: BRAINSTORM (validated decisions from interactive session)
-> **Scope**: The Smart Router pattern, complete multi-modal tool inventory, native RAG, translation, and audio architecture for Nika v0.30
+> **Scope**: The Smart Router pattern, complete multi-modal tool inventory, native RAG, translation, and audio architecture for Nika v0.33
 > **Dependencies**: Doc 12 (Vegapunk Naming), Doc 13 (Multi-Modal Worker Architectures), Doc 15 (Ecosystem Coherence), Doc 16 (Multi-Modal Builtin Research)
 > **Research Sources**: Perplexity (8 queries), Firecrawl (2 scrapes: ComfyUI MCP servers), crates.io analysis
 
@@ -30,7 +30,7 @@
 
 ### 1.1 Core Concept
 
-The Smart Router is the **fundamental architectural pattern** for all multi-modal tools in Nika v0.30. Every tool that has multiple possible backends follows the same dispatch logic:
+The Smart Router is the **fundamental architectural pattern** for all multi-modal tools in Nika v0.33. Every tool that has multiple possible backends follows the same dispatch logic:
 
 ```
 Tool call (e.g., nika:translate)
@@ -320,7 +320,7 @@ tasks:
     for_each: ["ja", "de", "es", "pt", "ko", "zh"]
     as: target_locale
     concurrency: 3
-    agent: "Translate the French content to {{use.target_locale}}"
+    agent: "Translate the French content to {{with.target_locale}}"
     tools: [nika:translate]
     context: $fr_content
     # Agent uses nika:translate internally, 200 languages, zero cost
@@ -518,7 +518,7 @@ tasks:
 | Text-to-Speech (Piper) | NOT supported | Use rten + Piper |
 | Audio generation (music) | NOT supported | MCP ComfyUI (generate_song) |
 
-### 5.2 Path 1: Explicit Pipeline (v0.30, ships now)
+### 5.2 Path 1: Explicit Pipeline (v0.33, ships now)
 
 ```
 Audio file (.wav/.mp3)
@@ -542,7 +542,7 @@ nika:speak (rten + Piper, 50+ voices)
 Audio file (.wav)
 ```
 
-This is the **safe, proven path**. whisper-rs is mature (936 stars), Piper is mature (10.7k stars). Ships in v0.30.
+This is the **safe, proven path**. whisper-rs is mature (936 stars), Piper is mature (10.7k stars). Ships in v0.33.
 
 ### 5.3 Path 2: Native Audio Input in `infer:` (future, when mistral.rs ready)
 
@@ -567,7 +567,7 @@ Symmetry with vision:
 
 ### 5.4 Decision
 
-- **Ship Path 1** (`nika:transcribe` + `nika:speak`) in v0.30
+- **Ship Path 1** (`nika:transcribe` + `nika:speak`) in v0.33
 - **Prepare AST** for Path 2 (`audio:` field in InferAction struct)
 - **Activate Path 2** when mistral.rs merges audio support to stable
 
@@ -585,7 +585,7 @@ Audio input (LLM)       FUTURE       NONE        FUTURE (mistral.rs Gemma 3n)
 
 ---
 
-## 6. Complete Tool Inventory (v0.30)
+## 6. Complete Tool Inventory (v0.33)
 
 ### 6.1 Existing Builtin Tools (11, already shipped)
 
@@ -597,13 +597,13 @@ Audio input (LLM)       FUTURE       NONE        FUTURE (mistral.rs Gemma 3n)
 | `nika:glob` | Find files by pattern | v0.15.0 |
 | `nika:grep` | Search file contents | v0.15.0 |
 | `nika:sleep` | Wait (max 5 min) | v0.15.0 |
-| `nika:records` | Query Punk Records | v0.30.0 (renamed from nika:episodes) |
-| `nika:shaka` | Orchestration state | v0.30.0 (renamed from nika:strategy_state) |
-| `nika:dag_state` | DAG introspection | v0.30.0 |
-| `nika:budget` | Token budget tracking | v0.30.0 |
-| `nika:task_status` | Task status query | v0.30.0 |
+| `nika:records` | Query Punk Records | v0.33.0 (renamed from nika:episodes) |
+| `nika:shaka` | Orchestration state | v0.33.0 (renamed from nika:strategy_state) |
+| `nika:dag_state` | DAG introspection | v0.33.0 |
+| `nika:budget` | Token budget tracking | v0.33.0 |
+| `nika:task_status` | Task status query | v0.33.0 |
 
-### 6.2 New Multi-Modal Builtin Tools (v0.30)
+### 6.2 New Multi-Modal Builtin Tools (v0.33)
 
 | Tool | Tier | Engine | Feature Flag | Default | Memory |
 |------|------|--------|--------------|---------|--------|
@@ -622,10 +622,10 @@ Audio input (LLM)       FUTURE       NONE        FUTURE (mistral.rs Gemma 3n)
 ### 6.3 Total: 20 Builtin Tools
 
 ```
-Existing (v0.27):     11 tools (file ops + introspection)
+Existing (v0.30.3):   11 tools (file ops + introspection)
 New multi-modal:       9 tools (vision, embed, transcribe, speak, ocr, translate, imagine, search, index)
                       --------
-TOTAL v0.30:          20 builtin tools
+TOTAL v0.33:          20 builtin tools
 ```
 
 ---
@@ -683,7 +683,7 @@ translate = false   # Tier 2: opt-in
 
 ---
 
-## 8. MCP Aliases Additions (v0.30)
+## 8. MCP Aliases Additions (v0.33)
 
 ### 8.1 Proposed New Aliases
 
@@ -698,9 +698,9 @@ translate = false   # Tier 2: opt-in
 ### 8.2 Updated Count
 
 ```
-Current MCP_ALIASES (v0.27):  48
-New aliases (v0.30):          +5
-Total MCP_ALIASES (v0.30):    53
+Current MCP_ALIASES (v0.30.3):  48
+New aliases (v0.33):            +5
+Total MCP_ALIASES (v0.33):      53
 ```
 
 ### 8.3 User Experience
@@ -770,11 +770,11 @@ nika:ocr("invoice.pdf")
 ## 11. Implementation Roadmap (Feature Flags)
 
 ```
-v0.28: P-MODEL + P-RECORD (Wave 1)
+v0.31: P-MODEL + P-RECORD (Wave 1)
   |
-v0.29: P-SHAKA + P-CONTEXT (Wave 2)
+v0.32: P-SHAKA + P-CONTEXT (Wave 2)
   |
-v0.30: P-MEMORY + P-INTROSPECT + MULTIMODAL (Wave 3)
+v0.33: P-MEMORY + P-INTROSPECT + MULTIMODAL (Wave 3)
   |
   +-- Milestone 1: nika:vision + nika:embed (Tier 1, mistral.rs)
   +-- Milestone 2: nika:search + nika:index (Meta tools, instant-distance)

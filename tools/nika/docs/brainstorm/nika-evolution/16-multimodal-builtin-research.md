@@ -311,12 +311,12 @@ BUILTIN TOOLS (nika:*)               MCP SERVERS (invoke:)
 ### Definition: What "Truly Multi-Modal Native" Means
 
 ```
-TIER 1 (Essential -- v0.28/v0.29 target):
+TIER 1 (Essential -- v0.31/v0.32 target):
   ├── Text generation ........... mistral.rs (existing)
   ├── Vision/VLM ................ mistral.rs (Qwen 3-VL)
   └── Embeddings ................ mistral.rs (EmbeddingGemma)
 
-TIER 2 (Useful -- v0.30 target):
+TIER 2 (Useful -- v0.33 target):
   ├── STT/Transcription ......... whisper-rs
   ├── OCR ....................... ocr-rs
   └── TTS ....................... rten + piper

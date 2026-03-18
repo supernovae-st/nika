@@ -1,9 +1,9 @@
 # 05 — Evolution Roadmap
 
-> 6 priorities in 3 waves — from Nika v0.27 to v0.30.
+> 6 priorities in 3 waves — from Nika v0.30.3 to v0.33.
 > Centered on Slate's thread/record architecture, adapted for YAML-first declarative workflows.
 
-**Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-14
+**Nika** v0.30.3 · **NovaNet** v0.20.0 · Updated 2026-03-17
 
 ---
 
@@ -11,15 +11,15 @@
 
 ```mermaid
 flowchart LR
-    subgraph TODAY["v0.27 — Today"]
-        T1["Single provider per workflow"]
-        T2["Raw TaskResult passing"]
-        T3["Static DAG execution"]
-        T4["No context budgeting"]
-        T5["In-memory Egghead"]
+    subgraph TODAY["v0.30.3 — Today"]
+        T1["Single provider per workflow (multi via model_slot: TBD)"]
+        T2["Raw TaskResult passing (RunContext DashMap)"]
+        T3["Static DAG + for_each + decompose"]
+        T4["No per-task context budgeting"]
+        T5["In-memory RunContext (DashMap)"]
     end
 
-    subgraph TOMORROW["v0.30 — Target"]
+    subgraph TOMORROW["v0.33 — Target"]
         F1["4-slot model routing"]
         F2["Record compression"]
         F3["Shaka orchestration"]
@@ -38,7 +38,7 @@ flowchart LR
 ```
 
 > [!IMPORTANT]
-> **Core insight** — Nika's DAG IS Slate's kernel. `AnalyzedWorkflow` IS the OS. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions, then persist via NovaNet.
+> **Core insight** — Nika's DAG IS Slate's kernel. `AnalyzedWorkflow` IS the OS. `TaskResult` IS return values. `RunContext` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions, then persist via NovaNet.
 
 ---
 
@@ -60,17 +60,17 @@ flowchart TD
     PC --> PMEM
     PMEM --> PI
 
-    subgraph W1["Wave 1 · v0.28 · schema @0.12"]
+    subgraph W1["Wave 1 · v0.31 · schema @0.13"]
         PM
         PE
     end
 
-    subgraph W2["Wave 2 · v0.29 · schema @0.13"]
+    subgraph W2["Wave 2 · v0.32 · schema @0.14"]
         PS
         PC
     end
 
-    subgraph W3["Wave 3 · v0.30"]
+    subgraph W3["Wave 3 · v0.33"]
         PMEM
         PI
     end
@@ -85,26 +85,31 @@ flowchart TD
 
 ---
 
-## Wave 1: Thread Foundation (v0.28, schema @0.12)
+## Wave 1: Thread Foundation (v0.31, schema @0.13)
 
 ### P-MODEL: 4-Slot Model Architecture
 
 Route different cognitive tasks to different providers/models. Inspired by Slate's cross-model composition (Sonnet + Codex)[^1], adapted as named slots per-workflow.
 
+> [!NOTE]
+> **Naming Decision (2026-03-17):** The slot names `edison`/`atlas`/`york`/`pythagoras` (Vegapunk naming)
+> have been REPLACED by descriptive placeholder names. Final names TBD via brainstorming session.
+> Placeholder candidates: `fast`, `cheap`, `smart`, `thinker` (or similar descriptive names).
+
 ```mermaid
 flowchart LR
     subgraph SLOTS["model_slots:"]
-        M["🧠 edison\nclaude-sonnet-4-6"]
-        T["⚡ atlas\nllama-3.3-70b"]
-        S["🔍 york\ndeepseek-chat"]
-        R["🤔 pythagoras\nclaude + thinking"]
+        M["🧠 main\nclaude-sonnet-4-6"]
+        T["⚡ fast\nllama-3.3-70b"]
+        S["🔍 cheap\ndeepseek-chat"]
+        R["🤔 thinker\nclaude + thinking"]
     end
 
     subgraph TASKS["tasks:"]
-        T1["plan\n→ pythagoras"]
-        T2["generate\n→ edison"]
-        T3["fetch data\n→ york"]
-        T4["format\n→ atlas"]
+        T1["plan\n→ thinker"]
+        T2["generate\n→ main"]
+        T3["fetch data\n→ cheap"]
+        T4["format\n→ fast"]
     end
 
     M --> T2
@@ -118,9 +123,9 @@ flowchart LR
 
 **Current state** → After:
 
-| Aspect | Today (v0.27) | After (v0.28) |
+| Aspect | Today (v0.30.3) | After (v0.31) |
 |--------|---------------|---------------|
-| Provider scope | Single per workflow | 4 named slots per workflow |
+| Provider scope | Single per workflow (7 providers: Anthropic, OpenAI, Google, Groq, DeepSeek, Mistral, xAI) | 4 named slots per workflow |
 | Per-task override | Not supported | `model_slot:` reference |
 | Cost optimization | None | Route simple tasks to cheap models |
 | Provider resolution | `RigProvider::auto()` | `RigProvider::from_slot()` |
@@ -129,45 +134,45 @@ flowchart LR
 <summary>📐 YAML Design</summary>
 
 ```yaml
-schema: nika/workflow@0.12
+schema: nika/workflow@0.13
 
 model_slots:
-  edison:
+  main:                            # name TBD
     provider: anthropic
     model: claude-sonnet-4-6
     # For: primary content generation, complex reasoning
 
-  atlas:
+  fast:                            # name TBD
     provider: groq
     model: llama-3.3-70b-versatile
     # For: simple thread execution, tactical actions
 
-  york:
+  cheap:                           # name TBD
     provider: deepseek
     model: deepseek-chat
     # For: research, search synthesis, information retrieval
 
-  pythagoras:
+  thinker:                         # name TBD
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
     # For: planning, review, critique
 
-default_model_slot: edison
+default_model_slot: main           # name TBD
 
 tasks:
   - id: plan
-    model_slot: pythagoras         # Expensive deep-thinking model
+    model_slot: thinker            # Expensive deep-thinking model (name TBD)
     infer: "Create a content plan for {{with.entity}}"
 
   - id: generate_pages
-    model_slot: atlas              # Cheap fast model
+    model_slot: fast               # Cheap fast model (name TBD)
     for_each: $pages
     infer: "Generate page {{with.item}}"
 
   - id: review
-    model_slot: pythagoras         # Back to expensive model
+    model_slot: thinker            # Back to expensive model (name TBD)
     infer: "Review all generated pages for quality"
 ```
 
@@ -186,7 +191,7 @@ tasks:
 | Slot validation | `ast/analyzer/analyze.rs` | Low |
 | `from_slot()` constructor | `provider/rig.rs` | Medium |
 | Slot resolution per task | `runtime/executor.rs` | Medium |
-| Schema bump | `schemas/nika-workflow.schema.json` → @0.12 | Low |
+| Schema bump | `schemas/nika-workflow.schema.json` → @0.13 | Low |
 | Feature gate | `ast/analyzer/feature_gate.rs` | Low |
 
 **Breaking changes:** None — new optional fields, old workflows unchanged.
@@ -196,7 +201,7 @@ tasks:
 <details>
 <summary>📚 Source Inspiration</summary>
 
-- **Slate:** Cross-model composition — uses Sonnet + Codex together for different cognitive tasks[^1]. The "4 named slots" design (edison/atlas/york/pythagoras) is our proposal.
+- **Slate:** Cross-model composition — uses Sonnet + Codex together for different cognitive tasks[^1]. The "4 named slots" design (main/fast/cheap/thinker — names TBD) is our proposal.
 - **THREAD:** Resource-aware model allocation per subtask[^2]
 - **SWE-bench:** Different models excel at different cognitive tasks
 
@@ -207,6 +212,10 @@ tasks:
 ### P-RECORD: Record Engine
 
 Compressed representation of a task's execution, generated at the natural completion boundary. Downstream tasks receive **records**, not raw output. This is Slate's core innovation[^1].
+
+> [!NOTE]
+> **Completed (v0.30.3):** The `DataStore` → `RunContext` rename referenced in Doc 12
+> has been completed. `RunContext` is the current production name for the in-memory DashMap store.
 
 ```mermaid
 stateDiagram-v2
@@ -220,7 +229,7 @@ stateDiagram-v2
     RawStored --> [*]: raw TaskResult (legacy)
 
     note right of Compressing
-        Uses cheap model (atlas slot)
+        Uses cheap model (fast slot)
         Max tokens configurable
         Confidence self-assessed
     end note
@@ -228,9 +237,9 @@ stateDiagram-v2
 
 **Current state** → After:
 
-| Aspect | Today (v0.27) | After (v0.28) |
+| Aspect | Today (v0.30.3) | After (v0.31) |
 |--------|---------------|---------------|
-| Task output | Raw `TaskResult` in `Egghead` | `Record` struct with compression |
+| Task output | Raw `TaskResult` in `RunContext` | `Record` struct with compression |
 | Context passing | Full output via `with:` bindings | Record summaries via `with:` bindings |
 | Context growth | Linear with pipeline depth | Bounded by record `max_tokens` |
 | Observability | `TaskCompleted` event | `TaskCompleted` + `RecordCreated` events |
@@ -242,7 +251,7 @@ stateDiagram-v2
 ```yaml
 tasks:
   - id: research_trends
-    model_slot: york
+    model_slot: cheap              # name TBD
     infer: "Research QR code trends in 2026"
     record:
       compress: true           # Generate record summary after execution
@@ -319,7 +328,7 @@ New approach (Record confidence):
 
 ---
 
-## Wave 2: Shaka Intelligence (v0.29, schema @0.13)
+## Wave 2: Shaka Intelligence (v0.32, schema @0.14)
 
 ### P-SHAKA: Shaka Orchestration
 
@@ -354,7 +363,7 @@ sequenceDiagram
 
 **Current state** → After:
 
-| Aspect | Today (v0.27) | After (v0.29) |
+| Aspect | Today (v0.30.3) | After (v0.32) |
 |--------|---------------|---------------|
 | Execution mode | Static DAG only | `dag` (default) or `shaka` |
 | Task dispatch | All known at parse time | Dynamic by Shaka LLM |
@@ -366,32 +375,32 @@ sequenceDiagram
 <summary>📐 YAML Design</summary>
 
 ```yaml
-schema: nika/workflow@0.13
+schema: nika/workflow@0.14
 workflow: landing-page-generator
 
 orchestration: shaka    # NEW: enables shaka/satellites mode
 
 model_slots:
-  pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
-  edison: { provider: anthropic, model: claude-sonnet-4-6 }
-  york: { provider: groq, model: llama-3.3-70b-versatile }
-  atlas: { provider: deepseek, model: deepseek-chat }
+  thinker: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }  # name TBD
+  main: { provider: anthropic, model: claude-sonnet-4-6 }  # name TBD
+  fast: { provider: groq, model: llama-3.3-70b-versatile }  # name TBD
+  cheap: { provider: deepseek, model: deepseek-chat }  # name TBD
 
 shaka:
   goal: "Generate a complete French landing page for QR Code AI"
-  model_slot: pythagoras
+  model_slot: thinker              # name TBD
   max_rounds: 10
   record_budget: 15000    # Total token budget across all records
 
 # Satellite templates — dispatched dynamically by Shaka
 tasks:
   - id: research
-    model_slot: york
+    model_slot: cheap              # name TBD
     infer: "Research: {{with.topic}}"
     record: { compress: true, max_tokens: 300 }
 
   - id: write_section
-    model_slot: edison
+    model_slot: main               # name TBD
     infer: "Write: {{with.section}} using context: {{with.context}}"
     record: { compress: true, retain: [content], max_tokens: 800 }
     structured:
@@ -403,7 +412,7 @@ tasks:
         required: [content]
 
   - id: review
-    model_slot: pythagoras
+    model_slot: thinker            # name TBD
     infer: "Review and critique: {{with.draft}}"
     record: { compress: true, retain: [issues, suggestions] }
     structured:
@@ -430,7 +439,7 @@ tasks:
 | Shaka mode routing | `runtime/runner.rs` | Medium |
 | Mutable DAG operations | `dag/mod.rs` | Medium |
 | Shaka visualization in TUI | `tui/views/runner.rs` | Medium |
-| Schema bump | `schemas/nika-workflow.schema.json` → @0.13 | Low |
+| Schema bump | `schemas/nika-workflow.schema.json` → @0.14 | Low |
 
 **Dependencies:** Requires P-MODEL + P-RECORD (Wave 1) as foundation.
 
@@ -483,7 +492,7 @@ flowchart TB
 ```yaml
 tasks:
   - id: research
-    model_slot: york
+    model_slot: cheap              # name TBD
     context_budget: 4000     # Max tokens in this task's context
     infer: "Research QR code trends"
     record:
@@ -491,7 +500,7 @@ tasks:
       max_tokens: 300        # Record must fit in 300 tokens
 
   - id: generate
-    model_slot: edison
+    model_slot: main               # name TBD
     context_budget: 8000     # Larger budget for generation
     with:
       trends: "$research"     # Receives record, not raw output
@@ -524,11 +533,11 @@ tasks:
 
 ---
 
-## Wave 3: Persistent Memory (v0.30)
+## Wave 3: Persistent Memory (v0.33)
 
 ### P-MEMORY: 3-Tier Punk Records
 
-Records live in a 3-tier architecture: **HOT** (Egghead DashMap RAM, one run), **WARM** (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), and **COLD** (NovaNet `Record` node class, permanent, promoted records). Records first live locally in Punk Records (WARM tier), then get promoted to NovaNet (COLD tier) when they prove valuable — enabling cross-session learning and knowledge overhang activation[^1].
+Records live in a 3-tier architecture: **HOT** (RunContext DashMap RAM, one run), **WARM** (Punk Records NDJSON on disk, TTL configurable, managed by `RecordLog`), and **COLD** (NovaNet `Record` node class, permanent, promoted records). Records first live locally in Punk Records (WARM tier), then get promoted to NovaNet (COLD tier) when they prove valuable — enabling cross-session learning and knowledge overhang activation[^1].
 
 ```mermaid
 flowchart LR
@@ -679,12 +688,12 @@ quadrantChart
 
 | Priority | Version | Schema | New Files | Modified Files | Dependencies |
 |----------|---------|--------|-----------|----------------|--------------|
-| P-MODEL | v0.28.0 | @0.12 | 2 | 6 | None |
-| P-RECORD | v0.28.0 | @0.12 | 2 | 5 | None (ships with P-MODEL) |
-| P-SHAKA | v0.29.0 | @0.13 | 3 | 5 | P-MODEL + P-RECORD |
-| P-CONTEXT | v0.29.0 | @0.13 | 1 | 3 | P-RECORD |
-| P-MEMORY | v0.30.0 | @0.13 + NovaNet | 1 | 3 | P-RECORD |
-| P-INTROSPECT | v0.30.0 | — | 6 tools | 3 | P-RECORD + P-SHAKA |
+| P-MODEL | v0.31.0 | @0.13 | 2 | 6 | None |
+| P-RECORD | v0.31.0 | @0.13 | 2 | 5 | None (ships with P-MODEL) |
+| P-SHAKA | v0.32.0 | @0.14 | 3 | 5 | P-MODEL + P-RECORD |
+| P-CONTEXT | v0.32.0 | @0.14 | 1 | 3 | P-RECORD |
+| P-MEMORY | v0.33.0 | @0.14 + NovaNet | 1 | 3 | P-RECORD |
+| P-INTROSPECT | v0.33.0 | — | 6 tools | 3 | P-RECORD + P-SHAKA |
 
 ---
 
@@ -717,7 +726,7 @@ quadrantChart
 | `src/provider/rig.rs` | P-MODEL | `from_slot()` constructor |
 | `src/runtime/executor.rs` | P-MODEL, P-RECORD, P-CONTEXT | Slot routing, record gen, budget enforcement |
 | `src/runtime/runner.rs` | P-SHAKA | Shaka mode routing |
-| `src/store/mod.rs` | P-RECORD | Record storage in `Egghead` |
+| `src/store/mod.rs` | P-RECORD | Record storage in `RunContext` |
 | `src/binding/resolve.rs` | P-RECORD | Record-aware resolution |
 | `src/event/log.rs` | P-RECORD, P-CONTEXT | `RecordCreated`, `BudgetExceeded` events |
 | `src/dag/mod.rs` | P-SHAKA | Mutable operations |
@@ -768,7 +777,7 @@ Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give a
 
 ---
 
-[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate). Records, thread weaving, working memory, and cross-model composition are Slate's architectural innovations. The "4 named slots" (edison/atlas/york/pythagoras) is our design, inspired by Slate's approach.
+[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate). Records, thread weaving, working memory, and cross-model composition are Slate's architectural innovations. The "4 named slots" (main/fast/cheap/thinker — names TBD) is our design, inspired by Slate's approach.
 [^2]: THREAD: Thinking Deeper with Recursive Spawning — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402). Hierarchical agent decomposition with resource-aware model selection.
 [^3]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967). Branch/fold sub-trajectory compression.
 [^4]: Memory-R1: RL-trained agent memory policies — [arXiv:2508.19828](https://arxiv.org/abs/2508.19828). Confidence scoring and memory retention.

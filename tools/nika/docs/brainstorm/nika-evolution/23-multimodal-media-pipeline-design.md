@@ -3,7 +3,7 @@
 > Complete design for handling binary media (images, PDF, audio, video, documents)
 > in Nika workflows. Approach B+: MediaRef first-class + CAS-ready blake3 layout.
 
-**Date**: 2026-03-17 | **Nika version**: v0.27.0 | **rmcp**: 0.16.0 (latest: 1.2.0)
+**Date**: 2026-03-17 | **Nika version**: v0.30.3 | **rmcp**: 0.16.0 (latest: 1.2.0)
 
 ---
 
@@ -1501,7 +1501,7 @@ Research was conducted via 8 parallel agents analyzing:
 | `src/ast/artifact.rs` | Full file | ArtifactFormat: Text/Json/Yaml only |
 | `src/runtime/artifact_processor.rs` | Full file | String-only write pipeline |
 | `src/io/writer.rs` | Full file | `write_atomic()` writes UTF-8 string bytes |
-| `src/event/log.rs` | Full file | 34 events, no media-specific events |
+| `src/event/log.rs` | Full file | 32 events, no media-specific events |
 | `src/store/run_context.rs` | Full file | TaskResult uses `Arc<Value>` (JSON-compatible) |
 | `Cargo.toml:139` | Deps | `rmcp = { version = "0.16", features = ["client", "transport-child-process"] }` |
 

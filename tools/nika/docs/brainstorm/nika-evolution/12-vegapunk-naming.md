@@ -1,9 +1,18 @@
 # 12 — Vegapunk Naming
 
-> One Piece-inspired naming for Nika v0.30 architecture.
+> One Piece-inspired naming for Nika v0.33 architecture.
 > v0 philosophy: no backward compatibility, no legacy, just rename.
 
 **Status:** APPROVED | **Date:** 2026-03-14
+
+> [!WARNING]
+> **Partial Update (2026-03-17):**
+> - ✅ `DataStore → RunContext` rename: **COMPLETED** in v0.30.3
+> - ✅ `Egghead` removed from codebase: RunContext is the production name
+> - ⏸️ Model slot names (`edison`/`atlas`/`york`/`pythagoras`): **ON HOLD**
+>   Decision: Use descriptive names instead of Vegapunk names. Final names TBD via brainstorming.
+>   Placeholder candidates: `main`/`fast`/`cheap`/`thinker` (or similar).
+> - ⏸️ Other Vegapunk names (Shaka, Punk Records, Satellites): Status TBD
 
 ---
 
@@ -292,27 +301,27 @@ pub struct ShakaRunner { ... }
 
 ## Codebase Impact Analysis
 
-### Existing code (v0.27 — needs rename NOW)
+### Existing code (v0.30.3 — needs rename NOW)
 
 | Rename | Occurrences | Files | Criticité |
 |--------|-------------|-------|-----------|
-| `DataStore` → `RunContext` | **668** | 29 (19 src + 10 tests) | **CRITIQUE** |
+| `DataStore` → `RunContext` | ~~668~~ → **0** | ~~29~~ → 0 | ✅ **COMPLETED** (v0.30.3) |
 | `strategy` (DecomposeStrategy) | 51 | 13 | MOYEN (attention: `BackoffStrategy` n'est PAS à renommer) |
 | `episode` | 17 | 1 (tier6.rs exemples) | FAIBLE |
 | `tactics` | 0 | 0 | Pas encore implémenté |
 | `model slots` | 0 | 0 | Pas encore implémenté |
 
-### Planned code (v0.28-v0.30 — use new names directly)
+### Planned code (v0.31-v0.33 — use new names directly)
 
 | Feature | Fichiers à créer | Naming |
 |---------|------------------|--------|
-| Model routing (v0.28) | `src/runtime/model_slots.rs` | `ModelSlots { edison, atlas, pythagoras, york }` |
-| Record compression (v0.28) | `src/runtime/record.rs`, `src/runtime/record_compress.rs` | `Record`, `RecordCompressor` |
-| Shaka orchestration (v0.29) | `src/runtime/shaka.rs`, `src/runtime/shaka_runner.rs`, `src/ast/shaka.rs` | `ShakaRunner`, `ShakaConfig`, `Satellite` |
-| Context budgets (v0.29) | `src/runtime/budget.rs` | Pas de rename (technique) |
-| Punk Records (v0.28) | `src/runtime/record_log.rs` | `RecordLog` (NDJSON on disk, .nika/records/) |
-| NovaNet memory (v0.30) | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
-| Introspection (v0.30) | 6 builtin tools | `nika:records`, `nika:shaka`, rest technique |
+| Model routing (v0.31) | `src/runtime/model_slots.rs` | `ModelSlots { edison, atlas, pythagoras, york }` |
+| Record compression (v0.31) | `src/runtime/record.rs`, `src/runtime/record_compress.rs` | `Record`, `RecordCompressor` |
+| Shaka orchestration (v0.32) | `src/runtime/shaka.rs`, `src/runtime/shaka_runner.rs`, `src/ast/shaka.rs` | `ShakaRunner`, `ShakaConfig`, `Satellite` |
+| Context budgets (v0.32) | `src/runtime/budget.rs` | Pas de rename (technique) |
+| Punk Records (v0.31) | `src/runtime/record_log.rs` | `RecordLog` (NDJSON on disk, .nika/records/) |
+| NovaNet memory (v0.33) | `src/runtime/promote.rs` | `Record` node class + `RecordLog::promote()` |
+| Introspection (v0.33) | 6 builtin tools | `nika:records`, `nika:shaka`, rest technique |
 
 ### Detailed file impact: DataStore → RunContext
 
@@ -378,9 +387,9 @@ pub struct ShakaRunner { ... }
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-### Phase 1 — DataStore → RunContext (v0.28)
+### Phase 1 — DataStore → RunContext (v0.31) ✅ COMPLETED
 
-The biggest rename. 668 occurrences, 29 files. Pure mechanical refactor.
+The biggest rename. 668 occurrences, 29 files. Pure mechanical refactor. **Completed in v0.30.3.**
 
 ```bash
 # 1. Rename the file
@@ -412,7 +421,7 @@ sed -i 's/datastore/run_context/g' tests/**/*.rs
 
 **Risk**: LOW — pure rename, no logic change. All tests validate the same behavior.
 
-### Phase 2 — Record infrastructure (v0.28)
+### Phase 2 — Record infrastructure (v0.31) 🔮 PLANNED
 
 Create new files with correct naming from day 1:
 
@@ -423,7 +432,7 @@ src/runtime/record_compress.rs  # RecordCompressor (tactical LLM summarization)
 
 Add `record:` field to task AST in `src/ast/action.rs`.
 
-### Phase 2b — Punk Records tier WARM (v0.28)
+### Phase 2b — Punk Records tier WARM (v0.31) 🔮 PLANNED
 
 Create the local disk persistence layer:
 
@@ -435,7 +444,7 @@ src/runtime/record_config.rs    # RecordConfig — TTL, max_size, promotion sett
 Add `[records]` section to `.nika/config.toml` parser.
 Add `nika records` CLI subcommand (list, show, search, promote, prune, stats).
 
-### Phase 3 — Model Slots as Satellites (v0.28)
+### Phase 3 — Model Slots as Satellites (v0.31) 🔮 PLANNED — slot names changed from Vegapunk to descriptive (TBD)
 
 Create new files with correct naming:
 
@@ -444,7 +453,7 @@ src/runtime/model_slots.rs      # ModelSlots { edison, atlas, pythagoras, york }
 src/ast/model_slots.rs          # YAML parsing for models: block
 ```
 
-### Phase 4 — Shaka Orchestrator (v0.29)
+### Phase 4 — Shaka Orchestrator (v0.32) 🔮 PLANNED
 
 Create new files:
 
@@ -456,7 +465,7 @@ src/ast/shaka.rs                # ShakaConfig, Satellite AST parsing
 
 Add `orchestration:` field to workflow AST. Parser accepts both `shaka` and `strategy`.
 
-### Phase 5 — NovaNet promotion + Introspection (v0.30)
+### Phase 5 — NovaNet promotion + Introspection (v0.33) 🔮 PLANNED
 
 Add promotion logic:
 
@@ -545,7 +554,7 @@ Other introspection tools keep technical names (dag_state, budget, task_status, 
 - **Extension naturelle (Doc 17)** — `vector_index` field added pour `nika:search` native RAG
 - **Clear semantics** — Context de runtime qui persiste pendant le run, disparu après
 
-**Status :** RÉSOLU — implémenté en v0.28
+**Status :** RÉSOLU — implémenté en v0.31
 
 ### Q2: Punk Records = tier WARM — VALIDE
 
