@@ -5,8 +5,10 @@
 
 pub mod detect;
 pub mod error;
+pub mod store;
 pub mod types;
 
 pub use detect::{detect_mime, DetectedMime, DetectionSource};
 pub use error::MediaError;
+pub use store::{CasStore, CleanResult, StoreResult};
 pub use types::{MediaBudget, MediaRef, MediaType};
