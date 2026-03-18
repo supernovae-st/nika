@@ -90,25 +90,38 @@ impl MediaBudget {
     }
 
     /// Check budget and add bytes atomically. Returns error if budget exceeded.
+    ///
+    /// Uses `fetch_update` (CAS loop) so the increment and comparison
+    /// are one atomic unit — prevents concurrent overruns.
     pub fn check_and_add(
         &self,
         size: u64,
         _task_id: &str,
     ) -> Result<(), super::error::MediaError> {
-        let new_total = self.run_bytes.fetch_add(size, Ordering::Relaxed) + size;
-        if new_total > self.max_per_run {
-            self.run_bytes.fetch_sub(size, Ordering::Relaxed);
-            return Err(super::error::MediaError::RunBudgetExceeded {
-                current: new_total,
+        let result = self.run_bytes.fetch_update(
+            Ordering::AcqRel,
+            Ordering::Acquire,
+            |current| {
+                let new_total = current + size;
+                if new_total > self.max_per_run {
+                    None // reject: over budget
+                } else {
+                    Some(new_total) // accept: update counter
+                }
+            },
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(current) => Err(super::error::MediaError::RunBudgetExceeded {
+                current: current + size,
                 max: self.max_per_run,
-            });
+            }),
         }
-        Ok(())
     }
 
     /// Get current accumulated bytes.
     pub fn current_bytes(&self) -> u64 {
-        self.run_bytes.load(Ordering::Relaxed)
+        self.run_bytes.load(Ordering::Acquire)
     }
 }
 

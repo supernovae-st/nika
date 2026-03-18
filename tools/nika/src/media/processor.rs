@@ -169,14 +169,6 @@ mod tests {
     use crate::mcp::types::ContentBlock;
     use base64::Engine;
 
-    fn make_processor() -> MediaProcessor {
-        let dir = tempfile::tempdir().unwrap();
-        let store = CasStore::new(dir.path());
-        // Leak the tempdir so it lives long enough
-        std::mem::forget(dir);
-        MediaProcessor::new(store)
-    }
-
     fn make_processor_with_dir() -> (MediaProcessor, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());

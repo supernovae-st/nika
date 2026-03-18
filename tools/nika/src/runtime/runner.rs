@@ -825,6 +825,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     tr
                 }
                 Err(e) => {
+                    // Drain any orphaned media refs (defense-in-depth)
+                    let _ = datastore.take_media(&task_id);
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(&task_id),
                         error: e.to_string(),
