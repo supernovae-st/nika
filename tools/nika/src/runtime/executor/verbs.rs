@@ -925,7 +925,74 @@ impl TaskExecutor {
                     });
                 }
 
-                // Extract text and try to parse as JSON
+                // Process media content (if any)
+                if tool_result.has_media() {
+                    use crate::mcp::types::ContentBlock;
+                    use crate::media::{CasStore, MediaProcessor};
+
+                    let media_blocks = tool_result.media_blocks();
+                    let content_types: Vec<String> = media_blocks
+                        .iter()
+                        .map(|b| match b {
+                            ContentBlock::Text { .. } => unreachable!("media_blocks filters text"),
+                            ContentBlock::Image { .. } => "image".to_string(),
+                            ContentBlock::Audio { .. } => "audio".to_string(),
+                            ContentBlock::Resource(_) => "resource".to_string(),
+                            ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
+                        })
+                        .collect();
+
+                    self.event_log.emit(EventKind::MediaExtracted {
+                        task_id: Arc::clone(task_id),
+                        block_count: media_blocks.len() as u32,
+                        content_types,
+                    });
+
+                    let workspace_root = std::env::current_dir().unwrap_or_else(|_| {
+                        tracing::warn!("Failed to get current directory for CAS, using /tmp");
+                        std::path::PathBuf::from("/tmp")
+                    });
+                    let store = CasStore::workspace_default(&workspace_root);
+                    let processor = MediaProcessor::new(store);
+
+                    let process_results = processor.process_all(&tool_result.content, &task_id.to_string()).await;
+
+                    let mut media_refs = Vec::new();
+                    for result in process_results {
+                        match result {
+                            Ok((media_ref, store_result)) => {
+                                self.event_log.emit(EventKind::MediaProcessed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    mime_type: media_ref.mime_type.clone(),
+                                    size_bytes: media_ref.size_bytes,
+                                });
+                                self.event_log.emit(EventKind::MediaStored {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    path: media_ref.path.display().to_string(),
+                                    size_bytes: media_ref.size_bytes,
+                                    verified: store_result.verified,
+                                    deduplicated: store_result.deduplicated,
+                                    pipeline_ms: store_result.pipeline_ms,
+                                });
+                                media_refs.push(media_ref);
+                            }
+                            Err((block_index, error)) => {
+                                self.event_log.emit(EventKind::MediaStoreFailed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: String::new(),
+                                    reason: format!("block {block_index}: {error}"),
+                                });
+                            }
+                        }
+                    }
+
+                    // Stage media refs in side-channel for runner to pick up
+                    datastore.set_media(task_id, media_refs);
+                }
+
+                // Text output flows as before (backward compat)
                 let text = tool_result.text();
                 serde_json::from_str(&text).unwrap_or_else(|_| {
                     tracing::trace!(task = %task_id, "MCP tool returned non-JSON text, wrapping as string");

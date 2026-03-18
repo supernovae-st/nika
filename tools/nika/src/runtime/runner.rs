@@ -807,6 +807,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                     let tr =
                         make_task_result(final_output, effective_output.as_ref(), duration).await;
+                    // Attach media refs from staging side-channel
+                    let tr = tr.with_media(datastore.take_media(&task_id));
                     if tr.is_success() {
                         event_log.emit(EventKind::TaskCompleted {
                             task_id: Arc::clone(&task_id),
