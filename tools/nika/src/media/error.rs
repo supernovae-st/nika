@@ -12,13 +12,10 @@ use std::path::PathBuf;
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MediaError {
     /// NIKA-251: Declared MIME type conflicts with detected magic bytes
-    #[error("[NIKA-251] MIME detection failed ({inspected_bytes} bytes inspected{server_hint_display})")]
+    #[error("[NIKA-251] MIME detection failed: {reason}")]
     #[diagnostic(code(nika::mime_detection_failed))]
     MimeDetectionFailed {
-        inspected_bytes: usize,
-        server_hint: Option<String>,
-        #[help]
-        server_hint_display: String,
+        reason: String,
     },
 
     /// NIKA-252: Media type is recognized but not supported for processing
@@ -109,14 +106,12 @@ impl MediaError {
 
     /// Construct MimeDetectionFailed with optional server hint.
     pub fn mime_detection_failed(inspected_bytes: usize, server_hint: Option<String>) -> Self {
-        let server_hint_display = match &server_hint {
+        let hint_display = match &server_hint {
             Some(hint) => format!(", server hint: {hint}"),
             None => String::new(),
         };
         Self::MimeDetectionFailed {
-            inspected_bytes,
-            server_hint,
-            server_hint_display,
+            reason: format!("{inspected_bytes} bytes inspected{hint_display}"),
         }
     }
 }

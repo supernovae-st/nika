@@ -955,7 +955,7 @@ impl TaskExecutor {
                     let store = CasStore::workspace_default(&workspace_root);
                     let processor = MediaProcessor::new(store);
 
-                    let process_results = processor.process_all(&tool_result.content, &task_id.to_string()).await;
+                    let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
 
                     let mut media_refs = Vec::new();
                     for result in process_results {

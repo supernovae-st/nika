@@ -59,16 +59,15 @@ pub fn detect_mime(
         let text_start = std::str::from_utf8(&sample[..sample.len().min(512)]);
         if let Ok(text) = text_start {
             let trimmed = text.trim_start();
-            if trimmed.starts_with("<?xml") || trimmed.starts_with("<svg") {
-                if trimmed.contains("<svg")
-                    || trimmed.contains("xmlns=\"http://www.w3.org/2000/svg\"")
-                {
+            if (trimmed.starts_with("<?xml") || trimmed.starts_with("<svg"))
+                && (trimmed.contains("<svg")
+                    || trimmed.contains("xmlns=\"http://www.w3.org/2000/svg\""))
+            {
                     return Ok(DetectedMime {
                         mime_type: "image/svg+xml".to_string(),
                         extension: "svg".to_string(),
                         source: DetectionSource::MagicBytes,
                     });
-                }
             }
         }
     }
