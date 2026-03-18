@@ -3019,4 +3019,254 @@ mod tests {
         let (mr, _) = processor.process(&block, "").await.unwrap().unwrap();
         assert_eq!(mr.created_by, "");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GAP 3: Full pipeline — ContentBlock -> process -> CAS -> MediaRef
+    //        -> RunContext.set_media -> take_media -> resolve_path
+    // Exercises the REAL CAS store (not mock data) through the entire
+    // pipeline from raw bytes to template-resolvable media bindings.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn gap3_full_pipeline_content_block_to_resolve_path() {
+        // Step 1: Create real processor with CAS store
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = Arc::new(MediaBudget::with_max_per_run(100_000));
+        let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "pipeline_test".into();
+
+        // Step 2: Create a ContentBlock with real PNG data
+        let png_data = real_png_bytes();
+        let b64 = encode_b64(&png_data);
+        let block = ContentBlock::image(b64, "image/png");
+
+        // Step 3: Process through MediaProcessor
+        let (media_ref, store_result) = processor
+            .process(&block, task_id.as_ref())
+            .await
+            .expect("process should succeed")
+            .expect("image block should produce Some");
+
+        // Verify the MediaRef is populated correctly
+        assert!(media_ref.hash.starts_with("blake3:"), "hash missing prefix");
+        assert_eq!(media_ref.mime_type, "image/png");
+        assert_eq!(media_ref.extension, "png");
+        assert_eq!(media_ref.size_bytes, png_data.len() as u64);
+        assert_eq!(media_ref.created_by, "pipeline_test");
+        assert!(media_ref.path.exists(), "CAS file should exist on disk");
+
+        // Verify CAS file content is correct (not corrupted)
+        let on_disk = tokio::fs::read(&media_ref.path).await.unwrap();
+        assert_eq!(on_disk, png_data, "CAS stored data must match original PNG bytes");
+
+        // Verify the hash is correct
+        let expected_hash = format!("blake3:{}", blake3::hash(&png_data).to_hex());
+        assert_eq!(media_ref.hash, expected_hash, "hash must match direct blake3 computation");
+
+        // Verify StoreResult fields
+        assert!(!store_result.deduplicated);
+        assert_eq!(store_result.size, png_data.len() as u64);
+
+        // Step 4: Stage in RunContext (simulates what run_invoke does)
+        ctx.set_media(&task_id, vec![media_ref.clone()]);
+
+        // Step 5: Take from RunContext (simulates what runner does after task completes)
+        let taken = ctx.take_media(&task_id);
+        assert_eq!(taken.len(), 1, "take_media should return 1 ref");
+        assert_eq!(taken[0].hash, media_ref.hash);
+
+        // Step 6: Build TaskResult with media (simulates runner)
+        use crate::store::TaskResult;
+        let tr = TaskResult::success(
+            serde_json::json!({"prompt": "generate a logo"}),
+            std::time::Duration::from_millis(42),
+        ).with_media(taken);
+        assert_eq!(tr.media.len(), 1);
+
+        // Step 7: Insert into RunContext results (simulates runner storing the result)
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Step 8: resolve_path — test every media field through template bindings
+
+        // {{with.pipeline_test.media}} -> full array
+        let media_arr = ctx.resolve_path("pipeline_test.media")
+            .expect("resolve_path('pipeline_test.media') should return Some");
+        assert!(media_arr.is_array());
+        assert_eq!(media_arr.as_array().unwrap().len(), 1);
+
+        // {{with.pipeline_test.media[0].hash}} -> actual blake3 hash
+        let resolved_hash = ctx.resolve_path("pipeline_test.media[0].hash")
+            .expect("resolve_path('...media[0].hash') should return Some");
+        assert_eq!(resolved_hash, expected_hash,
+            "resolved hash must match the actual blake3 hash of PNG data");
+
+        // {{with.pipeline_test.media[0].mime_type}} -> "image/png"
+        let resolved_mime = ctx.resolve_path("pipeline_test.media[0].mime_type")
+            .expect("resolve_path('...media[0].mime_type') should return Some");
+        assert_eq!(resolved_mime, "image/png");
+
+        // {{with.pipeline_test.media[0].extension}} -> "png"
+        let resolved_ext = ctx.resolve_path("pipeline_test.media[0].extension")
+            .expect("resolve_path('...media[0].extension') should return Some");
+        assert_eq!(resolved_ext, "png");
+
+        // {{with.pipeline_test.media[0].size_bytes}} -> exact decoded size
+        let resolved_size = ctx.resolve_path("pipeline_test.media[0].size_bytes")
+            .expect("resolve_path('...media[0].size_bytes') should return Some");
+        assert_eq!(resolved_size, png_data.len() as u64,
+            "size_bytes must match decoded PNG size, not base64 size");
+
+        // {{with.pipeline_test.media[0].path}} -> CAS path on disk
+        let resolved_path = ctx.resolve_path("pipeline_test.media[0].path")
+            .expect("resolve_path('...media[0].path') should return Some");
+        let path_str = resolved_path.as_str().expect("path should be a string");
+        assert!(path_str.contains(dir.path().to_str().unwrap()),
+            "resolved path should contain CAS root: {}", path_str);
+
+        // {{with.pipeline_test.media[0].created_by}} -> task_id
+        let resolved_creator = ctx.resolve_path("pipeline_test.media[0].created_by")
+            .expect("resolve_path('...media[0].created_by') should return Some");
+        assert_eq!(resolved_creator, "pipeline_test");
+
+        // Normal output fields still resolve correctly
+        let prompt = ctx.resolve_path("pipeline_test.prompt")
+            .expect("normal output should still resolve");
+        assert_eq!(prompt, "generate a logo");
+
+        // Budget was consumed
+        assert_eq!(budget.current_bytes(), png_data.len() as u64,
+            "budget should track the decoded PNG size");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GAP 8: NikaError::is_recoverable for MediaError variants
+    // Only MediaStoreIo should be recoverable through NikaError.
+    // All other MediaError variants must be non-recoverable.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn gap8_nika_error_is_recoverable_media_store_io() {
+        use crate::error::NikaError;
+
+        // MediaStoreIo is the ONLY recoverable MediaError variant
+        let io_err = MediaError::MediaStoreIo {
+            path: "/tmp/cas/ab/cdef".into(),
+            source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"),
+        };
+        let nika_err: NikaError = io_err.into();
+        assert!(nika_err.is_recoverable(),
+            "MediaStoreIo should be recoverable through NikaError");
+        assert_eq!(nika_err.code(), "NIKA-255");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_mime_detection_failed() {
+        use crate::error::NikaError;
+
+        let err = MediaError::MimeDetectionFailed {
+            reason: "magic bytes unrecognized".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "MimeDetectionFailed should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-251");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_unsupported_media_type() {
+        use crate::error::NikaError;
+
+        let err = MediaError::UnsupportedMediaType {
+            mime_type: "video/x-matroska".into(),
+            reason: "not in allowlist".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "UnsupportedMediaType should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-252");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_media_not_found() {
+        use crate::error::NikaError;
+
+        let err = MediaError::MediaNotFound {
+            hash: "blake3:deadbeef".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "MediaNotFound should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-253");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_hash_mismatch() {
+        use crate::error::NikaError;
+
+        let err = MediaError::HashMismatch {
+            expected: "blake3:aaa".into(),
+            actual: "blake3:bbb".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "HashMismatch should NOT be recoverable (data corruption)");
+        assert_eq!(nika_err.code(), "NIKA-254");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_base64_decode_failed() {
+        use crate::error::NikaError;
+
+        let err = MediaError::Base64DecodeFailed {
+            source_desc: "task gen_img".into(),
+            reason: "invalid byte at position 4".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "Base64DecodeFailed should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-256");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_base64_input_too_large() {
+        use crate::error::NikaError;
+
+        let err = MediaError::Base64InputTooLarge {
+            size: 200_000_000,
+            max: 100_000_000,
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "Base64InputTooLarge should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-257");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_empty_media_content() {
+        use crate::error::NikaError;
+
+        let err = MediaError::EmptyMediaContent {
+            task_id: "empty_task".into(),
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "EmptyMediaContent should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-258");
+    }
+
+    #[test]
+    fn gap8_nika_error_is_not_recoverable_run_budget_exceeded() {
+        use crate::error::NikaError;
+
+        let err = MediaError::RunBudgetExceeded {
+            current: 600_000_000,
+            max: 500_000_000,
+        };
+        let nika_err: NikaError = err.into();
+        assert!(!nika_err.is_recoverable(),
+            "RunBudgetExceeded should NOT be recoverable");
+        assert_eq!(nika_err.code(), "NIKA-259");
+    }
 }
