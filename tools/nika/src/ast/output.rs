@@ -138,6 +138,9 @@ pub enum OutputFormat {
 
     /// Markdown formatted output
     Markdown,
+
+    /// Binary (raw bytes, not text content)
+    Binary,
 }
 
 #[cfg(test)]

@@ -291,6 +291,10 @@ impl ArtifactWriter {
         // Copy binary from source
         let size = match request.source {
             BinarySource::CasPath(ref src) => {
+                // reflink_or_copy uses create_new semantics — remove existing file first
+                // to support overwrite mode (the default for artifacts)
+                let _ = fs::remove_file(&final_path).await;
+
                 // Use reflink_or_copy: instant on APFS/btrfs, fallback on ext4/NTFS
                 // This is a sync operation, so we spawn_blocking to avoid blocking the runtime
                 let src = src.clone();
@@ -323,7 +327,7 @@ impl ArtifactWriter {
         Ok(WriteResult {
             path: final_path,
             size,
-            format: OutputFormat::Text, // Binary doesn't have a text format; use Text as placeholder
+            format: OutputFormat::Binary,
         })
     }
 
@@ -613,5 +617,68 @@ mod tests {
 
         let result = writer.write_binary(request).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_overwrite_existing() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        // Create CAS files with different content
+        let cas_dir = temp.path().join("cas");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file_v1 = cas_dir.join("v1");
+        let cas_file_v2 = cas_dir.join("v2");
+        std::fs::write(&cas_file_v1, b"version 1 data").unwrap();
+        std::fs::write(&cas_file_v2, b"version 2 data -- longer").unwrap();
+
+        // First write
+        let request1 = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file_v1),
+            expected_size: 14,
+        };
+        let result1 = writer.write_binary(request1).await.unwrap();
+        assert_eq!(std::fs::read(&result1.path).unwrap(), b"version 1 data");
+
+        // Second write to same path (overwrite) — must succeed
+        let request2 = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file_v2),
+            expected_size: 24,
+        };
+        let result2 = writer.write_binary(request2).await.unwrap();
+        assert_eq!(
+            std::fs::read(&result2.path).unwrap(),
+            b"version 2 data -- longer",
+            "Overwrite should replace file content"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_format_is_binary() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"test").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 4,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert_eq!(result.format, OutputFormat::Binary, "Binary write should report Binary format");
     }
 }

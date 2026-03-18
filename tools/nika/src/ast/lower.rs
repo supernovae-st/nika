@@ -662,6 +662,7 @@ fn unlower_output(output: &OutputPolicy) -> AnalyzedOutput {
         OutputFormat::Json => AnalyzedOutputFormat::Json,
         OutputFormat::Yaml => AnalyzedOutputFormat::Yaml,
         OutputFormat::Markdown => AnalyzedOutputFormat::Text,
+        OutputFormat::Binary => AnalyzedOutputFormat::Text, // Binary bypasses text formatting
     };
     AnalyzedOutput {
         format,
