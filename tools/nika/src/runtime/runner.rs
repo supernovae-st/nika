@@ -388,17 +388,23 @@ impl Runner {
     ///
     /// Traces are written for WorkflowCompleted, WorkflowFailed, and WorkflowAborted.
     /// After writing, prunes old traces based on `trace_config` (max_traces + retention_days).
-    fn write_trace(&self) {
-        if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
+    fn write_trace(&self) -> Option<String> {
+        let trace_path = if let Ok(trace_writer) = TraceWriter::new(&self.generation_id) {
             if let Err(e) = trace_writer.write_all(&self.event_log) {
                 tracing::warn!(error = %e, "Failed to write trace");
+                None
             } else {
-                tracing::info!(path = %trace_writer.path().display(), "Trace written");
+                let path = trace_writer.path().display().to_string();
+                tracing::info!(path = %path, "Trace written");
+                Some(path)
             }
-        }
+        } else {
+            None
+        };
 
         // Enforce retention: prune traces beyond max_traces / retention_days
         prune_traces(self.trace_config.max_traces, self.trace_config.retention_days);
+        trace_path
     }
 
     /// Check if a task qualifies for schema validation retry
@@ -1825,7 +1831,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
 
         // Write execution trace to .nika/traces/
-        self.write_trace();
+        let trace_path = self.write_trace();
 
         if !self.quiet {
             let elapsed = workflow_start.elapsed();
@@ -1845,7 +1851,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
             });
 
-            crate::display::print_done_summary(&elapsed_str, total_tokens, total_cost);
+            crate::display::print_done_summary(
+                &elapsed_str,
+                total_tokens,
+                total_cost,
+                trace_path.as_deref(),
+            );
         }
 
         // Check for task failures — report for CI visibility

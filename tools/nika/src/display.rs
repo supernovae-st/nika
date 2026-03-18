@@ -15,19 +15,32 @@ const VERTICAL: &str = "\u{2502}";     // │
 
 /// Return a colored icon for each Nika verb.
 ///
-/// - infer  -> yellow brain
-/// - exec   -> blue lightning
-/// - fetch  -> green globe
-/// - invoke -> cyan plug
-/// - agent  -> magenta robot
+/// Canonical icon chart:
+/// - infer:  ⚡ Violet/Purple
+/// - exec:   📟 Amber/Yellow
+/// - fetch:  🛰️  Cyan
+/// - invoke: 🔌 Emerald/Green
+/// - agent:  🐔 Rose/Magenta
 pub fn verb_icon(verb: &str) -> colored::ColoredString {
     match verb {
-        "infer" => "\u{1f9e0}".yellow(),  // 🧠
-        "exec" => "\u{26a1}".blue(),       // ⚡
-        "fetch" => "\u{1f310}".green(),    // 🌐
-        "invoke" => "\u{1f50c}".cyan(),    // 🔌
-        "agent" => "\u{1f916}".magenta(),  // 🤖
-        _ => "\u{25cf}".white(),           // ●
+        "infer" => "⚡".purple(),
+        "exec" => "📟".yellow(),
+        "fetch" => "🛰️".cyan(),
+        "invoke" => "🔌".green(),
+        "agent" => "🐔".magenta(),
+        _ => "●".white(),
+    }
+}
+
+/// Return the canonical emoji for a verb (uncolored, for DAG boxes).
+pub fn verb_emoji(verb: &str) -> &'static str {
+    match verb {
+        "infer" => "⚡",
+        "exec" => "📟",
+        "fetch" => "🛰️",
+        "invoke" => "🔌",
+        "agent" => "🐔",
+        _ => "●",
     }
 }
 
@@ -104,28 +117,43 @@ pub fn print_workflow_header(
 /// ──────────────────────────────────────────────────
 /// ✓ Done! (1.7s | 42 tokens | $0.0003)
 /// ```
-pub fn print_done_summary(elapsed_str: &str, total_tokens: u64, total_cost: f64) {
+pub fn print_done_summary(
+    elapsed_str: &str,
+    total_tokens: u64,
+    total_cost: f64,
+    trace_path: Option<&str>,
+) {
     println!();
     println!("{}", HORIZONTAL.repeat(50).dimmed());
+
+    // Main done line with telemetry
     if total_tokens > 0 {
         println!(
-            "{} {} ({} | {} tokens | ${})",
+            "{} {} {} {} {} {} {} {}",
             "\u{2713}".green().bold(), // ✓
             "Done!".green().bold(),
             elapsed_str.dimmed(),
-            total_tokens.to_string().dimmed(),
-            crate::provider::cost::format_cost(total_cost)
-                .trim_start_matches('$')
-                .dimmed()
+            "·".dimmed(),
+            format!("{} tokens", total_tokens).dimmed(),
+            "·".dimmed(),
+            format!("${}", crate::provider::cost::format_cost(total_cost)
+                .trim_start_matches('$')).dimmed(),
+            if total_cost > 0.0 { "" } else { "" }
         );
     } else {
         println!(
-            "{} {} ({})",
+            "{} {} {}",
             "\u{2713}".green().bold(), // ✓
             "Done!".green().bold(),
-            elapsed_str.dimmed()
+            elapsed_str.dimmed(),
         );
     }
+
+    // Trace link
+    if let Some(path) = trace_path {
+        println!("  {} {}", "trace:".dimmed(), path.dimmed());
+    }
+
     println!();
 }
 
@@ -394,11 +422,11 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
         .map(|id| {
             let task = tasks.iter().find(|t| t.id == *id).unwrap();
             let icon = match task.verb.as_str() {
-                "infer" => "🧠",
-                "exec" => "⚡",
-                "fetch" => "🌐",
+                "infer" => "⚡",
+                "exec" => "📟",
+                "fetch" => "🛰️",
                 "invoke" => "🔌",
-                "agent" => "🤖",
+                "agent" => "🐔",
                 _ => "●",
             };
             let label = format!("{} {}", icon, task.id);
@@ -423,7 +451,7 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     }
     println!("{}", top);
 
-    // Content: ║  🧠 task_name  ║
+    // Content: ║  ⚡ task_name  ║
     let mut mid = String::from("    ");
     for (i, (task, label, dw)) in boxes.iter().enumerate() {
         if i > 0 { mid.push_str("  "); }
@@ -626,11 +654,11 @@ fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize
         let task = tasks.iter().find(|t| t.id == *task_id);
         let verb = task.map(|t| t.verb.as_str()).unwrap_or("exec");
         let icon = match verb {
-            "infer" => "🧠",
-            "exec" => "⚡",
-            "fetch" => "🌐",
+            "infer" => "⚡",
+            "exec" => "📟",
+            "fetch" => "🛰️",
             "invoke" => "🔌",
-            "agent" => "🤖",
+            "agent" => "🐔",
             _ => "●",
         };
         let label = format!("{} {}", icon, task_id);
