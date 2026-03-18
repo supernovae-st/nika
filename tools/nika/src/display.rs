@@ -407,13 +407,18 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
         })
         .collect();
 
-    // Top border: ╔═✓═══════════╗
+    // Top border: ╔═✓═══════════╗ (or ╔══════════════╗ for pending)
     let mut top = String::from("    ");
     for (i, (task, _, dw)) in boxes.iter().enumerate() {
         if i > 0 { top.push_str("  "); }
-        let badge = status_badge(task.status);
-        let fill_w = dw + BOX_PAD * 2 - 1; // -1 for the badge char
-        let border = format!("╔═{}═{}╗", badge, "═".repeat(fill_w.max(1)));
+        let w = dw + BOX_PAD * 2;
+        let border = if task.status == DagTaskStatus::Pending {
+            format!("╔{}╗", "═".repeat(w))
+        } else {
+            let badge = status_badge(task.status);
+            let fill_w = w.saturating_sub(2); // -2 for badge + surrounding ═
+            format!("╔═{}═{}╗", badge, "═".repeat(fill_w.max(1)))
+        };
         top.push_str(&colorize(&border, task.status));
     }
     println!("{}", top);
@@ -497,19 +502,30 @@ fn render_v3_edges(
 
     let width = max_pos + 4;
 
-    // All straight down?
-    let all_straight = edges.iter().all(|(f, t)| f == t);
+    // Nearly straight down? (within 3 columns = close enough to snap)
+    let all_straight = edges.iter().all(|(f, t)| {
+        let diff = if *f > *t { f - t } else { t - f };
+        diff <= 3
+    });
     if all_straight {
+        // Use the average of source and target for pipe position
+        let mut pipe_cols: Vec<usize> = Vec::new();
+        for &(from, to) in &edges {
+            let col = (from + to) / 2;
+            if !pipe_cols.contains(&col) {
+                pipe_cols.push(col);
+            }
+        }
+
         let mut line = vec![' '; width];
-        for &(col, _) in &edges {
+        for &col in &pipe_cols {
             if col < line.len() { line[col] = '│'; }
         }
-        // Add arrow at each drop point
         let s: String = line.iter().collect();
         println!("    {}", s.dimmed());
 
         let mut arrow_line = vec![' '; width];
-        for &(col, _) in &edges {
+        for &col in &pipe_cols {
             if col < arrow_line.len() { arrow_line[col] = '▼'; }
         }
         let s2: String = arrow_line.iter().collect();
@@ -526,38 +542,56 @@ fn render_v3_edges(
     println!("    {}", s1.dimmed());
 
     // Line 2: horizontal connections with arrows
+    // Three-pass rendering to avoid character conflicts:
+    // Pass 1: lay down horizontal lines ─
+    // Pass 2: place arrows ▼ at targets
+    // Pass 3: place corners └ ┘ at sources
     let mut conn_line = vec![' '; width];
+
+    // Collect all edge segments
+    struct EdgeSeg { src: usize, tgt: usize }
+    let mut segs: Vec<EdgeSeg> = Vec::new();
 
     for (ni, next_id) in next_layer.iter().enumerate() {
         let target_col = next_centers[ni].1;
-        let mut sources: Vec<usize> = Vec::new();
         if let Some(task_deps) = deps.get(next_id) {
             for dep in task_deps {
                 if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
-                    sources.push(prev_centers[pi].1);
+                    segs.push(EdgeSeg { src: prev_centers[pi].1, tgt: target_col });
                 }
             }
         }
-        if sources.is_empty() { continue; }
+    }
 
-        for &src in &sources {
-            let (lo, hi) = if src <= target_col { (src, target_col) } else { (target_col, src) };
+    // Pass 1: horizontal fills
+    for seg in &segs {
+        if seg.src != seg.tgt {
+            let (lo, hi) = if seg.src < seg.tgt { (seg.src, seg.tgt) } else { (seg.tgt, seg.src) };
             for col in lo..=hi {
-                if col < conn_line.len() {
-                    if conn_line[col] == ' ' {
-                        conn_line[col] = '─';
-                    } else if conn_line[col] == '│' {
-                        conn_line[col] = '┼';
-                    }
+                if col < conn_line.len() && conn_line[col] == ' ' {
+                    conn_line[col] = '─';
                 }
             }
         }
-        if target_col < conn_line.len() {
-            conn_line[target_col] = '▼';
+    }
+
+    // Pass 2: arrows at target columns
+    let mut target_cols: Vec<usize> = segs.iter().map(|s| s.tgt).collect();
+    target_cols.sort();
+    target_cols.dedup();
+    for &col in &target_cols {
+        if col < conn_line.len() {
+            conn_line[col] = '▼';
         }
-        for &src in &sources {
-            if src < conn_line.len() && src != target_col {
-                conn_line[src] = if src < target_col { '└' } else { '┘' };
+    }
+
+    // Pass 3: corners at source columns (only if src != tgt)
+    for seg in &segs {
+        if seg.src != seg.tgt && seg.src < conn_line.len() {
+            // Don't overwrite arrows or already-placed corners
+            let existing = conn_line[seg.src];
+            if existing != '▼' && existing != '└' && existing != '┘' {
+                conn_line[seg.src] = if seg.src < seg.tgt { '└' } else { '┘' };
             }
         }
     }
