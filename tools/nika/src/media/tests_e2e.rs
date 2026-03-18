@@ -1321,4 +1321,147 @@ mod tests {
         assert_eq!(json["hash"], "blake3:abcdef1234567890");
         assert_eq!(json["size_bytes"], 12345);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE E4: RESOLVE_PATH MEDIA BINDING TESTS
+    // Tests {{with.task.media}}, {{with.task.media[0].hash}}, etc.
+    // ═══════════════════════════════════════════════════════════════
+
+    fn setup_ctx_with_media() -> (RunContext, Arc<str>) {
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "gen_img".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!("image generated"),
+            std::time::Duration::from_millis(100),
+        ).with_media(vec![
+            MediaRef {
+                hash: "blake3:aabbccdd11223344".into(),
+                mime_type: "image/png".into(),
+                size_bytes: 4096,
+                path: std::path::PathBuf::from("/tmp/store/aa/bbccdd11223344"),
+                extension: "png".into(),
+                created_by: "gen_img".into(),
+            },
+            MediaRef {
+                hash: "blake3:eeff0011aabbccdd".into(),
+                mime_type: "audio/mpeg".into(),
+                size_bytes: 8192,
+                path: std::path::PathBuf::from("/tmp/store/ee/ff0011aabbccdd"),
+                extension: "mp3".into(),
+                created_by: "gen_img".into(),
+            },
+        ]);
+        ctx.insert(Arc::clone(&task_id), tr);
+        (ctx, task_id)
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_full_array() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media");
+        assert!(result.is_some(), "resolve_path('gen_img.media') should return Some");
+        let arr = result.unwrap();
+        assert!(arr.is_array(), "media should be an array");
+        assert_eq!(arr.as_array().unwrap().len(), 2, "should have 2 media refs");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_hash() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].hash");
+        assert!(result.is_some(), "resolve_path('gen_img.media[0].hash') should return Some");
+        assert_eq!(result.unwrap(), "blake3:aabbccdd11223344");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_mime_type() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].mime_type");
+        assert!(result.is_some(), "resolve_path('gen_img.media[0].mime_type') should return Some");
+        assert_eq!(result.unwrap(), "image/png");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_second_hash() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[1].hash");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "blake3:eeff0011aabbccdd");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_size_bytes() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].size_bytes");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), 4096);
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_path() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].path");
+        assert!(result.is_some());
+        let path_val = result.unwrap();
+        assert!(path_val.as_str().unwrap().contains("store/aa/bbccdd11223344"),
+            "path should contain CAS location: {}", path_val);
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_extension() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].extension");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "png");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_first_created_by() {
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].created_by");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "gen_img");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_empty() {
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "no_media".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!("text only"),
+            std::time::Duration::from_millis(10),
+        );
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        let result = ctx.resolve_path("no_media.media");
+        assert!(result.is_some());
+        let arr = result.unwrap();
+        assert!(arr.is_array());
+        assert!(arr.as_array().unwrap().is_empty(), "empty media should return []");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_nonexistent_task() {
+        let ctx = RunContext::new();
+        let result = ctx.resolve_path("nonexistent.media");
+        assert!(result.is_none(), "nonexistent task should return None");
+    }
+
+    #[test]
+    fn e2e_resolve_path_normal_output_still_works() {
+        // Verify media interception doesn't break normal output resolution
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "weather".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({"temperature": 22, "city": "Paris"}),
+            std::time::Duration::from_millis(50),
+        );
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        let temp = ctx.resolve_path("weather.temperature");
+        assert_eq!(temp, Some(serde_json::json!(22)));
+
+        let city = ctx.resolve_path("weather.city");
+        assert_eq!(city, Some(serde_json::json!("Paris")));
+    }
 }

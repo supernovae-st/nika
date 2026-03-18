@@ -1162,6 +1162,22 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_print_all_variants_json() {
+        let blocks = vec![
+            ("text", ContentBlock::text("hello")),
+            ("image", ContentBlock::image("b64", "image/png")),
+            ("audio", ContentBlock::audio("b64", "audio/wav")),
+            ("resource", ContentBlock::resource(ResourceContent::new("file:///test").with_text("content"))),
+            ("resource_link_none", ContentBlock::resource_link("file:///link", None, None)),
+            ("resource_link_full", ContentBlock::resource_link("file:///link", Some("test.txt".into()), Some("text/plain".into()))),
+        ];
+        for (label, block) in &blocks {
+            let json = serde_json::to_string_pretty(block).unwrap();
+            println!("=== {label} ===\n{json}\n");
+        }
+    }
+
+    #[test]
     fn test_content_block_text_json_format() {
         let block = ContentBlock::text("hello world");
         let json = serde_json::to_value(&block).unwrap();
