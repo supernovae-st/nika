@@ -42,7 +42,6 @@ pub struct StoreResult {
 
 /// Entry in the CAS store.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Used in tests + PR2 (nika media list/gc)
 pub struct CasEntry {
     /// Algorithm-prefixed hash (e.g., "blake3:af1349...")
     pub hash: String,
@@ -56,7 +55,6 @@ pub struct CasEntry {
 
 /// Result of a cleanup operation.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Used in tests + PR2 (nika media gc)
 pub struct CleanResult {
     /// Number of files removed
     pub removed: u64,
@@ -195,7 +193,6 @@ impl CasStore {
     }
 
     /// Check if a hash exists in the store.
-    #[allow(dead_code)] // Used in tests + PR2
     pub fn exists(&self, hash: &str) -> bool {
         let raw = strip_hash_prefix(hash);
         if raw.len() < 3 {
@@ -206,7 +203,6 @@ impl CasStore {
     }
 
     /// Read file data by hash (async).
-    #[allow(dead_code)] // Used in tests + PR2
     pub async fn read(&self, hash: &str) -> Result<Vec<u8>, MediaError> {
         let raw = strip_hash_prefix(hash);
         if raw.len() < 3 {
@@ -230,7 +226,6 @@ impl CasStore {
     }
 
     /// List all entries in the store.
-    #[allow(dead_code)] // Used in tests + PR2
     pub fn list(&self) -> Vec<CasEntry> {
         let mut entries = Vec::new();
         let Ok(shards) = std::fs::read_dir(&self.root) else {
@@ -259,7 +254,6 @@ impl CasStore {
     }
 
     /// Remove all files from the store.
-    #[allow(dead_code)] // Used in tests + PR2
     pub fn clean_all(&self) -> CleanResult {
         let mut removed = 0u64;
         let mut bytes_freed = 0u64;
@@ -280,7 +274,6 @@ impl CasStore {
     }
 
     /// Remove files older than the given duration.
-    #[allow(dead_code)] // Used in tests + PR2
     pub fn clean_older_than(&self, duration: Duration) -> CleanResult {
         let mut removed = 0u64;
         let mut bytes_freed = 0u64;
@@ -312,7 +305,6 @@ impl CasStore {
 }
 
 /// Strip the algorithm prefix from a hash string, if present.
-#[allow(dead_code)] // Used by exists/read/list in tests + PR2
 fn strip_hash_prefix(hash: &str) -> &str {
     hash.strip_prefix(HASH_PREFIX).unwrap_or(hash)
 }

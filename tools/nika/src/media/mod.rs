@@ -11,8 +11,8 @@ pub(crate) mod store;
 mod tests_e2e;
 pub(crate) mod types;
 
-pub(crate) use error::MediaError;
+pub use error::MediaError;
 pub(crate) use processor::MediaProcessor;
-pub(crate) use store::CasStore;
-pub(crate) use types::{MediaBudget, MediaRef};
+pub use store::CasStore;
+pub use types::{MediaBudget, MediaRef};
 

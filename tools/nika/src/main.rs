@@ -260,6 +260,15 @@ enum Commands {
         action: cli::pkg::PkgAction,
     },
 
+    /// Manage media store (list, stats, clean)
+    ///
+    /// List, inspect, and garbage-collect binary files stored in the
+    /// Content-Addressable Store (CAS) at .nika/media/store/
+    Media {
+        #[command(subcommand)]
+        action: cli::media::MediaAction,
+    },
+
     /// Generate shell completions
     Completion {
         /// Shell to generate completions for
@@ -496,6 +505,8 @@ async fn main() {
         Some(Commands::Provider { action }) => cli::provider::handle_provider_command(action).await,
 
         Some(Commands::Mcp { action }) => cli::mcp::handle_mcp_command(action).await,
+
+        Some(Commands::Media { action }) => cli::media::handle_media_command(action, quiet).await,
 
         #[cfg(feature = "native-inference")]
         Some(Commands::Model { action }) => cli::model::handle_model_command(action, quiet).await,
