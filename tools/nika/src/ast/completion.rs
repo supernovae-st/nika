@@ -379,6 +379,15 @@ pub struct PatternConfig {
 }
 
 impl PatternConfig {
+    /// Create a new PatternConfig.
+    pub fn new(value: impl Into<String>, pattern_type: PatternType) -> Self {
+        Self {
+            value: value.into(),
+            pattern_type,
+            compiled_regex: std::sync::OnceLock::new(),
+        }
+    }
+
     /// Check if the given output matches this pattern.
     pub fn matches(&self, output: &str) -> bool {
         match self.pattern_type {
@@ -653,10 +662,7 @@ signal: {}
 
     #[test]
     fn pattern_matches_exact() {
-        let pattern = PatternConfig {
-            value: "DONE".to_string(),
-            pattern_type: PatternType::Exact,
-        };
+        let pattern = PatternConfig::new("DONE", PatternType::Exact);
         assert!(pattern.matches("DONE"));
         assert!(!pattern.matches("DONE!"));
         assert!(!pattern.matches("Task is DONE"));
@@ -664,10 +670,7 @@ signal: {}
 
     #[test]
     fn pattern_matches_contains() {
-        let pattern = PatternConfig {
-            value: "DONE".to_string(),
-            pattern_type: PatternType::Contains,
-        };
+        let pattern = PatternConfig::new("DONE", PatternType::Contains);
         assert!(pattern.matches("DONE"));
         assert!(pattern.matches("Task is DONE!"));
         assert!(!pattern.matches("Task is complete"));
@@ -675,10 +678,7 @@ signal: {}
 
     #[test]
     fn pattern_matches_regex() {
-        let pattern = PatternConfig {
-            value: r"\[DONE:\w+\]".to_string(),
-            pattern_type: PatternType::Regex,
-        };
+        let pattern = PatternConfig::new(r"\[DONE:\w+\]", PatternType::Regex);
         assert!(pattern.matches("[DONE:SUCCESS]"));
         assert!(pattern.matches("Result: [DONE:COMPLETE]"));
         assert!(!pattern.matches("[DONE:]"));
@@ -818,14 +818,8 @@ instruction:
         let config = CompletionConfig {
             mode: CompletionMode::Pattern,
             patterns: vec![
-                PatternConfig {
-                    value: "COMPLETE".to_string(),
-                    pattern_type: PatternType::Contains,
-                },
-                PatternConfig {
-                    value: "DONE".to_string(),
-                    pattern_type: PatternType::Contains,
-                },
+                PatternConfig::new("COMPLETE", PatternType::Contains),
+                PatternConfig::new("DONE", PatternType::Contains),
             ],
             ..Default::default()
         };
@@ -880,10 +874,7 @@ instruction:
     fn validate_invalid_regex() {
         let config = CompletionConfig {
             mode: CompletionMode::Pattern,
-            patterns: vec![PatternConfig {
-                value: "[invalid(".to_string(),
-                pattern_type: PatternType::Regex,
-            }],
+            patterns: vec![PatternConfig::new("[invalid(", PatternType::Regex)],
             ..Default::default()
         };
         let err = config.validate().unwrap_err();
@@ -898,10 +889,7 @@ instruction:
     fn check_pattern_match_explicit_mode_always_false() {
         let config = CompletionConfig {
             mode: CompletionMode::Explicit,
-            patterns: vec![PatternConfig {
-                value: "DONE".to_string(),
-                pattern_type: PatternType::Contains,
-            }],
+            patterns: vec![PatternConfig::new("DONE", PatternType::Contains)],
             ..Default::default()
         };
         // Even with patterns, explicit mode doesn't use them
@@ -913,14 +901,8 @@ instruction:
         let config = CompletionConfig {
             mode: CompletionMode::Pattern,
             patterns: vec![
-                PatternConfig {
-                    value: "DONE".to_string(),
-                    pattern_type: PatternType::Contains,
-                },
-                PatternConfig {
-                    value: r"\[COMPLETE\]".to_string(),
-                    pattern_type: PatternType::Regex,
-                },
+                PatternConfig::new("DONE", PatternType::Contains),
+                PatternConfig::new(r"\[COMPLETE\]", PatternType::Regex),
             ],
             ..Default::default()
         };
