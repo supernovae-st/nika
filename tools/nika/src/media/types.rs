@@ -193,4 +193,62 @@ mod tests {
         assert_eq!(MediaType::from_mime("application/pdf"), MediaType::Document);
         assert_eq!(MediaType::from_mime("text/plain"), MediaType::Unknown);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GAP 1/2 support: MediaBudget::rollback unit test
+    // Verifies that rollback correctly decrements the counter
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_budget_rollback_restores_capacity() {
+        let budget = MediaBudget::with_max_per_run(1000);
+
+        // Charge 600 bytes
+        budget.check_and_add(600, "t1").unwrap();
+        assert_eq!(budget.current_bytes(), 600);
+
+        // Roll back 600 bytes (simulates failure after budget charge)
+        budget.rollback(600);
+        assert_eq!(budget.current_bytes(), 0,
+            "rollback should restore budget to 0");
+
+        // After rollback, the full budget should be available again
+        budget.check_and_add(900, "t2").unwrap();
+        assert_eq!(budget.current_bytes(), 900);
+    }
+
+    #[test]
+    fn media_budget_partial_rollback() {
+        let budget = MediaBudget::with_max_per_run(1000);
+
+        budget.check_and_add(300, "t1").unwrap();
+        budget.check_and_add(400, "t2").unwrap();
+        assert_eq!(budget.current_bytes(), 700);
+
+        // Roll back only t2's allocation
+        budget.rollback(400);
+        assert_eq!(budget.current_bytes(), 300,
+            "partial rollback should leave t1's allocation intact");
+
+        // Now we have 700 bytes of capacity remaining
+        budget.check_and_add(700, "t3").unwrap();
+        assert_eq!(budget.current_bytes(), 1000);
+    }
+
+    #[test]
+    fn media_budget_rollback_then_reuse() {
+        let budget = MediaBudget::with_max_per_run(100);
+
+        // Fill to capacity
+        budget.check_and_add(100, "t1").unwrap();
+        assert!(budget.check_and_add(1, "t2").is_err(), "should be at capacity");
+
+        // Roll back and verify capacity is restored
+        budget.rollback(100);
+        assert_eq!(budget.current_bytes(), 0);
+
+        // Now the full budget is available
+        budget.check_and_add(100, "t3").unwrap();
+        assert_eq!(budget.current_bytes(), 100);
+    }
 }

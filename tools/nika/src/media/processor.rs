@@ -303,4 +303,93 @@ mod tests {
         assert!(r2.is_err());
         assert_eq!(r2.unwrap_err().code(), "NIKA-259");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GAP 1: Budget rollback on MIME detection failure
+    // When MIME detection fails AFTER budget was charged, the budget
+    // must be rolled back so future tasks are not unfairly penalized.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn budget_rollback_on_mime_detection_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = Arc::new(MediaBudget::with_max_per_run(1000));
+        let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
+
+        // Encode random bytes that infer cannot detect as any MIME type.
+        // Use application/octet-stream as server hint, which is explicitly
+        // rejected by detect_mime, causing MimeDetectionFailed.
+        let unknown_data = vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&unknown_data);
+
+        // Verify budget starts at 0
+        assert_eq!(budget.current_bytes(), 0, "budget should start at 0");
+
+        // Process should fail on MIME detection (NIKA-251)
+        let block = ContentBlock::image(b64, "application/octet-stream");
+        let result = processor.process(&block, "t_mime_fail").await;
+        assert!(result.is_err(), "unrecognizable bytes with octet-stream should fail");
+        assert_eq!(result.unwrap_err().code(), "NIKA-251");
+
+        // CRITICAL: budget must be rolled back to 0
+        assert_eq!(budget.current_bytes(), 0,
+            "budget must be rolled back after MIME detection failure, got {}",
+            budget.current_bytes());
+
+        // Prove the budget is usable: a valid image should still succeed
+        let block2 = ContentBlock::image(png_base64(), "image/png");
+        let result2 = processor.process(&block2, "t_after_rollback").await;
+        assert!(result2.is_ok(), "valid image should succeed after rollback: {:?}", result2.err());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GAP 2: Budget rollback on CAS store failure
+    // When CAS store fails AFTER budget was charged (e.g. I/O error),
+    // the budget must be rolled back.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn budget_rollback_on_cas_store_failure() {
+        // Create a CAS store pointing to a read-only or nonexistent path
+        // to force a MediaStoreIo error during store()
+        let dir = tempfile::tempdir().unwrap();
+        let readonly_path = dir.path().join("readonly_store");
+        // Create the directory then make it read-only
+        std::fs::create_dir_all(&readonly_path).unwrap();
+
+        // On macOS/Linux: make the directory read-only so CAS writes fail
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o444)).unwrap();
+        }
+
+        let store = CasStore::new(&readonly_path);
+        let budget = Arc::new(MediaBudget::with_max_per_run(10000));
+        let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
+
+        assert_eq!(budget.current_bytes(), 0, "budget should start at 0");
+
+        let block = ContentBlock::image(png_base64(), "image/png");
+        let result = processor.process(&block, "t_cas_fail").await;
+
+        // Should fail with I/O error (NIKA-255)
+        assert!(result.is_err(), "CAS store to read-only dir should fail");
+        let err = result.unwrap_err();
+        assert_eq!(err.code(), "NIKA-255",
+            "expected MediaStoreIo (NIKA-255), got {}", err.code());
+
+        // CRITICAL: budget must be rolled back to 0
+        assert_eq!(budget.current_bytes(), 0,
+            "budget must be rolled back after CAS store failure, got {}",
+            budget.current_bytes());
+
+        // Restore permissions for cleanup
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
 }

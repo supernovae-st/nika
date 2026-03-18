@@ -445,6 +445,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn store_accepts_exactly_max_store_size() {
+        // Boundary test: exactly MAX_STORE_SIZE bytes should be accepted
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = vec![0xAB_u8; MAX_STORE_SIZE];
+        let result = store.store(&data).await;
+        assert!(result.is_ok(), "exactly MAX_STORE_SIZE should be accepted, got: {:?}", result.err());
+        let sr = result.unwrap();
+        assert_eq!(sr.size, MAX_STORE_SIZE as u64);
+        assert!(!sr.deduplicated);
+        // 100MB is above verify threshold (1MB), so it should be verified
+        assert!(sr.verified, "100MB file should trigger read-back verification");
+
+        // Verify read-back matches
+        let read_back = store.read(&sr.hash).await.unwrap();
+        assert_eq!(read_back.len(), MAX_STORE_SIZE);
+        assert!(read_back.iter().all(|&b| b == 0xAB),
+            "data corruption: not all bytes are 0xAB");
+    }
+
+    #[tokio::test]
     async fn concurrent_cas_writes_dedup_correctly() {
         let dir = tempfile::tempdir().unwrap();
         let store = std::sync::Arc::new(CasStore::new(dir.path()));
