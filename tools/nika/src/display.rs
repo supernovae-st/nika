@@ -469,11 +469,9 @@ fn render_box_connectors(
     tasks: &[DagTask],
     deps: &std::collections::HashMap<String, Vec<String>>,
 ) {
-    // Calculate center positions for each box in prev and next layers
     let prev_centers = compute_box_centers(prev_layer, tasks);
     let next_centers = compute_box_centers(next_layer, tasks);
 
-    // Find the total width needed
     let max_pos = prev_centers
         .iter()
         .chain(next_centers.iter())
@@ -481,8 +479,8 @@ fn render_box_connectors(
         .max()
         .unwrap_or(40);
 
-    // Build edge map: which prev nodes connect to which next nodes
-    let mut edges: Vec<(usize, usize)> = Vec::new(); // (prev_center_col, next_center_col)
+    // Collect all edges as (from_col, to_col)
+    let mut edges: Vec<(usize, usize)> = Vec::new();
     for (ni, next_id) in next_layer.iter().enumerate() {
         if let Some(task_deps) = deps.get(next_id) {
             for dep in task_deps {
@@ -494,57 +492,94 @@ fn render_box_connectors(
     }
 
     if edges.is_empty() {
-        // No edges between these layers — just spacing
         println!();
         return;
     }
 
-    // Render a single connector row with vertical pipes at edge positions
-    let mut line = vec![' '; max_pos + 4];
-
-    // Draw vertical pipes at the midpoints
-    let mut positions: Vec<usize> = Vec::new();
-    for &(from, to) in &edges {
-        let mid = (from + to) / 2;
-        positions.push(from);
-        positions.push(to);
-        // Draw the horizontal span if from != to
-        if from != to {
-            let (lo, hi) = if from < to { (from, to) } else { (to, from) };
-            for col in lo..=hi {
-                if line[col] == ' ' {
-                    line[col] = '─';
-                }
-            }
-            // Corners
-            if from < to {
-                line[from] = '└';
-                line[to] = '┐';
-            } else {
-                line[from] = '┘';
-                line[to] = '┌';
-            }
-        } else {
-            line[from] = '│';
-        }
-        let _ = mid; // suppress warning
-    }
-
-    // If all edges are straight down (same column), just draw pipes
+    // All straight down? Simple vertical pipes
     let all_straight = edges.iter().all(|(f, t)| f == t);
     if all_straight {
-        let mut pipe_line = vec![' '; max_pos + 4];
-        for &(from, _) in &edges {
-            if from < pipe_line.len() {
-                pipe_line[from] = '│';
+        let mut line = vec![' '; max_pos + 4];
+        for &(col, _) in &edges {
+            if col < line.len() {
+                line[col] = '│';
             }
         }
-        let s: String = pipe_line.iter().collect();
-        println!("    {}", s.dimmed());
-    } else {
         let s: String = line.iter().collect();
         println!("    {}", s.dimmed());
+        return;
     }
+
+    // Two-line rendering for complex edges:
+    // Line 1: vertical drops from prev centers
+    // Line 2: horizontal connections + vertical rises to next centers
+    let width = max_pos + 4;
+
+    // Line 1: drop down from each prev node that has outgoing edges
+    let mut drop_line = vec![' '; width];
+    let mut active_cols: Vec<usize> = Vec::new();
+    for &(from, _) in &edges {
+        if from < drop_line.len() && !active_cols.contains(&from) {
+            drop_line[from] = '│';
+            active_cols.push(from);
+        }
+    }
+    let s1: String = drop_line.iter().collect();
+    println!("    {}", s1.dimmed());
+
+    // Line 2: horizontal spans connecting to next nodes
+    let mut conn_line = vec![' '; width];
+
+    // For each next node, find the leftmost and rightmost source
+    for (ni, next_id) in next_layer.iter().enumerate() {
+        let target_col = next_centers[ni].1;
+        let mut sources: Vec<usize> = Vec::new();
+        if let Some(task_deps) = deps.get(next_id) {
+            for dep in task_deps {
+                if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
+                    sources.push(prev_centers[pi].1);
+                }
+            }
+        }
+        if sources.is_empty() {
+            continue;
+        }
+
+        // All sources merge at target_col
+        for &src in &sources {
+            let (lo, hi) = if src <= target_col {
+                (src, target_col)
+            } else {
+                (target_col, src)
+            };
+            for col in lo..=hi {
+                if col < conn_line.len() {
+                    if conn_line[col] == ' ' {
+                        conn_line[col] = '─';
+                    } else if conn_line[col] == '│' {
+                        conn_line[col] = '┼';
+                    }
+                }
+            }
+        }
+        // Mark target with down arrow
+        if target_col < conn_line.len() {
+            conn_line[target_col] = '┬';
+        }
+        // Mark sources with corners
+        for &src in &sources {
+            if src < conn_line.len() && src != target_col {
+                if src < target_col {
+                    conn_line[src] = '└';
+                } else {
+                    conn_line[src] = '┘';
+                }
+            }
+        }
+    }
+
+    let s2: String = conn_line.iter().collect();
+    println!("    {}", s2.dimmed());
 }
 
 /// Compute center column position for each box in a layer.
