@@ -22,7 +22,7 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-6,264_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-5,212_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
@@ -71,7 +71,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 │  🦋 Nika Studio                                                v0.30.3  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
-│ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.9"                    │  │
+│ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.12"                   │  │
 │ │   ├─ deploy.nika.yaml│ │  2 │ provider: claude                                │  │
 │ │   ├─ review.nika.yaml│ │  3 │                                                 │  │
 │ │   └─ test.nika.yaml  │ │  4 │ tasks:                                          │  │
@@ -406,7 +406,7 @@ nika --version
 
 ```yaml
 # 📄 hello.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -440,7 +440,7 @@ greet:
 
 ```yaml
 # 📄 code-review.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -464,11 +464,6 @@ tasks:
         ```
 
         Format as markdown with severity levels.
-
-# 📈 Dependencies (optional - auto-detected)
-flows:
-  - source: get_diff
-    target: review
 ```
 
 ```bash
@@ -872,7 +867,7 @@ tasks:
     thinking: true                  # Extended reasoning (Claude)
     depth_limit: 3                  # Nested agent protection
 
-    stop_conditions:               # When to stop
+    stop_sequences:                # When to stop
       - "RESEARCH_COMPLETE"
       - "NO_MORE_PAPERS"
 ```
@@ -1265,7 +1260,7 @@ flowchart LR
 ### 📝 Configuration Example
 
 ```yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 
 # 🔌 Define MCP servers
 mcp:
@@ -1321,7 +1316,7 @@ tasks:
 
 ```yaml
 # 📄 code-review-pipeline.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -1331,6 +1326,7 @@ tasks:
 
   # 2️⃣ Get the actual diff
   - id: get_diff
+    depends_on: [get_files]
     exec: "git diff HEAD~1"
 
   # 3️⃣ AI analyzes the code
@@ -1423,23 +1419,13 @@ tasks:
       report: compile_report
     exec: |
       gh pr comment --body "{{with.report}}"
-
-flows:
-  - source: get_files
-    target: get_diff
-  - source: get_diff
-    target: [security_review, bug_review, improvement_review]
-  - source: [security_review, bug_review, improvement_review]
-    target: compile_report
-  - source: compile_report
-    target: post_comment
 ```
 
 ### 🌍 Multi-Locale Content Generation
 
 ```yaml
 # 📄 multi-locale.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 
 mcp:
   novanet:
@@ -1495,19 +1481,13 @@ tasks:
 
         Report any issues found.
       tools: [nika:assert, nika:log]
-
-flows:
-  - source: get_context
-    target: generate_content
-  - source: generate_content
-    target: validate_outputs
 ```
 
 ### 🤖 Multi-Agent Research System
 
 ```yaml
 # 📄 research-system.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
@@ -1567,10 +1547,6 @@ tasks:
         - Appendix with raw data
 
         Research: {{with.research}}
-
-flows:
-  - source: orchestrator
-    target: format_report
 ```
 
 ### 💎 Diamond DAG Pattern
@@ -1593,7 +1569,7 @@ graph LR
 
 ```yaml
 # 📄 diamond-dag.nika.yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 tasks:
@@ -1649,12 +1625,6 @@ tasks:
 
       {{with.conclusion}}
       EOF
-
-flows:
-  - source: outline
-    target: [write_intro, write_body, write_conclusion]
-  - source: [write_intro, write_body, write_conclusion]
-    target: assemble
 ```
 
 <br>

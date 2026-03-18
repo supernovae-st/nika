@@ -32,16 +32,22 @@ src/
 | 030-039 | Provider |
 | 040-049 | Template/binding |
 | 050-059 | Path/task/security |
+| 060-069 | Output (JSON/schema validation) |
 | 070-089 | With block + DAG validation |
 | 090-099 | JSONPath/IO |
 | 100-109 | MCP |
 | 110-119 | Agent |
+| 120-129 | Resilience |
+| 130-139 | TUI/Config |
 | 140-151 | AST analysis (Phase 2) |
 | 160-164 | Parse errors (Phase 1 parser) |
 | 200-219 | File tools + Builtin tools |
 | 280-289 | Artifacts |
+| 250-259 | Context errors |
+| 260-269 | Package URI errors |
+| 270-279 | Skill errors |
+| 280-289 | Artifacts |
 | 300-309 | Structured output |
-| 400-429 | Daemon/IO/Sync |
 
 ## Testing
 

@@ -3,7 +3,7 @@
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
 [![Version](https://img.shields.io/badge/version-0.30.3-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-6264%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-5212%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -22,13 +22,13 @@ DAG workflow runner for AI tasks with MCP integration.
 
 ```bash
 # Run a workflow
-cargo run -- run examples/v09-context-loading.nika.yaml
+nika run examples/use-cases/blog-pipeline.nika.yaml
 
 # Validate without executing
-cargo run -- check examples/v03-agent-with-tools.nika.yaml
+nika check examples/gates/feature/infer-basic.nika.yaml
 
 # Interactive TUI
-cargo run -- tui
+nika ui
 ```
 
 ## Installation
@@ -52,7 +52,7 @@ cargo build --release
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
 - **IndexedDag** — Vec-based adjacency list with Kahn's topological sort (v0.29.0)
 - **use→with Migration** — Complete binding syntax migration to `with:` (v0.29.1)
-- **5,204+ lib tests passing** | 34 proptests | Zero clippy warnings
+- **5,212+ lib tests passing** | 34 proptests | Zero clippy warnings
 
 ## v0.22.0+ Features
 
@@ -97,7 +97,7 @@ cargo build --release
 Load external files at workflow start:
 
 ```yaml
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 context:
   files:
     brand: ./context/brand-guidelines.md
@@ -116,7 +116,7 @@ tasks:
 Merge tasks from external workflows:
 
 ```yaml
-schema: nika/workflow@0.9
+schema: nika/workflow@0.12
 include:
   - path: ./partials/setup.nika.yaml
     prefix: setup_
@@ -126,9 +126,7 @@ tasks:
   - id: main_task
     infer: "Main workflow logic"
     depends_on: [setup_init]
-flows:
-  - source: main_task
-    target: teardown_cleanup
+    # teardown_cleanup runs after via depends_on in the included partial
 ```
 
 ### Parallel for_each (v0.3+)
@@ -183,7 +181,7 @@ tasks:
 Nika connects to MCP servers for tool calling:
 
 ```yaml
-schema: "nika/workflow@0.9"
+schema: "nika/workflow@0.12"
 provider: claude
 
 mcp:
