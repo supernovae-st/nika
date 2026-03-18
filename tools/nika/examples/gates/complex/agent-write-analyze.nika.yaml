@@ -1,0 +1,54 @@
+# COMPLEX-71: Agent writes file, next task reads and analyzes it
+# Tests: agent with nika_write tool, then nika_read in sequence, data flow between agent tasks
+schema: nika/workflow@0.12
+workflow: complex-agent-write-analyze
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  # Agent writes a file using builtin write tool
+  - id: writer_agent
+    agent:
+      prompt: |
+        Use nika_write to create a file at /tmp/nika-agent-test-71.txt with this content:
+        "Line 1: Hello from Nika agent
+        Line 2: Testing write then read
+        Line 3: End of test file"
+        Then call nika_complete with result='WRITE_DONE' confidence=1.0 reasoning='file written successfully'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent writes a test file"
+
+  # Agent reads the file back
+  - id: reader_agent
+    depends_on: [writer_agent]
+    agent:
+      prompt: |
+        Use nika_read to read the file at /tmp/nika-agent-test-71.txt
+        Count the number of lines. Call nika_complete with result='LINES_N' (replace N with count)
+        confidence=1.0 reasoning='read and counted lines'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent reads back the written file"
+
+  # Analyze the result
+  - id: analyze
+    depends_on: [reader_agent]
+    with:
+      result: $reader_agent | trim
+    infer: "The agent reported: {{with.result}}. Confirm if the file read was successful. Reply YES or NO with reason."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Analyze the write-then-read result"
+
+  # Cleanup
+  - id: cleanup
+    depends_on: [analyze]
+    exec: "rm -f /tmp/nika-agent-test-71.txt && echo 'CLEANED'"
+    description: "Remove test file"

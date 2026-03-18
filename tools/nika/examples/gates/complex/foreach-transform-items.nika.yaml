@@ -1,0 +1,48 @@
+# COMPLEX-10: for_each items sourced from a transform pipeline
+# Tests: transforms on for_each source, chained transforms feeding iteration
+schema: nika/workflow@0.12
+workflow: complex-foreach-transform-items
+
+tasks:
+  - id: raw_data
+    exec: "echo '  [\"Alpha\", \"Beta\", \"Gamma\", \"Delta\", \"Epsilon\"]  '"
+    description: "Raw data with whitespace padding"
+
+  - id: process_each
+    depends_on: [raw_data]
+    for_each: "$raw_data | trim"
+    as: item
+    exec: "echo 'ITEM={{with.item}}'"
+    description: "for_each over trimmed data"
+
+  - id: transform_each
+    depends_on: [raw_data]
+    for_each: "$raw_data | trim"
+    as: item
+    infer: "Translate '{{with.item}}' to its Greek alphabet position number. Return only the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Transform each item via LLM"
+
+  - id: enrich_each
+    depends_on: [raw_data]
+    for_each: "$raw_data | trim"
+    as: letter
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo 'Letter={{with.letter}} Home={{with.home}}'"
+      shell: true
+    description: "for_each with additional env binding"
+
+  - id: aggregate
+    depends_on: [process_each, transform_each, enrich_each]
+    with:
+      processed: $process_each
+      numbers: $transform_each
+      enriched: $enrich_each
+    exec:
+      command: "echo 'Processed: {{with.processed}}' && echo 'Numbers: {{with.numbers}}' && echo 'Enriched: {{with.enriched}}'"
+      shell: true
+    description: "Aggregate all three for_each results"

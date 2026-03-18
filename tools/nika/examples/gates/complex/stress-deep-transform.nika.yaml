@@ -1,0 +1,86 @@
+# COMPLEX-48: 7-transform chain — deep transform pipeline stress test
+# Tests: maximum transform chain depth, multiple transform combinations
+schema: nika/workflow@0.12
+workflow: complex-stress-deep-transform
+
+tasks:
+  - id: source
+    exec: "echo '  {\"message\": \"Hello World\", \"count\": 42}  '"
+    description: "JSON source with whitespace padding"
+
+  - id: transform_1
+    depends_on: [source]
+    with:
+      v: $source | trim
+    exec: "echo 'T1=[{{with.v}}]'"
+    description: "Transform 1: trim"
+
+  - id: transform_2
+    depends_on: [source]
+    with:
+      v: $source | trim | lower
+    exec: "echo 'T2=[{{with.v}}]'"
+    description: "Transform 2: trim | lower"
+
+  - id: transform_3
+    depends_on: [source]
+    with:
+      v: $source | trim | upper
+    exec: "echo 'T3=[{{with.v}}]'"
+    description: "Transform 3: trim | upper"
+
+  - id: transform_4
+    depends_on: [source]
+    with:
+      v: $source | trim | json
+    exec: "echo 'T4=[{{with.v}}]'"
+    description: "Transform 4: trim | json"
+
+  - id: exec_transform
+    exec: "echo '  TRANSFORM_TARGET  '"
+    description: "Another source for further transforms"
+
+  - id: transform_5
+    depends_on: [exec_transform]
+    with:
+      v: $exec_transform | trim | lower
+    exec: "echo 'T5=[{{with.v}}]'"
+    description: "Transform 5: trim | lower on exec output"
+
+  - id: transform_6
+    depends_on: [exec_transform]
+    with:
+      v: $exec_transform | trim | upper
+    exec: "echo 'T6=[{{with.v}}]'"
+    description: "Transform 6: trim | upper on exec output"
+
+  - id: combined_transforms
+    depends_on: [source, exec_transform]
+    with:
+      json_src: $source | trim
+      text_src: $exec_transform | trim | lower
+    exec: "echo 'JSON={{with.json_src}} TEXT={{with.text_src}}'"
+    description: "Transform 7: dual-source different transform chains"
+
+  - id: verify_all
+    depends_on: [transform_1, transform_2, transform_3, transform_4, transform_5, transform_6, combined_transforms]
+    with:
+      t1: $transform_1 | trim
+      t2: $transform_2 | trim
+      t3: $transform_3 | trim
+      t4: $transform_4 | trim
+      t5: $transform_5 | trim
+      t6: $transform_6 | trim
+      t7: $combined_transforms | trim
+    exec:
+      command: |
+        echo "=== 7 TRANSFORM RESULTS ==="
+        echo "{{with.t1}}"
+        echo "{{with.t2}}"
+        echo "{{with.t3}}"
+        echo "{{with.t4}}"
+        echo "{{with.t5}}"
+        echo "{{with.t6}}"
+        echo "{{with.t7}}"
+      shell: true
+    description: "Verify all 7 transform paths"

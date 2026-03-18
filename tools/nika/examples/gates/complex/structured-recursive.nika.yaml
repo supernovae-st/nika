@@ -1,0 +1,72 @@
+# COMPLEX-87: Nested object schema with array of objects
+# Tests: deep nesting in structured output, objects inside arrays inside objects
+schema: nika/workflow@0.12
+workflow: complex-structured-recursive
+
+tasks:
+  - id: nested_schema
+    infer: |
+      Generate a JSON object representing a school:
+      - name: string
+      - address: object with street, city, zip
+      - departments: array of objects, each with name, head (string), courses (array of objects with title and credits)
+      Include 2 departments, each with 2 courses. Use realistic values.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          address:
+            type: object
+            properties:
+              street:
+                type: string
+              city:
+                type: string
+              zip:
+                type: string
+            required: [street, city, zip]
+          departments:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                head:
+                  type: string
+                courses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                      credits:
+                        type: integer
+                    required: [title, credits]
+              required: [name, head, courses]
+        required: [name, address, departments]
+    description: "Deeply nested structured output"
+
+  - id: extract_courses
+    depends_on: [nested_schema]
+    with:
+      school: $nested_schema
+    infer: "From this school data: {{with.school}} — How many total courses are there? Reply with just the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Extract from nested structure"
+
+  - id: summarize
+    depends_on: [nested_schema, extract_courses]
+    with:
+      school: $nested_schema.name ?? "Unknown School"
+      courses: $extract_courses | trim
+    exec: "echo 'SCHOOL={{with.school}} TOTAL_COURSES={{with.courses}}'"
+    description: "Summarize nested structured data"

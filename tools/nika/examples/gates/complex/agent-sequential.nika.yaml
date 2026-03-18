@@ -1,0 +1,70 @@
+# COMPLEX-29: 3 agents in sequence, each building on previous agent's output
+# Tests: agent chaining, binding agent output to next agent, sequential reasoning
+schema: nika/workflow@0.12
+workflow: complex-agent-sequential
+
+tasks:
+  - id: seed_task
+    exec: "echo 'Design a REST API for a task management application'"
+    description: "Initial problem statement"
+
+  - id: agent_architect
+    depends_on: [seed_task]
+    with:
+      problem: $seed_task
+    agent:
+      prompt: |
+        You are an API architect. Problem: {{with.problem}}
+        Design the endpoint structure (3-4 endpoints).
+        Call nika_complete with your design as the result, confidence=0.9, reasoning="architecture phase complete"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 200
+      system: "You are a senior API architect. Be concise."
+    description: "Agent 1: Architecture design"
+
+  - id: agent_reviewer
+    depends_on: [agent_architect]
+    with:
+      design: $agent_architect
+    agent:
+      prompt: |
+        You are an API reviewer. Review this design: {{with.design}}
+        Check for: completeness, consistency, best practices.
+        Call nika_complete with your review as the result, confidence=0.85, reasoning="review phase complete"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 200
+      system: "You are a thorough API reviewer. Be specific."
+    description: "Agent 2: Review the architecture"
+
+  - id: agent_documenter
+    depends_on: [agent_reviewer, agent_architect]
+    with:
+      design: $agent_architect
+      review: $agent_reviewer
+    agent:
+      prompt: |
+        You are a technical writer. Document this API:
+        Design: {{with.design}}
+        Review feedback: {{with.review}}
+        Write clear documentation incorporating the review.
+        Call nika_complete with the documentation as result, confidence=0.9, reasoning="documentation phase complete"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 200
+      system: "You are a technical documentation expert."
+    description: "Agent 3: Document the reviewed design"
+
+  - id: final_output
+    depends_on: [agent_documenter]
+    with:
+      docs: $agent_documenter
+    exec: "echo 'DOCUMENTATION: {{with.docs}}'"
+    description: "Display final documentation from 3-agent pipeline"

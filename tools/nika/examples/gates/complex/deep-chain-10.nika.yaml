@@ -1,0 +1,105 @@
+# COMPLEX-02: 10-task chain mixing exec+infer+fetch — data flows through all 10
+# Tests: verb alternation in long chains, binding propagation, mixed I/O types
+schema: nika/workflow@0.12
+workflow: complex-deep-chain-10
+
+tasks:
+  - id: t1_exec
+    exec: "echo '{\"project\":\"nika\",\"version\":\"0.12\"}'"
+    description: "Step 1: Seed JSON data via exec"
+
+  - id: t2_fetch
+    depends_on: [t1_exec]
+    fetch:
+      url: "https://httpbin.org/get?project=nika"
+      method: GET
+    description: "Step 2: Fetch external data with project param"
+
+  - id: t3_infer
+    depends_on: [t1_exec, t2_fetch]
+    with:
+      local: $t1_exec
+      remote: $t2_fetch
+    infer: |
+      Compare these two data sources and summarize in 1 sentence:
+      Local: {{with.local}}
+      Remote: {{with.remote}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Step 3: LLM compares local and remote data"
+
+  - id: t4_exec
+    depends_on: [t3_infer]
+    with:
+      comparison: $t3_infer | trim
+    exec:
+      command: "echo 'COMPARISON_HASH='$(echo '{{with.comparison}}' | md5 | cut -c1-8)"
+      shell: true
+    description: "Step 4: Hash the comparison for dedup"
+
+  - id: t5_infer
+    depends_on: [t4_exec, t3_infer]
+    with:
+      hash: $t4_exec | trim
+      text: $t3_infer
+    infer: "Given hash '{{with.hash}}' and text '{{with.text}}', create a title in 5 words."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Step 5: Generate title from hash and comparison"
+
+  - id: t6_fetch
+    depends_on: [t5_infer]
+    with:
+      title: $t5_infer | trim
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body:
+        title: "{{with.title}}"
+        step: 6
+    description: "Step 6: Post the title to httpbin"
+
+  - id: t7_exec
+    depends_on: [t6_fetch]
+    with:
+      response: $t6_fetch
+    exec:
+      command: "echo 'POST_RESULT={{with.response}}' | head -c 200"
+      shell: true
+    description: "Step 7: Extract POST response snippet"
+
+  - id: t8_infer
+    depends_on: [t5_infer, t7_exec]
+    with:
+      title: $t5_infer | trim
+      post_result: $t7_exec
+    infer: |
+      Synthesize a 2-sentence report:
+      Title: {{with.title}}
+      Post result: {{with.post_result}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Step 8: Synthesize title and post result"
+
+  - id: t9_exec
+    depends_on: [t8_infer]
+    with:
+      report: $t8_infer | trim
+    exec:
+      command: "echo 'LINES='$(echo '{{with.report}}' | wc -l | tr -d ' ') && echo 'CHARS='$(echo '{{with.report}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Step 9: Count stats on the report"
+
+  - id: t10_final
+    depends_on: [t9_exec, t8_infer, t1_exec]
+    with:
+      stats: $t9_exec
+      report: $t8_infer | trim
+      original: $t1_exec
+    exec:
+      command: "echo '=== FINAL ===' && echo 'Original: {{with.original}}' && echo 'Report: {{with.report}}' && echo 'Stats: {{with.stats}}'"
+      shell: true
+    description: "Step 10: Final aggregation of all pipeline data"

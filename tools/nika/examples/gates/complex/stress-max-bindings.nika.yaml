@@ -1,0 +1,87 @@
+# COMPLEX-98: 15+ bindings in single task — maximum with: block
+# Tests: parser handling large with: blocks, template with many interpolations
+schema: nika/workflow@0.12
+workflow: complex-stress-max-bindings
+
+tasks:
+  # 15 independent source tasks
+  - id: s01
+    exec: "echo 'val_01'"
+  - id: s02
+    exec: "echo 'val_02'"
+  - id: s03
+    exec: "echo 'val_03'"
+  - id: s04
+    exec: "echo 'val_04'"
+  - id: s05
+    exec: "echo 'val_05'"
+  - id: s06
+    exec: "echo 'val_06'"
+  - id: s07
+    exec: "echo 'val_07'"
+  - id: s08
+    exec: "echo 'val_08'"
+  - id: s09
+    exec: "echo 'val_09'"
+  - id: s10
+    exec: "echo 'val_10'"
+  - id: s11
+    exec: "echo 'val_11'"
+  - id: s12
+    exec: "echo 'val_12'"
+  - id: s13
+    exec: "echo 'val_13'"
+  - id: s14
+    exec: "echo 'val_14'"
+  - id: s15
+    exec: "echo 'val_15'"
+
+  # Mega binding task with 15 bindings
+  - id: mega_bind
+    depends_on: [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11, s12, s13, s14, s15]
+    with:
+      v01: $s01 | trim
+      v02: $s02 | trim
+      v03: $s03 | trim
+      v04: $s04 | trim
+      v05: $s05 | trim
+      v06: $s06 | trim
+      v07: $s07 | trim
+      v08: $s08 | trim
+      v09: $s09 | trim
+      v10: $s10 | trim
+      v11: $s11 | trim
+      v12: $s12 | trim
+      v13: $s13 | trim
+      v14: $s14 | trim
+      v15: $s15 | trim
+    exec:
+      command: "echo '{{with.v01}}|{{with.v02}}|{{with.v03}}|{{with.v04}}|{{with.v05}}|{{with.v06}}|{{with.v07}}|{{with.v08}}|{{with.v09}}|{{with.v10}}|{{with.v11}}|{{with.v12}}|{{with.v13}}|{{with.v14}}|{{with.v15}}'"
+      shell: true
+    description: "15 bindings in a single task"
+
+  # LLM task also with many bindings
+  - id: llm_mega
+    depends_on: [s01, s02, s03, s04, s05, s06, s07, s08]
+    with:
+      a: $s01 | trim
+      b: $s02 | trim
+      c: $s03 | trim
+      d: $s04 | trim
+      e: $s05 | trim
+      f: $s06 | trim
+      g: $s07 | trim
+      h: $s08 | trim
+    infer: "8 values: {{with.a}}, {{with.b}}, {{with.c}}, {{with.d}}, {{with.e}}, {{with.f}}, {{with.g}}, {{with.h}}. Count them. Reply with just the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "LLM with 8 bindings"
+
+  - id: verify
+    depends_on: [mega_bind, llm_mega]
+    with:
+      mega: $mega_bind | trim
+      count: $llm_mega | trim
+    exec: "echo 'MEGA_BINDINGS_OK: {{with.mega}} COUNT={{with.count}}'"
+    description: "Verify 15-binding stress test"

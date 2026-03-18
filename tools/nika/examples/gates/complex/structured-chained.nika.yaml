@@ -1,0 +1,114 @@
+# COMPLEX-19: Structured output chained — output of task1 feeds schema of task2
+# Tests: structured data flowing through pipeline, field access between structured tasks
+schema: nika/workflow@0.12
+workflow: complex-structured-chained
+
+tasks:
+  - id: extract_entities
+    infer: |
+      Extract entities from this text:
+      "Apple released the new M4 chip in Cupertino. Tim Cook presented it alongside iOS 19."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    structured:
+      schema:
+        type: object
+        properties:
+          companies:
+            type: array
+            items:
+              type: string
+          products:
+            type: array
+            items:
+              type: string
+          people:
+            type: array
+            items:
+              type: string
+          locations:
+            type: array
+            items:
+              type: string
+        required: [companies, products, people, locations]
+    description: "Phase 1: NER extraction"
+
+  - id: enrich_entities
+    depends_on: [extract_entities]
+    with:
+      companies: $extract_entities.companies
+      people: $extract_entities.people
+    infer: |
+      For each entity, provide a brief description:
+      Companies: {{with.companies}}
+      People: {{with.people}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          enriched:
+            type: array
+            items:
+              type: object
+              properties:
+                entity:
+                  type: string
+                type:
+                  type: string
+                  enum: [company, person]
+                description:
+                  type: string
+              required: [entity, type, description]
+        required: [enriched]
+    description: "Phase 2: Enrich extracted entities with structured descriptions"
+
+  - id: build_knowledge_graph
+    depends_on: [enrich_entities, extract_entities]
+    with:
+      enriched: $enrich_entities.enriched
+      products: $extract_entities.products
+      locations: $extract_entities.locations
+    infer: |
+      Build relationships between these entities:
+      Enriched: {{with.enriched}}
+      Products: {{with.products}}
+      Locations: {{with.locations}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          nodes:
+            type: array
+            items:
+              type: string
+          edges:
+            type: array
+            items:
+              type: object
+              properties:
+                from:
+                  type: string
+                to:
+                  type: string
+                relation:
+                  type: string
+              required: [from, to, relation]
+        required: [nodes, edges]
+    description: "Phase 3: Build knowledge graph from enriched data"
+
+  - id: summarize_graph
+    depends_on: [build_knowledge_graph]
+    with:
+      graph: $build_knowledge_graph
+    infer: "Summarize this knowledge graph in 2 sentences: {{with.graph}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Phase 4: Human-readable summary of structured graph"

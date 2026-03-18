@@ -1,0 +1,65 @@
+# COMPLEX-32: Two overlapping diamonds — shared middle node
+# DAG:  A -> B,C -> D -> E,F -> G
+#              ^            |
+#              |            v
+#              C ──────────> F (cross-diamond dependency)
+# Tests: overlapping diamond patterns, shared nodes, cross-diamond deps
+schema: nika/workflow@0.12
+workflow: complex-dag-diamond-double
+
+tasks:
+  - id: a_root
+    exec: "echo 'ROOT_PAYLOAD_V2'"
+    description: "Root of both diamonds"
+
+  # Diamond 1: A -> B,C -> D
+  - id: b_upper
+    depends_on: [a_root]
+    with: { d: $a_root }
+    infer: "Add UPPER prefix to: {{with.d}}. Return the modified string only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+
+  - id: c_lower
+    depends_on: [a_root]
+    with: { d: $a_root }
+    exec:
+      command: "echo 'LOWER({{with.d}})'"
+      shell: true
+
+  - id: d_merge1
+    depends_on: [b_upper, c_lower]
+    with:
+      upper: $b_upper | trim
+      lower: $c_lower | trim
+    exec: "echo 'D1: {{with.upper}} + {{with.lower}}'"
+    description: "First diamond merge"
+
+  # Diamond 2: D -> E,F -> G (F also depends on C)
+  - id: e_analyze
+    depends_on: [d_merge1]
+    with: { d: $d_merge1 | trim }
+    infer: "Analyze this: {{with.d}}. One adjective."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+
+  - id: f_cross
+    depends_on: [d_merge1, c_lower]
+    with:
+      merged: $d_merge1 | trim
+      original_lower: $c_lower | trim
+    exec: "echo 'F: merged={{with.merged}} original={{with.original_lower}}'"
+    description: "Cross-diamond node: depends on both D and C"
+
+  - id: g_final
+    depends_on: [e_analyze, f_cross]
+    with:
+      analysis: $e_analyze | trim
+      cross: $f_cross | trim
+    infer: "Combine '{{with.analysis}}' and '{{with.cross}}' into one summary sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Second diamond merge — final output"

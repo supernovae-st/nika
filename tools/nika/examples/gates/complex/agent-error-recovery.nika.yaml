@@ -1,0 +1,42 @@
+# COMPLEX-74: Agent that handles errors gracefully
+# Tests: agent encountering tool failure, recovery behavior, assertion patterns
+schema: nika/workflow@0.12
+workflow: complex-agent-error-recovery
+
+tasks:
+  # Agent tries to read a nonexistent file, then recovers
+  - id: recovery_agent
+    agent:
+      prompt: |
+        Try to use nika_read to read "/tmp/nika-nonexistent-file-74.txt".
+        If it fails or returns an error, that is expected.
+        Then use nika_write to create "/tmp/nika-recovery-74.txt" with content "recovered successfully".
+        Then use nika_read to read "/tmp/nika-recovery-74.txt" to verify.
+        Call nika_complete with result='RECOVERY_OK' confidence=1.0 reasoning='handled missing file gracefully'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 5
+      tools: [builtin]
+    description: "Agent recovers from read failure"
+
+  # Independent failed task
+  - id: will_fail
+    exec: "exit 1"
+    description: "Intentionally fails"
+
+  # Task that depends only on agent (not on failed task)
+  - id: post_recovery
+    depends_on: [recovery_agent]
+    with:
+      status: $recovery_agent | trim
+    infer: "Agent recovery status: {{with.status}}. Was the recovery successful? Reply YES or NO."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Verify recovery independent of failed task"
+
+  # Cleanup
+  - id: cleanup
+    depends_on: [post_recovery]
+    exec: "rm -f /tmp/nika-recovery-74.txt && echo 'CLEANED'"
+    description: "Cleanup temp files"

@@ -1,0 +1,59 @@
+# COMPLEX-57: Special characters in prompts and bindings
+# Tests: quotes, backslashes, newlines, brackets in template interpolation
+schema: nika/workflow@0.12
+workflow: complex-edge-special-chars
+
+tasks:
+  # Produce output with special chars
+  - id: special_source
+    exec: "echo 'Hello \"World\" with backslash and [brackets]'"
+    description: "Output containing quotes and brackets"
+
+  # Pipe/ampersand in exec
+  - id: pipe_chars
+    exec:
+      command: "echo 'a&b' && echo 'c|d' && echo 'e>f'"
+      shell: true
+    description: "Shell special characters in exec"
+
+  # Binding with special char content
+  - id: bind_special
+    depends_on: [special_source]
+    with:
+      data: $special_source | trim
+    exec:
+      command: "echo 'Received: {{with.data}}'"
+      shell: true
+    description: "Bind output containing special chars"
+
+  # LLM prompt with embedded special chars
+  - id: infer_special
+    depends_on: [pipe_chars]
+    with:
+      raw: $pipe_chars | trim
+    infer: |
+      The input contains special characters: {{with.raw}}
+      Count how many special characters (& | > " [ ]) appear. Reply with just the number.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "LLM processing special char content"
+
+  # Newlines in exec output
+  - id: multiline_source
+    exec:
+      command: "echo 'line1' && echo 'line2' && echo 'line3'"
+      shell: true
+    description: "Multi-line output"
+
+  # Chain all results
+  - id: final
+    depends_on: [bind_special, infer_special, multiline_source]
+    with:
+      a: $bind_special | trim
+      b: $infer_special | trim
+      c: $multiline_source | trim
+    exec:
+      command: "echo 'SPECIAL_TEST_COMPLETE: {{with.a}} | {{with.b}} | {{with.c}}'"
+      shell: true
+    description: "Final aggregation of special char tests"

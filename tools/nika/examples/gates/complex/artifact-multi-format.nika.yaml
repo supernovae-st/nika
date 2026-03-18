@@ -1,0 +1,76 @@
+# COMPLEX-21: Same data saved as json, yaml, and text artifacts
+# Tests: multiple artifact formats from same source, format: json/yaml/text
+schema: nika/workflow@0.12
+workflow: complex-artifact-multi-format
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: generate_data
+    infer: "Generate a project config with name, version, dependencies (array of 3), and build settings."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          version:
+            type: string
+          dependencies:
+            type: array
+            items:
+              type: string
+          build:
+            type: object
+            properties:
+              target:
+                type: string
+              optimize:
+                type: boolean
+            required: [target, optimize]
+        required: [name, version, dependencies, build]
+    description: "Generate structured config data"
+
+  - id: save_as_json
+    depends_on: [generate_data]
+    with:
+      config: $generate_data
+    exec: "echo '{{with.config}}'"
+    artifact:
+      path: "config-output.json"
+      source: config
+      format: json
+    description: "Save as JSON artifact"
+
+  - id: save_as_yaml
+    depends_on: [generate_data]
+    with:
+      config: $generate_data
+    exec: "echo '{{with.config}}'"
+    artifact:
+      path: "config-output.yaml"
+      source: config
+      format: yaml
+    description: "Save as YAML artifact"
+
+  - id: save_as_text
+    depends_on: [generate_data]
+    with:
+      config: $generate_data
+    infer: "Format this config as human-readable text with bullet points: {{with.config}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "config-output.txt"
+      format: text
+    description: "Save as text artifact via LLM formatting"
+
+  - id: verify_artifacts
+    depends_on: [save_as_json, save_as_yaml, save_as_text]
+    exec: "echo 'All 3 artifacts written: json, yaml, text'"
+    description: "Verify all three format artifacts were created"

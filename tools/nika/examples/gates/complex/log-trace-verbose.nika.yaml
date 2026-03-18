@@ -1,0 +1,63 @@
+# COMPLEX-94: Maximum verbosity workflow for trace testing
+# Tests: debug log level + many tasks + transforms + bindings = lots of trace events
+schema: nika/workflow@0.12
+workflow: complex-log-trace-verbose
+
+log:
+  level: debug
+
+tasks:
+  - id: s1
+    exec: "echo 'SEED'"
+
+  - id: s2
+    depends_on: [s1]
+    with: { d: $s1 | trim }
+    exec: "echo 'S2({{with.d}})'"
+
+  - id: s3
+    depends_on: [s2]
+    with: { d: $s2 | trim | upper }
+    exec: "echo 'S3({{with.d}})'"
+
+  - id: s4
+    depends_on: [s3]
+    with: { d: $s3 | trim | lower }
+    exec: "echo 'S4({{with.d}})'"
+
+  - id: s5
+    depends_on: [s4]
+    with: { d: $s4 | trim }
+    infer: "Echo back: {{with.d}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+
+  - id: s6
+    depends_on: [s5]
+    with: { d: $s5 | trim | upper }
+    exec: "echo 'S6({{with.d}})'"
+
+  - id: s7_parallel_a
+    depends_on: [s3]
+    with: { d: $s3 | trim }
+    exec: "echo 'S7A({{with.d}})'"
+
+  - id: s7_parallel_b
+    depends_on: [s3]
+    with: { d: $s3 | trim }
+    exec: "echo 'S7B({{with.d}})'"
+
+  - id: s8_merge
+    depends_on: [s6, s7_parallel_a, s7_parallel_b]
+    with:
+      a: $s6 | trim
+      b: $s7_parallel_a | trim
+      c: $s7_parallel_b | trim
+    exec: "echo 'MERGE({{with.a}}|{{with.b}}|{{with.c}})'"
+
+  - id: s9_final
+    depends_on: [s8_merge]
+    with: { d: $s8_merge | trim }
+    exec: "echo 'FINAL({{with.d}})'"
+    description: "10-task verbose trace chain"

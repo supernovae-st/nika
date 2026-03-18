@@ -1,0 +1,75 @@
+# COMPLEX-83: Read file -> process lines -> write output
+# Tests: exec file I/O, multi-step processing, temp file management
+schema: nika/workflow@0.12
+workflow: complex-exec-file-processing
+
+tasks:
+  # Create temp input file
+  - id: create_input
+    exec:
+      command: "echo -e 'apple\\nbanana\\ncherry\\ndate\\nelderberry\\nfig\\ngrape' > /tmp/nika-test-83-input.txt && echo 'CREATED'"
+      shell: true
+    description: "Create test input file"
+
+  # Count lines
+  - id: count_lines
+    depends_on: [create_input]
+    exec:
+      command: "wc -l < /tmp/nika-test-83-input.txt | tr -d ' '"
+      shell: true
+    description: "Count lines in input"
+
+  # Sort file
+  - id: sort_file
+    depends_on: [create_input]
+    exec:
+      command: "sort /tmp/nika-test-83-input.txt"
+      shell: true
+    description: "Sort file contents"
+
+  # Filter (lines > 5 chars)
+  - id: filter_long
+    depends_on: [create_input]
+    exec:
+      command: "awk 'length > 5' /tmp/nika-test-83-input.txt"
+      shell: true
+    description: "Filter lines longer than 5 chars"
+
+  # Uppercase transform
+  - id: uppercase_all
+    depends_on: [create_input]
+    exec:
+      command: "tr '[:lower:]' '[:upper:]' < /tmp/nika-test-83-input.txt"
+      shell: true
+    description: "Uppercase all lines"
+
+  # Combine processed outputs
+  - id: combine
+    depends_on: [count_lines, sort_file, filter_long, uppercase_all]
+    with:
+      count: $count_lines | trim
+      sorted: $sort_file | trim
+      filtered: $filter_long | trim
+      upper: $uppercase_all | trim
+    exec:
+      command: "echo 'Lines: {{with.count}}' && echo 'Sorted: {{with.sorted}}' && echo 'Long: {{with.filtered}}' && echo 'Upper: {{with.upper}}'"
+      shell: true
+    description: "Combine all processing results"
+
+  # Analyze
+  - id: analyze
+    depends_on: [combine, count_lines]
+    with:
+      processed: $combine | trim
+      count: $count_lines | trim
+    infer: "We processed {{with.count}} lines of fruit data: {{with.processed}}. Summarize the processing in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "LLM summary of file processing"
+
+  # Cleanup
+  - id: cleanup
+    depends_on: [analyze]
+    exec: "rm -f /tmp/nika-test-83-input.txt && echo 'CLEANED'"
+    description: "Remove temp files"

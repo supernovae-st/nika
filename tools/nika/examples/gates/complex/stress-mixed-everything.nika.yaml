@@ -1,0 +1,126 @@
+# COMPLEX-49: All 5 verbs + for_each + artifacts + structured + bindings + transforms
+# Tests: every verb type in one workflow, maximum feature coverage
+schema: nika/workflow@0.12
+workflow: complex-stress-mixed-everything
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  topic:
+    default: "workflow engines"
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+tasks:
+  # VERB 1: exec
+  - id: v_exec
+    exec:
+      command: "echo '{\"verb\":\"exec\",\"ts\":\"'$(date +%s)'\",\"host\":\"'$(hostname)'\"}'"
+      shell: true
+    description: "Verb 1: exec with shell"
+
+  # VERB 2: fetch
+  - id: v_fetch
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body:
+        topic: "{{inputs.topic}}"
+        verb: "fetch"
+    description: "Verb 2: fetch POST"
+
+  # VERB 3: infer (with structured output)
+  - id: v_infer
+    depends_on: [v_exec]
+    with:
+      exec_data: $v_exec
+    infer: |
+      Analyze this exec output and extract key info: {{with.exec_data}}
+      Topic context: {{inputs.topic}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    structured:
+      schema:
+        type: object
+        properties:
+          verb_used:
+            type: string
+          analysis:
+            type: string
+          confidence:
+            type: number
+        required: [verb_used, analysis, confidence]
+    description: "Verb 3: infer with structured output"
+
+  # VERB 4: agent
+  - id: v_agent
+    depends_on: [v_infer]
+    with:
+      analysis: $v_infer.analysis
+    agent:
+      prompt: |
+        Review this analysis: {{with.analysis}}
+        Log your review with nika_log, then complete with a summary.
+        Call nika_complete with result="reviewed" confidence=0.9 reasoning="agent review done"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 150
+    description: "Verb 4: agent with tools"
+
+  # for_each over generated items
+  - id: generate_items
+    exec: 'printf ''["alpha","beta","gamma"]'''
+
+  - id: foreach_items
+    depends_on: [generate_items]
+    for_each: "$generate_items"
+    as: item
+    concurrency: 2
+    infer: "Write one fact about the concept '{{with.item}}' related to {{inputs.topic}}."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "for_each with concurrency"
+
+  # Transform pipeline
+  - id: transform_step
+    depends_on: [v_exec]
+    with:
+      val: $v_exec | trim | lower
+    exec: "echo 'TRANSFORMED={{with.val}}'"
+    description: "Transform: trim | lower"
+
+  # Merge everything
+  - id: mega_merge
+    depends_on: [v_exec, v_fetch, v_infer, v_agent, foreach_items, transform_step]
+    with:
+      exec_out: $v_exec | trim
+      fetch_out: $v_fetch
+      infer_out: $v_infer
+      agent_out: $v_agent
+      foreach_out: $foreach_items
+      transform_out: $transform_step | trim
+    infer: |
+      Compile a comprehensive summary from all 5 verbs:
+      Exec: {{with.exec_out}}
+      Fetch (snippet): {{with.fetch_out}}
+      Infer: {{with.infer_out}}
+      Agent: {{with.agent_out}}
+      ForEach: {{with.foreach_out}}
+      Transform: {{with.transform_out}}
+      Style: {{context.files.style}}
+      Write 3 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "mixed-everything-{{inputs.topic}}.md"
+      template: "# Mixed Everything: {{inputs.topic}}\n\n{{output}}\n\n---\nAll 5 verbs tested."
+      format: text
+    description: "Mega-merge of all verbs, features, and bindings into artifact"

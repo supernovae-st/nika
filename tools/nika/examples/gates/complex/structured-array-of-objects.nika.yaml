@@ -1,0 +1,67 @@
+# COMPLEX-17: Structured output producing array of complex objects
+# Tests: array root schema, object items with multiple types, downstream iteration
+schema: nika/workflow@0.12
+workflow: complex-structured-array-objects
+
+tasks:
+  - id: generate_inventory
+    infer: |
+      Generate an inventory of 4 items for a tech store.
+      Each item should have name, price, category, in_stock status, and tags.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          items:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                price:
+                  type: number
+                category:
+                  type: string
+                in_stock:
+                  type: boolean
+                tags:
+                  type: array
+                  items:
+                    type: string
+              required: [name, price, category, in_stock, tags]
+        required: [items]
+    description: "Generate array of complex inventory objects"
+
+  - id: process_each_item
+    depends_on: [generate_inventory]
+    for_each: "$generate_inventory.items"
+    as: item
+    infer: "Write a 1-sentence product description for: {{with.item}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "Iterate over structured array items"
+
+  - id: price_summary
+    depends_on: [generate_inventory]
+    with:
+      items: $generate_inventory.items
+    infer: "Calculate which item is cheapest and which is most expensive from: {{with.items}}. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Analyze prices from structured array"
+
+  - id: catalog
+    depends_on: [process_each_item, price_summary]
+    with:
+      descriptions: $process_each_item
+      prices: $price_summary | trim
+    exec:
+      command: "echo 'CATALOG:' && echo 'Descriptions: {{with.descriptions}}' && echo 'Price analysis: {{with.prices}}'"
+      shell: true
+    description: "Combine per-item descriptions with price analysis"

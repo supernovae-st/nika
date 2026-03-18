@@ -1,0 +1,65 @@
+# COMPLEX-15: Fallback operator chains — $a ?? $b ?? "default"
+# Tests: ?? operator, missing field fallback, multi-level fallback chains
+schema: nika/workflow@0.12
+workflow: complex-binding-fallback-chain
+
+tasks:
+  - id: partial_data
+    exec: 'printf ''{"name":"Alice","email":null}'''
+    description: "JSON with some fields present, some null"
+
+  - id: empty_data
+    exec: "echo '{}'"
+    description: "Empty JSON object"
+
+  - id: fallback_simple
+    depends_on: [partial_data]
+    with:
+      name: $partial_data.name ?? "Unknown"
+    exec: "echo 'Name={{with.name}}'"
+    description: "Simple fallback — field exists, no fallback needed"
+
+  - id: fallback_missing
+    depends_on: [partial_data]
+    with:
+      phone: $partial_data.phone ?? "no-phone"
+    exec: "echo 'Phone={{with.phone}}'"
+    description: "Fallback triggers — field does not exist"
+
+  - id: fallback_chain
+    depends_on: [partial_data, empty_data]
+    with:
+      value: $empty_data.priority ?? $partial_data.priority ?? "low"
+    exec: "echo 'Priority={{with.value}}'"
+    description: "Double fallback chain — both sources miss the field"
+
+  - id: fallback_with_transform
+    depends_on: [partial_data]
+    with:
+      val: $partial_data.name ?? "fallback" | upper
+    exec: "echo 'Transformed={{with.val}}'"
+    description: "Fallback combined with transform"
+
+  - id: fallback_env
+    with:
+      custom: $env.NIKA_NONEXISTENT_VAR ?? "env_default"
+    exec: "echo 'EnvFallback={{with.custom}}'"
+    description: "Env var fallback for non-existent variable"
+
+  - id: verify_all_fallbacks
+    depends_on: [fallback_simple, fallback_missing, fallback_chain, fallback_with_transform, fallback_env]
+    with:
+      r1: $fallback_simple | trim
+      r2: $fallback_missing | trim
+      r3: $fallback_chain | trim
+      r4: $fallback_with_transform | trim
+      r5: $fallback_env | trim
+    exec:
+      command: |
+        echo "Simple: {{with.r1}}"
+        echo "Missing: {{with.r2}}"
+        echo "Chain: {{with.r3}}"
+        echo "Transform: {{with.r4}}"
+        echo "Env: {{with.r5}}"
+      shell: true
+    description: "Verify all 5 fallback patterns"

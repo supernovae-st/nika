@@ -1,0 +1,71 @@
+# COMPLEX-67: Same data in 3 formats — JSON, YAML, text
+# Tests: format: json vs yaml vs text on same source data
+schema: nika/workflow@0.12
+workflow: complex-artifact-formats
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: generate_data
+    infer: "Return a JSON object with fields: name (string), count (number), tags (array of 3 strings). Use realistic values."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          count:
+            type: integer
+          tags:
+            type: array
+            items:
+              type: string
+        required: [name, count, tags]
+    description: "Generate structured data"
+
+  # Format 1: JSON artifact
+  - id: save_json
+    depends_on: [generate_data]
+    with:
+      data: $generate_data
+    exec: "echo '{{with.data}}'"
+    artifact:
+      path: "data-output.json"
+      format: json
+    description: "Save as JSON"
+
+  # Format 2: YAML artifact
+  - id: save_yaml
+    depends_on: [generate_data]
+    with:
+      data: $generate_data
+    exec: "echo '{{with.data}}'"
+    artifact:
+      path: "data-output.yaml"
+      format: yaml
+    description: "Save as YAML"
+
+  # Format 3: Text artifact with template
+  - id: save_txt
+    depends_on: [generate_data]
+    with:
+      data: $generate_data
+    exec: "echo '{{with.data}}'"
+    artifact:
+      path: "data-output.txt"
+      template: "Data Export\n===========\n\n{{output}}\n\nExported by Nika"
+      format: text
+    description: "Save as formatted text"
+
+  - id: verify_all
+    depends_on: [save_json, save_yaml, save_txt]
+    with:
+      j: $save_json | trim
+      y: $save_yaml | trim
+      t: $save_txt | trim
+    exec: "echo 'THREE_FORMATS_OK'"
+    description: "Verify all three formats written"

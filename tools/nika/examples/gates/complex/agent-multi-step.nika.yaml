@@ -1,0 +1,37 @@
+# COMPLEX-26: Agent that must complete a 3-step task with tool usage
+# Tests: agent with multiple tools, multi-turn reasoning, tool_choice
+schema: nika/workflow@0.12
+workflow: complex-agent-multi-step
+
+tasks:
+  - id: prepare_context
+    exec:
+      command: "echo '{\"task\":\"analyze\",\"files\":[\"/tmp/test1.txt\",\"/tmp/test2.txt\"],\"deadline\":\"2026-03-20\"}'"
+      shell: true
+    description: "Prepare task context for the agent"
+
+  - id: agent_worker
+    depends_on: [prepare_context]
+    with:
+      context: $prepare_context
+    agent:
+      prompt: |
+        You have a 3-step task:
+        1. Log that you're starting with nika_log
+        2. Use nika_emit to emit an event with name="step_complete" and data="analysis done"
+        3. Call nika_complete with result="task finished" confidence=0.9 reasoning="all 3 steps done"
+
+        Context: {{with.context}}
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log, nika_emit]
+      max_turns: 5
+      max_tokens: 200
+    description: "Agent executes 3-step task using multiple tools"
+
+  - id: post_agent
+    depends_on: [agent_worker]
+    with:
+      result: $agent_worker
+    exec: "echo 'Agent result: {{with.result}}'"
+    description: "Capture and display agent output"

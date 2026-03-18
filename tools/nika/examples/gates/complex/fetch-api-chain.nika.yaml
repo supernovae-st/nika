@@ -1,0 +1,61 @@
+# COMPLEX-76: Fetch API chain — GET -> process -> POST -> verify
+# Tests: fetch chaining, GET then POST with data from previous fetch, binding from fetch
+schema: nika/workflow@0.12
+workflow: complex-fetch-api-chain
+
+tasks:
+  # Step 1: GET initial data
+  - id: get_data
+    fetch:
+      url: "https://httpbin.org/get?source=nika&step=1"
+      method: GET
+    description: "Initial GET request"
+
+  # Step 2: Process the response
+  - id: process_response
+    depends_on: [get_data]
+    with:
+      raw: $get_data
+    infer: "Extract the URL and args from: {{with.raw}}. Return as a one-line summary."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Process GET response with LLM"
+
+  # Step 3: POST processed data back
+  - id: post_result
+    depends_on: [process_response]
+    with:
+      summary: $process_response | trim
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      json:
+        processed: true
+        step: 3
+        summary: "processed-data"
+    description: "POST processed result"
+
+  # Step 4: Verify POST response
+  - id: verify_post
+    depends_on: [post_result]
+    with:
+      post_resp: $post_result
+    infer: "Verify this POST response contains our data: {{with.post_resp}}. Reply VERIFIED or FAILED."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Verify the POST round-trip"
+
+  # Step 5: Final summary
+  - id: summary
+    depends_on: [get_data, process_response, post_result, verify_post]
+    with:
+      get_res: $get_data ?? "no-get"
+      processed: $process_response | trim
+      post_res: $post_result ?? "no-post"
+      verified: $verify_post | trim
+    exec:
+      command: "echo 'API_CHAIN_COMPLETE: verified={{with.verified}}'"
+      shell: true
+    description: "Final chain summary"

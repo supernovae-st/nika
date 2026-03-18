@@ -1,0 +1,62 @@
+# COMPLEX-08: for_each where each iteration uses different verbs in sequence
+# Tests: mixed verb types with for_each, binding from for_each to downstream mixed tasks
+schema: nika/workflow@0.12
+workflow: complex-foreach-mixed-verbs
+
+tasks:
+  - id: endpoints
+    exec: 'printf ''["https://httpbin.org/get?id=1","https://httpbin.org/get?id=2","https://httpbin.org/get?id=3"]'''
+    description: "Generate array of API endpoints"
+
+  - id: fetch_each
+    depends_on: [endpoints]
+    for_each: "$endpoints"
+    as: url
+    fetch:
+      url: "{{with.url}}"
+      method: GET
+    description: "Fetch each endpoint in parallel"
+
+  - id: hash_each
+    depends_on: [fetch_each]
+    for_each: "$fetch_each"
+    as: response
+    exec:
+      command: "echo '{{with.response}}' | md5 | cut -c1-8"
+      shell: true
+    description: "Hash each response via exec"
+
+  - id: analyze_each
+    depends_on: [fetch_each]
+    for_each: "$fetch_each"
+    as: response
+    infer: "Summarize this HTTP response in exactly 5 words: {{with.response}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+    description: "LLM summarizes each fetched response"
+
+  - id: merge_hashes_and_summaries
+    depends_on: [hash_each, analyze_each]
+    with:
+      hashes: $hash_each
+      summaries: $analyze_each
+    exec:
+      command: "echo 'HASHES: {{with.hashes}}' && echo 'SUMMARIES: {{with.summaries}}'"
+      shell: true
+    description: "Merge parallel for_each results from different verbs"
+
+  - id: final_report
+    depends_on: [merge_hashes_and_summaries, endpoints]
+    with:
+      merged: $merge_hashes_and_summaries
+      urls: $endpoints
+    infer: |
+      Create a brief status report from:
+      URLs tested: {{with.urls}}
+      Results: {{with.merged}}
+      One paragraph, 3 sentences max.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Final report combining all for_each outputs"

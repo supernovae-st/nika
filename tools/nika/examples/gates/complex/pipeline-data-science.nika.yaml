@@ -1,0 +1,131 @@
+# COMPLEX-52: Data science pipeline — load -> clean -> analyze -> visualize -> report
+# Tests: structured output, transform chains, multi-stage data flow
+schema: nika/workflow@0.12
+workflow: complex-pipeline-data-science
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  dataset:
+    default: "sales_q4"
+  threshold:
+    default: "100"
+
+tasks:
+  # Stage 1: Load data (simulated)
+  - id: load_csv
+    exec:
+      command: "echo '{\"rows\":150,\"columns\":[\"date\",\"product\",\"revenue\",\"region\"],\"sample\":[{\"date\":\"2025-12-01\",\"product\":\"Widget\",\"revenue\":250,\"region\":\"US\"},{\"date\":\"2025-12-02\",\"product\":\"Gadget\",\"revenue\":80,\"region\":\"EU\"}]}'"
+      shell: true
+    description: "Simulate CSV data load"
+
+  - id: load_metadata
+    exec: "echo '{\"source\":\"warehouse\",\"updated\":\"2025-12-15\",\"quality\":\"verified\"}'"
+    description: "Load dataset metadata"
+
+  # Stage 2: Clean & validate
+  - id: clean_data
+    depends_on: [load_csv]
+    with:
+      raw: $load_csv
+    infer: |
+      Given this raw dataset summary: {{with.raw}}
+      List 3 data cleaning steps you would apply. Return as JSON.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          steps:
+            type: array
+            items:
+              type: string
+          rows_after:
+            type: integer
+          quality_score:
+            type: number
+        required: [steps, rows_after, quality_score]
+    description: "Structured cleaning report"
+
+  # Stage 3: Statistical analysis
+  - id: analyze_stats
+    depends_on: [clean_data, load_metadata]
+    with:
+      cleaned: $clean_data
+      meta: $load_metadata
+    infer: |
+      Analyze this cleaned dataset (threshold={{inputs.threshold}}):
+      Data: {{with.cleaned}}
+      Metadata: {{with.meta}}
+      Provide statistical insights in 3 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Statistical analysis with threshold input"
+
+  - id: segment_analysis
+    depends_on: [clean_data]
+    for_each: ["US", "EU", "APAC"]
+    as: region
+    with:
+      data: $clean_data
+    infer: "For region {{with.region}} with data quality {{with.data.quality_score}}, write one insight sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Per-region analysis via for_each"
+
+  # Stage 4: Visualize (generate descriptions)
+  - id: chart_spec
+    depends_on: [analyze_stats]
+    with:
+      stats: $analyze_stats | trim
+    infer: |
+      Based on: {{with.stats}}
+      Describe 2 chart types that would best visualize this data. Return as JSON.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    structured:
+      schema:
+        type: object
+        properties:
+          charts:
+            type: array
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                title:
+                  type: string
+              required: [type, title]
+        required: [charts]
+    description: "Chart specification as structured output"
+
+  # Stage 5: Final report
+  - id: report
+    depends_on: [analyze_stats, segment_analysis, chart_spec, load_metadata]
+    with:
+      stats: $analyze_stats | trim
+      segments: $segment_analysis
+      charts: $chart_spec
+      meta: $load_metadata
+    infer: |
+      Compile a data science report for dataset "{{inputs.dataset}}":
+      - Stats: {{with.stats}}
+      - Regional: {{with.segments}}
+      - Charts: {{with.charts}}
+      - Metadata: {{with.meta}}
+      Format as a structured markdown report.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "ds-report-{{inputs.dataset}}.md"
+      template: "# Data Science Report: {{inputs.dataset}}\n\n{{output}}\n\n---\nThreshold: {{inputs.threshold}}"
+      format: text
+    description: "Final data science report with artifact"

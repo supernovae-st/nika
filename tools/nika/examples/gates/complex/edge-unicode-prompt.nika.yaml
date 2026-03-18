@@ -1,0 +1,64 @@
+# COMPLEX-58: Unicode prompts — Japanese, Chinese, Arabic, emoji in prompts and bindings
+# Tests: multi-byte character handling in templates, bindings, and LLM prompts
+schema: nika/workflow@0.12
+workflow: complex-edge-unicode
+
+tasks:
+  # Japanese prompt
+  - id: japanese
+    infer: "Translate to English: 人工知能は未来の技術です。Reply with the translation only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Japanese prompt"
+
+  # Chinese prompt
+  - id: chinese
+    infer: "Translate to English: 深度学习改变了世界。Reply with the translation only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Chinese prompt"
+
+  # Arabic prompt
+  - id: arabic
+    infer: "Translate to English: الذكاء الاصطناعي يغير العالم. Reply with the translation only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Arabic prompt (RTL text)"
+
+  # Korean prompt
+  - id: korean
+    infer: "Translate to English: 기계 학습은 패턴을 찾습니다. Reply with the translation only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Korean prompt"
+
+  # Unicode in exec
+  - id: unicode_exec
+    exec: "echo 'Bonjour le monde! Hej världen! Olá mundo!'"
+    description: "Unicode in exec output (accented Latin chars)"
+
+  # Bind unicode outputs
+  - id: combine
+    depends_on: [japanese, chinese, arabic, korean, unicode_exec]
+    with:
+      jp: $japanese | trim
+      cn: $chinese | trim
+      ar: $arabic | trim
+      kr: $korean | trim
+      eu: $unicode_exec | trim
+    infer: |
+      You received translations:
+      - Japanese: {{with.jp}}
+      - Chinese: {{with.cn}}
+      - Arabic: {{with.ar}}
+      - Korean: {{with.kr}}
+      - European: {{with.eu}}
+      Summarize what all these sentences are about in one sentence.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Combine all unicode outputs via bindings"

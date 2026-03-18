@@ -111,7 +111,7 @@ fn extract_json_from_output(output: &str) -> Result<Value, String> {
     // All strategies failed - return original error
     Err(format!(
         "Failed to extract JSON from output. First 200 chars: {}",
-        &trimmed[..trimmed.len().min(200)]
+        crate::util::truncate_str(trimmed, 200)
     ))
 }
 

@@ -1,0 +1,97 @@
+# COMPLEX-89: 3 tasks each with different structured schemas
+# Tests: multiple structured outputs in one workflow, cross-task structured binding
+schema: nika/workflow@0.12
+workflow: complex-structured-multi-task
+
+tasks:
+  # Task 1: Person schema
+  - id: gen_person
+    infer: "Generate a fictional person with name, age, and occupation. Use realistic values."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          age:
+            type: integer
+          occupation:
+            type: string
+        required: [name, age, occupation]
+    description: "Structured: person schema"
+
+  # Task 2: Address schema
+  - id: gen_address
+    infer: "Generate a fictional US address with street, city, state, zip. Use realistic values."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          street:
+            type: string
+          city:
+            type: string
+          state:
+            type: string
+          zip:
+            type: string
+        required: [street, city, state, zip]
+    description: "Structured: address schema"
+
+  # Task 3: Preferences schema
+  - id: gen_prefs
+    infer: "Generate user preferences: theme (light/dark), language (en/fr/ja), notifications (boolean), max_items (1-100)."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          theme:
+            type: string
+            enum: ["light", "dark"]
+          language:
+            type: string
+            enum: ["en", "fr", "ja"]
+          notifications:
+            type: boolean
+          max_items:
+            type: integer
+            minimum: 1
+            maximum: 100
+        required: [theme, language, notifications, max_items]
+    description: "Structured: preferences schema"
+
+  # Combine all structured outputs
+  - id: combine
+    depends_on: [gen_person, gen_address, gen_prefs]
+    with:
+      person: $gen_person
+      address: $gen_address
+      prefs: $gen_prefs
+    infer: |
+      Combine these into a user profile summary:
+      Person: {{with.person}}
+      Address: {{with.address}}
+      Preferences: {{with.prefs}}
+      Write 2 sentences describing this user.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Combine 3 structured outputs"
+
+  - id: verify
+    depends_on: [combine, gen_person, gen_prefs]
+    with:
+      profile: $combine | trim
+      name: $gen_person.name ?? "Unknown"
+      theme: $gen_prefs.theme ?? "unknown"
+    exec: "echo 'PROFILE: name={{with.name}} theme={{with.theme}} summary={{with.profile}}'"
+    description: "Verify multi-structured output"

@@ -1,0 +1,80 @@
+# COMPLEX-41: 5+ input parameters with defaults — complex inputs configuration
+# Tests: multiple inputs, default values, input interpolation in prompts/urls/paths
+schema: nika/workflow@0.12
+workflow: complex-inputs-complex
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  project_name:
+    default: "mega-project"
+  environment:
+    default: "staging"
+  max_retries:
+    default: "3"
+  output_format:
+    default: "markdown"
+  language:
+    default: "en"
+  debug_mode:
+    default: "false"
+
+tasks:
+  - id: show_config
+    exec:
+      command: |
+        echo "PROJECT={{inputs.project_name}}"
+        echo "ENV={{inputs.environment}}"
+        echo "RETRIES={{inputs.max_retries}}"
+        echo "FORMAT={{inputs.output_format}}"
+        echo "LANG={{inputs.language}}"
+        echo "DEBUG={{inputs.debug_mode}}"
+      shell: true
+    description: "Display all 6 input parameters"
+
+  - id: fetch_with_inputs
+    fetch:
+      url: "https://httpbin.org/get?project={{inputs.project_name}}&env={{inputs.environment}}&lang={{inputs.language}}"
+      method: GET
+    description: "Fetch using 3 inputs in URL params"
+
+  - id: generate_with_inputs
+    depends_on: [show_config]
+    with:
+      config: $show_config
+    infer: |
+      Generate a project brief for {{inputs.project_name}} in {{inputs.language}}.
+      Environment: {{inputs.environment}}
+      Format: {{inputs.output_format}}
+      Config: {{with.config}}
+      Write 2 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "LLM uses multiple inputs in prompt"
+
+  - id: conditional_debug
+    depends_on: [show_config]
+    with:
+      debug: $show_config | trim
+    exec:
+      command: "echo 'Debug={{inputs.debug_mode}} Retries={{inputs.max_retries}}'"
+      shell: true
+    description: "Access debug and retry inputs"
+
+  - id: save_report
+    depends_on: [generate_with_inputs, fetch_with_inputs, conditional_debug]
+    with:
+      brief: $generate_with_inputs | trim
+      fetch_result: $fetch_with_inputs
+      debug_info: $conditional_debug | trim
+    infer: "Finalize: {{with.brief}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "{{inputs.project_name}}-{{inputs.environment}}-report.{{inputs.output_format}}"
+      template: "# {{inputs.project_name}} ({{inputs.environment}})\n\n{{output}}\n\nDebug: {{with.debug_info}}"
+      format: text
+    description: "Artifact with inputs in path and template"

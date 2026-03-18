@@ -1,0 +1,118 @@
+# COMPLEX-53: Content factory — research -> draft -> edit -> translate -> publish
+# Tests: for_each with upstream bindings, multi-artifact, template composition
+schema: nika/workflow@0.12
+workflow: complex-pipeline-content-factory
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  topic:
+    default: "AI Safety"
+  languages:
+    default: '["en", "fr", "ja"]'
+
+tasks:
+  # Phase 1: Research
+  - id: gather_sources
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Fetch reference material"
+
+  - id: extract_facts
+    depends_on: [gather_sources]
+    with:
+      raw: $gather_sources
+    infer: |
+      From this data: {{with.raw}}
+      Extract 4 key facts about {{inputs.topic}}. Return JSON array of strings.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Extract facts from sources"
+
+  # Phase 2: Draft
+  - id: write_draft
+    depends_on: [extract_facts]
+    with:
+      facts: $extract_facts
+    infer: |
+      Write a 3-paragraph article about "{{inputs.topic}}" using these facts:
+      {{with.facts}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Generate initial draft"
+
+  # Phase 3: Edit
+  - id: edit_pass
+    depends_on: [write_draft]
+    with:
+      draft: $write_draft | trim
+    infer: |
+      Edit this article for clarity and conciseness. Fix any issues:
+      {{with.draft}}
+      Return the improved version only.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Editorial pass"
+
+  # Phase 4: Translate (for_each language)
+  - id: translate
+    depends_on: [edit_pass]
+    for_each: ["fr", "ja"]
+    as: lang
+    with:
+      article: $edit_pass | trim
+    infer: "Translate to {{with.lang}}: {{with.article}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Translate edited article per language"
+
+  # Phase 5: Publish artifacts
+  - id: publish_en
+    depends_on: [edit_pass]
+    with:
+      content: $edit_pass | trim
+    exec:
+      command: "echo '{{with.content}}'"
+      shell: true
+    artifact:
+      path: "content-en.md"
+      template: "# {{inputs.topic}}\n\n{{output}}\n\n---\nLanguage: en"
+      format: text
+    description: "Publish English version"
+
+  - id: publish_translations
+    depends_on: [translate]
+    with:
+      all_translations: $translate
+    exec:
+      command: "echo '{{with.all_translations}}'"
+      shell: true
+    artifact:
+      path: "content-translations.md"
+      template: "# {{inputs.topic}} — Translations\n\n{{output}}"
+      format: text
+    description: "Publish all translations"
+
+  # Metrics summary
+  - id: metrics
+    depends_on: [publish_en, publish_translations, extract_facts]
+    with:
+      facts: $extract_facts
+      en: $publish_en | trim
+      tr: $publish_translations | trim
+    infer: |
+      Summarize the content factory run:
+      - Facts used: {{with.facts}}
+      - English output length: estimate from {{with.en}}
+      - Translations: {{with.tr}}
+      Return 2 sentences with metrics.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Content factory metrics"

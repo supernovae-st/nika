@@ -1,0 +1,76 @@
+# COMPLEX-35: Complex dependency graph with cross-layer dependencies
+# DAG: A -> B,C,D; B -> E; C -> E,F; D -> F,G; E,F -> H; G -> H
+# Tests: non-trivial DAG, cross-layer deps, multiple convergence points
+schema: nika/workflow@0.12
+workflow: complex-dag-cross-deps
+
+tasks:
+  - id: a_root
+    exec: "echo 'ROOT_COMPLEX'"
+    description: "Root node feeds 3 branches"
+
+  - id: b_branch
+    depends_on: [a_root]
+    with: { d: $a_root }
+    exec: "echo 'B({{with.d}})'"
+    description: "Branch B from root"
+
+  - id: c_branch
+    depends_on: [a_root]
+    with: { d: $a_root }
+    infer: "Transform: {{with.d}} -> add C prefix. One line."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+    description: "Branch C from root (via LLM)"
+
+  - id: d_branch
+    depends_on: [a_root]
+    with: { d: $a_root }
+    fetch:
+      url: "https://httpbin.org/get?node=D&data={{with.d}}"
+      method: GET
+    description: "Branch D from root (via fetch)"
+
+  - id: e_merge_bc
+    depends_on: [b_branch, c_branch]
+    with:
+      b: $b_branch | trim
+      c: $c_branch | trim
+    exec: "echo 'E({{with.b}}+{{with.c}})'"
+    description: "E merges B and C"
+
+  - id: f_merge_cd
+    depends_on: [c_branch, d_branch]
+    with:
+      c: $c_branch | trim
+      d: $d_branch
+    exec:
+      command: "echo 'F(c={{with.c}} d_len='$(echo '{{with.d}}' | wc -c | tr -d ' ')')'"
+      shell: true
+    description: "F merges C and D"
+
+  - id: g_from_d
+    depends_on: [d_branch]
+    with:
+      d: $d_branch
+    exec:
+      command: "echo 'G('$(echo '{{with.d}}' | head -c 30)')'"
+      shell: true
+    description: "G processes D only"
+
+  - id: h_final
+    depends_on: [e_merge_bc, f_merge_cd, g_from_d]
+    with:
+      e: $e_merge_bc | trim
+      f: $f_merge_cd | trim
+      g: $g_from_d | trim
+    infer: |
+      Synthesize these three inputs into a one-sentence conclusion:
+      E: {{with.e}}
+      F: {{with.f}}
+      G: {{with.g}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "H: final convergence of E, F, and G"

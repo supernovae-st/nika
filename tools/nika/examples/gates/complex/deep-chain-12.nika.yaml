@@ -1,0 +1,172 @@
+# COMPLEX-03: 12-task content pipeline — full editorial workflow
+# Tests: long chains, structured output mid-chain, for_each in chain, artifact at end
+schema: nika/workflow@0.12
+workflow: complex-deep-chain-12
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  subject:
+    default: "distributed systems"
+
+tasks:
+  - id: s1_gather_metadata
+    exec:
+      command: "echo '{\"date\":\"'$(date +%Y-%m-%d)'\",\"author\":\"nika\",\"subject\":\"{{inputs.subject}}\"}'"
+      shell: true
+    description: "Step 1: Gather system metadata as JSON"
+
+  - id: s2_fetch_reference
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Step 2: Fetch reference material"
+
+  - id: s3_analyze_reference
+    depends_on: [s2_fetch_reference]
+    with:
+      ref: $s2_fetch_reference
+    infer: |
+      Analyze this reference data and identify 3 themes relevant to {{inputs.subject}}:
+      {{with.ref}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          themes:
+            type: array
+            items:
+              type: string
+          relevance_score:
+            type: number
+        required: [themes, relevance_score]
+    description: "Step 3: Structured analysis of reference data"
+
+  - id: s4_generate_outline
+    depends_on: [s3_analyze_reference]
+    with:
+      themes: $s3_analyze_reference.themes
+    infer: |
+      Create a 4-section outline for an article about {{inputs.subject}}.
+      Incorporate these themes: {{with.themes}}
+      Return section titles as JSON array of strings.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Step 4: Generate article outline from themes"
+
+  - id: s5_expand_sections
+    depends_on: [s4_generate_outline]
+    for_each: "$s4_generate_outline"
+    as: section
+    infer: "Write a 2-sentence paragraph for the section: '{{with.section}}' about {{inputs.subject}}."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Step 5: Expand each section in parallel"
+
+  - id: s6_quality_check
+    depends_on: [s5_expand_sections]
+    with:
+      paragraphs: $s5_expand_sections
+    infer: |
+      Review these paragraphs for quality. Rate each 1-5 and suggest improvements:
+      {{with.paragraphs}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          ratings:
+            type: array
+            items:
+              type: object
+              properties:
+                score:
+                  type: integer
+                feedback:
+                  type: string
+              required: [score, feedback]
+          average:
+            type: number
+        required: [ratings, average]
+    description: "Step 6: Structured quality review"
+
+  - id: s7_revise
+    depends_on: [s5_expand_sections, s6_quality_check]
+    with:
+      content: $s5_expand_sections
+      review: $s6_quality_check.ratings
+    infer: |
+      Revise this content based on feedback:
+      Content: {{with.content}}
+      Feedback: {{with.review}}
+      Return the improved version in 3-4 sentences total.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Step 7: Revise based on quality feedback"
+
+  - id: s8_generate_title
+    depends_on: [s3_analyze_reference, s7_revise]
+    with:
+      themes: $s3_analyze_reference.themes
+      content: $s7_revise | trim
+    infer: "Generate a compelling article title about {{inputs.subject}} that captures these themes: {{with.themes}}. One line only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Step 8: Generate title from themes and revised content"
+
+  - id: s9_generate_abstract
+    depends_on: [s7_revise, s8_generate_title]
+    with:
+      title: $s8_generate_title | trim
+      body: $s7_revise | trim
+    infer: "Write a 2-sentence abstract for an article titled '{{with.title}}' with this body: {{with.body}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Step 9: Generate abstract"
+
+  - id: s10_format_metadata
+    depends_on: [s1_gather_metadata, s8_generate_title]
+    with:
+      meta: $s1_gather_metadata
+      title: $s8_generate_title | trim
+    exec:
+      command: "echo 'title: {{with.title}}' && echo 'metadata: {{with.meta}}' && echo 'word_count: estimated'"
+      shell: true
+    description: "Step 10: Format metadata block"
+
+  - id: s11_assemble
+    depends_on: [s9_generate_abstract, s7_revise, s10_format_metadata]
+    with:
+      abstract: $s9_generate_abstract | trim
+      body: $s7_revise | trim
+      meta: $s10_format_metadata
+    exec:
+      command: "echo '{{with.meta}}' && echo '---' && echo 'Abstract: {{with.abstract}}' && echo '---' && echo '{{with.body}}'"
+      shell: true
+    description: "Step 11: Assemble all parts"
+
+  - id: s12_publish
+    depends_on: [s11_assemble, s8_generate_title]
+    with:
+      assembled: $s11_assemble
+      title: $s8_generate_title | trim
+    infer: "Format this assembled article into clean markdown with proper headings:\n{{with.assembled}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "article-{{inputs.subject}}.md"
+      template: "# {{with.title}}\n\n{{output}}\n\n---\nGenerated by Nika v0.12"
+      format: text
+    description: "Step 12: Final publish with artifact"

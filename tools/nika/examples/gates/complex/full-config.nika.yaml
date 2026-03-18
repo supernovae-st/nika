@@ -1,0 +1,84 @@
+# COMPLEX-45: Every workflow-level config — inputs, context, log, artifacts, mcp
+# Tests: all top-level config blocks simultaneously, maximum workflow configuration
+schema: nika/workflow@0.12
+workflow: complex-full-config
+description: "Workflow exercising every top-level configuration option"
+
+inputs:
+  target:
+    default: "rust"
+  depth:
+    default: "shallow"
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+log:
+  level: debug
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts/full-config
+  manifest: true
+
+mcp:
+  echo-server:
+    command: echo
+    args: ["mcp-configured"]
+
+tasks:
+  - id: verify_inputs
+    exec:
+      command: "echo 'target={{inputs.target}} depth={{inputs.depth}}'"
+      shell: true
+    description: "Verify inputs config"
+
+  - id: verify_context
+    infer: "Summarize in 5 words: {{context.files.style}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+    description: "Verify context config"
+
+  - id: verify_env
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo 'HOME={{with.home}}'"
+      shell: true
+    description: "Verify env binding config"
+
+  - id: data_task
+    depends_on: [verify_inputs]
+    with:
+      target: $verify_inputs | trim
+    infer: "Write 1 sentence about {{inputs.target}} at {{inputs.depth}} depth."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Use inputs in LLM prompt"
+
+  - id: artifact_task
+    depends_on: [data_task, verify_context]
+    with:
+      content: $data_task | trim
+      context_summary: $verify_context | trim
+    infer: "Finalize: {{with.content}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    artifact:
+      path: "full-config-{{inputs.target}}.md"
+      template: "# Full Config Test\n\nTarget: {{inputs.target}}\nDepth: {{inputs.depth}}\nContext: {{with.context_summary}}\n\n{{output}}"
+      format: text
+    description: "Artifact using inputs, context, and manifest"
+
+  - id: final_check
+    depends_on: [artifact_task, verify_env]
+    with:
+      art: $artifact_task | trim
+      env: $verify_env | trim
+    exec:
+      command: "echo 'All configs verified:' && echo 'Artifact: {{with.art}}' && echo 'Env: {{with.env}}'"
+      shell: true
+    description: "Final verification of all config blocks"

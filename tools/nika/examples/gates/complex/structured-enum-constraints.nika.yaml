@@ -1,0 +1,94 @@
+# COMPLEX-18: Structured output with enums, min/max, and type constraints
+# Tests: enum values, integer constraints, boolean fields, strict schema
+schema: nika/workflow@0.12
+workflow: complex-structured-enum-constraints
+
+tasks:
+  - id: classify_task
+    infer: |
+      Classify this software task: "Implement user authentication with OAuth2"
+      Provide priority, effort estimate, category, and whether it's a breaking change.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          priority:
+            type: string
+            enum: [critical, high, medium, low]
+          effort_days:
+            type: integer
+            minimum: 1
+            maximum: 30
+          category:
+            type: string
+            enum: [feature, bugfix, refactor, security, performance]
+          breaking_change:
+            type: boolean
+          risk_level:
+            type: string
+            enum: [none, low, medium, high, critical]
+          assignee_count:
+            type: integer
+            minimum: 1
+            maximum: 5
+        required: [priority, effort_days, category, breaking_change, risk_level, assignee_count]
+    description: "Structured output with enums and numeric constraints"
+
+  - id: classify_second
+    infer: |
+      Classify this task: "Fix CSS alignment bug in header"
+      Provide the same structured fields.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          priority:
+            type: string
+            enum: [critical, high, medium, low]
+          effort_days:
+            type: integer
+            minimum: 1
+            maximum: 30
+          category:
+            type: string
+            enum: [feature, bugfix, refactor, security, performance]
+          breaking_change:
+            type: boolean
+          risk_level:
+            type: string
+            enum: [none, low, medium, high, critical]
+          assignee_count:
+            type: integer
+            minimum: 1
+            maximum: 5
+        required: [priority, effort_days, category, breaking_change, risk_level, assignee_count]
+    description: "Second classification with same schema"
+
+  - id: compare_tasks
+    depends_on: [classify_task, classify_second]
+    with:
+      task1: $classify_task
+      task2: $classify_second
+    infer: |
+      Compare these two task classifications:
+      Task 1 (OAuth): {{with.task1}}
+      Task 2 (CSS fix): {{with.task2}}
+      Which should be done first and why? One sentence.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Compare two structured classification outputs"
+
+  - id: priority_check
+    depends_on: [classify_task, classify_second]
+    with:
+      p1: $classify_task.priority
+      p2: $classify_second.priority
+    exec: "echo 'Task1={{with.p1}} Task2={{with.p2}}'"
+    description: "Verify enum fields are accessible via deep path"

@@ -1,0 +1,70 @@
+# COMPLEX-12: Task merging data from 4 previous tasks — wide dependency merge
+# Tests: 4-way merge, mixed verb outputs, complex with: block
+schema: nika/workflow@0.12
+workflow: complex-binding-merge
+
+tasks:
+  - id: src_exec
+    exec:
+      command: "echo '{\"type\":\"exec\",\"ts\":\"'$(date +%s)'\"}'"
+      shell: true
+    description: "Source 1: exec produces JSON"
+
+  - id: src_fetch
+    fetch:
+      url: "https://httpbin.org/get?source=fetch"
+      method: GET
+    description: "Source 2: fetch produces HTTP response"
+
+  - id: src_infer
+    infer: "Generate a JSON object with fields 'color' (string) and 'count' (number). Make up values."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          color:
+            type: string
+          count:
+            type: integer
+        required: [color, count]
+    description: "Source 3: LLM produces structured data"
+
+  - id: src_env
+    with:
+      home: $env.HOME
+      user: $env.USER
+    exec:
+      command: "echo '{\"home\":\"{{with.home}}\",\"user\":\"{{with.user}}\"}'"
+      shell: true
+    description: "Source 4: env vars as JSON"
+
+  - id: merge_all_four
+    depends_on: [src_exec, src_fetch, src_infer, src_env]
+    with:
+      from_exec: $src_exec
+      from_fetch: $src_fetch
+      from_infer: $src_infer
+      from_env: $src_env
+    infer: |
+      Merge these 4 data sources into a unified summary:
+      1. Exec output: {{with.from_exec}}
+      2. Fetch output: {{with.from_fetch}}
+      3. Infer output: {{with.from_infer}}
+      4. Env output: {{with.from_env}}
+      Create a 2-sentence overview that references all four.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "4-way merge: exec + fetch + infer + env sources"
+
+  - id: verify_merge
+    depends_on: [merge_all_four]
+    with:
+      result: $merge_all_four | trim
+    exec:
+      command: "echo 'MERGE_LEN='$(echo '{{with.result}}' | wc -c | tr -d ' ') && echo 'RESULT: {{with.result}}'"
+      shell: true
+    description: "Verify the merge produced substantive output"

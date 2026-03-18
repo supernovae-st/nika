@@ -1,0 +1,51 @@
+# COMPLEX-46: Infer with very long prompt (500+ chars) — prompt length stress test
+# Tests: long prompt handling, multi-line prompts, template expansion in long text
+schema: nika/workflow@0.12
+workflow: complex-stress-long-prompt
+
+tasks:
+  - id: context_data
+    exec: "echo 'Project Nika is a semantic YAML workflow engine that orchestrates AI tasks using 5 verbs: infer, exec, fetch, invoke, and agent.'"
+    description: "Provide context for the long prompt"
+
+  - id: long_prompt_task
+    depends_on: [context_data]
+    with:
+      context: $context_data
+    infer: |
+      You are an expert technical writer tasked with creating a comprehensive analysis.
+
+      BACKGROUND INFORMATION:
+      {{with.context}}
+
+      DETAILED REQUIREMENTS:
+      1. First, analyze the architectural implications of building a workflow engine that supports
+         multiple execution paradigms including synchronous inference, asynchronous shell execution,
+         HTTP fetching, MCP protocol invocation, and multi-turn agent loops.
+      2. Second, consider the data flow challenges when binding outputs from one task to inputs
+         of another, especially when dealing with JSON path resolution, transform pipelines
+         (trim, upper, lower, json), and fallback operators for missing values.
+      3. Third, evaluate the DAG scheduling complexity when tasks have diamond dependencies,
+         fan-out/fan-in patterns, and for_each parallel execution with concurrency limits.
+      4. Fourth, assess the structured output validation challenges when schemas include nested
+         objects, arrays of objects, enum constraints, and numeric bounds.
+      5. Finally, discuss how artifact generation with templates, source bindings, and multiple
+         output formats (json, yaml, text) adds another dimension of complexity.
+
+      OUTPUT REQUIREMENTS:
+      - Provide a concise 3-sentence summary covering the most critical architectural challenge
+      - Focus on what makes this system uniquely complex compared to simpler workflow tools
+      - Be specific and technical, avoid vague generalities
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Very long prompt (500+ chars) with detailed requirements"
+
+  - id: verify_response
+    depends_on: [long_prompt_task]
+    with:
+      response: $long_prompt_task | trim
+    exec:
+      command: "echo 'RESPONSE_LEN='$(echo '{{with.response}}' | wc -c | tr -d ' ') && echo 'RESPONSE: {{with.response}}'"
+      shell: true
+    description: "Verify the long prompt produced a meaningful response"

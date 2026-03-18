@@ -1,0 +1,192 @@
+# COMPLEX-99: Most realistic complex workflow — multi-stage content analysis platform
+# Tests: real-world pattern combining fetch, exec, infer, agent, for_each, structured, artifacts
+schema: nika/workflow@0.12
+workflow: complex-stress-real-world
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  target_url:
+    default: "https://httpbin.org/json"
+  analysis_depth:
+    default: "standard"
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+tasks:
+  # === Stage 1: Data Acquisition (parallel) ===
+  - id: fetch_primary
+    fetch:
+      url: "{{inputs.target_url}}"
+      method: GET
+    description: "Primary data source fetch"
+
+  - id: fetch_metadata
+    fetch:
+      url: "https://httpbin.org/headers"
+      method: GET
+      headers:
+        X-Analysis-Depth: "{{inputs.analysis_depth}}"
+    description: "Metadata fetch with custom headers"
+
+  - id: get_timestamp
+    exec:
+      command: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
+      shell: true
+    description: "Capture analysis timestamp"
+
+  - id: get_env_context
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo 'analyst={{with.home}} depth={{inputs.analysis_depth}}'"
+      shell: true
+    description: "Capture environment context"
+
+  # === Stage 2: Structured Extraction ===
+  - id: extract_structure
+    depends_on: [fetch_primary]
+    with:
+      raw: $fetch_primary
+    infer: |
+      Extract key information from: {{with.raw}}
+      Return structured data.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          content_type:
+            type: string
+          key_fields:
+            type: array
+            items:
+              type: string
+          complexity:
+            type: string
+            enum: ["simple", "moderate", "complex"]
+          data_quality:
+            type: number
+        required: [content_type, key_fields, complexity, data_quality]
+    description: "Structured extraction from primary data"
+
+  # === Stage 3: Parallel Analysis Tracks ===
+  - id: track_content
+    depends_on: [extract_structure]
+    with:
+      fields: $extract_structure.key_fields
+      quality: $extract_structure.data_quality
+    infer: |
+      Content analysis for fields {{with.fields}} with quality score {{with.quality}}.
+      Provide 3 content insights.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Content analysis track"
+
+  - id: track_technical
+    depends_on: [extract_structure, fetch_metadata]
+    with:
+      structure: $extract_structure
+      meta: $fetch_metadata
+    infer: |
+      Technical analysis:
+      Structure: {{with.structure}}
+      Metadata: {{with.meta}}
+      Identify 2 technical observations.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Technical analysis track"
+
+  - id: track_quality
+    depends_on: [extract_structure]
+    with:
+      quality: $extract_structure.data_quality
+      complexity: $extract_structure.complexity ?? "unknown"
+    infer: "Quality={{with.quality}}, Complexity={{with.complexity}}. Rate the data source 1-10 and explain in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Quality assessment track"
+
+  # === Stage 4: Expand Key Fields (for_each) ===
+  - id: expand_fields
+    depends_on: [extract_structure]
+    for_each: "$extract_structure.key_fields"
+    as: field
+    infer: "For the field '{{with.field}}': explain its significance in data analysis in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Expand each key field via for_each"
+
+  # === Stage 5: Agent Deep-Dive ===
+  - id: agent_deep_dive
+    depends_on: [track_content, track_technical]
+    with:
+      content: $track_content | trim
+      technical: $track_technical | trim
+    agent:
+      prompt: |
+        You have two analysis reports:
+        Content: {{with.content}}
+        Technical: {{with.technical}}
+        Use nika_log to record your analysis steps.
+        Call nika_log with level='info' and message='Starting deep dive analysis'
+        Then synthesize both reports.
+        Call nika_complete with your synthesis as result, confidence=0.9, reasoning='combined content and technical analysis'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 4
+      tools: [builtin]
+    description: "Agent synthesizes content + technical tracks"
+
+  # === Stage 6: Final Compilation ===
+  - id: compile_report
+    depends_on: [agent_deep_dive, track_quality, expand_fields, get_timestamp, get_env_context]
+    with:
+      synthesis: $agent_deep_dive | trim
+      quality: $track_quality | trim
+      fields: $expand_fields
+      timestamp: $get_timestamp | trim
+      env: $get_env_context | trim
+    infer: |
+      Style: {{context.files.style}}
+
+      Compile a final analysis report:
+      - Synthesis: {{with.synthesis}}
+      - Quality: {{with.quality}}
+      - Field details: {{with.fields}}
+      - Timestamp: {{with.timestamp}}
+      - Environment: {{with.env}}
+      Write a comprehensive 4-sentence summary.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "analysis-report-{{with.timestamp}}.md"
+      template: |
+        # Content Analysis Report
+
+        **Generated:** {{with.timestamp}}
+        **Depth:** {{inputs.analysis_depth}}
+        **Source:** {{inputs.target_url}}
+
+        ## Summary
+
+        {{output}}
+
+        ## Quality Assessment
+
+        {{with.quality}}
+
+        ---
+        Generated by Nika Workflow Engine
+      format: text
+    description: "Final report with artifact — the most realistic complex workflow"

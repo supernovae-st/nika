@@ -1,0 +1,78 @@
+# COMPLEX-16: Deeply nested JSON schema (3 levels) — structured output stress test
+# Tests: nested objects, arrays of objects, 3-level deep schema validation
+schema: nika/workflow@0.12
+workflow: complex-structured-nested
+
+tasks:
+  - id: generate_org
+    infer: |
+      Generate a fictional tech company organizational structure.
+      Include a company name, a CEO, and 2 departments each with a head and 2 team members.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          company:
+            type: string
+          ceo:
+            type: object
+            properties:
+              name:
+                type: string
+              years_experience:
+                type: integer
+            required: [name, years_experience]
+          departments:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                head:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    title:
+                      type: string
+                  required: [name, title]
+                members:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      role:
+                        type: string
+                      level:
+                        type: integer
+                    required: [name, role, level]
+              required: [name, head, members]
+        required: [company, ceo, departments]
+    description: "3-level nested structured output"
+
+  - id: extract_names
+    depends_on: [generate_org]
+    with:
+      company: $generate_org.company
+      ceo_name: $generate_org.ceo.name
+      departments: $generate_org.departments
+    exec:
+      command: "echo 'Company: {{with.company}}' && echo 'CEO: {{with.ceo_name}}' && echo 'Departments: {{with.departments}}'"
+      shell: true
+    description: "Extract and display nested paths from structured output"
+
+  - id: analyze_org
+    depends_on: [generate_org]
+    with:
+      org: $generate_org
+    infer: "Analyze this org structure and identify the strongest department: {{with.org}}. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "LLM analysis of the nested structured data"

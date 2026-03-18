@@ -1,0 +1,71 @@
+# COMPLEX-47: Task with 10+ with: bindings — binding count stress test
+# Tests: maximum number of bindings on a single task, large with: block
+schema: nika/workflow@0.12
+workflow: complex-stress-many-bindings
+
+tasks:
+  - id: s1
+    exec: "echo 'val_1'"
+  - id: s2
+    exec: "echo 'val_2'"
+  - id: s3
+    exec: "echo 'val_3'"
+  - id: s4
+    exec: "echo 'val_4'"
+  - id: s5
+    exec: "echo 'val_5'"
+  - id: s6
+    exec: "echo 'val_6'"
+  - id: s7
+    exec: "echo 'val_7'"
+  - id: s8
+    exec: "echo 'val_8'"
+  - id: s9
+    exec: "echo 'val_9'"
+  - id: s10
+    exec: "echo 'val_10'"
+  - id: s11
+    exec: "echo 'val_11'"
+  - id: s12
+    exec: "echo 'val_12'"
+
+  - id: mega_binding
+    depends_on: [s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12]
+    with:
+      b01: $s1 | trim
+      b02: $s2 | trim
+      b03: $s3 | trim
+      b04: $s4 | trim
+      b05: $s5 | trim
+      b06: $s6 | trim
+      b07: $s7 | trim
+      b08: $s8 | trim
+      b09: $s9 | trim
+      b10: $s10 | trim
+      b11: $s11 | trim
+      b12: $s12 | trim
+    exec:
+      command: |
+        echo "B01={{with.b01}}"
+        echo "B02={{with.b02}}"
+        echo "B03={{with.b03}}"
+        echo "B04={{with.b04}}"
+        echo "B05={{with.b05}}"
+        echo "B06={{with.b06}}"
+        echo "B07={{with.b07}}"
+        echo "B08={{with.b08}}"
+        echo "B09={{with.b09}}"
+        echo "B10={{with.b10}}"
+        echo "B11={{with.b11}}"
+        echo "B12={{with.b12}}"
+      shell: true
+    description: "Single task with 12 with: bindings — maximum binding density"
+
+  - id: verify_count
+    depends_on: [mega_binding]
+    with:
+      all: $mega_binding
+    exec:
+      command: "echo 'BINDING_LINES='$(echo '{{with.all}}' | wc -l | tr -d ' ')"
+      shell: true
+    description: "Verify all 12 bindings resolved"

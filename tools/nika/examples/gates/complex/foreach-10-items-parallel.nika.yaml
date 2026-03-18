@@ -1,0 +1,58 @@
+# COMPLEX-09: 10 items with concurrency: 5 — stress test parallel for_each
+# Tests: high item count, concurrency limiting, large result aggregation
+schema: nika/workflow@0.12
+workflow: complex-foreach-10-parallel
+
+tasks:
+  - id: generate_items
+    exec: 'printf ''["mercury","venus","earth","mars","jupiter","saturn","uranus","neptune","pluto","ceres"]'''
+    description: "10 celestial bodies to process"
+
+  - id: describe_each
+    depends_on: [generate_items]
+    for_each: "$generate_items"
+    as: planet
+    concurrency: 5
+    infer: "Write one sentence about {{with.planet}} focusing on its most unique feature."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "Describe each of 10 items with concurrency=5"
+
+  - id: classify_each
+    depends_on: [generate_items]
+    for_each: "$generate_items"
+    as: planet
+    concurrency: 5
+    infer: "Classify {{with.planet}} as either 'rocky', 'gas_giant', 'ice_giant', or 'dwarf'. Return only the classification word."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 15
+    description: "Classify each body type with concurrency=5"
+
+  - id: count_results
+    depends_on: [describe_each, classify_each]
+    with:
+      descriptions: $describe_each
+      classes: $classify_each
+    exec:
+      command: "echo 'DESC_COUNT='$(echo '{{with.descriptions}}' | tr ',' '\n' | wc -l | tr -d ' ') && echo 'CLASS_COUNT='$(echo '{{with.classes}}' | tr ',' '\n' | wc -l | tr -d ' ')"
+      shell: true
+    description: "Count results to verify all 10 processed"
+
+  - id: compile_catalog
+    depends_on: [describe_each, classify_each, count_results]
+    with:
+      descriptions: $describe_each
+      classes: $classify_each
+      counts: $count_results
+    infer: |
+      Create a solar system catalog combining:
+      Descriptions: {{with.descriptions}}
+      Classifications: {{with.classes}}
+      Stats: {{with.counts}}
+      Format as a brief summary, 3-4 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Final catalog from 10 parallel items"

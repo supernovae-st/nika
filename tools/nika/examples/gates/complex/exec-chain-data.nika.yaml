@@ -1,0 +1,61 @@
+# COMPLEX-85: 3 exec tasks chaining data through bindings
+# Tests: exec -> exec -> exec with binding at each step, transform in chain
+schema: nika/workflow@0.12
+workflow: complex-exec-chain
+
+tasks:
+  # Step 1: Generate data
+  - id: step1_generate
+    exec:
+      command: "echo '{\"values\":[10,20,30,40,50],\"label\":\"test_data\"}'"
+      shell: true
+    description: "Generate JSON data"
+
+  # Step 2: Transform via exec
+  - id: step2_transform
+    depends_on: [step1_generate]
+    with:
+      data: $step1_generate | trim
+    exec:
+      command: "echo '{{with.data}}' | tr ',' '\n' | wc -l | tr -d ' '"
+      shell: true
+    description: "Count elements via exec transform"
+
+  # Step 3: Enrich with metadata
+  - id: step3_enrich
+    depends_on: [step2_transform, step1_generate]
+    with:
+      count: $step2_transform | trim
+      original: $step1_generate | trim
+    exec:
+      command: "echo 'ENRICHED: count={{with.count}} source={{with.original}}' | head -c 200"
+      shell: true
+    description: "Enrich with element count"
+
+  # LLM analysis of the chain
+  - id: analyze_chain
+    depends_on: [step3_enrich]
+    with:
+      enriched: $step3_enrich | trim
+    infer: "Analyze this data chain result: {{with.enriched}}. What was the data flow? Reply in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Analyze the exec data chain"
+
+  # Parallel branch from step1
+  - id: branch_upper
+    depends_on: [step1_generate]
+    with:
+      data: $step1_generate | upper
+    exec: "echo 'UPPERCASED: {{with.data}}'"
+    description: "Parallel branch: uppercase the original"
+
+  # Final merge
+  - id: final
+    depends_on: [analyze_chain, branch_upper]
+    with:
+      analysis: $analyze_chain | trim
+      uppered: $branch_upper | trim
+    exec: "echo 'CHAIN_COMPLETE: analysis={{with.analysis}} branch={{with.uppered}}'"
+    description: "Merge chain and branch results"

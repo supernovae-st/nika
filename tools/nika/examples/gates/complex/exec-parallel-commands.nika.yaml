@@ -1,0 +1,59 @@
+# COMPLEX-84: 5 independent exec tasks in parallel
+# Tests: DAG detects no dependencies -> all run concurrently, merge at end
+schema: nika/workflow@0.12
+workflow: complex-exec-parallel
+
+tasks:
+  - id: cmd_whoami
+    exec:
+      command: "whoami"
+      shell: true
+    description: "Get current user"
+
+  - id: cmd_pwd
+    exec:
+      command: "pwd"
+      shell: true
+    description: "Get working directory"
+
+  - id: cmd_date
+    exec:
+      command: "date +%s"
+      shell: true
+    description: "Get epoch timestamp"
+
+  - id: cmd_arch
+    exec:
+      command: "uname -m"
+      shell: true
+    description: "Get CPU architecture"
+
+  - id: cmd_shell
+    exec:
+      command: "echo $SHELL"
+      shell: true
+    description: "Get shell path"
+
+  # Fan-in: merge all parallel results
+  - id: merge_all
+    depends_on: [cmd_whoami, cmd_pwd, cmd_date, cmd_arch, cmd_shell]
+    with:
+      user: $cmd_whoami | trim
+      dir: $cmd_pwd | trim
+      ts: $cmd_date | trim
+      arch: $cmd_arch | trim
+      sh: $cmd_shell | trim
+    exec:
+      command: "echo 'USER={{with.user}} DIR={{with.dir}} TS={{with.ts}} ARCH={{with.arch}} SHELL={{with.sh}}'"
+      shell: true
+    description: "Merge 5 parallel exec results"
+
+  - id: summarize
+    depends_on: [merge_all]
+    with:
+      info: $merge_all | trim
+    infer: "System info: {{with.info}}. Describe this environment in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "LLM summary of parallel exec results"

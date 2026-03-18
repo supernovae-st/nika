@@ -1,0 +1,48 @@
+# COMPLEX-43: Context files used inside for_each iterations
+# Tests: context.files.* accessible within for_each body, context + iteration combo
+schema: nika/workflow@0.12
+workflow: complex-context-in-foreach
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+tasks:
+  - id: topics
+    exec: 'printf ''["performance","security","usability","scalability"]'''
+    description: "4 topics to analyze using context"
+
+  - id: analyze_with_context
+    depends_on: [topics]
+    for_each: "$topics"
+    as: topic
+    infer: |
+      Following this style guide: {{context.files.style}}
+      Write one sentence about {{with.topic}} in software engineering.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Each for_each iteration uses context.files"
+
+  - id: aggregate
+    depends_on: [analyze_with_context]
+    with:
+      analyses: $analyze_with_context
+    infer: |
+      Combine these style-guided analyses into a coherent paragraph:
+      {{with.analyses}}
+      2-3 sentences total.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Aggregate context-informed for_each results"
+
+  - id: verify
+    depends_on: [aggregate, analyze_with_context]
+    with:
+      result: $aggregate | trim
+      raw: $analyze_with_context
+    exec:
+      command: "echo 'AGGREGATE: {{with.result}}' && echo '---' && echo 'RAW_COUNT='$(echo '{{with.raw}}' | tr ',' '\n' | wc -l | tr -d ' ')"
+      shell: true
+    description: "Verify context was applied in all iterations"

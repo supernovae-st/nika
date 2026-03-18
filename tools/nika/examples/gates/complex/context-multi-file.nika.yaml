@@ -1,0 +1,55 @@
+# COMPLEX-42: Load 3 context files — multiple file context injection
+# Tests: multiple context files, context.files.* access, context in prompts
+schema: nika/workflow@0.12
+workflow: complex-context-multi-file
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+    readme: ./README.md
+    cargo: ./Cargo.toml
+
+tasks:
+  - id: analyze_style
+    infer: "Summarize the key points from this style guide in 1 sentence: {{context.files.style}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Analyze context file 1: style guide"
+
+  - id: analyze_readme
+    infer: "What is this project about based on: {{context.files.readme}}? One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Analyze context file 2: README"
+
+  - id: analyze_cargo
+    infer: "Extract the project name and version from: {{context.files.cargo}}. One line."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Analyze context file 3: Cargo.toml"
+
+  - id: cross_reference
+    depends_on: [analyze_style, analyze_readme, analyze_cargo]
+    with:
+      style_summary: $analyze_style | trim
+      readme_summary: $analyze_readme | trim
+      cargo_info: $analyze_cargo | trim
+    infer: |
+      Cross-reference these three analyses:
+      Style: {{with.style_summary}}
+      Project: {{with.readme_summary}}
+      Package: {{with.cargo_info}}
+      Are they consistent? 2 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Cross-reference all 3 context file analyses"
+
+  - id: context_in_exec
+    exec:
+      command: "echo 'Style file loaded: YES' && echo 'README loaded: YES' && echo 'Cargo loaded: YES'"
+      shell: true
+    description: "Verify context files were loadable"

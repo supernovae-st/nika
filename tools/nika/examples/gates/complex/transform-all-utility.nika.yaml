@@ -1,0 +1,64 @@
+# COMPLEX-65: Utility transforms — type_of with various input types
+# Tests: type_of on strings, numbers, arrays, objects, nullish values
+schema: nika/workflow@0.12
+workflow: complex-transform-all-utility
+
+tasks:
+  - id: string_source
+    exec: "echo 'hello'"
+
+  - id: number_source
+    exec: "echo '42'"
+
+  - id: array_source
+    exec: 'echo ''["a","b","c"]'''
+
+  - id: object_source
+    exec: 'echo ''{"key":"val"}'''
+
+  - id: type_string
+    depends_on: [string_source]
+    with:
+      t: $string_source | type_of
+    exec: "echo 'TYPE_STRING={{with.t}}'"
+    description: "type_of on string"
+
+  - id: type_number
+    depends_on: [number_source]
+    with:
+      t: $number_source | to_number | type_of
+    exec: "echo 'TYPE_NUMBER={{with.t}}'"
+    description: "type_of on number (after to_number)"
+
+  - id: type_array
+    depends_on: [array_source]
+    with:
+      t: $array_source | type_of
+    exec: "echo 'TYPE_ARRAY={{with.t}}'"
+    description: "type_of on array"
+
+  - id: type_object
+    depends_on: [object_source]
+    with:
+      t: $object_source | type_of
+    exec: "echo 'TYPE_OBJECT={{with.t}}'"
+    description: "type_of on object"
+
+  # Combine type_of with other transforms
+  - id: type_after_transform
+    depends_on: [array_source]
+    with:
+      original_type: $array_source | type_of
+      transformed_type: $array_source | first(1) | type_of
+    exec: "echo 'ORIG={{with.original_type}} FIRST1={{with.transformed_type}}'"
+    description: "type_of before and after transform"
+
+  - id: verify
+    depends_on: [type_string, type_number, type_array, type_object, type_after_transform]
+    with:
+      s: $type_string | trim
+      n: $type_number | trim
+      a: $type_array | trim
+      o: $type_object | trim
+    exec: "echo 'UTILITY_OK: str={{with.s}} num={{with.n}} arr={{with.a}} obj={{with.o}}'"
+    description: "Verify all utility transforms"

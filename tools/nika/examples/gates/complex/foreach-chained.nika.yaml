@@ -1,0 +1,57 @@
+# COMPLEX-07: Chained for_each — Task1 generates items, Task2 for_each over them, Task3 aggregates
+# Tests: dynamic for_each source, chained iteration, multi-stage fan-out/fan-in
+schema: nika/workflow@0.12
+workflow: complex-foreach-chained
+
+tasks:
+  - id: generate_topics
+    infer: "Generate a JSON array of exactly 4 one-word programming topics. Return only the JSON array."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "LLM generates the items to iterate over"
+
+  - id: research_each
+    depends_on: [generate_topics]
+    for_each: "$generate_topics"
+    as: topic
+    infer: "Write one interesting fact about {{with.topic}} in programming. Max 20 words."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "Research each dynamically generated topic"
+
+  - id: score_each
+    depends_on: [generate_topics]
+    for_each: "$generate_topics"
+    as: topic
+    infer: "Rate the importance of {{with.topic}} in modern software on a scale 1-10. Return only the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Score each topic independently"
+
+  - id: combine_research
+    depends_on: [research_each, score_each]
+    with:
+      facts: $research_each
+      scores: $score_each
+    infer: |
+      Combine these research facts and importance scores into a ranked summary:
+      Facts: {{with.facts}}
+      Scores: {{with.scores}}
+      Order by importance. 2 sentences max.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Aggregate and rank all research"
+
+  - id: executive_summary
+    depends_on: [combine_research, generate_topics]
+    with:
+      ranked: $combine_research | trim
+      topics: $generate_topics
+    exec:
+      command: "echo 'TOPICS: {{with.topics}}' && echo '---' && echo 'SUMMARY: {{with.ranked}}'"
+      shell: true
+    description: "Executive summary with original topics and ranked results"

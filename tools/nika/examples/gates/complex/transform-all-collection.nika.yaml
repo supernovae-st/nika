@@ -1,0 +1,71 @@
+# COMPLEX-62: All collection transforms — sort | unique | reverse | first(3) | flatten
+# Tests: collection pipeline transforms on arrays
+schema: nika/workflow@0.12
+workflow: complex-transform-all-collection
+
+tasks:
+  - id: source_array
+    exec: 'echo ''["delta","alpha","beta","alpha","gamma","beta","delta","epsilon"]'''
+    description: "Array with duplicates and unsorted"
+
+  - id: sort_only
+    depends_on: [source_array]
+    with:
+      val: $source_array | sort
+    exec: "echo 'SORTED={{with.val}}'"
+    description: "Sort the array alphabetically"
+
+  - id: unique_only
+    depends_on: [source_array]
+    with:
+      val: $source_array | unique
+    exec: "echo 'UNIQUE={{with.val}}'"
+    description: "Remove duplicates"
+
+  - id: reverse_only
+    depends_on: [source_array]
+    with:
+      val: $source_array | reverse
+    exec: "echo 'REVERSED={{with.val}}'"
+    description: "Reverse array order"
+
+  - id: first_three
+    depends_on: [source_array]
+    with:
+      val: $source_array | first(3)
+    exec: "echo 'FIRST_3={{with.val}}'"
+    description: "Take first 3 elements"
+
+  - id: chain_sort_unique
+    depends_on: [source_array]
+    with:
+      val: $source_array | sort | unique
+    exec: "echo 'SORT_UNIQUE={{with.val}}'"
+    description: "Sort then unique"
+
+  - id: chain_unique_reverse_first
+    depends_on: [source_array]
+    with:
+      val: $source_array | unique | reverse | first(3)
+    exec: "echo 'UNIQUE_REV_FIRST3={{with.val}}'"
+    description: "Unique then reverse then first(3)"
+
+  - id: nested_source
+    exec: 'echo ''[["a","b"],["c","d"],["e"]]'''
+    description: "Nested array for flatten"
+
+  - id: flatten_test
+    depends_on: [nested_source]
+    with:
+      val: $nested_source | flatten
+    exec: "echo 'FLATTENED={{with.val}}'"
+    description: "Flatten nested arrays"
+
+  - id: verify_all
+    depends_on: [sort_only, unique_only, reverse_only, first_three, chain_sort_unique, chain_unique_reverse_first, flatten_test]
+    with:
+      sorted: $sort_only | trim
+      chained: $chain_sort_unique | trim
+      flat: $flatten_test | trim
+    exec: "echo 'COLLECTION_TRANSFORMS_OK: sorted={{with.sorted}} chained={{with.chained}} flat={{with.flat}}'"
+    description: "Verify all collection transforms"

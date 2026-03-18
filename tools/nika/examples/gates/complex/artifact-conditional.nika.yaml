@@ -1,0 +1,58 @@
+# COMPLEX-25: Artifacts with source binding from specific field
+# Tests: artifact source: pointing to specific with: binding, not LLM output
+schema: nika/workflow@0.12
+workflow: complex-artifact-conditional
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: raw_content
+    exec: |
+      printf '{"report":"This is the raw report content that should be saved.","metadata":"This should NOT appear in the artifact."}'
+    description: "Generate JSON with report and metadata fields"
+
+  - id: process_content
+    depends_on: [raw_content]
+    with:
+      report: $raw_content.report
+      meta: $raw_content.metadata
+    infer: "This is a decoy — the artifact should contain the report binding, not this LLM output. Say WRONG."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    artifact:
+      path: "conditional-report.txt"
+      source: report
+      format: text
+    description: "Artifact source=report should write binding, not LLM output"
+
+  - id: formatted_save
+    depends_on: [raw_content]
+    with:
+      full_data: $raw_content
+    exec: "echo 'Processing complete'"
+    artifact:
+      path: "conditional-full.json"
+      source: full_data
+      format: json
+    description: "Save full JSON via source binding"
+
+  - id: template_override
+    depends_on: [raw_content]
+    with:
+      report: $raw_content.report
+    infer: "Generate a title for this report: {{with.report}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+    artifact:
+      path: "conditional-templated.md"
+      template: "# Auto-Generated Report\n\nTitle: {{output}}\n\nContent: {{with.report}}\n"
+      format: text
+    description: "Artifact with template using both {{output}} and {{with.report}}"
+
+  - id: verify_sources
+    depends_on: [process_content, formatted_save, template_override]
+    exec: "echo 'All 3 conditional artifacts written'"
+    description: "Verify all conditional artifact patterns completed"

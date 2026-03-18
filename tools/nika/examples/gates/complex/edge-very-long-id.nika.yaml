@@ -1,0 +1,36 @@
+# COMPLEX-59: Very long task IDs at max reasonable length (50 chars)
+# Tests: parser handles long identifiers, bindings with long refs, DAG with long IDs
+schema: nika/workflow@0.12
+workflow: complex-edge-long-ids
+
+tasks:
+  - id: data_source_initialization_phase_one_loader
+    exec: "echo 'SOURCE_DATA_VALUE_12345'"
+    description: "50-char ID task as data source"
+
+  - id: preprocessing_normalization_trim_and_clean_v2
+    depends_on: [data_source_initialization_phase_one_loader]
+    with:
+      raw: $data_source_initialization_phase_one_loader | trim
+    exec: "echo 'NORMALIZED: {{with.raw}}'"
+    description: "50-char ID with binding to another 50-char ID"
+
+  - id: analysis_engine_structured_extraction_module
+    depends_on: [preprocessing_normalization_trim_and_clean_v2]
+    with:
+      clean: $preprocessing_normalization_trim_and_clean_v2 | trim
+    infer: "Analyze: {{with.clean}}. Reply with one word."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Long ID doing inference with long ID binding"
+
+  - id: final_aggregation_and_compilation_output_task
+    depends_on: [analysis_engine_structured_extraction_module, preprocessing_normalization_trim_and_clean_v2]
+    with:
+      analyzed: $analysis_engine_structured_extraction_module | trim
+      preprocessed: $preprocessing_normalization_trim_and_clean_v2 | trim
+    exec:
+      command: "echo 'ANALYZED={{with.analyzed}} PREPROCESSED={{with.preprocessed}}'"
+      shell: true
+    description: "Long ID merging two long-ID dependencies"

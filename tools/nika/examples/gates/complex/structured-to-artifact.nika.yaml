@@ -1,0 +1,83 @@
+# COMPLEX-90: Structured JSON -> artifact file
+# Tests: structured output directly saved as JSON artifact, binding from structured to template
+schema: nika/workflow@0.12
+workflow: complex-structured-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  # Generate structured data
+  - id: gen_config
+    infer: |
+      Generate a configuration object with:
+      - app_name: string
+      - version: string (semver format)
+      - features: array of 4 feature objects, each with name (string) and enabled (boolean)
+      - database: object with host, port (integer), name
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          app_name:
+            type: string
+          version:
+            type: string
+          features:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                enabled:
+                  type: boolean
+              required: [name, enabled]
+          database:
+            type: object
+            properties:
+              host:
+                type: string
+              port:
+                type: integer
+              name:
+                type: string
+            required: [host, port, name]
+        required: [app_name, version, features, database]
+    description: "Generate structured config"
+
+  # Save as JSON artifact directly
+  - id: save_json
+    depends_on: [gen_config]
+    with:
+      config: $gen_config
+    exec: "echo '{{with.config}}'"
+    artifact:
+      path: "config-generated.json"
+      format: json
+    description: "Save structured output as JSON artifact"
+
+  # Save with template wrapping
+  - id: save_readme
+    depends_on: [gen_config]
+    with:
+      app: $gen_config.app_name ?? "App"
+      ver: $gen_config.version ?? "0.0.0"
+      config: $gen_config
+    infer: "Describe this app config in 2 sentences: {{with.config}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "config-readme.txt"
+      template: "# {{with.app}} v{{with.ver}}\n\n{{output}}"
+      format: text
+    description: "Save description artifact with structured data in template"
+
+  - id: verify
+    depends_on: [save_json, save_readme]
+    exec: "echo 'STRUCTURED_ARTIFACT_OK'"
+    description: "Verify both artifacts created"

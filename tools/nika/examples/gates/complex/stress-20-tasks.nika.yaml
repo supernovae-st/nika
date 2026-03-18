@@ -1,0 +1,118 @@
+# COMPLEX-96: 20 tasks in complex DAG — diamond, fan-out, fan-in, chains
+# Tests: large DAG scheduling, parallel + sequential mix, deep dependency chains
+schema: nika/workflow@0.12
+workflow: complex-stress-20-tasks
+
+tasks:
+  # Layer 1: 3 independent sources
+  - id: src_a
+    exec: "echo 'A'"
+  - id: src_b
+    exec: "echo 'B'"
+  - id: src_c
+    exec: "echo 'C'"
+
+  # Layer 2: Fan-out from src_a (3 branches)
+  - id: a_branch_1
+    depends_on: [src_a]
+    with: { d: $src_a | trim }
+    exec: "echo 'A1({{with.d}})'"
+  - id: a_branch_2
+    depends_on: [src_a]
+    with: { d: $src_a | trim }
+    exec: "echo 'A2({{with.d}})'"
+  - id: a_branch_3
+    depends_on: [src_a]
+    with: { d: $src_a | trim }
+    exec: "echo 'A3({{with.d}})'"
+
+  # Layer 2: Chain from src_b
+  - id: b_step_1
+    depends_on: [src_b]
+    with: { d: $src_b | trim }
+    exec: "echo 'B1({{with.d}})'"
+  - id: b_step_2
+    depends_on: [b_step_1]
+    with: { d: $b_step_1 | trim }
+    exec: "echo 'B2({{with.d}})'"
+
+  # Layer 2: Process src_c
+  - id: c_process
+    depends_on: [src_c]
+    with: { d: $src_c | trim | upper }
+    exec: "echo 'C1({{with.d}})'"
+
+  # Layer 3: Diamond merge (a_branch_1 + a_branch_2)
+  - id: diamond_merge
+    depends_on: [a_branch_1, a_branch_2]
+    with:
+      x: $a_branch_1 | trim
+      y: $a_branch_2 | trim
+    exec: "echo 'DM({{with.x}}+{{with.y}})'"
+
+  # Layer 3: Cross-merge (a_branch_3 + b_step_2)
+  - id: cross_merge
+    depends_on: [a_branch_3, b_step_2]
+    with:
+      a: $a_branch_3 | trim
+      b: $b_step_2 | trim
+    exec: "echo 'CM({{with.a}}+{{with.b}})'"
+
+  # Layer 3: Infer from c_process
+  - id: c_infer
+    depends_on: [c_process]
+    with: { d: $c_process | trim }
+    infer: "Data: {{with.d}}. Reply with one word."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+
+  # Layer 4: Second fan-out from diamond_merge
+  - id: dm_expand_1
+    depends_on: [diamond_merge]
+    with: { d: $diamond_merge | trim }
+    exec: "echo 'DME1({{with.d}})'"
+  - id: dm_expand_2
+    depends_on: [diamond_merge]
+    with: { d: $diamond_merge | trim }
+    exec: "echo 'DME2({{with.d}})'"
+
+  # Layer 4: Process cross_merge + c_infer
+  - id: cross_c_merge
+    depends_on: [cross_merge, c_infer]
+    with:
+      cm: $cross_merge | trim
+      ci: $c_infer | trim
+    exec: "echo 'CCM({{with.cm}}+{{with.ci}})'"
+
+  # Layer 5: Mega merge (all layer 4)
+  - id: mega_merge
+    depends_on: [dm_expand_1, dm_expand_2, cross_c_merge]
+    with:
+      d1: $dm_expand_1 | trim
+      d2: $dm_expand_2 | trim
+      cc: $cross_c_merge | trim
+    exec: "echo 'MEGA({{with.d1}}|{{with.d2}}|{{with.cc}})'"
+
+  # Layer 6: LLM summarize
+  - id: llm_summary
+    depends_on: [mega_merge]
+    with: { d: $mega_merge | trim }
+    infer: "DAG output: {{with.d}}. Describe the data flow in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+
+  # Layer 7: Final compile
+  - id: final_compile
+    depends_on: [llm_summary, mega_merge, src_a, src_b, src_c]
+    with:
+      summary: $llm_summary | trim
+      mega: $mega_merge | trim
+      a: $src_a | trim
+      b: $src_b | trim
+      c: $src_c | trim
+    exec:
+      command: "echo 'SOURCES={{with.a}},{{with.b}},{{with.c}}' && echo 'MEGA={{with.mega}}' && echo 'SUMMARY={{with.summary}}'"
+      shell: true
+    description: "20-task DAG final compilation"

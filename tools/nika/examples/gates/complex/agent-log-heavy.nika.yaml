@@ -1,0 +1,37 @@
+# COMPLEX-75: Agent that logs extensively for observability
+# Tests: agent with nika_log at multiple levels, nika_emit for events, verbose tracing
+schema: nika/workflow@0.12
+workflow: complex-agent-log-heavy
+
+log:
+  level: debug
+
+tasks:
+  - id: verbose_agent
+    agent:
+      prompt: |
+        You need to log extensively for observability testing.
+        1. Call nika_log with level='debug' and message='Starting verbose agent task'
+        2. Call nika_log with level='info' and message='Processing phase 1 of 3'
+        3. Call nika_emit with name='phase_start' and payload_json='{"phase":1}'
+        4. Call nika_log with level='info' and message='Processing phase 2 of 3'
+        5. Call nika_emit with name='phase_start' and payload_json='{"phase":2}'
+        6. Call nika_log with level='warn' and message='Phase 3 might be slow'
+        7. Call nika_emit with name='phase_start' and payload_json='{"phase":3}'
+        8. Call nika_log with level='info' and message='All phases complete'
+        9. Call nika_complete with result='LOGGED_8_EVENTS' confidence=1.0 reasoning='all log and emit calls made'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 10
+      tools: [builtin]
+    description: "Agent with extensive logging and event emission"
+
+  - id: trace_summary
+    depends_on: [verbose_agent]
+    with:
+      result: $verbose_agent | trim
+    infer: "The logging agent reported: {{with.result}}. Confirm the observability test passed in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Summarize observability test results"

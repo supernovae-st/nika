@@ -1,0 +1,67 @@
+# COMPLEX-20: Structured output inside for_each — each iteration produces structured data
+# Tests: structured schema in for_each context, collecting structured results
+schema: nika/workflow@0.12
+workflow: complex-structured-foreach
+
+tasks:
+  - id: topics
+    exec: 'printf ''["Rust","Python","TypeScript","Go"]'''
+    description: "4 programming languages to analyze"
+
+  - id: analyze_each
+    depends_on: [topics]
+    for_each: "$topics"
+    as: lang
+    infer: "Analyze {{with.lang}} programming language. Provide name, paradigm, typing, and performance rating 1-10."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          paradigm:
+            type: string
+            enum: [functional, imperative, object_oriented, multi_paradigm]
+          typing:
+            type: string
+            enum: [static, dynamic, gradual]
+          performance:
+            type: integer
+            minimum: 1
+            maximum: 10
+        required: [name, paradigm, typing, performance]
+    description: "Structured output for each language"
+
+  - id: collect_names
+    depends_on: [analyze_each]
+    with:
+      results: $analyze_each
+    exec:
+      command: "echo 'All results: {{with.results}}'"
+      shell: true
+    description: "Collect all structured for_each results"
+
+  - id: rank_languages
+    depends_on: [analyze_each]
+    with:
+      analyses: $analyze_each
+    infer: |
+      Given these language analyses: {{with.analyses}}
+      Rank them by performance score, highest first. One sentence.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Rank languages using collected structured data"
+
+  - id: type_report
+    depends_on: [rank_languages, collect_names]
+    with:
+      ranking: $rank_languages | trim
+      raw: $collect_names | trim
+    exec:
+      command: "echo 'RANKING: {{with.ranking}}' && echo '---' && echo 'RAW: {{with.raw}}'"
+      shell: true
+    description: "Final report combining ranking with raw data"

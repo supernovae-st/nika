@@ -1,0 +1,61 @@
+# COMPLEX-92: Different log levels per task — testing per-task log granularity
+# Tests: workflow log level with varying task complexity for observability
+schema: nika/workflow@0.12
+workflow: complex-log-per-task
+
+log:
+  level: info
+
+tasks:
+  # Simple exec (minimal logging expected)
+  - id: simple_exec
+    exec: "echo 'SIMPLE'"
+    description: "Minimal task for info-level log"
+
+  # Complex infer (more log output expected)
+  - id: complex_infer
+    depends_on: [simple_exec]
+    with:
+      data: $simple_exec | trim
+    infer: "Received: {{with.data}}. Reply with exactly one word."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Infer task generates provider-level logs"
+
+  # Fetch (network-level logs)
+  - id: fetch_logged
+    fetch:
+      url: "https://httpbin.org/get?log=true"
+      method: GET
+    description: "Fetch generates network logs"
+
+  # for_each (iteration logs)
+  - id: iterate_logged
+    for_each: ["x", "y", "z"]
+    as: item
+    exec: "echo 'ITER_{{with.item}}'"
+    description: "for_each generates per-iteration logs"
+
+  # Agent (tool-call logs)
+  - id: agent_logged
+    depends_on: [complex_infer]
+    with:
+      prev: $complex_infer | trim
+    agent:
+      prompt: "Received: {{with.prev}}. Call nika_complete with result='LOGGED' confidence=1.0 reasoning='log test'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      tools: [builtin]
+    description: "Agent generates tool-call logs"
+
+  - id: summary
+    depends_on: [simple_exec, complex_infer, fetch_logged, iterate_logged, agent_logged]
+    with:
+      a: $simple_exec | trim
+      b: $complex_infer | trim
+      c: $iterate_logged | trim
+      d: $agent_logged | trim
+    exec: "echo 'LOG_TEST: exec={{with.a}} infer={{with.b}} foreach={{with.c}} agent={{with.d}}'"
+    description: "Summary of all logged tasks"

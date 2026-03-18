@@ -1,0 +1,344 @@
+# COMPLEX-100: THE KITCHEN SINK — Every single Nika feature in one workflow
+# Tests: ALL of — exec, infer, fetch, agent, for_each, structured, artifact,
+#        transforms, fallback, inputs, context, log, env binding, concurrency,
+#        diamond deps, fan-out/fan-in, template interpolation, multi-artifact
+schema: nika/workflow@0.12
+workflow: complex-stress-kitchen-sink
+
+log:
+  level: debug
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  seed:
+    default: "kitchen-sink"
+  lang:
+    default: "en"
+  max_items:
+    default: "5"
+
+context:
+  files:
+    style: ./examples/context/style-guide.md
+
+tasks:
+  # ── FEATURE: exec (basic) ──
+  - id: exec_basic
+    exec: "echo 'EXEC_OK'"
+    description: "Plain exec"
+
+  # ── FEATURE: exec with shell ──
+  - id: exec_shell
+    exec:
+      command: "echo 'SHELL_OK_'$USER"
+      shell: true
+    description: "Exec with shell=true and env var"
+
+  # ── FEATURE: exec with env binding ──
+  - id: exec_env
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo 'HOME={{with.home}}'"
+      shell: true
+    description: "Exec with $env binding"
+
+  # ── FEATURE: fetch GET ──
+  - id: fetch_get
+    fetch:
+      url: "https://httpbin.org/get?seed={{inputs.seed}}"
+      method: GET
+    description: "Fetch GET with input interpolation"
+
+  # ── FEATURE: fetch POST with JSON ──
+  - id: fetch_post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        X-Nika-Test: "kitchen-sink"
+      json:
+        test: true
+        seed: "sink"
+    description: "Fetch POST with headers and JSON body"
+
+  # ── FEATURE: fetch with retry ──
+  - id: fetch_retry
+    fetch:
+      url: "https://httpbin.org/get?retry=true"
+      method: GET
+    max_retries: 2
+    description: "Fetch with max_retries"
+
+  # ── FEATURE: infer basic ──
+  - id: infer_basic
+    infer: "Reply with exactly: INFER_OK"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Basic infer"
+
+  # ── FEATURE: infer with temperature ──
+  - id: infer_temp
+    infer: "Reply with exactly one random word."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    temperature: 0.0
+    description: "Infer with temperature=0"
+
+  # ── FEATURE: infer with system prompt ──
+  - id: infer_system
+    infer: "What format should I use?"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    system: "Always reply in UPPERCASE only."
+    description: "Infer with system prompt"
+
+  # ── FEATURE: infer with context ──
+  - id: infer_context
+    depends_on: [exec_basic]
+    with:
+      data: $exec_basic | trim
+    infer: |
+      Style: {{context.files.style}}
+      Data: {{with.data}}
+      Summarize in one word.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Infer with context files"
+
+  # ── FEATURE: structured output ──
+  - id: structured_out
+    infer: "Return JSON with name='Nika', version=30, stable=true."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          version:
+            type: integer
+          stable:
+            type: boolean
+        required: [name, version, stable]
+    description: "Structured output with schema"
+
+  # ── FEATURE: output format ──
+  - id: output_json
+    infer: "Return JSON: {\"key\":\"val\"}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    output:
+      format: json
+    description: "Output format: json"
+
+  # ── FEATURE: depends_on + with binding ──
+  - id: binding_task
+    depends_on: [exec_basic, infer_basic]
+    with:
+      a: $exec_basic | trim
+      b: $infer_basic | trim
+    exec: "echo 'BOUND: {{with.a}}+{{with.b}}'"
+    description: "Binding from two upstream tasks"
+
+  # ── FEATURE: transforms chain ──
+  - id: transform_chain
+    depends_on: [exec_basic]
+    with:
+      val: $exec_basic | trim | lower
+    exec: "echo 'TRANSFORMED={{with.val}}'"
+    description: "Transform: trim | lower"
+
+  # ── FEATURE: fallback operator ──
+  - id: fallback_test
+    depends_on: [exec_basic]
+    with:
+      safe: $exec_basic.nonexistent ?? "FALLBACK"
+    exec: "echo 'FALLBACK={{with.safe}}'"
+    description: "Fallback ?? operator"
+
+  # ── FEATURE: for_each ──
+  - id: items_source
+    exec: 'echo ''["x","y","z"]'''
+
+  - id: foreach_exec
+    depends_on: [items_source]
+    for_each: "$items_source"
+    as: item
+    exec: "echo 'EACH_{{with.item}}'"
+    description: "for_each with exec"
+
+  # ── FEATURE: for_each with concurrency ──
+  - id: foreach_concurrent
+    depends_on: [items_source]
+    for_each: "$items_source"
+    as: item
+    concurrency: 2
+    exec:
+      command: "echo 'CONC_{{with.item}}'"
+      shell: true
+    description: "for_each with concurrency=2"
+
+  # ── FEATURE: for_each with infer ──
+  - id: foreach_infer
+    depends_on: [items_source]
+    for_each: "$items_source"
+    as: item
+    infer: "Define {{with.item}} in 3 words."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "for_each with infer"
+
+  # ── FEATURE: agent basic ──
+  - id: agent_basic
+    agent:
+      prompt: "Call nika_complete with result='AGENT_OK' confidence=1.0 reasoning='basic agent test'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      tools: [builtin]
+    description: "Basic agent with builtin tools"
+
+  # ── FEATURE: agent with binding ──
+  - id: agent_binding
+    depends_on: [exec_basic]
+    with:
+      data: $exec_basic | trim
+    agent:
+      prompt: "Data={{with.data}}. Call nika_complete with result='BOUND_AGENT' confidence=1.0 reasoning='received binding'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      tools: [builtin]
+    description: "Agent with upstream binding"
+
+  # ── FEATURE: agent with log ──
+  - id: agent_log
+    agent:
+      prompt: "Call nika_log with level='info' and message='kitchen sink log'. Then call nika_complete with result='LOGGED' confidence=1.0 reasoning='logged'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent with nika_log"
+
+  # ── FEATURE: artifact text ──
+  - id: artifact_text
+    depends_on: [infer_basic]
+    with:
+      data: $infer_basic | trim
+    exec: "echo '{{with.data}}'"
+    artifact:
+      path: "ks-text.txt"
+      format: text
+    description: "Text artifact"
+
+  # ── FEATURE: artifact JSON ──
+  - id: artifact_json
+    depends_on: [structured_out]
+    with:
+      data: $structured_out
+    exec: "echo '{{with.data}}'"
+    artifact:
+      path: "ks-data.json"
+      format: json
+    description: "JSON artifact"
+
+  # ── FEATURE: artifact with template ──
+  - id: artifact_template
+    depends_on: [infer_basic, exec_basic]
+    with:
+      a: $infer_basic | trim
+      b: $exec_basic | trim
+    infer: "Combine: {{with.a}} and {{with.b}}. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: "ks-template-{{inputs.seed}}.md"
+      template: "# Kitchen Sink — {{inputs.seed}}\n\n{{output}}\n\n---\nLang: {{inputs.lang}}"
+      format: text
+    description: "Artifact with template and inputs"
+
+  # ── FEATURE: artifact source binding ──
+  - id: artifact_source
+    depends_on: [exec_basic]
+    with:
+      content: $exec_basic
+    infer: "Ignore this."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 5
+    artifact:
+      path: "ks-source.txt"
+      source: content
+      format: text
+    description: "Artifact with source binding"
+
+  # ── FEATURE: error independence ──
+  - id: will_fail
+    exec: "exit 1"
+    description: "Intentional failure"
+
+  - id: independent_ok
+    exec: "echo 'INDEPENDENT'"
+    description: "Independent of failed task"
+
+  # ── GRAND FINALE: Diamond merge of everything ──
+  - id: grand_finale
+    depends_on:
+      - binding_task
+      - transform_chain
+      - fallback_test
+      - foreach_exec
+      - foreach_infer
+      - agent_basic
+      - agent_binding
+      - agent_log
+      - artifact_text
+      - artifact_json
+      - artifact_template
+      - artifact_source
+      - structured_out
+      - independent_ok
+      - fetch_get
+    with:
+      bound: $binding_task | trim
+      transformed: $transform_chain | trim
+      fallback: $fallback_test | trim
+      foreach_r: $foreach_exec
+      agent_r: $agent_basic | trim
+      structured_r: $structured_out
+      independent_r: $independent_ok | trim
+    infer: |
+      Style: {{context.files.style}}
+
+      THE KITCHEN SINK — All features tested:
+      - Binding: {{with.bound}}
+      - Transform: {{with.transformed}}
+      - Fallback: {{with.fallback}}
+      - for_each: {{with.foreach_r}}
+      - Agent: {{with.agent_r}}
+      - Structured: {{with.structured_r}}
+      - Independent: {{with.independent_r}}
+      - Seed: {{inputs.seed}}, Lang: {{inputs.lang}}
+
+      Write a 3-sentence verdict on the engine's capabilities.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "kitchen-sink-verdict.md"
+      template: "# Kitchen Sink Verdict\n\nSeed: {{inputs.seed}} | Lang: {{inputs.lang}}\n\n{{output}}"
+      format: text
+    description: "GRAND FINALE — Every Nika feature verified in one workflow"

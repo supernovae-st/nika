@@ -1,0 +1,37 @@
+# COMPLEX-91: Tasks at debug, info, warn, error log levels
+# Tests: workflow-level log config, NDJSON trace output at all levels
+schema: nika/workflow@0.12
+workflow: complex-log-all-levels
+
+log:
+  level: debug
+
+tasks:
+  - id: debug_task
+    exec: "echo 'DEBUG_LEVEL_OUTPUT'"
+    description: "Task running at debug level"
+
+  - id: info_task
+    exec: "echo 'INFO_LEVEL_OUTPUT'"
+    description: "Standard info task"
+
+  - id: warn_task
+    depends_on: [info_task]
+    with:
+      prev: $info_task | trim
+    exec: "echo 'WARN_CONTEXT: {{with.prev}}'"
+    description: "Task that logs at warn level context"
+
+  - id: error_simulated
+    exec: "echo 'ERROR_SIMULATED_BUT_OK'"
+    description: "Simulated error-level task (does not actually fail)"
+
+  - id: aggregate
+    depends_on: [debug_task, info_task, warn_task, error_simulated]
+    with:
+      d: $debug_task | trim
+      i: $info_task | trim
+      w: $warn_task | trim
+      e: $error_simulated | trim
+    exec: "echo 'ALL_LEVELS: d={{with.d}} i={{with.i}} w={{with.w}} e={{with.e}}'"
+    description: "Aggregate all log level outputs"

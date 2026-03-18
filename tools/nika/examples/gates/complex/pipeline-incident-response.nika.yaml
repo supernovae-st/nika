@@ -1,0 +1,128 @@
+# COMPLEX-54: Incident response — detect -> triage -> investigate -> remediate -> postmortem
+# Tests: error handling, parallel investigation, binding chains, agent usage
+schema: nika/workflow@0.12
+workflow: complex-pipeline-incident
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  severity:
+    default: "P2"
+  service:
+    default: "payment-api"
+
+tasks:
+  # Phase 1: Detection
+  - id: detect_alert
+    exec:
+      command: "echo '{\"alert\":\"HighLatency\",\"service\":\"{{inputs.service}}\",\"p99_ms\":2500,\"threshold_ms\":500,\"timestamp\":\"2025-12-15T10:30:00Z\"}'"
+      shell: true
+    description: "Simulated alert detection"
+
+  - id: fetch_metrics
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Fetch current metrics"
+
+  # Phase 2: Triage
+  - id: triage
+    depends_on: [detect_alert, fetch_metrics]
+    with:
+      alert: $detect_alert
+      metrics: $fetch_metrics
+    infer: |
+      Triage this incident:
+      Alert: {{with.alert}}
+      Metrics: {{with.metrics}}
+      Severity: {{inputs.severity}}
+      Classify as: infrastructure, application, or dependency. Return JSON.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    structured:
+      schema:
+        type: object
+        properties:
+          category:
+            type: string
+          impact:
+            type: string
+          urgency:
+            type: string
+          recommended_actions:
+            type: array
+            items:
+              type: string
+        required: [category, impact, urgency, recommended_actions]
+    description: "Structured incident triage"
+
+  # Phase 3: Parallel investigation
+  - id: check_logs
+    depends_on: [triage]
+    with:
+      cat: $triage.category
+    exec:
+      command: "echo 'Checking logs for {{inputs.service}} (category={{with.cat}})...' && echo 'LOG: TimeoutException at PaymentGateway.process()'"
+      shell: true
+    description: "Check application logs"
+
+  - id: check_infra
+    depends_on: [triage]
+    exec:
+      command: "echo 'CPU=45% MEM=78% DISK=62% NET_ERRORS=0 POD_RESTARTS=3'"
+      shell: true
+    description: "Check infrastructure metrics"
+
+  - id: check_deps
+    depends_on: [triage]
+    with:
+      actions: $triage.recommended_actions
+    exec:
+      command: "echo 'Upstream deps: gateway=healthy, db=healthy, cache=DEGRADED'"
+      shell: true
+    description: "Check dependency health"
+
+  # Phase 4: Agent-based remediation
+  - id: remediate
+    depends_on: [check_logs, check_infra, check_deps]
+    with:
+      logs: $check_logs | trim
+      infra: $check_infra | trim
+      deps: $check_deps | trim
+    agent:
+      prompt: |
+        Incident investigation results:
+        - Logs: {{with.logs}}
+        - Infra: {{with.infra}}
+        - Dependencies: {{with.deps}}
+        Analyze root cause and suggest a fix. Call nika_complete with your recommendation.
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent-based root cause analysis and remediation"
+
+  # Phase 5: Postmortem
+  - id: postmortem
+    depends_on: [remediate, triage, detect_alert]
+    with:
+      alert: $detect_alert
+      triage_result: $triage
+      remediation: $remediate | trim
+    infer: |
+      Write a concise incident postmortem:
+      Service: {{inputs.service}}, Severity: {{inputs.severity}}
+      Alert: {{with.alert}}
+      Triage: {{with.triage_result}}
+      Remediation: {{with.remediation}}
+      Include: timeline, root cause, resolution, action items.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "postmortem-{{inputs.service}}.md"
+      template: "# Postmortem: {{inputs.service}} ({{inputs.severity}})\n\n{{output}}"
+      format: text
+    description: "Generate postmortem document"

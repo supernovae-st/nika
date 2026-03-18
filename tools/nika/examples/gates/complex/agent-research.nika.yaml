@@ -1,0 +1,51 @@
+# COMPLEX-28: Agent that reads files, searches, and summarizes
+# Tests: agent with file read/glob/grep tools, research workflow
+schema: nika/workflow@0.12
+workflow: complex-agent-research
+
+tasks:
+  - id: setup_target
+    exec: "echo 'Target: analyze the Nika project structure in /tmp'"
+    description: "Define research target"
+
+  - id: research_agent
+    depends_on: [setup_target]
+    with:
+      target: $setup_target
+    agent:
+      prompt: |
+        You are a research agent. Your task: {{with.target}}
+
+        Steps:
+        1. Use nika_glob to find .yaml files in the current directory (pattern: "*.yaml")
+        2. Use nika_log to log what you found
+        3. Call nika_complete with a summary of your findings, confidence=0.8, reasoning="file analysis complete"
+
+        Be concise and factual.
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log, nika_glob, nika_read, nika_grep]
+      max_turns: 5
+      max_tokens: 200
+      system: "You are a meticulous research assistant. Report only facts."
+    description: "Research agent with file exploration tools"
+
+  - id: format_findings
+    depends_on: [research_agent]
+    with:
+      findings: $research_agent
+    infer: "Format these research findings into a clean bullet-point summary: {{with.findings}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Format agent findings for readability"
+
+  - id: assessment
+    depends_on: [format_findings, setup_target]
+    with:
+      formatted: $format_findings | trim
+      original_target: $setup_target | trim
+    exec:
+      command: "echo 'TARGET: {{with.original_target}}' && echo '---' && echo 'FINDINGS: {{with.formatted}}'"
+      shell: true
+    description: "Final assessment combining target and findings"

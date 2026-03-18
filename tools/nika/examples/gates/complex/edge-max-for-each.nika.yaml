@@ -1,0 +1,39 @@
+# COMPLEX-60: for_each with 20 items — stress test iteration count
+# Tests: large for_each, concurrency handling, aggregation of many results
+schema: nika/workflow@0.12
+workflow: complex-edge-max-for-each
+
+tasks:
+  - id: generate_items
+    exec: 'echo ''["item_01","item_02","item_03","item_04","item_05","item_06","item_07","item_08","item_09","item_10","item_11","item_12","item_13","item_14","item_15","item_16","item_17","item_18","item_19","item_20"]'''
+    description: "Generate 20-element array"
+
+  - id: process_all
+    depends_on: [generate_items]
+    for_each: "$generate_items"
+    as: item
+    concurrency: 5
+    exec:
+      command: "echo 'PROCESSED_{{with.item}}_'$(date +%s%N | tail -c 6)"
+      shell: true
+    description: "Process 20 items with concurrency=5"
+
+  - id: count_results
+    depends_on: [process_all]
+    with:
+      results: $process_all
+    exec:
+      command: "echo '{{with.results}}' | tr ',' '\n' | wc -l | tr -d ' '"
+      shell: true
+    description: "Count all processed results"
+
+  - id: summarize
+    depends_on: [count_results, process_all]
+    with:
+      count: $count_results | trim
+      all: $process_all
+    infer: "{{with.count}} items were processed. Summarize the batch in one sentence. Items: {{with.all}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "LLM summary of 20-item batch"

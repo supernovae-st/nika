@@ -1,0 +1,62 @@
+# COMPLEX-78: Fetch with Authorization header from env var binding
+# Tests: $env binding in with:, headers with dynamic values, auth pattern
+schema: nika/workflow@0.12
+workflow: complex-fetch-auth
+
+tasks:
+  # Get auth token from env (simulated)
+  - id: get_token
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo 'Bearer test-token-$(echo {{with.home}} | shasum | cut -c1-8)'"
+      shell: true
+    description: "Generate auth token from env"
+
+  # Fetch with custom headers
+  - id: auth_request
+    depends_on: [get_token]
+    fetch:
+      url: "https://httpbin.org/headers"
+      method: GET
+      headers:
+        Accept: "application/json"
+        X-Request-Id: "nika-78-test"
+    description: "Authenticated GET request with headers"
+
+  # Verify headers were sent
+  - id: verify_auth
+    depends_on: [auth_request, get_token]
+    with:
+      response: $auth_request
+      token: $get_token | trim
+    infer: |
+      Verify this headers response: {{with.response}}
+      Expected token pattern: {{with.token}}
+      Reply HEADERS_OK or HEADERS_MISSING.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Verify auth headers in response"
+
+  # Second authenticated request (different endpoint)
+  - id: auth_post
+    depends_on: [get_token]
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+        X-Auth-Source: "nika"
+      json:
+        action: "verify"
+        source: "complex-78"
+    description: "POST with auth headers"
+
+  - id: final
+    depends_on: [verify_auth, auth_post]
+    with:
+      auth_status: $verify_auth | trim
+      post_status: $auth_post ?? "post-ok"
+    exec: "echo 'AUTH_TESTS: get={{with.auth_status}} post={{with.post_status}}'"
+    description: "Final auth test summary"

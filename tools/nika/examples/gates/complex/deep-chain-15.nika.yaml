@@ -1,0 +1,113 @@
+# COMPLEX-04: 15-task maximum depth chain — pushes sequential depth to the limit
+# Tests: maximum chain depth, binding propagation over 15 hops, mixed verbs
+schema: nika/workflow@0.12
+workflow: complex-deep-chain-15
+
+tasks:
+  - id: c01
+    exec: "echo 'ORIGIN'"
+    description: "Chain start"
+
+  - id: c02
+    depends_on: [c01]
+    with: { d: $c01 | trim }
+    exec: "echo 'C02({{with.d}})'"
+
+  - id: c03
+    depends_on: [c02]
+    with: { d: $c02 | trim }
+    infer: "Shorten '{{with.d}}' to 3 characters."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: c04
+    depends_on: [c03]
+    with: { d: $c03 | trim | upper }
+    exec: "echo 'C04({{with.d}})'"
+
+  - id: c05
+    depends_on: [c04]
+    with: { d: $c04 | trim }
+    fetch:
+      url: "https://httpbin.org/get?chain={{with.d}}"
+      method: GET
+    description: "Fetch with chained data in query param"
+
+  - id: c06
+    depends_on: [c05]
+    with: { d: $c05 }
+    exec:
+      command: "echo '{{with.d}}' | head -c 80"
+      shell: true
+
+  - id: c07
+    depends_on: [c06]
+    with: { d: $c06 | trim }
+    infer: "Summarize in 5 words: {{with.d}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: c08
+    depends_on: [c07]
+    with: { d: $c07 | trim | lower }
+    exec: "echo 'C08({{with.d}})'"
+
+  - id: c09
+    depends_on: [c08]
+    with: { d: $c08 | trim }
+    infer: "Reverse the meaning of: '{{with.d}}'. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+
+  - id: c10
+    depends_on: [c09]
+    with: { d: $c09 | trim }
+    exec:
+      command: "echo 'HASH='$(echo '{{with.d}}' | md5 | cut -c1-6) && echo 'LEN='$(echo '{{with.d}}' | wc -c | tr -d ' ')"
+      shell: true
+
+  - id: c11
+    depends_on: [c10]
+    with: { d: $c10 | trim }
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body:
+        chain_data: "{{with.d}}"
+        step: 11
+
+  - id: c12
+    depends_on: [c11]
+    with: { d: $c11 }
+    exec:
+      command: "echo '{{with.d}}' | head -c 100"
+      shell: true
+
+  - id: c13
+    depends_on: [c12, c07]
+    with:
+      recent: $c12 | trim
+      mid: $c07 | trim
+    infer: "Merge these into a title: '{{with.recent}}' and '{{with.mid}}'. Max 8 words."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: c14
+    depends_on: [c13]
+    with: { d: $c13 | trim | upper }
+    exec: "echo 'TITLE: {{with.d}}'"
+
+  - id: c15
+    depends_on: [c14, c01, c10]
+    with:
+      title: $c14 | trim
+      origin: $c01
+      stats: $c10
+    exec:
+      command: "echo '=== 15-STEP CHAIN COMPLETE ===' && echo 'Origin: {{with.origin}}' && echo 'Title: {{with.title}}' && echo 'Stats: {{with.stats}}'"
+      shell: true
+    description: "Final step: aggregates origin, title, and mid-chain stats"

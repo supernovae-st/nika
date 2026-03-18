@@ -1,0 +1,77 @@
+# COMPLEX-80: Fetch JSON API -> extract fields via binding -> process
+# Tests: JSON field access from fetch response, deep binding paths, structured extraction
+schema: nika/workflow@0.12
+workflow: complex-fetch-json-extract
+
+tasks:
+  # Fetch JSON data
+  - id: fetch_json
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Fetch JSON endpoint"
+
+  # Extract specific fields from JSON response
+  - id: extract_slideshow
+    depends_on: [fetch_json]
+    with:
+      raw: $fetch_json
+    infer: |
+      Extract from this JSON response: {{with.raw}}
+      Return a JSON object with: title (the slideshow title), slide_count (number of slides), author.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          title:
+            type: string
+          slide_count:
+            type: integer
+          author:
+            type: string
+        required: [title, slide_count, author]
+    description: "Structured extraction from JSON fetch"
+
+  # Use extracted fields
+  - id: use_title
+    depends_on: [extract_slideshow]
+    with:
+      title: $extract_slideshow.title
+      count: $extract_slideshow.slide_count
+    infer: "The presentation '{{with.title}}' has {{with.count}} slides. Write a one-sentence review."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Use extracted fields in prompt"
+
+  # Generate per-slide content
+  - id: fetch_again
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    description: "Second fetch for slide data"
+
+  - id: process_slides
+    depends_on: [fetch_again, extract_slideshow]
+    with:
+      data: $fetch_again
+      meta: $extract_slideshow
+    infer: |
+      Data: {{with.data}}
+      Metadata: {{with.meta}}
+      Write one sentence about the overall presentation quality.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Process slide data with metadata"
+
+  - id: final
+    depends_on: [use_title, process_slides]
+    with:
+      review: $use_title | trim
+      quality: $process_slides | trim
+    exec: "echo 'EXTRACTION_COMPLETE: review={{with.review}} quality={{with.quality}}'"
+    description: "Final extraction pipeline result"

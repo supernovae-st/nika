@@ -1,0 +1,67 @@
+# COMPLEX-34: 10 independent tasks then 1 merge — maximum parallel width
+# Tests: 10-way parallelism, large merge binding, wide DAG
+schema: nika/workflow@0.12
+workflow: complex-dag-wide-parallel
+
+tasks:
+  - id: seed
+    exec: "echo 'BASE'"
+
+  - id: w01
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W01({{with.d}})'"
+  - id: w02
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W02({{with.d}})'"
+  - id: w03
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W03({{with.d}})'"
+  - id: w04
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W04({{with.d}})'"
+  - id: w05
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W05({{with.d}})'"
+  - id: w06
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W06({{with.d}})'"
+  - id: w07
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W07({{with.d}})'"
+  - id: w08
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W08({{with.d}})'"
+  - id: w09
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W09({{with.d}})'"
+  - id: w10
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W10({{with.d}})'"
+
+  - id: mega_merge
+    depends_on: [w01, w02, w03, w04, w05, w06, w07, w08, w09, w10]
+    with:
+      r01: $w01
+      r02: $w02
+      r03: $w03
+      r04: $w04
+      r05: $w05
+      r06: $w06
+      r07: $w07
+      r08: $w08
+      r09: $w09
+      r10: $w10
+    exec:
+      command: "echo '{{with.r01}}|{{with.r02}}|{{with.r03}}|{{with.r04}}|{{with.r05}}|{{with.r06}}|{{with.r07}}|{{with.r08}}|{{with.r09}}|{{with.r10}}'"
+      shell: true
+    description: "10-way merge of all parallel workers"

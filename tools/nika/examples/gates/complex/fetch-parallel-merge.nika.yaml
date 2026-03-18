@@ -1,0 +1,60 @@
+# COMPLEX-77: 3 parallel GETs -> merge results
+# Tests: parallel fetch tasks, fan-out/fan-in with HTTP, multi-binding merge
+schema: nika/workflow@0.12
+workflow: complex-fetch-parallel-merge
+
+tasks:
+  # 3 parallel fetches
+  - id: fetch_users
+    fetch:
+      url: "https://httpbin.org/get?type=users"
+      method: GET
+    description: "Fetch users endpoint"
+
+  - id: fetch_products
+    fetch:
+      url: "https://httpbin.org/get?type=products"
+      method: GET
+    description: "Fetch products endpoint"
+
+  - id: fetch_orders
+    fetch:
+      url: "https://httpbin.org/get?type=orders"
+      method: GET
+    description: "Fetch orders endpoint"
+
+  # Merge all 3 responses
+  - id: merge
+    depends_on: [fetch_users, fetch_products, fetch_orders]
+    with:
+      users: $fetch_users
+      products: $fetch_products
+      orders: $fetch_orders
+    infer: |
+      You received 3 API responses:
+      1. Users: {{with.users}}
+      2. Products: {{with.products}}
+      3. Orders: {{with.orders}}
+      Summarize what each endpoint returned in one sentence each. Return as JSON with keys: users, products, orders.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          users:
+            type: string
+          products:
+            type: string
+          orders:
+            type: string
+        required: [users, products, orders]
+    description: "Merge 3 parallel fetch results into structured summary"
+
+  - id: report
+    depends_on: [merge]
+    with:
+      merged: $merge
+    exec: "echo 'PARALLEL_MERGE_COMPLETE: {{with.merged}}'"
+    description: "Final report of merged data"

@@ -1,0 +1,72 @@
+# COMPLEX-88: Generate structured code metadata
+# Tests: structured output describing code, enum for language, detailed schema
+schema: nika/workflow@0.12
+workflow: complex-structured-code
+
+tasks:
+  # Get real code via exec
+  - id: get_code
+    exec:
+      command: "head -20 src/main.rs 2>/dev/null || echo 'fn main() { println!(\"hello\"); }'"
+      shell: true
+    description: "Read code from filesystem"
+
+  # Generate structured metadata about the code
+  - id: analyze_code
+    depends_on: [get_code]
+    with:
+      code: $get_code
+    infer: |
+      Analyze this code and return structured metadata:
+      {{with.code}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          language:
+            type: string
+            enum: ["rust", "python", "javascript", "typescript", "go", "other"]
+          line_count:
+            type: integer
+          complexity:
+            type: string
+            enum: ["low", "medium", "high"]
+          functions:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                visibility:
+                  type: string
+              required: [name, visibility]
+          imports:
+            type: array
+            items:
+              type: string
+        required: [language, line_count, complexity, functions, imports]
+    description: "Structured code analysis"
+
+  # Use the metadata
+  - id: use_metadata
+    depends_on: [analyze_code]
+    with:
+      meta: $analyze_code
+      lang: $analyze_code.language ?? "unknown"
+    infer: "Code in {{with.lang}}: {{with.meta}}. Write a one-sentence code review."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Use structured code metadata"
+
+  - id: report
+    depends_on: [use_metadata, analyze_code]
+    with:
+      review: $use_metadata | trim
+      lang: $analyze_code.language ?? "unknown"
+    exec: "echo 'CODE_ANALYSIS: lang={{with.lang}} review={{with.review}}'"
+    description: "Code analysis report"

@@ -1,0 +1,57 @@
+# COMPLEX-40: Different provider for each of 5 tasks — tests provider diversity
+# Tests: per-task provider override, 5 different provider configs, merge all outputs
+schema: nika/workflow@0.12
+workflow: complex-provider-per-task
+
+tasks:
+  - id: openai_task
+    infer: "Name one advantage of Rust. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "Task 1: OpenAI gpt-4.1-mini"
+
+  - id: openai_nano_task
+    infer: "Name one advantage of Python. One sentence."
+    provider: openai
+    model: gpt-4.1-nano
+    max_tokens: 60
+    description: "Task 2: OpenAI gpt-4.1-nano"
+
+  - id: mock_task
+    infer: "Name one advantage of Go. One sentence."
+    provider: mock
+    max_tokens: 60
+    description: "Task 3: Mock provider"
+
+  - id: exec_task
+    exec: "echo 'TypeScript advantage: strong ecosystem and type safety'"
+    description: "Task 4: exec (no provider)"
+
+  - id: openai_task2
+    infer: "Name one advantage of Java. One sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 60
+    description: "Task 5: OpenAI again (different prompt)"
+
+  - id: merge_all_providers
+    depends_on: [openai_task, openai_nano_task, mock_task, exec_task, openai_task2]
+    with:
+      rust: $openai_task | trim
+      python: $openai_nano_task | trim
+      go: $mock_task | trim
+      ts: $exec_task | trim
+      java: $openai_task2 | trim
+    infer: |
+      Rank these 5 language advantages from strongest to weakest:
+      Rust: {{with.rust}}
+      Python: {{with.python}}
+      Go: {{with.go}}
+      TypeScript: {{with.ts}}
+      Java: {{with.java}}
+      Give a 2-sentence ranking.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Merge outputs from 5 different provider configurations"

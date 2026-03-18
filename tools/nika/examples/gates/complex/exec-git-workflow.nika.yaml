@@ -1,0 +1,54 @@
+# COMPLEX-81: git log -> parse -> analyze changes
+# Tests: exec with git commands, multi-line output binding, LLM analysis of real data
+schema: nika/workflow@0.12
+workflow: complex-exec-git
+
+tasks:
+  # Get recent git log
+  - id: git_log
+    exec:
+      command: "git log --oneline -5 2>/dev/null || echo 'no-git-history'"
+      shell: true
+    description: "Fetch recent git commits"
+
+  # Get current branch
+  - id: git_branch
+    exec:
+      command: "git branch --show-current 2>/dev/null || echo 'unknown'"
+      shell: true
+    description: "Get current branch name"
+
+  # Get file count
+  - id: git_stats
+    exec:
+      command: "git diff --stat HEAD~1 2>/dev/null | tail -1 || echo '0 files changed'"
+      shell: true
+    description: "Get change stats"
+
+  # Analyze with LLM
+  - id: analyze
+    depends_on: [git_log, git_branch, git_stats]
+    with:
+      log: $git_log | trim
+      branch: $git_branch | trim
+      stats: $git_stats | trim
+    infer: |
+      Analyze this git state:
+      Branch: {{with.branch}}
+      Recent commits: {{with.log}}
+      Last change stats: {{with.stats}}
+      Summarize the recent development activity in 2 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "LLM analysis of git state"
+
+  - id: report
+    depends_on: [analyze, git_branch]
+    with:
+      analysis: $analyze | trim
+      branch: $git_branch | trim
+    exec:
+      command: "echo 'BRANCH={{with.branch}}' && echo 'ANALYSIS={{with.analysis}}'"
+      shell: true
+    description: "Git workflow analysis report"

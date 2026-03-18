@@ -1,0 +1,55 @@
+# COMPLEX-13: Access deep nested JSON paths in bindings
+# Tests: $.field.subfield, $.array[0], deep JSON path resolution
+schema: nika/workflow@0.12
+workflow: complex-binding-deep-path
+
+tasks:
+  - id: produce_nested
+    exec: |
+      printf '{"data":{"users":[{"name":"Alice","meta":{"role":"admin","level":5}},{"name":"Bob","meta":{"role":"user","level":2}}],"config":{"theme":"dark","version":"2.1"}}}'
+    description: "Produce deeply nested JSON structure"
+
+  - id: access_user_name
+    depends_on: [produce_nested]
+    with:
+      name: $produce_nested.data.users[0].name
+    exec: "echo 'First user name: {{with.name}}'"
+    description: "Access nested array element field"
+
+  - id: access_config
+    depends_on: [produce_nested]
+    with:
+      theme: $produce_nested.data.config.theme
+      version: $produce_nested.data.config.version
+    exec: "echo 'Theme={{with.theme}} Version={{with.version}}'"
+    description: "Access nested config fields"
+
+  - id: access_meta
+    depends_on: [produce_nested]
+    with:
+      role: $produce_nested.data.users[0].meta.role
+      level: $produce_nested.data.users[0].meta.level
+    exec: "echo 'Role={{with.role}} Level={{with.level}}'"
+    description: "Access deeply nested meta fields"
+
+  - id: structured_from_paths
+    depends_on: [produce_nested]
+    with:
+      users: $produce_nested.data.users
+    infer: "Given these users: {{with.users}}, describe each person's role in one sentence each."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Use array path as LLM input"
+
+  - id: verify_all_paths
+    depends_on: [access_user_name, access_config, access_meta, structured_from_paths]
+    with:
+      name_result: $access_user_name | trim
+      config_result: $access_config | trim
+      meta_result: $access_meta | trim
+      llm_result: $structured_from_paths | trim
+    exec:
+      command: "echo '{{with.name_result}}' && echo '{{with.config_result}}' && echo '{{with.meta_result}}' && echo '{{with.llm_result}}'"
+      shell: true
+    description: "Verify all deep path accesses resolved correctly"

@@ -1,0 +1,72 @@
+# COMPLEX-14: 5+ env bindings — comprehensive environment variable access
+# Tests: $env.HOME, $env.USER, $env.PWD, $env.SHELL, $env.PATH binding
+schema: nika/workflow@0.12
+workflow: complex-binding-multi-env
+
+tasks:
+  - id: gather_env
+    with:
+      home: $env.HOME
+      user: $env.USER
+      pwd: $env.PWD
+      shell_path: $env.SHELL
+      path: $env.PATH
+    exec:
+      command: |
+        echo "HOME={{with.home}}"
+        echo "USER={{with.user}}"
+        echo "PWD={{with.pwd}}"
+        echo "SHELL={{with.shell_path}}"
+        echo "PATH_LEN=$(echo '{{with.path}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Gather 5 env vars via with: bindings"
+
+  - id: analyze_env
+    depends_on: [gather_env]
+    with:
+      home: $env.HOME
+      user: $env.USER
+      env_summary: $gather_env | trim
+    infer: |
+      Given this environment info:
+      {{with.env_summary}}
+
+      Describe this developer's setup in one sentence.
+      User: {{with.user}}, Home: {{with.home}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "LLM analyzes environment from multiple env bindings"
+
+  - id: path_check
+    with:
+      shell_path: $env.SHELL
+    exec:
+      command: "test -f '{{with.shell_path}}' && echo 'SHELL_EXISTS=true' || echo 'SHELL_EXISTS=false'"
+      shell: true
+    description: "Verify SHELL path exists on filesystem"
+
+  - id: home_ls
+    with:
+      home: $env.HOME
+    exec:
+      command: "ls '{{with.home}}' | head -5"
+      shell: true
+    description: "List first 5 items in HOME dir"
+
+  - id: final_report
+    depends_on: [analyze_env, path_check, home_ls, gather_env]
+    with:
+      analysis: $analyze_env | trim
+      shell_check: $path_check | trim
+      home_files: $home_ls | trim
+      raw_env: $gather_env | trim
+    exec:
+      command: |
+        echo "=== ENV REPORT ==="
+        echo "Analysis: {{with.analysis}}"
+        echo "Shell check: {{with.shell_check}}"
+        echo "Home files: {{with.home_files}}"
+        echo "Raw: {{with.raw_env}}"
+      shell: true
+    description: "Final report combining all env-based checks"

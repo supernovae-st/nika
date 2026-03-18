@@ -1,0 +1,43 @@
+# COMPLEX-68: Translate + save artifact per language via for_each
+# Tests: for_each producing individual artifacts, dynamic path with {{with.item}}
+schema: nika/workflow@0.12
+workflow: complex-artifact-per-locale
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  content:
+    default: "Nika is a semantic workflow engine for AI tasks."
+
+tasks:
+  - id: locales
+    exec: 'echo ''["fr","de","es","ja","ko"]'''
+    description: "List of target locales"
+
+  - id: translate_each
+    depends_on: [locales]
+    for_each: "$locales"
+    as: locale
+    infer: "Translate to {{with.locale}}: {{inputs.content}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "locale-{{with.locale}}.txt"
+      template: "Language: {{with.locale}}\n\n{{output}}"
+      format: text
+    description: "Translate and save artifact per locale"
+
+  - id: manifest
+    depends_on: [translate_each]
+    with:
+      translations: $translate_each
+    exec:
+      command: "echo 'Translated to 5 locales' && echo '{{with.translations}}' | head -c 200"
+      shell: true
+    artifact:
+      path: "locale-manifest.txt"
+      template: "# Translation Manifest\n\nLocales: fr, de, es, ja, ko\n\n{{output}}"
+      format: text
+    description: "Manifest listing all translations"

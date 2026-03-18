@@ -1,0 +1,73 @@
+# COMPLEX-64: All numeric transforms — to_number | abs | round(1) | ceil | floor
+# Tests: numeric pipeline transforms, chaining numeric operations
+schema: nika/workflow@0.12
+workflow: complex-transform-all-numeric
+
+tasks:
+  - id: float_source
+    exec: "echo '-3.7654'"
+    description: "Negative float source"
+
+  - id: positive_source
+    exec: "echo '7.345'"
+    description: "Positive float source"
+
+  - id: to_number_test
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number
+    exec: "echo 'TO_NUMBER={{with.val}}'"
+    description: "Convert string to number"
+
+  - id: abs_test
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number | abs
+    exec: "echo 'ABS={{with.val}}'"
+    description: "Absolute value of negative"
+
+  - id: round_test
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number | round(1)
+    exec: "echo 'ROUND1={{with.val}}'"
+    description: "Round to 1 decimal place"
+
+  - id: ceil_test
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number | ceil
+    exec: "echo 'CEIL={{with.val}}'"
+    description: "Ceiling of negative float"
+
+  - id: floor_test
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number | floor
+    exec: "echo 'FLOOR={{with.val}}'"
+    description: "Floor of negative float"
+
+  - id: chain_abs_round
+    depends_on: [float_source]
+    with:
+      val: $float_source | to_number | abs | round(1)
+    exec: "echo 'ABS_ROUND={{with.val}}'"
+    description: "abs then round(1)"
+
+  - id: chain_positive
+    depends_on: [positive_source]
+    with:
+      r: $positive_source | to_number | round(1)
+      c: $positive_source | to_number | ceil
+      f: $positive_source | to_number | floor
+    exec: "echo 'POS_ROUND={{with.r}} POS_CEIL={{with.c}} POS_FLOOR={{with.f}}'"
+    description: "All numeric ops on positive float"
+
+  - id: verify
+    depends_on: [to_number_test, abs_test, round_test, ceil_test, floor_test, chain_abs_round, chain_positive]
+    with:
+      abs_val: $abs_test | trim
+      round_val: $round_test | trim
+      chain_val: $chain_abs_round | trim
+    exec: "echo 'NUMERIC_OK: abs={{with.abs_val}} round={{with.round_val}} chain={{with.chain_val}}'"
+    description: "Verify all numeric transforms"

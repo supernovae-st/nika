@@ -1,0 +1,63 @@
+# COMPLEX-36: Same prompt to 2 providers, compare outputs
+# Tests: multi-provider parallel execution, output comparison, provider isolation
+schema: nika/workflow@0.12
+workflow: complex-multi-provider-compare
+
+tasks:
+  - id: prompt_source
+    exec: "echo 'Explain the CAP theorem in distributed systems in exactly 2 sentences.'"
+    description: "Define the shared prompt"
+
+  - id: openai_response
+    depends_on: [prompt_source]
+    with:
+      prompt: $prompt_source | trim
+    infer: "{{with.prompt}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "OpenAI gpt-4.1-mini response"
+
+  - id: mock_response
+    depends_on: [prompt_source]
+    with:
+      prompt: $prompt_source | trim
+    infer: "{{with.prompt}}"
+    provider: mock
+    max_tokens: 100
+    description: "Mock provider response (for comparison structure)"
+
+  - id: compare_outputs
+    depends_on: [openai_response, mock_response]
+    with:
+      openai: $openai_response | trim
+      mock: $mock_response | trim
+    infer: |
+      Compare these two AI responses to the same prompt:
+      Response A (OpenAI): {{with.openai}}
+      Response B (Mock): {{with.mock}}
+      Which is more accurate and complete? One sentence verdict.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "LLM compares both provider outputs"
+
+  - id: length_comparison
+    depends_on: [openai_response, mock_response]
+    with:
+      openai: $openai_response
+      mock: $mock_response
+    exec:
+      command: "echo 'OpenAI_len='$(echo '{{with.openai}}' | wc -c | tr -d ' ') && echo 'Mock_len='$(echo '{{with.mock}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Compare response lengths"
+
+  - id: final_verdict
+    depends_on: [compare_outputs, length_comparison]
+    with:
+      comparison: $compare_outputs | trim
+      lengths: $length_comparison | trim
+    exec:
+      command: "echo 'COMPARISON: {{with.comparison}}' && echo 'LENGTHS: {{with.lengths}}'"
+      shell: true
+    description: "Final provider comparison report"

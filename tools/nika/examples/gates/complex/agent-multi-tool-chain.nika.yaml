@@ -1,0 +1,28 @@
+# COMPLEX-73: Agent using 5+ tools in sequence within a single turn
+# Tests: agent tool-use depth, multi-step reasoning, sequential builtin calls
+schema: nika/workflow@0.12
+workflow: complex-agent-multi-tool
+
+tasks:
+  - id: multi_tool_agent
+    agent:
+      prompt: |
+        Perform these steps in order:
+        1. Use nika_write to create /tmp/nika-agent-test-73.txt with content "test data 73"
+        2. Use nika_read to read back /tmp/nika-agent-test-73.txt
+        3. Use nika_glob to find files matching "/tmp/nika-agent-test-*.txt"
+        4. Use nika_emit with name='multi_tool_progress' and payload_json='{"step":4}'
+        5. Use nika_assert with condition=true and message='all tools called'
+        6. Call nika_complete with result='ALL_5_TOOLS_USED' confidence=1.0 reasoning='write, read, glob, emit, assert all called'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 8
+      tools: [builtin]
+    description: "Agent exercises 5+ builtin tools sequentially"
+
+  - id: verify
+    depends_on: [multi_tool_agent]
+    with:
+      result: $multi_tool_agent | trim
+    exec: "echo 'MULTI_TOOL_RESULT={{with.result}}' && rm -f /tmp/nika-agent-test-73.txt"
+    description: "Verify agent used all tools and cleanup"

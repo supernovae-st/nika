@@ -1,0 +1,49 @@
+# COMPLEX-39: Primary provider with mock fallback pattern
+# Tests: provider fallback strategy, ?? operator on provider outputs, resilience
+schema: nika/workflow@0.12
+workflow: complex-provider-fallback
+
+tasks:
+  - id: primary_attempt
+    infer: "What is 2+2? Reply with just the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Primary provider attempt"
+
+  - id: fallback_attempt
+    infer: "What is 2+2? Reply with just the number."
+    provider: mock
+    max_tokens: 10
+    description: "Fallback mock provider (runs in parallel)"
+
+  - id: select_best
+    depends_on: [primary_attempt, fallback_attempt]
+    with:
+      primary: $primary_attempt ?? "FAILED"
+      fallback: $fallback_attempt ?? "FAILED"
+    exec:
+      command: "echo 'Primary={{with.primary}} Fallback={{with.fallback}}'"
+      shell: true
+    description: "Select result with fallback"
+
+  - id: validate_result
+    depends_on: [select_best, primary_attempt]
+    with:
+      selected: $select_best | trim
+      primary: $primary_attempt | trim
+    infer: "Is this answer correct? Primary said: {{with.primary}}. Full selection: {{with.selected}}. One word: yes/no."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    description: "Validate the selected result"
+
+  - id: report
+    depends_on: [validate_result, select_best]
+    with:
+      valid: $validate_result | trim
+      selection: $select_best | trim
+    exec:
+      command: "echo 'VALID={{with.valid}} SELECTION={{with.selection}}'"
+      shell: true
+    description: "Final fallback pattern report"

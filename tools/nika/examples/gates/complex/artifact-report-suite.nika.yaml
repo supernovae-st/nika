@@ -1,0 +1,91 @@
+# COMPLEX-66: Generate 5 artifact files from one workflow
+# Tests: multiple artifact tasks, different formats, template variations
+schema: nika/workflow@0.12
+workflow: complex-artifact-report-suite
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  project:
+    default: "Nika"
+
+tasks:
+  - id: gather_data
+    exec: 'echo ''{"version":"0.30","tasks_run":142,"pass_rate":0.97,"date":"2025-12-15"}'''
+    description: "Project metrics data"
+
+  # Artifact 1: Executive summary (text)
+  - id: exec_summary
+    depends_on: [gather_data]
+    with:
+      data: $gather_data
+    infer: "Write a 2-sentence executive summary for project {{inputs.project}}: {{with.data}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "report-executive.txt"
+      template: "EXECUTIVE SUMMARY — {{inputs.project}}\n\n{{output}}"
+      format: text
+    description: "Artifact 1: executive summary"
+
+  # Artifact 2: Metrics JSON
+  - id: metrics_json
+    depends_on: [gather_data]
+    with:
+      raw: $gather_data
+    infer: "Reformat this data as clean JSON with added 'status' field (healthy/unhealthy based on pass_rate): {{with.raw}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "report-metrics.json"
+      format: json
+    description: "Artifact 2: metrics JSON"
+
+  # Artifact 3: Changelog
+  - id: changelog
+    depends_on: [gather_data]
+    with:
+      data: $gather_data
+    infer: "Generate a 3-item changelog for {{inputs.project}} v{{with.data}}. Short bullet points."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "report-changelog.md"
+      template: "# Changelog — {{inputs.project}}\n\n{{output}}"
+      format: text
+    description: "Artifact 3: changelog"
+
+  # Artifact 4: Technical details
+  - id: tech_details
+    depends_on: [gather_data]
+    with:
+      metrics: $gather_data
+    infer: "Write 3 technical recommendations based on: {{with.metrics}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "report-technical.txt"
+      format: text
+    description: "Artifact 4: technical recommendations"
+
+  # Artifact 5: Combined index
+  - id: report_index
+    depends_on: [exec_summary, metrics_json, changelog, tech_details]
+    with:
+      summary: $exec_summary | trim
+      metrics: $metrics_json | trim
+      log: $changelog | trim
+      tech: $tech_details | trim
+    exec:
+      command: "echo 'FILES: executive.txt, metrics.json, changelog.md, technical.txt' && echo 'SUMMARY: {{with.summary}}'"
+      shell: true
+    artifact:
+      path: "report-index.txt"
+      template: "# Report Index — {{inputs.project}}\n\nGenerated files:\n1. report-executive.txt\n2. report-metrics.json\n3. report-changelog.md\n4. report-technical.txt\n\n{{output}}"
+      format: text
+    description: "Artifact 5: index file linking all reports"

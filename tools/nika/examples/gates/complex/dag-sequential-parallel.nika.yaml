@@ -1,0 +1,75 @@
+# COMPLEX-33: Alternating sequential and parallel phases
+# Pattern: seq -> par(3) -> seq -> par(3) -> seq
+# Tests: phase-based execution, sequential gates between parallel bursts
+schema: nika/workflow@0.12
+workflow: complex-dag-seq-parallel
+
+tasks:
+  # Phase 1: Sequential setup
+  - id: phase1_init
+    exec: "echo 'INIT_DATA'"
+    description: "Sequential phase 1: initialization"
+
+  # Phase 2: 3 parallel tasks
+  - id: phase2_a
+    depends_on: [phase1_init]
+    with: { d: $phase1_init }
+    exec: "echo 'P2A({{with.d}})'"
+
+  - id: phase2_b
+    depends_on: [phase1_init]
+    with: { d: $phase1_init }
+    infer: "Transform '{{with.d}}' creatively. 3 words max."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 30
+
+  - id: phase2_c
+    depends_on: [phase1_init]
+    with: { d: $phase1_init }
+    fetch:
+      url: "https://httpbin.org/get?data={{with.d}}"
+      method: GET
+
+  # Phase 3: Sequential gate (must wait for all phase 2)
+  - id: phase3_gate
+    depends_on: [phase2_a, phase2_b, phase2_c]
+    with:
+      a: $phase2_a | trim
+      b: $phase2_b | trim
+      c: $phase2_c
+    exec:
+      command: "echo 'GATE: A={{with.a}} B={{with.b}} C_len='$(echo '{{with.c}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Sequential gate between parallel phases"
+
+  # Phase 4: 3 more parallel tasks
+  - id: phase4_x
+    depends_on: [phase3_gate]
+    with: { d: $phase3_gate | trim }
+    exec: "echo 'P4X({{with.d}})'"
+
+  - id: phase4_y
+    depends_on: [phase3_gate]
+    with: { d: $phase3_gate | trim }
+    infer: "Summarize in 2 words: {{with.d}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+
+  - id: phase4_z
+    depends_on: [phase3_gate]
+    with: { d: $phase3_gate | trim | upper }
+    exec: "echo 'P4Z({{with.d}})'"
+
+  # Phase 5: Final sequential merge
+  - id: phase5_final
+    depends_on: [phase4_x, phase4_y, phase4_z]
+    with:
+      x: $phase4_x | trim
+      y: $phase4_y | trim
+      z: $phase4_z | trim
+    exec:
+      command: "echo '=== FINAL ===' && echo 'X={{with.x}}' && echo 'Y={{with.y}}' && echo 'Z={{with.z}}'"
+      shell: true
+    description: "Final merge of second parallel phase"

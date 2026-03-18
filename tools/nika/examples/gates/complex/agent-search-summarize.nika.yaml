@@ -1,0 +1,48 @@
+# COMPLEX-72: Agent searches with glob+grep, summarizes findings
+# Tests: agent using nika_glob and nika_grep builtins in combination
+schema: nika/workflow@0.12
+workflow: complex-agent-search-summarize
+
+tasks:
+  # Agent discovers files with glob
+  - id: discover
+    agent:
+      prompt: |
+        Use nika_glob to find all .yaml files matching the pattern "./examples/gates/feature/*.nika.yaml"
+        Count the files you found. Call nika_complete with result='FOUND_N_FILES' (replace N)
+        confidence=1.0 reasoning='glob search completed'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent discovers files via glob"
+
+  # Agent searches content with grep
+  - id: search_content
+    agent:
+      prompt: |
+        Use nika_grep to search for the pattern "for_each" in the directory "./examples/gates/feature/"
+        with file glob "*.nika.yaml". Report how many files contain for_each.
+        Call nika_complete with result='GREP_MATCHES_N' (replace N)
+        confidence=1.0 reasoning='grep search completed'
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [builtin]
+    description: "Agent searches file content via grep"
+
+  # Summarize findings
+  - id: summarize
+    depends_on: [discover, search_content]
+    with:
+      files: $discover | trim
+      matches: $search_content | trim
+    infer: |
+      Search results:
+      - File discovery: {{with.files}}
+      - Content search: {{with.matches}}
+      Write a 2-sentence summary of the codebase analysis.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "LLM summarizes agent search findings"

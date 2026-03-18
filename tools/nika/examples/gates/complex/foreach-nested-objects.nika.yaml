@@ -1,0 +1,57 @@
+# COMPLEX-06: for_each with complex JSON objects — each item is a multi-field object
+# Tests: object iteration, field access within for_each, structured item processing
+schema: nika/workflow@0.12
+workflow: complex-foreach-nested-objects
+
+tasks:
+  - id: generate_records
+    exec: |
+      printf '[{"name":"Alice","role":"engineer","skills":["rust","python"],"level":5},{"name":"Bob","role":"designer","skills":["figma","css"],"level":3},{"name":"Carol","role":"manager","skills":["leadership","agile"],"level":7}]'
+    description: "Generate array of complex person objects"
+
+  - id: evaluate_each
+    depends_on: [generate_records]
+    for_each: "$generate_records"
+    as: person
+    infer: |
+      Evaluate this team member profile and give a 1-sentence assessment:
+      {{with.person}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "LLM evaluates each person object"
+
+  - id: rank_each
+    depends_on: [generate_records]
+    for_each: "$generate_records"
+    as: person
+    infer: "Rate this person 1-10 based on their profile: {{with.person}}. Return only the number."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Numeric ranking for each person"
+
+  - id: aggregate_evaluations
+    depends_on: [evaluate_each, rank_each]
+    with:
+      assessments: $evaluate_each
+      rankings: $rank_each
+    infer: |
+      Combine these assessments and rankings into a final team report:
+      Assessments: {{with.assessments}}
+      Rankings: {{with.rankings}}
+      Write 2-3 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Aggregate all per-person evaluations"
+
+  - id: final_summary
+    depends_on: [aggregate_evaluations, generate_records]
+    with:
+      report: $aggregate_evaluations | trim
+      original: $generate_records
+    exec:
+      command: "echo 'TEAM_SIZE='$(echo '{{with.original}}' | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 'N/A') && echo 'REPORT: {{with.report}}'"
+      shell: true
+    description: "Final summary with team size count"

@@ -1,0 +1,58 @@
+# COMPLEX-11: 5 transforms chained — deep transform pipeline testing
+# Tests: multiple chained transforms, transform at every binding point
+schema: nika/workflow@0.12
+workflow: complex-transform-pipeline-5
+
+tasks:
+  - id: source
+    exec: "echo '  Hello, World! This Is A Test  '"
+    description: "Source with mixed case and whitespace"
+
+  - id: step1_trim
+    depends_on: [source]
+    with:
+      val: $source | trim
+    exec: "echo 'TRIMMED=[{{with.val}}]'"
+    description: "Transform 1: trim whitespace"
+
+  - id: step2_lower
+    depends_on: [source]
+    with:
+      val: $source | trim | lower
+    exec: "echo 'LOWERED=[{{with.val}}]'"
+    description: "Transform 2: trim then lower"
+
+  - id: step3_upper
+    depends_on: [source]
+    with:
+      val: $source | trim | upper
+    exec: "echo 'UPPERED=[{{with.val}}]'"
+    description: "Transform 3: trim then upper"
+
+  - id: step4_json
+    depends_on: [source]
+    with:
+      val: $source | trim | json
+    exec: "echo 'JSON={{with.val}}'"
+    description: "Transform 4: trim then json encode"
+
+  - id: step5_combined
+    depends_on: [source]
+    with:
+      low: $source | trim | lower
+      up: $source | trim | upper
+    exec: "echo 'LOW={{with.low}} UP={{with.up}}'"
+    description: "Transform 5: two different transform chains from same source"
+
+  - id: verify_all
+    depends_on: [step1_trim, step2_lower, step3_upper, step4_json, step5_combined]
+    with:
+      t1: $step1_trim | trim
+      t2: $step2_lower | trim
+      t3: $step3_upper | trim
+      t4: $step4_json | trim
+      t5: $step5_combined | trim
+    exec:
+      command: "echo 'TRIM: {{with.t1}}' && echo 'LOWER: {{with.t2}}' && echo 'UPPER: {{with.t3}}' && echo 'JSON: {{with.t4}}' && echo 'COMBINED: {{with.t5}}'"
+      shell: true
+    description: "Verify all 5 transform paths produce correct output"

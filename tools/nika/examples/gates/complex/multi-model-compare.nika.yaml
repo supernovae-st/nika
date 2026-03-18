@@ -1,0 +1,58 @@
+# COMPLEX-38: Same prompt to different models from same provider
+# Tests: model-level comparison, same provider different model configs
+schema: nika/workflow@0.12
+workflow: complex-multi-model-compare
+
+tasks:
+  - id: test_prompt
+    exec: "echo 'What is the time complexity of quicksort? Answer in one sentence.'"
+    description: "Shared test prompt"
+
+  - id: model_mini
+    depends_on: [test_prompt]
+    with:
+      prompt: $test_prompt | trim
+    infer: "{{with.prompt}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "OpenAI gpt-4.1-mini response"
+
+  - id: model_nano
+    depends_on: [test_prompt]
+    with:
+      prompt: $test_prompt | trim
+    infer: "{{with.prompt}}"
+    provider: openai
+    model: gpt-4.1-nano
+    max_tokens: 80
+    description: "OpenAI gpt-4.1-nano response"
+
+  - id: evaluate_quality
+    depends_on: [model_mini, model_nano]
+    with:
+      mini: $model_mini | trim
+      nano: $model_nano | trim
+    infer: |
+      Evaluate the accuracy of these two responses about quicksort:
+      gpt-4.1-mini: {{with.mini}}
+      gpt-4.1-nano: {{with.nano}}
+      Which is more precise? One sentence.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Evaluate model quality difference"
+
+  - id: summary
+    depends_on: [evaluate_quality, model_mini, model_nano]
+    with:
+      eval: $evaluate_quality | trim
+      mini_len: $model_mini
+      nano_len: $model_nano
+    exec:
+      command: |
+        echo "EVALUATION: {{with.eval}}"
+        echo "MINI_CHARS=$(echo '{{with.mini_len}}' | wc -c | tr -d ' ')"
+        echo "NANO_CHARS=$(echo '{{with.nano_len}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Summary comparing both model outputs"

@@ -1,0 +1,56 @@
+# COMPLEX-27: Agent that generates code using file tools
+# Tests: agent with nika_write, code generation, multi-turn file operations
+schema: nika/workflow@0.12
+workflow: complex-agent-code-gen
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: spec
+    exec: "echo 'Write a Python function called fibonacci that takes n and returns the nth Fibonacci number using iteration.'"
+    description: "Generate the code specification"
+
+  - id: code_agent
+    depends_on: [spec]
+    with:
+      specification: $spec
+    agent:
+      prompt: |
+        You are a code generation agent.
+        Specification: {{with.specification}}
+
+        Steps:
+        1. Use nika_log to log that you're starting code generation
+        2. Think about the implementation
+        3. Call nika_complete with the generated Python code as the result, confidence=0.95, reasoning="iterative fibonacci implementation"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 4
+      max_tokens: 200
+      system: "You are an expert Python developer. Generate clean, efficient code."
+    description: "Agent generates code from specification"
+
+  - id: save_code
+    depends_on: [code_agent]
+    with:
+      code: $code_agent
+    infer: "Clean up and format this code output, returning only the Python code: {{with.code}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    artifact:
+      path: "generated-fibonacci.py"
+      format: text
+    description: "Save generated code as artifact"
+
+  - id: review_code
+    depends_on: [code_agent]
+    with:
+      code: $code_agent
+    infer: "Review this generated code for correctness. Is it correct? One sentence verdict: {{with.code}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Code review step after generation"

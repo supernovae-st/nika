@@ -1,0 +1,89 @@
+# COMPLEX-05: 8-task diamond/complex DAG — multiple convergence points
+# Tests: diamond patterns, cross-layer dependencies, multi-parent merges
+# DAG shape:
+#   A ──┬── B ──┬── E
+#       │       │
+#       ├── C ──┤
+#       │       │
+#       └── D ──┘── F
+#                    │
+#               G ───┘── H (final)
+schema: nika/workflow@0.12
+workflow: complex-deep-diamond-8
+
+tasks:
+  - id: a_source
+    exec: "echo '{\"payload\":\"DIAMOND_ROOT\",\"ts\":1234567890}'"
+    description: "Root node — feeds three parallel branches"
+
+  - id: b_left
+    depends_on: [a_source]
+    with:
+      data: $a_source
+    infer: "Transform this to uppercase and add LEFT prefix: {{with.data}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Left branch: LLM transform"
+
+  - id: c_center
+    depends_on: [a_source]
+    with:
+      data: $a_source
+    exec:
+      command: "echo 'CENTER('$(echo '{{with.data}}' | wc -c | tr -d ' ')')'"
+      shell: true
+    description: "Center branch: char count"
+
+  - id: d_right
+    depends_on: [a_source]
+    with:
+      data: $a_source
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body:
+        source: "{{with.data}}"
+    description: "Right branch: POST to external"
+
+  - id: e_merge_bc
+    depends_on: [b_left, c_center]
+    with:
+      left: $b_left | trim
+      center: $c_center | trim
+    infer: "Combine LEFT='{{with.left}}' and CENTER='{{with.center}}' into one line."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "First diamond merge: left + center"
+
+  - id: f_merge_cd
+    depends_on: [c_center, d_right]
+    with:
+      center: $c_center | trim
+      right: $d_right
+    exec:
+      command: "echo 'MERGED_CD: center={{with.center}} right_len='$(echo '{{with.right}}' | wc -c | tr -d ' ')"
+      shell: true
+    description: "Second diamond merge: center + right"
+
+  - id: g_converge
+    depends_on: [e_merge_bc, f_merge_cd]
+    with:
+      top: $e_merge_bc | trim
+      bottom: $f_merge_cd | trim
+    infer: "Create a 1-sentence summary combining: '{{with.top}}' and '{{with.bottom}}'"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Convergence point: merges both diamond outputs"
+
+  - id: h_final
+    depends_on: [g_converge, a_source]
+    with:
+      result: $g_converge | trim
+      original: $a_source
+    exec:
+      command: "echo '=== DIAMOND COMPLETE ===' && echo 'Original: {{with.original}}' && echo 'Result: {{with.result}}'"
+      shell: true
+    description: "Final: compares original input with processed diamond output"

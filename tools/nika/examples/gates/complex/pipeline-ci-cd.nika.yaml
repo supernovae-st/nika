@@ -1,0 +1,96 @@
+# COMPLEX-51: Simulated CI/CD pipeline — lint -> test -> build -> deploy -> notify
+# Tests: long sequential chain, exec with shell, parallel gates, conditional-like flow
+schema: nika/workflow@0.12
+workflow: complex-pipeline-ci-cd
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  branch:
+    default: "main"
+  env:
+    default: "staging"
+
+tasks:
+  # Stage 1: Lint (parallel checks)
+  - id: lint_format
+    exec:
+      command: "echo 'Checking formatting on {{inputs.branch}}...' && echo 'FORMAT_OK'"
+      shell: true
+    description: "Format check"
+
+  - id: lint_types
+    exec:
+      command: "echo 'Type checking...' && echo 'TYPES_OK'"
+      shell: true
+    description: "Type check"
+
+  - id: lint_security
+    exec:
+      command: "echo 'Security audit...' && echo 'SECURITY_OK'"
+      shell: true
+    description: "Security audit"
+
+  # Stage 2: Tests (depends on all lint passing)
+  - id: test_unit
+    depends_on: [lint_format, lint_types, lint_security]
+    with:
+      fmt: $lint_format | trim
+      types: $lint_types | trim
+      sec: $lint_security | trim
+    exec:
+      command: "echo 'Lint results: {{with.fmt}}, {{with.types}}, {{with.sec}}' && echo 'UNIT_TESTS_PASSED=42'"
+      shell: true
+    description: "Unit tests after lint gate"
+
+  - id: test_integration
+    depends_on: [lint_format, lint_types, lint_security]
+    exec:
+      command: "echo 'Running integration tests...' && echo 'INTEGRATION_PASSED=12'"
+      shell: true
+    description: "Integration tests in parallel with unit"
+
+  # Stage 3: Build
+  - id: build
+    depends_on: [test_unit, test_integration]
+    with:
+      unit: $test_unit | trim
+      integ: $test_integration | trim
+    exec:
+      command: "echo 'Building artifact...' && echo 'BUILD_SHA='$(echo '{{with.unit}}{{with.integ}}' | shasum | cut -c1-8)"
+      shell: true
+    description: "Build with test results hash"
+
+  # Stage 4: Deploy
+  - id: deploy
+    depends_on: [build]
+    with:
+      sha: $build | trim
+    exec:
+      command: "echo 'Deploying {{with.sha}} to {{inputs.env}}...' && echo 'DEPLOY_OK'"
+      shell: true
+    description: "Deploy to target environment"
+
+  # Stage 5: Notify (generate human-readable summary)
+  - id: notify
+    depends_on: [deploy, build, test_unit, test_integration]
+    with:
+      build_out: $build | trim
+      deploy_out: $deploy | trim
+      unit_out: $test_unit | trim
+      integ_out: $test_integration | trim
+    infer: |
+      Generate a 3-line deployment notification:
+      - Branch: {{inputs.branch}}, Env: {{inputs.env}}
+      - Build: {{with.build_out}}
+      - Deploy: {{with.deploy_out}}
+      - Unit tests: {{with.unit_out}}
+      - Integration: {{with.integ_out}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "ci-cd-report-{{inputs.branch}}.txt"
+      format: text
+    description: "Final CI/CD notification with all pipeline results"

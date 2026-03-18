@@ -1,0 +1,35 @@
+# COMPLEX-95: Workflow designed to run silently — minimal output
+# Tests: workflow without log config (default), tasks that produce minimal output
+schema: nika/workflow@0.12
+workflow: complex-log-quiet
+
+tasks:
+  - id: quiet_exec_1
+    exec: "echo 'q1'"
+
+  - id: quiet_exec_2
+    exec: "echo 'q2'"
+
+  - id: quiet_exec_3
+    depends_on: [quiet_exec_1, quiet_exec_2]
+    with:
+      a: $quiet_exec_1 | trim
+      b: $quiet_exec_2 | trim
+    exec: "echo '{{with.a}}{{with.b}}'"
+
+  - id: quiet_infer
+    depends_on: [quiet_exec_3]
+    with:
+      data: $quiet_exec_3 | trim
+    infer: "Reply with exactly: OK"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 5
+    description: "Minimal infer — shortest possible output"
+
+  - id: quiet_final
+    depends_on: [quiet_infer]
+    with:
+      r: $quiet_infer | trim
+    exec: "echo '{{with.r}}'"
+    description: "Quiet final output"

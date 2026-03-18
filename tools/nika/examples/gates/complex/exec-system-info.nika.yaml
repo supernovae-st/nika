@@ -1,0 +1,68 @@
+# COMPLEX-82: Gather 5 system info commands -> compile report
+# Tests: parallel exec, system commands, fan-in aggregation, structured compilation
+schema: nika/workflow@0.12
+workflow: complex-exec-system-info
+
+tasks:
+  # 5 parallel system info commands
+  - id: sys_hostname
+    exec:
+      command: "hostname"
+      shell: true
+    description: "Get hostname"
+
+  - id: sys_date
+    exec:
+      command: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
+      shell: true
+    description: "Get UTC timestamp"
+
+  - id: sys_os
+    exec:
+      command: "uname -srm"
+      shell: true
+    description: "Get OS info"
+
+  - id: sys_uptime
+    exec:
+      command: "uptime | tr -s ' '"
+      shell: true
+    description: "Get system uptime"
+
+  - id: sys_disk
+    exec:
+      command: "df -h / | tail -1 | awk '{print $4\" free of \"$2}'"
+      shell: true
+    description: "Get disk usage"
+
+  # Compile all system info
+  - id: compile
+    depends_on: [sys_hostname, sys_date, sys_os, sys_uptime, sys_disk]
+    with:
+      host: $sys_hostname | trim
+      date: $sys_date | trim
+      os: $sys_os | trim
+      uptime: $sys_uptime | trim
+      disk: $sys_disk | trim
+    infer: |
+      Compile a system health report:
+      - Hostname: {{with.host}}
+      - Timestamp: {{with.date}}
+      - OS: {{with.os}}
+      - Uptime: {{with.uptime}}
+      - Disk: {{with.disk}}
+      Format as a brief health check summary in 3 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Compile system info into report"
+
+  - id: format_output
+    depends_on: [compile, sys_hostname]
+    with:
+      report: $compile | trim
+      host: $sys_hostname | trim
+    exec:
+      command: "echo 'HOST={{with.host}}' && echo '---' && echo '{{with.report}}'"
+      shell: true
+    description: "Format final output"

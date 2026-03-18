@@ -1,0 +1,73 @@
+# COMPLEX-61: All string transforms chained — upper | lower | trim | trim_start | trim_end
+# Tests: every string transform in sequence, verify ordering matters
+schema: nika/workflow@0.12
+workflow: complex-transform-all-string
+
+tasks:
+  - id: source
+    exec: "echo '  Hello World  '"
+
+  - id: trim_only
+    depends_on: [source]
+    with:
+      val: $source | trim
+    exec: "echo 'TRIM=[{{with.val}}]'"
+    description: "trim removes both sides"
+
+  - id: trim_start_only
+    depends_on: [source]
+    with:
+      val: $source | trim_start
+    exec: "echo 'TRIM_START=[{{with.val}}]'"
+    description: "trim_start removes leading whitespace only"
+
+  - id: trim_end_only
+    depends_on: [source]
+    with:
+      val: $source | trim_end
+    exec: "echo 'TRIM_END=[{{with.val}}]'"
+    description: "trim_end removes trailing whitespace only"
+
+  - id: upper_only
+    depends_on: [source]
+    with:
+      val: $source | upper
+    exec: "echo 'UPPER=[{{with.val}}]'"
+    description: "upper transforms to uppercase"
+
+  - id: lower_only
+    depends_on: [source]
+    with:
+      val: $source | lower
+    exec: "echo 'LOWER=[{{with.val}}]'"
+    description: "lower transforms to lowercase"
+
+  - id: chain_trim_upper
+    depends_on: [source]
+    with:
+      val: $source | trim | upper
+    exec: "echo 'TRIM_UPPER=[{{with.val}}]'"
+    description: "trim then upper"
+
+  - id: chain_trim_lower
+    depends_on: [source]
+    with:
+      val: $source | trim | lower
+    exec: "echo 'TRIM_LOWER=[{{with.val}}]'"
+    description: "trim then lower"
+
+  - id: chain_all
+    depends_on: [source]
+    with:
+      val: $source | trim_start | trim_end | lower
+    exec: "echo 'ALL_CHAIN=[{{with.val}}]'"
+    description: "trim_start -> trim_end -> lower"
+
+  - id: verify
+    depends_on: [trim_only, trim_start_only, trim_end_only, upper_only, lower_only, chain_trim_upper, chain_trim_lower, chain_all]
+    with:
+      a: $trim_only | trim
+      b: $upper_only | trim
+      c: $chain_all | trim
+    exec: "echo 'VERIFY: trim={{with.a}} upper={{with.b}} chained={{with.c}}'"
+    description: "Verify all string transform results"

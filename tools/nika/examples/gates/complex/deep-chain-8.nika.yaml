@@ -1,0 +1,88 @@
+# COMPLEX-01: 8-task linear chain with bindings and transforms at every stage
+# Tests: deep sequential dependency chains, transforms accumulate through pipeline
+schema: nika/workflow@0.12
+workflow: complex-deep-chain-8
+
+tasks:
+  - id: seed
+    exec: "echo '  Quantum Computing Fundamentals  '"
+
+  - id: normalize
+    depends_on: [seed]
+    with:
+      raw: $seed | trim | lower
+    exec:
+      command: "echo '{{with.raw}}'"
+      shell: true
+    description: "Trim and lowercase the seed value"
+
+  - id: enrich
+    depends_on: [normalize]
+    with:
+      text: $normalize
+    infer: "Take this topic '{{with.text}}' and rewrite it as a formal research title in exactly 10 words."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    description: "Enrich the normalized text via LLM"
+
+  - id: extract_keywords
+    depends_on: [enrich]
+    with:
+      title: $enrich | trim
+    infer: "Extract 5 keywords from: '{{with.title}}'. Return as JSON array of strings."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          keywords:
+            type: array
+            items:
+              type: string
+        required: [keywords]
+    description: "Structured keyword extraction from enriched title"
+
+  - id: format_keywords
+    depends_on: [extract_keywords]
+    with:
+      kw: $extract_keywords.keywords
+    exec:
+      command: "echo 'Keywords: {{with.kw}}' | tr ',' '\n'"
+      shell: true
+    description: "Format keywords for display"
+
+  - id: generate_summary
+    depends_on: [enrich, extract_keywords]
+    with:
+      title: $enrich | trim
+      kw: $extract_keywords.keywords
+    infer: |
+      Write a 2-sentence summary for a research paper titled: "{{with.title}}"
+      Keywords: {{with.kw}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Generate summary combining title and keywords"
+
+  - id: add_metadata
+    depends_on: [generate_summary, format_keywords]
+    with:
+      summary: $generate_summary | trim
+      formatted: $format_keywords
+    exec:
+      command: "echo 'SUMMARY: {{with.summary}}' && echo 'KEYWORDS: {{with.formatted}}' && echo 'TIMESTAMP: '$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      shell: true
+    description: "Add timestamp metadata to the pipeline output"
+
+  - id: final_compile
+    depends_on: [add_metadata, enrich]
+    with:
+      meta: $add_metadata
+      title: $enrich | trim | upper
+    exec:
+      command: "echo 'TITLE: {{with.title}}' && echo '---' && echo '{{with.meta}}'"
+      shell: true
+    description: "Final compilation with uppercased title and all metadata"

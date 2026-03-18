@@ -1,0 +1,66 @@
+# COMPLEX-70: Different artifact sources — source: binding vs template vs raw output
+# Tests: artifact source binding, template mode, and default (output) mode
+schema: nika/workflow@0.12
+workflow: complex-artifact-conditional-source
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  # Source 1: exec produces data, artifact uses source: binding
+  - id: exec_data
+    exec: "echo 'EXEC_GENERATED_CONTENT_12345'"
+    description: "Exec output for source binding"
+
+  - id: artifact_from_source
+    depends_on: [exec_data]
+    with:
+      content: $exec_data
+    infer: "Say WRONG — this should NOT appear in the file."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    artifact:
+      path: "source-binding-test.txt"
+      source: content
+      format: text
+    description: "Artifact source=content writes binding, not LLM output"
+
+  # Source 2: template mode with interpolation
+  - id: template_data
+    exec: "echo 'TEMPLATE_VALUE'"
+    description: "Data for template interpolation"
+
+  - id: artifact_from_template
+    depends_on: [template_data]
+    with:
+      val: $template_data | trim
+    infer: "Say anything — the template overrides."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 10
+    artifact:
+      path: "template-mode-test.txt"
+      template: "HEADER\n\nValue: {{with.val}}\n\nFOOTER"
+      format: text
+    description: "Artifact uses template with binding interpolation"
+
+  # Source 3: default mode — artifact gets LLM output
+  - id: artifact_from_output
+    infer: "Reply with exactly: DEFAULT_OUTPUT_CONTENT"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    artifact:
+      path: "default-output-test.txt"
+      format: text
+    description: "Artifact defaults to LLM output"
+
+  - id: verify
+    depends_on: [artifact_from_source, artifact_from_template, artifact_from_output]
+    with:
+      a: $artifact_from_source | trim
+      b: $artifact_from_template | trim
+      c: $artifact_from_output | trim
+    exec: "echo 'SOURCE_MODES_TESTED: source={{with.a}} template={{with.b}} output={{with.c}}'"
+    description: "Verify all artifact source modes"

@@ -1,0 +1,62 @@
+# COMPLEX-56: Empty output handling — task produces empty string, downstream handles it
+# Tests: empty binding propagation, fallback operator on empty, trim of whitespace-only
+schema: nika/workflow@0.12
+workflow: complex-edge-empty-output
+
+tasks:
+  # Produce truly empty output
+  - id: empty_producer
+    exec: "echo ''"
+    description: "Produces empty string"
+
+  # Produce whitespace-only output
+  - id: whitespace_producer
+    exec: "echo '   '"
+    description: "Produces whitespace-only"
+
+  # Handle empty with fallback
+  - id: handle_empty
+    depends_on: [empty_producer]
+    with:
+      data: $empty_producer ?? "FALLBACK_VALUE"
+    exec: "echo 'GOT=[{{with.data}}]'"
+    description: "Fallback when empty"
+
+  # Handle whitespace with trim
+  - id: handle_whitespace
+    depends_on: [whitespace_producer]
+    with:
+      data: $whitespace_producer | trim
+    exec: "echo 'TRIMMED=[{{with.data}}]'"
+    description: "Trim whitespace-only to empty"
+
+  # Chain: empty -> trim -> fallback
+  - id: chain_empty
+    depends_on: [whitespace_producer]
+    with:
+      data: $whitespace_producer | trim
+      safe: $whitespace_producer ?? "SAFE"
+    exec: "echo 'CHAIN=[{{with.data}}] SAFE=[{{with.safe}}]'"
+    description: "Chain empty handling strategies"
+
+  # LLM receives empty context
+  - id: infer_with_empty
+    depends_on: [empty_producer]
+    with:
+      ctx: $empty_producer ?? "no data available"
+    infer: "You received: '{{with.ctx}}'. Reply with exactly one word describing what you got."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "LLM handling of empty/fallback context"
+
+  # Final merge
+  - id: merge
+    depends_on: [handle_empty, handle_whitespace, chain_empty, infer_with_empty]
+    with:
+      a: $handle_empty | trim
+      b: $handle_whitespace | trim
+      c: $chain_empty | trim
+      d: $infer_with_empty | trim
+    exec: "echo 'RESULTS: a={{with.a}} b={{with.b}} c={{with.c}} d={{with.d}}'"
+    description: "Merge all empty-handling results"

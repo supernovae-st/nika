@@ -1,0 +1,65 @@
+# COMPLEX-63: All type transforms — to_string | parse_json | to_json
+# Tests: type conversion transforms, round-trip JSON serialization
+schema: nika/workflow@0.12
+workflow: complex-transform-all-type
+
+tasks:
+  # Source: exec producing JSON string
+  - id: json_source
+    exec: 'echo ''{"name":"Nika","version":30,"features":["infer","exec","fetch"]}'''
+    description: "Raw JSON string from exec"
+
+  # parse_json: string -> structured
+  - id: parse_test
+    depends_on: [json_source]
+    with:
+      parsed: $json_source | parse_json
+    exec: "echo 'PARSED={{with.parsed}}'"
+    description: "Parse JSON string to object"
+
+  # to_json: ensure JSON serialization
+  - id: to_json_test
+    depends_on: [json_source]
+    with:
+      serialized: $json_source | to_json
+    exec: "echo 'TO_JSON={{with.serialized}}'"
+    description: "Serialize to JSON string"
+
+  # to_string: numeric-ish to string
+  - id: number_source
+    exec: "echo '42'"
+
+  - id: to_string_test
+    depends_on: [number_source]
+    with:
+      str: $number_source | to_string | trim
+    exec: "echo 'TO_STRING=[{{with.str}}]'"
+    description: "Convert to string explicitly"
+
+  # Round trip: string -> parse_json -> to_json
+  - id: roundtrip
+    depends_on: [json_source]
+    with:
+      original: $json_source | trim
+      roundtripped: $json_source | parse_json | to_json
+    exec:
+      command: "echo 'ORIGINAL={{with.original}}' && echo 'ROUNDTRIP={{with.roundtripped}}'"
+      shell: true
+    description: "JSON round-trip: parse then serialize"
+
+  # Chain parse_json with field access
+  - id: field_access
+    depends_on: [json_source]
+    with:
+      obj: $json_source | parse_json
+    exec: "echo 'NAME={{with.obj}}'"
+    description: "Access parsed JSON via binding"
+
+  - id: verify
+    depends_on: [parse_test, to_json_test, to_string_test, roundtrip, field_access]
+    with:
+      a: $parse_test | trim
+      b: $to_string_test | trim
+      c: $roundtrip | trim
+    exec: "echo 'TYPE_TRANSFORMS_OK: parsed={{with.a}} str={{with.b}} rt={{with.c}}'"
+    description: "Verify all type transforms"

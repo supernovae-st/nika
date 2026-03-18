@@ -1,0 +1,44 @@
+# COMPLEX-37: openai -> mock -> openai chain — provider switching mid-pipeline
+# Tests: provider switching between tasks, binding across provider boundaries
+schema: nika/workflow@0.12
+workflow: complex-multi-provider-chain
+
+tasks:
+  - id: step1_openai
+    infer: "Generate a creative company name for a tech startup. One word only."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 20
+    description: "Step 1: OpenAI generates initial content"
+
+  - id: step2_mock
+    depends_on: [step1_openai]
+    with:
+      name: $step1_openai | trim
+    infer: "Expand on the company name '{{with.name}}' with a tagline."
+    provider: mock
+    max_tokens: 50
+    description: "Step 2: Mock provider processes (tests provider switching)"
+
+  - id: step3_openai
+    depends_on: [step2_mock]
+    with:
+      mock_output: $step2_mock | trim
+      original: $step1_openai | trim
+    infer: |
+      Given original name '{{with.original}}' and mock expansion '{{with.mock_output}}',
+      write a 1-sentence elevator pitch for this company.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 80
+    description: "Step 3: OpenAI refines mock output"
+
+  - id: step4_exec
+    depends_on: [step3_openai, step1_openai]
+    with:
+      pitch: $step3_openai | trim
+      name: $step1_openai | trim
+    exec:
+      command: "echo 'COMPANY: {{with.name}}' && echo 'PITCH: {{with.pitch}}'"
+      shell: true
+    description: "Step 4: Display final provider-chained result"

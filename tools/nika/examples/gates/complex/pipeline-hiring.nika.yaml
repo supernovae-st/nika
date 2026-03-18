@@ -1,0 +1,135 @@
+# COMPLEX-55: Hiring pipeline — source -> screen -> interview -> evaluate -> offer
+# Tests: for_each with structured output, agent scoring, multi-artifact
+schema: nika/workflow@0.12
+workflow: complex-pipeline-hiring
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  role:
+    default: "Senior Rust Engineer"
+  team:
+    default: "Platform"
+
+tasks:
+  # Phase 1: Source candidates
+  - id: source_candidates
+    exec: 'echo ''[{"name":"Alice","years":8,"skills":["rust","go"]},{"name":"Bob","years":5,"skills":["rust","python"]},{"name":"Carol","years":12,"skills":["rust","c++"]}]'''
+    description: "Simulate sourced candidate pool"
+
+  # Phase 2: Screen each candidate
+  - id: screen
+    depends_on: [source_candidates]
+    for_each: "$source_candidates"
+    as: candidate
+    infer: |
+      Screen this candidate for "{{inputs.role}}" on {{inputs.team}} team:
+      {{with.candidate}}
+      Rate fit 1-10 and give one-sentence reasoning. Return JSON.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          fit_score:
+            type: integer
+          reasoning:
+            type: string
+        required: [name, fit_score, reasoning]
+    description: "Screen candidates with structured scoring"
+
+  # Phase 3: Generate interview questions
+  - id: interview_questions
+    depends_on: [screen]
+    with:
+      screened: $screen
+    infer: |
+      Based on these screening results: {{with.screened}}
+      Generate 3 targeted interview questions for the "{{inputs.role}}" role.
+      Return as JSON array of strings.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Generate tailored interview questions"
+
+  # Phase 4: Simulate interview scoring
+  - id: interview_scores
+    depends_on: [source_candidates, interview_questions]
+    for_each: "$source_candidates"
+    as: candidate
+    with:
+      questions: $interview_questions
+    infer: |
+      Simulate an interview for {{with.candidate}} with questions: {{with.questions}}
+      Score the interview 1-100. Return JSON with name and score.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+          interview_score:
+            type: integer
+          strengths:
+            type: string
+        required: [name, interview_score, strengths]
+    description: "Interview scoring per candidate"
+
+  # Phase 5: Final evaluation
+  - id: evaluate
+    depends_on: [screen, interview_scores]
+    with:
+      screenings: $screen
+      interviews: $interview_scores
+    infer: |
+      Evaluate all candidates for "{{inputs.role}}":
+      Screenings: {{with.screenings}}
+      Interviews: {{with.interviews}}
+      Rank candidates and recommend top hire. Return JSON.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          ranking:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                total_score:
+                  type: integer
+              required: [name, total_score]
+          recommendation:
+            type: string
+        required: [ranking, recommendation]
+    description: "Final ranking and recommendation"
+
+  # Phase 6: Generate offer
+  - id: offer
+    depends_on: [evaluate]
+    with:
+      eval: $evaluate
+    infer: |
+      Draft a brief offer summary for the top candidate:
+      {{with.eval}}
+      Role: {{inputs.role}}, Team: {{inputs.team}}
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "hiring-report-{{inputs.team}}.md"
+      template: "# Hiring Report: {{inputs.role}} — {{inputs.team}}\n\n{{output}}"
+      format: text
+    description: "Final hiring report artifact"

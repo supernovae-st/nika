@@ -1,0 +1,65 @@
+# COMPLEX-30: 2 parallel agents + merge task — concurrent agent execution
+# Tests: parallel agent execution, merging agent outputs, agent+infer mixing
+schema: nika/workflow@0.12
+workflow: complex-agent-parallel-merge
+
+tasks:
+  - id: problem_statement
+    exec: "echo 'Evaluate whether microservices or monolith is better for a startup MVP'"
+    description: "Problem for both agents to analyze"
+
+  - id: agent_pro_micro
+    depends_on: [problem_statement]
+    with:
+      problem: $problem_statement
+    agent:
+      prompt: |
+        You are arguing FOR microservices. Problem: {{with.problem}}
+        Give 3 strong arguments for microservices.
+        Call nika_complete with your arguments as result, confidence=0.8, reasoning="pro-microservices analysis"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 200
+      system: "You are a microservices advocate. Be persuasive but factual."
+    description: "Agent A: Argues for microservices (parallel)"
+
+  - id: agent_pro_monolith
+    depends_on: [problem_statement]
+    with:
+      problem: $problem_statement
+    agent:
+      prompt: |
+        You are arguing FOR monolith architecture. Problem: {{with.problem}}
+        Give 3 strong arguments for monolith.
+        Call nika_complete with your arguments as result, confidence=0.8, reasoning="pro-monolith analysis"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [nika_complete, nika_log]
+      max_turns: 3
+      max_tokens: 200
+      system: "You are a monolith architecture advocate. Be persuasive but factual."
+    description: "Agent B: Argues for monolith (parallel)"
+
+  - id: judge_merge
+    depends_on: [agent_pro_micro, agent_pro_monolith]
+    with:
+      micro_args: $agent_pro_micro
+      mono_args: $agent_pro_monolith
+    infer: |
+      You are an impartial judge. Evaluate both sides:
+      Pro Microservices: {{with.micro_args}}
+      Pro Monolith: {{with.mono_args}}
+      Give a final verdict in 2-3 sentences with your recommendation for a startup.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    description: "Merge and judge both parallel agent outputs"
+
+  - id: verdict
+    depends_on: [judge_merge]
+    with:
+      judgment: $judge_merge | trim
+    exec: "echo 'VERDICT: {{with.judgment}}'"
+    description: "Display final verdict"

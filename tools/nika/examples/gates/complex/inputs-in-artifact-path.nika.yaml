@@ -1,0 +1,72 @@
+# COMPLEX-44: Input params used in artifact paths, prompts, and templates
+# Tests: inputs interpolation in artifact path, template, URL, and exec
+schema: nika/workflow@0.12
+workflow: complex-inputs-artifact-path
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+inputs:
+  report_type:
+    default: "weekly"
+  team:
+    default: "platform"
+  week:
+    default: "12"
+  year:
+    default: "2026"
+
+tasks:
+  - id: gather_metrics
+    exec:
+      command: "echo '{\"completed\":15,\"in_progress\":3,\"blocked\":1,\"team\":\"{{inputs.team}}\"}'"
+      shell: true
+    description: "Gather metrics with team input"
+
+  - id: fetch_external
+    fetch:
+      url: "https://httpbin.org/get?team={{inputs.team}}&type={{inputs.report_type}}&week={{inputs.week}}"
+      method: GET
+    description: "Fetch with all inputs in URL"
+
+  - id: generate_report
+    depends_on: [gather_metrics]
+    with:
+      metrics: $gather_metrics
+    infer: |
+      Write a {{inputs.report_type}} report for {{inputs.team}} team, week {{inputs.week}} of {{inputs.year}}.
+      Metrics: {{with.metrics}}
+      2 sentences.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    description: "Generate report using 4 inputs"
+
+  - id: save_report
+    depends_on: [generate_report, gather_metrics]
+    with:
+      report: $generate_report | trim
+      metrics: $gather_metrics
+    infer: "Finalize this report: {{with.report}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "{{inputs.team}}-{{inputs.report_type}}-w{{inputs.week}}-{{inputs.year}}.md"
+      template: |
+        # {{inputs.team}} {{inputs.report_type}} Report
+        **Week {{inputs.week}}, {{inputs.year}}**
+
+        {{output}}
+
+        ## Raw Metrics
+        {{with.metrics}}
+      format: text
+    description: "Artifact path and template use all 4 inputs"
+
+  - id: confirmation
+    depends_on: [save_report]
+    exec:
+      command: "echo 'Saved: {{inputs.team}}-{{inputs.report_type}}-w{{inputs.week}}-{{inputs.year}}.md'"
+      shell: true
+    description: "Confirm artifact path with all inputs"

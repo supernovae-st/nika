@@ -1,0 +1,85 @@
+# COMPLEX-24: Workflow-level manifest with multiple artifact-producing tasks
+# Tests: manifest: true, multiple tasks with artifacts, artifact dir configuration
+schema: nika/workflow@0.12
+workflow: complex-artifact-manifest-full
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts/manifest-test
+  manifest: true
+
+inputs:
+  project:
+    default: "acme-corp"
+
+tasks:
+  - id: header_data
+    exec:
+      command: "echo '{\"project\":\"{{inputs.project}}\",\"ts\":\"'$(date +%s)'\"}'"
+      shell: true
+    description: "Generate header metadata"
+
+  - id: report_summary
+    depends_on: [header_data]
+    with:
+      header: $header_data
+    infer: "Write a 2-sentence project summary for: {{with.header}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "{{inputs.project}}-summary.txt"
+      format: text
+    description: "Artifact 1: summary text"
+
+  - id: report_data
+    depends_on: [header_data]
+    with:
+      header: $header_data
+    infer: "Generate project metrics with status, progress percentage, and team size."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    structured:
+      schema:
+        type: object
+        properties:
+          status:
+            type: string
+            enum: [green, yellow, red]
+          progress:
+            type: integer
+            minimum: 0
+            maximum: 100
+          team_size:
+            type: integer
+        required: [status, progress, team_size]
+    artifact:
+      path: "{{inputs.project}}-metrics.json"
+      format: json
+    description: "Artifact 2: structured metrics JSON"
+
+  - id: changelog
+    depends_on: [report_summary, report_data]
+    with:
+      summary: $report_summary | trim
+      metrics: $report_data
+    infer: "Write a 3-item changelog entry based on: {{with.summary}} and metrics: {{with.metrics}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "{{inputs.project}}-changelog.md"
+      template: "# Changelog - {{inputs.project}}\n\n{{output}}\n"
+      format: text
+    description: "Artifact 3: changelog markdown"
+
+  - id: final_status
+    depends_on: [report_summary, report_data, changelog]
+    with:
+      s: $report_summary | trim
+      m: $report_data
+      c: $changelog | trim
+    exec:
+      command: "echo 'MANIFEST: 3 artifacts generated for {{inputs.project}}'"
+      shell: true
+    description: "Confirm all artifacts are in manifest"

@@ -1,0 +1,53 @@
+# COMPLEX-79: Fetch with retry config and error handling
+# Tests: max_retries on fetch, fallback on failure, resilient patterns
+schema: nika/workflow@0.12
+workflow: complex-fetch-retry
+
+tasks:
+  # Fetch with retries
+  - id: resilient_get
+    fetch:
+      url: "https://httpbin.org/get?test=retry"
+      method: GET
+    max_retries: 3
+    description: "GET with 3 retries"
+
+  # Fetch that might need retries
+  - id: resilient_post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      json:
+        test: "retry-pattern"
+    max_retries: 2
+    description: "POST with 2 retries"
+
+  # Process with fallback in case fetch returns unexpected data
+  - id: process_get
+    depends_on: [resilient_get]
+    with:
+      data: $resilient_get.url ?? "https://fallback.example.com"
+      args: $resilient_get.args ?? "{}"
+    exec:
+      command: "echo 'URL={{with.data}} ARGS={{with.args}}'"
+      shell: true
+    description: "Process GET with fallback bindings"
+
+  - id: process_post
+    depends_on: [resilient_post]
+    with:
+      data: $resilient_post ?? "post-fallback"
+    exec: "echo 'POST_RESULT={{with.data}}'"
+    description: "Process POST with fallback"
+
+  # Combine results
+  - id: combine
+    depends_on: [process_get, process_post]
+    with:
+      get_result: $process_get | trim
+      post_result: $process_post | trim
+    infer: "Two resilient API calls completed. GET: {{with.get_result}}, POST: {{with.post_result}}. Summarize in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    description: "Summarize resilient fetch results"

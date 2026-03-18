@@ -1,0 +1,45 @@
+# COMPLEX-23: for_each producing individual artifact files per iteration
+# Tests: artifact inside for_each, dynamic path per item, per-item file creation
+schema: nika/workflow@0.12
+workflow: complex-artifact-per-item
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: languages
+    exec: 'printf ''["rust","python","go","typescript","java"]'''
+    description: "5 languages to generate cheat sheets for"
+
+  - id: cheat_sheet
+    depends_on: [languages]
+    for_each: "$languages"
+    as: lang
+    infer: |
+      Write a 3-line cheat sheet for {{with.lang}} programming language.
+      Include: hello world, variable declaration, function definition.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 150
+    artifact:
+      path: "cheatsheet-{{with.lang}}.md"
+      template: "# {{with.lang}} Cheat Sheet\n\n{{output}}\n"
+      format: text
+    description: "Generate and save per-language cheat sheet artifact"
+
+  - id: index_file
+    depends_on: [cheat_sheet, languages]
+    with:
+      results: $cheat_sheet
+      langs: $languages
+    infer: |
+      Create a table of contents listing these languages: {{with.langs}}
+      One line per language with a brief note.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100
+    artifact:
+      path: "cheatsheet-index.md"
+      template: "# Cheat Sheet Index\n\n{{output}}\n\n---\nGenerated from {{with.langs}}"
+      format: text
+    description: "Generate index artifact linking all per-item artifacts"
