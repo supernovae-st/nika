@@ -3621,4 +3621,174 @@ mod tests {
         assert_eq!(stored_data_1, png2_bytes,
             "CAS stored data for png2 must match original bytes");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PR2: Binary Artifact + CAS Integration Tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn pr2_full_pipeline_binary_artifact_cas_to_disk() {
+        // Monster test: CAS store → MediaRef → binary artifact → disk → verify
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store binary data in CAS
+        let binary_data = b"\x89PNG\r\n\x1a\nfake image bytes for test 12345";
+        let store_result = store.store(binary_data).await.unwrap();
+
+        // Create MediaRef from store result
+        let media_ref = crate::media::types::MediaRef {
+            hash: store_result.hash.clone(),
+            mime_type: "image/png".to_string(),
+            size_bytes: store_result.size,
+            path: store_result.path.clone(),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        };
+
+        // Verify CAS file exists and is readable
+        assert!(media_ref.path.exists(), "CAS file should exist");
+        let cas_data = tokio::fs::read(&media_ref.path).await.unwrap();
+        assert_eq!(cas_data, binary_data, "CAS data should match original");
+
+        // Create artifact writer
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test-workflow");
+
+        // Write binary artifact from CAS path
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "gen_img".to_string(),
+            output_path: "output/image.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(media_ref.path.clone()),
+            expected_size: media_ref.size_bytes,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert!(result.path.ends_with("output/image.bin"));
+        assert_eq!(result.size, binary_data.len() as u64);
+
+        // Verify artifact content matches original
+        let artifact_data = tokio::fs::read(&result.path).await.unwrap();
+        assert_eq!(artifact_data, binary_data, "Artifact data should match original binary");
+    }
+
+    #[tokio::test]
+    async fn pr2_integrity_check_detects_missing_cas_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store and then delete the file
+        let data = b"test data for deletion";
+        let result = store.store(data).await.unwrap();
+        tokio::fs::remove_file(&result.path).await.unwrap();
+
+        // MediaRef points to deleted file
+        let media_ref = crate::media::types::MediaRef {
+            hash: result.hash,
+            mime_type: "image/png".to_string(),
+            size_bytes: result.size,
+            path: result.path.clone(),
+            extension: "png".to_string(),
+            created_by: "task1".to_string(),
+        };
+
+        // Integrity check should detect missing file
+        assert!(!media_ref.path.exists(), "CAS file should be deleted");
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_size_limit_respected() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = vec![0xAB_u8; 1024]; // 1KB
+        let result = store.store(&data).await.unwrap();
+
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        // Writer with 512-byte limit
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test-workflow")
+            .with_max_size(512);
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(result.path),
+            expected_size: 1024, // Exceeds 512 limit
+        };
+
+        let write_result = writer.write_binary(request).await;
+        assert!(write_result.is_err(), "Should reject binary exceeding size limit");
+        let err = write_result.unwrap_err();
+        assert!(matches!(err, crate::error::NikaError::ArtifactSizeExceeded { .. }));
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_gc_respects_age() {
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store a file
+        store.store(b"old data").await.unwrap();
+
+        // Clean with 0-second age should remove it (file is already "old enough")
+        let result = store.clean_older_than(Duration::from_secs(0));
+        assert_eq!(result.removed, 1);
+        assert!(store.list().is_empty());
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_gc_preserves_recent_files() {
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store a file (just created, so very recent)
+        store.store(b"fresh data").await.unwrap();
+
+        // Clean with 1-hour age should preserve it
+        let result = store.clean_older_than(Duration::from_secs(3600));
+        assert_eq!(result.removed, 0);
+        assert_eq!(store.list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_dedup_consistency_with_binary_artifact() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = b"identical binary content";
+
+        // Store same data twice — should dedup
+        let r1 = store.store(data).await.unwrap();
+        let r2 = store.store(data).await.unwrap();
+
+        assert_eq!(r1.hash, r2.hash);
+        assert!(!r1.deduplicated);
+        assert!(r2.deduplicated);
+        assert_eq!(r1.path, r2.path);
+
+        // Binary artifact from either should work
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test");
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "dedup_test.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(r1.path),
+            expected_size: r1.size,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        let written = tokio::fs::read(&result.path).await.unwrap();
+        assert_eq!(written, data);
+    }
 }

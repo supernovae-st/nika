@@ -1334,7 +1334,6 @@ mod tests {
     #[tokio::test]
     async fn test_process_binary_artifact_from_media_ref() {
         use crate::media::MediaRef;
-        use std::path::PathBuf;
 
         let base = tempdir().unwrap();
         let artifact_dir = base.path().join(".nika/artifacts");
@@ -1391,7 +1390,6 @@ mod tests {
     #[tokio::test]
     async fn test_process_binary_artifact_with_source() {
         use crate::media::MediaRef;
-        use std::path::PathBuf;
 
         let base = tempdir().unwrap();
         let artifact_dir = base.path().join(".nika/artifacts");
