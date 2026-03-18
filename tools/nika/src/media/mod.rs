@@ -4,5 +4,7 @@
 //! Uses Content-Addressable Storage (CAS) with blake3 hashing.
 
 pub mod error;
+pub mod types;
 
 pub use error::MediaError;
+pub use types::{MediaBudget, MediaRef, MediaType};
