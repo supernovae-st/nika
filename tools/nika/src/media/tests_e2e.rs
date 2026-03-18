@@ -1125,4 +1125,206 @@ mod tests {
         let store = CasStore::new(dir.path());
         (MediaProcessor::new(store), dir)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE E3: INTEGRATION PIPELINE TESTS
+    // Simulates what run_invoke does: ToolCallResult → processor → CAS → MediaRef → TaskResult
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn e2e_invoke_simulation_mixed_content() {
+        // Simulates a real MCP tool returning text + image + audio
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = Arc::new(MediaBudget::new());
+        let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "invoke_sim".into();
+
+        // Simulate tool result with mixed content
+        let tool_result = ToolCallResult::success(vec![
+            ContentBlock::text("Image generated successfully"),
+            ContentBlock::image(encode_b64(&real_png_bytes()), "image/png"),
+            ContentBlock::text("Audio also available"),
+            ContentBlock::audio(encode_b64(&real_mp3_bytes()), "audio/mpeg"),
+        ]);
+
+        // Check has_media
+        assert!(tool_result.has_media());
+        assert_eq!(tool_result.media_blocks().len(), 2);
+
+        // Process all blocks
+        let results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
+
+        // Collect successful media refs
+        let mut media_refs = Vec::new();
+        for result in results {
+            match result {
+                Ok((media_ref, store_result)) => {
+                    assert!(media_ref.hash.starts_with("blake3:"));
+                    assert!(media_ref.size_bytes > 0);
+                    assert_eq!(media_ref.created_by, "invoke_sim");
+                    let cas_filename = store_result.path.file_name().unwrap().to_string_lossy();
+                    assert!(!cas_filename.contains('.'),
+                        "CAS filename should not contain dot: {}", cas_filename);
+                    media_refs.push(media_ref);
+                }
+                Err((idx, e)) => {
+                    panic!("Block {idx} failed unexpectedly: {e}");
+                }
+            }
+        }
+
+        assert_eq!(media_refs.len(), 2, "Should have 2 media refs (image + audio)");
+
+        // Stage in RunContext
+        ctx.set_media(&task_id, media_refs.clone());
+
+        // Take from RunContext (simulates what runner does)
+        let taken = ctx.take_media(&task_id);
+        assert_eq!(taken.len(), 2);
+
+        // Build TaskResult with media
+        use crate::store::TaskResult;
+        let text = tool_result.text();
+        let output = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
+        let tr = TaskResult::success(output, std::time::Duration::from_millis(42))
+            .with_media(taken);
+
+        assert_eq!(tr.media.len(), 2);
+        assert_eq!(tr.media[0].mime_type, "image/png");
+        assert!(tr.media[1].mime_type.contains("mpeg") || tr.media[1].mime_type.contains("mp3"));
+
+        // Verify text output is preserved
+        assert_eq!(
+            tr.output.as_str().unwrap(),
+            "Image generated successfully\nAudio also available"
+        );
+
+        // Verify budget tracked
+        assert!(budget.current_bytes() > 0, "Budget should have tracked bytes");
+    }
+
+    #[tokio::test]
+    async fn e2e_invoke_simulation_text_only_no_media() {
+        // Simulates a text-only MCP response — NO media processing should happen
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "text_invoke".into();
+
+        let tool_result = ToolCallResult::success(vec![
+            ContentBlock::text("Just text, no media"),
+        ]);
+
+        assert!(!tool_result.has_media());
+
+        // No media processing needed
+        let taken = ctx.take_media(&task_id);
+        assert!(taken.is_empty());
+
+        use crate::store::TaskResult;
+        let tr = TaskResult::success(
+            serde_json::Value::String(tool_result.text()),
+            std::time::Duration::from_millis(10),
+        ).with_media(taken);
+
+        assert!(tr.media.is_empty());
+        assert!(tr.is_success());
+    }
+
+    #[tokio::test]
+    async fn e2e_invoke_simulation_partial_failure() {
+        // One block succeeds, one fails — media refs should contain only successes
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let processor = MediaProcessor::new(store);
+
+        let tool_result = ToolCallResult::success(vec![
+            ContentBlock::text("description"),
+            ContentBlock::image(encode_b64(&real_png_bytes()), "image/png"),
+            ContentBlock::image("INVALID!!!", "image/png"), // Will fail
+        ]);
+
+        let results = processor.process_all(&tool_result.content, "partial").await;
+
+        let mut media_refs = Vec::new();
+        let mut errors = Vec::new();
+        for result in results {
+            match result {
+                Ok((mr, _)) => media_refs.push(mr),
+                Err((idx, e)) => errors.push((idx, e)),
+            }
+        }
+
+        assert_eq!(media_refs.len(), 1, "One image should succeed");
+        assert_eq!(errors.len(), 1, "One image should fail");
+        assert_eq!(errors[0].0, 2, "Error should reference block index 2");
+        assert_eq!(errors[0].1.code(), "NIKA-256");
+
+        // Verify the successful media ref is valid
+        assert_eq!(media_refs[0].mime_type, "image/png");
+        assert!(media_refs[0].path.exists());
+    }
+
+    #[tokio::test]
+    async fn e2e_invoke_simulation_dedup_same_image_twice() {
+        // Same image in two blocks → CAS dedup, but 2 MediaRefs with same hash
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let processor = MediaProcessor::new(store);
+
+        let png_b64 = encode_b64(&real_png_bytes());
+        let tool_result = ToolCallResult::success(vec![
+            ContentBlock::image(png_b64.clone(), "image/png"),
+            ContentBlock::image(png_b64, "image/png"),
+        ]);
+
+        let results = processor.process_all(&tool_result.content, "dedup").await;
+        assert_eq!(results.len(), 2);
+
+        let refs: Vec<_> = results.into_iter()
+            .map(|r| r.unwrap())
+            .collect();
+
+        // Both should have the same hash
+        assert_eq!(refs[0].0.hash, refs[1].0.hash,
+            "Same image should have same hash");
+
+        // One should be dedup
+        let dedup_count = refs.iter().filter(|(_, sr)| sr.deduplicated).count();
+        assert_eq!(dedup_count, 1, "One should be deduplicated");
+    }
+
+    #[tokio::test]
+    async fn e2e_media_ref_json_fields_complete() {
+        // Verify every field is present in serialized MediaRef JSON
+        let mr = MediaRef {
+            hash: "blake3:abcdef1234567890".into(),
+            mime_type: "image/png".into(),
+            size_bytes: 12345,
+            path: std::path::PathBuf::from("/tmp/store/ab/cdef1234567890"),
+            extension: "png".into(),
+            created_by: "task_gen".into(),
+        };
+        let json = serde_json::to_value(&mr).unwrap();
+
+        // ALL fields must be present
+        assert!(json.get("hash").is_some(), "missing hash");
+        assert!(json.get("mime_type").is_some(), "missing mime_type");
+        assert!(json.get("size_bytes").is_some(), "missing size_bytes");
+        assert!(json.get("path").is_some(), "missing path");
+        assert!(json.get("extension").is_some(), "missing extension");
+        assert!(json.get("created_by").is_some(), "missing created_by");
+
+        // Verify types
+        assert!(json["hash"].is_string());
+        assert!(json["mime_type"].is_string());
+        assert!(json["size_bytes"].is_number());
+        assert!(json["path"].is_string());
+        assert!(json["extension"].is_string());
+        assert!(json["created_by"].is_string());
+
+        // Verify values
+        assert_eq!(json["hash"], "blake3:abcdef1234567890");
+        assert_eq!(json["size_bytes"], 12345);
+    }
 }
