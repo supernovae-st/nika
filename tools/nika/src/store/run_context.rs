@@ -190,6 +190,10 @@ pub struct RunContext {
     /// Written by run_invoke() after MediaProcessor completes.
     /// Read (and drained) by the runner after building TaskResult.
     media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
+
+    /// Shared per-run media budget (500MB default).
+    /// Lives here so all invoke tasks in a single run share one budget.
+    media_budget: Arc<crate::media::MediaBudget>,
 }
 
 impl Default for RunContext {
@@ -199,6 +203,7 @@ impl Default for RunContext {
             context: Arc::default(),
             inputs: Arc::default(),
             media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
+            media_budget: Arc::new(crate::media::MediaBudget::new()),
         }
     }
 }
@@ -273,6 +278,11 @@ impl RunContext {
             .remove(task_id)
             .map(|(_, v)| v)
             .unwrap_or_default()
+    }
+
+    /// Get the shared per-run media budget.
+    pub fn media_budget(&self) -> &Arc<crate::media::MediaBudget> {
+        &self.media_budget
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")

@@ -5,6 +5,8 @@
 //! Rejects empty decoded data.
 //! Enforces per-run media budget via MediaBudget.
 
+use std::sync::Arc;
+
 use crate::mcp::types::ContentBlock;
 
 use super::detect::detect_mime;
@@ -18,7 +20,7 @@ const MAX_BASE64_INPUT_BYTES: usize = 100 * 1024 * 1024;
 /// Processes MCP content blocks into stored media files.
 pub struct MediaProcessor {
     store: CasStore,
-    budget: MediaBudget,
+    budget: Arc<MediaBudget>,
 }
 
 impl MediaProcessor {
@@ -26,12 +28,17 @@ impl MediaProcessor {
     pub fn new(store: CasStore) -> Self {
         Self {
             store,
-            budget: MediaBudget::new(),
+            budget: Arc::new(MediaBudget::new()),
         }
     }
 
-    /// Create a new processor with custom budget.
+    /// Create a new processor with custom owned budget.
     pub fn with_budget(store: CasStore, budget: MediaBudget) -> Self {
+        Self { store, budget: Arc::new(budget) }
+    }
+
+    /// Create a new processor with a shared per-run budget.
+    pub fn with_shared_budget(store: CasStore, budget: Arc<MediaBudget>) -> Self {
         Self { store, budget }
     }
 

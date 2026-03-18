@@ -953,7 +953,11 @@ impl TaskExecutor {
                         std::path::PathBuf::from("/tmp")
                     });
                     let store = CasStore::workspace_default(&workspace_root);
-                    let processor = MediaProcessor::new(store);
+                    // Use shared per-run budget from RunContext (not a fresh one per invoke)
+                    let processor = MediaProcessor::with_shared_budget(
+                        store,
+                        std::sync::Arc::clone(datastore.media_budget()),
+                    );
 
                     let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
 
