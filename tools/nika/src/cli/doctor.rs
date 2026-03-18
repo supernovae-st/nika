@@ -63,8 +63,8 @@ impl DiagnosticCheck {
 pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Result<(), NikaError> {
     let mut checks: Vec<DiagnosticCheck> = vec![];
 
-    // 1. Check .nika directory
-    checks.push(check_nika_directory());
+    // 1. Check .nika directory + project structure
+    checks.extend(check_nika_directory());
 
     // 2. Check config file
     checks.push(check_config_file());
@@ -87,7 +87,10 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
     // 7. Check workflow files in project
     checks.push(check_workflow_files());
 
-    // 6. Full mode: Check MCP connectivity (slow)
+    // 8. Check npx for MCP
+    checks.push(check_npx());
+
+    // 9. Full mode: Check MCP connectivity (slow)
     if full {
         checks.push(check_mcp_connectivity().await);
     }
@@ -110,23 +113,54 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
     Ok(())
 }
 
-fn check_nika_directory() -> DiagnosticCheck {
-    match find_nika_dir() {
-        Ok(dir) if dir.exists() => DiagnosticCheck::pass(
+fn check_nika_directory() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
+    let dir = match find_nika_dir() {
+        Ok(dir) if dir.exists() => {
+            checks.push(DiagnosticCheck::pass(
+                "Project",
+                format!(".nika directory found at {}", dir.display()),
+            ));
+            dir
+        }
+        Ok(dir) => {
+            checks.push(DiagnosticCheck::warn(
+                "Project",
+                format!("No .nika directory at {}", dir.display()),
+                "Run 'nika init' to create project structure",
+            ));
+            return checks;
+        }
+        Err(_) => {
+            checks.push(DiagnosticCheck::fail(
+                "Project",
+                "Cannot determine current directory",
+                "Check filesystem permissions",
+            ));
+            return checks;
+        }
+    };
+
+    // Check for config.toml inside .nika/
+    if !dir.join("config.toml").exists() {
+        checks.push(DiagnosticCheck::warn(
             "Project",
-            format!(".nika directory found at {}", dir.display()),
-        ),
-        Ok(dir) => DiagnosticCheck::warn(
-            "Project",
-            format!("No .nika directory at {}", dir.display()),
-            "Run 'nika init' to create project structure",
-        ),
-        Err(_) => DiagnosticCheck::fail(
-            "Project",
-            "Cannot determine current directory",
-            "Check filesystem permissions",
-        ),
+            "config.toml missing from .nika/",
+            "Run 'nika init' to regenerate project structure",
+        ));
     }
+
+    // Check for workflows/ directory inside .nika/
+    if !dir.join("workflows").exists() {
+        checks.push(DiagnosticCheck::warn(
+            "Project",
+            "workflows/ directory missing from .nika/",
+            "Run 'nika init' to regenerate project structure",
+        ));
+    }
+
+    checks
 }
 
 fn check_config_file() -> DiagnosticCheck {
@@ -184,12 +218,37 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
 
     let mut any_found = false;
     for (env_var, provider) in keys {
-        if std::env::var(env_var).is_ok() {
-            checks.push(DiagnosticCheck::pass(
-                "API Key",
-                format!("{} API key configured ({})", provider, env_var),
-            ));
-            any_found = true;
+        if let Ok(val) = std::env::var(env_var) {
+            // Basic format validation (don't expose the key)
+            let len = val.len();
+            let is_valid = if env_var == "ANTHROPIC_API_KEY" {
+                val.starts_with("sk-ant-") && len > 40
+            } else if env_var == "OPENAI_API_KEY" {
+                val.starts_with("sk-") && len > 20
+            } else {
+                len > 10
+            };
+
+            if val.is_empty() {
+                checks.push(DiagnosticCheck::warn(
+                    "API Key",
+                    format!("{} key is empty ({})", provider, env_var),
+                    format!("Set a valid {} key", provider),
+                ));
+            } else if !is_valid {
+                checks.push(DiagnosticCheck::warn(
+                    "API Key",
+                    format!("{} key format looks invalid ({}, {} chars)", provider, env_var, len),
+                    format!("Verify your {} API key is correct", provider),
+                ));
+                any_found = true;
+            } else {
+                checks.push(DiagnosticCheck::pass(
+                    "API Key",
+                    format!("{} configured ({}, {} chars)", provider, env_var, len),
+                ));
+                any_found = true;
+            }
         }
     }
 
@@ -336,30 +395,63 @@ fn check_workflow_files() -> DiagnosticCheck {
 }
 
 fn check_rust_version() -> DiagnosticCheck {
-    // Get rustc version
+    // Minimum supported Rust version (from Cargo.toml rust-version)
+    const MSRV_MAJOR: u32 = 1;
+    const MSRV_MINOR: u32 = 86;
+
     match std::process::Command::new("rustc")
         .arg("--version")
         .output()
     {
         Ok(output) => {
-            let version = String::from_utf8_lossy(&output.stdout);
-            let version = version.trim();
-            if version.contains("1.8") || version.contains("1.9") {
-                DiagnosticCheck::pass("Rust", version.to_string())
-            } else if version.starts_with("rustc 1.7") {
-                DiagnosticCheck::warn(
-                    "Rust",
-                    format!("{} (older version)", version),
-                    "Consider updating: rustup update",
-                )
-            } else {
-                DiagnosticCheck::pass("Rust", version.to_string())
+            let version_str = String::from_utf8_lossy(&output.stdout);
+            let version_str = version_str.trim();
+
+            // Parse "rustc X.Y.Z (...)" to extract major.minor
+            let parts: Vec<&str> = version_str
+                .strip_prefix("rustc ")
+                .unwrap_or(version_str)
+                .split(|c: char| !c.is_ascii_digit())
+                .collect();
+
+            if parts.len() >= 2 {
+                if let (Ok(major), Ok(minor)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                    if major > MSRV_MAJOR || (major == MSRV_MAJOR && minor >= MSRV_MINOR) {
+                        return DiagnosticCheck::pass("Rust", version_str.to_string());
+                    } else {
+                        return DiagnosticCheck::warn(
+                            "Rust",
+                            format!("{} (MSRV is {}.{})", version_str, MSRV_MAJOR, MSRV_MINOR),
+                            "Update with: rustup update",
+                        );
+                    }
+                }
             }
+
+            // Fallback: can't parse version, just report it
+            DiagnosticCheck::pass("Rust", version_str.to_string())
         }
         Err(_) => DiagnosticCheck::warn(
             "Rust",
             "rustc not found in PATH",
             "Install Rust: https://rustup.rs",
+        ),
+    }
+}
+
+fn check_npx() -> DiagnosticCheck {
+    match std::process::Command::new("npx")
+        .arg("--version")
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            let version = String::from_utf8_lossy(&output.stdout);
+            DiagnosticCheck::pass("npx", format!("npx {} available", version.trim()))
+        }
+        _ => DiagnosticCheck::warn(
+            "npx",
+            "npx not found",
+            "MCP servers using npx won't work. Install Node.js: https://nodejs.org",
         ),
     }
 }
