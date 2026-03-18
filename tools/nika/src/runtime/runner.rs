@@ -960,6 +960,39 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // Create LiveDag for in-place rendering during execution
+        let mut live_dag = if !self.quiet && total_tasks > 1 {
+            use crate::display::{DagTask, DagTaskStatus, LiveDag};
+
+            let dag_tasks: Vec<DagTask> = self.workflow.tasks.iter().map(|t| {
+                DagTask {
+                    id: t.name.clone(),
+                    verb: t.action.verb_name().to_string(),
+                    status: DagTaskStatus::Pending,
+                    meta: None,
+                }
+            }).collect();
+
+            let mut deps_map = std::collections::HashMap::new();
+            for task in &self.workflow.tasks {
+                if !task.depends_on.is_empty() {
+                    let dep_names: Vec<String> = task.depends_on.iter()
+                        .filter_map(|id| self.workflow.task_table.get_name(*id))
+                        .map(|s| s.to_string())
+                        .collect();
+                    if !dep_names.is_empty() {
+                        deps_map.insert(task.name.clone(), dep_names);
+                    }
+                }
+            }
+
+            let mut dag = LiveDag::new(dag_tasks, deps_map);
+            dag.draw();
+            Some(dag)
+        } else {
+            None
+        };
+
         loop {
             // Check for cancellation at start of each loop iteration
             if self.cancel_token.is_cancelled() {
@@ -1087,7 +1120,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     dependencies: deps.to_vec(),
                 });
 
-                if !self.quiet {
+                if !self.quiet && live_dag.is_none() {
                     println!(
                         "  {} {} {}",
                         "[⟳]".yellow(),
@@ -1654,8 +1687,30 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 let duration_str =
                                     crate::display::format_duration(task_result.duration.as_secs_f32());
 
-                                if !self.quiet {
+                                // Update live DAG if active
+                                if let Some(ref mut dag) = live_dag {
+                                    use crate::display::DagTaskStatus as DS;
+                                    let parent_id = store_id
+                                        .find('[')
+                                        .map(|i| &store_id[..i])
+                                        .unwrap_or(&store_id);
+                                    let status = if success { DS::Success }
+                                        else if skipped { DS::Skipped }
+                                        else { DS::Failed };
+                                    let meta = if success {
+                                        Some(format!("{:.1}s", task_result.duration.as_secs_f32()))
+                                    } else if let Some(err) = task_result.error() {
+                                        Some(format!("✗ {}", &err[..err.len().min(30)]))
+                                    } else {
+                                        None
+                                    };
+                                    dag.update_task(parent_id, status, meta);
+                                    dag.redraw();
+                                }
+
+                                if !self.quiet && live_dag.is_none() {
                                     // IMP-3: Look up task description and verb for richer output
+                                    // (only when live DAG is not active — DAG shows status visually)
                                     let parent_name = store_id
                                         .find('[')
                                         .map(|i| &store_id[..i])

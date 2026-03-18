@@ -316,6 +316,87 @@ pub enum DagTaskStatus {
     Skipped,
 }
 
+/// Live DAG state for in-place terminal updates during `nika run`.
+///
+/// Usage:
+/// 1. Create with `LiveDag::new(tasks, deps)`
+/// 2. Call `draw()` to print initial DAG (all pending)
+/// 3. Call `update_task(id, status, meta)` + `redraw()` as tasks complete
+/// 4. Call `finish()` to leave final state on screen
+pub struct LiveDag {
+    pub tasks: Vec<DagTask>,
+    pub deps: std::collections::HashMap<String, Vec<String>>,
+    line_count: usize,
+    drawn: bool,
+}
+
+impl LiveDag {
+    pub fn new(
+        tasks: Vec<DagTask>,
+        deps: std::collections::HashMap<String, Vec<String>>,
+    ) -> Self {
+        Self {
+            tasks,
+            deps,
+            line_count: 0,
+            drawn: false,
+        }
+    }
+
+    /// Count how many lines render_dag would print.
+    fn count_dag_lines(&self) -> usize {
+        if self.tasks.is_empty() || self.tasks.len() <= 1 {
+            return 0;
+        }
+        let layers = compute_layers(&self.tasks, &self.deps);
+        let has_meta = self.tasks.iter().any(|t| t.meta.is_some());
+        let box_lines = if has_meta { 4 } else { 3 }; // top + content + [meta] + bottom
+
+        // header: 3 lines (blank + stats + blank)
+        // per layer: box_lines
+        // between layers: 2 lines (drop + connection)
+        3 + layers.len() * box_lines + layers.len().saturating_sub(1) * 2 + 1 // +1 trailing
+    }
+
+    /// Draw the DAG for the first time.
+    pub fn draw(&mut self) {
+        if self.tasks.len() <= 1 {
+            return;
+        }
+        self.line_count = self.count_dag_lines();
+        render_dag(&self.tasks, &self.deps);
+        self.drawn = true;
+    }
+
+    /// Update a task's status and optional metadata.
+    pub fn update_task(&mut self, task_id: &str, status: DagTaskStatus, meta: Option<String>) {
+        if let Some(task) = self.tasks.iter_mut().find(|t| t.id == task_id) {
+            task.status = status;
+            task.meta = meta;
+        }
+    }
+
+    /// Redraw the DAG in-place using ANSI cursor movement.
+    pub fn redraw(&mut self) {
+        if !self.drawn || self.line_count == 0 {
+            return;
+        }
+        // Move cursor up to the start of the DAG
+        eprint!("\x1b[{}A", self.line_count);
+        // Clear from cursor to end of screen
+        eprint!("\x1b[J");
+        // Recalculate line count (may change if meta added)
+        self.line_count = self.count_dag_lines();
+        // Re-render
+        render_dag(&self.tasks, &self.deps);
+    }
+
+    /// Is the live DAG active?
+    pub fn is_active(&self) -> bool {
+        self.drawn
+    }
+}
+
 /// Render a DAG visualization with double-line borders, arrows, and status badges.
 pub fn render_dag(
     tasks: &[DagTask],
