@@ -615,202 +615,10 @@ fn display_width(s: &str) -> usize {
     w
 }
 
-fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
-    // Build box content: (label_str, display_width, task_id, status)
-    let boxes: Vec<(String, usize, String, DagTaskStatus)> = layer
-        .iter()
-        .map(|task_id| {
-            let task = tasks.iter().find(|t| t.id == *task_id);
-            let (verb, status) = task
-                .map(|t| (t.verb.as_str(), t.status))
-                .unwrap_or(("exec", DagTaskStatus::Pending));
-            let icon = match verb {
-                "infer" => "🧠",
-                "exec" => "⚡",
-                "fetch" => "🌐",
-                "invoke" => "🔌",
-                "agent" => "🤖",
-                _ => "●",
-            };
-            let label = format!("{} {}", icon, task_id);
-            let dw = display_width(&label);
-            (label, dw, task_id.clone(), status)
-        })
-        .collect();
-
-    // Top border
-    let mut top = String::from("    ");
-    for (i, (_, dw, _, status)) in boxes.iter().enumerate() {
-        if i > 0 {
-            top.push_str("  ");
-        }
-        let w = dw + BOX_PAD * 2;
-        let border = format!("┌{}┐", "─".repeat(w));
-        top.push_str(&color_border(&border, *status));
-    }
-    println!("{}", top);
-
-    // Content
-    let mut mid = String::from("    ");
-    for (i, (label, dw, _, status)) in boxes.iter().enumerate() {
-        if i > 0 {
-            mid.push_str("  ");
-        }
-        let w = dw + BOX_PAD * 2;
-        let pad_left = " ".repeat(BOX_PAD);
-        let pad_right_len = w.saturating_sub(dw + BOX_PAD);
-        let pad_right = " ".repeat(pad_right_len);
-        let content = format!("│{}{}{}│", pad_left, label, pad_right);
-        mid.push_str(&color_border(&content, *status));
-    }
-    println!("{}", mid);
-
-    // Bottom border
-    let mut bottom = String::from("    ");
-    for (i, (_, dw, _, status)) in boxes.iter().enumerate() {
-        if i > 0 {
-            bottom.push_str("  ");
-        }
-        let w = dw + BOX_PAD * 2;
-        let border = format!("└{}┘", "─".repeat(w));
-        bottom.push_str(&color_border(&border, *status));
-    }
-    println!("{}", bottom);
-}
-
-fn color_border(s: &str, status: DagTaskStatus) -> String {
-    match status {
-        DagTaskStatus::Success => s.green().to_string(),
-        DagTaskStatus::Failed => s.red().bold().to_string(),
-        DagTaskStatus::Skipped => s.yellow().dimmed().to_string(),
-        DagTaskStatus::Pending => s.dimmed().to_string(),
-    }
-}
-
-fn render_box_connectors(
-    prev_layer: &[String],
-    next_layer: &[String],
-    tasks: &[DagTask],
-    deps: &std::collections::HashMap<String, Vec<String>>,
-) {
-    let prev_centers = compute_box_centers(prev_layer, tasks);
-    let next_centers = compute_box_centers(next_layer, tasks);
-
-    let max_pos = prev_centers
-        .iter()
-        .chain(next_centers.iter())
-        .map(|&(_, c, w)| c + w / 2 + 2)
-        .max()
-        .unwrap_or(40);
-
-    // Collect all edges as (from_col, to_col)
-    let mut edges: Vec<(usize, usize)> = Vec::new();
-    for (ni, next_id) in next_layer.iter().enumerate() {
-        if let Some(task_deps) = deps.get(next_id) {
-            for dep in task_deps {
-                if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
-                    edges.push((prev_centers[pi].1, next_centers[ni].1));
-                }
-            }
-        }
-    }
-
-    if edges.is_empty() {
-        println!();
-        return;
-    }
-
-    // All straight down? Simple vertical pipes
-    let all_straight = edges.iter().all(|(f, t)| f == t);
-    if all_straight {
-        let mut line = vec![' '; max_pos + 4];
-        for &(col, _) in &edges {
-            if col < line.len() {
-                line[col] = '│';
-            }
-        }
-        let s: String = line.iter().collect();
-        println!("    {}", s.dimmed());
-        return;
-    }
-
-    // Two-line rendering for complex edges:
-    // Line 1: vertical drops from prev centers
-    // Line 2: horizontal connections + vertical rises to next centers
-    let width = max_pos + 4;
-
-    // Line 1: drop down from each prev node that has outgoing edges
-    let mut drop_line = vec![' '; width];
-    let mut active_cols: Vec<usize> = Vec::new();
-    for &(from, _) in &edges {
-        if from < drop_line.len() && !active_cols.contains(&from) {
-            drop_line[from] = '│';
-            active_cols.push(from);
-        }
-    }
-    let s1: String = drop_line.iter().collect();
-    println!("    {}", s1.dimmed());
-
-    // Line 2: horizontal spans connecting to next nodes
-    let mut conn_line = vec![' '; width];
-
-    // For each next node, find the leftmost and rightmost source
-    for (ni, next_id) in next_layer.iter().enumerate() {
-        let target_col = next_centers[ni].1;
-        let mut sources: Vec<usize> = Vec::new();
-        if let Some(task_deps) = deps.get(next_id) {
-            for dep in task_deps {
-                if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
-                    sources.push(prev_centers[pi].1);
-                }
-            }
-        }
-        if sources.is_empty() {
-            continue;
-        }
-
-        // All sources merge at target_col
-        for &src in &sources {
-            let (lo, hi) = if src <= target_col {
-                (src, target_col)
-            } else {
-                (target_col, src)
-            };
-            for col in lo..=hi {
-                if col < conn_line.len() {
-                    if conn_line[col] == ' ' {
-                        conn_line[col] = '─';
-                    } else if conn_line[col] == '│' {
-                        conn_line[col] = '┼';
-                    }
-                }
-            }
-        }
-        // Mark target with down arrow
-        if target_col < conn_line.len() {
-            conn_line[target_col] = '┬';
-        }
-        // Mark sources with corners
-        for &src in &sources {
-            if src < conn_line.len() && src != target_col {
-                if src < target_col {
-                    conn_line[src] = '└';
-                } else {
-                    conn_line[src] = '┘';
-                }
-            }
-        }
-    }
-
-    let s2: String = conn_line.iter().collect();
-    println!("    {}", s2.dimmed());
-}
-
 /// Compute center column position for each box in a layer.
-/// Returns Vec of (task_id_index, center_col, box_width).
 fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize, usize)> {
-    let indent = 4; // base indent
-    let gap = 2; // gap between boxes
+    let indent = 4;
+    let gap = 2;
     let mut positions = Vec::new();
     let mut col = indent;
 
@@ -826,7 +634,7 @@ fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize
             _ => "●",
         };
         let label = format!("{} {}", icon, task_id);
-        let dw = display_width(&label) + BOX_PAD * 2 + 2; // +2 for │ borders
+        let dw = display_width(&label) + BOX_PAD * 2 + 2; // +2 for ║ borders
         let center = col + dw / 2;
         positions.push((i, center, dw));
         col += dw + gap;
@@ -834,5 +642,3 @@ fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize
 
     positions
 }
-
-// Old non-boxed renderers removed — using boxed versions above.
