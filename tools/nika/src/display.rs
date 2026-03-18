@@ -267,7 +267,7 @@ pub fn print_task_summary(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DAG VISUALIZATION
+// DAG VISUALIZATION v3 — Double-line borders, arrows, status badges
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Task info for DAG rendering.
@@ -275,6 +275,8 @@ pub struct DagTask {
     pub id: String,
     pub verb: String,
     pub status: DagTaskStatus,
+    /// Optional metadata (duration, tokens, error)
+    pub meta: Option<String>,
 }
 
 /// Task status for coloring.
@@ -283,26 +285,10 @@ pub enum DagTaskStatus {
     Pending,
     Success,
     Failed,
+    Skipped,
 }
 
-/// Render a beautiful DAG visualization to the terminal.
-///
-/// Each task is rendered as a boxed node with verb icon.
-/// Connections show fan-out and fan-in patterns.
-///
-/// ```text
-///     ┌──────────────┐
-///     │ ⚡ read_code  │
-///     └──────┬───────┘
-///        ┌───┴───┐
-///   ┌────┴─────┐ ┌─────┴────┐
-///   │ 🧠 review │ │ 🧠 check │
-///   └────┬─────┘ └─────┬────┘
-///        └───┬───┘
-///     ┌──────┴───────┐
-///     │ 🧠 report    │
-///     └──────────────┘
-/// ```
+/// Render a DAG visualization with double-line borders, arrows, and status badges.
 pub fn render_dag(
     tasks: &[DagTask],
     deps: &std::collections::HashMap<String, Vec<String>>,
@@ -311,24 +297,28 @@ pub fn render_dag(
         return;
     }
 
-    // Compute depth layers
     let layers = compute_layers(tasks, deps);
-    let max_depth = layers.len();
+    let edge_count: usize = deps.values().map(|v| v.len()).sum();
 
-    // Render title
+    // Header
+    println!();
     println!(
-        "\n  {} {} tasks, {} layers\n",
+        "  {} {} tasks {} {} layers {} {} edges",
         "DAG".cyan().bold(),
-        tasks.len().to_string().bold(),
-        max_depth.to_string().bold()
+        tasks.len().to_string().white().bold(),
+        "·".dimmed(),
+        layers.len().to_string().white().bold(),
+        "·".dimmed(),
+        edge_count.to_string().white().bold(),
     );
+    println!();
 
-    // Render each layer with boxed nodes and edge connectors
+    // Render layers with edges
     for (i, layer) in layers.iter().enumerate() {
         if i > 0 {
-            render_box_connectors(&layers[i - 1], layer, tasks, deps);
+            render_v3_edges(&layers[i - 1], layer, tasks, deps);
         }
-        render_box_layer(layer, tasks);
+        render_v3_boxes(layer, tasks);
     }
 
     println!();
@@ -376,6 +366,205 @@ fn compute_layers(
 
 /// Padding inside each box (each side).
 const BOX_PAD: usize = 1;
+
+// ── v3 Box Rendering ──────────────────────────────────────────────────
+
+fn status_badge(status: DagTaskStatus) -> &'static str {
+    match status {
+        DagTaskStatus::Success => "✓",
+        DagTaskStatus::Failed => "✗",
+        DagTaskStatus::Skipped => "⊘",
+        DagTaskStatus::Pending => " ",
+    }
+}
+
+fn colorize(s: &str, status: DagTaskStatus) -> String {
+    match status {
+        DagTaskStatus::Success => s.green().to_string(),
+        DagTaskStatus::Failed => s.red().bold().to_string(),
+        DagTaskStatus::Skipped => s.yellow().dimmed().to_string(),
+        DagTaskStatus::Pending => s.dimmed().to_string(),
+    }
+}
+
+fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
+    // Build box data
+    let boxes: Vec<(&DagTask, String, usize)> = layer
+        .iter()
+        .map(|id| {
+            let task = tasks.iter().find(|t| t.id == *id).unwrap();
+            let icon = match task.verb.as_str() {
+                "infer" => "🧠",
+                "exec" => "⚡",
+                "fetch" => "🌐",
+                "invoke" => "🔌",
+                "agent" => "🤖",
+                _ => "●",
+            };
+            let label = format!("{} {}", icon, task.id);
+            let dw = display_width(&label);
+            (task, label, dw)
+        })
+        .collect();
+
+    // Top border: ╔═✓═══════════╗
+    let mut top = String::from("    ");
+    for (i, (task, _, dw)) in boxes.iter().enumerate() {
+        if i > 0 { top.push_str("  "); }
+        let badge = status_badge(task.status);
+        let fill_w = dw + BOX_PAD * 2 - 1; // -1 for the badge char
+        let border = format!("╔═{}═{}╗", badge, "═".repeat(fill_w.max(1)));
+        top.push_str(&colorize(&border, task.status));
+    }
+    println!("{}", top);
+
+    // Content: ║  🧠 task_name  ║
+    let mut mid = String::from("    ");
+    for (i, (task, label, dw)) in boxes.iter().enumerate() {
+        if i > 0 { mid.push_str("  "); }
+        let w = dw + BOX_PAD * 2;
+        let pad_l = " ".repeat(BOX_PAD);
+        let pad_r = " ".repeat(w.saturating_sub(dw + BOX_PAD));
+        let content = format!("║{}{}{}║", pad_l, label, pad_r);
+        mid.push_str(&colorize(&content, task.status));
+    }
+    println!("{}", mid);
+
+    // Metadata line (if any task has meta)
+    let has_meta = boxes.iter().any(|(t, _, _)| t.meta.is_some());
+    if has_meta {
+        let mut meta_line = String::from("    ");
+        for (i, (task, _, dw)) in boxes.iter().enumerate() {
+            if i > 0 { meta_line.push_str("  "); }
+            let w = dw + BOX_PAD * 2;
+            let meta_text = task.meta.as_deref().unwrap_or("");
+            let meta_display = if meta_text.is_empty() {
+                " ".repeat(w)
+            } else {
+                let mw = display_width(meta_text);
+                let pad = w.saturating_sub(mw + BOX_PAD);
+                format!("{}{}{}", " ".repeat(BOX_PAD), meta_text, " ".repeat(pad))
+            };
+            let content = format!("║{}║", meta_display);
+            meta_line.push_str(&colorize(&content, task.status));
+        }
+        println!("{}", meta_line);
+    }
+
+    // Bottom border: ╚════════╤═════╝ (with ╤ at center for edge drop)
+    let mut bottom = String::from("    ");
+    for (i, (task, _, dw)) in boxes.iter().enumerate() {
+        if i > 0 { bottom.push_str("  "); }
+        let w = dw + BOX_PAD * 2;
+        let border = format!("╚{}╝", "═".repeat(w));
+        bottom.push_str(&colorize(&border, task.status));
+    }
+    println!("{}", bottom);
+}
+
+fn render_v3_edges(
+    prev_layer: &[String],
+    next_layer: &[String],
+    tasks: &[DagTask],
+    deps: &std::collections::HashMap<String, Vec<String>>,
+) {
+    let prev_centers = compute_box_centers(prev_layer, tasks);
+    let next_centers = compute_box_centers(next_layer, tasks);
+
+    let max_pos = prev_centers
+        .iter()
+        .chain(next_centers.iter())
+        .map(|&(_, c, w)| c + w / 2 + 2)
+        .max()
+        .unwrap_or(40);
+
+    // Collect edges
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for (ni, next_id) in next_layer.iter().enumerate() {
+        if let Some(task_deps) = deps.get(next_id) {
+            for dep in task_deps {
+                if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
+                    edges.push((prev_centers[pi].1, next_centers[ni].1));
+                }
+            }
+        }
+    }
+
+    if edges.is_empty() {
+        println!();
+        return;
+    }
+
+    let width = max_pos + 4;
+
+    // All straight down?
+    let all_straight = edges.iter().all(|(f, t)| f == t);
+    if all_straight {
+        let mut line = vec![' '; width];
+        for &(col, _) in &edges {
+            if col < line.len() { line[col] = '│'; }
+        }
+        // Add arrow at each drop point
+        let s: String = line.iter().collect();
+        println!("    {}", s.dimmed());
+
+        let mut arrow_line = vec![' '; width];
+        for &(col, _) in &edges {
+            if col < arrow_line.len() { arrow_line[col] = '▼'; }
+        }
+        let s2: String = arrow_line.iter().collect();
+        println!("    {}", s2.dimmed());
+        return;
+    }
+
+    // Line 1: vertical drops with downward arrows
+    let mut drop_line = vec![' '; width];
+    for &(from, _) in &edges {
+        if from < drop_line.len() { drop_line[from] = '│'; }
+    }
+    let s1: String = drop_line.iter().collect();
+    println!("    {}", s1.dimmed());
+
+    // Line 2: horizontal connections with arrows
+    let mut conn_line = vec![' '; width];
+
+    for (ni, next_id) in next_layer.iter().enumerate() {
+        let target_col = next_centers[ni].1;
+        let mut sources: Vec<usize> = Vec::new();
+        if let Some(task_deps) = deps.get(next_id) {
+            for dep in task_deps {
+                if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
+                    sources.push(prev_centers[pi].1);
+                }
+            }
+        }
+        if sources.is_empty() { continue; }
+
+        for &src in &sources {
+            let (lo, hi) = if src <= target_col { (src, target_col) } else { (target_col, src) };
+            for col in lo..=hi {
+                if col < conn_line.len() {
+                    if conn_line[col] == ' ' {
+                        conn_line[col] = '─';
+                    } else if conn_line[col] == '│' {
+                        conn_line[col] = '┼';
+                    }
+                }
+            }
+        }
+        if target_col < conn_line.len() {
+            conn_line[target_col] = '▼';
+        }
+        for &src in &sources {
+            if src < conn_line.len() && src != target_col {
+                conn_line[src] = if src < target_col { '└' } else { '┘' };
+            }
+        }
+    }
+
+    let s2: String = conn_line.iter().collect();
+    println!("    {}", s2.dimmed());
+}
 
 /// Calculate terminal display width of a string.
 /// Emojis are 2 columns, ASCII is 1 column.
@@ -459,6 +648,7 @@ fn color_border(s: &str, status: DagTaskStatus) -> String {
     match status {
         DagTaskStatus::Success => s.green().to_string(),
         DagTaskStatus::Failed => s.red().bold().to_string(),
+        DagTaskStatus::Skipped => s.yellow().dimmed().to_string(),
         DagTaskStatus::Pending => s.dimmed().to_string(),
     }
 }

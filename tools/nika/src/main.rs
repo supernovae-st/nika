@@ -803,6 +803,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
                     id: t.id.clone(),
                     verb: t.action.verb_name().to_string(),
                     status: DagTaskStatus::Pending,
+                    meta: None,
                 }
             }).collect();
 
