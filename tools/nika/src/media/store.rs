@@ -120,12 +120,14 @@ impl CasStore {
                 // New file stored
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                // Content-addressed: same hash = same content, skip write.
+                // verified=false because we did NOT re-read and re-hash the existing file.
                 return Ok(StoreResult {
                     hash: prefixed_hash,
                     path: final_path,
                     size,
                     deduplicated: true,
-                    verified: true,
+                    verified: false,
                     pipeline_ms: process_start.elapsed().as_millis() as u64,
                 });
             }
