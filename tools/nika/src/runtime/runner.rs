@@ -1398,7 +1398,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                         // Get concurrency settings from analyzed for_each
                         let fe = task.for_each.as_ref();
-                        let concurrency = fe.and_then(|f| f.parallel).unwrap_or(1) as usize;
+                        let concurrency = fe.and_then(|f| f.parallel).unwrap_or(1).max(1) as usize;
                         let fail_fast = fe.map(|f| f.fail_fast).unwrap_or(true);
 
                         debug!(

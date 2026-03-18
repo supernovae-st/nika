@@ -154,20 +154,14 @@ impl BuiltinTool for RunTool {
                 },
                 "timeout_secs": {
                     "type": "integer",
-                    "description": "Execution timeout in seconds (default: 300)",
-                    "default": 300,
-                    "minimum": 1,
-                    "maximum": 3600
+                    "description": "Execution timeout in seconds (default: 300, max: 3600)"
                 },
                 "max_depth": {
                     "type": "integer",
-                    "description": "Maximum recursion depth (default: 3, max: 10)",
-                    "default": 3,
-                    "minimum": 1,
-                    "maximum": 10
+                    "description": "Maximum recursion depth (default: 3, max: 10)"
                 }
             },
-            "required": ["workflow"],
+            "required": ["workflow", "context_json", "timeout_secs", "max_depth"],
             "additionalProperties": false
         })
     }
@@ -206,8 +200,9 @@ impl BuiltinTool for RunTool {
             }
 
             // Clamp max_depth and timeout to allowed ranges (defense-in-depth)
-            let max_depth = params.max_depth.min(MAX_ALLOWED_DEPTH);
-            let timeout_secs = params.timeout_secs.min(MAX_TIMEOUT_SECS);
+            // Ensure minimum of 1 to prevent zero-value edge cases
+            let max_depth = params.max_depth.clamp(1, MAX_ALLOWED_DEPTH);
+            let timeout_secs = params.timeout_secs.clamp(1, MAX_TIMEOUT_SECS);
 
             // Check current depth using task_local! (race-condition-safe)
             let depth = current_depth();
