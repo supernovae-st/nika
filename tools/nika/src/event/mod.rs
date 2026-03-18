@@ -3,7 +3,7 @@
 //! Provides full audit trail with replay capability.
 //! Key types:
 //! - `Event`: Envelope with id + timestamp + kind
-//! - `EventKind`: 34 variants across 8 levels (workflow/task/fine-grained/MCP/agent/guardrail/artifact/structured)
+//! - `EventKind`: 36 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrail/builtin/artifact/media/structured-output)
 //! - `EventLog`: Thread-safe, append-only log
 //! - `EventEmitter`: Trait for dependency injection
 //! - `NoopEmitter`: Zero-cost no-op for testing

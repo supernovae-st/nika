@@ -544,6 +544,14 @@ impl ResourceContent {
         self.blob = Some(blob.into());
         self
     }
+
+    /// Set the MIME type if value is Some.
+    pub fn with_optional_mime(mut self, mime_type: Option<String>) -> Self {
+        if mime_type.is_some() {
+            self.mime_type = mime_type;
+        }
+        self
+    }
 }
 
 /// Tool definition from MCP server.
