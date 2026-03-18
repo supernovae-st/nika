@@ -240,13 +240,14 @@ Declares the Nika workflow schema version.
 
 ### Example
 ```yaml
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 ```
 
 ### Versions
 | Version | Features |
 |---------|----------|
-| @0.10 | Latest - all features |
+| @0.12 | Latest - flows: removed, depends_on: replaces it |
+| @0.10 | structured output, artifacts |
 | @0.9 | context: + include: |
 | @0.5 | decompose, lazy bindings |
 | @0.3 | for_each parallelism |
@@ -293,23 +294,27 @@ Each task must have:
 - `id`: Unique identifier
 - One verb: `infer`, `exec`, `fetch`, `invoke`, or `agent`"#;
 
-const FLOWS_DOCS: &str = r#"## flows
+const FLOWS_DOCS: &str = r#"## flows (removed in @0.12)
 
-**Task dependencies**
+**Deprecated** -- use `depends_on:` or `use:` bindings instead.
 
-Explicit DAG edges between tasks.
-
-### Example
+### Migration
 ```yaml
+# Before (@0.11 and earlier)
 flows:
   - source: step1
     target: step2
 
-  - source: step2
-    target: [step3, step4]  # Fan-out
+# After (@0.12)
+- id: step2
+  depends_on: [step1]    # Explicit dependency
+  use:
+    data: step1           # Implicit dependency via binding
 ```
 
-Implicit flows are created via `use:` bindings."#;
+Dependencies are now expressed directly on each task via
+`depends_on:` (explicit ordering) or `use:` bindings
+(implicit data dependency)."#;
 
 const USE_DOCS: &str = r#"## use
 
