@@ -412,7 +412,7 @@ async fn main() {
 
         // Check if it's a .nika.yaml file
         if is_nika_workflow(file) {
-            let result = run_workflow(&file.display().to_string(), None, None).await;
+            let result = run_workflow(&file.display().to_string(), None, None, cli.quiet).await;
             handle_result(result);
             return;
         } else {
@@ -472,13 +472,13 @@ async fn main() {
             file,
             provider,
             model,
-        }) => run_workflow(&file, provider, model).await,
+        }) => run_workflow(&file, provider, model, quiet).await,
 
         Some(Commands::Check { file, strict }) => {
             if strict {
                 validate_workflow_strict(&file).await
             } else {
-                validate_workflow(&file).await
+                validate_workflow(&file, quiet).await
             }
         }
 
@@ -679,6 +679,7 @@ async fn run_workflow(
     file: &str,
     provider_override: Option<String>,
     model_override: Option<String>,
+    quiet: bool,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
 
@@ -705,32 +706,37 @@ async fn run_workflow(
         workflow.model = Some(m);
     }
 
-    println!(
-        "{} Using provider: {} | model: {}",
-        "→".cyan(),
-        workflow
-            .provider
-            .as_deref()
-            .unwrap_or("(auto)")
-            .cyan()
-            .bold(),
-        workflow.model.as_deref().unwrap_or("(default)").cyan()
-    );
-
-    // IMP-1: Migration hint for old schema versions
-    if let Some(hint) = workflow.schema_version.migration_hint() {
+    if !quiet {
         println!(
-            "{} Schema {} is not the latest. Upgrade: {}",
-            "⚠".yellow(),
-            workflow.schema_version.as_str().yellow(),
-            hint.dimmed()
+            "{} Using provider: {} | model: {}",
+            "→".cyan(),
+            workflow
+                .provider
+                .as_deref()
+                .unwrap_or("(auto)")
+                .cyan()
+                .bold(),
+            workflow.model.as_deref().unwrap_or("(default)").cyan()
         );
+
+        // IMP-1: Migration hint for old schema versions
+        if let Some(hint) = workflow.schema_version.migration_hint() {
+            println!(
+                "{} Schema {} is not the latest. Upgrade: {}",
+                "⚠".yellow(),
+                workflow.schema_version.as_str().yellow(),
+                hint.dimmed()
+            );
+        }
     }
 
     let mut runner = Runner::new(workflow)?;
+    if quiet {
+        runner = runner.quiet();
+    }
     let output = runner.run().await?;
 
-    if !output.is_empty() {
+    if !quiet && !output.is_empty() {
         println!("{}", "Output:".cyan().bold());
         println!("{}", output);
     }
@@ -738,7 +744,7 @@ async fn run_workflow(
     Ok(())
 }
 
-async fn validate_workflow(file: &str) -> Result<(), NikaError> {
+async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
 
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
@@ -777,16 +783,18 @@ async fn validate_workflow(file: &str) -> Result<(), NikaError> {
         }
     }
 
-    println!("{} Workflow '{}' is valid", "✓".green(), file);
-    println!("  Provider: {}", workflow.provider);
-    println!(
-        "  Model: {}",
-        workflow.model.as_deref().unwrap_or("(default)")
-    );
-    println!("  Tasks: {}", workflow.tasks.len());
-    println!("  Edges: {}", workflow.flow_count());
-    if schema_count > 0 {
-        println!("  Schemas: {} validated", schema_count);
+    if !quiet {
+        println!("{} Workflow '{}' is valid", "✓".green(), file);
+        println!("  Provider: {}", workflow.provider);
+        println!(
+            "  Model: {}",
+            workflow.model.as_deref().unwrap_or("(default)")
+        );
+        println!("  Tasks: {}", workflow.tasks.len());
+        println!("  Edges: {}", workflow.flow_count());
+        if schema_count > 0 {
+            println!("  Schemas: {} validated", schema_count);
+        }
     }
 
     Ok(())
