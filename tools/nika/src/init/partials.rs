@@ -41,16 +41,14 @@ tasks:
   - id: start
     description: "Log workflow start"
     invoke:
-      mcp: builtin
       tool: nika:log
       params:
         level: info
-        message: "Workflow started at {{timestamp}}"
+        message: "Workflow started"
 
   - id: end
     description: "Log workflow completion"
     invoke:
-      mcp: builtin
       tool: nika:log
       params:
         level: info
@@ -76,13 +74,17 @@ schema: "nika/workflow@0.12"
 workflow: error-handling-partial
 description: "Standardized error handling tasks"
 
+inputs:
+  previous_result: "No result provided"
+  error_details: "Unknown error"
+
 tasks:
   - id: check
     description: "Check for errors in previous task"
     infer:
       prompt: |
         Analyze the following result for errors:
-        {{with.previous_result}}
+        {{inputs.previous_result}}
 
         Return JSON:
         {
@@ -96,18 +98,23 @@ tasks:
 
   - id: notify
     description: "Send error notification"
+    depends_on: [check]
+    with:
+      check_result: $check
     invoke:
-      mcp: builtin
       tool: nika:log
       params:
         level: error
-        message: "Error occurred: {{with.error_details}}"
+        message: "Error check result: {{with.check_result}}"
 
   - id: recover
     description: "Attempt error recovery"
+    depends_on: [check]
+    with:
+      check_result: $check
     infer:
       prompt: |
-        An error occurred: {{with.error_details}}
+        An error check returned: {{with.check_result}}
 
         Suggest recovery steps:
         1. What can we try to recover?
@@ -138,13 +145,16 @@ schema: "nika/workflow@0.12"
 workflow: validation-partial
 description: "Input and output validation tasks"
 
+inputs:
+  data: "Sample input data for validation"
+
 tasks:
   - id: validate_input
     description: "Validate workflow inputs"
     infer:
       prompt: |
         Validate the following inputs:
-        {{with.inputs}}
+        {{inputs.data}}
 
         Check for:
         1. Required fields present
@@ -156,22 +166,22 @@ tasks:
         {
           "valid": true/false,
           "errors": ["list of validation errors"],
-          "warnings": ["list of warnings"],
-          "sanitized_inputs": {}
+          "warnings": ["list of warnings"]
         }
       temperature: 0.1
       max_tokens: 400
 
   - id: validate_output
     description: "Validate workflow outputs"
+    depends_on: [validate_input]
+    with:
+      validation: $validate_input
     infer:
       prompt: |
-        Validate the following outputs:
-        {{with.outputs}}
+        Review the input validation result:
+        {{with.validation}}
 
-        Expected schema: {{with.expected_schema}}
-
-        Check for:
+        Assess:
         1. Schema compliance
         2. Data completeness
         3. Quality metrics
@@ -189,10 +199,15 @@ tasks:
 
   - id: sanitize
     description: "Sanitize data for safety"
+    depends_on: [validate_input]
+    with:
+      validation: $validate_input
     infer:
       prompt: |
-        Sanitize the following data:
-        {{with.raw_data}}
+        Based on validation: {{with.validation}}
+
+        Sanitize the original data:
+        {{inputs.data}}
 
         Actions:
         1. Remove any PII
@@ -224,6 +239,12 @@ schema: "nika/workflow@0.12"
 workflow: notification-partial
 description: "Multi-channel notification tasks"
 
+inputs:
+  event_type: "workflow_complete"
+  details: "Workflow finished successfully"
+  recipient: "team"
+  channel: "slack"
+
 tasks:
   - id: format_message
     description: "Format notification message"
@@ -231,10 +252,10 @@ tasks:
       prompt: |
         Create a notification message:
 
-        Event type: {{with.event_type}}
-        Details: {{with.details}}
-        Recipient: {{with.recipient}}
-        Channel: {{with.channel}}
+        Event type: {{inputs.event_type}}
+        Details: {{inputs.details}}
+        Recipient: {{inputs.recipient}}
+        Channel: {{inputs.channel}}
 
         Format appropriately for the channel:
         - Slack: Use markdown, emojis
@@ -247,34 +268,42 @@ tasks:
 
   - id: send_slack
     description: "Send Slack notification (placeholder)"
+    depends_on: [format_message]
+    with:
+      formatted: $format_message
     invoke:
-      mcp: builtin
       tool: nika:log
       params:
         level: info
-        message: "[SLACK] {{with.formatted_message}}"
+        message: "[SLACK] {{with.formatted}}"
 
   - id: send_email
     description: "Send email notification (placeholder)"
+    depends_on: [format_message]
+    with:
+      formatted: $format_message
     invoke:
-      mcp: builtin
       tool: nika:log
       params:
         level: info
-        message: "[EMAIL] {{with.formatted_message}}"
+        message: "[EMAIL] {{with.formatted}}"
 
   - id: completion_summary
     description: "Create completion summary notification"
+    depends_on: [send_slack, send_email]
+    with:
+      slack_result: $send_slack
+      email_result: $send_email
     infer:
       prompt: |
         Create a completion summary:
 
-        Workflow: {{with.workflow_name}}
-        Duration: {{with.duration}}
-        Status: {{with.status}}
-        Results: {{with.results}}
+        Slack notification sent: {{with.slack_result}}
+        Email notification sent: {{with.email_result}}
 
-        Create a brief, informative summary suitable for notification.
+        Original event: {{inputs.event_type}} - {{inputs.details}}
+
+        Create a brief, informative summary suitable for logging.
         Include key metrics and any action items.
       temperature: 0.3
       max_tokens: 250
@@ -299,6 +328,10 @@ schema: "nika/workflow@0.12"
 workflow: quality-check-partial
 description: "Quality assurance check tasks"
 
+inputs:
+  content: "Sample content for quality review"
+  target_tone: "professional"
+
 tasks:
   - id: check_grammar
     description: "Check grammar and spelling"
@@ -306,7 +339,7 @@ tasks:
       prompt: |
         Review this content for grammar and spelling:
 
-        {{with.content}}
+        {{inputs.content}}
 
         Check for:
         1. Spelling errors
@@ -329,9 +362,9 @@ tasks:
       prompt: |
         Analyze the tone of this content:
 
-        {{with.content}}
+        {{inputs.content}}
 
-        Target tone: {{with.target_tone}}
+        Target tone: {{inputs.target_tone}}
 
         Evaluate:
         1. Does it match target tone?
@@ -354,7 +387,7 @@ tasks:
       prompt: |
         Identify factual claims in this content:
 
-        {{with.content}}
+        {{inputs.content}}
 
         List any claims that should be fact-checked:
         1. Statistics and numbers
@@ -374,6 +407,7 @@ tasks:
 
   - id: final_score
     description: "Calculate final quality score"
+    depends_on: [check_grammar, check_tone, check_factual]
     with:
       grammar: $check_grammar
       tone: $check_tone

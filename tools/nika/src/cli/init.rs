@@ -219,21 +219,20 @@ Describe your project here. This context will be available to agents via `memory
     // Create example sub-workflow (can be called via nika:run)
     let example_subworkflow_path = workflows_dir.join("helpers.nika.yaml");
     let example_subworkflow_content = r#"# Helper Sub-Workflows
-# These workflows can be called from parent workflows via nika:run
+# These are standalone helper workflows — run them directly
+# or compose them into larger DAGs with depends_on.
 #
-# Usage in parent workflow:
-#   tasks:
-#     - id: generate_summary
-#       invoke:
-#         tool: nika:run
-#         params:
-#           workflow: .nika/workflows/helpers.nika.yaml
-#           task: summarize
-#           input: "{{with.content}}"
+# Examples:
+#   nika run .nika/workflows/helpers.nika.yaml
+#   nika run .nika/workflows/helpers.nika.yaml -p provider=openai
 
 schema: "nika/workflow@0.12"
 workflow: helpers
 description: "Reusable helper workflows for common tasks"
+
+inputs:
+  content: "Nika is a semantic YAML workflow engine for AI tasks."
+  target_language: "French"
 
 tasks:
   - id: summarize
@@ -241,37 +240,37 @@ tasks:
       prompt: |
         Summarize the following content in 3 bullet points:
 
-        {{with.input}}
-      model: claude-sonnet-4-20250514
-    output:
-      format: text
+        {{inputs.content}}
+      temperature: 0.3
+      max_tokens: 300
 
   - id: translate
     infer:
       prompt: |
-        Translate the following text to {{with.target_language | default: "French"}}:
+        Translate the following text to {{inputs.target_language}}:
 
-        {{with.input}}
-      model: claude-sonnet-4-20250514
-    output:
-      format: text
+        {{inputs.content}}
+      temperature: 0.2
+      max_tokens: 500
 
-  - id: review_code
+  - id: review
+    depends_on: [summarize, translate]
+    with:
+      summary: $summarize
+      translation: $translate
     infer:
       prompt: |
-        Review the following code for bugs, security issues, and improvements:
+        Review these outputs for quality:
 
-        ```{{with.language | default: "rust"}}
-        {{with.code}}
-        ```
+        SUMMARY:
+        {{with.summary}}
 
-        Provide:
-        1. Critical issues
-        2. Suggestions for improvement
-        3. Overall assessment
-      model: claude-sonnet-4-20250514
-    output:
-      format: text
+        TRANSLATION ({{inputs.target_language}}):
+        {{with.translation}}
+
+        Rate each 1-10 and suggest improvements.
+      temperature: 0.3
+      max_tokens: 400
 "#;
     fs::write(&example_subworkflow_path, example_subworkflow_content)?;
     println!(

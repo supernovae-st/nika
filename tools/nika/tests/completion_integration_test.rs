@@ -52,10 +52,7 @@ fn test_explicit_mode_generates_complete_tool_instruction() {
 fn test_pattern_mode_generates_pattern_instruction() {
     let config = CompletionConfig {
         mode: CompletionMode::Pattern,
-        patterns: vec![PatternConfig {
-            pattern_type: PatternType::Exact,
-            value: "DONE".to_string(),
-        }],
+        patterns: vec![PatternConfig::new("DONE", PatternType::Exact)],
         instruction: None,
         confidence: None,
         signal: None,

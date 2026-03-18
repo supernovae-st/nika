@@ -369,15 +369,68 @@ impl RmcpClientAdapter {
                 }
             })?;
 
-        // Convert rmcp result to Nika's ToolCallResult
+        // Convert rmcp result to Nika's ToolCallResult (exhaustive 5-variant match)
         let content: Vec<ContentBlock> = result
             .content
             .iter()
-            .filter_map(|c| {
-                // Extract text content
-                c.as_text().map(|t| ContentBlock::text(t.text.clone()))
+            .map(|c| {
+                use rmcp::model::RawContent;
+                match &**c {
+                    RawContent::Text(t) => ContentBlock::text(t.text.clone()),
+                    RawContent::Image(i) => ContentBlock::image(
+                        i.data.clone(),
+                        i.mime_type.clone(),
+                    ),
+                    RawContent::Audio(a) => ContentBlock::Audio {
+                        data: a.data.clone(),
+                        mime_type: a.mime_type.clone(),
+                    },
+                    RawContent::Resource(r) => {
+                        use rmcp::model::ResourceContents;
+                        match &r.resource {
+                            ResourceContents::TextResourceContents {
+                                text, uri, mime_type, ..
+                            } => {
+                                let mut rc = ResourceContent::new(uri.clone());
+                                if let Some(mime) = mime_type {
+                                    rc = rc.with_mime_type(mime.as_str());
+                                }
+                                rc = rc.with_text(text.clone());
+                                ContentBlock::resource(rc)
+                            }
+                            ResourceContents::BlobResourceContents {
+                                blob, uri, mime_type, ..
+                            } => {
+                                let mut rc = ResourceContent::new(uri.clone());
+                                if let Some(mime) = mime_type {
+                                    rc = rc.with_mime_type(mime.as_str());
+                                }
+                                rc = rc.with_blob(blob.clone());
+                                ContentBlock::resource(rc)
+                            }
+                        }
+                    }
+                    // [H2] RawResource.name is String, not Option<String> in rmcp 0.16
+                    // Convert empty string to None so skip_serializing_if works correctly
+                    RawContent::ResourceLink(l) => ContentBlock::ResourceLink {
+                        uri: l.uri.clone(),
+                        name: if l.name.is_empty() { None } else { Some(l.name.clone()) },
+                        mime_type: l.mime_type.clone(),
+                    },
+                }
             })
             .collect();
+
+        // Layer 1 extraction verification
+        let rmcp_count = result.content.len();
+        let extracted_count = content.len();
+        if extracted_count != rmcp_count {
+            tracing::warn!(
+                rmcp_count,
+                extracted_count,
+                "Content block count mismatch after extraction"
+            );
+        }
 
         Ok(ToolCallResult {
             content,
@@ -448,17 +501,30 @@ impl RmcpClientAdapter {
                 uri: uri.to_string(),
             })?;
 
-        // Build ResourceContent from rmcp response
-        // Serialize the resource content as JSON for simplicity
-        let text = serde_json::to_string(resource).map_err(|e| NikaError::McpToolError {
-            tool: "resources/read".to_string(),
-            reason: format!("Failed to serialize resource: {}", e),
-            error_code: None, // Serialization errors are internal
-        })?;
-
-        let content = ResourceContent::new(uri)
-            .with_text(&text)
-            .with_mime_type("application/json");
+        // Build ResourceContent from rmcp response, preserving blob data
+        use rmcp::model::ResourceContents;
+        let content = match resource {
+            ResourceContents::TextResourceContents {
+                text, mime_type, ..
+            } => {
+                let mut rc = ResourceContent::new(uri);
+                rc = rc.with_text(text.clone());
+                if let Some(mime) = mime_type {
+                    rc = rc.with_mime_type(mime.as_str());
+                }
+                rc
+            }
+            ResourceContents::BlobResourceContents {
+                blob, mime_type, ..
+            } => {
+                let mut rc = ResourceContent::new(uri);
+                rc = rc.with_blob(blob.clone());
+                if let Some(mime) = mime_type {
+                    rc = rc.with_mime_type(mime.as_str());
+                }
+                rc
+            }
+        };
 
         Ok(content)
     }

@@ -124,8 +124,8 @@ tasks:
       # WARNING: Only use shell: true when you need shell features!
       # shell: false (default) is more secure
       shell: true
-      # Timeout in milliseconds (30 seconds)
-      timeout: 30000
+      # Timeout in seconds
+      timeout: 30
 
   # ─────────────────────────────────────────────────────────────────────────────
   # WORKING DIRECTORY: Run commands in specific directory
@@ -260,8 +260,8 @@ tasks:
       url: "https://httpbin.org/ip"
       # HTTP method (GET is default, but explicit is clearer)
       method: GET
-      # Timeout in milliseconds (10 seconds)
-      timeout: 10000
+      # Timeout in seconds
+      timeout: 10
 
   # ─────────────────────────────────────────────────────────────────────────────
   # GET JSON DATA

@@ -785,6 +785,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     result.value.to_string()
                                 }
                                 Err(e) => {
+                                    // Drain any orphaned media refs (defense-in-depth)
+                                    let _ = datastore.take_media(&task_id);
                                     event_log.emit(EventKind::TaskFailed {
                                         task_id: Arc::clone(&task_id),
                                         error: e.to_string(),
@@ -807,6 +809,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                     let tr =
                         make_task_result(final_output, effective_output.as_ref(), duration).await;
+                    // Attach media refs from staging side-channel
+                    let tr = tr.with_media(datastore.take_media(&task_id));
                     if tr.is_success() {
                         event_log.emit(EventKind::TaskCompleted {
                             task_id: Arc::clone(&task_id),
@@ -823,6 +827,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     tr
                 }
                 Err(e) => {
+                    // Drain any orphaned media refs (defense-in-depth)
+                    let _ = datastore.take_media(&task_id);
                     event_log.emit(EventKind::TaskFailed {
                         task_id: Arc::clone(&task_id),
                         error: e.to_string(),
@@ -903,6 +909,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             tracing::warn!(error = %e, "Failed to get current directory, using '.'");
             std::path::PathBuf::from(".")
         });
+
+        // Set workspace root for CAS media store path resolution
+        self.datastore.set_workspace_root(base_path.clone());
+
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
                 load_context_analyzed(&self.workflow.context_files, &base_path).await?;
@@ -1699,10 +1709,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         else { DS::Failed };
                                     let meta = if success {
                                         Some(format!("{:.1}s", task_result.duration.as_secs_f32()))
-                                    } else if let Some(err) = task_result.error() {
-                                        Some(format!("✗ {}", &err[..err.len().min(30)]))
                                     } else {
-                                        None
+                                        task_result.error().map(|err| format!("✗ {}", &err[..err.len().min(30)]))
                                     };
                                     dag.update_task(parent_id, status, meta);
                                     dag.redraw();
@@ -1859,9 +1867,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     results.iter().map(|(_, r)| r.duration).sum();
                 let all_success = results.iter().all(|(_, r)| r.is_success());
 
-                // Create aggregated result with JSON array
+                // Merge media refs from all successful iterations
+                let merged_media: Vec<crate::media::MediaRef> = results
+                    .iter()
+                    .filter(|(_, r)| r.is_success())
+                    .flat_map(|(_, r)| r.media.iter().cloned())
+                    .collect();
+
+                // Create aggregated result with JSON array + merged media
                 let aggregated_result = if all_success {
                     TaskResult::success(Value::Array(outputs), total_duration)
+                        .with_media(merged_media)
                 } else {
                     // Collect errors
                     let errors: Vec<String> = results
@@ -1869,6 +1885,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
                     TaskResult::failed(errors.join("; "), total_duration)
+                        .with_media(merged_media)
                 };
 
                 // Store aggregated result under parent ID

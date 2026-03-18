@@ -508,7 +508,7 @@ impl RigAgentLoop {
                 .map(|pk| {
                     crate::provider::cost::calculate_cost(
                         pk,
-                        &model_name,
+                        model_name,
                         total_input_tokens,
                         total_output_tokens,
                     )

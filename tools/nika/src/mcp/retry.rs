@@ -85,7 +85,7 @@ pub fn is_retryable_mcp_error(error: &NikaError) -> bool {
         // Tool errors: only retry if the error code is retryable (server-side)
         // InvalidParams, MethodNotFound etc. will always fail on retry
         NikaError::McpToolError { error_code, .. } => {
-            error_code.as_ref().map_or(true, |code| code.is_retryable())
+            error_code.as_ref().is_none_or(|code| code.is_retryable())
         }
 
         // Start errors: NOT retryable — if the server binary doesn't exist,

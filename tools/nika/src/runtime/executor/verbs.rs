@@ -925,15 +925,156 @@ impl TaskExecutor {
                     });
                 }
 
-                // Extract text and try to parse as JSON
+                // Process media content (if any)
+                if tool_result.has_media() {
+                    use crate::mcp::types::ContentBlock;
+                    use crate::media::{CasStore, MediaProcessor};
+
+                    let media_blocks = tool_result.media_blocks();
+                    let content_types: Vec<String> = media_blocks
+                        .iter()
+                        .map(|b| match b {
+                            ContentBlock::Text { .. } => unreachable!("media_blocks filters text"),
+                            ContentBlock::Image { .. } => "image".to_string(),
+                            ContentBlock::Audio { .. } => "audio".to_string(),
+                            ContentBlock::Resource(_) => "resource".to_string(),
+                            ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
+                        })
+                        .collect();
+
+                    self.event_log.emit(EventKind::MediaExtracted {
+                        task_id: Arc::clone(task_id),
+                        block_count: media_blocks.len() as u32,
+                        content_types,
+                    });
+
+                    let workspace_root = datastore.workspace_root();
+                    let store = CasStore::workspace_default(&workspace_root);
+                    // Use shared per-run budget from RunContext (not a fresh one per invoke)
+                    let processor = MediaProcessor::with_shared_budget(
+                        store,
+                        std::sync::Arc::clone(datastore.media_budget()),
+                    );
+
+                    let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
+
+                    // Process all results: emit events for EVERY block first,
+                    // then fail on non-recoverable errors. This ensures the trace
+                    // is complete even when the task fails partway through.
+                    let mut media_refs = Vec::new();
+                    let mut fatal_error: Option<crate::media::MediaError> = None;
+                    for result in process_results {
+                        match result {
+                            Ok((media_ref, store_result)) => {
+                                self.event_log.emit(EventKind::MediaProcessed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    mime_type: media_ref.mime_type.clone(),
+                                    size_bytes: media_ref.size_bytes,
+                                });
+                                self.event_log.emit(EventKind::MediaStored {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    path: media_ref.path.display().to_string(),
+                                    size_bytes: media_ref.size_bytes,
+                                    verified: store_result.verified,
+                                    deduplicated: store_result.deduplicated,
+                                    pipeline_ms: store_result.pipeline_ms,
+                                });
+                                media_refs.push(media_ref);
+                            }
+                            Err((block_index, error)) => {
+                                self.event_log.emit(EventKind::MediaStoreFailed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: String::new(),
+                                    reason: format!("block {block_index}: {error}"),
+                                });
+                                // Capture first non-recoverable error for task failure
+                                if fatal_error.is_none() && !error.is_recoverable() {
+                                    fatal_error = Some(error);
+                                }
+                            }
+                        }
+                    }
+
+                    // If any non-recoverable error occurred, fail the task
+                    if let Some(error) = fatal_error {
+                        return Err(NikaError::MediaError(error));
+                    }
+
+                    // Stage media refs in side-channel for runner to pick up
+                    datastore.set_media(task_id, media_refs);
+                }
+
+                // Text output flows as before (backward compat)
                 let text = tool_result.text();
                 serde_json::from_str(&text).unwrap_or_else(|_| {
                     tracing::trace!(task = %task_id, "MCP tool returned non-JSON text, wrapping as string");
                     serde_json::Value::String(text)
                 })
             } else if let Some(resource) = &invoke.resource {
-                // Resource read path
+                // Resource read path — now handles blob data via media pipeline
                 let content = client.read_resource(resource).await?;
+
+                // If resource has a blob, process it through the media pipeline
+                if let Some(blob) = &content.blob {
+                    use crate::mcp::types::ContentBlock;
+                    use crate::media::{CasStore, MediaProcessor};
+
+                    let mime = content.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+                    let block = ContentBlock::Resource(
+                        crate::mcp::types::ResourceContent::new(resource.clone())
+                            .with_blob(blob.clone())
+                            .with_optional_mime(content.mime_type.clone())
+                    );
+
+                    tracing::debug!(
+                        task_id = %task_id,
+                        resource = %resource,
+                        mime = %mime,
+                        blob_len = blob.len(),
+                        "Resource read returned blob data, processing through media pipeline"
+                    );
+
+                    self.event_log.emit(EventKind::MediaExtracted {
+                        task_id: Arc::clone(task_id),
+                        block_count: 1,
+                        content_types: vec!["resource_blob".to_string()],
+                    });
+
+                    let workspace_root = datastore.workspace_root();
+                    let store = CasStore::workspace_default(&workspace_root);
+                    let processor = MediaProcessor::with_shared_budget(
+                        store,
+                        std::sync::Arc::clone(datastore.media_budget()),
+                    );
+                    let results = processor.process_all(&[block], task_id.as_ref()).await;
+                    let mut media_refs = Vec::new();
+                    for result in results {
+                        match result {
+                            Ok((media_ref, store_result)) => {
+                                self.event_log.emit(EventKind::MediaStored {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    path: media_ref.path.display().to_string(),
+                                    size_bytes: media_ref.size_bytes,
+                                    verified: store_result.verified,
+                                    deduplicated: store_result.deduplicated,
+                                    pipeline_ms: store_result.pipeline_ms,
+                                });
+                                media_refs.push(media_ref);
+                            }
+                            Err((_, error)) => {
+                                tracing::warn!(task_id = %task_id, error = %error, "Resource blob media processing failed");
+                            }
+                        }
+                    }
+                    if !media_refs.is_empty() {
+                        datastore.set_media(task_id, media_refs);
+                    }
+                }
+
+                // Text output (if any)
                 content
                     .text
                     .map(|t| {
@@ -1194,6 +1335,80 @@ impl TaskExecutor {
             duration_ms = duration_ms,
             "Agent loop completed"
         );
+
+        // Process any media content staged during agent tool calls (H1 side-channel)
+        let staged_media = agent_loop.drain_media();
+        if !staged_media.is_empty() {
+            tracing::info!(
+                task_id = %task_id,
+                block_count = staged_media.len(),
+                "agent: processing staged media from tool calls"
+            );
+
+            use crate::media::{CasStore, MediaProcessor};
+
+            self.event_log.emit(EventKind::MediaExtracted {
+                task_id: Arc::clone(task_id),
+                block_count: staged_media.len() as u32,
+                content_types: staged_media.iter().map(|b| match b {
+                    crate::mcp::types::ContentBlock::Image { .. } => "image".to_string(),
+                    crate::mcp::types::ContentBlock::Audio { .. } => "audio".to_string(),
+                    crate::mcp::types::ContentBlock::Resource(_) => "resource".to_string(),
+                    crate::mcp::types::ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
+                    crate::mcp::types::ContentBlock::Text { .. } => "text".to_string(),
+                }).collect(),
+            });
+
+            let workspace_root = datastore.workspace_root();
+            let store = CasStore::workspace_default(&workspace_root);
+            let processor = MediaProcessor::with_shared_budget(
+                store,
+                std::sync::Arc::clone(datastore.media_budget()),
+            );
+
+            let process_results = processor.process_all(&staged_media, task_id.as_ref()).await;
+            let mut media_refs = Vec::new();
+            for result in process_results {
+                match result {
+                    Ok((media_ref, store_result)) => {
+                        self.event_log.emit(EventKind::MediaProcessed {
+                            task_id: Arc::clone(task_id),
+                            hash: media_ref.hash.clone(),
+                            mime_type: media_ref.mime_type.clone(),
+                            size_bytes: media_ref.size_bytes,
+                        });
+                        self.event_log.emit(EventKind::MediaStored {
+                            task_id: Arc::clone(task_id),
+                            hash: media_ref.hash.clone(),
+                            path: media_ref.path.display().to_string(),
+                            size_bytes: media_ref.size_bytes,
+                            verified: store_result.verified,
+                            deduplicated: store_result.deduplicated,
+                            pipeline_ms: store_result.pipeline_ms,
+                        });
+                        media_refs.push(media_ref);
+                    }
+                    Err((block_index, error)) => {
+                        self.event_log.emit(EventKind::MediaStoreFailed {
+                            task_id: Arc::clone(task_id),
+                            hash: String::new(),
+                            reason: format!("agent block {block_index}: {error}"),
+                        });
+                        // For agent media, we log but don't fail the task
+                        // (the agent already completed successfully)
+                        tracing::warn!(
+                            task_id = %task_id,
+                            block_index = block_index,
+                            error = %error,
+                            "agent: media processing failed for staged block"
+                        );
+                    }
+                }
+            }
+            if !media_refs.is_empty() {
+                datastore.set_media(task_id, media_refs);
+            }
+        }
 
         // Telemetry: log non-string response types for observability
         if let Some(v) = result.final_output.get("response") {

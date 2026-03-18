@@ -7,6 +7,7 @@
 //! Added inputs storage for workflow `inputs:` block.
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,6 +45,8 @@ pub struct TaskResult {
     pub duration: Duration,
     /// Success or failure status
     pub status: TaskOutcome,
+    /// Media files produced by this task (empty for non-media tasks)
+    pub media: Vec<crate::media::MediaRef>,
 }
 
 impl TaskResult {
@@ -53,6 +56,7 @@ impl TaskResult {
             output: Arc::new(output.into()),
             duration,
             status: TaskOutcome::Success,
+            media: Vec::new(),
         }
     }
 
@@ -62,6 +66,7 @@ impl TaskResult {
             output: Arc::new(Value::String(output.into())),
             duration,
             status: TaskOutcome::Success,
+            media: Vec::new(),
         }
     }
 
@@ -71,6 +76,7 @@ impl TaskResult {
             output: Arc::new(Value::Null),
             duration,
             status: TaskOutcome::Failed(error.into()),
+            media: Vec::new(),
         }
     }
 
@@ -85,6 +91,7 @@ impl TaskResult {
             status: TaskOutcome::DependencyFailed {
                 dependency: dependency.into(),
             },
+            media: Vec::new(),
         }
     }
 
@@ -98,7 +105,14 @@ impl TaskResult {
             status: TaskOutcome::Skipped {
                 reason: reason.into(),
             },
+            media: Vec::new(),
         }
+    }
+
+    /// Attach media references to this result.
+    pub fn with_media(mut self, media: Vec<crate::media::MediaRef>) -> Self {
+        self.media = media;
+        self
     }
 
     /// Check if task succeeded
@@ -172,14 +186,38 @@ pub struct RunContext {
     /// Contains input definitions from the `inputs:` block.
     /// Accessible via `{{inputs.param}}` bindings.
     inputs: Arc<RwLock<FxHashMap<String, Value>>>,
+
+    /// Side-channel for media refs produced by invoke tasks.
+    /// Written by run_invoke() after MediaProcessor completes.
+    /// Read (and drained) by the runner after building TaskResult.
+    media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
+
+    /// Shared per-run media budget (500MB default).
+    /// Lives here so all invoke tasks in a single run share one budget.
+    media_budget: Arc<crate::media::MediaBudget>,
+
+    /// Workspace root for CAS store path resolution.
+    /// Set by Runner at workflow start. Defaults to current_dir().
+    workspace_root: Arc<RwLock<PathBuf>>,
 }
 
 impl Default for RunContext {
     fn default() -> Self {
+        let workspace_root = std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."));
         Self {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
             inputs: Arc::default(),
+            media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
+            media_budget: Arc::new({
+                let max = std::env::var("NIKA_MEDIA_BUDGET")
+                    .ok()
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(crate::media::MediaBudget::DEFAULT_MAX_PER_RUN);
+                crate::media::MediaBudget::with_max_per_run(max)
+            }),
+            workspace_root: Arc::new(RwLock::new(workspace_root)),
         }
     }
 }
@@ -236,20 +274,86 @@ impl RunContext {
         self.results.get(task_id).map(|r| Arc::clone(&r.output))
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MEDIA STAGING
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Stage media refs for a task (called from run_invoke).
+    pub fn set_media(&self, task_id: &Arc<str>, media: Vec<crate::media::MediaRef>) {
+        if !media.is_empty() {
+            self.media_staging.insert(Arc::clone(task_id), media);
+        }
+    }
+
+    /// Take staged media refs for a task (called from runner after building TaskResult).
+    /// Returns empty vec if no media was staged.
+    pub fn take_media(&self, task_id: &Arc<str>) -> Vec<crate::media::MediaRef> {
+        self.media_staging
+            .remove(task_id)
+            .map(|(_, v)| v)
+            .unwrap_or_default()
+    }
+
+    /// Get the shared per-run media budget.
+    pub fn media_budget(&self) -> &Arc<crate::media::MediaBudget> {
+        &self.media_budget
+    }
+
+    /// Set the workspace root (called by Runner at workflow start).
+    pub fn set_workspace_root(&self, root: PathBuf) {
+        *self.workspace_root.write() = root;
+    }
+
+    /// Get the workspace root path (cloned).
+    pub fn workspace_root(&self) -> PathBuf {
+        self.workspace_root.read().clone()
+    }
+
     /// Resolve a dot-separated path (e.g., "weather.summary")
     ///
     /// Uses jsonpath module internally for unified path resolution.
     /// Supports both simple dot notation and array indices.
+    ///
+    /// Media paths are intercepted before standard output resolution:
+    /// - `"task_id.media"` → full media array as JSON
+    /// - `"task_id.media[0].hash"` → specific media ref field
+    /// - `"task_id.media[0].path"` → specific media ref field
     pub fn resolve_path(&self, path: &str) -> Option<Value> {
         let mut parts = path.splitn(2, '.');
         let task_id = parts.next()?;
 
-        let output = self.get_output(task_id)?;
-
         // If no remaining path, return the whole output (clone from Arc)
         let Some(remaining) = parts.next() else {
+            let output = self.get_output(task_id)?;
             return Some((*output).clone());
         };
+
+        // Intercept media paths: task_id.media, task_id.media[0].hash, etc.
+        if remaining == "media"
+            || remaining.starts_with("media.")
+            || remaining.starts_with("media[")
+        {
+            let result = self.results.get(task_id)?.value().clone();
+            if result.media.is_empty() {
+                return Some(Value::Array(vec![]));
+            }
+            let media_json = serde_json::to_value(&result.media).ok()?;
+            if remaining == "media" {
+                return Some(media_json);
+            }
+            let media_remaining = &remaining[5..]; // skip "media"
+            if let Some(dot_rest) = media_remaining.strip_prefix('.') {
+                return jsonpath::resolve(&media_json, dot_rest).ok().flatten();
+            }
+            if media_remaining.starts_with('[') {
+                return jsonpath::resolve(&media_json, media_remaining)
+                    .ok()
+                    .flatten();
+            }
+            return Some(media_json);
+        }
+
+        let output = self.get_output(task_id)?;
 
         // Use jsonpath for path resolution (handles both dots and array indices)
         // Arc<Value> derefs to &Value, so this works without changes
@@ -1065,5 +1169,130 @@ mod tests {
         assert!(store.resolve_input_path("inputs").is_none());
         assert!(store.resolve_input_path("other.path").is_none());
         assert!(store.resolve_input_path("").is_none());
+    }
+
+    // =========================================================================
+    // Media Path Resolution Tests
+    // =========================================================================
+
+    /// Helper: create a TaskResult with media refs for testing.
+    fn task_with_media() -> TaskResult {
+        use std::path::PathBuf;
+
+        let media = vec![
+            crate::media::MediaRef {
+                hash: "blake3:af1349b9".to_string(),
+                mime_type: "image/png".to_string(),
+                size_bytes: 4096,
+                path: PathBuf::from("/tmp/cas/af/1349b9"),
+                extension: "png".to_string(),
+                created_by: "gen_img".to_string(),
+            },
+            crate::media::MediaRef {
+                hash: "blake3:deadbeef".to_string(),
+                mime_type: "audio/wav".to_string(),
+                size_bytes: 8192,
+                path: PathBuf::from("/tmp/cas/de/adbeef"),
+                extension: "wav".to_string(),
+                created_by: "gen_img".to_string(),
+            },
+        ];
+        TaskResult::success(json!({"prompt": "a cat"}), Duration::from_secs(1))
+            .with_media(media)
+    }
+
+    #[test]
+    fn resolve_media_full_array() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let value = store.resolve_path("gen_img.media").unwrap();
+        let arr = value.as_array().expect("media should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["hash"], "blake3:af1349b9");
+        assert_eq!(arr[1]["hash"], "blake3:deadbeef");
+    }
+
+    #[test]
+    fn resolve_media_index_hash() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let hash = store.resolve_path("gen_img.media[0].hash").unwrap();
+        assert_eq!(hash, "blake3:af1349b9");
+
+        let hash2 = store.resolve_path("gen_img.media[1].hash").unwrap();
+        assert_eq!(hash2, "blake3:deadbeef");
+    }
+
+    #[test]
+    fn resolve_media_index_mime_type() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let mime = store.resolve_path("gen_img.media[0].mime_type").unwrap();
+        assert_eq!(mime, "image/png");
+
+        let mime2 = store.resolve_path("gen_img.media[1].mime_type").unwrap();
+        assert_eq!(mime2, "audio/wav");
+    }
+
+    #[test]
+    fn resolve_media_empty_returns_empty_array() {
+        let store = RunContext::new();
+        // Task with no media
+        store.insert(
+            Arc::from("no_media"),
+            TaskResult::success(json!({"text": "hello"}), Duration::from_secs(1)),
+        );
+
+        let value = store.resolve_path("no_media.media").unwrap();
+        assert_eq!(value, json!([]));
+    }
+
+    #[test]
+    fn resolve_media_index_path() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let path = store.resolve_path("gen_img.media[0].path").unwrap();
+        assert_eq!(path, "/tmp/cas/af/1349b9");
+    }
+
+    #[test]
+    fn resolve_media_index_size_bytes() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let size = store.resolve_path("gen_img.media[0].size_bytes").unwrap();
+        assert_eq!(size, 4096);
+    }
+
+    #[test]
+    fn resolve_media_index_extension() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let ext = store.resolve_path("gen_img.media[0].extension").unwrap();
+        assert_eq!(ext, "png");
+    }
+
+    #[test]
+    fn resolve_media_out_of_bounds() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        // Index beyond array length should return None
+        assert!(store.resolve_path("gen_img.media[99].hash").is_none());
+    }
+
+    #[test]
+    fn resolve_media_does_not_shadow_output() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        // Standard output field should still resolve normally
+        let prompt = store.resolve_path("gen_img.prompt").unwrap();
+        assert_eq!(prompt, "a cat");
     }
 }

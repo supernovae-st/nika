@@ -476,7 +476,7 @@ pub enum NikaError {
     AssertionFailed { message: String, condition: String },
 
     // ═══════════════════════════════════════════
-    // CONTEXT ERRORS (250-259)
+    // CONTEXT ERROR (250)
     // ═══════════════════════════════════════════
     #[error("[NIKA-250] Failed to load context file '{alias}' from '{path}': {reason}")]
     #[diagnostic(
@@ -488,6 +488,14 @@ pub enum NikaError {
         path: String,
         reason: String,
     },
+
+    // ═══════════════════════════════════════════
+    // MEDIA ERRORS (251-259)
+    // ═══════════════════════════════════════════
+    /// Media pipeline error (NIKA-251..259)
+    /// Note: miette diagnostic codes are forwarded via MediaError's own Diagnostic derive.
+    #[error(transparent)]
+    MediaError(#[from] crate::media::error::MediaError),
 
     // ═══════════════════════════════════════════
     // PKG URI ERRORS (260-269)
@@ -681,6 +689,8 @@ impl NikaError {
             Self::AssertionFailed { .. } => "NIKA-213",
             // Context errors
             Self::ContextLoadError { .. } => "NIKA-250",
+            // Media errors
+            Self::MediaError(e) => e.code(),
             // Pkg URI errors
             Self::InvalidPkgUri { .. } => "NIKA-260",
             // Package errors
@@ -707,19 +717,21 @@ impl NikaError {
 
     /// Check if error is recoverable (can be retried)
     pub fn is_recoverable(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::McpNotConnected { .. }
-                | Self::ProviderApiError { .. }
-                | Self::McpToolError { .. }
-                | Self::Timeout { .. }
-                | Self::McpTimeout { .. }
-                | Self::McpToolCallFailed { .. }
-                // Structured output errors that can be retried
-                | Self::StructuredOutputExtractionFailed { .. }
-                | Self::StructuredOutputValidationFailed { .. }
-                | Self::StructuredOutputRepairFailed { .. }
-        )
+            | Self::ProviderApiError { .. }
+            | Self::McpToolError { .. }
+            | Self::Timeout { .. }
+            | Self::McpTimeout { .. }
+            | Self::McpToolCallFailed { .. }
+            // Structured output errors that can be retried
+            | Self::StructuredOutputExtractionFailed { .. }
+            | Self::StructuredOutputValidationFailed { .. }
+            | Self::StructuredOutputRepairFailed { .. } => true,
+            // Delegate to MediaError's own is_recoverable (only I/O errors)
+            Self::MediaError(e) => e.is_recoverable(),
+            _ => false,
+        }
     }
 }
 
@@ -873,6 +885,10 @@ impl FixSuggestion for NikaError {
             // Context errors
             NikaError::ContextLoadError { .. } => {
                 Some("Check the file path exists and is readable")
+            }
+            // Media errors
+            NikaError::MediaError(_) => {
+                Some("Check media content and CAS store configuration")
             }
             // Pkg URI errors
             NikaError::InvalidPkgUri { .. } => Some(

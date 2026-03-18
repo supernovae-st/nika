@@ -1325,15 +1325,28 @@ pub struct NikaMcpToolDef {
     pub input_schema: serde_json::Value,
 }
 
+/// Shared media staging for agent tool calls.
+///
+/// When agent tools return binary content (images, audio, etc.),
+/// the content blocks are collected here since rig's `ToolDyn::call()`
+/// can only return `String`. After the agent loop completes,
+/// `run_agent()` drains this map and runs the MediaProcessor pipeline.
+pub type AgentMediaStaging = Arc<dashmap::DashMap<String, Vec<crate::mcp::types::ContentBlock>>>;
+
 /// MCP tool wrapper implementing rig-core's `ToolDyn` trait.
 ///
 /// This allows us to use our MCP tools (rmcp 0.16) with rig-core's
 /// agent system without version conflicts.
+///
+/// Binary content from tool results is staged via `media_staging`
+/// side-channel since rig's `ToolDyn::call()` returns `String` only.
 #[derive(Debug, Clone)]
 pub struct NikaMcpTool {
     definition: NikaMcpToolDef,
     /// Optional MCP client for real tool calls
     client: Option<Arc<McpClient>>,
+    /// Shared staging for binary content blocks (agent media side-channel)
+    media_staging: Option<AgentMediaStaging>,
 }
 
 impl NikaMcpTool {
@@ -1342,6 +1355,7 @@ impl NikaMcpTool {
         Self {
             definition,
             client: None,
+            media_staging: None,
         }
     }
 
@@ -1350,6 +1364,20 @@ impl NikaMcpTool {
         Self {
             definition,
             client: Some(client),
+            media_staging: None,
+        }
+    }
+
+    /// Create a new NikaMcpTool with media staging for agent loops
+    pub fn with_media_staging(
+        definition: NikaMcpToolDef,
+        client: Arc<McpClient>,
+        staging: AgentMediaStaging,
+    ) -> Self {
+        Self {
+            definition,
+            client: Some(client),
+            media_staging: Some(staging),
         }
     }
 
@@ -1403,6 +1431,33 @@ impl ToolDyn for NikaMcpTool {
                     e
                 ))))
             })?;
+
+            // Stage binary content blocks via side-channel (if media staging is enabled)
+            if result.has_media() {
+                if let Some(ref staging) = self.media_staging {
+                    let media_blocks: Vec<_> = result.media_blocks()
+                        .into_iter()
+                        .cloned()
+                        .collect();
+                    if !media_blocks.is_empty() {
+                        tracing::debug!(
+                            tool = %tool_name,
+                            media_count = media_blocks.len(),
+                            "agent: staging binary content from tool call"
+                        );
+                        staging
+                            .entry(tool_name.clone())
+                            .or_default()
+                            .extend(media_blocks);
+                    }
+                } else {
+                    tracing::warn!(
+                        tool = %tool_name,
+                        media_count = result.media_blocks().len(),
+                        "agent: tool returned binary content but no media staging configured — data will be lost"
+                    );
+                }
+            }
 
             // Extract text content from the result
             let output = result.text();

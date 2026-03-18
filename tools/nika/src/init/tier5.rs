@@ -1147,7 +1147,7 @@ tasks:
     fetch:
       url: "{{with.endpoint.url}}"
       method: GET
-      timeout: 5000
+      timeout: 5
 
   - id: analyze_results
     depends_on: [check_endpoints]
