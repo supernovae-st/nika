@@ -938,25 +938,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
 
         if !self.quiet {
-            let has_for_each = self.workflow.tasks.iter().any(|t| {
-                t.for_each.is_some() || t.decompose.is_some()
-            });
-            if has_for_each {
-                // Task count will change at runtime when for_each/decompose expands
-                println!(
-                    "{} Running workflow ({} task definitions)...\n",
-                    "→".cyan(),
-                    total_tasks
-                );
-            } else {
-                let noun = if total_tasks == 1 { "task" } else { "tasks" };
-                println!(
-                    "{} Running workflow with {} {}...\n",
-                    "→".cyan(),
-                    total_tasks,
-                    noun
-                );
-            }
+            println!();
 
             // IMP-5: Warn if no task has output or artifact config
             let has_observable_output = self.workflow.tasks.iter().any(|t| {
@@ -1654,14 +1636,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 let success = task_result.is_success();
                                 let skipped = task_result.is_skipped();
 
-                                let status = if success {
-                                    format!("[{}/{}]", completed, total_tasks).green()
-                                } else if skipped {
-                                    format!("[{}/{}]", completed, total_tasks).yellow()
-                                } else {
-                                    format!("[{}/{}]", completed, total_tasks).red()
-                                };
-
                                 let symbol = if success { "✓" } else if skipped { "⊘" } else { "✗" };
                                 let symbol_colored = if success {
                                     symbol.green()
@@ -1671,25 +1645,29 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     symbol.red()
                                 };
                                 let duration_str =
-                                    format!("({:.1}s)", task_result.duration.as_secs_f32()).dimmed();
+                                    format!("{:.1}s", task_result.duration.as_secs_f32()).dimmed();
 
                                 if !self.quiet {
-                                    // IMP-3: Look up task description for richer progress output
+                                    // IMP-3: Look up task description and verb for richer output
                                     let parent_name = store_id
                                         .find('[')
                                         .map(|i| &store_id[..i])
                                         .unwrap_or(&store_id);
-                                    let desc = self
+                                    let task_info = self
                                         .workflow
                                         .tasks
                                         .iter()
-                                        .find(|t| t.name == parent_name)
-                                        .and_then(|t| t.description.as_deref());
+                                        .find(|t| t.name == parent_name);
+                                    let desc = task_info.and_then(|t| t.description.as_deref());
+                                    let verb_name = task_info
+                                        .map(|t| t.action.verb_name())
+                                        .unwrap_or("exec");
+                                    let icon = crate::display::verb_icon(verb_name);
 
                                     if let Some(d) = desc {
                                         println!(
                                             "  {} {} {} {} — {}",
-                                            status,
+                                            icon,
                                             &*store_id,
                                             symbol_colored,
                                             duration_str,
@@ -1698,7 +1676,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     } else {
                                         println!(
                                             "  {} {} {} {}",
-                                            status, &*store_id, symbol_colored, duration_str
+                                            icon, &*store_id, symbol_colored, duration_str
                                         );
                                     }
 
@@ -1866,21 +1844,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
             });
 
-            if total_tokens > 0 {
-                println!(
-                    "\n{} Done! ({} | {} tokens | ${})\n",
-                    "✓".green(),
-                    elapsed_str.dimmed(),
-                    total_tokens.to_string().dimmed(),
-                    crate::provider::cost::format_cost(total_cost).trim_start_matches('$').dimmed()
-                );
-            } else {
-                println!(
-                    "\n{} Done! ({})\n",
-                    "✓".green(),
-                    elapsed_str.dimmed()
-                );
-            }
+            crate::display::print_done_summary(&elapsed_str, total_tokens, total_cost);
         }
 
         // Check for task failures — report for CI visibility
