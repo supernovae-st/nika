@@ -154,13 +154,26 @@ impl MediaProcessor {
         }
 
         // Check media budget before proceeding
-        self.budget.check_and_add(decoded.len() as u64, task_id)?;
+        let decoded_size = decoded.len() as u64;
+        self.budget.check_and_add(decoded_size, task_id)?;
 
         // Detect MIME type
-        let detected = detect_mime(&decoded, server_mime)?;
+        let detected = match detect_mime(&decoded, server_mime) {
+            Ok(d) => d,
+            Err(e) => {
+                self.budget.rollback(decoded_size);
+                return Err(e);
+            }
+        };
 
         // Store in CAS (hash-only filenames)
-        let store_result = self.store.store(&decoded).await?;
+        let store_result = match self.store.store(&decoded).await {
+            Ok(r) => r,
+            Err(e) => {
+                self.budget.rollback(decoded_size);
+                return Err(e);
+            }
+        };
 
         let media_ref = MediaRef {
             hash: store_result.hash.clone(),

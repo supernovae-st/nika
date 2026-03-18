@@ -958,7 +958,11 @@ impl TaskExecutor {
 
                     let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
 
+                    // Process all results: emit events for EVERY block first,
+                    // then fail on non-recoverable errors. This ensures the trace
+                    // is complete even when the task fails partway through.
                     let mut media_refs = Vec::new();
+                    let mut fatal_error: Option<crate::media::MediaError> = None;
                     for result in process_results {
                         match result {
                             Ok((media_ref, store_result)) => {
@@ -985,13 +989,17 @@ impl TaskExecutor {
                                     hash: String::new(),
                                     reason: format!("block {block_index}: {error}"),
                                 });
-                                // Non-recoverable errors (HashMismatch, BudgetExceeded, etc.)
-                                // must fail the task — don't silently swallow data corruption.
-                                if !error.is_recoverable() {
-                                    return Err(NikaError::MediaError(error));
+                                // Capture first non-recoverable error for task failure
+                                if fatal_error.is_none() && !error.is_recoverable() {
+                                    fatal_error = Some(error);
                                 }
                             }
                         }
+                    }
+
+                    // If any non-recoverable error occurred, fail the task
+                    if let Some(error) = fatal_error {
+                        return Err(NikaError::MediaError(error));
                     }
 
                     // Stage media refs in side-channel for runner to pick up

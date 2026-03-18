@@ -909,6 +909,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             tracing::warn!(error = %e, "Failed to get current directory, using '.'");
             std::path::PathBuf::from(".")
         });
+
+        // Set workspace root for CAS media store path resolution
+        self.datastore.set_workspace_root(base_path.clone());
+
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
                 load_context_analyzed(&self.workflow.context_files, &base_path).await?;
@@ -1863,9 +1867,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     results.iter().map(|(_, r)| r.duration).sum();
                 let all_success = results.iter().all(|(_, r)| r.is_success());
 
-                // Create aggregated result with JSON array
+                // Merge media refs from all successful iterations
+                let merged_media: Vec<crate::media::MediaRef> = results
+                    .iter()
+                    .filter(|(_, r)| r.is_success())
+                    .flat_map(|(_, r)| r.media.iter().cloned())
+                    .collect();
+
+                // Create aggregated result with JSON array + merged media
                 let aggregated_result = if all_success {
                     TaskResult::success(Value::Array(outputs), total_duration)
+                        .with_media(merged_media)
                 } else {
                     // Collect errors
                     let errors: Vec<String> = results
@@ -1873,6 +1885,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
                     TaskResult::failed(errors.join("; "), total_duration)
+                        .with_media(merged_media)
                 };
 
                 // Store aggregated result under parent ID

@@ -717,19 +717,21 @@ impl NikaError {
 
     /// Check if error is recoverable (can be retried)
     pub fn is_recoverable(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::McpNotConnected { .. }
-                | Self::ProviderApiError { .. }
-                | Self::McpToolError { .. }
-                | Self::Timeout { .. }
-                | Self::McpTimeout { .. }
-                | Self::McpToolCallFailed { .. }
-                // Structured output errors that can be retried
-                | Self::StructuredOutputExtractionFailed { .. }
-                | Self::StructuredOutputValidationFailed { .. }
-                | Self::StructuredOutputRepairFailed { .. }
-        )
+            | Self::ProviderApiError { .. }
+            | Self::McpToolError { .. }
+            | Self::Timeout { .. }
+            | Self::McpTimeout { .. }
+            | Self::McpToolCallFailed { .. }
+            // Structured output errors that can be retried
+            | Self::StructuredOutputExtractionFailed { .. }
+            | Self::StructuredOutputValidationFailed { .. }
+            | Self::StructuredOutputRepairFailed { .. } => true,
+            // Delegate to MediaError's own is_recoverable (only I/O errors)
+            Self::MediaError(e) => e.is_recoverable(),
+            _ => false,
+        }
     }
 }
 

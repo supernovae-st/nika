@@ -119,6 +119,11 @@ impl MediaBudget {
         }
     }
 
+    /// Roll back a budget allocation (e.g., when CAS store fails after budget was charged).
+    pub fn rollback(&self, size: u64) {
+        self.run_bytes.fetch_sub(size, Ordering::AcqRel);
+    }
+
     /// Get current accumulated bytes.
     pub fn current_bytes(&self) -> u64 {
         self.run_bytes.load(Ordering::Acquire)

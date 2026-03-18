@@ -133,6 +133,10 @@ pub fn detect_mime(
 /// - `audio/mp3` ↔ `audio/mpeg`
 /// - `image/jpg` ↔ `image/jpeg`
 /// - `audio/wav` ↔ `audio/x-wav`
+/// - `audio/flac` ↔ `audio/x-flac`
+/// - `audio/aiff` ↔ `audio/x-aiff`
+/// - `image/vnd.microsoft.icon` ↔ `image/x-icon`
+/// - `audio/mp4` ↔ `video/mp4` (container format ambiguity)
 pub fn is_mime_alias(a: &str, b: &str) -> bool {
     if a == b {
         return true;
@@ -143,38 +147,56 @@ pub fn is_mime_alias(a: &str, b: &str) -> bool {
         ("audio/mp3", "audio/mpeg")
             | ("audio/wav", "audio/x-wav")
             | ("image/jpeg", "image/jpg")
+            | ("audio/flac", "audio/x-flac")
+            | ("audio/aiff", "audio/x-aiff")
+            | ("image/vnd.microsoft.icon", "image/x-icon")
+            | ("audio/mp4", "video/mp4")
     )
 }
 
 /// Convert a MIME type to a file extension.
+///
+/// Checks the curated manual table FIRST (correct human-expected extensions),
+/// then falls back to `mime_guess` for uncommon types.
+/// This avoids mime_guess returning obscure extensions like "jfif" for JPEG,
+/// "m2a" for MP3, or "asm" for text/plain.
 pub fn mime_to_extension(mime: &str) -> String {
-    // Try mime_guess first
-    let guesses = mime_guess::get_mime_extensions_str(mime);
-    if let Some(exts) = guesses {
+    // Manual table first — curated, human-expected extensions
+    let manual = match mime {
+        "image/png" => Some("png"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "image/svg+xml" => Some("svg"),
+        "image/vnd.microsoft.icon" | "image/x-icon" => Some("ico"),
+        "audio/mpeg" | "audio/mp3" => Some("mp3"),
+        "audio/wav" | "audio/x-wav" => Some("wav"),
+        "audio/ogg" => Some("ogg"),
+        "audio/flac" | "audio/x-flac" => Some("flac"),
+        "audio/aiff" | "audio/x-aiff" => Some("aiff"),
+        "audio/mp4" | "audio/x-m4a" => Some("m4a"),
+        "video/mp4" => Some("mp4"),
+        "video/webm" => Some("webm"),
+        "application/pdf" => Some("pdf"),
+        "application/json" => Some("json"),
+        "text/plain" => Some("txt"),
+        "text/html" => Some("html"),
+        "text/csv" => Some("csv"),
+        _ => None,
+    };
+
+    if let Some(ext) = manual {
+        return ext.to_string();
+    }
+
+    // Fallback to mime_guess for uncommon types
+    if let Some(exts) = mime_guess::get_mime_extensions_str(mime) {
         if let Some(ext) = exts.first() {
             return sanitize_extension(ext);
         }
     }
 
-    // Manual fallback for common types
-    let ext = match mime {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        "image/svg+xml" => "svg",
-        "audio/mpeg" => "mp3",
-        "audio/wav" | "audio/x-wav" => "wav",
-        "audio/ogg" => "ogg",
-        "audio/flac" => "flac",
-        "application/pdf" => "pdf",
-        "application/json" => "json",
-        "text/plain" => "txt",
-        "text/html" => "html",
-        _ => "bin",
-    };
-
-    sanitize_extension(ext)
+    "bin".to_string()
 }
 
 /// Sanitize extension to prevent path traversal.
@@ -271,10 +293,14 @@ mod tests {
     #[test]
     fn mime_to_extension_common_types() {
         assert_eq!(mime_to_extension("image/png"), "png");
-        // mime_guess may return "jfif" or "jpg" for image/jpeg
-        let jpeg_ext = mime_to_extension("image/jpeg");
-        assert!(jpeg_ext == "jpg" || jpeg_ext == "jfif", "got: {jpeg_ext}");
+        assert_eq!(mime_to_extension("image/jpeg"), "jpg");
+        assert_eq!(mime_to_extension("audio/mpeg"), "mp3");
+        assert_eq!(mime_to_extension("audio/wav"), "wav");
+        assert_eq!(mime_to_extension("audio/x-wav"), "wav");
+        assert_eq!(mime_to_extension("audio/flac"), "flac");
+        assert_eq!(mime_to_extension("text/plain"), "txt");
         assert_eq!(mime_to_extension("application/pdf"), "pdf");
+        assert_eq!(mime_to_extension("application/json"), "json");
     }
 
     #[test]
@@ -285,6 +311,12 @@ mod tests {
         assert!(is_mime_alias("image/jpg", "image/jpeg"));
         assert!(is_mime_alias("audio/wav", "audio/x-wav"));
         assert!(is_mime_alias("audio/x-wav", "audio/wav"));
+        assert!(is_mime_alias("audio/flac", "audio/x-flac"));
+        assert!(is_mime_alias("audio/x-flac", "audio/flac"));
+        assert!(is_mime_alias("audio/aiff", "audio/x-aiff"));
+        assert!(is_mime_alias("image/vnd.microsoft.icon", "image/x-icon"));
+        assert!(is_mime_alias("audio/mp4", "video/mp4"));
+        assert!(is_mime_alias("video/mp4", "audio/mp4"));
     }
 
     #[test]
