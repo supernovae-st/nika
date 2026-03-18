@@ -42,6 +42,7 @@ pub mod error;
 pub mod event;
 pub mod init;
 pub mod mcp;
+pub mod media;
 pub mod new;
 pub mod provider;
 pub mod registry;

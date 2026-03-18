@@ -490,6 +490,13 @@ pub enum NikaError {
     },
 
     // ═══════════════════════════════════════════
+    // MEDIA ERRORS (251-259)
+    // ═══════════════════════════════════════════
+    /// Media pipeline error (NIKA-251..259)
+    #[error(transparent)]
+    MediaError(#[from] crate::media::error::MediaError),
+
+    // ═══════════════════════════════════════════
     // PKG URI ERRORS (260-269)
     // ═══════════════════════════════════════════
     #[error("[NIKA-260] Invalid pkg: URI '{uri}': {reason}")]
@@ -681,6 +688,8 @@ impl NikaError {
             Self::AssertionFailed { .. } => "NIKA-213",
             // Context errors
             Self::ContextLoadError { .. } => "NIKA-250",
+            // Media errors
+            Self::MediaError(e) => e.code(),
             // Pkg URI errors
             Self::InvalidPkgUri { .. } => "NIKA-260",
             // Package errors
@@ -873,6 +882,10 @@ impl FixSuggestion for NikaError {
             // Context errors
             NikaError::ContextLoadError { .. } => {
                 Some("Check the file path exists and is readable")
+            }
+            // Media errors
+            NikaError::MediaError(_) => {
+                Some("Check media content and CAS store configuration")
             }
             // Pkg URI errors
             NikaError::InvalidPkgUri { .. } => Some(
