@@ -413,7 +413,8 @@ impl FileTool for GrepTool {
                     "description": "Maximum matches to return"
                 }
             },
-            "required": ["pattern"]
+            "required": ["pattern"],
+            "additionalProperties": false
         })
     }
 

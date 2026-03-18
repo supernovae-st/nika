@@ -102,6 +102,14 @@ impl EditTool {
                 message: format!("Failed to read file: {}", e),
             })?;
 
+        // Reject empty old_string — str::replace("", x) inserts between every character
+        if params.old_string.is_empty() {
+            return Err(NikaError::ToolError {
+                code: ToolErrorCode::EditFailed.code(),
+                message: "old_string cannot be empty".to_string(),
+            });
+        }
+
         // Count occurrences
         let occurrences = content.matches(&params.old_string).count();
 
@@ -282,7 +290,8 @@ impl FileTool for EditTool {
                     "default": false
                 }
             },
-            "required": ["file_path", "old_string", "new_string"]
+            "required": ["file_path", "old_string", "new_string", "replace_all"],
+            "additionalProperties": false
         })
     }
 

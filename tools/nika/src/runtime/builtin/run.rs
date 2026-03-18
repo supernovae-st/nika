@@ -161,7 +161,7 @@ impl BuiltinTool for RunTool {
                     "description": "Maximum recursion depth (default: 3, max: 10)"
                 }
             },
-            "required": ["workflow", "context_json", "timeout_secs", "max_depth"],
+            "required": ["workflow"],
             "additionalProperties": false
         })
     }
