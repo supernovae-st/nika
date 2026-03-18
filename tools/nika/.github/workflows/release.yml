@@ -213,6 +213,15 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: nika-linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact: nika-linux-arm64
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: nika-linux-musl-x64
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: nika-linux-musl-arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: nika-windows-x64
@@ -228,7 +237,30 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+          # Cross-compilation toolchains
+          if [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
+            sudo apt-get install -y musl-tools
+            if [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
+              sudo apt-get install -y gcc-aarch64-linux-gnu musl-dev
+            fi
+          fi
+
+      - name: Configure cross-compilation
+        if: runner.os == 'Linux'
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+          fi
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+          fi
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
@@ -290,35 +322,32 @@ jobs:
 
       - name: Generate release notes
         run: |
-          cat << 'EOF' > release_notes.md
-          ## What's Changed
-
-          ### MVP 8 Features (RLM Enhancements)
-
-          | Phase | Feature | Status |
-          |-------|---------|--------|
-          | 1 | Reasoning Capture | ✅ |
-          | 2 | spawn_agent | ✅ |
-          | 3 | novanet_introspect | ✅ |
-          | 4 | decompose: | ✅ |
-          | 5 | lazy: bindings | ✅ |
-
-          ### Verification
-
-          - ✅ All unit tests passed
-          - ✅ Integration tests with Neo4j passed
-          - ✅ MVP 8 feature verification passed
-          - ✅ Production verification tests passed
-
-          ### Downloads
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat << EOF > release_notes.md
+          ## Downloads
 
           | Platform | Binary |
           |----------|--------|
-          | macOS (Intel) | nika-macos-x64.tar.gz |
           | macOS (Apple Silicon) | nika-macos-arm64.tar.gz |
+          | macOS (Intel) | nika-macos-x64.tar.gz |
           | Linux (x64) | nika-linux-x64.tar.gz |
+          | Linux (ARM64) | nika-linux-arm64.tar.gz |
+          | Linux (x64 static/musl) | nika-linux-musl-x64.tar.gz |
+          | Linux (ARM64 static/musl) | nika-linux-musl-arm64.tar.gz |
           | Windows (x64) | nika-windows-x64.zip |
 
+          ## Install
+
+          \`\`\`bash
+          # Homebrew
+          brew install supernovae-st/tap/nika
+
+          # Docker
+          docker run --rm ghcr.io/supernovae-st/nika:latest --version
+
+          # Direct download
+          curl -L https://github.com/supernovae-st/nika/releases/download/v${VERSION}/nika-macos-arm64.tar.gz | tar xz
+          \`\`\`
           EOF
 
       - name: Create Release
