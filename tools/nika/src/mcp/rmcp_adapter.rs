@@ -326,6 +326,23 @@ impl RmcpClientAdapter {
         }; // Lock is released here
 
         // Convert params to object format expected by rmcp
+        // Reject non-object, non-null params with a clear error
+        if !params.is_null() && !params.is_object() {
+            return Err(NikaError::McpToolError {
+                tool: name.to_string(),
+                reason: format!(
+                    "Tool params must be a JSON object, got {}",
+                    match &params {
+                        serde_json::Value::Array(_) => "array",
+                        serde_json::Value::String(_) => "string",
+                        serde_json::Value::Number(_) => "number",
+                        serde_json::Value::Bool(_) => "boolean",
+                        _ => "unknown",
+                    }
+                ),
+                error_code: None,
+            });
+        }
         let arguments = params.as_object().cloned();
 
         let request = CallToolRequestParams {
