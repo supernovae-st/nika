@@ -926,8 +926,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             );
         }
 
-        let mut total_tasks = self.workflow.tasks.len();
-        let mut completed = 0;
+        let total_tasks = self.workflow.tasks.len();
+        let mut _completed = 0;
 
         // EMIT: WorkflowStarted
         self.event_log.emit(EventKind::WorkflowStarted {
@@ -1412,8 +1412,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 // Check if task has for_each or decompose items
                 if let Some(items) = for_each_items {
                     if !items.is_empty() {
-                        // Adjust total_tasks: parent counts as 1, replace with actual item count
-                        total_tasks += items.len().saturating_sub(1);
+                        // Note: total_tasks was used for progress display [N/M] but
+                        // the new CLI format uses verb icons instead. Keeping the
+                        // adjustment in case we add the counter back.
 
                         // Get concurrency settings from analyzed for_each
                         let fe = task.for_each.as_ref();
@@ -1632,7 +1633,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     artifact_paths,
                                 } = iteration_result;
 
-                                completed += 1;
+                                _completed += 1;
                                 let success = task_result.is_success();
                                 let skipped = task_result.is_skipped();
 
