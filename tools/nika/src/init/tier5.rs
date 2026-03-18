@@ -318,7 +318,7 @@ tasks:
       temperature: 0.3
       max_tokens: 500
     artifact:
-      path: ./output/code-review/report_{{date}}.txt
+      path: ./output/code-review/report_latest.txt
       format: text
 
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -347,7 +347,7 @@ tasks:
       max_turns: 5
       temperature: 0.2
     artifact:
-      path: ./output/code-review/fixed_code_{{date}}.ts
+      path: ./output/code-review/fixed_code_latest.ts
       format: text
 
 "##;
@@ -506,7 +506,7 @@ tasks:
       temperature: 0.2
       max_tokens: 500
     artifact:
-      path: ./output/localization/quality_report_{{date}}.txt
+      path: ./output/localization/quality_report_latest.txt
       format: text
 
   - id: export_files
@@ -739,7 +739,7 @@ tasks:
       temperature: 0.2
       max_tokens: 4000
     artifact:
-      path: ./output/seo/article_{{date}}.html
+      path: ./output/seo/article_latest.html
       format: text
 
 "##;
@@ -913,7 +913,7 @@ tasks:
         Load this data to output files:
         {{with.transformed}}
 
-        Create: ./output/etl/data_{{date}}.json
+        Create: ./output/etl/data_latest.json
         Say LOAD_COMPLETE when done.
       tools:
         - nika:write
@@ -946,7 +946,7 @@ tasks:
         4. Identify gaps or contradictions
         5. Provide evidence-based conclusions
 
-        Write your final report to ./output/research/report_{{date}}.md
+        Write your final report to ./output/research/report_latest.md
         Include citations and confidence levels.
         Say RESEARCH_COMPLETE when done.
       tools:
@@ -957,7 +957,7 @@ tasks:
       depth_limit: 2
       temperature: 0.4
     artifact:
-      path: ./output/research/summary_{{date}}.txt
+      path: ./output/research/summary_latest.txt
       format: text
 "##;
 
@@ -1117,7 +1117,7 @@ tasks:
       temperature: 0.3
       max_tokens: 400
     artifact:
-      path: ./output/meetings/summary_{{date}}.txt
+      path: ./output/meetings/summary_latest.txt
       format: text
 
 "##;
@@ -1263,7 +1263,7 @@ tasks:
       temperature: 0.1
       max_tokens: 600
     artifact:
-      path: ./output/knowledge/graph_{{date}}.cypher
+      path: ./output/knowledge/graph_latest.cypher
       format: text
 
 "##;
