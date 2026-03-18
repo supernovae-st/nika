@@ -374,12 +374,27 @@ fn compute_layers(
     layers
 }
 
-/// Width of each task box (not counting emoji width variance).
-const BOX_PAD: usize = 2; // spaces inside box on each side
+/// Padding inside each box (each side).
+const BOX_PAD: usize = 1;
+
+/// Calculate terminal display width of a string.
+/// Emojis are 2 columns, ASCII is 1 column.
+fn display_width(s: &str) -> usize {
+    let mut w = 0;
+    for ch in s.chars() {
+        if ch.len_utf8() >= 3 {
+            // Multi-byte char (emoji, CJK) → 2 columns
+            w += 2;
+        } else {
+            w += 1;
+        }
+    }
+    w
+}
 
 fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
-    // Calculate box width for each task
-    let boxes: Vec<(String, String, DagTaskStatus)> = layer
+    // Build box content: (label_str, display_width, task_id, status)
+    let boxes: Vec<(String, usize, String, DagTaskStatus)> = layer
         .iter()
         .map(|task_id| {
             let task = tasks.iter().find(|t| t.id == *task_id);
@@ -394,17 +409,19 @@ fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
                 "agent" => "🤖",
                 _ => "●",
             };
-            (format!("{} {}", icon, task_id), task_id.clone(), status)
+            let label = format!("{} {}", icon, task_id);
+            let dw = display_width(&label);
+            (label, dw, task_id.clone(), status)
         })
         .collect();
 
     // Top border
     let mut top = String::from("    ");
-    for (i, (label, _, status)) in boxes.iter().enumerate() {
+    for (i, (_, dw, _, status)) in boxes.iter().enumerate() {
         if i > 0 {
             top.push_str("  ");
         }
-        let w = label.len() + BOX_PAD * 2 + 1; // +1 for emoji width
+        let w = dw + BOX_PAD * 2;
         let border = format!("┌{}┐", "─".repeat(w));
         top.push_str(&color_border(&border, *status));
     }
@@ -412,13 +429,14 @@ fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
 
     // Content
     let mut mid = String::from("    ");
-    for (i, (label, _, status)) in boxes.iter().enumerate() {
+    for (i, (label, dw, _, status)) in boxes.iter().enumerate() {
         if i > 0 {
             mid.push_str("  ");
         }
-        let w = label.len() + BOX_PAD * 2 + 1;
+        let w = dw + BOX_PAD * 2;
         let pad_left = " ".repeat(BOX_PAD);
-        let pad_right = " ".repeat(w - label.len() - BOX_PAD);
+        let pad_right_len = w.saturating_sub(dw + BOX_PAD);
+        let pad_right = " ".repeat(pad_right_len);
         let content = format!("│{}{}{}│", pad_left, label, pad_right);
         mid.push_str(&color_border(&content, *status));
     }
@@ -426,11 +444,11 @@ fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
 
     // Bottom border
     let mut bottom = String::from("    ");
-    for (i, (label, _, status)) in boxes.iter().enumerate() {
+    for (i, (_, dw, _, status)) in boxes.iter().enumerate() {
         if i > 0 {
             bottom.push_str("  ");
         }
-        let w = label.len() + BOX_PAD * 2 + 1;
+        let w = dw + BOX_PAD * 2;
         let border = format!("└{}┘", "─".repeat(w));
         bottom.push_str(&color_border(&border, *status));
     }
