@@ -117,3 +117,62 @@ impl Default for MediaBudget {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn media_budget_under_limit() {
+        let budget = MediaBudget::with_max_per_run(1024);
+        assert!(budget.check_and_add(512, "t1").is_ok());
+        assert_eq!(budget.current_bytes(), 512);
+    }
+
+    #[test]
+    fn media_budget_exceeds_limit() {
+        let budget = MediaBudget::with_max_per_run(1024);
+        budget.check_and_add(512, "t1").unwrap();
+        let err = budget.check_and_add(1024, "t2").unwrap_err();
+        assert_eq!(err.code(), "NIKA-259");
+        // Budget should NOT have increased
+        assert_eq!(budget.current_bytes(), 512);
+    }
+
+    #[test]
+    fn media_budget_accumulated_tracking() {
+        let budget = MediaBudget::with_max_per_run(1000);
+        budget.check_and_add(300, "t1").unwrap();
+        budget.check_and_add(300, "t2").unwrap();
+        budget.check_and_add(300, "t3").unwrap();
+        assert_eq!(budget.current_bytes(), 900);
+        // This should fail (900 + 200 = 1100 > 1000)
+        assert!(budget.check_and_add(200, "t4").is_err());
+    }
+
+    #[test]
+    fn media_ref_serde_roundtrip() {
+        let mr = MediaRef {
+            hash: "blake3:af1349b9".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 4096,
+            path: PathBuf::from("/tmp/store/af/1349b9"),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        };
+        let json = serde_json::to_string(&mr).unwrap();
+        let back: MediaRef = serde_json::from_str(&json).unwrap();
+        assert_eq!(mr, back);
+        assert!(json.contains("blake3:af1349b9"));
+    }
+
+    #[test]
+    fn media_type_from_mime() {
+        assert_eq!(MediaType::from_mime("image/png"), MediaType::Image);
+        assert_eq!(MediaType::from_mime("image/jpeg"), MediaType::Image);
+        assert_eq!(MediaType::from_mime("audio/wav"), MediaType::Audio);
+        assert_eq!(MediaType::from_mime("audio/mpeg"), MediaType::Audio);
+        assert_eq!(MediaType::from_mime("application/pdf"), MediaType::Document);
+        assert_eq!(MediaType::from_mime("text/plain"), MediaType::Unknown);
+    }
+}

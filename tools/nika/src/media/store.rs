@@ -284,3 +284,148 @@ impl CasStore {
 fn strip_hash_prefix(hash: &str) -> &str {
     hash.strip_prefix(HASH_PREFIX).unwrap_or(hash)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn store_and_read_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"hello media pipeline";
+        let result = store.store(data).await.unwrap();
+
+        assert!(result.hash.starts_with("blake3:"));
+        assert!(!result.deduplicated);
+        assert!(result.verified);
+        assert_eq!(result.size, data.len() as u64);
+
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert_eq!(read_back, data);
+    }
+
+    #[tokio::test]
+    async fn store_dedup_same_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"identical content";
+        let r1 = store.store(data).await.unwrap();
+        let r2 = store.store(data).await.unwrap();
+
+        assert_eq!(r1.hash, r2.hash);
+        assert!(!r1.deduplicated);
+        assert!(r2.deduplicated);
+    }
+
+    #[tokio::test]
+    async fn exists_after_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"existence check";
+        let result = store.store(data).await.unwrap();
+
+        assert!(store.exists(&result.hash));
+        assert!(!store.exists("blake3:nonexistent"));
+    }
+
+    #[tokio::test]
+    async fn read_nonexistent_hash_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.read("blake3:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn hash_only_filename_no_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"no extension in path";
+        let result = store.store(data).await.unwrap();
+
+        // Path should have NO extension
+        assert!(result.path.extension().is_none(),
+            "CAS path should have no extension: {:?}", result.path);
+    }
+
+    #[tokio::test]
+    async fn hash_has_blake3_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"prefix test").await.unwrap();
+        assert!(result.hash.starts_with("blake3:"),
+            "hash should have blake3: prefix, got: {}", result.hash);
+    }
+
+    #[tokio::test]
+    async fn list_returns_stored_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"file one").await.unwrap();
+        store.store(b"file two").await.unwrap();
+
+        let entries = store.list();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.iter().all(|e| e.hash.starts_with("blake3:")));
+    }
+
+    #[tokio::test]
+    async fn clean_all_removes_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"data one").await.unwrap();
+        store.store(b"data two").await.unwrap();
+
+        let clean = store.clean_all();
+        assert_eq!(clean.removed, 2);
+        assert_eq!(store.list().len(), 0);
+    }
+
+    #[test]
+    fn workspace_default_uses_workspace_root() {
+        let root = std::path::PathBuf::from("/tmp/test-workspace");
+        let store = CasStore::workspace_default(&root);
+        // Just verify it constructs without panic
+        assert!(!store.exists("blake3:nonexistent"));
+    }
+
+    #[tokio::test]
+    async fn concurrent_cas_writes_dedup_correctly() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = std::sync::Arc::new(CasStore::new(dir.path()));
+
+        let data: Vec<u8> = b"identical content for all tasks".to_vec();
+
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let store = std::sync::Arc::clone(&store);
+                let data = data.clone();
+                tokio::spawn(async move { store.store(&data).await })
+            })
+            .collect();
+
+        let results: Vec<StoreResult> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|h| h.unwrap().unwrap())
+            .collect();
+
+        // All should have the same hash
+        let hash = &results[0].hash;
+        assert!(hash.starts_with("blake3:"));
+        assert!(results.iter().all(|r| &r.hash == hash));
+
+        // Exactly one should be non-deduplicated
+        let non_dedup_count = results.iter().filter(|r| !r.deduplicated).count();
+        assert_eq!(non_dedup_count, 1, "exactly one writer should be non-dedup");
+    }
+}

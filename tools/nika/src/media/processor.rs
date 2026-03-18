@@ -162,3 +162,127 @@ impl MediaProcessor {
         Ok(Some((media_ref, store_result)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mcp::types::ContentBlock;
+    use base64::Engine;
+
+    fn make_processor() -> MediaProcessor {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        // Leak the tempdir so it lives long enough
+        std::mem::forget(dir);
+        MediaProcessor::new(store)
+    }
+
+    fn make_processor_with_dir() -> (MediaProcessor, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        (MediaProcessor::new(store), dir)
+    }
+
+    /// Encode PNG header as base64 for tests
+    fn png_base64() -> String {
+        let png_data: Vec<u8> = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+            0x00, 0x00, 0x00, 0x0D, // IHDR chunk length
+            0x49, 0x48, 0x44, 0x52, // IHDR
+            0x00, 0x00, 0x00, 0x01, // width=1
+            0x00, 0x00, 0x00, 0x01, // height=1
+            0x08, 0x02, 0x00, 0x00, 0x00, // bit depth, color type, etc
+        ];
+        base64::engine::general_purpose::STANDARD.encode(&png_data)
+    }
+
+    #[tokio::test]
+    async fn process_text_block_returns_none() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::text("hello");
+        let result = processor.process(&block, "t1").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn process_image_block_returns_media_ref() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image(png_base64(), "image/png");
+        let result = processor.process(&block, "t1").await.unwrap();
+        assert!(result.is_some());
+        let (media_ref, _store_result) = result.unwrap();
+        assert!(media_ref.hash.starts_with("blake3:"));
+        assert_eq!(media_ref.mime_type, "image/png");
+        assert_eq!(media_ref.extension, "png");
+        assert!(media_ref.size_bytes > 0);
+        assert_eq!(media_ref.created_by, "t1");
+    }
+
+    #[tokio::test]
+    async fn process_invalid_base64_returns_error() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image("not!valid!base64!!!", "image/png");
+        let result = processor.process(&block, "t1").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-256");
+    }
+
+    #[tokio::test]
+    async fn process_empty_base64_returns_none() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image("", "image/png");
+        let result = processor.process(&block, "t1").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn process_oversized_base64_returns_error() {
+        let (processor, _dir) = make_processor_with_dir();
+        // Create a string > 100MB
+        let big = "A".repeat(MAX_BASE64_INPUT_BYTES + 1);
+        let block = ContentBlock::image(big, "image/png");
+        let result = processor.process(&block, "t1").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-257");
+    }
+
+    #[tokio::test]
+    async fn process_all_mixed_blocks() {
+        let (processor, _dir) = make_processor_with_dir();
+        let blocks = vec![
+            ContentBlock::text("some text"),
+            ContentBlock::image(png_base64(), "image/png"),
+            ContentBlock::text("more text"),
+        ];
+        let results = processor.process_all(&blocks, "t1").await;
+        // Should only have 1 result (the image), text blocks are skipped
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
+    }
+
+    #[tokio::test]
+    async fn resource_link_skipped() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::resource_link("file:///test", None, None);
+        let result = processor.process(&block, "t1").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn budget_enforcement() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = MediaBudget::with_max_per_run(50); // Tiny budget
+        let processor = MediaProcessor::with_budget(store, budget);
+
+        let block = ContentBlock::image(png_base64(), "image/png");
+        // First process should succeed (PNG header is ~25 bytes)
+        let r1 = processor.process(&block, "t1").await;
+        assert!(r1.is_ok());
+
+        // Second process should fail (budget exceeded)
+        let r2 = processor.process(&block, "t2").await;
+        assert!(r2.is_err());
+        assert_eq!(r2.unwrap_err().code(), "NIKA-259");
+    }
+}

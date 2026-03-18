@@ -163,3 +163,101 @@ fn sanitize_extension(ext: &str) -> String {
         .collect::<String>()
         .to_lowercase()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // PNG magic bytes: 89 50 4E 47
+    const PNG_HEADER: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+    // JPEG magic bytes: FF D8 FF
+    const JPEG_HEADER: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0];
+    // WAV: RIFF....WAVE
+    const WAV_HEADER: &[u8] = &[
+        0x52, 0x49, 0x46, 0x46, // RIFF
+        0x00, 0x00, 0x00, 0x00, // size
+        0x57, 0x41, 0x56, 0x45, // WAVE
+    ];
+
+    #[test]
+    fn detect_png_magic_bytes() {
+        let result = detect_mime(PNG_HEADER, None).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+        assert_eq!(result.extension, "png");
+        assert_eq!(result.source, DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn detect_jpeg_magic_bytes() {
+        let result = detect_mime(JPEG_HEADER, None).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+        assert_eq!(result.source, DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn detect_wav_magic_bytes() {
+        let result = detect_mime(WAV_HEADER, None).unwrap();
+        assert!(result.mime_type.contains("wav"), "expected wav, got {}", result.mime_type);
+        assert_eq!(result.source, DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn unknown_bytes_returns_error() {
+        let data = &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05];
+        let result = detect_mime(data, None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn unknown_bytes_with_octet_stream_returns_error() {
+        let data = &[0x00, 0x01, 0x02, 0x03];
+        let result = detect_mime(data, Some("application/octet-stream"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn unknown_bytes_with_server_hint_accepted() {
+        let data = &[0x00, 0x01, 0x02, 0x03];
+        let result = detect_mime(data, Some("image/png")).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+        assert_eq!(result.source, DetectionSource::ServerHint);
+    }
+
+    #[test]
+    fn magic_bytes_preferred_over_server_hint() {
+        // PNG bytes + wrong server hint
+        let result = detect_mime(PNG_HEADER, Some("audio/wav")).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+        assert_eq!(result.source, DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn uppercase_server_mime_normalized() {
+        let data = &[0x00, 0x01, 0x02, 0x03];
+        let result = detect_mime(data, Some("IMAGE/PNG")).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+    }
+
+    #[test]
+    fn svg_detection() {
+        let svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"></svg>";
+        let result = detect_mime(svg, None).unwrap();
+        assert_eq!(result.mime_type, "image/svg+xml");
+        assert_eq!(result.extension, "svg");
+    }
+
+    #[test]
+    fn mime_to_extension_common_types() {
+        assert_eq!(mime_to_extension("image/png"), "png");
+        // mime_guess may return "jfif" or "jpg" for image/jpeg
+        let jpeg_ext = mime_to_extension("image/jpeg");
+        assert!(jpeg_ext == "jpg" || jpeg_ext == "jfif", "got: {jpeg_ext}");
+        assert_eq!(mime_to_extension("application/pdf"), "pdf");
+    }
+
+    #[test]
+    fn sanitize_extension_rejects_traversal() {
+        assert_eq!(sanitize_extension("../etc/passwd"), "etcpasswd");
+        assert_eq!(sanitize_extension("png;rm -rf /"), "pngrm-rf");
+    }
+}
