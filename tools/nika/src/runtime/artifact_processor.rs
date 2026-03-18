@@ -254,6 +254,7 @@ async fn write_single_artifact(
         ArtifactFormat::Text => OutputFormat::Text,
         ArtifactFormat::Json => OutputFormat::Json,
         ArtifactFormat::Yaml => OutputFormat::Text, // YAML treated as text for validation
+        ArtifactFormat::Binary => OutputFormat::Text, // Binary bypasses format_output entirely
     };
 
     // Pre-resolve {{with.*}} and {{output}} binding references in the path
@@ -357,6 +358,14 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
                     Ok(output.to_string())
                 }
             }
+        }
+        ArtifactFormat::Binary => {
+            // Binary artifacts are handled separately via write_binary()
+            // This path should not be reached for binary format
+            Err(NikaError::ArtifactWriteError {
+                path: "".to_string(),
+                reason: "Binary format must be written via write_binary(), not format_output()".to_string(),
+            })
         }
     }
 }

@@ -141,6 +141,9 @@ pub enum ArtifactFormat {
 
     /// YAML format
     Yaml,
+
+    /// Binary (raw bytes from CAS store)
+    Binary,
 }
 
 impl std::fmt::Display for ArtifactFormat {
@@ -149,6 +152,7 @@ impl std::fmt::Display for ArtifactFormat {
             Self::Text => write!(f, "text"),
             Self::Json => write!(f, "json"),
             Self::Yaml => write!(f, "yaml"),
+            Self::Binary => write!(f, "binary"),
         }
     }
 }
@@ -160,6 +164,7 @@ impl ArtifactFormat {
             Self::Text => "txt",
             Self::Json => "json",
             Self::Yaml => "yaml",
+            Self::Binary => "bin",
         }
     }
 }
@@ -331,6 +336,44 @@ max_size: 52428800
         assert_eq!(ArtifactMode::Append.to_string(), "append");
         assert_eq!(ArtifactMode::Unique.to_string(), "unique");
         assert_eq!(ArtifactMode::Fail.to_string(), "fail");
+    }
+
+    #[test]
+    fn test_artifact_format_binary_serde() {
+        // Deserialize from YAML
+        let yaml = r#""binary""#;
+        let format: ArtifactFormat = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(format, ArtifactFormat::Binary);
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&format).unwrap();
+        assert_eq!(json, r#""binary""#);
+
+        // Deserialize from JSON
+        let back: ArtifactFormat = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ArtifactFormat::Binary);
+
+        // Extension
+        assert_eq!(ArtifactFormat::Binary.extension(), "bin");
+
+        // Display
+        assert_eq!(ArtifactFormat::Binary.to_string(), "binary");
+    }
+
+    #[test]
+    fn test_artifact_format_binary_in_artifact_spec() {
+        let yaml = r#"
+path: ./output/image.bin
+format: binary
+"#;
+        let spec: ArtifactSpec = serde_yaml::from_str(yaml).unwrap();
+        match spec {
+            ArtifactSpec::Single(output) => {
+                assert_eq!(output.format, Some(ArtifactFormat::Binary));
+                assert_eq!(output.path, "./output/image.bin");
+            }
+            _ => panic!("Expected Single artifact"),
+        }
     }
 
     #[test]
