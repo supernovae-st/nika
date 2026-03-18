@@ -681,23 +681,27 @@ impl ChatAgent {
         let result = client.call_tool(tool_name, params).await?;
 
         // Format result for display
-        // ContentBlock is a struct with content_type, text, data, mime_type, resource fields
         let format_block = |c: crate::mcp::types::ContentBlock| -> String {
-            if c.is_text() {
-                c.text.unwrap_or_default()
-            } else if c.is_image() {
-                let data_len = c.data.as_ref().map(|d| d.len()).unwrap_or(0);
-                format!("[Image: {} bytes]", data_len)
-            } else if c.is_resource() {
-                if let Some(res) = &c.resource {
-                    res.text
-                        .clone()
-                        .unwrap_or_else(|| format!("[Resource: {}]", res.uri))
-                } else {
-                    "[Resource]".to_string()
+            use crate::mcp::types::ContentBlock;
+            match c {
+                ContentBlock::Text { text } => text,
+                ContentBlock::Image { data, mime_type } => {
+                    format!("[Image: {} bytes, {}]", data.len(), mime_type)
                 }
-            } else {
-                format!("[Unknown content type: {}]", c.content_type)
+                ContentBlock::Audio { data, mime_type } => {
+                    format!("[Audio: {} bytes, {}]", data.len(), mime_type)
+                }
+                ContentBlock::Resource(res) => {
+                    res.text
+                        .unwrap_or_else(|| format!("[Resource: {}]", res.uri))
+                }
+                ContentBlock::ResourceLink { uri, name, .. } => {
+                    if let Some(n) = name {
+                        format!("[ResourceLink: {} ({})]", uri, n)
+                    } else {
+                        format!("[ResourceLink: {}]", uri)
+                    }
+                }
             }
         };
 

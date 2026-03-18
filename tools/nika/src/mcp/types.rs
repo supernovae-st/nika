@@ -349,90 +349,129 @@ impl ToolCallResult {
     pub fn text(&self) -> String {
         self.content
             .iter()
-            .filter_map(|block| block.text.as_deref())
+            .filter_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.as_str()),
+                _ => None,
+            })
             .collect::<Vec<_>>()
             .join("\n")
     }
 
     /// Extract the first text block, if any.
     pub fn first_text(&self) -> Option<&str> {
-        self.content.iter().find_map(|block| block.text.as_deref())
+        self.content.iter().find_map(|block| match block {
+            ContentBlock::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
     }
 }
 
 /// Content block in MCP tool results.
 ///
-/// Can be text, image (base64), or embedded resource.
+/// Represents one of five content types returned by MCP tools:
+/// text, image (base64), audio (base64), embedded resource, or resource link.
+///
+/// Uses internally tagged serde representation. All variants are struct-like
+/// (not newtype-wrapping-primitive) because `#[serde(tag = "type")]` requires
+/// the inner type to be a map/struct for deserialization.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct ContentBlock {
-    /// Content type: "text", "image", or "resource"
-    #[serde(rename = "type")]
-    pub content_type: String,
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ContentBlock {
+    /// Plain text content
+    Text {
+        text: String,
+    },
 
-    /// Text content (for type="text")
-    #[serde(default)]
-    pub text: Option<String>,
+    /// Base64-encoded image with MIME type
+    Image {
+        data: String,
+        #[serde(rename = "mimeType")]
+        mime_type: String,
+    },
 
-    /// Base64-encoded data (for type="image")
-    #[serde(default)]
-    pub data: Option<String>,
+    /// Base64-encoded audio with MIME type
+    Audio {
+        data: String,
+        #[serde(rename = "mimeType")]
+        mime_type: String,
+    },
 
-    /// MIME type (for type="image", e.g., "image/png")
-    #[serde(default)]
-    pub mime_type: Option<String>,
+    /// Embedded resource content (text or blob)
+    Resource(ResourceContent),
 
-    /// Embedded resource (for type="resource")
-    #[serde(default)]
-    pub resource: Option<ResourceContent>,
+    /// Resource link (URI reference without inline data)
+    ResourceLink {
+        uri: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", rename = "mimeType")]
+        mime_type: Option<String>,
+    },
 }
 
 impl ContentBlock {
     /// Create a text content block.
     pub fn text(text: impl Into<String>) -> Self {
-        Self {
-            content_type: "text".to_string(),
-            text: Some(text.into()),
-            data: None,
-            mime_type: None,
-            resource: None,
-        }
+        Self::Text { text: text.into() }
     }
 
     /// Create an image content block.
     pub fn image(data: impl Into<String>, mime_type: impl Into<String>) -> Self {
-        Self {
-            content_type: "image".to_string(),
-            text: None,
-            data: Some(data.into()),
-            mime_type: Some(mime_type.into()),
-            resource: None,
+        Self::Image {
+            data: data.into(),
+            mime_type: mime_type.into(),
+        }
+    }
+
+    /// Create an audio content block.
+    pub fn audio(data: impl Into<String>, mime_type: impl Into<String>) -> Self {
+        Self::Audio {
+            data: data.into(),
+            mime_type: mime_type.into(),
         }
     }
 
     /// Create a resource content block.
     pub fn resource(resource: ResourceContent) -> Self {
-        Self {
-            content_type: "resource".to_string(),
-            text: None,
-            data: None,
-            mime_type: None,
-            resource: Some(resource),
+        Self::Resource(resource)
+    }
+
+    /// Create a resource link content block.
+    pub fn resource_link(
+        uri: impl Into<String>,
+        name: Option<String>,
+        mime_type: Option<String>,
+    ) -> Self {
+        Self::ResourceLink {
+            uri: uri.into(),
+            name,
+            mime_type,
         }
     }
 
     /// Check if this is a text block.
     pub fn is_text(&self) -> bool {
-        self.content_type == "text"
+        matches!(self, Self::Text { .. })
     }
 
     /// Check if this is an image block.
     pub fn is_image(&self) -> bool {
-        self.content_type == "image"
+        matches!(self, Self::Image { .. })
+    }
+
+    /// Check if this is an audio block.
+    pub fn is_audio(&self) -> bool {
+        matches!(self, Self::Audio { .. })
     }
 
     /// Check if this is a resource block.
     pub fn is_resource(&self) -> bool {
-        self.content_type == "resource"
+        matches!(self, Self::Resource(_))
+    }
+
+    /// Check if this is a resource link block.
+    pub fn is_resource_link(&self) -> bool {
+        matches!(self, Self::ResourceLink { .. })
     }
 }
 
@@ -477,6 +516,12 @@ impl ResourceContent {
     /// Set the text content.
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
         self.text = Some(text.into());
+        self
+    }
+
+    /// Set the blob content (base64-encoded binary).
+    pub fn with_blob(mut self, blob: impl Into<String>) -> Self {
+        self.blob = Some(blob.into());
         self
     }
 }
@@ -703,7 +748,7 @@ mod tests {
         assert!(block.is_text());
         assert!(!block.is_image());
         assert!(!block.is_resource());
-        assert_eq!(block.text, Some("Hello".to_string()));
+        assert!(matches!(block, ContentBlock::Text { ref text } if text == "Hello"));
     }
 
     #[test]
@@ -712,8 +757,11 @@ mod tests {
 
         assert!(block.is_image());
         assert!(!block.is_text());
-        assert_eq!(block.data, Some("SGVsbG8=".to_string()));
-        assert_eq!(block.mime_type, Some("image/png".to_string()));
+        assert!(matches!(
+            block,
+            ContentBlock::Image { ref data, ref mime_type }
+            if data == "SGVsbG8=" && mime_type == "image/png"
+        ));
     }
 
     #[test]
@@ -723,8 +771,7 @@ mod tests {
 
         assert!(block.is_resource());
         assert!(!block.is_text());
-        assert!(block.resource.is_some());
-        assert_eq!(block.resource.unwrap().uri, "file:///tmp/test.txt");
+        assert!(matches!(block, ContentBlock::Resource(ref rc) if rc.uri == "file:///tmp/test.txt"));
     }
 
     #[test]
@@ -736,8 +783,8 @@ mod tests {
 
         let block: ContentBlock = serde_json::from_str(json).unwrap();
 
-        assert_eq!(block.content_type, "text");
-        assert_eq!(block.text, Some("Hello from MCP".to_string()));
+        assert!(block.is_text());
+        assert!(matches!(block, ContentBlock::Text { ref text } if text == "Hello from MCP"));
     }
 
     // ═══════════════════════════════════════════════════════════════
