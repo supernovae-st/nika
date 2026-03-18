@@ -107,9 +107,8 @@ provider: claude
 model: claude-sonnet-4-6
 
 mcp:
-  servers:
-    novanet:
-      command: "cargo run -p novanet-mcp"
+  novanet:
+    command: "cargo run -p novanet-mcp"
 
 context:
   files:
@@ -126,7 +125,7 @@ tasks:
 
   - id: report
     infer: "Generate a report of {{with.analyze}}"
-    flow: analyze
+    depends_on: [analyze]
 ```
 
 ---
@@ -373,11 +372,11 @@ tasks:
     exec: "npm install"
 
   - id: build
-    flow: setup
+    depends_on: [setup]
     exec: "npm run build"
 
   - id: test
-    flow: [setup, build]
+    depends_on: [setup, build]
     exec: "npm test"
 ```
 
@@ -442,17 +441,16 @@ Configure MCP servers for tool invocation:
 
 ```yaml
 mcp:
-  servers:
-    novanet:
-      command: "cargo run -p novanet-mcp"
-      args: ["--verbose"]
-      env:
-        NEO4J_URI: "bolt://localhost:7687"
-      cwd: "../novanet"
+  novanet:
+    command: "cargo run -p novanet-mcp"
+    args: ["--verbose"]
+    env:
+      NEO4J_URI: "bolt://localhost:7687"
+    cwd: "../novanet"
 
-    external:
-      url: "http://localhost:8080"
-      transport: sse
+  external:
+    url: "http://localhost:8080"
+    transport: sse
 ```
 
 ### Server Configuration
