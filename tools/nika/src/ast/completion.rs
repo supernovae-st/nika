@@ -372,6 +372,10 @@ pub struct PatternConfig {
     /// How to match the pattern
     #[serde(default, rename = "type")]
     pub pattern_type: PatternType,
+
+    /// Cached compiled regex (avoids recompiling every agent turn)
+    #[serde(skip)]
+    compiled_regex: std::sync::OnceLock<Option<Regex>>,
 }
 
 impl PatternConfig {
@@ -380,9 +384,12 @@ impl PatternConfig {
         match self.pattern_type {
             PatternType::Exact => output == self.value,
             PatternType::Contains => output.contains(&self.value),
-            PatternType::Regex => Regex::new(&self.value)
-                .map(|re| re.is_match(output))
-                .unwrap_or(false),
+            PatternType::Regex => {
+                let regex = self
+                    .compiled_regex
+                    .get_or_init(|| Regex::new(&self.value).ok());
+                regex.as_ref().map(|re| re.is_match(output)).unwrap_or(false)
+            }
         }
     }
 }
