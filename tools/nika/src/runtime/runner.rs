@@ -1883,6 +1883,28 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // Check for task failures — report for CI visibility
+        let events = self.event_log.events();
+        let failed_tasks: Vec<&str> = events
+            .iter()
+            .filter_map(|e| {
+                if let EventKind::TaskFailed { task_id, .. } = &e.kind {
+                    Some(task_id.as_ref())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !failed_tasks.is_empty() && !self.quiet {
+            println!(
+                "{} {} task(s) had errors: {}",
+                "⚠".yellow(),
+                failed_tasks.len(),
+                failed_tasks.join(", ").dimmed()
+            );
+        }
+
         Ok(output)
     }
 }
