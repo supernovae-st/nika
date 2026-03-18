@@ -34,7 +34,7 @@ pub struct MediaRef {
 /// Broad media type classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)] // Used in tests + PR2
+#[allow(dead_code)] // Used in tests
 pub enum MediaType {
     Image,
     Audio,
@@ -44,7 +44,7 @@ pub enum MediaType {
 
 impl MediaType {
     /// Classify a MIME type string into a MediaType.
-    #[allow(dead_code)] // Used in tests + PR2
+    #[allow(dead_code)] // Used in tests
     pub fn from_mime(mime: &str) -> Self {
         if mime.starts_with("image/") {
             Self::Image
