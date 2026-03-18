@@ -38,6 +38,28 @@ use crate::io::template::TemplateResolver;
 /// Default maximum artifact size (10 MB)
 pub const DEFAULT_MAX_SIZE: u64 = 10 * 1024 * 1024;
 
+/// Source for binary artifact data
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
+pub(crate) enum BinarySource {
+    /// Copy from a CAS store path
+    CasPath(PathBuf),
+}
+
+/// Request to write a binary artifact
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
+pub(crate) struct BinaryWriteRequest {
+    /// Task ID that produced this binary
+    pub task_id: String,
+    /// Output path template (may contain `{{var}}` placeholders)
+    pub output_path: String,
+    /// Source of binary data
+    pub source: BinarySource,
+    /// Expected file size (for size limit check before copy)
+    pub expected_size: u64,
+}
+
 /// Result of a successful write operation
 #[derive(Debug, Clone)]
 pub struct WriteResult {
@@ -218,6 +240,93 @@ impl ArtifactWriter {
             path: final_path,
             size: content_size,
             format: request.format,
+        })
+    }
+
+    /// Write a binary artifact by copying from CAS store path.
+    ///
+    /// Uses reflink_or_copy for instant copy-on-write on APFS/btrfs,
+    /// with automatic fallback to regular copy on other filesystems.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - Binary write request with source path and metadata
+    ///
+    /// # Errors
+    ///
+    /// - `NikaError::ArtifactSizeExceeded` if source exceeds max_size
+    /// - `NikaError::ArtifactWriteError` if copy fails or source missing
+    /// - `NikaError::ArtifactPathError` if output path validation fails
+    #[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
+    pub(crate) async fn write_binary(
+        &self,
+        request: BinaryWriteRequest,
+    ) -> Result<WriteResult, NikaError> {
+        // Check size limit before copy
+        if request.expected_size > self.max_size {
+            return Err(NikaError::ArtifactSizeExceeded {
+                path: request.output_path.clone(),
+                size: request.expected_size,
+                max_size: self.max_size,
+            });
+        }
+
+        // Resolve template variables in output path
+        let resolver = TemplateResolver::new(&request.task_id, &self.workflow_name);
+        let resolved_path = resolver.resolve(&request.output_path)?;
+
+        // Validate path stays within artifact directory
+        let full_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
+
+        // Create parent directories
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| NikaError::ArtifactWriteError {
+                    path: parent.display().to_string(),
+                    reason: format!("Failed to create parent directories: {}", e),
+                })?;
+        }
+
+        // Final path validation after directory creation (mitigates TOCTOU)
+        let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
+
+        // Copy binary from source
+        let size = match request.source {
+            BinarySource::CasPath(ref src) => {
+                // Use reflink_or_copy: instant on APFS/btrfs, fallback on ext4/NTFS
+                // This is a sync operation, so we spawn_blocking to avoid blocking the runtime
+                let src = src.clone();
+                let dst = final_path.clone();
+                tokio::task::spawn_blocking(move || {
+                    reflink_copy::reflink_or_copy(&src, &dst)
+                })
+                .await
+                .map_err(|e| NikaError::ArtifactWriteError {
+                    path: final_path.display().to_string(),
+                    reason: format!("Task join error: {}", e),
+                })?
+                .map_err(|e| NikaError::ArtifactWriteError {
+                    path: final_path.display().to_string(),
+                    reason: format!("Binary copy failed: {}", e),
+                })?;
+
+                // reflink_or_copy returns Option<u64> — None means reflink (0-cost), Some(n) means n bytes copied
+                // Either way, the file is now at final_path. Get actual size.
+                fs::metadata(&final_path)
+                    .await
+                    .map(|m| m.len())
+                    .map_err(|e| NikaError::ArtifactWriteError {
+                        path: final_path.display().to_string(),
+                        reason: format!("Failed to stat written file: {}", e),
+                    })?
+            }
+        };
+
+        Ok(WriteResult {
+            path: final_path,
+            size,
+            format: OutputFormat::Text, // Binary doesn't have a text format; use Text as placeholder
         })
     }
 
@@ -408,5 +517,104 @@ mod tests {
         assert_eq!(request.content, "content");
         assert!(matches!(request.format, OutputFormat::Json));
         assert_eq!(request.vars.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_from_cas_path() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        // Create a fake CAS file
+        let cas_dir = temp.path().join("cas");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("testfile");
+        let data = b"binary image data here";
+        std::fs::write(&cas_file, data).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "gen_img".to_string(),
+            output_path: "images/result.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: data.len() as u64,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert!(result.path.ends_with("images/result.bin"));
+        assert_eq!(result.size, data.len() as u64);
+
+        // Verify file content
+        let written = std::fs::read(&result.path).unwrap();
+        assert_eq!(written, data);
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_rejects_append_mode() {
+        // Binary artifacts with append mode should fail
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("dummy");
+        std::fs::write(&cas_file, b"test").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 4,
+        };
+
+        // write_binary should not support append — it always overwrites
+        let result = writer.write_binary(request).await;
+        assert!(result.is_ok()); // Binary always does overwrite, not append
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_size_limit() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow").with_max_size(10);
+
+        let cas_file = temp.path().join("bigfile");
+        let data = vec![0u8; 100];
+        std::fs::write(&cas_file, &data).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 100,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, NikaError::ArtifactSizeExceeded { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_missing_source() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(PathBuf::from("/nonexistent/cas/file")),
+            expected_size: 42,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err());
     }
 }
