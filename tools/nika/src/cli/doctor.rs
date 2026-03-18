@@ -72,11 +72,20 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
     // 3. Check API keys
     checks.extend(check_api_keys());
 
-    // 4. Check trace directory
-    checks.push(check_trace_directory());
+    // 4. Check trace directory + accumulation
+    checks.extend(check_trace_directory());
 
-    // 5. Check Rust version
+    // 5. Check Nika version
+    checks.push(DiagnosticCheck::pass(
+        "Version",
+        format!("nika {}", env!("CARGO_PKG_VERSION")),
+    ));
+
+    // 6. Check Rust version
     checks.push(check_rust_version());
+
+    // 7. Check workflow files in project
+    checks.push(check_workflow_files());
 
     // 6. Full mode: Check MCP connectivity (slow)
     if full {
@@ -169,6 +178,8 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
         ("MISTRAL_API_KEY", "Mistral"),
         ("GROQ_API_KEY", "Groq"),
         ("DEEPSEEK_API_KEY", "DeepSeek"),
+        ("GEMINI_API_KEY", "Gemini"),
+        ("XAI_API_KEY", "xAI/Grok"),
     ];
 
     let mut any_found = false;
@@ -193,15 +204,18 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
     checks
 }
 
-fn check_trace_directory() -> DiagnosticCheck {
+fn check_trace_directory() -> Vec<DiagnosticCheck> {
+    let mut checks = vec![];
+
     let nika_dir = match find_nika_dir() {
         Ok(d) => d,
         Err(_) => {
-            return DiagnosticCheck::warn(
+            checks.push(DiagnosticCheck::warn(
                 "Traces",
                 "Cannot locate .nika directory",
                 "Run 'nika init' first",
-            )
+            ));
+            return checks;
         }
     };
 
@@ -209,11 +223,12 @@ fn check_trace_directory() -> DiagnosticCheck {
 
     // Check if directory exists
     if !trace_dir.exists() {
-        return DiagnosticCheck::warn(
+        checks.push(DiagnosticCheck::warn(
             "Traces",
             "Trace directory doesn't exist",
             "It will be created on first workflow run",
-        );
+        ));
+        return checks;
     }
 
     // Check if writable by attempting to create a temp file
@@ -221,16 +236,102 @@ fn check_trace_directory() -> DiagnosticCheck {
     match fs::write(&test_file, b"test") {
         Ok(_) => {
             let _ = fs::remove_file(&test_file);
-            DiagnosticCheck::pass(
+            checks.push(DiagnosticCheck::pass(
                 "Traces",
                 format!("Trace directory writable ({})", trace_dir.display()),
-            )
+            ));
         }
-        Err(e) => DiagnosticCheck::fail(
-            "Traces",
-            format!("Trace directory not writable: {}", e),
-            "Check directory permissions",
-        ),
+        Err(e) => {
+            checks.push(DiagnosticCheck::fail(
+                "Traces",
+                format!("Trace directory not writable: {}", e),
+                "Check directory permissions",
+            ));
+            return checks;
+        }
+    }
+
+    // Count trace files and warn on accumulation
+    if let Ok(entries) = fs::read_dir(&trace_dir) {
+        let count = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "ndjson")
+                    .unwrap_or(false)
+            })
+            .count();
+
+        if count > 10_000 {
+            checks.push(DiagnosticCheck::warn(
+                "Traces",
+                format!(
+                    "{} trace files accumulated ({:.1} MB estimated)",
+                    count,
+                    count as f64 * 0.005 // ~5KB average per trace
+                ),
+                format!("Run 'nika trace clean --keep 100' to prune old traces"),
+            ));
+        } else if count > 1_000 {
+            checks.push(DiagnosticCheck::warn(
+                "Traces",
+                format!("{} trace files", count),
+                "Consider running 'nika trace clean --keep 100'",
+            ));
+        } else {
+            checks.push(DiagnosticCheck::pass(
+                "Traces",
+                format!("{} trace files", count),
+            ));
+        }
+    }
+
+    checks
+}
+
+fn check_workflow_files() -> DiagnosticCheck {
+    // Count .nika.yaml files in current directory (shallow)
+    let count = fs::read_dir(".")
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter(|e| {
+                    e.file_name()
+                        .to_str()
+                        .map(|s| s.ends_with(".nika.yaml"))
+                        .unwrap_or(false)
+                })
+                .count()
+        })
+        .unwrap_or(0);
+
+    // Also check workflows/ and examples/ subdirs
+    let sub_count: usize = ["workflows", "examples", ".nika/workflows"]
+        .iter()
+        .filter_map(|dir| fs::read_dir(dir).ok())
+        .flat_map(|entries| entries.filter_map(|e| e.ok()))
+        .filter(|e| {
+            e.file_name()
+                .to_str()
+                .map(|s| s.ends_with(".nika.yaml"))
+                .unwrap_or(false)
+        })
+        .count();
+
+    let total = count + sub_count;
+
+    if total == 0 {
+        DiagnosticCheck::warn(
+            "Workflows",
+            "No .nika.yaml workflow files found",
+            "Run 'nika init' or 'nika new my-workflow --template simple-infer'",
+        )
+    } else {
+        DiagnosticCheck::pass(
+            "Workflows",
+            format!("{} workflow files found", total),
+        )
     }
 }
 
