@@ -318,10 +318,8 @@ impl RunContext {
                 return Some(media_json);
             }
             let media_remaining = &remaining[5..]; // skip "media"
-            if media_remaining.starts_with('.') {
-                return jsonpath::resolve(&media_json, &media_remaining[1..])
-                    .ok()
-                    .flatten();
+            if let Some(dot_rest) = media_remaining.strip_prefix('.') {
+                return jsonpath::resolve(&media_json, dot_rest).ok().flatten();
             }
             if media_remaining.starts_with('[') {
                 return jsonpath::resolve(&media_json, media_remaining)

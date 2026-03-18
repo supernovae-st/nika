@@ -1464,4 +1464,1166 @@ mod tests {
         let city = ctx.resolve_path("weather.city");
         assert_eq!(city, Some(serde_json::json!("Paris")));
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CAS STORE STRESS & INTEGRITY TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    // --- 1. Large file integrity ---
+
+    #[tokio::test]
+    async fn e2e_cas_large_file_above_threshold_verified_and_roundtrip() {
+        // 2MB file (above VERIFY_THRESHOLD=1MB) must have verified=true
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Build 2MB data with a recognizable pattern (not all zeros)
+        let mut data = Vec::with_capacity(2 * 1024 * 1024);
+        for i in 0u32..(2 * 1024 * 1024 / 4) {
+            data.extend_from_slice(&i.to_le_bytes());
+        }
+        assert_eq!(data.len(), 2 * 1024 * 1024);
+
+        let result = store.store(&data).await.unwrap();
+        assert!(result.verified, "2MB file must trigger read-back verification");
+        assert!(!result.deduplicated);
+        assert_eq!(result.size, 2 * 1024 * 1024);
+
+        // Read back and verify byte-for-byte
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert_eq!(read_back.len(), data.len());
+        assert_eq!(read_back, data, "byte-for-byte mismatch on 2MB roundtrip");
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_large_file_dedup_on_second_store() {
+        // Store 2MB file twice: second store must be deduplicated
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = vec![0xFE_u8; 2 * 1024 * 1024];
+        let r1 = store.store(&data).await.unwrap();
+        assert!(!r1.deduplicated);
+        assert!(r1.verified);
+
+        let r2 = store.store(&data).await.unwrap();
+        assert!(r2.deduplicated, "second store of identical 2MB file must dedup");
+        assert_eq!(r1.hash, r2.hash);
+        assert_eq!(r1.path, r2.path);
+    }
+
+    // --- 2. Binary data integrity with ALL byte values ---
+
+    #[tokio::test]
+    async fn e2e_cas_all_byte_values_no_corruption() {
+        // Store data containing every possible byte value 0x00..0xFF
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let mut data: Vec<u8> = (0x00..=0xFF).collect();
+        // Repeat 4 times so we also test multi-occurrence
+        let single_round = data.clone();
+        for _ in 0..3 {
+            data.extend_from_slice(&single_round);
+        }
+        assert_eq!(data.len(), 256 * 4);
+
+        let result = store.store(&data).await.unwrap();
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert_eq!(read_back, data, "all-bytes roundtrip must not corrupt any value");
+
+        // Every byte value must be present in the read-back
+        for byte in 0x00..=0xFF_u8 {
+            assert!(
+                read_back.contains(&byte),
+                "byte 0x{byte:02X} missing after roundtrip"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_blake3_hash_is_deterministic() {
+        // Same data must always produce the same hash
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data: Vec<u8> = (0..=255).collect();
+
+        let r1 = store.store(&data).await.unwrap();
+        // r2 will be deduped, but hash must match
+        let r2 = store.store(&data).await.unwrap();
+        assert_eq!(r1.hash, r2.hash, "blake3 hash must be deterministic");
+
+        // Also verify against direct blake3 computation
+        let expected_raw = blake3::hash(&data).to_hex().to_string();
+        let expected = format!("blake3:{expected_raw}");
+        assert_eq!(r1.hash, expected, "hash must match direct blake3 computation");
+    }
+
+    // --- 3. CAS cleanup edge cases ---
+
+    #[tokio::test]
+    async fn e2e_cas_clean_older_than_zero_cleans_everything() {
+        // Duration::ZERO means "older than 0s" — every file qualifies
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"alpha").await.unwrap();
+        store.store(b"beta").await.unwrap();
+        store.store(b"gamma").await.unwrap();
+        assert_eq!(store.list().len(), 3);
+
+        // Files are always at least a few nanoseconds old
+        // Small sleep to ensure mtime is strictly in the past
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        let clean = store.clean_older_than(std::time::Duration::ZERO);
+        assert_eq!(clean.removed, 3, "Duration::ZERO should remove all files");
+        assert_eq!(store.list().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_clean_older_than_long_duration_cleans_nothing() {
+        // Duration of 1 hour — recently-created files should survive
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"fresh-1").await.unwrap();
+        store.store(b"fresh-2").await.unwrap();
+
+        let clean = store.clean_older_than(std::time::Duration::from_secs(3600));
+        assert_eq!(clean.removed, 0, "no files should be older than 1 hour");
+        assert_eq!(store.list().len(), 2, "both files should survive");
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_clean_all_on_empty_store() {
+        // clean_all on empty store should return removed=0, bytes_freed=0
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let clean = store.clean_all();
+        assert_eq!(clean.removed, 0);
+        assert_eq!(clean.bytes_freed, 0);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_clean_all_twice_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"to-be-removed").await.unwrap();
+        let c1 = store.clean_all();
+        assert_eq!(c1.removed, 1);
+
+        let c2 = store.clean_all();
+        assert_eq!(c2.removed, 0, "second clean_all should find nothing");
+        assert_eq!(c2.bytes_freed, 0);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_clean_older_than_zero_on_empty_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let clean = store.clean_older_than(std::time::Duration::ZERO);
+        assert_eq!(clean.removed, 0);
+        assert_eq!(clean.bytes_freed, 0);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_clean_reports_correct_bytes_freed() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data_a = vec![0xAA_u8; 1000];
+        let data_b = vec![0xBB_u8; 2000];
+        store.store(&data_a).await.unwrap();
+        store.store(&data_b).await.unwrap();
+
+        let clean = store.clean_all();
+        assert_eq!(clean.removed, 2);
+        assert_eq!(clean.bytes_freed, 3000, "bytes_freed must equal sum of file sizes");
+    }
+
+    // --- 4. Hash format validation ---
+
+    #[tokio::test]
+    async fn e2e_cas_hash_format_64_hex_after_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"hash format test").await.unwrap();
+
+        // Must start with "blake3:"
+        assert!(result.hash.starts_with("blake3:"), "missing blake3: prefix");
+
+        let raw = result.hash.strip_prefix("blake3:").unwrap();
+        // Must be exactly 64 hex characters
+        assert_eq!(raw.len(), 64, "raw hash must be 64 hex chars, got {}", raw.len());
+        assert!(
+            raw.chars().all(|c| c.is_ascii_hexdigit()),
+            "hash contains non-hex characters: {raw}"
+        );
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_hash_deterministic_multiple_runs() {
+        // Verify determinism across separate CasStore instances
+        let dir1 = tempfile::tempdir().unwrap();
+        let dir2 = tempfile::tempdir().unwrap();
+        let store1 = CasStore::new(dir1.path());
+        let store2 = CasStore::new(dir2.path());
+
+        let data = b"determinism across stores";
+        let r1 = store1.store(data).await.unwrap();
+        let r2 = store2.store(data).await.unwrap();
+
+        assert_eq!(r1.hash, r2.hash, "same data must produce same hash in different stores");
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_different_data_different_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let r1 = store.store(b"data-alpha").await.unwrap();
+        let r2 = store.store(b"data-beta").await.unwrap();
+        let r3 = store.store(b"data-gamma").await.unwrap();
+
+        // All hashes must be distinct
+        assert_ne!(r1.hash, r2.hash, "alpha vs beta must differ");
+        assert_ne!(r1.hash, r3.hash, "alpha vs gamma must differ");
+        assert_ne!(r2.hash, r3.hash, "beta vs gamma must differ");
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_single_bit_difference_changes_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data_a = vec![0x00_u8; 64];
+        let mut data_b = data_a.clone();
+        data_b[31] = 0x01; // flip one bit in the middle
+
+        let ra = store.store(&data_a).await.unwrap();
+        let rb = store.store(&data_b).await.unwrap();
+        assert_ne!(ra.hash, rb.hash, "single bit flip must change hash");
+    }
+
+    // --- 5. Path safety ---
+
+    #[tokio::test]
+    async fn e2e_cas_path_never_escapes_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Store various data to generate different hashes/shards
+        for i in 0..20_u32 {
+            let data = i.to_le_bytes();
+            let result = store.store(&data).await.unwrap();
+
+            // The final path must always be under the root directory
+            assert!(
+                result.path.starts_with(dir.path()),
+                "CAS path escaped root: {:?} not under {:?}",
+                result.path,
+                dir.path()
+            );
+
+            // Must not contain ".." anywhere
+            let path_str = result.path.to_string_lossy();
+            assert!(
+                !path_str.contains(".."),
+                "CAS path contains directory traversal: {path_str}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_shard_directory_is_2_hex_chars() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        for i in 0..20_u32 {
+            let result = store.store(&i.to_le_bytes()).await.unwrap();
+
+            // Path structure: {root}/{shard}/{filename}
+            let relative = result.path.strip_prefix(dir.path()).unwrap();
+            let components: Vec<_> = relative.components().collect();
+            assert_eq!(
+                components.len(), 2,
+                "CAS path must have exactly 2 components (shard/file), got {}: {:?}",
+                components.len(), relative
+            );
+
+            let shard = components[0].as_os_str().to_string_lossy();
+            assert_eq!(shard.len(), 2, "shard dir must be 2 chars, got '{shard}'");
+            assert!(
+                shard.chars().all(|c| c.is_ascii_hexdigit()),
+                "shard dir must be hex, got '{shard}'"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_file_has_no_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Test with data that could trick an extension parser
+        let png = real_png_bytes();
+        let jpeg = real_jpeg_bytes();
+        let test_data: Vec<&[u8]> = vec![
+            b"hello.png",       // text that looks like a filename
+            b"data.tar.gz",     // double extension
+            &png,               // actual PNG binary
+            &jpeg,              // actual JPEG binary
+        ];
+
+        for data in &test_data {
+            let result = store.store(data).await.unwrap();
+            assert!(
+                result.path.extension().is_none(),
+                "CAS file must have no extension, got: {:?}",
+                result.path
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_shard_and_filename_reconstruct_hash() {
+        // Verify shard + filename = raw hash
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"reconstruct test").await.unwrap();
+        let raw_hash = result.hash.strip_prefix("blake3:").unwrap();
+
+        let relative = result.path.strip_prefix(dir.path()).unwrap();
+        let components: Vec<_> = relative.components().collect();
+        let shard = components[0].as_os_str().to_string_lossy();
+        let filename = components[1].as_os_str().to_string_lossy();
+
+        let reconstructed = format!("{shard}{filename}");
+        assert_eq!(
+            reconstructed, raw_hash,
+            "shard + filename must reconstruct the raw hash"
+        );
+    }
+
+    // --- 6. Concurrent read + write ---
+
+    #[tokio::test]
+    async fn e2e_cas_concurrent_read_write_no_partial_reads() {
+        // Pre-store data so it exists, then concurrently write (dedup) + read
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CasStore::new(dir.path()));
+
+        // Build recognizable 512KB pattern
+        let mut data = Vec::with_capacity(512 * 1024);
+        for i in 0u32..(512 * 1024 / 4) {
+            data.extend_from_slice(&i.to_le_bytes());
+        }
+
+        // Initial store
+        let initial = store.store(&data).await.unwrap();
+        let hash = initial.hash.clone();
+
+        // Spawn 5 writers (dedup) and 5 readers concurrently
+        let mut handles = Vec::new();
+
+        for _ in 0..5 {
+            let s = Arc::clone(&store);
+            let d = data.clone();
+            handles.push(tokio::spawn(async move {
+                s.store(&d).await.unwrap();
+            }));
+        }
+
+        for _ in 0..5 {
+            let s = Arc::clone(&store);
+            let h = hash.clone();
+            let expected_len = data.len();
+            handles.push(tokio::spawn(async move {
+                let read_back = s.read(&h).await.unwrap();
+                assert_eq!(
+                    read_back.len(), expected_len,
+                    "partial read detected: got {} bytes, expected {}",
+                    read_back.len(), expected_len
+                );
+            }));
+        }
+
+        futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .for_each(|h| h.unwrap());
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_concurrent_store_different_data_no_collision() {
+        // Concurrently store 20 different files and verify all are distinct
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CasStore::new(dir.path()));
+
+        let handles: Vec<_> = (0..20_u32)
+            .map(|i| {
+                let s = Arc::clone(&store);
+                tokio::spawn(async move {
+                    let data = format!("unique-content-{i}");
+                    let result = s.store(data.as_bytes()).await.unwrap();
+                    (i, result.hash)
+                })
+            })
+            .collect();
+
+        let results: Vec<(u32, String)> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|h| h.unwrap())
+            .collect();
+
+        // All hashes must be unique
+        let mut hashes: Vec<&str> = results.iter().map(|(_, h)| h.as_str()).collect();
+        hashes.sort();
+        hashes.dedup();
+        assert_eq!(
+            hashes.len(), 20,
+            "20 different inputs must produce 20 distinct hashes"
+        );
+
+        // Verify all files readable
+        assert_eq!(store.list().len(), 20);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_concurrent_read_after_store_all_correct() {
+        // Store N files, then concurrently read all back and verify content
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CasStore::new(dir.path()));
+
+        let items: Vec<(Vec<u8>, String)> = {
+            let mut v = Vec::new();
+            for i in 0..10_u32 {
+                let data = format!("content-for-verification-{i}").into_bytes();
+                let result = store.store(&data).await.unwrap();
+                v.push((data, result.hash));
+            }
+            v
+        };
+
+        let handles: Vec<_> = items
+            .into_iter()
+            .map(|(expected_data, hash)| {
+                let s = Arc::clone(&store);
+                tokio::spawn(async move {
+                    let read_back = s.read(&hash).await.unwrap();
+                    assert_eq!(read_back, expected_data, "content mismatch for hash {hash}");
+                })
+            })
+            .collect();
+
+        futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .for_each(|h| h.unwrap());
+    }
+
+    // --- Extra edge cases ---
+
+    #[tokio::test]
+    async fn e2e_cas_empty_data_store_and_read() {
+        // Empty data is a valid CAS entry (0 bytes)
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"").await.unwrap();
+        assert_eq!(result.size, 0);
+        assert!(!result.verified, "empty file is under threshold");
+
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert!(read_back.is_empty());
+
+        // Dedup on second store
+        let r2 = store.store(b"").await.unwrap();
+        assert!(r2.deduplicated);
+        assert_eq!(result.hash, r2.hash);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_single_byte_store_and_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(&[0x42]).await.unwrap();
+        assert_eq!(result.size, 1);
+
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert_eq!(read_back, vec![0x42]);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_list_after_clean_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        for i in 0..5_u32 {
+            store.store(&i.to_le_bytes()).await.unwrap();
+        }
+        assert_eq!(store.list().len(), 5);
+
+        store.clean_all();
+        assert_eq!(store.list().len(), 0);
+
+        // Re-store one file: list should show exactly 1
+        store.store(b"post-clean").await.unwrap();
+        assert_eq!(store.list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_list_entries_have_correct_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"list field check";
+        let store_result = store.store(data).await.unwrap();
+
+        let entries = store.list();
+        assert_eq!(entries.len(), 1);
+
+        let entry = &entries[0];
+        assert_eq!(entry.hash, store_result.hash);
+        assert_eq!(entry.path, store_result.path);
+        assert_eq!(entry.size, data.len() as u64);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_exists_returns_false_after_clean() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"will-be-cleaned").await.unwrap();
+        assert!(store.exists(&result.hash));
+
+        store.clean_all();
+        assert!(
+            !store.exists(&result.hash),
+            "exists must return false after clean_all"
+        );
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_read_after_clean_returns_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"ephemeral").await.unwrap();
+        store.clean_all();
+
+        let read = store.read(&result.hash).await;
+        assert!(read.is_err());
+        assert_eq!(read.unwrap_err().code(), "NIKA-253");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE F: Template binding pipeline — edge cases & isolation
+    // ═══════════════════════════════════════════════════════════════
+
+    // -----------------------------------------------------------------
+    // F1: resolve_path edge cases not yet tested
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn e2e_resolve_path_media_whole_object_no_field() {
+        // "task.media[0]" should return the entire MediaRef JSON object
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0]");
+        assert!(
+            result.is_some(),
+            "media[0] without field should return the full MediaRef"
+        );
+        let obj = result.unwrap();
+        assert!(
+            obj.is_object(),
+            "media[0] should be a JSON object, got: {}",
+            obj
+        );
+        // Verify it contains all 6 expected fields
+        let map = obj.as_object().unwrap();
+        assert_eq!(
+            map.get("hash").and_then(|v| v.as_str()),
+            Some("blake3:aabbccdd11223344")
+        );
+        assert_eq!(
+            map.get("mime_type").and_then(|v| v.as_str()),
+            Some("image/png")
+        );
+        assert_eq!(
+            map.get("size_bytes").and_then(|v| v.as_u64()),
+            Some(4096)
+        );
+        assert_eq!(
+            map.get("extension").and_then(|v| v.as_str()),
+            Some("png")
+        );
+        assert_eq!(
+            map.get("created_by").and_then(|v| v.as_str()),
+            Some("gen_img")
+        );
+        assert!(map.contains_key("path"), "should have 'path' field");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_whole_object_second() {
+        // "task.media[1]" should return the second MediaRef
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[1]");
+        assert!(result.is_some());
+        let obj = result.unwrap();
+        assert!(obj.is_object());
+        assert_eq!(obj["hash"], "blake3:eeff0011aabbccdd");
+        assert_eq!(obj["mime_type"], "audio/mpeg");
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_dot_length() {
+        // "task.media.length" -- not a valid JSON path; arrays don't have .length
+        // Should return None (no JavaScript-style .length in JSON)
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media.length");
+        assert!(
+            result.is_none(),
+            "media.length is not valid JSON path, should return None"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_out_of_bounds_with_field() {
+        // "task.media[999].hash" -- index beyond array length
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[999].hash");
+        assert!(
+            result.is_none(),
+            "out-of-bounds index should return None"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_out_of_bounds_no_field() {
+        // "task.media[999]" -- whole object at out-of-bounds index
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[999]");
+        assert!(
+            result.is_none(),
+            "out-of-bounds index without field should return None"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_mediax_not_intercepted() {
+        // "task.mediax" -- starts with "media" but is NOT a media path
+        // Should resolve from task output, not media interception
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "task".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({"mediax": "extra_value", "media_extra": 42}),
+            std::time::Duration::from_millis(10),
+        );
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // "task.mediax" should resolve from output (not media interception)
+        let result = ctx.resolve_path("task.mediax");
+        assert_eq!(
+            result,
+            Some(serde_json::json!("extra_value")),
+            "mediax should resolve from task output, not media interception"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_extra_not_intercepted() {
+        // "task.media_extra" -- starts with "media" prefix + underscore
+        // Should NOT be intercepted by the media path logic
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "task".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({"media_extra": "should_not_be_media"}),
+            std::time::Duration::from_millis(10),
+        );
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        let result = ctx.resolve_path("task.media_extra");
+        assert_eq!(
+            result,
+            Some(serde_json::json!("should_not_be_media")),
+            "media_extra should NOT be intercepted by media path logic"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_nonexistent_field() {
+        // "task.media[0].nonexistent_field" -- valid index, invalid field name
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].nonexistent_field");
+        assert!(
+            result.is_none(),
+            "nonexistent field on MediaRef should return None"
+        );
+    }
+
+    #[test]
+    fn e2e_resolve_path_media_deeply_nested_invalid() {
+        // "task.media[0].hash.something" -- trying to navigate into a string field
+        let (ctx, _) = setup_ctx_with_media();
+        let result = ctx.resolve_path("gen_img.media[0].hash.something");
+        assert!(
+            result.is_none(),
+            "cannot navigate into a string field"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // F2: Multiple tasks with media -- isolation
+    // -----------------------------------------------------------------
+
+    /// Helper: set up two tasks each with their own media refs
+    fn setup_two_tasks_with_media() -> RunContext {
+        let ctx = RunContext::new();
+
+        // Task A: 1 image
+        let media_a = vec![MediaRef {
+            hash: "blake3:aaaa111122223333".into(),
+            mime_type: "image/jpeg".into(),
+            size_bytes: 2048,
+            path: std::path::PathBuf::from("/tmp/cas/aa/aa111122223333"),
+            extension: "jpg".into(),
+            created_by: "task_a".into(),
+        }];
+        let tr_a = crate::store::TaskResult::success(
+            serde_json::json!({"prompt": "a dog"}),
+            std::time::Duration::from_millis(100),
+        )
+        .with_media(media_a);
+        ctx.insert(Arc::from("task_a"), tr_a);
+
+        // Task B: 2 audio files
+        let media_b = vec![
+            MediaRef {
+                hash: "blake3:bbbb444455556666".into(),
+                mime_type: "audio/wav".into(),
+                size_bytes: 16384,
+                path: std::path::PathBuf::from("/tmp/cas/bb/bb444455556666"),
+                extension: "wav".into(),
+                created_by: "task_b".into(),
+            },
+            MediaRef {
+                hash: "blake3:bbbb777788889999".into(),
+                mime_type: "audio/mpeg".into(),
+                size_bytes: 32768,
+                path: std::path::PathBuf::from("/tmp/cas/bb/bb777788889999"),
+                extension: "mp3".into(),
+                created_by: "task_b".into(),
+            },
+        ];
+        let tr_b = crate::store::TaskResult::success(
+            serde_json::json!({"source": "microphone"}),
+            std::time::Duration::from_millis(200),
+        )
+        .with_media(media_b);
+        ctx.insert(Arc::from("task_b"), tr_b);
+
+        ctx
+    }
+
+    #[test]
+    fn e2e_multi_task_media_array_counts() {
+        let ctx = setup_two_tasks_with_media();
+
+        let a_media = ctx.resolve_path("task_a.media").unwrap();
+        assert_eq!(
+            a_media.as_array().unwrap().len(),
+            1,
+            "task_a should have 1 media ref"
+        );
+
+        let b_media = ctx.resolve_path("task_b.media").unwrap();
+        assert_eq!(
+            b_media.as_array().unwrap().len(),
+            2,
+            "task_b should have 2 media refs"
+        );
+    }
+
+    #[test]
+    fn e2e_multi_task_media_no_cross_leak() {
+        let ctx = setup_two_tasks_with_media();
+
+        // task_a.media[0].hash should be task_a's image, not task_b's audio
+        let a_hash = ctx.resolve_path("task_a.media[0].hash").unwrap();
+        assert_eq!(a_hash, "blake3:aaaa111122223333");
+
+        // task_b.media[0].hash should be task_b's first audio
+        let b_hash = ctx.resolve_path("task_b.media[0].hash").unwrap();
+        assert_eq!(b_hash, "blake3:bbbb444455556666");
+
+        // task_b.media[1].hash should be task_b's second audio
+        let b_hash2 = ctx.resolve_path("task_b.media[1].hash").unwrap();
+        assert_eq!(b_hash2, "blake3:bbbb777788889999");
+    }
+
+    #[test]
+    fn e2e_multi_task_media_mime_types_isolated() {
+        let ctx = setup_two_tasks_with_media();
+
+        // task_a has image, task_b has audio -- no type confusion
+        assert_eq!(
+            ctx.resolve_path("task_a.media[0].mime_type").unwrap(),
+            "image/jpeg"
+        );
+        assert_eq!(
+            ctx.resolve_path("task_b.media[0].mime_type").unwrap(),
+            "audio/wav"
+        );
+        assert_eq!(
+            ctx.resolve_path("task_b.media[1].mime_type").unwrap(),
+            "audio/mpeg"
+        );
+    }
+
+    #[test]
+    fn e2e_multi_task_output_not_affected_by_media() {
+        let ctx = setup_two_tasks_with_media();
+
+        // Standard output fields must resolve independently of media
+        assert_eq!(ctx.resolve_path("task_a.prompt").unwrap(), "a dog");
+        assert_eq!(ctx.resolve_path("task_b.source").unwrap(), "microphone");
+    }
+
+    #[test]
+    fn e2e_multi_task_media_created_by_correct() {
+        let ctx = setup_two_tasks_with_media();
+
+        // Each media ref's created_by should reference its own task
+        assert_eq!(
+            ctx.resolve_path("task_a.media[0].created_by").unwrap(),
+            "task_a"
+        );
+        assert_eq!(
+            ctx.resolve_path("task_b.media[0].created_by").unwrap(),
+            "task_b"
+        );
+        assert_eq!(
+            ctx.resolve_path("task_b.media[1].created_by").unwrap(),
+            "task_b"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // F3: TaskResult with both output AND media -- no collision
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn e2e_output_and_media_coexist_no_collision() {
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "gen".into();
+
+        // Task output has structured JSON AND media refs
+        let media = vec![MediaRef {
+            hash: "blake3:face0000dead0000".into(),
+            mime_type: "image/png".into(),
+            size_bytes: 1024,
+            path: std::path::PathBuf::from("/tmp/cas/fa/ce0000dead0000"),
+            extension: "png".into(),
+            created_by: "gen".into(),
+        }];
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({
+                "status": "ok",
+                "url": "https://example.com/image.png",
+                "dimensions": {"width": 512, "height": 512}
+            }),
+            std::time::Duration::from_millis(250),
+        )
+        .with_media(media);
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Output fields resolve from output
+        assert_eq!(ctx.resolve_path("gen.status").unwrap(), "ok");
+        assert_eq!(
+            ctx.resolve_path("gen.url").unwrap(),
+            "https://example.com/image.png"
+        );
+        assert_eq!(ctx.resolve_path("gen.dimensions.width").unwrap(), 512);
+        assert_eq!(ctx.resolve_path("gen.dimensions.height").unwrap(), 512);
+
+        // Media fields resolve from media refs
+        assert_eq!(
+            ctx.resolve_path("gen.media[0].hash").unwrap(),
+            "blake3:face0000dead0000"
+        );
+        assert_eq!(
+            ctx.resolve_path("gen.media[0].mime_type").unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            ctx.resolve_path("gen.media[0].size_bytes").unwrap(),
+            1024
+        );
+        assert_eq!(
+            ctx.resolve_path("gen.media[0].extension").unwrap(),
+            "png"
+        );
+
+        // Full media array
+        let arr = ctx.resolve_path("gen.media").unwrap();
+        assert_eq!(arr.as_array().unwrap().len(), 1);
+
+        // Full output (no media key contamination)
+        let full = ctx.resolve_path("gen").unwrap();
+        assert!(full.is_object());
+        assert_eq!(full["status"], "ok");
+        // Media should NOT appear in the output Value itself
+        assert!(
+            full.get("media").is_none(),
+            "media should not be merged into the output JSON"
+        );
+    }
+
+    #[test]
+    fn e2e_output_with_media_key_in_output() {
+        // Edge case: task output itself has a "media" key
+        // The media interception should still use TaskResult.media, not output.media
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "tricky".into();
+
+        let media = vec![MediaRef {
+            hash: "blake3:real_media_hash000".into(),
+            mime_type: "image/webp".into(),
+            size_bytes: 500,
+            path: std::path::PathBuf::from("/tmp/cas/re/al_media_hash000"),
+            extension: "webp".into(),
+            created_by: "tricky".into(),
+        }];
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({
+                "media": "this is output media, not real",
+                "other": "value"
+            }),
+            std::time::Duration::from_millis(10),
+        )
+        .with_media(media);
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // "tricky.media" should return the TaskResult.media array (from interception),
+        // NOT the output "media" string field
+        let result = ctx.resolve_path("tricky.media");
+        assert!(result.is_some());
+        let arr = result.unwrap();
+        assert!(
+            arr.is_array(),
+            "media path should return the media array, not output field"
+        );
+        assert_eq!(arr.as_array().unwrap().len(), 1);
+        assert_eq!(arr[0]["hash"], "blake3:real_media_hash000");
+
+        // Other output fields still work
+        assert_eq!(ctx.resolve_path("tricky.other").unwrap(), "value");
+    }
+
+    #[test]
+    fn e2e_output_field_named_media_no_real_media() {
+        // Task output has "media" field but TaskResult.media is empty
+        // "task.media" should return empty array (from interception), not output.media
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "confusing".into();
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({
+                "media": ["fake_ref_1", "fake_ref_2"],
+                "count": 2
+            }),
+            std::time::Duration::from_millis(10),
+        );
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        let result = ctx.resolve_path("confusing.media");
+        assert!(result.is_some());
+        let arr = result.unwrap();
+        assert!(arr.is_array());
+        // Empty because TaskResult.media is empty -- interception takes priority
+        assert!(
+            arr.as_array().unwrap().is_empty(),
+            "should return empty media array, not output.media field"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // F4: MediaRef serialization completeness
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn e2e_mediaref_json_has_all_six_fields() {
+        let mr = MediaRef {
+            hash: "blake3:0123456789abcdef".into(),
+            mime_type: "application/pdf".into(),
+            size_bytes: 65536,
+            path: std::path::PathBuf::from("/tmp/cas/01/23456789abcdef"),
+            extension: "pdf".into(),
+            created_by: "pdf_gen".into(),
+        };
+        let json = serde_json::to_value(&mr).unwrap();
+        let obj = json
+            .as_object()
+            .expect("MediaRef should serialize to object");
+
+        // Exactly 6 fields
+        assert_eq!(
+            obj.len(),
+            6,
+            "MediaRef should have exactly 6 fields, got: {:?}",
+            obj.keys().collect::<Vec<_>>()
+        );
+
+        // Each field present and correct type
+        assert!(obj["hash"].is_string(), "hash should be string");
+        assert!(obj["mime_type"].is_string(), "mime_type should be string");
+        assert!(obj["size_bytes"].is_u64(), "size_bytes should be u64");
+        assert!(obj["path"].is_string(), "path should serialize as string");
+        assert!(
+            obj["extension"].is_string(),
+            "extension should be string"
+        );
+        assert!(
+            obj["created_by"].is_string(),
+            "created_by should be string"
+        );
+    }
+
+    #[test]
+    fn e2e_mediaref_path_serializes_as_absolute() {
+        let mr = MediaRef {
+            hash: "blake3:abcdef0123456789".into(),
+            mime_type: "image/png".into(),
+            size_bytes: 1024,
+            path: std::path::PathBuf::from("/var/nika/cas/ab/cdef0123456789"),
+            extension: "png".into(),
+            created_by: "test".into(),
+        };
+        let json = serde_json::to_value(&mr).unwrap();
+        let path_str = json["path"].as_str().unwrap();
+
+        assert!(
+            path_str.starts_with('/'),
+            "serialized path should be absolute (start with /), got: {}",
+            path_str
+        );
+        assert!(
+            path_str.contains("cas/ab/cdef0123456789"),
+            "path should contain the CAS directory structure, got: {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn e2e_mediaref_hash_always_blake3_prefix() {
+        // Verify hash field always has the algorithm prefix
+        let hashes = vec![
+            "blake3:0000000000000000",
+            "blake3:ffffffffffffffff",
+            "blake3:aabbccdd11223344",
+        ];
+
+        for hash_val in hashes {
+            let mr = MediaRef {
+                hash: hash_val.into(),
+                mime_type: "image/png".into(),
+                size_bytes: 1,
+                path: std::path::PathBuf::from("/tmp/cas/00/00"),
+                extension: "png".into(),
+                created_by: "test".into(),
+            };
+            let json = serde_json::to_value(&mr).unwrap();
+            let serialized_hash = json["hash"].as_str().unwrap();
+            assert!(
+                serialized_hash.starts_with("blake3:"),
+                "hash must start with 'blake3:', got: {}",
+                serialized_hash
+            );
+        }
+    }
+
+    #[test]
+    fn e2e_mediaref_roundtrip_preserves_all_fields() {
+        // Serialize -> Deserialize should be identity for all field values
+        let original = MediaRef {
+            hash: "blake3:deadbeefcafebabe".into(),
+            mime_type: "audio/wav".into(),
+            size_bytes: 123456789,
+            path: std::path::PathBuf::from("/opt/nika/cas/de/adbeefcafebabe"),
+            extension: "wav".into(),
+            created_by: "audio_task".into(),
+        };
+        let json_str = serde_json::to_string(&original).unwrap();
+        let deserialized: MediaRef = serde_json::from_str(&json_str).unwrap();
+
+        assert_eq!(original.hash, deserialized.hash);
+        assert_eq!(original.mime_type, deserialized.mime_type);
+        assert_eq!(original.size_bytes, deserialized.size_bytes);
+        assert_eq!(original.path, deserialized.path);
+        assert_eq!(original.extension, deserialized.extension);
+        assert_eq!(original.created_by, deserialized.created_by);
+    }
+
+    #[test]
+    fn e2e_mediaref_resolve_path_roundtrip_all_fields() {
+        // Insert a TaskResult with media, then verify resolve_path returns
+        // correct values for ALL 6 fields through the full pipeline
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "roundtrip".into();
+        let media = vec![MediaRef {
+            hash: "blake3:a1b2c3d4e5f60000".into(),
+            mime_type: "image/gif".into(),
+            size_bytes: 99999,
+            path: std::path::PathBuf::from("/data/cas/a1/b2c3d4e5f60000"),
+            extension: "gif".into(),
+            created_by: "roundtrip".into(),
+        }];
+        let tr = crate::store::TaskResult::success(
+            serde_json::json!({"done": true}),
+            std::time::Duration::from_millis(50),
+        )
+        .with_media(media);
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Verify each field through resolve_path
+        assert_eq!(
+            ctx.resolve_path("roundtrip.media[0].hash").unwrap(),
+            "blake3:a1b2c3d4e5f60000"
+        );
+        assert_eq!(
+            ctx.resolve_path("roundtrip.media[0].mime_type").unwrap(),
+            "image/gif"
+        );
+        assert_eq!(
+            ctx.resolve_path("roundtrip.media[0].size_bytes").unwrap(),
+            99999
+        );
+        let path_val = ctx.resolve_path("roundtrip.media[0].path").unwrap();
+        assert_eq!(
+            path_val.as_str().unwrap(),
+            "/data/cas/a1/b2c3d4e5f60000"
+        );
+        assert_eq!(
+            ctx.resolve_path("roundtrip.media[0].extension").unwrap(),
+            "gif"
+        );
+        assert_eq!(
+            ctx.resolve_path("roundtrip.media[0].created_by").unwrap(),
+            "roundtrip"
+        );
+
+        // Also verify the whole object has exactly 6 keys
+        let whole = ctx.resolve_path("roundtrip.media[0]").unwrap();
+        assert_eq!(whole.as_object().unwrap().len(), 6);
+    }
 }

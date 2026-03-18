@@ -1265,4 +1265,644 @@ mod tests {
         assert_eq!(rc.blob, Some("base64data".to_string()));
         assert_eq!(rc.mime_type, Some("application/pdf".to_string()));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Exhaustive ContentBlock Serde Tests
+    //
+    // These tests simulate real MCP server JSON responses to catch silent
+    // serialization/deserialization bugs (field naming, missing fields,
+    // variant tagging, Option skipping, etc.).
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ---------------------------------------------------------------
+    // 1. Deserialization from external JSON (MCP server responses)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_deser_text_from_mcp_json() {
+        let json = r#"{"type": "text", "text": "hello"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_text());
+        assert_eq!(block, ContentBlock::Text { text: "hello".into() });
+    }
+
+    #[test]
+    fn test_deser_image_from_mcp_json() {
+        let json = r#"{"type": "image", "data": "b64data", "mimeType": "image/png"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_image());
+        assert_eq!(
+            block,
+            ContentBlock::Image {
+                data: "b64data".into(),
+                mime_type: "image/png".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_deser_audio_from_mcp_json() {
+        let json = r#"{"type": "audio", "data": "b64data", "mimeType": "audio/wav"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_audio());
+        assert_eq!(
+            block,
+            ContentBlock::Audio {
+                data: "b64data".into(),
+                mime_type: "audio/wav".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_deser_resource_from_mcp_json() {
+        let json = r#"{"type": "resource", "uri": "file:///test", "text": "content"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_resource());
+        let expected = ContentBlock::Resource(
+            ResourceContent::new("file:///test").with_text("content"),
+        );
+        assert_eq!(block, expected);
+    }
+
+    #[test]
+    fn test_deser_resource_link_from_mcp_json() {
+        let json = r#"{"type": "resource_link", "uri": "file:///link"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_resource_link());
+        assert_eq!(
+            block,
+            ContentBlock::ResourceLink {
+                uri: "file:///link".into(),
+                name: None,
+                mime_type: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_deser_resource_link_with_optional_fields() {
+        let json = r#"{
+            "type": "resource_link",
+            "uri": "file:///link",
+            "name": "report.pdf",
+            "mimeType": "application/pdf"
+        }"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            block,
+            ContentBlock::ResourceLink {
+                uri: "file:///link".into(),
+                name: Some("report.pdf".into()),
+                mime_type: Some("application/pdf".into()),
+            }
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // 2. Error cases — malformed / invalid JSON
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_deser_image_missing_mime_type_fails() {
+        let json = r#"{"type": "image", "data": "x"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "image without mimeType should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_image_missing_data_fails() {
+        let json = r#"{"type": "image", "mimeType": "image/png"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "image without data should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_audio_missing_mime_type_fails() {
+        let json = r#"{"type": "audio", "data": "x"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "audio without mimeType should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_audio_missing_data_fails() {
+        let json = r#"{"type": "audio", "mimeType": "audio/wav"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "audio without data should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_text_missing_text_field_fails() {
+        let json = r#"{"type": "text"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "text without text field should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_resource_missing_uri_fails() {
+        let json = r#"{"type": "resource", "text": "content"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "resource without uri should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_resource_link_missing_uri_fails() {
+        let json = r#"{"type": "resource_link", "name": "test.txt"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "resource_link without uri should fail to deserialize");
+    }
+
+    #[test]
+    fn test_deser_extra_unknown_fields_succeeds() {
+        // serde default: unknown fields are ignored (no deny_unknown_fields)
+        let json = r#"{"type": "text", "text": "hi", "extra": true, "count": 42}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block, ContentBlock::text("hi"));
+    }
+
+    #[test]
+    fn test_deser_invalid_type_value_fails() {
+        let json = r#"{"type": "video", "data": "x"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "unknown type 'video' should fail");
+    }
+
+    #[test]
+    fn test_deser_empty_string_type_fails() {
+        let json = r#"{"type": "", "text": "hello"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "empty string type should fail");
+    }
+
+    #[test]
+    fn test_deser_missing_type_field_fails() {
+        let json = r#"{"text": "hello"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "missing type field should fail");
+    }
+
+    #[test]
+    fn test_deser_null_type_fails() {
+        let json = r#"{"type": null, "text": "hello"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "null type should fail");
+    }
+
+    #[test]
+    fn test_deser_numeric_type_fails() {
+        let json = r#"{"type": 42, "text": "hello"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "numeric type should fail");
+    }
+
+    // ---------------------------------------------------------------
+    // 3. Resource variant: flat JSON structure + skip_serializing_if
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_resource_serializes_flat_not_nested() {
+        let block = ContentBlock::resource(
+            ResourceContent::new("file:///test")
+                .with_text("hello")
+                .with_mime_type("text/plain"),
+        );
+        let json = serde_json::to_value(&block).unwrap();
+
+        // Fields should be at top level, NOT nested under a "resource" key
+        assert_eq!(json["type"], "resource");
+        assert_eq!(json["uri"], "file:///test");
+        assert_eq!(json["text"], "hello");
+        assert_eq!(json["mimeType"], "text/plain");
+        assert!(json.get("resource").is_none(), "should NOT have nested 'resource' key");
+    }
+
+    #[test]
+    fn test_resource_content_none_fields_omitted_in_serialization() {
+        let rc = ResourceContent::new("file:///bare");
+        let json = serde_json::to_value(&rc).unwrap();
+
+        assert_eq!(json["uri"], "file:///bare");
+        assert!(json.get("mimeType").is_none(), "None mimeType should be omitted");
+        assert!(json.get("text").is_none(), "None text should be omitted");
+        assert!(json.get("blob").is_none(), "None blob should be omitted");
+    }
+
+    #[test]
+    fn test_resource_content_some_fields_present_in_serialization() {
+        let rc = ResourceContent::new("file:///full")
+            .with_mime_type("application/json")
+            .with_text("{}")
+            .with_blob("YmluYXJ5");
+        let json = serde_json::to_value(&rc).unwrap();
+
+        assert_eq!(json["uri"], "file:///full");
+        assert_eq!(json["mimeType"], "application/json");
+        assert_eq!(json["text"], "{}");
+        assert_eq!(json["blob"], "YmluYXJ5");
+    }
+
+    #[test]
+    fn test_resource_block_none_fields_omitted_via_content_block() {
+        // When wrapped in ContentBlock, the skip_serializing_if should still apply
+        let block = ContentBlock::resource(ResourceContent::new("file:///bare"));
+        let json_str = serde_json::to_string(&block).unwrap();
+
+        assert!(!json_str.contains("mimeType"), "None mimeType should be omitted");
+        assert!(!json_str.contains("\"text\""), "None text should be omitted");
+        assert!(!json_str.contains("blob"), "None blob should be omitted");
+        assert!(json_str.contains("\"type\""));
+        assert!(json_str.contains("\"uri\""));
+    }
+
+    #[test]
+    fn test_resource_content_roundtrip_with_all_fields() {
+        let original = ResourceContent::new("file:///test")
+            .with_mime_type("application/octet-stream")
+            .with_text("textual fallback")
+            .with_blob("YmxvYg==");
+
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: ResourceContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, parsed);
+    }
+
+    #[test]
+    fn test_resource_content_roundtrip_with_no_optional_fields() {
+        let original = ResourceContent::new("file:///minimal");
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: ResourceContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, parsed);
+    }
+
+    // ---------------------------------------------------------------
+    // 4. ToolCallResult with mixed content
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_tool_call_result_deser_mixed_content() {
+        let json = r#"{
+            "content": [
+                {"type": "text", "text": "Analysis complete"},
+                {"type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png"},
+                {"type": "audio", "data": "UklGRg==", "mimeType": "audio/wav"},
+                {"type": "text", "text": "See attached media"},
+                {"type": "resource", "uri": "file:///data.json", "text": "{\"key\": 1}"},
+                {"type": "resource_link", "uri": "file:///extra"}
+            ],
+            "is_error": false
+        }"#;
+
+        let result: ToolCallResult = serde_json::from_str(json).unwrap();
+
+        assert!(!result.is_error);
+        assert_eq!(result.content.len(), 6);
+
+        // text() joins only text blocks
+        assert_eq!(result.text(), "Analysis complete\nSee attached media");
+
+        // has_media() should be true (image, audio, resource, resource_link)
+        assert!(result.has_media());
+
+        // media_blocks() = everything except text = 4 blocks
+        assert_eq!(result.media_blocks().len(), 4);
+
+        // images() = 1
+        assert_eq!(result.images().len(), 1);
+        assert!(result.images()[0].is_image());
+
+        // audio_blocks() = 1
+        assert_eq!(result.audio_blocks().len(), 1);
+        assert!(result.audio_blocks()[0].is_audio());
+
+        // first_text()
+        assert_eq!(result.first_text(), Some("Analysis complete"));
+    }
+
+    #[test]
+    fn test_tool_call_result_deser_error_with_mixed_content() {
+        let json = r#"{
+            "content": [
+                {"type": "text", "text": "Partial failure"},
+                {"type": "image", "data": "corrupt", "mimeType": "image/jpeg"}
+            ],
+            "is_error": true
+        }"#;
+
+        let result: ToolCallResult = serde_json::from_str(json).unwrap();
+        assert!(result.is_error);
+        assert!(result.has_media());
+        assert_eq!(result.text(), "Partial failure");
+    }
+
+    #[test]
+    fn test_tool_call_result_deser_is_error_defaults_false() {
+        // is_error has #[serde(default)], so omitting it should default to false
+        let json = r#"{
+            "content": [{"type": "text", "text": "ok"}]
+        }"#;
+
+        let result: ToolCallResult = serde_json::from_str(json).unwrap();
+        assert!(!result.is_error);
+    }
+
+    #[test]
+    fn test_tool_call_result_roundtrip_mixed() {
+        let original = ToolCallResult::success(vec![
+            ContentBlock::text("output"),
+            ContentBlock::image("aW1n", "image/webp"),
+            ContentBlock::audio("YXVk", "audio/mp3"),
+            ContentBlock::resource(
+                ResourceContent::new("file:///r").with_text("resource text"),
+            ),
+            ContentBlock::resource_link("file:///rl", Some("name".into()), None),
+        ]);
+
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: ToolCallResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, parsed);
+    }
+
+    #[test]
+    fn test_tool_call_result_empty_content_array() {
+        let json = r#"{"content": [], "is_error": false}"#;
+        let result: ToolCallResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.content.len(), 0);
+        assert!(!result.has_media());
+        assert_eq!(result.text(), "");
+        assert!(result.first_text().is_none());
+    }
+
+    // ---------------------------------------------------------------
+    // 5. Unicode and special characters
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_text_block_with_emoji() {
+        let json = r#"{"type": "text", "text": "Hello 🌍"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block, ContentBlock::text("Hello 🌍"));
+    }
+
+    #[test]
+    fn test_text_block_with_newlines() {
+        let json = "{\"type\": \"text\", \"text\": \"line1\\nline2\"}";
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block, ContentBlock::text("line1\nline2"));
+    }
+
+    #[test]
+    fn test_text_block_with_unicode_escapes() {
+        // JSON unicode escape for e-acute: \u00e9
+        let json = r#"{"type": "text", "text": "caf\u00e9"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block, ContentBlock::text("caf\u{00e9}"));
+    }
+
+    #[test]
+    fn test_text_block_with_json_special_chars() {
+        // Text containing quotes, backslashes, tabs
+        let json = r#"{"type": "text", "text": "quote: \" backslash: \\ tab: \t"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            block,
+            ContentBlock::text("quote: \" backslash: \\ tab: \t")
+        );
+    }
+
+    #[test]
+    fn test_text_block_empty_string() {
+        let json = r#"{"type": "text", "text": ""}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block, ContentBlock::text(""));
+    }
+
+    #[test]
+    fn test_image_data_with_base64_special_chars() {
+        // Base64 alphabet includes +, /, and = (padding)
+        let b64 = "abc+def/ghi=";
+        let json = format!(
+            r#"{{"type": "image", "data": "{}", "mimeType": "image/png"}}"#,
+            b64
+        );
+        let block: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            block,
+            ContentBlock::Image {
+                data: b64.into(),
+                mime_type: "image/png".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_image_data_with_double_padding() {
+        let b64 = "YQ==";
+        let json = format!(
+            r#"{{"type": "image", "data": "{}", "mimeType": "image/gif"}}"#,
+            b64
+        );
+        let block: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            block,
+            ContentBlock::Image {
+                data: b64.into(),
+                mime_type: "image/gif".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_resource_uri_with_special_chars() {
+        let json = r#"{"type": "resource", "uri": "file:///path/to/my%20file.txt", "text": "ok"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        assert!(block.is_resource());
+        if let ContentBlock::Resource(rc) = &block {
+            assert_eq!(rc.uri, "file:///path/to/my%20file.txt");
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 6. Field naming invariants (camelCase in JSON, snake_case in Rust)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_image_serialization_uses_camel_case_mime_type() {
+        let block = ContentBlock::image("data", "image/jpeg");
+        let json = serde_json::to_value(&block).unwrap();
+
+        // Must be "mimeType" (camelCase), NOT "mime_type" (snake_case)
+        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
+        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+    }
+
+    #[test]
+    fn test_audio_serialization_uses_camel_case_mime_type() {
+        let block = ContentBlock::audio("data", "audio/ogg");
+        let json = serde_json::to_value(&block).unwrap();
+
+        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
+        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+    }
+
+    #[test]
+    fn test_resource_link_serialization_uses_camel_case_mime_type() {
+        let block = ContentBlock::resource_link(
+            "file:///x",
+            None,
+            Some("text/html".into()),
+        );
+        let json = serde_json::to_value(&block).unwrap();
+
+        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
+        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+    }
+
+    #[test]
+    fn test_resource_content_serialization_uses_camel_case_mime_type() {
+        let rc = ResourceContent::new("file:///x").with_mime_type("text/plain");
+        let json = serde_json::to_value(&rc).unwrap();
+
+        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
+        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+    }
+
+    #[test]
+    fn test_image_deser_rejects_snake_case_mime_type() {
+        // MCP spec uses camelCase; snake_case should NOT work
+        let json = r#"{"type": "image", "data": "x", "mime_type": "image/png"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(
+            result.is_err(),
+            "snake_case mime_type should fail — serde renames to mimeType"
+        );
+    }
+
+    #[test]
+    fn test_audio_deser_rejects_snake_case_mime_type() {
+        let json = r#"{"type": "audio", "data": "x", "mime_type": "audio/wav"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(
+            result.is_err(),
+            "snake_case mime_type should fail — serde renames to mimeType"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // 7. Type tag value invariants (snake_case)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_type_tag_values_are_snake_case() {
+        let cases: Vec<(ContentBlock, &str)> = vec![
+            (ContentBlock::text("t"), "text"),
+            (ContentBlock::image("d", "image/png"), "image"),
+            (ContentBlock::audio("d", "audio/wav"), "audio"),
+            (
+                ContentBlock::resource(ResourceContent::new("file:///x")),
+                "resource",
+            ),
+            (
+                ContentBlock::resource_link("file:///x", None, None),
+                "resource_link",
+            ),
+        ];
+
+        for (block, expected_tag) in cases {
+            let json = serde_json::to_value(&block).unwrap();
+            assert_eq!(
+                json["type"].as_str().unwrap(),
+                expected_tag,
+                "wrong type tag for {:?}",
+                block
+            );
+        }
+    }
+
+    #[test]
+    fn test_camel_case_type_tag_fails() {
+        // "resourceLink" (camelCase) should NOT work, only "resource_link" (snake_case)
+        let json = r#"{"type": "resourceLink", "uri": "file:///x"}"#;
+        let result = serde_json::from_str::<ContentBlock>(json);
+        assert!(result.is_err(), "camelCase type tag should fail");
+    }
+
+    // ---------------------------------------------------------------
+    // 8. Boundary and regression cases
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_deser_resource_with_blob_no_text() {
+        let json = r#"{"type": "resource", "uri": "file:///bin", "blob": "AQID"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        if let ContentBlock::Resource(rc) = &block {
+            assert_eq!(rc.uri, "file:///bin");
+            assert_eq!(rc.blob, Some("AQID".into()));
+            assert!(rc.text.is_none());
+            assert!(rc.mime_type.is_none());
+        } else {
+            panic!("expected Resource variant");
+        }
+    }
+
+    #[test]
+    fn test_deser_resource_uri_only() {
+        let json = r#"{"type": "resource", "uri": "file:///bare"}"#;
+        let block: ContentBlock = serde_json::from_str(json).unwrap();
+        let expected = ContentBlock::resource(ResourceContent::new("file:///bare"));
+        assert_eq!(block, expected);
+    }
+
+    #[test]
+    fn test_content_block_clone_eq() {
+        let blocks = vec![
+            ContentBlock::text("t"),
+            ContentBlock::image("d", "image/png"),
+            ContentBlock::audio("d", "audio/wav"),
+            ContentBlock::resource(ResourceContent::new("file:///x")),
+            ContentBlock::resource_link("file:///x", Some("n".into()), Some("m".into())),
+        ];
+        for block in &blocks {
+            let cloned = block.clone();
+            assert_eq!(*block, cloned);
+        }
+    }
+
+    #[test]
+    fn test_large_text_block_roundtrip() {
+        let large_text = "a".repeat(100_000);
+        let block = ContentBlock::text(&large_text);
+        let json = serde_json::to_string(&block).unwrap();
+        let parsed: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert_eq!(block, parsed);
+    }
+
+    #[test]
+    fn test_large_base64_data_roundtrip() {
+        let large_data = "A".repeat(1_000_000); // ~750KB decoded
+        let block = ContentBlock::image(&large_data, "image/tiff");
+        let json = serde_json::to_string(&block).unwrap();
+        let parsed: ContentBlock = serde_json::from_str(&json).unwrap();
+        assert_eq!(block, parsed);
+    }
+
+    #[test]
+    fn test_tool_call_result_many_blocks_roundtrip() {
+        let blocks: Vec<ContentBlock> = (0..100)
+            .map(|i| {
+                if i % 3 == 0 {
+                    ContentBlock::text(format!("block-{i}"))
+                } else if i % 3 == 1 {
+                    ContentBlock::image(format!("data-{i}"), "image/png")
+                } else {
+                    ContentBlock::audio(format!("audio-{i}"), "audio/ogg")
+                }
+            })
+            .collect();
+
+        let original = ToolCallResult::success(blocks);
+        let json = serde_json::to_string(&original).unwrap();
+        let parsed: ToolCallResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(original, parsed);
+        assert_eq!(parsed.content.len(), 100);
+    }
 }

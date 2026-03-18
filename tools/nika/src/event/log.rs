@@ -2437,4 +2437,798 @@ mod tests {
         };
         assert!(!non_wf.is_workflow_event());
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Media event emission pipeline tests
+    // ═══════════════════════════════════════════════════════════════
+
+    // ----- Helpers for media tests -----
+
+    /// Realistic blake3 hash (64 hex chars after prefix)
+    const BLAKE3_PNG: &str =
+        "blake3:a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a";
+    const BLAKE3_WAV: &str =
+        "blake3:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const BLAKE3_PDF: &str =
+        "blake3:6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b";
+
+    fn media_extracted(task_id: &str, block_count: u32, types: &[&str]) -> EventKind {
+        EventKind::MediaExtracted {
+            task_id: Arc::from(task_id),
+            block_count,
+            content_types: types.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn media_processed(task_id: &str, hash: &str, mime: &str, size: u64) -> EventKind {
+        EventKind::MediaProcessed {
+            task_id: Arc::from(task_id),
+            hash: hash.to_string(),
+            mime_type: mime.to_string(),
+            size_bytes: size,
+        }
+    }
+
+    fn media_stored(
+        task_id: &str,
+        hash: &str,
+        path: &str,
+        size: u64,
+        verified: bool,
+        deduplicated: bool,
+        pipeline_ms: u64,
+    ) -> EventKind {
+        EventKind::MediaStored {
+            task_id: Arc::from(task_id),
+            hash: hash.to_string(),
+            path: path.to_string(),
+            size_bytes: size,
+            verified,
+            deduplicated,
+            pipeline_ms,
+        }
+    }
+
+    fn media_store_failed(task_id: &str, hash: &str, reason: &str) -> EventKind {
+        EventKind::MediaStoreFailed {
+            task_id: Arc::from(task_id),
+            hash: hash.to_string(),
+            reason: reason.to_string(),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 1. Serde roundtrip for ALL 4 media variants
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_extracted_serde_roundtrip_single_type() {
+        let event = media_extracted("gen_logo", 1, &["image"]);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn media_extracted_serde_roundtrip_multiple_types() {
+        let event = media_extracted("gen_multi", 4, &["image", "audio", "video", "application"]);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        // Verify field values survived roundtrip
+        if let EventKind::MediaExtracted {
+            block_count,
+            content_types,
+            ..
+        } = &back
+        {
+            assert_eq!(*block_count, 4);
+            assert_eq!(content_types.len(), 4);
+            assert_eq!(content_types[0], "image");
+            assert_eq!(content_types[3], "application");
+        } else {
+            panic!("Expected MediaExtracted");
+        }
+    }
+
+    #[test]
+    fn media_extracted_serde_roundtrip_empty_types() {
+        // Edge case: block_count=0 with no content_types
+        let event = media_extracted("empty_task", 0, &[]);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn media_processed_serde_roundtrip_png() {
+        let event = media_processed("gen_img", BLAKE3_PNG, "image/png", 65536);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        if let EventKind::MediaProcessed {
+            hash,
+            mime_type,
+            size_bytes,
+            ..
+        } = &back
+        {
+            assert!(hash.starts_with("blake3:"));
+            assert_eq!(hash.len(), "blake3:".len() + 64); // blake3 = 64 hex chars
+            assert_eq!(mime_type, "image/png");
+            assert_eq!(*size_bytes, 65536);
+        } else {
+            panic!("Expected MediaProcessed");
+        }
+    }
+
+    #[test]
+    fn media_processed_serde_roundtrip_wav() {
+        let event = media_processed("gen_audio", BLAKE3_WAV, "audio/wav", 1_048_576);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn media_processed_serde_roundtrip_pdf() {
+        let event = media_processed("gen_doc", BLAKE3_PDF, "application/pdf", 204800);
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn media_stored_serde_roundtrip_all_fields() {
+        let event = media_stored(
+            "gen_img",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+            65536,
+            true,
+            false,
+            42,
+        );
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        if let EventKind::MediaStored {
+            hash,
+            path,
+            size_bytes,
+            verified,
+            deduplicated,
+            pipeline_ms,
+            ..
+        } = &back
+        {
+            assert_eq!(hash, BLAKE3_PNG);
+            assert!(path.starts_with(".nika/media/store/"));
+            assert_eq!(*size_bytes, 65536);
+            assert!(*verified);
+            assert!(!*deduplicated);
+            assert_eq!(*pipeline_ms, 42);
+        } else {
+            panic!("Expected MediaStored");
+        }
+    }
+
+    #[test]
+    fn media_stored_serde_roundtrip_deduplicated() {
+        let event = media_stored(
+            "gen_img_dup",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+            65536,
+            false, // verified=false for dedup hits
+            true,  // deduplicated=true
+            1,     // fast path
+        );
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+    }
+
+    #[test]
+    fn media_store_failed_serde_roundtrip_with_hash() {
+        let event = media_store_failed("gen_img", BLAKE3_PNG, "disk full");
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        if let EventKind::MediaStoreFailed { hash, reason, .. } = &back {
+            assert_eq!(hash, BLAKE3_PNG);
+            assert_eq!(reason, "disk full");
+        } else {
+            panic!("Expected MediaStoreFailed");
+        }
+    }
+
+    #[test]
+    fn media_store_failed_serde_roundtrip_empty_hash() {
+        // Pre-hash failure: hash is empty string
+        let event = media_store_failed("gen_img", "", "base64 decode failed");
+        let json = serde_json::to_string(&event).unwrap();
+        let back: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, back);
+
+        if let EventKind::MediaStoreFailed { hash, reason, .. } = &back {
+            assert!(hash.is_empty(), "Pre-hash failure should have empty hash");
+            assert_eq!(reason, "base64 decode failed");
+        } else {
+            panic!("Expected MediaStoreFailed");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 2. Media event task_id extraction
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_extracted_returns_task_id() {
+        let event = media_extracted("extract_images", 3, &["image", "audio", "video"]);
+        assert_eq!(event.task_id(), Some("extract_images"));
+    }
+
+    #[test]
+    fn media_processed_returns_task_id() {
+        let event = media_processed("process_png", BLAKE3_PNG, "image/png", 1024);
+        assert_eq!(event.task_id(), Some("process_png"));
+    }
+
+    #[test]
+    fn media_stored_returns_task_id() {
+        let event = media_stored(
+            "store_to_cas",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            1024,
+            true,
+            false,
+            10,
+        );
+        assert_eq!(event.task_id(), Some("store_to_cas"));
+    }
+
+    #[test]
+    fn media_store_failed_returns_task_id() {
+        let event = media_store_failed("fail_store", BLAKE3_PNG, "permission denied");
+        assert_eq!(event.task_id(), Some("fail_store"));
+    }
+
+    #[test]
+    fn all_4_media_variants_have_task_id() {
+        let variants: Vec<(&str, EventKind)> = vec![
+            (
+                "extracted",
+                media_extracted("t_extract", 2, &["image", "audio"]),
+            ),
+            (
+                "processed",
+                media_processed("t_process", BLAKE3_WAV, "audio/wav", 2048),
+            ),
+            (
+                "stored",
+                media_stored("t_store", BLAKE3_PDF, ".nika/media/store/6b/86b2", 4096, true, false, 5),
+            ),
+            (
+                "failed",
+                media_store_failed("t_fail", "", "budget exceeded"),
+            ),
+        ];
+
+        for (name, event) in &variants {
+            assert!(
+                event.task_id().is_some(),
+                "Media{name} must return Some task_id"
+            );
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 3. Media events NDJSON compliance
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_extracted_ndjson_no_newlines() {
+        let event = media_extracted("ndjson_test", 5, &["image", "audio", "video"]);
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            !json.contains('\n'),
+            "MediaExtracted JSON must not contain newlines: {json}"
+        );
+    }
+
+    #[test]
+    fn media_processed_ndjson_no_newlines() {
+        let event = media_processed("ndjson_test", BLAKE3_PNG, "image/png", 999999);
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            !json.contains('\n'),
+            "MediaProcessed JSON must not contain newlines: {json}"
+        );
+    }
+
+    #[test]
+    fn media_stored_ndjson_no_newlines() {
+        let event = media_stored(
+            "ndjson_test",
+            BLAKE3_WAV,
+            ".nika/media/store/e3/b0c44298fc1c149afbf4c8996fb924",
+            512000,
+            true,
+            true,
+            100,
+        );
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            !json.contains('\n'),
+            "MediaStored JSON must not contain newlines: {json}"
+        );
+    }
+
+    #[test]
+    fn media_store_failed_ndjson_no_newlines() {
+        let event = media_store_failed("ndjson_test", "", "write error: No space left on device");
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            !json.contains('\n'),
+            "MediaStoreFailed JSON must not contain newlines: {json}"
+        );
+    }
+
+    #[test]
+    fn all_4_media_variants_ndjson_roundtrip() {
+        // Full NDJSON contract: serialize to single line, deserialize back
+        let variants = vec![
+            media_extracted("rt_task", 2, &["image", "audio"]),
+            media_processed("rt_task", BLAKE3_PNG, "image/png", 8192),
+            media_stored(
+                "rt_task",
+                BLAKE3_PNG,
+                ".nika/media/store/a7/ffc6f8bf1ed76651",
+                8192,
+                true,
+                false,
+                25,
+            ),
+            media_store_failed("rt_task", BLAKE3_PNG, "verification checksum mismatch"),
+        ];
+
+        for (i, variant) in variants.into_iter().enumerate() {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert!(
+                !json.contains('\n'),
+                "Media variant {i} has embedded newline"
+            );
+            let back: EventKind = serde_json::from_str(&json).unwrap_or_else(|e| {
+                panic!("Media variant {i} failed to deserialize: {e}\nJSON: {json}")
+            });
+            assert_eq!(variant, back, "Media variant {i} roundtrip mismatch");
+        }
+    }
+
+    #[test]
+    fn media_events_ndjson_full_envelope() {
+        // Verify the full Event envelope (id + timestamp_ms + kind) serializes to single-line
+        let log = EventLog::new();
+        log.emit(media_extracted("envelope_test", 1, &["image"]));
+        log.emit(media_processed("envelope_test", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_stored(
+            "envelope_test",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            15,
+        ));
+        log.emit(media_store_failed("envelope_test", "", "boom"));
+
+        for event in log.events() {
+            let json = serde_json::to_string(&event).unwrap();
+            assert!(
+                !json.contains('\n'),
+                "Full Event envelope must be single-line NDJSON: {json}"
+            );
+            // Verify envelope structure
+            let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert!(parsed.get("id").is_some(), "Missing 'id' in envelope");
+            assert!(
+                parsed.get("timestamp_ms").is_some(),
+                "Missing 'timestamp_ms' in envelope"
+            );
+            assert!(parsed.get("kind").is_some(), "Missing 'kind' in envelope");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 4. Media events in EventLog
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_extracted_appears_in_eventlog_events() {
+        let log = EventLog::new();
+        let id = log.emit(media_extracted("media_task", 3, &["image", "audio", "video"]));
+
+        let events = log.events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].id, id);
+
+        if let EventKind::MediaExtracted {
+            task_id,
+            block_count,
+            content_types,
+        } = &events[0].kind
+        {
+            assert_eq!(task_id.as_ref(), "media_task");
+            assert_eq!(*block_count, 3);
+            assert_eq!(content_types, &["image", "audio", "video"]);
+        } else {
+            panic!("Expected MediaExtracted in events()");
+        }
+    }
+
+    #[test]
+    fn media_stored_broadcast_reaches_subscriber() {
+        let (log, mut rx) = EventLog::new_with_broadcast();
+
+        log.emit(media_stored(
+            "broadcast_test",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            10,
+        ));
+
+        // Subscriber should receive the event
+        let received = rx.try_recv().expect("Subscriber should receive MediaStored event");
+        assert_eq!(received.id, 0);
+
+        if let EventKind::MediaStored {
+            task_id,
+            hash,
+            verified,
+            ..
+        } = &received.kind
+        {
+            assert_eq!(task_id.as_ref(), "broadcast_test");
+            assert_eq!(hash, BLAKE3_PNG);
+            assert!(*verified);
+        } else {
+            panic!("Expected MediaStored via broadcast");
+        }
+    }
+
+    #[test]
+    fn media_events_broadcast_multiple_subscribers() {
+        let (log, mut rx1) = EventLog::new_with_broadcast();
+        let mut rx2 = log.subscribe().expect("Should be able to subscribe");
+
+        log.emit(media_processed("multi_sub", BLAKE3_WAV, "audio/wav", 2048));
+
+        let e1 = rx1.try_recv().expect("rx1 should receive");
+        let e2 = rx2.try_recv().expect("rx2 should receive");
+        assert_eq!(e1.id, e2.id);
+        assert_eq!(e1.kind, e2.kind);
+    }
+
+    #[test]
+    fn filter_task_returns_media_events() {
+        let log = EventLog::new();
+
+        // Mix of media and non-media events for the same task
+        log.emit(EventKind::TaskStarted {
+            task_id: "gen_image".into(),
+            verb: "invoke".into(),
+            inputs: json!({}),
+        });
+        log.emit(media_extracted("gen_image", 1, &["image"]));
+        log.emit(media_processed("gen_image", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_stored(
+            "gen_image",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            20,
+        ));
+
+        // Different task
+        log.emit(media_extracted("other_task", 2, &["audio", "video"]));
+
+        let gen_events = log.filter_task("gen_image");
+        assert_eq!(gen_events.len(), 4, "gen_image should have 4 events (1 task + 3 media)");
+
+        // Verify media events are in order
+        assert!(matches!(&gen_events[0].kind, EventKind::TaskStarted { .. }));
+        assert!(matches!(&gen_events[1].kind, EventKind::MediaExtracted { .. }));
+        assert!(matches!(&gen_events[2].kind, EventKind::MediaProcessed { .. }));
+        assert!(matches!(&gen_events[3].kind, EventKind::MediaStored { .. }));
+
+        let other_events = log.filter_task("other_task");
+        assert_eq!(other_events.len(), 1, "other_task should only have 1 event");
+    }
+
+    #[test]
+    fn filter_task_with_media_failure() {
+        let log = EventLog::new();
+
+        log.emit(media_extracted("fail_task", 1, &["image"]));
+        log.emit(media_processed("fail_task", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_store_failed("fail_task", BLAKE3_PNG, "disk full"));
+
+        let events = log.filter_task("fail_task");
+        assert_eq!(events.len(), 3);
+        assert!(matches!(&events[2].kind, EventKind::MediaStoreFailed { .. }));
+    }
+
+    #[test]
+    fn count_task_includes_media_events() {
+        let log = EventLog::new();
+
+        log.emit(media_extracted("count_me", 2, &["image", "audio"]));
+        log.emit(media_processed("count_me", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_processed("count_me", BLAKE3_WAV, "audio/wav", 8192));
+        log.emit(media_stored(
+            "count_me",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            15,
+        ));
+        log.emit(media_stored(
+            "count_me",
+            BLAKE3_WAV,
+            ".nika/media/store/e3/b0c4",
+            8192,
+            true,
+            false,
+            22,
+        ));
+
+        assert_eq!(log.count_task("count_me"), 5);
+        assert_eq!(log.count_task("no_such_task"), 0);
+    }
+
+    #[test]
+    fn media_events_not_workflow_events() {
+        let log = EventLog::new();
+
+        log.emit(workflow_started(1));
+        log.emit(media_extracted("t1", 1, &["image"]));
+        log.emit(media_processed("t1", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_stored("t1", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 10));
+        log.emit(media_store_failed("t1", "", "boom"));
+
+        let wf_events = log.workflow_events();
+        assert_eq!(wf_events.len(), 1, "Media events must NOT appear in workflow_events()");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 5. MediaStored field verification
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_stored_pipeline_ms_reasonable_values() {
+        // Normal processing: sub-second
+        let event = media_stored("fast_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 42);
+        if let EventKind::MediaStored { pipeline_ms, .. } = &event {
+            assert!(*pipeline_ms < 10000, "pipeline_ms={pipeline_ms} should be < 10000ms");
+        }
+
+        // Zero is valid (dedup fast path)
+        let event_zero = media_stored("dedup_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, false, true, 0);
+        if let EventKind::MediaStored { pipeline_ms, .. } = &event_zero {
+            assert_eq!(*pipeline_ms, 0, "Dedup fast path can have 0ms pipeline");
+        }
+
+        // Edge: just under threshold
+        let event_edge = media_stored("slow_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 9999);
+        if let EventKind::MediaStored { pipeline_ms, .. } = &event_edge {
+            assert!(*pipeline_ms < 10000);
+        }
+    }
+
+    #[test]
+    fn media_stored_verified_and_deduplicated_independent() {
+        // All four combinations of (verified, deduplicated) are valid
+        let combos: Vec<(bool, bool, &str)> = vec![
+            (true, false, "fresh write, verified"),
+            (false, false, "fresh write, unverified (small file)"),
+            (false, true, "dedup hit, not re-verified"),
+            (true, true, "dedup hit, re-verified"),
+        ];
+
+        for (verified, deduplicated, desc) in combos {
+            let event = media_stored(
+                "combo_test",
+                BLAKE3_PNG,
+                ".nika/media/store/a7/ffc6",
+                4096,
+                verified,
+                deduplicated,
+                10,
+            );
+            if let EventKind::MediaStored {
+                verified: v,
+                deduplicated: d,
+                ..
+            } = &event
+            {
+                assert_eq!(*v, verified, "verified mismatch for: {desc}");
+                assert_eq!(*d, deduplicated, "deduplicated mismatch for: {desc}");
+            }
+
+            // Roundtrip preserves both booleans
+            let json = serde_json::to_string(&event).unwrap();
+            let back: EventKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(event, back, "Roundtrip failed for: {desc}");
+        }
+    }
+
+    #[test]
+    fn media_stored_path_cas_format() {
+        // CAS paths follow the pattern: .nika/media/store/{first2}/{rest}
+        let cas_paths = vec![
+            ".nika/media/store/a7/ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+            ".nika/media/store/e3/b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ".nika/media/store/6b/86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+        ];
+
+        for path in cas_paths {
+            let event = media_stored("path_test", BLAKE3_PNG, path, 4096, true, false, 10);
+            if let EventKind::MediaStored { path: p, .. } = &event {
+                assert!(
+                    p.starts_with(".nika/media/store/"),
+                    "CAS path must start with .nika/media/store/: {p}"
+                );
+                // Path after prefix should be {2chars}/{rest}
+                let suffix = p.strip_prefix(".nika/media/store/").unwrap();
+                let parts: Vec<&str> = suffix.splitn(2, '/').collect();
+                assert_eq!(parts.len(), 2, "CAS path suffix must be dir/file: {suffix}");
+                assert_eq!(parts[0].len(), 2, "CAS directory prefix must be 2 chars: {}", parts[0]);
+                assert!(!parts[1].is_empty(), "CAS filename must not be empty");
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bonus: Media event serde tag verification
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn media_events_serde_tags_are_snake_case() {
+        let variants: Vec<(&str, EventKind)> = vec![
+            ("media_extracted", media_extracted("t", 1, &["image"])),
+            ("media_processed", media_processed("t", BLAKE3_PNG, "image/png", 100)),
+            (
+                "media_stored",
+                media_stored("t", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 100, true, false, 5),
+            ),
+            ("media_store_failed", media_store_failed("t", "", "err")),
+        ];
+
+        for (expected_tag, event) in variants {
+            let json = serde_json::to_string(&event).unwrap();
+            let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                parsed["type"].as_str().unwrap(),
+                expected_tag,
+                "Serde tag mismatch for {expected_tag}"
+            );
+        }
+    }
+
+    #[test]
+    fn media_events_deserialize_from_json_objects() {
+        // Verify we can construct media events from raw JSON (as a consumer would)
+        let json_extracted = json!({
+            "type": "media_extracted",
+            "task_id": "from_json",
+            "block_count": 2,
+            "content_types": ["image", "audio"]
+        });
+        let extracted: EventKind = serde_json::from_value(json_extracted).unwrap();
+        assert_eq!(extracted.task_id(), Some("from_json"));
+        if let EventKind::MediaExtracted { block_count, content_types, .. } = &extracted {
+            assert_eq!(*block_count, 2);
+            assert_eq!(content_types, &["image", "audio"]);
+        } else {
+            panic!("Expected MediaExtracted from JSON");
+        }
+
+        let json_stored = json!({
+            "type": "media_stored",
+            "task_id": "from_json",
+            "hash": BLAKE3_PNG,
+            "path": ".nika/media/store/a7/ffc6",
+            "size_bytes": 8192,
+            "verified": true,
+            "deduplicated": false,
+            "pipeline_ms": 33
+        });
+        let stored: EventKind = serde_json::from_value(json_stored).unwrap();
+        if let EventKind::MediaStored { pipeline_ms, verified, deduplicated, .. } = &stored {
+            assert_eq!(*pipeline_ms, 33);
+            assert!(*verified);
+            assert!(!*deduplicated);
+        } else {
+            panic!("Expected MediaStored from JSON");
+        }
+    }
+
+    #[test]
+    fn media_full_pipeline_lifecycle_in_eventlog() {
+        // Simulates the complete media pipeline lifecycle for a single image
+        let log = EventLog::new();
+        let task = "generate_screenshot";
+
+        // Step 1: MCP tool returns content blocks with images
+        log.emit(EventKind::TaskStarted {
+            task_id: task.into(),
+            verb: "invoke".into(),
+            inputs: json!({"tool": "screenshot"}),
+        });
+
+        // Step 2: Media blocks extracted
+        log.emit(media_extracted(task, 2, &["image", "image"]));
+
+        // Step 3: Each block processed
+        log.emit(media_processed(task, BLAKE3_PNG, "image/png", 65536));
+        log.emit(media_processed(task, BLAKE3_WAV, "image/jpeg", 32768));
+
+        // Step 4: Both stored (one fresh, one dedup)
+        log.emit(media_stored(
+            task,
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6f8bf1ed76651",
+            65536,
+            true,
+            false,
+            35,
+        ));
+        log.emit(media_stored(
+            task,
+            BLAKE3_WAV,
+            ".nika/media/store/e3/b0c44298fc1c1",
+            32768,
+            false,
+            true,
+            2,
+        ));
+
+        // Step 5: Task completes
+        log.emit(EventKind::TaskCompleted {
+            task_id: task.into(),
+            output: Arc::new(json!({"images": 2})),
+            duration_ms: 500,
+        });
+
+        let events = log.filter_task(task);
+        assert_eq!(events.len(), 7, "Full lifecycle: 1 started + 1 extracted + 2 processed + 2 stored + 1 completed");
+
+        // Verify ordering
+        assert!(matches!(&events[0].kind, EventKind::TaskStarted { .. }));
+        assert!(matches!(&events[1].kind, EventKind::MediaExtracted { .. }));
+        assert!(matches!(&events[2].kind, EventKind::MediaProcessed { .. }));
+        assert!(matches!(&events[3].kind, EventKind::MediaProcessed { .. }));
+        assert!(matches!(&events[4].kind, EventKind::MediaStored { .. }));
+        assert!(matches!(&events[5].kind, EventKind::MediaStored { .. }));
+        assert!(matches!(&events[6].kind, EventKind::TaskCompleted { .. }));
+
+        // Verify the dedup store was the second one
+        if let EventKind::MediaStored { deduplicated, pipeline_ms, .. } = &events[5].kind {
+            assert!(*deduplicated, "Second store should be dedup hit");
+            assert!(*pipeline_ms < 10, "Dedup fast path should be < 10ms");
+        }
+    }
 }
