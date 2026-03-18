@@ -507,6 +507,32 @@ fn resolve_binding_path(
 ) -> Result<Option<Value>, NikaError> {
     match &binding_path.source {
         BindingSource::Task(task_id) => {
+            // Intercept media paths: segments starting with Field("media")
+            // Media data lives in TaskResult.media (side-channel), not in
+            // TaskResult.output. Delegate to resolve_path() which handles both.
+            if matches!(
+                binding_path.segments.first(),
+                Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "media"
+            ) {
+                // Reconstruct the full dot-separated path for resolve_path
+                let full_path = format!("{}{}", task_id, binding_path.segments.iter().fold(
+                    String::new(),
+                    |mut acc, seg| {
+                        match seg {
+                            crate::binding::types::PathSegment::Field(f) => {
+                                acc.push('.');
+                                acc.push_str(f);
+                            }
+                            crate::binding::types::PathSegment::Index(i) => {
+                                acc.push_str(&format!("[{}]", i));
+                            }
+                        }
+                        acc
+                    }
+                ));
+                return Ok(datastore.resolve_path(&full_path));
+            }
+
             let output = match datastore.get_output(task_id) {
                 Some(o) => o,
                 None => return Ok(None),
