@@ -407,6 +407,52 @@ impl Runner {
         trace_path
     }
 
+    /// Verify media integrity: check that all MediaRef paths exist and sizes match.
+    ///
+    /// Called after all tasks complete but before WorkflowCompleted event.
+    /// Returns warning count. Never fails the workflow — only warns.
+    fn verify_media_integrity(&self) -> usize {
+        let mut warnings = 0;
+        for (task_id, result) in self.datastore.iter_results() {
+            for media_ref in &result.media {
+                if !media_ref.path.exists() {
+                    tracing::warn!(
+                        task_id = %task_id,
+                        hash = %media_ref.hash,
+                        path = %media_ref.path.display(),
+                        "Media integrity: CAS file missing"
+                    );
+                    warnings += 1;
+                    continue;
+                }
+                match std::fs::metadata(&media_ref.path) {
+                    Ok(meta) => {
+                        if meta.len() != media_ref.size_bytes {
+                            tracing::warn!(
+                                task_id = %task_id,
+                                hash = %media_ref.hash,
+                                expected = media_ref.size_bytes,
+                                actual = meta.len(),
+                                "Media integrity: size mismatch"
+                            );
+                            warnings += 1;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            task_id = %task_id,
+                            hash = %media_ref.hash,
+                            error = %e,
+                            "Media integrity: failed to stat CAS file"
+                        );
+                        warnings += 1;
+                    }
+                }
+            }
+        }
+        warnings
+    }
+
     /// Check if a task qualifies for schema validation retry
     ///
     /// Returns Some((schema, max_retries, infer_params)) if:
@@ -1894,6 +1940,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
+        // Verify media integrity (warn-only, never fail successful workflows)
+        let media_warnings = self.verify_media_integrity();
+
         // Get final output
         let output = self.get_final_output().unwrap_or_default();
 
@@ -1902,6 +1951,13 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             final_output: Arc::new(Value::String(output.clone())),
             total_duration_ms: workflow_start.elapsed().as_millis() as u64,
         });
+
+        if media_warnings > 0 {
+            tracing::warn!(
+                warnings = media_warnings,
+                "Media integrity check completed with warnings"
+            );
+        }
 
         // Write execution trace to .nika/traces/
         let trace_path = self.write_trace();
