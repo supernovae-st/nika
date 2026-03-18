@@ -7,6 +7,51 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.30.7](https://github.com/supernovae-st/nika/releases/tag/v0.30.7) - 2026-03-18
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.7 — DAG ART + TELEMETRY                                   |
+|                                                                             |
+|     Double-line DAG | Canonical emojis | Trace links | 348 gates ✓         |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **DAG visualization** in `nika check` — double-line Unicode boxes `╔═══╗`,
+  directional arrows `▼`, fan-out/fan-in connectors, layered layout
+- **Trace link** after `nika run` — `trace: .nika/traces/gen-xxx.ndjson`
+- **Telemetry format** — middle-dot separators: `1.1s · 15 tokens · $0.0001`
+- **Color-coded durations** — green <1s, yellow 1-5s, red >5s
+- **`verb_emoji()` helper** — canonical uncolored emoji for DAG boxes
+
+### Fixed
+
+- **Canonical emoji chart** — ⚡ infer (was 🧠), 📟 exec (was ⚡), 🐔 agent (was 🤖)
+- **Canonical colors** — purple/violet infer, amber exec, cyan fetch, green invoke, rose agent
+- **DAG edge rendering** — 4 bugs fixed: pending border gap, chain diagonal,
+  double corners, character conflicts
+- **Emoji width** — `display_width()` accounts for 2-column emoji in box alignment
+
+### Refactored
+
+- Deleted 220 lines of dead v1/v2 DAG renderers
+- Three-pass edge rendering: fill → arrows → corners (no conflicts)
+- Snap-to-vertical for near-straight edges (within 3 columns)
+
+### Verified
+
+- 348/348 gate workflows pass `nika check`
+- 106/106 non-API workflows pass `nika run`
+- 10/10 complex monster workflows pass
+- 5/5 Socratic behavioral tests pass
+- 0 cargo warnings
+
+---
+
 ## [0.30.6](https://github.com/supernovae-st/nika/releases/tag/v0.30.6) - 2026-03-18
 
 ```
