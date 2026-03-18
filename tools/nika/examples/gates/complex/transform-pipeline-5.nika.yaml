@@ -32,7 +32,7 @@ tasks:
   - id: step4_json
     depends_on: [source]
     with:
-      val: $source | trim | json
+      val: $source | trim | to_json
     exec: "echo 'JSON={{with.val}}'"
     description: "Transform 4: trim then json encode"
 

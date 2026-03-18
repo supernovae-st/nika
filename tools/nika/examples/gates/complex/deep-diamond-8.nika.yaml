@@ -42,8 +42,7 @@ tasks:
     fetch:
       url: "https://httpbin.org/post"
       method: POST
-      body:
-        source: "{{with.data}}"
+      body: "{{with.data}}"
     description: "Right branch: POST to external"
 
   - id: e_merge_bc

@@ -32,9 +32,9 @@ tasks:
   - id: transform_4
     depends_on: [source]
     with:
-      v: $source | trim | json
+      v: $source | trim | to_json
     exec: "echo 'T4=[{{with.v}}]'"
-    description: "Transform 4: trim | json"
+    description: "Transform 4: trim | to_json"
 
   - id: exec_transform
     exec: "echo '  TRANSFORM_TARGET  '"
