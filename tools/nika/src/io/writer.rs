@@ -552,8 +552,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_binary_rejects_append_mode() {
-        // Binary artifacts with append mode should fail
+    async fn test_write_binary_always_overwrites() {
+        // Binary artifacts always use overwrite semantics (no append mode)
         let temp = tempdir().unwrap();
         let artifact_dir = temp.path().join("artifacts");
         std::fs::create_dir_all(&artifact_dir).unwrap();
@@ -570,9 +570,9 @@ mod tests {
             expected_size: 4,
         };
 
-        // write_binary should not support append — it always overwrites
+        // write_binary always overwrites — append is not supported for binary
         let result = writer.write_binary(request).await;
-        assert!(result.is_ok()); // Binary always does overwrite, not append
+        assert!(result.is_ok(), "Binary write should succeed (overwrite mode)");
     }
 
     #[tokio::test]

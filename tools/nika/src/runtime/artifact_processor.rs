@@ -339,7 +339,6 @@ async fn write_single_artifact(
 ///
 /// Resolves the `source` binding to a media hash or path, then copies from CAS store.
 /// Falls back to the first media ref if no explicit source is specified.
-#[allow(clippy::too_many_arguments)]
 async fn write_binary_artifact(
     task_id: &str,
     output_spec: &ArtifactOutput,

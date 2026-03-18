@@ -960,6 +960,17 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Set workspace root for CAS media store path resolution
         self.datastore.set_workspace_root(base_path.clone());
 
+        // Create media store lockfile to prevent GC during workflow execution
+        let media_lockfile = base_path
+            .join(".nika")
+            .join("media")
+            .join("store")
+            .join(".nika-run.lock");
+        if let Some(parent) = media_lockfile.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&media_lockfile, format!("pid:{}", std::process::id()));
+
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
                 load_context_analyzed(&self.workflow.context_files, &base_path).await?;
@@ -1942,6 +1953,9 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
         // Verify media integrity (warn-only, never fail successful workflows)
         let media_warnings = self.verify_media_integrity();
+
+        // Remove media store lockfile (GC is now safe)
+        let _ = std::fs::remove_file(&media_lockfile);
 
         // Get final output
         let output = self.get_final_output().unwrap_or_default();
