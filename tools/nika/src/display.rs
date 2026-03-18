@@ -216,3 +216,52 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
     );
     println!();
 }
+
+/// Format elapsed time with color based on duration.
+///
+/// - < 1s: green (fast)
+/// - 1-5s: yellow (moderate)
+/// - > 5s: red (slow)
+pub fn format_duration(secs: f32) -> colored::ColoredString {
+    let text = if secs < 0.1 {
+        format!("{:.0}ms", secs * 1000.0)
+    } else if secs < 1.0 {
+        format!("{:.1}s", secs)
+    } else if secs < 60.0 {
+        format!("{:.1}s", secs)
+    } else {
+        format!("{}m{:.0}s", (secs / 60.0) as u32, secs % 60.0)
+    };
+
+    if secs < 1.0 {
+        text.green()
+    } else if secs < 5.0 {
+        text.yellow()
+    } else {
+        text.red()
+    }
+}
+
+/// Print a workflow summary line with task counts by verb.
+pub fn print_task_summary(
+    total: usize,
+    succeeded: usize,
+    failed: usize,
+    skipped: usize,
+) {
+    if failed > 0 {
+        println!(
+            "  {} {} succeeded, {} failed, {} skipped",
+            "Tasks:".dimmed(),
+            succeeded.to_string().green(),
+            failed.to_string().red(),
+            skipped.to_string().yellow()
+        );
+    } else if total > 1 {
+        println!(
+            "  {} {} succeeded",
+            "Tasks:".dimmed(),
+            succeeded.to_string().green()
+        );
+    }
+}

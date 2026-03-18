@@ -1646,7 +1646,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     symbol.red()
                                 };
                                 let duration_str =
-                                    format!("{:.1}s", task_result.duration.as_secs_f32()).dimmed();
+                                    crate::display::format_duration(task_result.duration.as_secs_f32());
 
                                 if !self.quiet {
                                     // IMP-3: Look up task description and verb for richer output
