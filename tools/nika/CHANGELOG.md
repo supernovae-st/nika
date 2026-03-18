@@ -7,6 +7,65 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.30.6](https://github.com/supernovae-st/nika/releases/tag/v0.30.6) - 2026-03-18
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.6 — NUCLEAR PURGE + CLI UX                                |
+|                                                                             |
+|     flow: erased | verb icons | box headers | 40+ agent swarm              |
+|                                                                             |
++=============================================================================+
+```
+
+### Breaking
+
+- **`flow:` field removed** — `depends_on:` is now the ONLY way to declare
+  task dependencies. No alias, no backward compat. 100+ YAML files updated.
+
+### Added
+
+- **CLI verb icons** — each task shows its verb emoji in progress output
+  (⚡ infer, 📟 exec, 🛰️ fetch, 🔌 invoke, 🐔 agent)
+- **Box workflow header** — provider, model, and task count in a Unicode box
+- **`src/display.rs`** — shared CLI display helpers module
+- **Doctor: API key format validation** — checks prefix and length
+- **Doctor: MSRV check** — proper semver comparison (not string matching)
+- **Doctor: npx check** — verifies Node.js available for MCP servers
+- **Doctor: project structure** — verifies config.toml and workflows/ exist
+- **CI: gate workflow validation job** — validates all 348 gate workflows
+
+### Fixed
+
+- **CRITICAL: `flow:` parser alias** — `flow:` was silently ignored by raw
+  parser, dropping ALL DAG dependencies for workflows using it
+- **Timeout seconds→ms conversion** — `timeout: 30` now correctly means
+  30 seconds (was treated as 30 milliseconds)
+- **12 transform workflows** — JSON echo quoting fixed (shell strips quotes)
+- **Runner: task failure reporting** — shows which tasks had errors
+- **Runner: first-line preview** — multi-line output shows only first line
+- **Runner: grammar** — "1 task" vs "2 tasks" singular/plural
+- **2 outdated examples** — v09-include-dag-fusion, test-lazy-bindings
+
+### Refactored
+
+- **Nuclear `flow:` deletion** — removed from: serde alias, schema.json,
+  parser, 100+ YAML files, nika new templates, LSP, DAG docs, DX skills,
+  e2e fixtures, language reference, ARCHITECTURE doc
+- **Task.flow → Task.depends_on** — struct field renamed across 16 source files
+- **examples/README.md** — complete rewrite (was referencing non-existent files)
+- **CLAUDE.md** — 8 missing modules added, error codes fixed, testing warning
+
+### Documentation
+
+- **Schema: depends_on property** — added alongside removed flow
+- **examples/README.md** — rewritten with current 519 workflow inventory
+- **DX skill nika-arch** — updated version, test count, error range
+- **37 schema↔parser sync gaps** documented for future work
+
+---
+
 ## [0.30.5](https://github.com/supernovae-st/nika/releases/tag/v0.30.5) - 2026-03-18
 
 ```
