@@ -203,6 +203,15 @@ impl RmcpClientAdapter {
         // This must be set BEFORE adding config env vars to allow override if needed
         cmd.env("RUST_LOG", "off");
 
+        // Validate environment variables for library injection (LD_PRELOAD etc.)
+        let env_pairs: Vec<(String, String)> = self
+            .config
+            .env
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        crate::runtime::security::validate_env_vars(&env_pairs)?;
+
         // Add environment variables from workflow config
         for (key, value) in &self.config.env {
             cmd.env(key, value);
