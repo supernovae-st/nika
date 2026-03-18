@@ -504,15 +504,15 @@ pub struct ResourceContent {
     pub uri: String,
 
     /// MIME type of the resource content
-    #[serde(default, rename = "mimeType")]
+    #[serde(default, rename = "mimeType", skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
 
     /// Resource text content (if loaded)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
 
     /// Resource binary content as base64 (if loaded)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blob: Option<String>,
 }
 
