@@ -603,7 +603,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .as_ref()
                 .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 .unwrap_or_default(),
-            timeout_ms: exec.timeout,
+            // Convert seconds (runtime) back to milliseconds (analyzed)
+            timeout_ms: exec.timeout.map(|s| s * 1000),
             span: Span::dummy(),
         }),
         TaskAction::Fetch { fetch } => AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
@@ -619,7 +620,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                 .collect(),
             body: fetch.body.clone(),
             json: fetch.json.clone(),
-            timeout_ms: fetch.timeout,
+            // Convert seconds (runtime) back to milliseconds (analyzed)
+            timeout_ms: fetch.timeout.map(|s| s * 1000),
             follow_redirects: fetch.follow_redirects.unwrap_or(true),
             span: Span::dummy(),
         }),
@@ -627,7 +629,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             server: invoke.mcp.clone(),
             tool: invoke.tool.clone().unwrap_or_default(),
             params: invoke.params.clone(),
-            timeout_ms: invoke.timeout,
+            // Convert seconds (runtime) back to milliseconds (analyzed)
+            timeout_ms: invoke.timeout.map(|s| s * 1000),
             span: Span::dummy(),
         }),
         TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(AnalyzedAgentAction {
