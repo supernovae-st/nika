@@ -494,88 +494,105 @@ impl RigProvider {
             .unwrap_or_else(|| self.default_model());
         let max_tokens = options.max_tokens.unwrap_or(8192);
 
-        // Build prompt with system message if provided
-        let full_prompt = if let Some(system) = &options.system {
-            format!("{}\n\n{}", system, prompt)
-        } else {
-            prompt.to_string()
-        };
+        // Use system prompt as preamble (not concatenated into user prompt)
+        let user_prompt = prompt.to_string();
 
         match self {
             RigProvider::Claude(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::OpenAI(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Mistral(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Groq(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::DeepSeek(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::Gemini(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
             RigProvider::XAi(client) => {
                 let mut builder = client.agent(model_id).max_tokens(max_tokens as u64);
+                if let Some(system) = &options.system {
+                    builder = builder.preamble(system);
+                }
                 if let Some(temp) = options.temperature {
                     builder = builder.temperature(temp);
                 }
                 let agent = builder.build();
                 agent
-                    .prompt(&full_prompt)
+                    .prompt(&user_prompt)
                     .await
                     .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
             }
@@ -588,7 +605,7 @@ impl RigProvider {
                     ..Default::default()
                 };
                 runtime
-                    .infer(&full_prompt, chat_options)
+                    .infer(&user_prompt, chat_options)
                     .await
                     .map(|r| r.message.content)
                     .map_err(|e: super::native::NativeError| {
