@@ -2626,4 +2626,393 @@ mod tests {
         let whole = ctx.resolve_path("roundtrip.media[0]").unwrap();
         assert_eq!(whole.as_object().unwrap().len(), 6);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE G: EXHAUSTIVE MIME DETECTION & PROCESSOR EDGE-CASE TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    // ---------------------------------------------------------------
+    // G1. MIME detection with ALL P0 types from the plan
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn g_detect_png_magic_bytes_89504e47() {
+        let png = real_png_bytes();
+        let result = detect_mime(&png, None).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+        assert_eq!(result.extension, "png");
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn g_detect_jpeg_magic_bytes_ffd8ff() {
+        let jpeg = real_jpeg_bytes();
+        let result = detect_mime(&jpeg, None).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn g_detect_webp_riff_webp_vp8() {
+        let webp = vec![
+            0x52, 0x49, 0x46, 0x46, // RIFF
+            0x24, 0x00, 0x00, 0x00, // chunk size
+            0x57, 0x45, 0x42, 0x50, // WEBP
+            0x56, 0x50, 0x38, 0x20, // "VP8 "
+            0x00, 0x00, 0x00, 0x00,
+        ];
+        let result = detect_mime(&webp, None).unwrap();
+        assert_eq!(result.mime_type, "image/webp");
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn g_detect_mp3_with_id3v2_tag() {
+        let mp3 = real_mp3_bytes();
+        let result = detect_mime(&mp3, None).unwrap();
+        assert!(
+            result.mime_type == "audio/mpeg" || result.mime_type == "audio/mp3",
+            "Expected audio/mpeg or audio/mp3, got: {}", result.mime_type
+        );
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn g_detect_mp3_ff_fb_sync_word() {
+        // MP3 frame sync: FF FB (MPEG1, Layer 3, no CRC)
+        let mut frame = vec![0xFF, 0xFB, 0x90, 0x00];
+        frame.extend_from_slice(&[0x00; 413]);
+        let result = detect_mime(&frame, None);
+        match result {
+            Ok(d) => {
+                assert!(
+                    d.mime_type.contains("mpeg") || d.mime_type.contains("mp3"),
+                    "FF FB sync should detect as MP3, got: {}", d.mime_type
+                );
+            }
+            Err(_) => {
+                // Server hint rescue
+                let rescued = detect_mime(&frame, Some("audio/mpeg")).unwrap();
+                assert_eq!(rescued.mime_type, "audio/mpeg");
+                assert_eq!(rescued.source, crate::media::detect::DetectionSource::ServerHint);
+            }
+        }
+    }
+
+    #[test]
+    fn g_detect_wav_riff_wave_with_fmt() {
+        let wav = vec![
+            0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00,
+            0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
+            0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+            0x44, 0xAC, 0x00, 0x00, 0x88, 0x58, 0x01, 0x00,
+            0x02, 0x00, 0x10, 0x00,
+        ];
+        let result = detect_mime(&wav, None).unwrap();
+        assert!(result.mime_type.contains("wav"),
+            "WAV MIME expected, got: {}", result.mime_type);
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    #[test]
+    fn g_detect_pdf_percent_pdf_header() {
+        let pdf = real_pdf_bytes();
+        let result = detect_mime(&pdf, None).unwrap();
+        assert_eq!(result.mime_type, "application/pdf");
+        assert_eq!(result.extension, "pdf");
+        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+    }
+
+    // ---------------------------------------------------------------
+    // G2. MIME edge cases
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn g_png_4_bytes_only_too_short_for_full_signature() {
+        // 4 bytes: 89 50 4E 47 — missing 0D 0A 1A 0A
+        let short = vec![0x89, 0x50, 0x4E, 0x47];
+        let result = detect_mime(&short, None);
+        match result {
+            Ok(d) => assert!(d.mime_type == "image/png",
+                "If detected with only 4 bytes, must still be PNG, got: {}", d.mime_type),
+            Err(_) => {} // expected
+        }
+    }
+
+    #[test]
+    fn g_null_bytes_common_in_binary_formats() {
+        let null_data = vec![0x00; 128];
+        let result = detect_mime(&null_data, None);
+        assert!(result.is_err(),
+            "128 null bytes should not match any known MIME type");
+    }
+
+    #[test]
+    fn g_null_bytes_with_server_hint_accepted() {
+        let null_data = vec![0x00; 128];
+        let result = detect_mime(&null_data, Some("audio/flac")).unwrap();
+        assert_eq!(result.mime_type, "audio/flac");
+        assert_eq!(result.source, crate::media::detect::DetectionSource::ServerHint);
+    }
+
+    #[test]
+    fn g_large_sample_over_8192_only_first_inspected() {
+        let mut data = real_png_bytes();
+        data.extend(vec![0xCC; 10_000]);
+        assert!(data.len() > 8192);
+        let result = detect_mime(&data, None).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+    }
+
+    #[test]
+    fn g_magic_bytes_at_offset_8192_not_detected() {
+        let mut data = vec![0x00; 8192];
+        data.extend_from_slice(&real_png_bytes());
+        let result = detect_mime(&data, None);
+        assert!(result.is_err(),
+            "PNG magic at offset 8192 should be beyond inspection window");
+    }
+
+    #[test]
+    fn g_exactly_8192_bytes_with_header() {
+        let mut data = real_png_bytes();
+        data.resize(8192, 0x00);
+        let result = detect_mime(&data, None).unwrap();
+        assert_eq!(result.mime_type, "image/png");
+    }
+
+    // ---------------------------------------------------------------
+    // G3. Processor with realistic MCP responses
+    // ---------------------------------------------------------------
+
+    #[tokio::test]
+    async fn g_process_single_text_returns_none_and_process_all_empty() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::text("Hello MCP");
+        assert!(processor.process(&block, "t1").await.unwrap().is_none());
+        assert!(processor.process_all(&[block], "t1").await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn g_process_all_1_image_1_text_returns_1() {
+        let (processor, _dir) = make_processor_e2e();
+        let blocks = vec![
+            ContentBlock::image(encode_b64(&real_png_bytes()), "image/png"),
+            ContentBlock::text("Caption"),
+        ];
+        let results = processor.process_all(&blocks, "it1").await;
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
+        assert_eq!(results[0].as_ref().unwrap().0.mime_type, "image/png");
+    }
+
+    #[tokio::test]
+    async fn g_process_all_5_images_2_audio_returns_7() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = MediaBudget::with_max_per_run(50 * 1024 * 1024);
+        let processor = MediaProcessor::with_budget(store, budget);
+
+        let mut blocks = Vec::new();
+        for i in 0..5u8 {
+            let mut png = real_png_bytes();
+            png.push(i);
+            blocks.push(ContentBlock::image(encode_b64(&png), "image/png"));
+        }
+        for i in 0..2u8 {
+            let mut mp3 = real_mp3_bytes();
+            mp3.push(200 + i);
+            blocks.push(ContentBlock::audio(encode_b64(&mp3), "audio/mpeg"));
+        }
+
+        let results = processor.process_all(&blocks, "g_batch7").await;
+        assert_eq!(results.len(), 7, "5 images + 2 audio = 7 results");
+
+        let (img, aud) = results.iter().fold((0usize, 0usize), |(i, a), r| {
+            let mr = &r.as_ref().unwrap().0;
+            if mr.mime_type.starts_with("image/") { (i + 1, a) }
+            else if mr.mime_type.starts_with("audio/") { (i, a + 1) }
+            else { (i, a) }
+        });
+        assert_eq!(img, 5);
+        assert_eq!(aud, 2);
+
+        // All hashes unique
+        let mut hashes: Vec<_> = results.iter()
+            .map(|r| r.as_ref().unwrap().0.hash.clone()).collect();
+        hashes.sort();
+        hashes.dedup();
+        assert_eq!(hashes.len(), 7);
+    }
+
+    #[tokio::test]
+    async fn g_process_all_all_failures_correct_indices() {
+        let (processor, _dir) = make_processor_e2e();
+        let blocks = vec![
+            ContentBlock::text("skip"),                           // 0
+            ContentBlock::image("BAD1!!!", "image/png"),          // 1
+            ContentBlock::text("skip"),                           // 2
+            ContentBlock::audio("BAD2!!!", "audio/wav"),          // 3
+            ContentBlock::image("BAD3!!!", "image/jpeg"),         // 4
+        ];
+        let results = processor.process_all(&blocks, "g_allfail").await;
+        assert_eq!(results.len(), 3);
+        assert!(results.iter().all(|r| r.is_err()));
+        let indices: Vec<usize> = results.iter()
+            .map(|r| r.as_ref().unwrap_err().0).collect();
+        assert_eq!(indices, vec![1, 3, 4]);
+        for r in &results {
+            assert_eq!(r.as_ref().unwrap_err().1.code(), "NIKA-256");
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // G4. Base64 edge cases in processor
+    // ---------------------------------------------------------------
+
+    #[tokio::test]
+    async fn g_base64_valid_unrecognizable_bytes_nika_251() {
+        let (processor, _dir) = make_processor_e2e();
+        // Bytes that don't match any known magic signature
+        let random = vec![
+            0x07, 0x13, 0x29, 0x37, 0x41, 0x53, 0x67, 0x71,
+            0x83, 0x97, 0xA1, 0xB3, 0xC7, 0xD1, 0xE3, 0xF7,
+        ];
+        let block = ContentBlock::image(encode_b64(&random), "application/octet-stream");
+        let result = processor.process(&block, "g_unknown").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-251",
+            "Valid base64 decoding to unidentifiable bytes + octet-stream -> NIKA-251");
+    }
+
+    #[tokio::test]
+    async fn g_base64_crlf_line_breaks_succeeds() {
+        let (processor, _dir) = make_processor_e2e();
+        let png = real_png_bytes();
+        let b64 = encode_b64(&png);
+        let with_crlf: String = b64.chars()
+            .enumerate()
+            .map(|(i, c)| if i > 0 && i % 76 == 0 { format!("\r\n{c}") } else { c.to_string() })
+            .collect();
+        assert!(with_crlf.contains("\r\n"));
+
+        let block = ContentBlock::image(with_crlf, "image/png");
+        let (mr, _) = processor.process(&block, "g_crlf").await
+            .expect("CRLF base64 should succeed").expect("Some");
+        assert_eq!(mr.hash, format!("blake3:{}", blake3::hash(&png).to_hex()));
+        assert_eq!(mr.mime_type, "image/png");
+    }
+
+    #[tokio::test]
+    async fn g_base64_tab_characters_succeeds() {
+        let (processor, _dir) = make_processor_e2e();
+        let png = real_png_bytes();
+        let b64 = encode_b64(&png);
+        let with_tabs: String = b64.chars()
+            .enumerate()
+            .map(|(i, c)| if i > 0 && i % 25 == 0 { format!("\t{c}") } else { c.to_string() })
+            .collect();
+        assert!(with_tabs.contains('\t'));
+
+        let block = ContentBlock::image(with_tabs, "image/png");
+        let (mr, _) = processor.process(&block, "g_tabs").await
+            .expect("tab base64 should succeed").expect("Some");
+        assert_eq!(mr.hash, format!("blake3:{}", blake3::hash(&png).to_hex()));
+    }
+
+    // ---------------------------------------------------------------
+    // G5. Budget edge cases
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn g_budget_zero_rejects_any_addition() {
+        let budget = MediaBudget::with_max_per_run(0);
+        let err = budget.check_and_add(1, "t1").unwrap_err();
+        assert_eq!(err.code(), "NIKA-259");
+        assert_eq!(budget.current_bytes(), 0);
+    }
+
+    #[test]
+    fn g_budget_zero_accepts_zero_size() {
+        let budget = MediaBudget::with_max_per_run(0);
+        // 0 + 0 = 0 which is NOT > 0
+        assert!(budget.check_and_add(0, "t1").is_ok());
+    }
+
+    #[test]
+    fn g_budget_u64_max_accepts_large_additions() {
+        let budget = MediaBudget::with_max_per_run(u64::MAX);
+        for i in 0..50 {
+            assert!(budget.check_and_add(1_000_000, &format!("t{i}")).is_ok());
+        }
+        assert_eq!(budget.current_bytes(), 50_000_000);
+    }
+
+    #[test]
+    fn g_budget_u64_max_half_plus_half_succeeds() {
+        let budget = MediaBudget::with_max_per_run(u64::MAX);
+        let half = u64::MAX / 2;
+        assert!(budget.check_and_add(half, "t1").is_ok());
+        assert!(budget.check_and_add(half, "t2").is_ok());
+        // u64::MAX / 2 * 2 = u64::MAX - 1 (since MAX is odd)
+        // One more byte should succeed
+        assert!(budget.check_and_add(1, "t3").is_ok());
+        assert_eq!(budget.current_bytes(), u64::MAX);
+    }
+
+    #[tokio::test]
+    async fn g_shared_budget_3_processors_total_enforced() {
+        let budget = Arc::new(MediaBudget::with_max_per_run(150));
+        let dirs: Vec<_> = (0..3).map(|_| tempfile::tempdir().unwrap()).collect();
+        let procs: Vec<_> = dirs.iter().map(|d|
+            MediaProcessor::with_shared_budget(CasStore::new(d.path()), Arc::clone(&budget))
+        ).collect();
+
+        let b64 = encode_b64(&real_png_bytes());
+
+        assert!(procs[0].process(&ContentBlock::image(b64.clone(), "image/png"), "p0").await.is_ok());
+        assert!(procs[1].process(&ContentBlock::image(b64.clone(), "image/png"), "p1").await.is_ok());
+        let r3 = procs[2].process(&ContentBlock::image(b64.clone(), "image/png"), "p2").await;
+        assert!(r3.is_err());
+        assert_eq!(r3.unwrap_err().code(), "NIKA-259");
+
+        let png_size = real_png_bytes().len() as u64;
+        assert_eq!(budget.current_bytes(), 2 * png_size);
+    }
+
+    // ---------------------------------------------------------------
+    // G6. MediaRef created_by field
+    // ---------------------------------------------------------------
+
+    #[tokio::test]
+    async fn g_created_by_matches_exact_task_id() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::image(encode_b64(&real_png_bytes()), "image/png");
+        let (mr, _) = processor.process(&block, "precise_task_42").await.unwrap().unwrap();
+        assert_eq!(mr.created_by, "precise_task_42");
+    }
+
+    #[tokio::test]
+    async fn g_created_by_unicode_task_ids() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::image(encode_b64(&real_png_bytes()), "image/png");
+        for id in [
+            "\u{1F98B}_butterfly",
+            "\u{4F60}\u{597D}_hello",
+            "caf\u{00E9}_task",
+            "\u{0410}\u{0411}\u{0412}_abc",
+            "\u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064A}\u{0629}",
+        ] {
+            let (mr, _) = processor.process(&block, id).await.unwrap().unwrap();
+            assert_eq!(mr.created_by, id, "Unicode task_id not preserved: {}", id);
+        }
+    }
+
+    #[tokio::test]
+    async fn g_created_by_empty_string() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::image(encode_b64(&real_png_bytes()), "image/png");
+        let (mr, _) = processor.process(&block, "").await.unwrap().unwrap();
+        assert_eq!(mr.created_by, "");
+    }
 }
