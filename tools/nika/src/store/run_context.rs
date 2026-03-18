@@ -44,6 +44,8 @@ pub struct TaskResult {
     pub duration: Duration,
     /// Success or failure status
     pub status: TaskOutcome,
+    /// Media files produced by this task (empty for non-media tasks)
+    pub media: Vec<crate::media::MediaRef>,
 }
 
 impl TaskResult {
@@ -53,6 +55,7 @@ impl TaskResult {
             output: Arc::new(output.into()),
             duration,
             status: TaskOutcome::Success,
+            media: Vec::new(),
         }
     }
 
@@ -62,6 +65,7 @@ impl TaskResult {
             output: Arc::new(Value::String(output.into())),
             duration,
             status: TaskOutcome::Success,
+            media: Vec::new(),
         }
     }
 
@@ -71,6 +75,7 @@ impl TaskResult {
             output: Arc::new(Value::Null),
             duration,
             status: TaskOutcome::Failed(error.into()),
+            media: Vec::new(),
         }
     }
 
@@ -85,6 +90,7 @@ impl TaskResult {
             status: TaskOutcome::DependencyFailed {
                 dependency: dependency.into(),
             },
+            media: Vec::new(),
         }
     }
 
@@ -98,7 +104,14 @@ impl TaskResult {
             status: TaskOutcome::Skipped {
                 reason: reason.into(),
             },
+            media: Vec::new(),
         }
+    }
+
+    /// Attach media references to this result.
+    pub fn with_media(mut self, media: Vec<crate::media::MediaRef>) -> Self {
+        self.media = media;
+        self
     }
 
     /// Check if task succeeded
@@ -172,6 +185,11 @@ pub struct RunContext {
     /// Contains input definitions from the `inputs:` block.
     /// Accessible via `{{inputs.param}}` bindings.
     inputs: Arc<RwLock<FxHashMap<String, Value>>>,
+
+    /// Side-channel for media refs produced by invoke tasks.
+    /// Written by run_invoke() after MediaProcessor completes.
+    /// Read (and drained) by the runner after building TaskResult.
+    media_staging: Arc<DashMap<Arc<str>, Vec<crate::media::MediaRef>, FxBuildHasher>>,
 }
 
 impl Default for RunContext {
@@ -180,6 +198,7 @@ impl Default for RunContext {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
             inputs: Arc::default(),
+            media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
         }
     }
 }
@@ -234,6 +253,26 @@ impl RunContext {
     /// Returns `Arc<Value>` for O(1) cloning instead of deep copy
     pub fn get_output(&self, task_id: &str) -> Option<Arc<Value>> {
         self.results.get(task_id).map(|r| Arc::clone(&r.output))
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // MEDIA STAGING
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// Stage media refs for a task (called from run_invoke).
+    pub fn set_media(&self, task_id: &Arc<str>, media: Vec<crate::media::MediaRef>) {
+        if !media.is_empty() {
+            self.media_staging.insert(Arc::clone(task_id), media);
+        }
+    }
+
+    /// Take staged media refs for a task (called from runner after building TaskResult).
+    /// Returns empty vec if no media was staged.
+    pub fn take_media(&self, task_id: &Arc<str>) -> Vec<crate::media::MediaRef> {
+        self.media_staging
+            .remove(task_id)
+            .map(|(_, v)| v)
+            .unwrap_or_default()
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")
