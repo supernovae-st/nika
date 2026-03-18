@@ -1,7 +1,7 @@
 //! Workflow Types - main workflow structure
 //!
 //! Contains the core YAML-parsed types:
-//! - `Workflow`: Root workflow with tasks (edges derived from `task.flow`)
+//! - `Workflow`: Root workflow with tasks (edges derived from `task.depends_on`)
 //! - `Task`: Individual task definition
 //! - `McpConfigInline`: Inline MCP server configuration
 //! - `ContextConfig`: File loading at workflow start
@@ -127,17 +127,17 @@ impl Workflow {
     pub fn flow_count(&self) -> usize {
         self.tasks
             .iter()
-            .map(|t| t.flow.as_ref().map_or(0, |deps| deps.len()))
+            .map(|t| t.depends_on.as_ref().map_or(0, |deps| deps.len()))
             .sum()
     }
 
     /// Iterate over DAG edges as (source, target) pairs.
     ///
-    /// Built from each task's `flow` field (which holds `depends_on` + implicit deps).
+    /// Built from each task's `depends_on` field.
     pub fn edges(&self) -> Vec<(&str, &str)> {
         let mut edges = Vec::new();
         for task in &self.tasks {
-            if let Some(ref deps) = task.flow {
+            if let Some(ref deps) = task.depends_on {
                 for dep in deps {
                     edges.push((dep.as_str(), task.id.as_str()));
                 }
@@ -262,8 +262,8 @@ pub struct Task {
     ///   depends_on: [fetch_data, validate]
     ///   infer: "Process {{with.data}}"
     /// ```
-    #[serde(default, alias = "depends_on")]
-    pub flow: Option<Vec<String>>,
+    #[serde(default, alias = "flow")]
+    pub depends_on: Option<Vec<String>>,
     /// Structured output configuration
     ///
     /// When specified, enforces JSON Schema validation on task output.
@@ -387,16 +387,16 @@ impl Task {
 
     /// Get list of task IDs this task depends on
     ///
-    /// Returns task IDs from the `flow`/`depends_on` field.
+    /// Returns task IDs from the `depends_on` field.
     pub fn depends_on_ids(&self) -> Vec<&str> {
-        self.flow
+        self.depends_on
             .as_ref()
             .map(|deps| deps.iter().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
 }
 
-// Flow and FlowEndpoint types removed — edges are derived from task.flow
+// Flow and FlowEndpoint types removed — edges are derived from task.depends_on
 
 #[cfg(test)]
 mod tests {

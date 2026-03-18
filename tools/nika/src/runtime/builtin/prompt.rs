@@ -123,7 +123,7 @@ impl BuiltinTool for PromptTool {
                     "description": "Default value if no input provided"
                 }
             },
-            "required": ["message"],
+            "required": ["message", "default"],
             "additionalProperties": false
         })
     }

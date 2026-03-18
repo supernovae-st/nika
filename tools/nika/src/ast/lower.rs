@@ -99,7 +99,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
 // ---------------------------------------------------------------------------
 
 fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> {
-    let flow = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
+    let depends_on = task_dep_names(&task.depends_on, &task.implicit_deps, table)?;
     let (for_each, for_each_as, fe_concurrency, fe_fail_fast) = lower_for_each(task.for_each);
     let action = lower_action(task.action, task.provider, task.model, task.retry);
     let output = task.output.map(lower_output);
@@ -125,7 +125,7 @@ fn lower_task(task: AnalyzedTask, table: &TaskTable) -> Result<Task, NikaError> 
         action,
         artifact: task.artifact.clone(),
         log: task.log.clone(),
-        flow,
+        depends_on,
         structured: task.structured,
     })
 }
@@ -460,7 +460,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         let id = task_table.get_id(&task.id).expect("task just inserted");
 
         // Resolve flow dependencies to TaskIds (reject dangling names)
-        let depends_on: Vec<TaskId> = match task.flow.as_ref() {
+        let depends_on: Vec<TaskId> = match task.depends_on.as_ref() {
             Some(deps) => {
                 let mut ids = Vec::with_capacity(deps.len());
                 for name in deps {
@@ -993,13 +993,13 @@ mod tests {
         let lowered = lower(wf).unwrap();
 
         // Task-level flow field
-        assert!(lowered.tasks[0].flow.is_none()); // a: no deps
+        assert!(lowered.tasks[0].depends_on.is_none()); // a: no deps
         assert_eq!(
-            lowered.tasks[1].flow.as_deref(),
+            lowered.tasks[1].depends_on.as_deref(),
             Some(&["a".to_string()][..])
         ); // b: [a]
 
-        let c_deps = lowered.tasks[2].flow.as_ref().unwrap();
+        let c_deps = lowered.tasks[2].depends_on.as_ref().unwrap();
         assert_eq!(c_deps.len(), 2);
         assert!(c_deps.contains(&"a".to_string()));
         assert!(c_deps.contains(&"b".to_string()));
@@ -1354,7 +1354,7 @@ mod tests {
         // Lower to Workflow, then tamper with flow to create dangling ref
         let mut lowered = lower(wf).unwrap();
         let task = Arc::make_mut(&mut lowered.tasks[0]);
-        task.flow = Some(vec!["nonexistent_task".to_string()]);
+        task.depends_on = Some(vec!["nonexistent_task".to_string()]);
 
         // unlower should reject the dangling name
         let result = unlower(lowered);
@@ -1768,8 +1768,8 @@ mod tests {
         });
         let lowered = lower(wf).unwrap();
         // Both explicit and implicit deps merged into flow
-        let flow = lowered.tasks[1].flow.as_ref().unwrap();
-        assert_eq!(flow.len(), 2, "Both deps should be merged into flow");
+        let deps = lowered.tasks[1].depends_on.as_ref().unwrap();
+        assert_eq!(deps.len(), 2, "Both deps should be merged into depends_on");
         // After roundtrip, all appear in depends_on, implicit_deps is empty
         let unlowered = unlower(lowered).unwrap();
         let rt_task = &unlowered.tasks[1];

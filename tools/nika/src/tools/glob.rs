@@ -174,7 +174,8 @@ impl FileTool for GlobTool {
                     "description": "Base path to search in (default: working directory)"
                 }
             },
-            "required": ["pattern"]
+            "required": ["pattern", "path"],
+            "additionalProperties": false
         })
     }
 

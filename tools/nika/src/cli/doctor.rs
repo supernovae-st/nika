@@ -330,7 +330,7 @@ fn check_trace_directory() -> Vec<DiagnosticCheck> {
                     count,
                     count as f64 * 0.005 // ~5KB average per trace
                 ),
-                format!("Run 'nika trace clean --keep 100' to prune old traces"),
+                "Run 'nika trace clean --keep 100' to prune old traces",
             ));
         } else if count > 1_000 {
             checks.push(DiagnosticCheck::warn(

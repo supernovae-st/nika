@@ -76,7 +76,7 @@ impl BuiltinTool for AssertTool {
                     "description": "Error message if assertion fails"
                 }
             },
-            "required": ["condition"],
+            "required": ["condition", "message"],
             "additionalProperties": false
         })
     }

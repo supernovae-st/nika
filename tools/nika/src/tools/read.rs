@@ -196,7 +196,8 @@ impl FileTool for ReadTool {
                     "maximum": 10000
                 }
             },
-            "required": ["file_path"]
+            "required": ["file_path", "offset", "limit"],
+            "additionalProperties": false
         })
     }
 

@@ -503,8 +503,13 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
                 working_dir: get_string_field(file, m, "working_dir")?
                     .or(get_string_field(file, m, "cwd")?),
                 env: parse_string_map(file, m, "env")?,
-                timeout_ms: get_u64_field(file, m, "timeout_ms")?
-                    .or(get_u64_field(file, m, "timeout")?),
+                // timeout_ms is the primary field (milliseconds).
+                // timeout is the schema alias (seconds) — convert to ms.
+                timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
+                    Some(v) => Some(v),
+                    None => get_u64_field(file, m, "timeout")?
+                        .map(|s| Spanned::new(s.value * 1000, s.span)),
+                },
             })
         }
         _ => Err(ParseError {
@@ -542,7 +547,11 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         headers: parse_string_map(file, m, "headers")?,
         body: get_string_field(file, m, "body")?,
         json: parse_json_value(file, m, "json")?,
-        timeout_ms: get_u64_field(file, m, "timeout_ms")?.or(get_u64_field(file, m, "timeout")?),
+        timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
+            Some(v) => Some(v),
+            None => get_u64_field(file, m, "timeout")?
+                .map(|s| Spanned::new(s.value * 1000, s.span)),
+        },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
     })
 }
@@ -572,7 +581,11 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         tool,
         params: parse_json_value(file, m, "params")?,
         mcp: get_string_field(file, m, "mcp")?.or(get_string_field(file, m, "server")?),
-        timeout_ms: get_u64_field(file, m, "timeout_ms")?.or(get_u64_field(file, m, "timeout")?),
+        timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
+            Some(v) => Some(v),
+            None => get_u64_field(file, m, "timeout")?
+                .map(|s| Spanned::new(s.value * 1000, s.span)),
+        },
     })
 }
 
@@ -1557,7 +1570,7 @@ tasks:
       command: "npm run build"
       shell: true
       cwd: "/app"
-      timeout: 30000
+      timeout: 30
       env:
         NODE_ENV: production
 "#;
@@ -1588,7 +1601,7 @@ tasks:
       method: POST
       headers:
         Authorization: "Bearer token"
-      timeout: 5000
+      timeout: 5
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
         let task = workflow.get_task("api_call").unwrap();
@@ -1597,7 +1610,7 @@ tasks:
             Some(RawTaskAction::Fetch(action)) => {
                 assert_eq!(action.value.url.value, "https://api.example.com/data");
                 assert_eq!(action.value.method.as_ref().unwrap().value, "POST");
-                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 5000);
+                assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 5000); // 5 seconds * 1000
                 let headers = action.value.headers.as_ref().unwrap();
                 assert!(headers.value.values().any(|v| v.value.contains("Bearer")));
             }

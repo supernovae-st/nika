@@ -83,7 +83,7 @@ pub use dag::{validate_bindings, Dag, StableDag};
 pub use binding::{validate_task_id, BindingEntry, BindingSpec, ResolvedBindings};
 
 // Events
-pub use event::{list_traces, Event, EventKind, EventLog};
+pub use event::{list_traces, prune_traces, Event, EventKind, EventLog};
 
 // Store
 pub use store::{RunContext, TaskResult};

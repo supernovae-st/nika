@@ -98,7 +98,7 @@ impl BuiltinTool for EmitTool {
                     "description": "Event payload as JSON string (e.g., '{\"key\": \"value\"}' or '123' or '\"text\"')"
                 }
             },
-            "required": ["name"],
+            "required": ["name", "payload_json"],
             "additionalProperties": false
         })
     }

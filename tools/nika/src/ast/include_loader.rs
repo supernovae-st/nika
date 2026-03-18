@@ -256,7 +256,7 @@ fn merge_workflow(
 
     // NOTE: flows are no longer merged at workflow level.
     // Task-level `flow` fields are prefixed by `prefix_task()` and the DAG
-    // builder computes edges directly from `task.flow`.
+    // builder computes edges directly from `task.depends_on`.
 
     // Merge skills (main workflow skills take precedence)
     if let Some(included_skills) = included.skills {
@@ -286,7 +286,7 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
             new_task.id = format!("{}{}", prefix, new_task.id);
 
             // Prefix flow (depends_on) references
-            if let Some(ref mut deps) = new_task.flow {
+            if let Some(ref mut deps) = new_task.depends_on {
                 for dep in deps.iter_mut() {
                     *dep = format!("{}{}", prefix, dep);
                 }
@@ -309,7 +309,7 @@ fn prefix_task(task: Arc<Task>, prefix: Option<&str>) -> Arc<Task> {
     }
 }
 
-// prefix_endpoint and prefix_flow removed — flows are now derived from task.flow only
+// prefix_endpoint and prefix_flow removed — flows are now derived from task.depends_on only
 
 #[cfg(test)]
 mod tests {
@@ -372,7 +372,7 @@ mod tests {
             },
             artifact: None,
             log: None,
-            flow: None,
+            depends_on: None,
             structured: None,
         });
 
@@ -436,7 +436,7 @@ mod tests {
             },
             artifact: None,
             log: None,
-            flow: None,
+            depends_on: None,
             structured: None,
         });
 
@@ -512,10 +512,10 @@ tasks:
         assert_eq!(result.tasks[0].id, "lib_task1");
         assert_eq!(result.tasks[1].id, "lib_task2");
 
-        // task.flow carries prefixed dependency names
-        assert!(result.tasks[0].flow.is_none()); // task1 has no deps
-        let task2_flow = result.tasks[1].flow.as_ref().unwrap();
-        assert_eq!(task2_flow, &["lib_task1".to_string()]);
+        // task.depends_on carries prefixed dependency names
+        assert!(result.tasks[0].depends_on.is_none()); // task1 has no deps
+        let task2_deps = result.tasks[1].depends_on.as_ref().unwrap();
+        assert_eq!(task2_deps, &["lib_task1".to_string()]);
     }
 
     #[test]

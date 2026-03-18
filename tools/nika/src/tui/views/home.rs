@@ -479,7 +479,7 @@ impl HomeView {
         let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
         for task in &wf.tasks {
-            if let Some(ref flow) = task.flow {
+            if let Some(ref flow) = task.depends_on {
                 let entry = deps.entry(task.id.clone()).or_default();
                 for source in flow {
                     if !entry.contains(source) {

@@ -18,5 +18,6 @@ mod trace;
 pub use emitter::{EventEmitter, NoopEmitter};
 pub use log::{AgentTurnMetadata, ContextSource, Event, EventKind, EventLog, ExcludedItem};
 pub use trace::{
-    calculate_workflow_hash, generate_generation_id, list_traces, TraceInfo, TraceWriter,
+    calculate_workflow_hash, generate_generation_id, list_traces, prune_traces, TraceInfo,
+    TraceWriter,
 };

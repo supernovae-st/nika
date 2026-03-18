@@ -430,7 +430,7 @@ impl Dag {
             predecessors.insert(id, DepVec::new());
         }
 
-        // Track seen edges to deduplicate between task.flow and with_spec implicit edges.
+        // Track seen edges to deduplicate between task.depends_on and with_spec implicit edges.
         let mut seen_edges: FxHashSet<(Arc<str>, Arc<str>)> = FxHashSet::default();
 
         /// Insert an edge if not already seen, updating adjacency and predecessors.
@@ -456,7 +456,7 @@ impl Dag {
 
         // Build edges from task-level flow/depends_on
         for task in &workflow.tasks {
-            if let Some(ref deps) = task.flow {
+            if let Some(ref deps) = task.depends_on {
                 let tgt_arc = task_set
                     .get(task.id.as_str())
                     .cloned()

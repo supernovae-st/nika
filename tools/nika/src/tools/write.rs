@@ -196,7 +196,8 @@ impl FileTool for WriteTool {
                     "description": "Content to write to the file"
                 }
             },
-            "required": ["file_path", "content"]
+            "required": ["file_path", "content"],
+            "additionalProperties": false
         })
     }
 
