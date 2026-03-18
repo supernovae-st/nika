@@ -1113,4 +1113,132 @@ mod tests {
         assert_eq!(config.cwd.unwrap(), "/home/user/projects/mcp");
         std::env::remove_var("NIKA_TEST_DIR");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ContentBlock Enum Tests (PR1)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_content_block_audio_enum() {
+        let block = ContentBlock::audio("b64audio", "audio/wav");
+        assert!(block.is_audio());
+        assert!(!block.is_text());
+        assert!(!block.is_image());
+        assert!(matches!(
+            block,
+            ContentBlock::Audio { ref data, ref mime_type }
+            if data == "b64audio" && mime_type == "audio/wav"
+        ));
+    }
+
+    #[test]
+    fn test_content_block_resource_link_enum() {
+        let block = ContentBlock::resource_link(
+            "file:///tmp/test.txt",
+            Some("test.txt".to_string()),
+            Some("text/plain".to_string()),
+        );
+        assert!(block.is_resource_link());
+        assert!(!block.is_text());
+        assert!(!block.is_resource());
+    }
+
+    #[test]
+    fn test_content_block_serde_roundtrip_all_variants() {
+        let blocks = vec![
+            ContentBlock::text("hello"),
+            ContentBlock::image("b64", "image/png"),
+            ContentBlock::audio("b64", "audio/wav"),
+            ContentBlock::resource(ResourceContent::new("file:///test").with_text("content")),
+            ContentBlock::resource_link("file:///link", None, None),
+        ];
+        for (i, block) in blocks.iter().enumerate() {
+            let json = serde_json::to_string(block)
+                .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
+            let back: ContentBlock = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("variant {i} failed to deserialize: {e}\nJSON: {json}"));
+            assert_eq!(*block, back, "variant {i} roundtrip mismatch");
+        }
+    }
+
+    #[test]
+    fn test_content_block_text_json_format() {
+        let block = ContentBlock::text("hello world");
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "text");
+        assert_eq!(json["text"], "hello world");
+    }
+
+    #[test]
+    fn test_content_block_image_json_has_mime_type_camel_case() {
+        let block = ContentBlock::image("b64data", "image/png");
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "image");
+        assert_eq!(json["mimeType"], "image/png");
+        assert!(json.get("mime_type").is_none(), "should use mimeType not mime_type");
+    }
+
+    #[test]
+    fn test_content_block_resource_link_skips_none_fields() {
+        let block = ContentBlock::resource_link("file:///link", None, None);
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(!json.contains("name"), "None name should be skipped");
+        assert!(!json.contains("mimeType"), "None mimeType should be skipped");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ToolCallResult Media Helper Tests (PR1)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_has_media_false_for_text_only() {
+        let result = ToolCallResult::success(vec![ContentBlock::text("hello")]);
+        assert!(!result.has_media());
+        assert!(result.images().is_empty());
+        assert!(result.audio_blocks().is_empty());
+        assert!(result.media_blocks().is_empty());
+    }
+
+    #[test]
+    fn test_has_media_true_for_mixed_content() {
+        let result = ToolCallResult::success(vec![
+            ContentBlock::text("description"),
+            ContentBlock::image("b64", "image/png"),
+            ContentBlock::audio("b64", "audio/wav"),
+        ]);
+        assert!(result.has_media());
+        assert_eq!(result.images().len(), 1);
+        assert_eq!(result.audio_blocks().len(), 1);
+        assert_eq!(result.media_blocks().len(), 2);
+    }
+
+    #[test]
+    fn test_text_preserved_with_media() {
+        let result = ToolCallResult::success(vec![
+            ContentBlock::text("First line"),
+            ContentBlock::image("b64data", "image/png"),
+            ContentBlock::text("Second line"),
+        ]);
+        assert_eq!(result.text(), "First line\nSecond line");
+        assert_eq!(result.first_text(), Some("First line"));
+        assert!(result.has_media());
+    }
+
+    #[test]
+    fn test_empty_content_vec() {
+        let result = ToolCallResult::success(vec![]);
+        assert!(!result.has_media());
+        assert_eq!(result.text(), "");
+        assert!(result.images().is_empty());
+        assert!(result.media_blocks().is_empty());
+    }
+
+    #[test]
+    fn test_with_blob_builder() {
+        let rc = ResourceContent::new("file:///test")
+            .with_blob("base64data")
+            .with_mime_type("application/pdf");
+        assert_eq!(rc.blob, Some("base64data".to_string()));
+        assert_eq!(rc.mime_type, Some("application/pdf".to_string()));
+    }
 }
