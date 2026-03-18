@@ -21,7 +21,7 @@
 //! │  Phase 2: Analysis (this module)                                   │
 //! │  - Validates schema version                                        │
 //! │  - Builds task table (TaskId interning)                            │
-//! │  - Resolves all references (with:, flow:)                           │
+//! │  - Resolves all references (with:, depends_on:)                     │
 //! │  - Detects cyclic dependencies                                     │
 //! │  - Collects errors with precise spans                              │
 //! │  - Output: analyzed::Workflow with TaskId fields                   │

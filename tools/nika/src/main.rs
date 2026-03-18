@@ -709,16 +709,11 @@ async fn run_workflow(
     }
 
     if !quiet {
-        println!(
-            "{} Using provider: {} | model: {}",
-            "→".cyan(),
-            workflow
-                .provider
-                .as_deref()
-                .unwrap_or("(auto)")
-                .cyan()
-                .bold(),
-            workflow.model.as_deref().unwrap_or("(default)").cyan()
+        nika::display::print_workflow_header(
+            workflow.name.as_deref(),
+            workflow.provider.as_deref().unwrap_or("(auto)"),
+            workflow.model.as_deref().unwrap_or("(default)"),
+            workflow.tasks.len(),
         );
 
         // IMP-1: Migration hint for old schema versions

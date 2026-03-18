@@ -247,14 +247,14 @@ tasks:
   - id: fetch_c
 
   - id: validate_a
-    flow: [fetch_a]
+    depends_on: [fetch_a]
   - id: validate_b
-    flow: [fetch_b]
+    depends_on: [fetch_b]
   - id: validate_c
-    flow: [fetch_c]
+    depends_on: [fetch_c]
 
   - id: merge_all
-    flow: [validate_a, validate_b, validate_c]  # Diamond convergence
+    depends_on: [validate_a, validate_b, validate_c]  # Diamond convergence
 ```
 
 ---

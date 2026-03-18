@@ -33,6 +33,7 @@ pub mod source;
 
 // Public modules (used by main.rs, tests, or benches)
 pub mod ast;
+pub mod display;
 pub mod binding;
 pub mod config;
 pub mod core;

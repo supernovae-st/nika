@@ -1,10 +1,10 @@
 # Test: flow/05-task-level-flow
-# Tests: flow: property on tasks (inline dependencies)
-# Expected: Task-level flow works same as flows: section
+# Tests: depends_on: property on tasks (inline dependencies)
+# Expected: Task-level depends_on works same as flows: section
 
 schema: "nika/workflow@0.12"
 workflow: test-flow-task-level
-description: "Test task-level flow property"
+description: "Test task-level depends_on property"
 
 provider: claude
 

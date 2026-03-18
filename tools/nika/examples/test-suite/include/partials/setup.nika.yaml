@@ -14,4 +14,4 @@ tasks:
   - id: validate
     description: "Validate configuration"
     exec: "echo 'Validated'"
-    # Note: flow: [init] removed - internal flows need prefix handling (bug #TODO)
+    # Note: depends_on: [init] removed - internal deps need prefix handling (bug #TODO)
