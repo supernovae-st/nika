@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use parking_lot::Mutex;
 
@@ -118,6 +119,105 @@ pub fn calculate_workflow_hash(yaml: &str) -> String {
 
     let hash = xxh3_64(yaml.as_bytes());
     format!("xxh3:{:016x}", hash)
+}
+
+/// Prune old trace files, enforcing both `max_traces` and `retention_days`.
+///
+/// Deletes the oldest traces beyond `max_traces`, and any trace older than
+/// `retention_days`. Logs a warning when files are pruned.
+///
+/// Safe to call on every write -- performs a single directory listing and
+/// at most N unlink calls.
+pub fn prune_traces(max_traces: u32, retention_days: u32) {
+    prune_traces_in_dir(Path::new(TRACE_DIR), max_traces, retention_days);
+}
+
+/// Core pruning logic, parameterised by directory for testability.
+fn prune_traces_in_dir(trace_dir: &Path, max_traces: u32, retention_days: u32) {
+    if !trace_dir.exists() {
+        return;
+    }
+
+    let dir_iter = match fs::read_dir(trace_dir) {
+        Ok(iter) => iter,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to read trace directory for pruning");
+            return;
+        }
+    };
+
+    // Collect .ndjson entries with their creation times
+    let mut entries: Vec<(PathBuf, Option<SystemTime>)> = Vec::new();
+
+    for entry in dir_iter {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+
+        if path.extension().map(|e| e == "ndjson").unwrap_or(false) {
+            let created = entry.metadata().ok().and_then(|m| m.created().ok());
+            entries.push((path, created));
+        }
+    }
+
+    // Sort newest first (None-timestamps sort last so unknown files get pruned first)
+    entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // Pass 1: retention_days -- mark entries older than cutoff for deletion
+    let cutoff = if retention_days > 0 {
+        SystemTime::now()
+            .checked_sub(Duration::from_secs(u64::from(retention_days) * 86400))
+    } else {
+        None
+    };
+
+    let mut to_delete: Vec<PathBuf> = Vec::new();
+    let mut kept: Vec<(PathBuf, Option<SystemTime>)> = Vec::new();
+
+    for (path, created) in entries {
+        let expired = match (&cutoff, &created) {
+            (Some(cutoff_time), Some(create_time)) => create_time < cutoff_time,
+            _ => false,
+        };
+
+        if expired {
+            to_delete.push(path);
+        } else {
+            kept.push((path, created));
+        }
+    }
+
+    // Pass 2: max_traces -- from the kept entries, remove oldest beyond the limit
+    if kept.len() > max_traces as usize {
+        let excess = kept.split_off(max_traces as usize);
+        to_delete.extend(excess.into_iter().map(|(path, _)| path));
+    }
+
+    // Delete files
+    let mut pruned_count: u32 = 0;
+    for path in &to_delete {
+        if let Err(e) = fs::remove_file(path) {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "Failed to prune trace file"
+            );
+        } else {
+            pruned_count += 1;
+        }
+    }
+
+    if pruned_count > 0 {
+        tracing::warn!(
+            pruned = pruned_count,
+            max_traces = max_traces,
+            retention_days = retention_days,
+            remaining = kept.len(),
+            "Pruned old trace files"
+        );
+    }
 }
 
 /// List all trace files
@@ -298,5 +398,117 @@ mod tests {
         assert!("2024-01-01T12-00-00-abc0"
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == 'T'));
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // prune_traces_in_dir tests
+    // ───────────────────────────────────────────────────────────────
+
+    /// Helper: create N empty .ndjson files in a temp dir, return the dir path.
+    fn make_trace_dir(count: usize) -> tempfile::TempDir {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for i in 0..count {
+            let name = format!("trace-{:04}.ndjson", i);
+            fs::write(tmp.path().join(&name), "").unwrap();
+            // Tiny sleep so creation times differ (needed on macOS HFS+ which
+            // has 1s resolution). 10ms is enough for APFS/ext4 nanosecond
+            // resolution and still keeps tests fast.
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        tmp
+    }
+
+    fn count_ndjson(dir: &Path) -> usize {
+        fs::read_dir(dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "ndjson")
+                    .unwrap_or(false)
+            })
+            .count()
+    }
+
+    #[test]
+    fn test_prune_noop_when_under_limit() {
+        let tmp = make_trace_dir(5);
+        prune_traces_in_dir(tmp.path(), 100, 0);
+        assert_eq!(count_ndjson(tmp.path()), 5);
+    }
+
+    #[test]
+    fn test_prune_enforces_max_traces() {
+        let tmp = make_trace_dir(10);
+        assert_eq!(count_ndjson(tmp.path()), 10);
+
+        prune_traces_in_dir(tmp.path(), 3, 0);
+        assert_eq!(count_ndjson(tmp.path()), 3);
+    }
+
+    #[test]
+    fn test_prune_keeps_newest_files() {
+        let tmp = make_trace_dir(5);
+
+        // The files are created in order 0000..0004, with 0004 being newest.
+        prune_traces_in_dir(tmp.path(), 2, 0);
+
+        let remaining: Vec<String> = fs::read_dir(tmp.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "ndjson")
+                    .unwrap_or(false)
+            })
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+
+        assert_eq!(remaining.len(), 2);
+        // The two newest should survive (0003, 0004)
+        assert!(remaining.iter().any(|f| f.contains("0004")));
+        assert!(remaining.iter().any(|f| f.contains("0003")));
+    }
+
+    #[test]
+    fn test_prune_nonexistent_dir_is_noop() {
+        let dir = Path::new("/tmp/nika-test-nonexistent-dir-12345");
+        // Should not panic
+        prune_traces_in_dir(dir, 10, 7);
+    }
+
+    #[test]
+    fn test_prune_empty_dir_is_noop() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        prune_traces_in_dir(tmp.path(), 5, 7);
+        assert_eq!(count_ndjson(tmp.path()), 0);
+    }
+
+    #[test]
+    fn test_prune_ignores_non_ndjson_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Create some .ndjson and some .txt files
+        for i in 0..5 {
+            fs::write(tmp.path().join(format!("trace-{}.ndjson", i)), "").unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        fs::write(tmp.path().join("notes.txt"), "keep me").unwrap();
+        fs::write(tmp.path().join("data.json"), "keep me too").unwrap();
+
+        prune_traces_in_dir(tmp.path(), 2, 0);
+
+        // Only 2 ndjson should remain, and the non-ndjson files should be untouched
+        assert_eq!(count_ndjson(tmp.path()), 2);
+        assert!(tmp.path().join("notes.txt").exists());
+        assert!(tmp.path().join("data.json").exists());
+    }
+
+    #[test]
+    fn test_prune_max_traces_zero_deletes_all() {
+        let tmp = make_trace_dir(5);
+        prune_traces_in_dir(tmp.path(), 0, 0);
+        assert_eq!(count_ndjson(tmp.path()), 0);
     }
 }
