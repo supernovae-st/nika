@@ -854,6 +854,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     Some(&event_log),
                     &bindings,
                     &datastore,
+                    task_result.media.as_slice(),
                 )
                 .await;
 

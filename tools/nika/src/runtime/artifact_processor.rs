@@ -20,7 +20,8 @@ use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::io::security::DEFAULT_ARTIFACT_DIR;
-use crate::io::writer::{ArtifactWriter, WriteRequest, WriteResult};
+use crate::io::writer::{ArtifactWriter, BinarySource, BinaryWriteRequest, WriteRequest, WriteResult};
+use crate::media::MediaRef;
 use crate::serde_yaml;
 use crate::store::RunContext;
 
@@ -47,6 +48,7 @@ pub struct ArtifactProcessResult {
 /// * `event_log` - Optional event log for emitting artifact events
 /// * `bindings` - Resolved bindings for template resolution
 /// * `datastore` - Data store for lazy binding resolution
+/// * `media_refs` - Media files produced by the task (for binary artifact source resolution)
 ///
 /// # Returns
 ///
@@ -61,6 +63,7 @@ pub async fn process_task_artifacts(
     event_log: Option<&EventLog>,
     bindings: &ResolvedBindings,
     datastore: &RunContext,
+    media_refs: &[MediaRef],
 ) -> ArtifactProcessResult {
     let mut result = ArtifactProcessResult {
         written: 0,
@@ -114,6 +117,7 @@ pub async fn process_task_artifacts(
             &writer,
             bindings,
             datastore,
+            media_refs,
         )
         .await
         {
@@ -167,6 +171,7 @@ pub async fn process_task_artifacts(
 ///
 /// Supports `template:` field - if set, resolves template with bindings
 /// instead of using task output directly.
+#[allow(clippy::too_many_arguments)]
 async fn write_single_artifact(
     task_id: &str,
     output: &str,
@@ -175,12 +180,18 @@ async fn write_single_artifact(
     writer: &ArtifactWriter,
     bindings: &ResolvedBindings,
     datastore: &RunContext,
+    media_refs: &[MediaRef],
 ) -> Result<WriteResult, NikaError> {
     // Determine format (task spec > workflow default)
     let format = output_spec
         .format
         .or(workflow_config.map(|c| c.format))
         .unwrap_or(ArtifactFormat::Text);
+
+    // Binary format: resolve source to CAS path and copy
+    if format == ArtifactFormat::Binary {
+        return write_binary_artifact(task_id, output_spec, writer, bindings, datastore, media_refs).await;
+    }
 
     // Determine mode (task spec > workflow default)
     let mode = output_spec
@@ -322,6 +333,99 @@ async fn write_single_artifact(
             })
         }
     }
+}
+
+/// Write a binary artifact from a media reference.
+///
+/// Resolves the `source` binding to a media hash or path, then copies from CAS store.
+/// Falls back to the first media ref if no explicit source is specified.
+#[allow(clippy::too_many_arguments)]
+async fn write_binary_artifact(
+    task_id: &str,
+    output_spec: &ArtifactOutput,
+    writer: &ArtifactWriter,
+    bindings: &ResolvedBindings,
+    datastore: &RunContext,
+    media_refs: &[MediaRef],
+) -> Result<WriteResult, NikaError> {
+    // Resolve source to a MediaRef:
+    // 1. If source is specified, look it up in bindings/media_refs
+    // 2. Otherwise, use first media ref from the task
+    let media_ref = if let Some(ref source_alias) = output_spec.source {
+        // Try to find media by source alias (could be a task_id or hash)
+        // First check if any media ref was created by a task matching the source alias
+        let from_media = media_refs.iter().find(|m| m.created_by == *source_alias || m.hash == *source_alias);
+        if let Some(mr) = from_media {
+            mr.clone()
+        } else {
+            // Try resolving from bindings — the value might contain a media hash
+            let hash_value = if let Some(value) = bindings.get(source_alias) {
+                match value {
+                    serde_json::Value::String(s) => Some(s.clone()),
+                    _ => None,
+                }
+            } else {
+                datastore.get_output(source_alias).and_then(|v| {
+                    match v.as_ref() {
+                        serde_json::Value::String(s) => Some(s.clone()),
+                        _ => None,
+                    }
+                })
+            };
+
+            if let Some(hash) = hash_value {
+                // Find media ref by hash
+                media_refs.iter().find(|m| m.hash == hash).cloned().ok_or_else(|| {
+                    NikaError::ArtifactWriteError {
+                        path: output_spec.path.clone(),
+                        reason: format!(
+                            "Binary artifact source '{}' resolved to hash '{}' but no media ref matches",
+                            source_alias, hash
+                        ),
+                    }
+                })?
+            } else {
+                return Err(NikaError::ArtifactWriteError {
+                    path: output_spec.path.clone(),
+                    reason: format!(
+                        "Binary artifact source '{}' not found in media refs or bindings",
+                        source_alias
+                    ),
+                });
+            }
+        }
+    } else {
+        // No explicit source — use first media ref
+        media_refs.first().cloned().ok_or_else(|| {
+            NikaError::ArtifactWriteError {
+                path: output_spec.path.clone(),
+                reason: "Binary artifact requires media content but task produced no media".to_string(),
+            }
+        })?
+    };
+
+    debug!(
+        task_id = %task_id,
+        hash = %media_ref.hash,
+        path = %media_ref.path.display(),
+        "Writing binary artifact from CAS"
+    );
+
+    // Pre-resolve binding references in the path
+    let resolved_path = resolve_artifact_path_bindings(&output_spec.path, "", bindings, datastore);
+
+    // Normalize the artifact path
+    let artifact_dir_str = ""; // Binary artifacts use the raw path
+    let normalized_path = normalize_artifact_path(&resolved_path, artifact_dir_str);
+
+    let request = BinaryWriteRequest {
+        task_id: task_id.to_string(),
+        output_path: normalized_path,
+        source: BinarySource::CasPath(media_ref.path.clone()),
+        expected_size: media_ref.size_bytes,
+    };
+
+    writer.write_binary(request).await
 }
 
 /// Format output content based on artifact format
@@ -639,6 +743,7 @@ mod tests {
             None, // No event log for tests
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -664,6 +769,7 @@ mod tests {
             None, // No event log for tests
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -710,6 +816,7 @@ mod tests {
             None, // No event log for tests
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -751,6 +858,7 @@ mod tests {
             None, // No event log for tests
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -791,6 +899,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -829,6 +938,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -929,6 +1039,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -974,6 +1085,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -1010,6 +1122,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -1159,6 +1272,7 @@ mod tests {
             None,
             &bindings,
             &datastore,
+            &[],
         )
         .await;
 
@@ -1213,5 +1327,130 @@ mod tests {
     fn test_sanitize_for_path_truncation() {
         let long = "x".repeat(300);
         assert_eq!(sanitize_for_path(&long).len(), 200);
+    }
+
+    // ========== Binary artifact tests ==========
+
+    #[tokio::test]
+    async fn test_process_binary_artifact_from_media_ref() {
+        use crate::media::MediaRef;
+        use std::path::PathBuf;
+
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Create a fake CAS file
+        let cas_dir = base.path().join(".nika/media/store/ab");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("cdef1234");
+        let binary_data = b"\x89PNG\r\n\x1a\n fake image data";
+        std::fs::write(&cas_file, binary_data).unwrap();
+
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        let media_refs = vec![MediaRef {
+            hash: "blake3:abcdef1234".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file.clone(),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output/image.bin".to_string(),
+            source: None, // Use first media ref
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "gen_img",
+            "text output (ignored for binary)",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "Expected 1 binary artifact, errors: {:?}", result.errors);
+        assert!(result.errors.is_empty(), "Unexpected errors: {:?}", result.errors);
+
+        // Verify file was copied correctly
+        let written = std::fs::read(&result.paths[0]).unwrap();
+        assert_eq!(written, binary_data);
+    }
+
+    #[tokio::test]
+    async fn test_process_binary_artifact_with_source() {
+        use crate::media::MediaRef;
+        use std::path::PathBuf;
+
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        // Create two fake CAS files
+        let cas_dir = base.path().join(".nika/media/store/ab");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file1 = cas_dir.join("file1");
+        let cas_file2 = cas_dir.join("file2");
+        std::fs::write(&cas_file1, b"image data 1").unwrap();
+        std::fs::write(&cas_file2, b"image data 2").unwrap();
+
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        let media_refs = vec![
+            MediaRef {
+                hash: "blake3:hash1".to_string(),
+                mime_type: "image/png".to_string(),
+                size_bytes: 12,
+                path: cas_file1,
+                extension: "png".to_string(),
+                created_by: "gen_img".to_string(),
+            },
+            MediaRef {
+                hash: "blake3:hash2".to_string(),
+                mime_type: "image/jpeg".to_string(),
+                size_bytes: 12,
+                path: cas_file2.clone(),
+                extension: "jpg".to_string(),
+                created_by: "gen_thumb".to_string(),
+            },
+        ];
+
+        // Specify source by creator task_id
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output/thumb.bin".to_string(),
+            source: Some("gen_thumb".to_string()),
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "save_thumb",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "errors: {:?}", result.errors);
+        let written = std::fs::read(&result.paths[0]).unwrap();
+        assert_eq!(written, b"image data 2");
     }
 }

@@ -40,7 +40,6 @@ pub const DEFAULT_MAX_SIZE: u64 = 10 * 1024 * 1024;
 
 /// Source for binary artifact data
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
 pub(crate) enum BinarySource {
     /// Copy from a CAS store path
     CasPath(PathBuf),
@@ -48,7 +47,6 @@ pub(crate) enum BinarySource {
 
 /// Request to write a binary artifact
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
 pub(crate) struct BinaryWriteRequest {
     /// Task ID that produced this binary
     pub task_id: String,
@@ -257,7 +255,6 @@ impl ArtifactWriter {
     /// - `NikaError::ArtifactSizeExceeded` if source exceeds max_size
     /// - `NikaError::ArtifactWriteError` if copy fails or source missing
     /// - `NikaError::ArtifactPathError` if output path validation fails
-    #[allow(dead_code)] // Used in commit 3 (artifact_processor binary dispatch)
     pub(crate) async fn write_binary(
         &self,
         request: BinaryWriteRequest,
