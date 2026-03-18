@@ -90,12 +90,13 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
-    async fn e2e_base64_with_newlines_should_fail_gracefully() {
+    async fn e2e_base64_with_newlines_succeeds() {
+        // Real MCP servers (OpenAI etc.) send PEM-style base64 with \n
+        // We strip whitespace before decoding to handle this correctly
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
         let processor = MediaProcessor::new(store);
 
-        // Encode then add newlines (simulating PEM-style base64)
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
         let b64_with_newlines = b64.chars()
@@ -104,24 +105,15 @@ mod tests {
             .collect::<String>();
 
         let block = ContentBlock::image(b64_with_newlines, "image/png");
-        let result = processor.process(&block, "t_newline").await;
+        let result = processor.process(&block, "t_newline").await
+            .expect("base64 with newlines should succeed after whitespace stripping")
+            .expect("image should produce Some");
 
-        // This SHOULD fail with NIKA-256 (Base64DecodeFailed)
-        // If it silently succeeds with corrupted data, that's a bug
-        match result {
-            Err(e) => {
-                assert_eq!(e.code(), "NIKA-256", "Expected Base64DecodeFailed, got: {}", e);
-            }
-            Ok(Some((ref media_ref, _))) => {
-                // BUG: If it somehow decoded, verify the hash is correct
-                let expected_hash = format!("blake3:{}", blake3::hash(&png).to_hex());
-                assert_eq!(media_ref.hash, expected_hash,
-                    "SILENT BUG: base64 with newlines decoded to different data!");
-            }
-            Ok(None) => {
-                panic!("SILENT BUG: image block returned None (should be Some or Err)");
-            }
-        }
+        let (media_ref, _) = result;
+        let expected_hash = format!("blake3:{}", blake3::hash(&png).to_hex());
+        assert_eq!(media_ref.hash, expected_hash,
+            "Decoded data should match original after newline stripping");
+        assert_eq!(media_ref.mime_type, "image/png");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -756,19 +748,21 @@ mod tests {
     // --- Base64 stress tests ---
 
     #[tokio::test]
-    async fn e2e_base64_with_spaces_fails() {
-        // Some servers insert spaces in base64
+    async fn e2e_base64_with_spaces_succeeds() {
+        // Some servers insert spaces in base64 — we strip whitespace
         let (processor, _dir) = make_processor_e2e();
-        let b64 = encode_b64(&real_png_bytes());
+        let png = real_png_bytes();
+        let b64 = encode_b64(&png);
         let with_spaces = b64.chars()
             .enumerate()
             .map(|(i, c)| if i > 0 && i % 20 == 0 { format!(" {c}") } else { c.to_string() })
             .collect::<String>();
         let block = ContentBlock::image(with_spaces, "image/png");
-        let result = processor.process(&block, "t_spaces").await;
-        // STANDARD base64 rejects whitespace → should be NIKA-256
-        assert!(result.is_err(), "Base64 with spaces should fail");
-        assert_eq!(result.unwrap_err().code(), "NIKA-256");
+        let result = processor.process(&block, "t_spaces").await
+            .expect("base64 with spaces should succeed after whitespace stripping")
+            .expect("image should produce Some");
+        let expected_hash = format!("blake3:{}", blake3::hash(&png).to_hex());
+        assert_eq!(result.0.hash, expected_hash);
     }
 
     #[tokio::test]

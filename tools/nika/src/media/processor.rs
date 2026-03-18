@@ -132,10 +132,14 @@ impl MediaProcessor {
             return Ok(None);
         }
 
-        // Decode base64
+        // Decode base64 — strip whitespace first since many MCP servers
+        // return PEM-style base64 with \n at 76-char boundaries (OpenAI, etc.)
         use base64::Engine;
+        let clean_b64: String = base64_data.chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
         let decoded = base64::engine::general_purpose::STANDARD
-            .decode(base64_data)
+            .decode(&clean_b64)
             .map_err(|e| MediaError::Base64DecodeFailed {
                 source_desc: format!("task {task_id}"),
                 reason: e.to_string(),
