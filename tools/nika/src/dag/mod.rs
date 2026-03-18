@@ -1,7 +1,7 @@
 //! DAG Module - Directed Acyclic Graph structure
 //!
 //! Contains the DAG representation and validation:
-//! - `flow`: Dag built from workflow flows (HashMap-based, legacy)
+//! - `flow`: Dag built from depends_on edges (HashMap-based)
 //! - `indexed`: IndexedDag with Vec adjacency and Kahn's algorithm
 //! - `stable`: StableDag wrapper for petgraph::StableGraph (TUI)
 //! - `validate`: DAG validation for with: bindings

@@ -67,7 +67,7 @@ tasks:
         echo "=================="
         echo "{{{{with.content}}}}"
       shell: true
-    flow: [generate]
+    depends_on: [generate]
 "#
     )
 }
@@ -122,7 +122,7 @@ tasks:
         echo "System info collected"
         echo "Files listed"
       shell: true
-    flow: [system_info, list_files]
+    depends_on: [system_info, list_files]
 "#
     )
 }
@@ -178,7 +178,7 @@ tasks:
         echo "User: {{{{with.user.login}}}}"
         echo "Name: {{{{with.user.name}}}}"
       shell: true
-    flow: [get_zen, get_user]
+    depends_on: [get_zen, get_user]
 "#
     )
 }
@@ -251,7 +251,7 @@ tasks:
               type: string
     artifact:
       path: analysis.json
-    flow: [fetch_data]
+    depends_on: [fetch_data]
 
   - id: generate_report
     description: "Generate markdown report"
@@ -272,7 +272,7 @@ tasks:
     artifact:
       path: report.md
       format: text
-    flow: [analyze]
+    depends_on: [analyze]
 "#
     )
 }
@@ -370,7 +370,7 @@ tasks:
     artifact:
       path: outline.md
       format: text
-    flow: [research]
+    depends_on: [research]
 
   - id: write
     description: "Write the article"
@@ -398,7 +398,7 @@ tasks:
     artifact:
       path: article.md
       format: text
-    flow: [outline]
+    depends_on: [outline]
 
   - id: metadata
     description: "Generate SEO metadata"
@@ -433,7 +433,7 @@ tasks:
             type: string
     artifact:
       path: metadata.json
-    flow: [write]
+    depends_on: [write]
 "#
     )
 }
@@ -530,7 +530,7 @@ tasks:
             type: array
             items:
               type: string
-    flow: [read_code]
+    depends_on: [read_code]
 
   - id: report
     description: "Generate review report"
@@ -552,7 +552,7 @@ tasks:
         - Action items
     output:
       format: text
-    flow: [analyze]
+    depends_on: [analyze]
 "#
     )
 }
@@ -656,7 +656,7 @@ tasks:
         - Recommendations
     output:
       format: text
-    flow: [research]
+    depends_on: [research]
 "#
     )
 }
@@ -744,7 +744,7 @@ tasks:
         echo "Summary:"
         echo "{{{{with.result.content_summary}}}}"
       shell: true
-    flow: [browse]
+    depends_on: [browse]
 "#
     )
 }
@@ -825,7 +825,7 @@ tasks:
           sentiment:
             type: string
             enum: [positive, neutral, negative]
-    flow: [scrape_page]
+    depends_on: [scrape_page]
 
   - id: save_analysis
     description: "Save analysis to file"
@@ -837,7 +837,7 @@ tasks:
       params:
         path: "analysis-output.json"
         content: "{{{{with.analysis | to_json}}}}"
-    flow: [analyze_content]
+    depends_on: [analyze_content]
 "#
     )
 }
@@ -933,7 +933,7 @@ tasks:
             enum: [claude, openai, both]
           recommendation:
             type: string
-    flow: [claude_response, openai_response]
+    depends_on: [claude_response, openai_response]
 
   - id: final_answer
     description: "Generate synthesized answer"
@@ -953,7 +953,7 @@ tasks:
         Provide a comprehensive, well-structured answer.
     output:
       format: text
-    flow: [compare]
+    depends_on: [compare]
 "#
     )
 }
@@ -1048,7 +1048,7 @@ tasks:
             type: object
     artifact:
       path: transformed.json
-    flow: [extract]
+    depends_on: [extract]
 
   # Load: Save processed data
   - id: load
@@ -1061,7 +1061,7 @@ tasks:
         echo "Records processed: {{{{with.data.stats.total_records}}}}"
         echo "Output saved to artifacts directory"
       shell: true
-    flow: [transform]
+    depends_on: [transform]
 "#
     )
 }
@@ -1200,7 +1200,7 @@ tasks:
     artifact:
       path: briefing.md
       format: text
-    flow: [get_datetime, weather, news]
+    depends_on: [get_datetime, weather, news]
 "#
     )
 }
@@ -1320,7 +1320,7 @@ tasks:
                 type: integer
               contributors:
                 type: array
-    flow: [git_log, diff_stats]
+    depends_on: [git_log, diff_stats]
 
   # Generate changelog
   - id: changelog
@@ -1345,7 +1345,7 @@ tasks:
     artifact:
       path: CHANGELOG-{{{{date}}}}.md
       format: text
-    flow: [analyze]
+    depends_on: [analyze]
 "#
     )
 }
@@ -1429,7 +1429,7 @@ tasks:
             type: string
     artifact:
       path: "{{{{with.target_lang | lowercase}}}}.json"
-    flow: [setup]
+    depends_on: [setup]
 
   # Compile all translations
   - id: compile
@@ -1452,7 +1452,7 @@ tasks:
     artifact:
       path: summary.md
       format: text
-    flow: [translate]
+    depends_on: [translate]
 "#
     )
 }
@@ -1588,7 +1588,7 @@ tasks:
                   type: array
     artifact:
       path: test_cases.json
-    flow: [analyze_feature]
+    depends_on: [analyze_feature]
 
   # Generate test report
   - id: report
@@ -1620,7 +1620,7 @@ tasks:
     artifact:
       path: test_plan.md
       format: text
-    flow: [generate_tests]
+    depends_on: [generate_tests]
 "#
     )
 }

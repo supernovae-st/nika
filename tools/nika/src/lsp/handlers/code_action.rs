@@ -745,7 +745,7 @@ tasks:
             Some("step1".to_string())
         );
         assert_eq!(
-            extract_unknown_task_name("Unknown task 'generate_content' in flow"),
+            extract_unknown_task_name("Unknown task 'generate_content' in depends_on"),
             Some("generate_content".to_string())
         );
         assert_eq!(extract_unknown_task_name("No task mentioned"), None);
