@@ -83,6 +83,8 @@ struct IterationResult {
     result: TaskResult,
     /// For for_each: (parent_id, index) to enable aggregation
     for_each_info: Option<(Arc<str>, usize)>,
+    /// Paths of artifacts written during this task (for CLI reporting)
+    artifact_paths: Vec<PathBuf>,
 }
 
 /// DAG workflow runner with event sourcing
@@ -680,6 +682,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                     store_id: task_id,
                     result: TaskResult::failed(e.to_string(), duration),
                     for_each_info,
+                    artifact_paths: vec![],
                 };
             }
         };
@@ -785,6 +788,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         store_id: task_id,
                                         result: TaskResult::failed(e.to_string(), duration),
                                         for_each_info,
+                                        artifact_paths: vec![],
                                     };
                                 }
                             }
@@ -824,6 +828,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         };
 
         // Process artifacts if task succeeded and has artifact config
+        let mut artifact_paths = Vec::new();
         if task_result.is_success() {
             if let Some(ref artifact_spec) = task.artifact {
                 let output_content = task_result.output_str().into_owned();
@@ -847,6 +852,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         "Artifacts written"
                     );
                 }
+                artifact_paths = artifact_result.paths;
 
                 for err in artifact_result.errors {
                     tracing::warn!(
@@ -862,6 +868,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             store_id: task_id,
             result: task_result,
             for_each_info,
+            artifact_paths,
         }
     }
 
@@ -931,11 +938,25 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         });
 
         if !self.quiet {
-            println!(
-                "{} Running workflow with {} tasks...\n",
-                "→".cyan(),
-                total_tasks
-            );
+            let has_for_each = self.workflow.tasks.iter().any(|t| {
+                t.for_each.is_some() || t.decompose.is_some()
+            });
+            if has_for_each {
+                // Task count will change at runtime when for_each/decompose expands
+                println!(
+                    "{} Running workflow ({} task definitions)...\n",
+                    "→".cyan(),
+                    total_tasks
+                );
+            } else {
+                let noun = if total_tasks == 1 { "task" } else { "tasks" };
+                println!(
+                    "{} Running workflow with {} {}...\n",
+                    "→".cyan(),
+                    total_tasks,
+                    noun
+                );
+            }
 
             // IMP-5: Warn if no task has output or artifact config
             let has_observable_output = self.workflow.tasks.iter().any(|t| {
@@ -1466,6 +1487,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 .to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
+                                        artifact_paths: vec![],
                                     };
                                 }
 
@@ -1480,6 +1502,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 "Cancelled while waiting for semaphore".to_string(),
                                             ),
                                             for_each_info: Some((parent_task_id, idx)),
+                                            artifact_paths: vec![],
                                         };
                                     }
 
@@ -1494,6 +1517,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                         std::time::Duration::ZERO,
                                                     ),
                                                     for_each_info: Some((parent_task_id, idx)),
+                                                    artifact_paths: vec![],
                                                 };
                                             }
                                         }
@@ -1508,6 +1532,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             "Cancelled after semaphore acquire".to_string(),
                                         ),
                                         for_each_info: Some((parent_task_id, idx)),
+                                        artifact_paths: vec![],
                                     };
                                 }
 
@@ -1622,6 +1647,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     store_id,
                                     result: task_result,
                                     for_each_info,
+                                    artifact_paths,
                                 } = iteration_result;
 
                                 completed += 1;
@@ -1682,17 +1708,24 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         }
                                     }
 
-                                    // IMP-4: Show intermediate output preview
+                                    // IMP-4: Show intermediate output preview (first line only)
                                     if success {
                                         let out = task_result.output_str();
                                         if !out.is_empty() {
-                                            let preview = if out.len() > 120 {
+                                            // Take only the first non-empty line for clean display
+                                            let first_line = out
+                                                .lines()
+                                                .find(|l| !l.trim().is_empty())
+                                                .unwrap_or(&out);
+                                            let preview = if first_line.len() > 120 {
                                                 format!(
                                                     "{}…",
-                                                    crate::util::truncate_str(&out, 120)
+                                                    crate::util::truncate_str(first_line, 120)
                                                 )
+                                            } else if out.contains('\n') {
+                                                format!("{}…", first_line)
                                             } else {
-                                                out.into_owned()
+                                                first_line.to_string()
                                             };
                                             println!(
                                                 "      {} {}",
@@ -1700,6 +1733,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                                 preview.dimmed()
                                             );
                                         }
+                                    }
+
+                                    // IMP-6: Report artifact writes to the user
+                                    for path in &artifact_paths {
+                                        println!(
+                                            "      {} {}",
+                                            "artifact:".cyan(),
+                                            path.display().to_string().dimmed()
+                                        );
                                     }
                                 }
 
