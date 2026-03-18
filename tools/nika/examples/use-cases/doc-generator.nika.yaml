@@ -1,0 +1,131 @@
+# Documentation Generator
+# Read source code, generate API documentation, and save as artifact.
+#
+# Usage:
+#   FILE="src/lib.rs" nika run examples/use-cases/doc-generator.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Source file to document
+
+schema: nika/workflow@0.12
+workflow: doc-generator
+description: "Read source file -> generate API docs -> save as markdown artifact"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Read the source file
+  - id: read_source
+    exec:
+      command: "cat ${FILE:-src/lib.rs} 2>/dev/null | head -200 || echo 'pub fn hello() -> String { \"Hello\".to_string() }'"
+      shell: true
+
+  # Step 2: Extract API surface
+  - id: extract_api
+    depends_on: [read_source]
+    with:
+      code: $read_source
+    infer:
+      prompt: |
+        Extract the public API surface from this source code.
+
+        CODE:
+        {{with.code}}
+
+        Identify and list:
+        1. Public functions (signature, parameters, return type)
+        2. Public structs/types (fields, derives)
+        3. Public traits (methods)
+        4. Constants and type aliases
+        5. Module structure
+
+        For each item, note:
+        - Existing doc comments (if any)
+        - Inferred purpose from naming and context
+        - Parameter types and constraints
+      max_tokens: 200
+
+  # Step 3: Generate comprehensive documentation
+  - id: generate_docs
+    depends_on: [extract_api, read_source]
+    with:
+      api: $extract_api
+      code: $read_source
+    infer:
+      prompt: |
+        Generate comprehensive API documentation in markdown format.
+
+        API SURFACE:
+        {{with.api}}
+
+        SOURCE CODE:
+        {{with.code}}
+
+        Documentation format:
+        - Module overview (2-3 sentences)
+        - Quick start example
+        - For each public item:
+          - Description
+          - Parameters table (name, type, description)
+          - Return value
+          - Example usage
+          - Panics/errors (if applicable)
+        - Related items cross-references
+      max_tokens: 200
+
+  # Step 4: Generate usage examples
+  - id: generate_examples
+    depends_on: [extract_api]
+    with:
+      api: $extract_api
+    infer:
+      prompt: |
+        Generate practical usage examples for this API.
+
+        API SURFACE:
+        {{with.api}}
+
+        Create:
+        1. Basic usage example (simplest happy path)
+        2. Advanced usage example (combining multiple API items)
+        3. Error handling example (showing proper error management)
+
+        Each example should:
+        - Be compilable/runnable
+        - Include comments explaining each step
+        - Show realistic use cases, not toy examples
+      max_tokens: 200
+
+  # Step 5: Compile final documentation
+  - id: compile_docs
+    depends_on: [generate_docs, generate_examples]
+    with:
+      docs: $generate_docs
+      examples: $generate_examples
+    infer:
+      prompt: |
+        Compile the API documentation and examples into a single polished document.
+
+        API DOCUMENTATION:
+        {{with.docs}}
+
+        USAGE EXAMPLES:
+        {{with.examples}}
+
+        Final format:
+        - Title and badge placeholders
+        - Table of contents
+        - Overview section
+        - API reference (organized by category)
+        - Examples section
+        - Changelog placeholder
+      max_tokens: 200
+    artifact:
+      path: api-docs.md
+      template: |
+        # API Documentation
+
+        {{task.output}}

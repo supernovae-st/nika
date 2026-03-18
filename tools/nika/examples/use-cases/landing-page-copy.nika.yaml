@@ -1,0 +1,134 @@
+# Landing Page Copywriter
+# Generate complete landing page copy: headline, tagline, CTA, and product description.
+#
+# Usage:
+#   PRODUCT="AI-powered code review tool for Rust projects" \
+#   nika run examples/use-cases/landing-page-copy.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: landing-page-copy
+description: "Product info -> headline + tagline + CTA + full page description"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Analyze product and audience
+  - id: product_analysis
+    infer:
+      prompt: |
+        Analyze this product for landing page copywriting.
+
+        PRODUCT: ${PRODUCT:-An open-source YAML workflow engine for AI tasks. Supports 5 semantic verbs, native MCP integration, 7 LLM providers, and a terminal UI. Single Rust binary, zero dependencies.}
+
+        Provide:
+        1. Primary benefit (one sentence)
+        2. Target audience (specific role, not "everyone")
+        3. Pain point solved
+        4. Competitive differentiator
+        5. Emotional trigger (what motivates the buyer)
+        6. Key objections to address
+      max_tokens: 200
+
+  # Step 2: Generate headline variations (parallel)
+  - id: headlines
+    depends_on: [product_analysis]
+    with:
+      analysis: $product_analysis
+    infer:
+      prompt: |
+        Generate 5 headline options for the landing page.
+
+        ANALYSIS:
+        {{with.analysis}}
+
+        Headline formulas to use:
+        1. Benefit-first: "[Achieve X] without [Pain Y]"
+        2. Curiosity: "The [adjective] way to [action]"
+        3. Social proof: "Join [X] teams who [benefit]"
+        4. Problem-solution: "Stop [pain]. Start [benefit]."
+        5. Bold claim: "[Superlative] [category] for [audience]"
+
+        Each headline: max 10 words, punchy, no jargon.
+      max_tokens: 200
+
+  # Step 3: Generate taglines (parallel)
+  - id: taglines
+    depends_on: [product_analysis]
+    with:
+      analysis: $product_analysis
+    infer:
+      prompt: |
+        Generate 5 tagline/subheadline options.
+
+        ANALYSIS:
+        {{with.analysis}}
+
+        Taglines should:
+        - Expand on the headline's promise
+        - Be 15-25 words
+        - Include one specific detail (number, feature, result)
+        - Feel human, not corporate
+      max_tokens: 200
+
+  # Step 4: Generate CTAs (parallel)
+  - id: ctas
+    depends_on: [product_analysis]
+    with:
+      analysis: $product_analysis
+    infer:
+      prompt: |
+        Generate CTA (call-to-action) copy for the landing page.
+
+        ANALYSIS:
+        {{with.analysis}}
+
+        Provide:
+        - Primary CTA button text (3-5 words, action verb)
+        - Secondary CTA text (softer alternative)
+        - CTA supporting text (one line below the button)
+        - 3 variations for A/B testing
+      max_tokens: 200
+
+  # Step 5: Generate full page description
+  - id: page_copy
+    depends_on: [product_analysis, headlines, taglines, ctas]
+    with:
+      analysis: $product_analysis
+      headlines: $headlines
+      taglines: $taglines
+      ctas: $ctas
+    infer:
+      prompt: |
+        Write the complete landing page body copy.
+
+        ANALYSIS:
+        {{with.analysis}}
+
+        BEST HEADLINES:
+        {{with.headlines}}
+
+        TAGLINES:
+        {{with.taglines}}
+
+        CTAS:
+        {{with.ctas}}
+
+        Write these sections:
+        1. Hero section (headline + tagline + CTA)
+        2. Problem section (3 pain points with empathy)
+        3. Solution section (how the product solves each pain)
+        4. Features section (3 features with benefit-oriented descriptions)
+        5. Social proof placeholder (testimonial structure)
+        6. Final CTA section (urgency + value recap)
+
+        Use markdown formatting. Write for scanning (short paragraphs, bold key phrases).
+      max_tokens: 200
+    artifact:
+      path: landing-page-copy.md
+      template: |
+        # Landing Page Copy
+
+        {{task.output}}

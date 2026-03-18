@@ -1,0 +1,99 @@
+# Release Notes Generator
+# Generate release notes from git diff and commit history.
+#
+# Usage:
+#   nika run examples/use-cases/release-notes.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Git repository with history
+
+schema: nika/workflow@0.12
+workflow: release-notes
+description: "Git diff + commits -> categorized release notes with highlights"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Get recent commits
+  - id: git_commits
+    exec:
+      command: "git log --oneline --no-merges -25 2>/dev/null || echo 'abc1234 feat: initial release'"
+      shell: true
+
+  # Step 2: Get diff stats
+  - id: git_stats
+    exec:
+      command: "git diff --stat HEAD~5 2>/dev/null || echo '5 files changed, 200 insertions, 50 deletions'"
+      shell: true
+
+  # Step 3: Get changed files
+  - id: changed_files
+    exec:
+      command: "git diff --name-only HEAD~5 2>/dev/null || echo 'src/main.rs'"
+      shell: true
+
+  # Step 4: Categorize changes
+  - id: categorize
+    depends_on: [git_commits, changed_files]
+    with:
+      commits: $git_commits
+      files: $changed_files
+    infer:
+      prompt: |
+        Categorize these changes for release notes.
+
+        COMMITS:
+        {{with.commits}}
+
+        CHANGED FILES:
+        {{with.files}}
+
+        Categories:
+        - Highlights: Most impactful changes (2-3 items with descriptions)
+        - Features: New capabilities added
+        - Improvements: Enhancements to existing features
+        - Bug Fixes: Issues resolved
+        - Breaking Changes: Anything that requires user action
+        - Internal: Refactors, CI, dependencies (brief)
+
+        For highlights, write user-facing descriptions explaining the benefit.
+        For other categories, use concise one-line entries.
+      max_tokens: 200
+
+  # Step 5: Generate release notes document
+  - id: release_notes
+    depends_on: [categorize, git_stats]
+    with:
+      categories: $categorize
+      stats: $git_stats
+    infer:
+      prompt: |
+        Generate polished release notes from these categorized changes.
+
+        CATEGORIZED CHANGES:
+        {{with.categories}}
+
+        CHANGE STATISTICS:
+        {{with.stats}}
+
+        Release notes format:
+        - Version header with date
+        - Highlights section (with detail, not just bullet points)
+        - What's New (features)
+        - Improvements
+        - Bug Fixes
+        - Breaking Changes (with migration steps if applicable)
+        - Statistics (files changed, insertions, deletions)
+        - Contributors (placeholder)
+        - Full changelog link placeholder
+
+        Write in an enthusiastic but professional tone.
+        Make highlights engaging enough for a blog announcement.
+      max_tokens: 200
+    artifact:
+      path: release-notes.md
+      template: |
+        {{task.output}}

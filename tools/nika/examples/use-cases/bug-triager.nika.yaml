@@ -1,0 +1,99 @@
+# Bug Triager
+# Classify a bug report by severity, component, priority with structured output.
+#
+# Usage:
+#   BUG="Users cannot log in after password reset" \
+#   nika run examples/use-cases/bug-triager.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: bug-triager
+description: "Bug report -> structured triage with severity, component, priority, and action plan"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Get bug report
+  - id: bug_report
+    exec:
+      command: "echo '${BUG:-Users report they cannot log in after using the password reset flow. Error message shows \"Invalid token\" after clicking the email link. Started after the v2.3.1 deployment yesterday. Affects approximately 15%% of password reset attempts. Workaround: users can request a new reset link and it works on second attempt.}'"
+      shell: true
+
+  # Step 2: Classify the bug with structured output
+  - id: classify
+    depends_on: [bug_report]
+    with:
+      report: $bug_report
+    infer:
+      prompt: |
+        Triage this bug report. Analyze it carefully and classify across all dimensions.
+
+        BUG REPORT:
+        {{with.report}}
+
+        Classification criteria:
+        - severity: how bad is the impact (critical = data loss/security, high = major feature broken, medium = degraded experience, low = cosmetic/minor)
+        - component: which system area (auth, api, frontend, database, infra, payments, notifications)
+        - priority: how urgently to fix (P0 = immediate, P1 = today, P2 = this sprint, P3 = backlog)
+        - affected_users: percentage or count estimate
+        - has_workaround: whether users can work around it
+        - regression: whether this was working before (true/false)
+        - root_cause_hypothesis: best guess at what went wrong
+        - suggested_assignee: which team should handle this (backend, frontend, devops, security)
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          severity:
+            type: string
+            enum: [critical, high, medium, low]
+          component:
+            type: string
+          priority:
+            type: string
+            enum: [P0, P1, P2, P3]
+          affected_users:
+            type: string
+          has_workaround:
+            type: boolean
+          regression:
+            type: boolean
+          root_cause_hypothesis:
+            type: string
+          suggested_assignee:
+            type: string
+        required: [severity, component, priority, root_cause_hypothesis, suggested_assignee]
+
+  # Step 3: Generate action plan
+  - id: action_plan
+    depends_on: [classify, bug_report]
+    with:
+      triage: $classify
+      report: $bug_report
+    infer:
+      prompt: |
+        Generate an action plan for this triaged bug.
+
+        ORIGINAL REPORT:
+        {{with.report}}
+
+        TRIAGE CLASSIFICATION:
+        {{with.triage}}
+
+        Provide:
+        1. Immediate actions (first 30 minutes)
+        2. Investigation steps (what to check, in order)
+        3. Suggested fix approach
+        4. Testing requirements before deploying fix
+        5. Communication plan (who to notify, status updates)
+        6. Post-mortem questions to answer
+      max_tokens: 200
+    artifact:
+      path: bug-triage.md
+      template: |
+        # Bug Triage Report
+
+        {{task.output}}

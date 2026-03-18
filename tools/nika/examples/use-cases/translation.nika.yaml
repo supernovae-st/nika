@@ -1,0 +1,81 @@
+# Multi-Language Translation
+# Translate input text into 3 target languages using for_each parallelism.
+#
+# Usage:
+#   TEXT="Welcome to our platform" nika run examples/use-cases/translation.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: translation
+description: "Translate text into French, Spanish, and Japanese in parallel"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Get the source text
+  - id: source_text
+    exec:
+      command: "echo '${TEXT:-Welcome to our platform. We help developers build AI workflows with simple YAML files.}'"
+      shell: true
+
+  # Step 2: Translate to 3 languages in parallel
+  - id: translate
+    depends_on: [source_text]
+    for_each:
+      - code: "fr-FR"
+        name: "French"
+        tone: "professional and elegant"
+      - code: "es-ES"
+        name: "Spanish"
+        tone: "warm and approachable"
+      - code: "ja-JP"
+        name: "Japanese"
+        tone: "polite and formal (keigo)"
+    as: lang
+    concurrency: 3
+    with:
+      text: $source_text
+    infer:
+      prompt: |
+        Translate the following text into {{with.lang.name}} ({{with.lang.code}}).
+
+        SOURCE TEXT:
+        {{with.text}}
+
+        Translation guidelines:
+        - Tone: {{with.lang.tone}}
+        - Preserve meaning over literal translation
+        - Adapt idioms and cultural references appropriately
+        - Maintain the same formatting and structure
+        - Do NOT include the original text in your response
+
+        Return ONLY the translated text, nothing else.
+      max_tokens: 200
+
+  # Step 3: Compile all translations into a single document
+  - id: compile
+    depends_on: [translate]
+    with:
+      translations: $translate
+      original: $source_text
+    infer:
+      prompt: |
+        Format these translations into a clean multilingual document.
+
+        ORIGINAL (English):
+        {{with.original}}
+
+        TRANSLATIONS:
+        {{with.translations}}
+
+        Format as markdown with language headers and locale codes.
+        Add a brief quality note for each translation.
+      max_tokens: 200
+    artifact:
+      path: translations.md
+      template: |
+        # Translations
+
+        {{task.output}}

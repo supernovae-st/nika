@@ -1,0 +1,110 @@
+# Recipe Finder
+# Given ingredients, find matching recipes and format them beautifully.
+#
+# Usage:
+#   INGREDIENTS="chicken, rice, bell peppers, garlic, soy sauce" \
+#   nika run examples/use-cases/recipe-finder.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: recipe-finder
+description: "Ingredients -> find recipes -> format with instructions and tips"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Analyze available ingredients
+  - id: analyze_ingredients
+    infer:
+      prompt: |
+        Analyze these available ingredients and suggest recipe directions.
+
+        INGREDIENTS: ${INGREDIENTS:-chicken breast, jasmine rice, red bell pepper, garlic, soy sauce, ginger, sesame oil, green onions}
+
+        Provide:
+        1. Ingredient category breakdown (proteins, carbs, vegetables, seasonings)
+        2. Cuisine affinities (which cuisines use these ingredients together)
+        3. 3 recipe concepts that maximize ingredient usage
+        4. Any critical missing ingredients that would be easy to add
+        5. Dietary considerations (gluten, allergens, etc.)
+      max_tokens: 200
+
+  # Step 2: Generate detailed recipes
+  - id: generate_recipes
+    depends_on: [analyze_ingredients]
+    with:
+      analysis: $analyze_ingredients
+    infer:
+      prompt: |
+        Generate 2 complete recipes based on this ingredient analysis.
+
+        ANALYSIS:
+        {{with.analysis}}
+
+        For each recipe provide:
+        - Recipe name (creative but descriptive)
+        - Prep time and cook time
+        - Serving size
+        - Difficulty level (easy/medium/hard)
+        - Complete ingredient list with quantities
+        - Step-by-step instructions (numbered)
+        - Pro tips (2-3 cooking tips)
+        - Nutritional highlights
+
+        Make the instructions clear enough for a home cook with moderate experience.
+      max_tokens: 200
+
+  # Step 3: Add presentation and storage tips
+  - id: tips
+    depends_on: [generate_recipes]
+    with:
+      recipes: $generate_recipes
+    infer:
+      prompt: |
+        Add plating, presentation, and storage tips for these recipes.
+
+        RECIPES:
+        {{with.recipes}}
+
+        Include:
+        - Plating suggestions (how to make it look great)
+        - Garnish recommendations
+        - Side dish pairings
+        - Wine/beverage pairing suggestions
+        - Storage instructions (fridge/freezer life)
+        - Reheating instructions
+        - Meal prep adaptation tips
+      max_tokens: 200
+
+  # Step 4: Compile recipe card
+  - id: recipe_card
+    depends_on: [generate_recipes, tips]
+    with:
+      recipes: $generate_recipes
+      extras: $tips
+    infer:
+      prompt: |
+        Compile everything into a beautifully formatted recipe card document.
+
+        RECIPES:
+        {{with.recipes}}
+
+        EXTRAS:
+        {{with.extras}}
+
+        Format as clean markdown with:
+        - Recipe header with emoji
+        - Info bar (time, servings, difficulty)
+        - Ingredients checklist (- [ ] format)
+        - Numbered instructions
+        - Tips section
+        - Storage and pairing notes
+      max_tokens: 200
+    artifact:
+      path: recipes.md
+      template: |
+        # Recipe Collection
+
+        {{task.output}}

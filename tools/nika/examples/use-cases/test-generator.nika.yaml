@@ -1,0 +1,102 @@
+# Test Case Generator
+# Read source code, generate test cases, and format them.
+#
+# Usage:
+#   FILE="src/lib.rs" nika run examples/use-cases/test-generator.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Source file to generate tests for
+
+schema: nika/workflow@0.12
+workflow: test-generator
+description: "Read code -> identify testable units -> generate test cases -> format"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Read the source file
+  - id: read_code
+    exec:
+      command: "cat ${FILE:-src/lib.rs} 2>/dev/null | head -150 || echo 'pub fn add(a: i32, b: i32) -> i32 { a + b }\npub fn divide(a: f64, b: f64) -> Result<f64, String> { if b == 0.0 { Err(\"division by zero\".into()) } else { Ok(a / b) } }'"
+      shell: true
+
+  # Step 2: Identify testable units
+  - id: identify_units
+    depends_on: [read_code]
+    with:
+      code: $read_code
+    infer:
+      prompt: |
+        Analyze this code and identify all testable units.
+
+        CODE:
+        {{with.code}}
+
+        For each testable unit, identify:
+        - Function/method name
+        - Input parameters and their types
+        - Return type
+        - Side effects (if any)
+        - Edge cases to test
+        - Error conditions
+        - Boundary values
+
+        Prioritize by: public API first, then complex private functions.
+      max_tokens: 200
+
+  # Step 3: Generate test cases
+  - id: generate_tests
+    depends_on: [identify_units, read_code]
+    with:
+      units: $identify_units
+      code: $read_code
+    infer:
+      prompt: |
+        Generate comprehensive test cases for these code units.
+
+        TESTABLE UNITS:
+        {{with.units}}
+
+        ORIGINAL CODE:
+        {{with.code}}
+
+        Test categories per unit:
+        1. Happy path (normal inputs, expected outputs)
+        2. Edge cases (empty inputs, boundaries, zero values)
+        3. Error cases (invalid inputs, error conditions)
+        4. Property-based test ideas (invariants that should always hold)
+
+        For each test:
+        - Test name following convention: test_{function}_{scenario}_{expected}
+        - Input values
+        - Expected output/behavior
+        - Assertion type (eq, ne, err, panic, contains)
+      max_tokens: 200
+
+  # Step 4: Format as compilable test file
+  - id: format_tests
+    depends_on: [generate_tests]
+    with:
+      tests: $generate_tests
+    infer:
+      prompt: |
+        Format these test cases as a compilable Rust test module.
+
+        TEST CASES:
+        {{with.tests}}
+
+        Format requirements:
+        - Wrap in #[cfg(test)] mod tests { ... }
+        - Use #[test] attribute for each test
+        - Use assert_eq!, assert_ne!, assert!(result.is_err()) as appropriate
+        - Group related tests with comments
+        - Include a module-level doc comment explaining test coverage
+        - Add #[should_panic] where testing panic behavior
+        - Use descriptive test names
+      max_tokens: 200
+    artifact:
+      path: generated-tests.rs
+      format: text

@@ -1,0 +1,78 @@
+# Email Composer
+# Generate context-aware emails with tone refinement.
+#
+# Usage:
+#   CONTEXT="Following up on our partnership discussion" \
+#   RECIPIENT="Sarah Chen, VP of Engineering at Acme Corp" \
+#   nika run examples/use-cases/email-composer.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: email-composer
+description: "Context + recipient -> draft email -> refine tone -> final version"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Structure the email context
+  - id: email_context
+    exec:
+      command: "echo 'Context: ${CONTEXT:-Following up on our Q2 partnership discussion about AI workflow integration}. Recipient: ${RECIPIENT:-Sarah Chen, VP of Engineering at Acme Corp}. Goal: Schedule a technical deep-dive meeting next week.'"
+      shell: true
+
+  # Step 2: Generate initial draft
+  - id: draft
+    depends_on: [email_context]
+    with:
+      ctx: $email_context
+    infer:
+      prompt: |
+        Write a professional email based on this context.
+
+        {{with.ctx}}
+
+        Email structure:
+        - Subject line (concise, action-oriented)
+        - Greeting (appropriate formality for VP-level recipient)
+        - Opening (reference to previous interaction)
+        - Body (clear value proposition, 2-3 sentences)
+        - Call to action (specific, with suggested times)
+        - Professional sign-off
+
+        Keep under 150 words. Be direct but warm.
+      max_tokens: 200
+
+  # Step 3: Refine tone and polish
+  - id: refine
+    depends_on: [draft]
+    with:
+      email: $draft
+      ctx: $email_context
+    infer:
+      prompt: |
+        Refine this email draft for tone and impact.
+
+        CONTEXT:
+        {{with.ctx}}
+
+        CURRENT DRAFT:
+        {{with.email}}
+
+        Refinement checklist:
+        1. Is the subject line compelling? (improve if not)
+        2. Does it sound human, not AI-generated?
+        3. Is the CTA clear and easy to act on?
+        4. Remove any filler words or unnecessary phrases
+        5. Ensure appropriate level of formality for the recipient
+        6. Check for any ambiguous phrasing
+
+        Return the improved email with a brief note on what changed.
+      max_tokens: 200
+    artifact:
+      path: email-draft.md
+      template: |
+        # Email Draft
+
+        {{task.output}}

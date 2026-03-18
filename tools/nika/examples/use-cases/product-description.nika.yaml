@@ -1,0 +1,99 @@
+# Product Description Generator
+# Generate product descriptions in 3 different styles from specs.
+#
+# Usage:
+#   PRODUCT="Wireless noise-canceling headphones with 40h battery" \
+#   nika run examples/use-cases/product-description.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: product-description
+description: "Product specs -> descriptions in technical, marketing, and casual styles"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Parse and enrich product specs
+  - id: parse_specs
+    infer:
+      prompt: |
+        Parse and enrich these product specifications.
+
+        PRODUCT: ${PRODUCT:-Wireless noise-canceling headphones. 40-hour battery life. Bluetooth 5.3. Active noise cancellation with transparency mode. 40mm custom drivers. Foldable design. USB-C fast charging. Weight 250g. Available in black, white, navy.}
+
+        Extract and organize:
+        - Product category
+        - Key specifications (structured)
+        - Unique selling points (top 3)
+        - Target audience
+        - Price positioning (budget/mid-range/premium based on specs)
+      max_tokens: 200
+
+  # Step 2: Generate descriptions in 3 styles (parallel via for_each)
+  - id: generate_styles
+    depends_on: [parse_specs]
+    for_each:
+      - style: "technical"
+        tone: "precise, specification-focused, comparison-ready"
+        audience: "tech enthusiasts and reviewers"
+        length: "200 words"
+      - style: "marketing"
+        tone: "aspirational, benefit-driven, emotional"
+        audience: "general consumers browsing online"
+        length: "150 words"
+      - style: "casual"
+        tone: "conversational, relatable, social-media-ready"
+        audience: "younger audience on social platforms"
+        length: "100 words"
+    as: config
+    concurrency: 3
+    with:
+      specs: $parse_specs
+    infer:
+      prompt: |
+        Write a product description in {{with.config.style}} style.
+
+        PRODUCT SPECS:
+        {{with.specs}}
+
+        Style: {{with.config.tone}}
+        Target audience: {{with.config.audience}}
+        Target length: {{with.config.length}}
+
+        Guidelines:
+        - Lead with the strongest selling point for this audience
+        - Include specific specs that matter to this audience
+        - End with a compelling reason to buy
+        - Match the tone exactly to the style requested
+      max_tokens: 200
+
+  # Step 3: Compile all descriptions
+  - id: compile
+    depends_on: [generate_styles, parse_specs]
+    with:
+      descriptions: $generate_styles
+      specs: $parse_specs
+    infer:
+      prompt: |
+        Compile these product descriptions into a single reference document.
+
+        SPECS:
+        {{with.specs}}
+
+        DESCRIPTIONS:
+        {{with.descriptions}}
+
+        Format with:
+        - Product overview header
+        - Each style clearly labeled with use case (e.g., "For Product Page", "For Social Media")
+        - Character/word count for each
+        - SEO keywords extracted from descriptions
+      max_tokens: 200
+    artifact:
+      path: product-descriptions.md
+      template: |
+        # Product Descriptions
+
+        {{task.output}}

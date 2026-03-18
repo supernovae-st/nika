@@ -1,0 +1,135 @@
+# Interview Preparation Kit
+# Research a company and role, then generate tailored questions and talking points.
+#
+# Usage:
+#   COMPANY="Anthropic" ROLE="Senior Rust Engineer" \
+#   nika run examples/use-cases/interview-prep.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: interview-prep
+description: "Company + role -> research -> interview questions + talking points"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Research the company
+  - id: company_research
+    infer:
+      prompt: |
+        Research and summarize key information about ${COMPANY:-Anthropic} for interview preparation.
+
+        Provide:
+        1. Company mission and values
+        2. Key products and services
+        3. Recent news or milestones (general knowledge)
+        4. Engineering culture and tech stack
+        5. Company size and growth stage
+        6. Key leadership team members
+        7. What makes this company unique
+      max_tokens: 200
+
+  # Step 2: Analyze the role requirements
+  - id: role_analysis
+    infer:
+      prompt: |
+        Analyze the role of ${ROLE:-Senior Rust Engineer} at ${COMPANY:-Anthropic}.
+
+        Based on the role title, identify:
+        1. Core technical skills required
+        2. Likely day-to-day responsibilities
+        3. Seniority-level expectations
+        4. Key technologies to be familiar with
+        5. Soft skills that matter for this level
+        6. Common interview question areas for this role type
+      max_tokens: 200
+
+  # Step 3: Generate interview questions to expect
+  - id: expected_questions
+    depends_on: [company_research, role_analysis]
+    with:
+      company: $company_research
+      role: $role_analysis
+    infer:
+      prompt: |
+        Generate likely interview questions for this role at this company.
+
+        COMPANY CONTEXT:
+        {{with.company}}
+
+        ROLE ANALYSIS:
+        {{with.role}}
+
+        Provide 10 questions across these categories:
+        - Technical (3-4 questions): coding, system design, domain-specific
+        - Behavioral (3 questions): leadership, conflict, impact stories
+        - Company-specific (2 questions): why this company, culture fit
+        - Role-specific (2 questions): relevant experience, growth goals
+
+        For each question, include a brief note on what the interviewer is looking for.
+      max_tokens: 200
+
+  # Step 4: Generate talking points and stories
+  - id: talking_points
+    depends_on: [company_research, role_analysis]
+    with:
+      company: $company_research
+      role: $role_analysis
+    infer:
+      prompt: |
+        Generate talking points and STAR story frameworks for this interview.
+
+        COMPANY:
+        {{with.company}}
+
+        ROLE:
+        {{with.role}}
+
+        Provide:
+        1. Elevator pitch template (30 seconds, tailored to this company)
+        2. 3 STAR story frameworks:
+           - Situation/Task/Action/Result structure
+           - Tailored to likely behavioral questions
+           - With prompts to fill in personal details
+        3. 5 questions to ask the interviewer (showing genuine interest and research)
+        4. Key phrases/terminology to use naturally
+        5. Potential red flags to address proactively
+      max_tokens: 200
+
+  # Step 5: Compile preparation kit
+  - id: prep_kit
+    depends_on: [expected_questions, talking_points, company_research]
+    with:
+      questions: $expected_questions
+      points: $talking_points
+      research: $company_research
+    infer:
+      prompt: |
+        Compile a complete interview preparation document.
+
+        COMPANY RESEARCH:
+        {{with.research}}
+
+        EXPECTED QUESTIONS:
+        {{with.questions}}
+
+        TALKING POINTS:
+        {{with.points}}
+
+        Format as a structured preparation guide with:
+        - Quick reference card (1-page summary)
+        - Detailed company cheat sheet
+        - Question bank with suggested approaches
+        - Story bank templates
+        - Pre-interview checklist
+      max_tokens: 200
+    artifact:
+      path: interview-prep-kit.md
+      template: |
+        # Interview Preparation Kit
+
+        {{task.output}}

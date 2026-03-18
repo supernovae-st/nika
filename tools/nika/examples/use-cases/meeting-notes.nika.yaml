@@ -1,0 +1,112 @@
+# Meeting Notes Processor
+# Transform raw meeting notes into summary, action items, and follow-up email.
+#
+# Usage:
+#   NOTES="Discussion about Q2 launch..." nika run examples/use-cases/meeting-notes.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: meeting-notes
+description: "Raw meeting notes -> structured summary -> action items -> follow-up email"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Get raw meeting notes
+  - id: raw_notes
+    exec:
+      command: "echo '${NOTES:-Attendees: Sarah (PM), Mike (Dev Lead), Lisa (Design). Discussed Q2 product launch timeline. Mike says backend API ready by March 20. Lisa needs final design specs by March 15. Sarah will coordinate with marketing for launch assets. Concern about load testing - Mike suggests using k6. Need to finalize pricing tier before launch. Lisa showed new onboarding flow mockups - team approved with minor tweaks. Next meeting Thursday 2pm.}'"
+      shell: true
+
+  # Step 2: Generate structured summary
+  - id: summary
+    depends_on: [raw_notes]
+    with:
+      notes: $raw_notes
+    infer:
+      prompt: |
+        Summarize these meeting notes into a structured format.
+
+        RAW NOTES:
+        {{with.notes}}
+
+        Provide:
+        1. Meeting title (inferred from content)
+        2. Attendees and their roles
+        3. Key decisions made (bulleted)
+        4. Open questions / unresolved items
+        5. 2-3 sentence executive summary
+      max_tokens: 200
+
+  # Step 3: Extract action items with owners and deadlines
+  - id: action_items
+    depends_on: [raw_notes]
+    with:
+      notes: $raw_notes
+    infer:
+      prompt: |
+        Extract all action items from these meeting notes.
+
+        NOTES:
+        {{with.notes}}
+
+        For each action item provide:
+        - task: what needs to be done
+        - owner: who is responsible
+        - deadline: when it is due (or "TBD")
+        - priority: high/medium/low
+        - status: not_started
+
+        Return ONLY valid JSON.
+      max_tokens: 200
+    structured:
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            task:
+              type: string
+            owner:
+              type: string
+            deadline:
+              type: string
+            priority:
+              type: string
+              enum: [high, medium, low]
+            status:
+              type: string
+          required: [task, owner, deadline, priority]
+
+  # Step 4: Draft follow-up email
+  - id: email_draft
+    depends_on: [summary, action_items]
+    with:
+      summary: $summary
+      actions: $action_items
+    infer:
+      prompt: |
+        Draft a follow-up email based on this meeting summary and action items.
+
+        SUMMARY:
+        {{with.summary}}
+
+        ACTION ITEMS:
+        {{with.actions}}
+
+        Email guidelines:
+        - Professional but friendly tone
+        - Subject line that captures the key outcome
+        - Brief recap (3-4 sentences)
+        - Action items formatted as a checklist with owners and dates
+        - Next meeting reminder
+        - Keep under 200 words
+      max_tokens: 200
+    artifact:
+      path: meeting-followup.md
+      template: |
+        # Meeting Follow-Up
+
+        {{task.output}}

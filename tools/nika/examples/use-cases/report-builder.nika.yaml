@@ -1,0 +1,116 @@
+# Report Builder
+# Gather data from multiple sources, analyze, and generate a merged report.
+#
+# Usage:
+#   nika run examples/use-cases/report-builder.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: report-builder
+description: "Gather data -> analyze sections in parallel -> merge into final report"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Gather system metrics
+  - id: gather_system
+    exec:
+      command: "echo 'CPU: 45% avg, Memory: 72% used, Disk: 58% capacity, Uptime: 99.97%'"
+      shell: true
+
+  # Step 2: Gather git activity
+  - id: gather_git
+    exec:
+      command: "git log --oneline -10 2>/dev/null || echo 'No git history available'"
+      shell: true
+
+  # Step 3: Gather file stats
+  - id: gather_files
+    exec:
+      command: "find . -name '*.rs' -type f 2>/dev/null | head -20 | wc -l && echo 'Rust source files'"
+      shell: true
+
+  # Step 4: Analyze infrastructure section (parallel)
+  - id: section_infra
+    depends_on: [gather_system]
+    with:
+      metrics: $gather_system
+    infer:
+      prompt: |
+        Write an Infrastructure Health section for a weekly engineering report.
+
+        METRICS:
+        {{with.metrics}}
+
+        Include: current status assessment, trend analysis, capacity planning notes.
+        Write in professional report style. Use markdown formatting.
+      max_tokens: 200
+
+  # Step 5: Analyze development velocity section (parallel)
+  - id: section_velocity
+    depends_on: [gather_git]
+    with:
+      commits: $gather_git
+    infer:
+      prompt: |
+        Write a Development Velocity section for a weekly engineering report.
+
+        RECENT COMMITS:
+        {{with.commits}}
+
+        Include: commit frequency analysis, feature vs bugfix ratio, notable changes.
+        Write in professional report style. Use markdown formatting.
+      max_tokens: 200
+
+  # Step 6: Analyze codebase health section (parallel)
+  - id: section_codebase
+    depends_on: [gather_files]
+    with:
+      stats: $gather_files
+    infer:
+      prompt: |
+        Write a Codebase Health section for a weekly engineering report.
+
+        FILE STATS:
+        {{with.stats}}
+
+        Include: project size assessment, language breakdown, complexity notes.
+        Write in professional report style. Use markdown formatting.
+      max_tokens: 200
+
+  # Step 7: Merge all sections into final report
+  - id: merge_report
+    depends_on: [section_infra, section_velocity, section_codebase]
+    with:
+      infra: $section_infra
+      velocity: $section_velocity
+      codebase: $section_codebase
+    infer:
+      prompt: |
+        Merge these report sections into a cohesive weekly engineering report.
+
+        INFRASTRUCTURE:
+        {{with.infra}}
+
+        DEVELOPMENT VELOCITY:
+        {{with.velocity}}
+
+        CODEBASE HEALTH:
+        {{with.codebase}}
+
+        Add:
+        - Executive summary at the top (3-4 sentences)
+        - Cross-section insights (connections between metrics)
+        - Top 3 action items with priority
+        - Properly formatted markdown with table of contents
+      max_tokens: 200
+    artifact:
+      path: weekly-report.md
+      template: |
+        # Weekly Engineering Report
+
+        {{task.output}}

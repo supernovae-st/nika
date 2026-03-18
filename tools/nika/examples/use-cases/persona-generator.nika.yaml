@@ -1,0 +1,104 @@
+# User Persona Generator
+# Generate 3 distinct user personas from a product description using for_each.
+#
+# Usage:
+#   PRODUCT="AI workflow automation tool for developers" \
+#   nika run examples/use-cases/persona-generator.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: persona-generator
+description: "Product description -> 3 detailed user personas via for_each"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Analyze product and identify audience segments
+  - id: audience_analysis
+    infer:
+      prompt: |
+        Analyze this product and identify 3 distinct user audience segments.
+
+        PRODUCT: ${PRODUCT:-An open-source CLI tool that lets developers define AI workflows in YAML. Supports LLM inference, shell commands, HTTP requests, MCP tool calls, and multi-turn agent loops. Used for content pipelines, code review, data processing, and automation.}
+
+        For each segment, identify:
+        - Segment name and role
+        - Demographics (age range, experience level, industry)
+        - Primary use case with this product
+        - Key motivation for adopting this tool
+        - Biggest concern or objection
+
+        Return 3 distinct segments that represent different types of users.
+      max_tokens: 200
+
+  # Step 2: Generate detailed persona for each segment
+  - id: generate_personas
+    depends_on: [audience_analysis]
+    for_each:
+      - archetype: "power_user"
+        focus: "advanced features, automation at scale, API integration"
+      - archetype: "pragmatist"
+        focus: "quick wins, easy setup, solving immediate problems"
+      - archetype: "evaluator"
+        focus: "comparison with alternatives, ROI, team adoption"
+    as: persona_type
+    concurrency: 3
+    with:
+      analysis: $audience_analysis
+    infer:
+      prompt: |
+        Create a detailed user persona for the {{with.persona_type.archetype}} archetype.
+
+        AUDIENCE ANALYSIS:
+        {{with.analysis}}
+
+        ARCHETYPE FOCUS: {{with.persona_type.focus}}
+
+        Persona template:
+        - Name (realistic, diverse)
+        - Photo description (for design mockups)
+        - Job title and company type
+        - Age, location, experience level
+        - Bio (2-3 sentences capturing who they are)
+        - Goals (3 specific goals related to the product)
+        - Frustrations (3 current pain points)
+        - A day in their life (typical workflow)
+        - How they discover and evaluate new tools
+        - What would make them recommend this product
+        - Quote that captures their mindset
+
+        Make the persona feel like a real person, not a marketing construct.
+      max_tokens: 200
+
+  # Step 3: Generate persona comparison matrix
+  - id: comparison_matrix
+    depends_on: [generate_personas]
+    with:
+      personas: $generate_personas
+    infer:
+      prompt: |
+        Create a comparison matrix and strategic recommendations from these personas.
+
+        PERSONAS:
+        {{with.personas}}
+
+        Provide:
+        1. Comparison matrix (table format):
+           - Feature priorities per persona
+           - Content preferences
+           - Conversion triggers
+           - Retention drivers
+        2. Product implications: what to build/prioritize for each
+        3. Marketing implications: messaging per persona
+        4. Onboarding differences: what each needs in first 5 minutes
+      max_tokens: 200
+    artifact:
+      path: user-personas.md
+      template: |
+        # User Personas
+
+        {{task.output}}

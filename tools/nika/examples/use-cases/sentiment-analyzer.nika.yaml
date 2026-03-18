@@ -1,0 +1,95 @@
+# Sentiment Analyzer
+# Analyze sentiment of multiple reviews using for_each with structured output.
+#
+# Usage:
+#   nika run examples/use-cases/sentiment-analyzer.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: sentiment-analyzer
+description: "Input reviews -> analyze sentiment per review (for_each + structured)"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Provide sample reviews
+  - id: reviews
+    exec:
+      command: "echo '[\"Absolutely love this product! Best purchase I made this year. The build quality is exceptional.\",\"It works okay but the battery life is disappointing. Expected more for the price.\",\"Terrible customer service. Waited 3 weeks for a response. Product arrived damaged.\",\"Decent value for money. Nothing groundbreaking but gets the job done reliably.\",\"The new update completely broke the app. Cannot access my account anymore. Very frustrated.\"]'"
+      shell: true
+
+  # Step 2: Analyze each review
+  - id: analyze
+    depends_on: [reviews]
+    for_each: "$reviews"
+    as: review
+    concurrency: 3
+    infer:
+      prompt: |
+        Perform detailed sentiment analysis on this customer review.
+
+        REVIEW: {{with.review}}
+
+        Analyze:
+        - sentiment: overall sentiment (positive/negative/neutral/mixed)
+        - score: sentiment score from -1.0 (very negative) to 1.0 (very positive)
+        - emotions: array of detected emotions (joy, anger, frustration, satisfaction, etc.)
+        - topics: what aspects are mentioned (product, service, price, quality, etc.)
+        - urgency: does this need immediate attention (true/false)
+        - actionable: is there a specific action we can take (true/false)
+        - summary: one-sentence summary of the review sentiment
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          sentiment:
+            type: string
+            enum: [positive, negative, neutral, mixed]
+          score:
+            type: number
+          emotions:
+            type: array
+            items:
+              type: string
+          topics:
+            type: array
+            items:
+              type: string
+          urgency:
+            type: boolean
+          actionable:
+            type: boolean
+          summary:
+            type: string
+        required: [sentiment, score, emotions, topics, summary]
+
+  # Step 3: Generate aggregate analysis
+  - id: aggregate
+    depends_on: [analyze]
+    with:
+      results: $analyze
+    infer:
+      prompt: |
+        Generate an aggregate sentiment analysis report from these individual review analyses.
+
+        INDIVIDUAL ANALYSES:
+        {{with.results}}
+
+        Provide:
+        1. Overall sentiment distribution (% positive/negative/neutral/mixed)
+        2. Average sentiment score
+        3. Most mentioned topics (ranked)
+        4. Most common emotions
+        5. Items needing urgent attention
+        6. Top 3 actionable insights for the product team
+        7. Customer satisfaction trend assessment
+      max_tokens: 200
+    artifact:
+      path: sentiment-report.md
+      template: |
+        # Sentiment Analysis Report
+
+        {{task.output}}

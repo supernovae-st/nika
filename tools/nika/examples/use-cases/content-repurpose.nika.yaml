@@ -1,0 +1,145 @@
+# Content Repurposer
+# Take long-form content and repurpose into tweet thread, LinkedIn post, and email subject.
+#
+# Usage:
+#   CONTENT="Your long blog post or article text here" \
+#   nika run examples/use-cases/content-repurpose.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: content-repurpose
+description: "Long-form content -> tweet thread + LinkedIn post + email subject lines"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Get source content
+  - id: source
+    exec:
+      command: "echo '${CONTENT:-We just launched Nika, an open-source workflow engine that turns YAML files into AI pipelines. It supports 5 semantic verbs (infer, exec, fetch, invoke, agent), connects to any MCP server, and runs as a single Rust binary with zero dependencies. Early adopters are already building content pipelines, code review bots, and multi-agent research systems. The key insight is that AI workflows should be declarative, version-controlled, and reproducible, just like infrastructure as code changed DevOps.}'"
+      shell: true
+
+  # Step 2: Extract key themes for repurposing
+  - id: extract_themes
+    depends_on: [source]
+    with:
+      text: $source
+    infer:
+      prompt: |
+        Extract the key themes and hooks from this content for social media repurposing.
+
+        CONTENT:
+        {{with.text}}
+
+        Identify:
+        - Main thesis (one sentence)
+        - 3-4 key points worth highlighting
+        - Best quote or stat for engagement
+        - Target audience
+        - Emotional hook (what makes people care)
+      max_tokens: 200
+
+  # Step 3: Generate Twitter/X thread
+  - id: tweet_thread
+    depends_on: [extract_themes, source]
+    with:
+      themes: $extract_themes
+      original: $source
+    infer:
+      prompt: |
+        Create a Twitter/X thread (5-7 tweets) from this content.
+
+        THEMES:
+        {{with.themes}}
+
+        ORIGINAL:
+        {{with.original}}
+
+        Thread rules:
+        - Tweet 1: Strong hook that creates curiosity (no "Thread:" prefix)
+        - Tweets 2-5: One key insight per tweet with specific detail
+        - Tweet 6: Social proof or surprising stat
+        - Final tweet: CTA with link placeholder [LINK]
+        - Each tweet under 280 characters
+        - Use line breaks within tweets for readability
+        - Number each tweet (1/, 2/, etc.)
+      max_tokens: 200
+
+  # Step 4: Generate LinkedIn post
+  - id: linkedin_post
+    depends_on: [extract_themes, source]
+    with:
+      themes: $extract_themes
+      original: $source
+    infer:
+      prompt: |
+        Write a LinkedIn post from this content.
+
+        THEMES:
+        {{with.themes}}
+
+        ORIGINAL:
+        {{with.original}}
+
+        LinkedIn post rules:
+        - Opening line: attention-grabbing (shows in preview)
+        - Use short paragraphs (1-2 sentences each)
+        - Include personal perspective or insight
+        - 3-5 bullet points for key takeaways
+        - End with a question to drive engagement
+        - Add 3-5 relevant hashtags
+        - Target 150-200 words
+      max_tokens: 200
+
+  # Step 5: Generate email subject lines
+  - id: email_subjects
+    depends_on: [extract_themes]
+    with:
+      themes: $extract_themes
+    infer:
+      prompt: |
+        Generate 5 email subject lines for promoting this content via newsletter.
+
+        THEMES:
+        {{with.themes}}
+
+        Subject line styles:
+        1. Curiosity gap (what they don't know)
+        2. Benefit-driven (what they'll gain)
+        3. Urgency/timeliness (why now)
+        4. Question-based (triggers engagement)
+        5. Contrarian/surprising (challenges assumptions)
+
+        Each under 50 characters. No clickbait.
+      max_tokens: 200
+
+  # Step 6: Compile all repurposed content
+  - id: compile
+    depends_on: [tweet_thread, linkedin_post, email_subjects]
+    with:
+      tweets: $tweet_thread
+      linkedin: $linkedin_post
+      emails: $email_subjects
+    infer:
+      prompt: |
+        Compile all repurposed content into a single organized document.
+
+        TWITTER THREAD:
+        {{with.tweets}}
+
+        LINKEDIN POST:
+        {{with.linkedin}}
+
+        EMAIL SUBJECTS:
+        {{with.emails}}
+
+        Format with clear section headers and ready-to-copy blocks.
+      max_tokens: 200
+    artifact:
+      path: repurposed-content.md
+      template: |
+        # Repurposed Content Package
+
+        {{task.output}}

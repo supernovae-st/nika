@@ -1,0 +1,109 @@
+# Blog Content Pipeline
+# Research a topic, outline, draft, and review a complete blog post.
+#
+# Usage:
+#   TOPIC="How to build CLI tools in Rust" nika run examples/use-cases/blog-pipeline.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: blog-pipeline
+description: "End-to-end blog post generation: research -> outline -> draft -> review"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Research the topic and gather key talking points
+  - id: research
+    infer:
+      prompt: |
+        Research the following topic and provide 5-7 key talking points with supporting details.
+        Include relevant statistics, examples, and expert perspectives where possible.
+
+        Topic: ${TOPIC:-Building production-ready CLI tools in Rust}
+
+        Output a structured research brief with:
+        - Key themes (bulleted)
+        - Target audience insight
+        - Unique angles to explore
+        - SEO-relevant subtopics
+      max_tokens: 200
+
+  # Step 2: Generate a structured outline from the research
+  - id: outline
+    depends_on: [research]
+    with:
+      brief: $research
+    infer:
+      prompt: |
+        Using this research brief, create a detailed blog post outline.
+
+        RESEARCH:
+        {{with.brief}}
+
+        Structure the outline as:
+        1. Title (SEO-friendly, under 60 chars)
+        2. Meta description (under 155 chars)
+        3. Introduction hook
+        4. 4-5 main sections with 2-3 subpoints each
+        5. Conclusion with CTA
+
+        Keep the outline actionable and specific.
+      max_tokens: 200
+
+  # Step 3: Write the full draft based on the outline
+  - id: draft
+    depends_on: [outline]
+    with:
+      plan: $outline
+      brief: $research
+    infer:
+      prompt: |
+        Write a complete blog post draft following this outline.
+
+        OUTLINE:
+        {{with.plan}}
+
+        RESEARCH CONTEXT:
+        {{with.brief}}
+
+        Writing guidelines:
+        - Professional but conversational tone
+        - Short paragraphs (3-4 sentences max)
+        - Use H2 and H3 markdown headers
+        - Include code examples where relevant
+        - Add transition sentences between sections
+        - Target 800-1200 words
+      max_tokens: 200
+
+  # Step 4: Review the draft for quality and suggest improvements
+  - id: review
+    depends_on: [draft]
+    with:
+      post: $draft
+      plan: $outline
+    infer:
+      prompt: |
+        Review this blog post draft against the original outline.
+
+        DRAFT:
+        {{with.post}}
+
+        OUTLINE:
+        {{with.plan}}
+
+        Provide a structured review:
+        1. Overall quality score (1-10)
+        2. Strengths (2-3 points)
+        3. Areas for improvement (2-3 points)
+        4. SEO assessment (title, headers, keyword density)
+        5. Readability assessment (sentence length, jargon level)
+        6. Specific edit suggestions with line references
+      max_tokens: 200
+    artifact:
+      path: blog-review.md
+      template: |
+        # Blog Post Review
+
+        {{task.output}}

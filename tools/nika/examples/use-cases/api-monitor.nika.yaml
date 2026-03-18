@@ -1,0 +1,107 @@
+# API Health Monitor
+# Fetch multiple API endpoints, check their status, and summarize health.
+#
+# Usage:
+#   nika run examples/use-cases/api-monitor.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Network access to target endpoints
+
+schema: nika/workflow@0.12
+workflow: api-monitor
+description: "Fetch 3 API endpoints in parallel -> check status -> summarize health"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Check endpoint 1 - Basic connectivity
+  - id: check_api_1
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+
+  # Step 2: Check endpoint 2 - Response time
+  - id: check_api_2
+    fetch:
+      url: "https://httpbin.org/delay/1"
+      method: GET
+
+  # Step 3: Check endpoint 3 - Status codes
+  - id: check_api_3
+    fetch:
+      url: "https://httpbin.org/status/200"
+      method: GET
+
+  # Step 4: Analyze health across all endpoints
+  - id: health_analysis
+    depends_on: [check_api_1, check_api_2, check_api_3]
+    with:
+      ep1: $check_api_1
+      ep2: $check_api_2
+      ep3: $check_api_3
+    infer:
+      prompt: |
+        Analyze the health of these API endpoints based on their responses.
+
+        ENDPOINT 1 (httpbin.org/get):
+        {{with.ep1}}
+
+        ENDPOINT 2 (httpbin.org/delay/1):
+        {{with.ep2}}
+
+        ENDPOINT 3 (httpbin.org/status/200):
+        {{with.ep3}}
+
+        Provide a health report with:
+        1. Overall status: HEALTHY / DEGRADED / DOWN
+        2. Per-endpoint status with response analysis
+        3. Latency assessment
+        4. Any anomalies detected
+        5. Recommended actions if issues found
+
+        Return as JSON.
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          overall_status:
+            type: string
+            enum: [HEALTHY, DEGRADED, DOWN]
+          endpoints:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                notes:
+                  type: string
+              required: [name, status]
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [overall_status, endpoints]
+
+  # Step 5: Generate human-readable summary
+  - id: summary
+    depends_on: [health_analysis]
+    with:
+      report: $health_analysis
+    infer:
+      prompt: |
+        Write a concise health status summary suitable for a Slack notification.
+
+        HEALTH REPORT:
+        {{with.report}}
+
+        Format:
+        - Status emoji and one-line verdict
+        - Per-endpoint status (one line each)
+        - Action items if any
+        - Keep under 100 words
+      max_tokens: 200

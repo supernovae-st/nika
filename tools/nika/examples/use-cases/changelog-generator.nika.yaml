@@ -1,0 +1,89 @@
+# Changelog Generator
+# Read git log, categorize changes with AI, and format a proper changelog.
+#
+# Usage:
+#   nika run examples/use-cases/changelog-generator.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Git repository with commit history
+
+schema: nika/workflow@0.12
+workflow: changelog-generator
+description: "Read git log -> categorize changes -> format changelog entry"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Get recent git commits
+  - id: git_log
+    exec:
+      command: "git log --oneline --no-merges -20 2>/dev/null || echo 'abc1234 feat: initial commit'"
+      shell: true
+
+  # Step 2: Get current version info
+  - id: version_info
+    exec:
+      command: "git describe --tags --abbrev=0 2>/dev/null || echo 'v0.1.0'"
+      shell: true
+
+  # Step 3: Categorize commits by type
+  - id: categorize
+    depends_on: [git_log]
+    with:
+      commits: $git_log
+    infer:
+      prompt: |
+        Categorize these git commits following the Keep a Changelog convention.
+
+        COMMITS:
+        {{with.commits}}
+
+        Categories:
+        - Added: new features (feat:, add:)
+        - Changed: modifications to existing features (refactor:, change:)
+        - Fixed: bug fixes (fix:, bugfix:)
+        - Removed: removed features (remove:, delete:)
+        - Security: security fixes (sec:, security:)
+        - Performance: performance improvements (perf:)
+
+        Rules:
+        - Parse conventional commit prefixes
+        - Group related commits into single entries
+        - Write user-facing descriptions (not developer jargon)
+        - Include commit hash references in parentheses
+        - Skip merge commits and chore commits
+
+        Return as JSON object with category keys and array values.
+      max_tokens: 200
+    output:
+      format: json
+
+  # Step 4: Format the changelog entry
+  - id: format_changelog
+    depends_on: [categorize, version_info]
+    with:
+      categories: $categorize
+      version: $version_info
+    infer:
+      prompt: |
+        Generate a CHANGELOG.md entry using Keep a Changelog format.
+
+        VERSION: {{with.version}}
+        DATE: today
+
+        CATEGORIZED CHANGES:
+        {{with.categories}}
+
+        Format rules:
+        - Use ## [version] - YYYY-MM-DD header
+        - Only include non-empty categories
+        - Use ### for category headers (Added, Changed, Fixed, etc.)
+        - Each item starts with "- "
+        - No code fences in output
+        - Professional, user-facing language
+      max_tokens: 200
+    artifact:
+      path: changelog-entry.md

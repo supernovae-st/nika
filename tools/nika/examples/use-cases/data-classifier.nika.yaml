@@ -1,0 +1,85 @@
+# Data Classifier
+# Classify input items using for_each with structured output per item.
+#
+# Usage:
+#   nika run examples/use-cases/data-classifier.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: data-classifier
+description: "Classify support tickets by category, priority, and sentiment using for_each"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Provide sample support tickets
+  - id: tickets
+    exec:
+      command: "echo '[\"Login page returns 500 error since this morning\",\"Can you add dark mode to the dashboard?\",\"Billing was charged twice for March subscription\",\"Great product! The new search feature is amazing\",\"API rate limits are too restrictive for our enterprise plan\",\"How do I export my data to CSV?\"]'"
+      shell: true
+
+  # Step 2: Classify each ticket in parallel
+  - id: classify
+    depends_on: [tickets]
+    for_each: "$tickets"
+    as: ticket
+    concurrency: 3
+    infer:
+      prompt: |
+        Classify this customer support ticket.
+
+        TICKET: {{with.ticket}}
+
+        Return a JSON classification with these fields:
+        - category: one of [bug, feature_request, billing, feedback, question, performance]
+        - priority: one of [critical, high, medium, low]
+        - sentiment: one of [positive, neutral, negative, urgent]
+        - department: one of [engineering, product, finance, support]
+        - suggested_response_type: one of [immediate_fix, acknowledge_and_schedule, investigate, thank_and_log, provide_docs]
+        - summary: one-sentence summary
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          category:
+            type: string
+          priority:
+            type: string
+          sentiment:
+            type: string
+          department:
+            type: string
+          suggested_response_type:
+            type: string
+          summary:
+            type: string
+        required: [category, priority, sentiment, department, summary]
+
+  # Step 3: Generate triage summary
+  - id: triage_summary
+    depends_on: [classify]
+    with:
+      results: $classify
+    infer:
+      prompt: |
+        Generate a triage summary from these classified support tickets.
+
+        CLASSIFICATIONS:
+        {{with.results}}
+
+        Provide:
+        1. Priority distribution (how many critical/high/medium/low)
+        2. Category breakdown
+        3. Top 3 items needing immediate attention
+        4. Suggested team assignments
+        5. Overall customer sentiment assessment
+      max_tokens: 200
+    artifact:
+      path: triage-report.md
+      template: |
+        # Support Ticket Triage Report
+
+        {{task.output}}

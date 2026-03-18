@@ -1,0 +1,134 @@
+# Content Audit
+# Fetch a URL and analyze its SEO, readability, and tone.
+#
+# Usage:
+#   URL="https://example.com" nika run examples/use-cases/content-audit.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Target URL accessible
+
+schema: nika/workflow@0.12
+workflow: content-audit
+description: "Fetch URL -> analyze SEO + readability + tone -> generate audit report"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Fetch the page content
+  - id: fetch_page
+    fetch:
+      url: "${URL:-https://httpbin.org/html}"
+      method: GET
+
+  # Step 2: SEO analysis
+  - id: seo_analysis
+    depends_on: [fetch_page]
+    with:
+      content: $fetch_page
+    infer:
+      prompt: |
+        Perform an SEO audit on this web page content.
+
+        PAGE CONTENT:
+        {{with.content}}
+
+        Analyze:
+        1. Title tag presence and quality (length, keywords)
+        2. Meta description assessment
+        3. Header hierarchy (H1, H2, H3 usage)
+        4. Keyword density and placement
+        5. Internal/external link count
+        6. Image alt text coverage
+        7. URL structure assessment
+        8. Content length and depth
+
+        Score each factor 1-10 and provide specific recommendations.
+      max_tokens: 200
+
+  # Step 3: Readability analysis
+  - id: readability_analysis
+    depends_on: [fetch_page]
+    with:
+      content: $fetch_page
+    infer:
+      prompt: |
+        Analyze the readability of this web page content.
+
+        PAGE CONTENT:
+        {{with.content}}
+
+        Assess:
+        1. Average sentence length
+        2. Paragraph length distribution
+        3. Use of subheadings for scannability
+        4. Jargon level (technical terms without explanation)
+        5. Estimated reading level (grade level)
+        6. Reading time estimate
+        7. Use of formatting (bold, lists, callouts)
+        8. Logical flow and structure
+
+        Provide a readability score (1-100) and specific improvement suggestions.
+      max_tokens: 200
+
+  # Step 4: Tone and voice analysis
+  - id: tone_analysis
+    depends_on: [fetch_page]
+    with:
+      content: $fetch_page
+    infer:
+      prompt: |
+        Analyze the tone and voice of this web page content.
+
+        PAGE CONTENT:
+        {{with.content}}
+
+        Evaluate:
+        1. Overall tone (formal/casual/technical/friendly/authoritative)
+        2. Brand voice consistency
+        3. Emotional appeal (logic vs emotion balance)
+        4. Trust signals in writing style
+        5. Active vs passive voice ratio
+        6. Person/perspective (first/second/third)
+        7. Call-to-action effectiveness
+        8. Inclusivity of language
+
+        Provide tone recommendations aligned with best practices.
+      max_tokens: 200
+
+  # Step 5: Compile audit report
+  - id: audit_report
+    depends_on: [seo_analysis, readability_analysis, tone_analysis]
+    with:
+      seo: $seo_analysis
+      readability: $readability_analysis
+      tone: $tone_analysis
+    infer:
+      prompt: |
+        Compile a comprehensive content audit report.
+
+        SEO ANALYSIS:
+        {{with.seo}}
+
+        READABILITY ANALYSIS:
+        {{with.readability}}
+
+        TONE ANALYSIS:
+        {{with.tone}}
+
+        Report format:
+        - Executive summary with overall grade (A-F)
+        - Scorecard table (SEO, Readability, Tone scores)
+        - Top 5 priority fixes (highest impact, ranked)
+        - Detailed findings by category
+        - Quick wins (changes that take under 30 minutes)
+        - Strategic recommendations (longer-term improvements)
+      max_tokens: 200
+    artifact:
+      path: content-audit.md
+      template: |
+        # Content Audit Report
+
+        {{task.output}}

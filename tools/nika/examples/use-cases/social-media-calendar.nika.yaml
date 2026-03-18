@@ -1,0 +1,104 @@
+# Social Media Calendar
+# Generate 7 days of social media posts for a given topic.
+#
+# Usage:
+#   TOPIC="developer tools and productivity" \
+#   nika run examples/use-cases/social-media-calendar.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: social-media-calendar
+description: "Topic -> 7-day social media content calendar with daily posts"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Create content strategy
+  - id: strategy
+    infer:
+      prompt: |
+        Create a 7-day social media content strategy for the topic: ${TOPIC:-developer tools and productivity}
+
+        Define:
+        1. Content pillars (3-4 themes to rotate)
+        2. Platform focus: Twitter/X and LinkedIn
+        3. Posting cadence: 1 post per day per platform
+        4. Content mix: educational (40%), engaging (30%), promotional (20%), personal (10%)
+        5. Weekly narrative arc (what story are we telling across 7 days?)
+        6. Hashtag strategy (5 core hashtags)
+      max_tokens: 200
+
+  # Step 2: Generate posts for each day
+  - id: daily_posts
+    depends_on: [strategy]
+    for_each:
+      - day: "Monday"
+        theme: "Motivation / week kickoff"
+      - day: "Tuesday"
+        theme: "Tutorial / how-to tip"
+      - day: "Wednesday"
+        theme: "Industry insight / trend"
+      - day: "Thursday"
+        theme: "Behind the scenes / personal"
+      - day: "Friday"
+        theme: "Tool recommendation / resource"
+      - day: "Saturday"
+        theme: "Community engagement / question"
+      - day: "Sunday"
+        theme: "Weekly recap / reflection"
+    as: schedule
+    concurrency: 4
+    with:
+      plan: $strategy
+    infer:
+      prompt: |
+        Write social media posts for {{with.schedule.day}}.
+
+        STRATEGY:
+        {{with.plan}}
+
+        THEME: {{with.schedule.theme}}
+
+        Create:
+        1. Twitter/X post (under 280 chars, punchy)
+        2. LinkedIn post (150-200 words, professional)
+        3. Best posting time for {{with.schedule.day}}
+        4. Engagement prompt (question or poll idea)
+
+        Match the theme while staying on-topic.
+      max_tokens: 200
+
+  # Step 3: Compile into calendar
+  - id: calendar
+    depends_on: [daily_posts, strategy]
+    with:
+      posts: $daily_posts
+      plan: $strategy
+    infer:
+      prompt: |
+        Compile these posts into a formatted social media calendar.
+
+        STRATEGY:
+        {{with.plan}}
+
+        DAILY POSTS:
+        {{with.posts}}
+
+        Format as a markdown table/document with:
+        - Week overview
+        - Day-by-day breakdown
+        - Copy-paste-ready posts (clearly boxed)
+        - Hashtags per post
+        - Optimal posting times
+        - Performance tracking placeholders
+      max_tokens: 200
+    artifact:
+      path: social-calendar.md
+      template: |
+        # 7-Day Social Media Calendar
+
+        {{task.output}}

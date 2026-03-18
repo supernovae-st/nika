@@ -1,0 +1,100 @@
+# Quiz Generator
+# Generate a structured quiz with questions, options, and answers from a topic.
+#
+# Usage:
+#   TOPIC="Rust programming" COUNT="5" \
+#   nika run examples/use-cases/quiz-generator.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: quiz-generator
+description: "Topic -> generate quiz questions as structured JSON array"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Generate quiz questions with structured output
+  - id: generate_questions
+    infer:
+      prompt: |
+        Generate ${COUNT:-5} multiple-choice quiz questions about: ${TOPIC:-Rust programming}
+
+        Requirements:
+        - Mix difficulty levels (2 easy, 2 medium, 1 hard)
+        - Each question has exactly 4 options (A, B, C, D)
+        - Only one correct answer per question
+        - Explanations should be educational, not just "this is correct"
+        - Questions should test understanding, not just memorization
+        - Cover different subtopics within the main topic
+
+        Return a JSON array of question objects.
+      max_tokens: 200
+    structured:
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            number:
+              type: integer
+            question:
+              type: string
+            difficulty:
+              type: string
+              enum: [easy, medium, hard]
+            options:
+              type: object
+              properties:
+                A:
+                  type: string
+                B:
+                  type: string
+                C:
+                  type: string
+                D:
+                  type: string
+              required: [A, B, C, D]
+            correct_answer:
+              type: string
+              enum: [A, B, C, D]
+            explanation:
+              type: string
+          required: [number, question, difficulty, options, correct_answer, explanation]
+
+  # Step 2: Format quiz for display
+  - id: format_quiz
+    depends_on: [generate_questions]
+    with:
+      questions: $generate_questions
+    infer:
+      prompt: |
+        Format this quiz for interactive display.
+
+        QUESTIONS:
+        {{with.questions}}
+
+        Create two sections:
+
+        SECTION 1 - QUIZ (no answers visible):
+        For each question:
+        - Question number and difficulty indicator
+        - Question text
+        - Four options labeled A-D
+        - Blank line for separation
+
+        SECTION 2 - ANSWER KEY (separated by a clear divider):
+        For each question:
+        - Correct answer letter
+        - Explanation
+        - Difficulty tag
+
+        Add a scoring guide at the end.
+      max_tokens: 200
+    artifact:
+      path: quiz.md
+      template: |
+        # Quiz: ${TOPIC:-Rust Programming}
+
+        {{task.output}}

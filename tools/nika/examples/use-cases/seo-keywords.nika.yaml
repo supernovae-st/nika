@@ -1,0 +1,110 @@
+# SEO Keyword Generator
+# Generate keyword clusters with search intent classification for a topic.
+#
+# Usage:
+#   TOPIC="rust cli tools" nika run examples/use-cases/seo-keywords.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: seo-keywords
+description: "Generate SEO keyword clusters with intent classification and difficulty estimates"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Generate primary keyword list
+  - id: primary_keywords
+    infer:
+      prompt: |
+        Generate 10 primary SEO keywords for the topic: ${TOPIC:-rust cli tools}
+
+        For each keyword provide:
+        - The keyword phrase
+        - Estimated monthly search volume (low/medium/high)
+        - Search intent (informational/navigational/transactional/commercial)
+        - Keyword difficulty (easy/medium/hard)
+
+        Return ONLY a valid JSON array.
+      max_tokens: 200
+    structured:
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            keyword:
+              type: string
+            volume:
+              type: string
+              enum: [low, medium, high]
+            intent:
+              type: string
+              enum: [informational, navigational, transactional, commercial]
+            difficulty:
+              type: string
+              enum: [easy, medium, hard]
+          required: [keyword, volume, intent, difficulty]
+
+  # Step 2: Generate long-tail variations
+  - id: longtail
+    depends_on: [primary_keywords]
+    with:
+      primary: $primary_keywords
+    infer:
+      prompt: |
+        Based on these primary keywords, generate 15 long-tail keyword variations.
+
+        PRIMARY KEYWORDS:
+        {{with.primary}}
+
+        Long-tail keywords should be:
+        - 4-7 words long
+        - Question-based where possible (how, what, why)
+        - Targeting specific user problems
+        - Lower competition than primary keywords
+
+        Return ONLY a valid JSON array of objects with keyword and intent fields.
+      max_tokens: 200
+    structured:
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            keyword:
+              type: string
+            intent:
+              type: string
+          required: [keyword, intent]
+
+  # Step 3: Build keyword clusters and content strategy
+  - id: clusters
+    depends_on: [primary_keywords, longtail]
+    with:
+      primary: $primary_keywords
+      longtail: $longtail
+    infer:
+      prompt: |
+        Organize these keywords into topical clusters for a content strategy.
+
+        PRIMARY:
+        {{with.primary}}
+
+        LONG-TAIL:
+        {{with.longtail}}
+
+        Create 3-5 keyword clusters. Each cluster should have:
+        - Cluster name / pillar topic
+        - Primary keyword target
+        - Supporting long-tail keywords (3-5 each)
+        - Suggested content type (blog post, guide, comparison, tutorial)
+        - Content priority (high/medium/low)
+      max_tokens: 200
+    artifact:
+      path: seo-keyword-strategy.md
+      template: |
+        # SEO Keyword Strategy
+
+        {{task.output}}

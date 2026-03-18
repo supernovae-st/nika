@@ -1,0 +1,161 @@
+# Onboarding Checklist Generator
+# Generate a personalized onboarding checklist based on role and team.
+#
+# Usage:
+#   ROLE="Backend Engineer" TEAM="Platform" \
+#   nika run examples/use-cases/onboarding-checklist.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: onboarding-checklist
+description: "Role + team -> personalized onboarding tasks with timeline (structured)"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Analyze role requirements
+  - id: role_requirements
+    infer:
+      prompt: |
+        Analyze the onboarding requirements for a new ${ROLE:-Backend Engineer} joining the ${TEAM:-Platform} team.
+
+        Consider:
+        1. Technical skills expected for this role
+        2. Tools and systems they need access to
+        3. Key people they should meet
+        4. Documentation they should read
+        5. Team-specific processes and rituals
+        6. Security and compliance requirements
+      max_tokens: 200
+
+  # Step 2: Generate structured checklist
+  - id: generate_checklist
+    depends_on: [role_requirements]
+    with:
+      requirements: $role_requirements
+    infer:
+      prompt: |
+        Generate a structured onboarding checklist based on these requirements.
+
+        REQUIREMENTS:
+        {{with.requirements}}
+
+        Create tasks organized by timeline:
+        - day_one: First day essentials (accounts, tools, introductions)
+        - week_one: First week goals (setup, learning, first contributions)
+        - month_one: First month milestones (projects, ownership areas)
+
+        Each task should have: title, description, category, estimated_hours, and assignee_role.
+
+        Return as JSON.
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          day_one:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                estimated_hours:
+                  type: number
+                assignee_role:
+                  type: string
+              required: [title, category]
+          week_one:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                estimated_hours:
+                  type: number
+              required: [title, category]
+          month_one:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                estimated_hours:
+                  type: number
+              required: [title, category]
+        required: [day_one, week_one, month_one]
+
+  # Step 3: Generate buddy/mentor guide
+  - id: buddy_guide
+    depends_on: [role_requirements]
+    with:
+      requirements: $role_requirements
+    infer:
+      prompt: |
+        Create an onboarding buddy guide for someone mentoring a new ${ROLE:-Backend Engineer}.
+
+        ROLE REQUIREMENTS:
+        {{with.requirements}}
+
+        Include:
+        1. Pre-arrival preparation checklist (what to set up before they start)
+        2. First-day schedule template
+        3. Weekly check-in agenda for first month
+        4. Topics to cover in each 1:1
+        5. Red flags to watch for (signs the new hire is struggling)
+        6. Resources to share and when
+      max_tokens: 200
+
+  # Step 4: Compile complete onboarding package
+  - id: compile_package
+    depends_on: [generate_checklist, buddy_guide, role_requirements]
+    with:
+      checklist: $generate_checklist
+      buddy: $buddy_guide
+      requirements: $role_requirements
+    infer:
+      prompt: |
+        Compile a complete onboarding package document.
+
+        CHECKLIST:
+        {{with.checklist}}
+
+        BUDDY GUIDE:
+        {{with.buddy}}
+
+        REQUIREMENTS:
+        {{with.requirements}}
+
+        Format as a polished markdown document with:
+        - Welcome header with role and team
+        - Timeline overview (visual: Day 1 -> Week 1 -> Month 1)
+        - Detailed checklist with checkboxes (- [ ])
+        - Buddy guide section
+        - Resources and links section (placeholders)
+        - FAQ section (common new hire questions)
+        - Success criteria (how we know onboarding went well)
+      max_tokens: 200
+    artifact:
+      path: onboarding-package.md
+      template: |
+        # Onboarding Package
+
+        {{task.output}}

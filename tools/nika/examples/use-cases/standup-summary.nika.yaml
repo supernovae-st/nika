@@ -1,0 +1,97 @@
+# Standup Summary Generator
+# Combine individual team updates into a team summary with blockers highlighted.
+#
+# Usage:
+#   nika run examples/use-cases/standup-summary.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: standup-summary
+description: "Individual updates -> team summary -> blockers report"
+provider: openai
+model: gpt-4.1-mini
+
+tasks:
+  # Step 1: Collect individual updates (simulated)
+  - id: collect_updates
+    exec:
+      command: |
+        echo '[
+          {"name":"Sarah","yesterday":"Finished auth module refactor, deployed to staging","today":"Integration tests for auth, PR review for Mike","blockers":"Waiting on design specs for settings page"},
+          {"name":"Mike","yesterday":"Fixed 3 critical bugs in payment flow, updated API docs","today":"Performance optimization for search endpoint","blockers":"None"},
+          {"name":"Lisa","yesterday":"Completed onboarding flow mockups, user testing sessions","today":"Iterate on feedback from user tests, finalize color palette","blockers":"Need API contract from Mike for new endpoints"},
+          {"name":"Alex","yesterday":"Set up monitoring dashboards, configured alerting","today":"Load testing for Q2 launch, k6 scripts","blockers":"Staging environment disk space is at 90%"}
+        ]'
+      shell: true
+
+  # Step 2: Generate team summary
+  - id: team_summary
+    depends_on: [collect_updates]
+    with:
+      updates: $collect_updates
+    infer:
+      prompt: |
+        Generate a concise team standup summary from these individual updates.
+
+        INDIVIDUAL UPDATES:
+        {{with.updates}}
+
+        Provide:
+        1. Team progress snapshot (2-3 sentences covering overall momentum)
+        2. Key accomplishments yesterday (merged across team, deduplicated)
+        3. Today's priorities (ranked by impact)
+        4. Cross-team dependencies (who needs what from whom)
+        5. Sprint health indicator (on track / at risk / behind)
+      max_tokens: 200
+
+  # Step 3: Extract and analyze blockers
+  - id: blocker_analysis
+    depends_on: [collect_updates]
+    with:
+      updates: $collect_updates
+    infer:
+      prompt: |
+        Analyze all blockers from the team standup updates.
+
+        UPDATES:
+        {{with.updates}}
+
+        For each blocker:
+        - Who is blocked
+        - What is blocking them
+        - Who can unblock (if identifiable)
+        - Impact if not resolved today
+        - Suggested resolution path
+
+        Also identify:
+        - Hidden blockers (dependencies that aren't explicitly stated as blockers)
+        - Potential future blockers (based on today's plans)
+        - Risk escalation needs (anything for management attention)
+      max_tokens: 200
+
+  # Step 4: Generate actionable Slack message
+  - id: slack_message
+    depends_on: [team_summary, blocker_analysis]
+    with:
+      summary: $team_summary
+      blockers: $blocker_analysis
+    infer:
+      prompt: |
+        Format the standup summary as a Slack-ready message.
+
+        TEAM SUMMARY:
+        {{with.summary}}
+
+        BLOCKER ANALYSIS:
+        {{with.blockers}}
+
+        Format:
+        - Use emoji for visual scanning
+        - Bold key names and deadlines
+        - Blockers section at top with @mention placeholders
+        - Keep under 500 characters for the summary
+        - Add action items as a numbered list
+        - Include a "needs attention" section if any P0 items
+      max_tokens: 200

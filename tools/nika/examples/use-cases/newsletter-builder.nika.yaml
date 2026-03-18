@@ -1,0 +1,110 @@
+# Newsletter Builder
+# Fetch RSS-like data, summarize articles, and compile into a newsletter.
+#
+# Usage:
+#   nika run examples/use-cases/newsletter-builder.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Network access for HTTP fetches
+
+schema: nika/workflow@0.12
+workflow: newsletter-builder
+description: "Fetch content sources -> summarize each -> compile into newsletter"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # Step 1: Fetch content from multiple sources (simulated RSS feeds)
+  - id: fetch_source_1
+    fetch:
+      url: "https://httpbin.org/get?source=tech-news&topic=ai-agents"
+      method: GET
+
+  - id: fetch_source_2
+    fetch:
+      url: "https://httpbin.org/get?source=dev-blog&topic=rust-updates"
+      method: GET
+
+  - id: fetch_source_3
+    fetch:
+      url: "https://httpbin.org/get?source=industry&topic=mcp-protocol"
+      method: GET
+
+  # Step 2: Summarize each source
+  - id: summarize_sources
+    depends_on: [fetch_source_1, fetch_source_2, fetch_source_3]
+    with:
+      s1: $fetch_source_1
+      s2: $fetch_source_2
+      s3: $fetch_source_3
+    infer:
+      prompt: |
+        You are a tech newsletter editor. Summarize these content sources into newsletter-ready blurbs.
+
+        SOURCE 1 (AI Agents):
+        {{with.s1}}
+
+        SOURCE 2 (Rust Updates):
+        {{with.s2}}
+
+        SOURCE 3 (MCP Protocol):
+        {{with.s3}}
+
+        For each source, write:
+        - Headline (catchy, under 10 words)
+        - Summary (2-3 sentences, informative)
+        - Why it matters (1 sentence, reader-focused)
+        - Read more link placeholder
+
+        If the fetched data is raw HTTP response, create plausible tech news summaries
+        based on the query parameters.
+      max_tokens: 200
+
+  # Step 3: Write editorial introduction
+  - id: editorial
+    infer:
+      prompt: |
+        Write a newsletter editorial introduction for a weekly AI/developer tools digest.
+
+        This week's themes: AI agents, Rust ecosystem, MCP protocol adoption.
+        Date: this week.
+
+        Guidelines:
+        - Warm, knowledgeable tone
+        - 3-4 sentences connecting the themes
+        - End with what readers will learn
+        - First person ("This week, I'm excited about...")
+      max_tokens: 200
+
+  # Step 4: Compile final newsletter
+  - id: compile_newsletter
+    depends_on: [editorial, summarize_sources]
+    with:
+      intro: $editorial
+      articles: $summarize_sources
+    infer:
+      prompt: |
+        Compile the final newsletter from these components.
+
+        EDITORIAL:
+        {{with.intro}}
+
+        ARTICLE SUMMARIES:
+        {{with.articles}}
+
+        Newsletter format:
+        - Header: "The AI Builder's Weekly" with date
+        - Editorial section
+        - Article summaries with visual separators
+        - Quick links section
+        - Footer with unsubscribe placeholder
+
+        Use clean markdown formatting suitable for email conversion.
+      max_tokens: 200
+    artifact:
+      path: newsletter.md
+      template: |
+        {{task.output}}
