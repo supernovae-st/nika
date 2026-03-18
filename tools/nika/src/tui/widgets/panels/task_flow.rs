@@ -247,7 +247,7 @@ impl TaskBoxFlow {
             .and_then(|o| serde_json::to_string(&**o).ok())
             .map(|s| {
                 let truncated = if s.len() > 40 {
-                    format!("{}...", &s[..40])
+                    format!("{}...", crate::util::truncate_str(&s, 40))
                 } else {
                     s
                 };

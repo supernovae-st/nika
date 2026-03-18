@@ -550,7 +550,7 @@ fn extract_verb_detail(line: &str, verb: &str) -> String {
             let value = &trimmed[1..end + 1];
             // Truncate long prompts
             if value.len() > 40 {
-                return format!("{}: {}...", verb, &value[..37]);
+                return format!("{}: {}...", verb, crate::util::truncate_str(value, 37));
             }
             return format!("{}: {}", verb, value);
         }

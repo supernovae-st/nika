@@ -18,3 +18,25 @@ pub use constants::{
 };
 pub use fs::{atomic_write, check_preview_size, format_size};
 pub use interner::intern;
+
+/// Truncate a string at a valid UTF-8 char boundary.
+///
+/// Returns a slice of at most `max_bytes` bytes, ending at a char boundary.
+/// Avoids panics from byte-slicing multi-byte UTF-8 sequences (CJK, emoji, etc.).
+///
+/// # Example
+/// ```ignore
+/// let s = "こんにちは世界"; // 21 bytes
+/// assert_eq!(truncate_str(s, 10), "こんに"); // 9 bytes, safe boundary
+/// ```
+pub fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    // Find the last char boundary at or before max_bytes
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}

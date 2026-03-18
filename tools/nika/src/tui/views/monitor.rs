@@ -1567,7 +1567,7 @@ mod tests {
 
         // Test truncation logic matches render_agent_panel
         let truncated = if thinking.len() > 100 {
-            format!("{}...", &thinking[..97])
+            format!("{}...", crate::util::truncate_str(thinking, 97))
         } else {
             thinking.clone()
         };

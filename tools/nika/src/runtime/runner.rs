@@ -1671,14 +1671,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         let out = task_result.output_str();
                                         if !out.is_empty() {
                                             let preview = if out.len() > 120 {
-                                                // Find a char boundary at or before byte 120
-                                                let truncate_at = out
-                                                    .char_indices()
-                                                    .take_while(|(i, _)| *i <= 120)
-                                                    .last()
-                                                    .map(|(i, _)| i)
-                                                    .unwrap_or(0);
-                                                format!("{}…", &out[..truncate_at])
+                                                format!(
+                                                    "{}…",
+                                                    crate::util::truncate_str(&out, 120)
+                                                )
                                             } else {
                                                 out.into_owned()
                                             };

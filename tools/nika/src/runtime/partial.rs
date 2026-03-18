@@ -88,13 +88,7 @@ impl PartialResult {
     fn generate_preview(content: &str) -> String {
         let first_line = content.lines().next().unwrap_or("");
         if first_line.len() > 100 {
-            let truncate_at = first_line
-                .char_indices()
-                .take_while(|(i, _)| *i <= 97)
-                .last()
-                .map(|(i, _)| i)
-                .unwrap_or(0);
-            format!("{}...", &first_line[..truncate_at])
+            format!("{}...", crate::util::truncate_str(first_line, 97))
         } else if first_line.len() < content.len() {
             format!("{}...", first_line)
         } else {
