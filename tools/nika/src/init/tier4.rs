@@ -105,27 +105,27 @@ mcp:
   # 🧠 NovaNet - Knowledge Graph MCP Server
   # ─────────────────────────────────────────────────────────────────────────────
   novanet:
-      command: cargo
-      args:
-        - run
-        - --manifest-path
-        - ../novanet/tools/novanet-mcp/Cargo.toml
-        - --
-        - serve
-      env:
-        NEO4J_URI: bolt://localhost:7687
-        NEO4J_USERNAME: neo4j
-        NEO4J_PASSWORD: "${nika:neo4j}"   # 🔐 Resolved by nika daemon
+    command: cargo
+    args:
+      - run
+      - --manifest-path
+      - ../novanet/tools/novanet-mcp/Cargo.toml
+      - --
+      - serve
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: "${nika:neo4j}"   # 🔐 Resolved by nika daemon
 
-    # ─────────────────────────────────────────────────────────────────────────────
-    # 🔍 Perplexity - Web Search (optional)
-    # ─────────────────────────────────────────────────────────────────────────────
-    # Uncomment if you have Perplexity API key:
-    # perplexity:
-    #   command: npx
-    #   args: ["-y", "@anthropic/mcp-server-perplexity"]
-    #   env:
-    #     PERPLEXITY_API_KEY: "${nika:perplexity}"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 🔍 Perplexity - Web Search (optional)
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Uncomment if you have Perplexity API key:
+  # perplexity:
+  #   command: npx
+  #   args: ["-y", "@anthropic/mcp-server-perplexity"]
+  #   env:
+  #     PERPLEXITY_API_KEY: "${nika:perplexity}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TASKS
@@ -150,6 +150,7 @@ tasks:
   # Find relevant nodes in the graph
 
   - id: search_entities
+    depends_on: [describe_schema]
     with:
       schema: $describe_schema
     invoke:
@@ -167,6 +168,7 @@ tasks:
   # Explore what's connected to the found entity
 
   - id: traverse_entity
+    depends_on: [search_entities]
     with:
       results: $search_entities
     invoke:
@@ -201,6 +203,7 @@ tasks:
   # This is the MAIN tool - assembles context for content generation
 
   - id: generate_context
+    depends_on: [traverse_entity, get_locale_atoms]
     with:
       traversal: $traverse_entity
       atoms: $get_locale_atoms
@@ -220,6 +223,7 @@ tasks:
   # Now use the assembled context with an LLM
 
   - id: generate_content
+    depends_on: [generate_context]
     with:
       context: $generate_context
     infer:
@@ -252,6 +256,7 @@ tasks:
   # Always check before writing to the graph
 
   - id: check_write
+    depends_on: [generate_content]
     with:
       content: $generate_content
     invoke:
@@ -272,6 +277,7 @@ tasks:
   # Persist the generated content
 
   - id: write_content
+    depends_on: [check_write]
     with:
       check_result: $check_write
       content: $generate_content
@@ -294,6 +300,7 @@ tasks:
   # Check data quality after writing
 
   - id: audit_quality
+    depends_on: [write_content]
     with:
       write_result: $write_content
     invoke:
@@ -303,31 +310,6 @@ tasks:
         target: coverage
         scope:
           locale: fr-FR
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-  # Parallel exploration
-  - source: search_entities
-    target: traverse_entity
-
-  # Context assembly needs both traversal and atoms
-  - source: traverse_entity
-    target: generate_context
-  - source: get_locale_atoms
-    target: generate_context
-
-  # Content generation chain
-  - source: generate_context
-    target: generate_content
-  - source: generate_content
-    target: check_write
-  - source: check_write
-    target: write_content
-  - source: write_content
-    target: audit_quality
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 MCP REFERENCE

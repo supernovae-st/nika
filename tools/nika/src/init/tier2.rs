@@ -60,7 +60,7 @@ pub const WORKFLOW_04_INFER_BASICS: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.12
+schema: nika/workflow@0.30.5
 workflow: infer-basics
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -130,6 +130,7 @@ tasks:
   # This task waits for all three to complete, then synthesizes them
 
   - id: combine_results
+    depends_on: [creative_tagline, technical_tagline, balanced_tagline]
     with:
       creative: $creative_tagline    # Bind creative output
       technical: $technical_tagline  # Bind technical output
@@ -150,12 +151,6 @@ tasks:
       temperature: 0.6
       system: You are a marketing strategist with expertise in audience segmentation.
       max_tokens: 300
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS (Dependencies)
-# ═══════════════════════════════════════════════════════════════════════════════
-# The combine_results task depends on all three taglines completing first
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 LEARNING NOTES
@@ -248,7 +243,7 @@ pub const WORKFLOW_05_DAG_PATTERNS: &str = r##"# ╔═════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.12
+schema: nika/workflow@0.30.5
 workflow: dag-patterns-masterclass
 
 tasks:
@@ -271,6 +266,7 @@ tasks:
   # Three parallel research streams, all starting from the same topic
 
   - id: research_fundamentals
+    depends_on: [define_topic]
     with:
       topic: $define_topic
     infer:
@@ -288,6 +284,7 @@ tasks:
       system: You are a technical educator who explains complex topics simply.
 
   - id: find_examples
+    depends_on: [define_topic]
     with:
       topic: $define_topic
     infer:
@@ -305,6 +302,7 @@ tasks:
       system: You are a tech journalist with deep industry knowledge.
 
   - id: analyze_trends
+    depends_on: [define_topic]
     with:
       topic: $define_topic
     infer:
@@ -327,6 +325,7 @@ tasks:
   # All three research streams converge here
 
   - id: synthesize_research
+    depends_on: [research_fundamentals, find_examples, analyze_trends]
     with:
       topic: $define_topic
       fundamentals: $research_fundamentals
@@ -356,6 +355,7 @@ tasks:
   # Two independent content streams running in parallel
 
   - id: write_blog_post
+    depends_on: [synthesize_research]
     with:
       topic: $define_topic
       research: $synthesize_research
@@ -377,6 +377,7 @@ tasks:
       system: You are a tech blogger with a knack for making complex topics accessible.
 
   - id: create_social_posts
+    depends_on: [synthesize_research]
     with:
       topic: $define_topic
       research: $synthesize_research
@@ -403,6 +404,7 @@ tasks:
   # All branches converge for the final deliverable
 
   - id: final_content_package
+    depends_on: [write_blog_post, create_social_posts]
     with:
       topic: $define_topic
       blog: $write_blog_post
@@ -424,31 +426,6 @@ tasks:
         4. 💡 One bonus content idea
       temperature: 0.5
       max_tokens: 300
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS - The DAG Bindings
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-  # Stage 2 → Stage 3 (Diamond Merge)
-  - source: research_fundamentals
-    target: synthesize_research
-  - source: find_examples
-    target: synthesize_research
-  - source: analyze_trends
-    target: synthesize_research
-
-  # Stage 3 → Stage 4 (Parallel Chains)
-  - source: synthesize_research
-    target: write_blog_post
-  - source: synthesize_research
-    target: create_social_posts
-
-  # Stage 4 → Stage 5 (Fan-In)
-  - source: write_blog_post
-    target: final_content_package
-  - source: create_social_posts
-    target: final_content_package
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 LEARNING NOTES
@@ -520,7 +497,7 @@ pub const WORKFLOW_06_PARALLEL_FOREACH: &str = r##"# ╔════════
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.12
+schema: nika/workflow@0.30.5
 workflow: parallel-foreach-localization
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -551,6 +528,7 @@ tasks:
   # This is where the magic happens! 5 languages, 3 at a time.
 
   - id: localize_content
+    depends_on: [source_content]
     for_each:                         # 🔄 Array of items to process
       - locale: en-US
         name: "American English"
@@ -598,6 +576,7 @@ tasks:
   # Analyze all localizations together
 
   - id: quality_check
+    depends_on: [localize_content]
     with:
       source: $source_content
       localizations: $localize_content  # 📦 All 5 results as array
@@ -620,11 +599,6 @@ tasks:
         Be concise but specific.
       temperature: 0.3
       max_tokens: 300
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 FOR-EACH REFERENCE
@@ -728,7 +702,7 @@ pub const WORKFLOW_07_CONTEXT_INCLUDE: &str = r##"# ╔════════�
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-schema: nika/workflow@0.12
+schema: nika/workflow@0.30.5
 workflow: context-include-demo
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -809,6 +783,7 @@ tasks:
   # This task uses files loaded from context
 
   - id: generate_content
+    depends_on: [validate_topic]
     with:
       validation: $validate_topic
     infer:
@@ -847,6 +822,7 @@ tasks:
   # ───────────────────────────────────────────────────────────────────────────────
 
   - id: format_output
+    depends_on: [generate_content]
     with:
       content: $generate_content
     infer:
@@ -864,11 +840,6 @@ tasks:
         Output as structured Markdown.
       temperature: 0.4
       max_tokens: 300
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 LEARNING NOTES

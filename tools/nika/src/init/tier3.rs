@@ -89,6 +89,7 @@ tasks:
   # The agent autonomously decides what tools to use
 
   - id: explore_agent
+    depends_on: [setup_files]
     agent:
       prompt: |
         You are a code analysis agent. Your task is to:
@@ -104,16 +105,13 @@ tasks:
       # ─────────────────────────────────────────────────────────────────────────
       # 🛠️ TOOLS: What the agent can use
       # ─────────────────────────────────────────────────────────────────────────
-      tools:
-        - nika:glob     # Find files by pattern
-        - nika:read     # Read file contents
-        - nika:write    # Create/overwrite files
+      tools: [builtin]
 
       # ─────────────────────────────────────────────────────────────────────────
       # ⚙️ AGENT CONFIGURATION
       # ─────────────────────────────────────────────────────────────────────────
-      max_turns: 10                    # 🔄 Maximum conversation turns
-      temperature: 0.3                 # 🎯 Lower = more focused
+      max_turns: 10                    # Maximum conversation turns
+      temperature: 0.3                 # Lower = more focused
 
       # ─────────────────────────────────────────────────────────────────────────
       # 🧠 SYSTEM PROMPT
@@ -163,6 +161,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: verify_output
+    depends_on: [explore_agent]
     with:
       agent_result: $explore_agent
     exec:
@@ -174,16 +173,12 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: cleanup
+    depends_on: [verify_output]
     with:
       verification: $verify_output
     exec:
       command: "rm -rf ./agent-demo"
       shell: true
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 AGENT REFERENCE
@@ -192,14 +187,13 @@ tasks:
 # AGENT SYNTAX:
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ - id: my_agent                                                             │
+# │   depends_on: [previous_task]                                              │
 # │   agent:                                                                    │
-# │     prompt: "Your task..."        # 📝 What the agent should do           │
-# │     tools:                         # 🛠️ Available tools                    │
-# │       - nika:read                                                          │
-# │       - nika:write                                                         │
-# │     max_turns: 10                  # 🔄 Max iterations                     │
-# │     temperature: 0.5               # 🎲 Creativity level                   │
-# │     system: "You are..."           # 🧠 Persona/role                       │
+# │     prompt: "Your task..."        # What the agent should do              │
+# │     tools: [builtin]              # All builtin tools                     │
+# │     max_turns: 10                  # Max iterations                        │
+# │     temperature: 0.5               # Creativity level                      │
+# │     system: "You are..."           # Persona/role                          │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # FILE TOOLS REFERENCE:
@@ -372,6 +366,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: generate_marketing
+    depends_on: [generate_product]
     with:
       product: $generate_product
     infer:
@@ -432,6 +427,7 @@ tasks:
   # Even agents can have structured output requirements
 
   - id: analyze_agent
+    depends_on: [generate_product, generate_marketing]
     with:
       product: $generate_product
       marketing: $generate_marketing
@@ -451,9 +447,7 @@ tasks:
         3. Rate the overall marketing quality
 
         Use the file tools if needed to research competitors.
-      tools:
-        - nika:glob
-        - nika:read
+      tools: [builtin]
       max_turns: 5
       temperature: 0.4
     # Agent output also validated against schema
@@ -499,6 +493,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: final_report
+    depends_on: [generate_product, generate_marketing, analyze_agent]
     with:
       product: $generate_product
       marketing: $generate_marketing
@@ -523,11 +518,6 @@ tasks:
     artifact:
       path: reports/executive_summary_{{date}}.txt
       format: text
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# FLOWS
-# ═══════════════════════════════════════════════════════════════════════════════
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🎓 STRUCTURED OUTPUT REFERENCE

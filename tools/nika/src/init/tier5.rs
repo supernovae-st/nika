@@ -133,6 +133,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: security_review
+    depends_on: [parse_code]
     with:
       structure: $parse_code
     infer:
@@ -175,6 +176,7 @@ tasks:
           risk_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: performance_review
+    depends_on: [parse_code]
     with:
       structure: $parse_code
     infer:
@@ -216,6 +218,7 @@ tasks:
           perf_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: style_review
+    depends_on: [parse_code]
     with:
       structure: $parse_code
     infer:
@@ -251,6 +254,7 @@ tasks:
           style_score: { type: number, minimum: 0, maximum: 10 }
 
   - id: logic_review
+    depends_on: [parse_code]
     with:
       structure: $parse_code
     infer:
@@ -291,6 +295,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: synthesize_report
+    depends_on: [security_review, performance_review, style_review, logic_review]
     with:
       security: $security_review
       performance: $performance_review
@@ -321,6 +326,7 @@ tasks:
   # ═══════════════════════════════════════════════════════════════════════════════
 
   - id: generate_fixes
+    depends_on: [synthesize_report]
     with:
       report: $synthesize_report
     agent:
@@ -426,6 +432,7 @@ tasks:
       max_tokens: 400
 
   - id: localize
+    depends_on: [analyze_content]
     for_each:
       - locale: fr-FR
         language: French
@@ -480,6 +487,7 @@ tasks:
                 description: { type: string }
 
   - id: quality_check
+    depends_on: [localize]
     with:
       localizations: $localize
     infer:
@@ -502,6 +510,7 @@ tasks:
       format: text
 
   - id: export_files
+    depends_on: [localize, quality_check]
     with:
       localizations: $localize
       quality: $quality_check
@@ -595,6 +604,7 @@ tasks:
           lsi: { type: array, items: { type: string }, maxItems: 10 }
 
   - id: content_outline
+    depends_on: [keyword_research]
     with:
       keywords: $keyword_research
     infer:
@@ -616,6 +626,7 @@ tasks:
       max_tokens: 600
 
   - id: generate_meta
+    depends_on: [keyword_research, content_outline]
     with:
       keywords: $keyword_research
       outline: $content_outline
@@ -652,6 +663,7 @@ tasks:
               description: { type: string }
 
   - id: generate_schema
+    depends_on: [keyword_research, content_outline]
     with:
       keywords: $keyword_research
       outline: $content_outline
@@ -680,6 +692,7 @@ tasks:
           breadcrumbs: { type: object }
 
   - id: generate_content
+    depends_on: [keyword_research, content_outline]
     with:
       keywords: $keyword_research
       outline: $content_outline
@@ -706,6 +719,7 @@ tasks:
         Write naturally while strategically placing keywords.
 
   - id: assemble_page
+    depends_on: [generate_meta, generate_schema, generate_content]
     with:
       meta: $generate_meta
       schema_markup: $generate_schema
@@ -785,6 +799,7 @@ tasks:
       max_turns: 10
 
   - id: generate_docs
+    depends_on: [scan_project]
     with:
       files: $scan_project
     agent:
@@ -810,6 +825,7 @@ tasks:
       temperature: 0.3
 
   - id: generate_index
+    depends_on: [generate_docs]
     with:
       docs: $generate_docs
     agent:
@@ -853,6 +869,7 @@ tasks:
         Accept: application/json
 
   - id: validate
+    depends_on: [extract]
     with:
       raw_data: $extract
     infer:
@@ -864,6 +881,7 @@ tasks:
       temperature: 0.1
 
   - id: transform
+    depends_on: [validate]
     with:
       validated: $validate
       data: $extract
@@ -887,6 +905,7 @@ tasks:
           type: object
 
   - id: load
+    depends_on: [transform]
     with:
       transformed: $transform
     agent:
@@ -983,6 +1002,7 @@ tasks:
       max_tokens: 300
 
   - id: review_changes
+    depends_on: [analyze_diff]
     with:
       analysis: $analyze_diff
     for_each:
@@ -1005,6 +1025,7 @@ tasks:
       max_tokens: 300
 
   - id: generate_review
+    depends_on: [analyze_diff, review_changes]
     with:
       analysis: $analyze_diff
       reviews: $review_changes
@@ -1080,6 +1101,7 @@ tasks:
           followups: { type: array, items: { type: string } }
 
   - id: generate_summary
+    depends_on: [extract_info]
     with:
       extracted: $extract_info
     infer:
@@ -1128,6 +1150,7 @@ tasks:
       timeout: 5000
 
   - id: analyze_results
+    depends_on: [check_endpoints]
     with:
       checks: $check_endpoints
     infer:
@@ -1195,6 +1218,7 @@ tasks:
                 attributes: { type: object }
 
   - id: extract_relations
+    depends_on: [extract_entities]
     with:
       entities: $extract_entities
     infer:
@@ -1224,6 +1248,7 @@ tasks:
                 target: { type: string }
 
   - id: build_graph
+    depends_on: [extract_entities, extract_relations]
     with:
       entities: $extract_entities
       relations: $extract_relations

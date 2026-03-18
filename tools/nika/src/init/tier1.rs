@@ -101,6 +101,7 @@ tasks:
   # FULL FORM: With all options
   # ─────────────────────────────────────────────────────────────────────────────
   - id: show_system_info
+    depends_on: [get_date, get_user, list_files]
     # Bind outputs from previous tasks
     with:
       date_result: $get_date      # Output of get_date task
@@ -123,13 +124,14 @@ tasks:
       # WARNING: Only use shell: true when you need shell features!
       # shell: false (default) is more secure
       shell: true
-      # Timeout in seconds (30 seconds)
-      timeout: 30
+      # Timeout in milliseconds (30 seconds)
+      timeout: 30000
 
   # ─────────────────────────────────────────────────────────────────────────────
   # WORKING DIRECTORY: Run commands in specific directory
   # ─────────────────────────────────────────────────────────────────────────────
   - id: with_cwd
+    depends_on: [show_system_info]
     exec:
       command: "pwd && ls -la"
       shell: true
@@ -140,13 +142,14 @@ tasks:
   # ENVIRONMENT VARIABLES: Set custom env vars for the command
   # ─────────────────────────────────────────────────────────────────────────────
   - id: with_env_vars
+    depends_on: [with_cwd]
     exec:
       command: 'echo "App: $APP_NAME v$APP_VERSION (env: $NODE_ENV)"'
       shell: true
       # Environment variables for this command
       env:
         APP_NAME: "Nika"
-        APP_VERSION: "0.27.0"
+        APP_VERSION: "0.30.5"
         NODE_ENV: "production"
         DEBUG: "false"
 
@@ -154,6 +157,7 @@ tasks:
   # SHELL-FREE MODE (Default & Secure)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: secure_command
+    depends_on: [with_env_vars]
     exec:
       # shell: false (default) - command is parsed with shlex, no shell injection
       command: "echo 'This runs without shell - more secure!'"
@@ -165,6 +169,7 @@ tasks:
   # FINAL SUMMARY
   # ─────────────────────────────────────────────────────────────────────────────
   - id: summary
+    depends_on: [secure_command]
     with:
       sys_info: $show_system_info
       cwd_demo: $with_cwd
@@ -182,20 +187,6 @@ tasks:
         echo "   • shell: true needed for pipes, redirects, variables"
         echo "   • env: { KEY: value } sets environment variables"
       shell: true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FLOWS: Define task execution order
-# ─────────────────────────────────────────────────────────────────────────────
-
-  # Sequential chain
-  - source: show_system_info
-    target: with_cwd
-  - source: with_cwd
-    target: with_env_vars
-  - source: with_env_vars
-    target: secure_command
-  - source: secure_command
-    target: summary
 "##;
 
 /// 02: HTTP fetch operations
@@ -269,8 +260,8 @@ tasks:
       url: "https://httpbin.org/ip"
       # HTTP method (GET is default, but explicit is clearer)
       method: GET
-      # Timeout in seconds (10 seconds)
-      timeout: 10
+      # Timeout in milliseconds (10 seconds)
+      timeout: 10000
 
   # ─────────────────────────────────────────────────────────────────────────────
   # GET JSON DATA
@@ -292,12 +283,13 @@ tasks:
       headers:
         Accept: "application/json"
         X-Custom-Header: "Nika-Workflow"
-        User-Agent: "Nika/0.22.0"
+        User-Agent: "Nika/0.30.5"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # POST WITH JSON BODY (String Method)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: post_data
+    depends_on: [simple_get, get_json]
     with:
       # Reference results from previous tasks
       my_ip: $simple_get
@@ -316,6 +308,7 @@ tasks:
   # POST WITH JSON (Auto-serialized)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: post_json_auto
+    depends_on: [post_data]
     fetch:
       url: "https://httpbin.org/post"
       method: POST
@@ -336,6 +329,7 @@ tasks:
   # AUTHENTICATED REQUEST
   # ─────────────────────────────────────────────────────────────────────────────
   - id: with_auth_header
+    depends_on: [post_json_auto]
     fetch:
       url: "https://httpbin.org/bearer"
       method: GET
@@ -350,6 +344,7 @@ tasks:
   # DISPLAY ALL RESULTS
   # ─────────────────────────────────────────────────────────────────────────────
   - id: display_results
+    depends_on: [with_auth_header]
     with:
       ip_result: $simple_get
       json_result: $get_json
@@ -391,18 +386,6 @@ tasks:
         echo "   • Use json: for auto-serialized JSON body"
         echo "   • timeout: prevents hanging on slow endpoints (seconds)"
       shell: true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FLOWS: Parallel fetch then sequential processing
-# ─────────────────────────────────────────────────────────────────────────────
-
-  # Sequential: post_data -> post_json_auto -> auth -> display
-  - source: post_data
-    target: post_json_auto
-  - source: post_json_auto
-    target: with_auth_header
-  - source: with_auth_header
-    target: display_results
 "##;
 
 /// 03: Core builtin tools
@@ -498,6 +481,7 @@ tasks:
   # nika:assert - Validate conditions
   # ─────────────────────────────────────────────────────────────────────────────
   - id: validate_condition
+    depends_on: [start_log]
     invoke:
       tool: nika:assert
       params:
@@ -507,6 +491,7 @@ tasks:
         message: "This assertion should pass!"
 
   - id: validate_expression
+    depends_on: [validate_condition]
     invoke:
       tool: nika:assert
       params:
@@ -518,6 +503,7 @@ tasks:
   # nika:emit - Emit custom events with payload
   # ─────────────────────────────────────────────────────────────────────────────
   - id: emit_start_event
+    depends_on: [validate_expression]
     invoke:
       tool: nika:emit
       params:
@@ -536,6 +522,7 @@ tasks:
   # nika:sleep - Pause execution
   # ─────────────────────────────────────────────────────────────────────────────
   - id: pause_1_second
+    depends_on: [emit_start_event]
     invoke:
       tool: nika:sleep
       params:
@@ -543,6 +530,7 @@ tasks:
         duration: "1s"
 
   - id: log_after_sleep
+    depends_on: [pause_1_second]
     invoke:
       tool: nika:log
       params:
@@ -553,6 +541,7 @@ tasks:
   # PROGRESS TRACKING with nika:emit
   # ─────────────────────────────────────────────────────────────────────────────
   - id: emit_progress_50
+    depends_on: [log_after_sleep]
     invoke:
       tool: nika:emit
       params:
@@ -563,12 +552,14 @@ tasks:
           message: "Halfway there!"
 
   - id: pause_500ms
+    depends_on: [emit_progress_50]
     invoke:
       tool: nika:sleep
       params:
         duration: "500ms"
 
   - id: emit_progress_100
+    depends_on: [pause_500ms]
     invoke:
       tool: nika:emit
       params:
@@ -582,6 +573,7 @@ tasks:
   # FINAL LOG
   # ─────────────────────────────────────────────────────────────────────────────
   - id: final_log
+    depends_on: [emit_progress_100]
     invoke:
       tool: nika:log
       params:
@@ -601,6 +593,7 @@ tasks:
   # SUMMARY (using exec to show results)
   # ─────────────────────────────────────────────────────────────────────────────
   - id: summary
+    depends_on: [final_log]
     exec:
       command: |
         echo ""
@@ -628,8 +621,4 @@ tasks:
         echo ""
         echo "══════════════════════════════════════════════════════════════"
       shell: true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FLOWS: Sequential execution
-# ─────────────────────────────────────────────────────────────────────────────
 "##;

@@ -128,6 +128,7 @@ tasks:
 
   - id: compile_briefing
     description: "Synthesize all data into a briefing"
+    depends_on: [get_weather, get_news, get_schedule]
     with:
       weather: $get_weather
       news: $get_news
@@ -164,6 +165,7 @@ tasks:
 
   - id: format_output
     description: "Create beautifully formatted final output"
+    depends_on: [compile_briefing]
     with:
       briefing: $compile_briefing
     infer:
@@ -185,23 +187,6 @@ tasks:
     artifact:
       path: "./output/morning-briefing-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-  # Then compilation waits for all three
-  - source: get_weather
-    target: compile_briefing
-  - source: get_news
-    target: compile_briefing
-  - source: get_schedule
-    target: compile_briefing
-
-  # Final formatting
-  - source: compile_briefing
-    target: format_output
 "##;
 
 /// Workflow 22: Social Media Planner
@@ -318,6 +303,7 @@ tasks:
 
   - id: generate_posts
     description: "Generate platform-specific posts for each day"
+    depends_on: [content_strategy]
     with:
       strategy: $content_strategy
     # Generate content for each day in parallel
@@ -366,6 +352,7 @@ tasks:
 
   - id: compile_calendar
     description: "Create the final content calendar"
+    depends_on: [generate_posts]
     with:
       posts: $generate_posts
     infer:
@@ -394,11 +381,6 @@ tasks:
     artifact:
       path: "./output/social-calendar-week-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 23: Competitor Analysis
@@ -501,6 +483,7 @@ tasks:
 
   - id: analyze_competitor
     description: "Deep dive analysis of each competitor"
+    depends_on: [define_analysis]
     with:
       framework: $define_analysis
     for_each:
@@ -541,6 +524,7 @@ tasks:
 
   - id: swot_comparison
     description: "Create comparative SWOT analysis"
+    depends_on: [analyze_competitor]
     with:
       analyses: $analyze_competitor
     infer:
@@ -575,6 +559,7 @@ tasks:
 
   - id: strategic_recs
     description: "Generate strategic recommendations"
+    depends_on: [swot_comparison]
     with:
       swot: $swot_comparison
     infer:
@@ -608,11 +593,6 @@ tasks:
     artifact:
       path: "./output/competitor-analysis-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 24: Email Composer
@@ -708,6 +688,7 @@ tasks:
 
   - id: draft_email
     description: "Create the initial email draft"
+    depends_on: [analyze_context]
     with:
       analysis: $analyze_context
     infer:
@@ -738,6 +719,7 @@ tasks:
 
   - id: refine_tone
     description: "Perfect the tone and polish"
+    depends_on: [draft_email]
     with:
       draft: $draft_email
     infer:
@@ -762,6 +744,7 @@ tasks:
 
   - id: add_variations
     description: "Create alternative versions"
+    depends_on: [refine_tone]
     with:
       polished: $refine_tone
     infer:
@@ -801,11 +784,6 @@ tasks:
     artifact:
       path: "./output/email-{{date}}-{{timestamp}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 25: Recipe & Meal Planner
@@ -896,6 +874,7 @@ tasks:
 
   - id: plan_menu
     description: "Create the weekly menu overview"
+    depends_on: [analyze_preferences]
     with:
       guidelines: $analyze_preferences
     infer:
@@ -933,6 +912,7 @@ tasks:
 
   - id: generate_recipes
     description: "Generate detailed recipes for each day"
+    depends_on: [plan_menu]
     with:
       menu: $plan_menu
     for_each: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -962,6 +942,7 @@ tasks:
 
   - id: generate_grocery
     description: "Create consolidated grocery list"
+    depends_on: [generate_recipes]
     with:
       recipes: $generate_recipes
     infer:
@@ -1006,11 +987,6 @@ tasks:
     artifact:
       path: "./output/meal-plan-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 26: Travel Planner
@@ -1109,6 +1085,7 @@ tasks:
   # Parallel research phase
   - id: research_dest
     description: "Research destination highlights"
+    depends_on: [analyze_trip]
     with:
       analysis: $analyze_trip
     infer:
@@ -1144,6 +1121,7 @@ tasks:
 
   - id: local_insights
     description: "Gather cultural tips and local knowledge"
+    depends_on: [analyze_trip]
     with:
       analysis: $analyze_trip
     infer:
@@ -1181,6 +1159,7 @@ tasks:
 
   - id: create_itinerary
     description: "Build day-by-day itinerary"
+    depends_on: [research_dest, local_insights]
     with:
       research: $research_dest
       insights: $local_insights
@@ -1230,6 +1209,7 @@ tasks:
 
   - id: add_logistics
     description: "Add packing list, budget, and checklists"
+    depends_on: [create_itinerary, local_insights]
     with:
       itinerary: $create_itinerary
       insights: $local_insights
@@ -1283,11 +1263,6 @@ tasks:
     artifact:
       path: "./output/trip-{{date}}-tokyo.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 27: Birthday Party Planner
@@ -1382,6 +1357,7 @@ tasks:
 
   - id: generate_theme
     description: "Create theme ideas"
+    depends_on: [analyze_party]
     with:
       analysis: $analyze_party
     infer:
@@ -1412,6 +1388,7 @@ tasks:
   # Parallel planning phase
   - id: plan_food
     description: "Plan food and treats"
+    depends_on: [generate_theme]
     with:
       theme: $generate_theme
     infer:
@@ -1450,6 +1427,7 @@ tasks:
 
   - id: plan_activities
     description: "Plan games and activities"
+    depends_on: [generate_theme]
     with:
       theme: $generate_theme
     infer:
@@ -1499,6 +1477,7 @@ tasks:
 
   - id: plan_decor
     description: "Plan decorations"
+    depends_on: [generate_theme]
     with:
       theme: $generate_theme
     infer:
@@ -1540,6 +1519,7 @@ tasks:
 
   - id: compile_party_kit
     description: "Compile complete party planning kit"
+    depends_on: [generate_theme, plan_food, plan_activities, plan_decor]
     with:
       theme: $generate_theme
       food: $plan_food
@@ -1606,11 +1586,6 @@ tasks:
     artifact:
       path: "./output/party-plan-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 28: Podcast Show Notes
@@ -1712,6 +1687,7 @@ tasks:
   # Parallel content generation
   - id: create_notes
     description: "Create show notes with timestamps"
+    depends_on: [analyze_episode]
     with:
       analysis: $analyze_episode
     infer:
@@ -1758,6 +1734,7 @@ tasks:
 
   - id: find_clips
     description: "Identify quotable moments for clips"
+    depends_on: [analyze_episode]
     with:
       analysis: $analyze_episode
     infer:
@@ -1787,6 +1764,7 @@ tasks:
 
   - id: generate_seo
     description: "Generate SEO content"
+    depends_on: [analyze_episode]
     with:
       analysis: $analyze_episode
     infer:
@@ -1827,6 +1805,7 @@ tasks:
 
   - id: generate_social
     description: "Create social media content"
+    depends_on: [find_clips, create_notes]
     with:
       clips: $find_clips
       notes: $create_notes
@@ -1869,6 +1848,7 @@ tasks:
 
   - id: compile_package
     description: "Compile complete content package"
+    depends_on: [create_notes, find_clips, generate_seo, generate_social]
     with:
       notes: $create_notes
       clips: $find_clips
@@ -1939,11 +1919,6 @@ tasks:
     artifact:
       path: "./output/podcast-ep{{inputs.episode_number}}-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 29: Product Review Analyzer
@@ -2043,6 +2018,7 @@ tasks:
 
   - id: analyze_reviews
     description: "Analyze reviews from multiple sources"
+    depends_on: [gather_context]
     with:
       context: $gather_context
     for_each: ["Amazon Reviews", "Reddit Discussions", "YouTube Reviews"]
@@ -2087,6 +2063,7 @@ tasks:
 
   - id: synthesize_verdict
     description: "Create weighted verdict"
+    depends_on: [analyze_reviews]
     with:
       analyses: $analyze_reviews
     infer:
@@ -2132,6 +2109,7 @@ tasks:
 
   - id: find_alternatives
     description: "Identify alternatives to consider"
+    depends_on: [synthesize_verdict]
     with:
       verdict: $synthesize_verdict
     infer:
@@ -2171,6 +2149,7 @@ tasks:
 
   - id: final_recommendation
     description: "Generate final buy/skip recommendation"
+    depends_on: [synthesize_verdict, find_alternatives]
     with:
       verdict: $synthesize_verdict
       alternatives: $find_alternatives
@@ -2225,11 +2204,6 @@ tasks:
     artifact:
       path: "./output/product-review-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Workflow 30: Newsletter Curator
@@ -2346,6 +2320,7 @@ tasks:
 
   - id: curate_content
     description: "Curate content for each section"
+    depends_on: [define_edition]
     with:
       theme: $define_edition
     for_each:
@@ -2408,6 +2383,7 @@ tasks:
 
   - id: write_intro
     description: "Write engaging introduction"
+    depends_on: [define_edition, curate_content]
     with:
       theme: $define_edition
       sections: $curate_content
@@ -2453,6 +2429,7 @@ tasks:
 
   - id: compile_newsletter
     description: "Compile final newsletter"
+    depends_on: [write_intro, curate_content, define_edition]
     with:
       intro: $write_intro
       sections: $curate_content
@@ -2524,11 +2501,6 @@ tasks:
     artifact:
       path: "./output/newsletter-{{inputs.edition_number}}-{{date}}.md"
       format: text
-
-# ─────────────────────────────────────────────────────────────────────────────
-# EXECUTION FLOW
-# ─────────────────────────────────────────────────────────────────────────────
-
 "##;
 
 /// Returns all tier 6 workflows (everyday magic)
