@@ -73,16 +73,27 @@ impl McpRetryConfig {
 /// Determine if an MCP error is retryable.
 ///
 /// Returns true for transient errors that may succeed on retry.
+/// For tool errors, checks the error code — client errors like
+/// InvalidParams (-32602) are NOT retried since they'll always fail.
 pub fn is_retryable_mcp_error(error: &NikaError) -> bool {
-    matches!(
-        error,
+    match error {
         NikaError::McpTimeout { .. }
-            | NikaError::McpNotConnected { .. }
-            | NikaError::McpToolError { .. }
-            | NikaError::McpToolCallFailed { .. }
-            | NikaError::McpStartError { .. }
-            | NikaError::McpProtocolError { .. }
-    )
+        | NikaError::McpNotConnected { .. }
+        | NikaError::McpToolCallFailed { .. }
+        | NikaError::McpProtocolError { .. } => true,
+
+        // Tool errors: only retry if the error code is retryable (server-side)
+        // InvalidParams, MethodNotFound etc. will always fail on retry
+        NikaError::McpToolError { error_code, .. } => {
+            error_code.as_ref().map_or(true, |code| code.is_retryable())
+        }
+
+        // Start errors: NOT retryable — if the server binary doesn't exist,
+        // retrying just wastes 30s per reconnect attempt
+        NikaError::McpStartError { .. } => false,
+
+        _ => false,
+    }
 }
 
 /// Execute an async operation with MCP retry logic.
