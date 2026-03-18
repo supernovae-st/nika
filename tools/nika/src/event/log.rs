@@ -1812,7 +1812,7 @@ mod tests {
                 task_count: 3,
                 generation_id: "gen-1".into(),
                 workflow_hash: "abc123".into(),
-                nika_version: "0.27.0".into(),
+                nika_version: env!("CARGO_PKG_VERSION").into(),
             },
             EventKind::WorkflowCompleted {
                 final_output: Arc::new(serde_json::json!({"result": "ok"})),
@@ -2049,7 +2049,7 @@ mod tests {
             task_count: 1,
             generation_id: "g1".into(),
             workflow_hash: "h1".into(),
-            nika_version: "0.27.0".into(),
+            nika_version: env!("CARGO_PKG_VERSION").into(),
         });
         let events = log.events();
         let event = &events[0];

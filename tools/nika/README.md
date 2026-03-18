@@ -52,43 +52,23 @@ cargo build --release
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
 - **IndexedDag** — Vec-based adjacency list with Kahn's topological sort (v0.29.0)
 - **use→with Migration** — Complete binding syntax migration to `with:` (v0.29.1)
-- **5,212+ lib tests passing** | 34 proptests | Zero clippy warnings
+- **Deep Audit** — 519 gate workflows, 15-agent swarm, 44+ bug fixes (v0.30.5)
+- **5,219+ lib tests passing** | 34 proptests | Zero clippy warnings
 
-## v0.22.0+ Features
+## Architecture
 
-- **4-View TUI Architecture** - Studio, Runner, Chat, Settings
-- **Two-Phase IR** - Raw AST → Analyzed AST pipeline
-- **spn Daemon Integration** - Unified secret management
+- **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime
+- **4-View TUI** — Studio, Runner, Chat, Settings
+- **IndexedDag** — Vec-based adjacency with Kahn's topological sort
+- **8 LLM Providers** — Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, Native
 
-## v0.15.0 Features
+## Security
 
-- **Security Hardening: Shell-Free Execution** (BREAKING)
-  - `exec:` now defaults to `shell: false` for security
-  - Command parsing via shlex (no shell injection)
-  - New error code: `NIKA-053 BlockedCommand`
-  ```yaml
-  # Default: shell-free (v0.15.0)
-  - id: safe_exec
-    exec: "echo 'Hello World'"  # Parsed via shlex
-
-  # Opt-in shell mode for pipes/redirects
-  - id: pipeline
-    exec:
-      command: "cat file.txt | grep pattern"
-      shell: true
-  ```
-- **Infer LLM Control Parity** - `temperature`, `system`, `max_tokens` support
-  ```yaml
-  - id: creative
-    infer:
-      prompt: "Generate tagline"
-      temperature: 0.9
-      system: "You are a marketing expert"
-      max_tokens: 100
-  ```
-- **Gemini Provider (7th provider)** - `RigProvider::gemini()`, full streaming
-- **File Tools (5 new builtin)** - `nika:read`, `nika:write`, `nika:edit`, `nika:glob`, `nika:grep`
-- **11 builtin tools total** (6 core + 5 file)
+- `exec:` defaults to `shell: false` (no shell injection)
+- Command blocklist (30+ patterns: `rm -rf`, `sudo`, reverse shells)
+- Unicode NFKC normalization + zero-width character stripping
+- API key stripping from child processes
+- MCP env var validation (LD_PRELOAD blocked)
 
 ## Features
 
