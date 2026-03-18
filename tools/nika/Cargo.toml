@@ -164,6 +164,14 @@ terminal_size = { version = "0.4", optional = true }  # Terminal dimensions for 
 # LSP Server (feature-gated) - v0.22 Language Server Protocol support
 tower-lsp = { version = "0.20", optional = true }
 
+# Media pipeline (2 genuinely new + 4 zero-cost promotes from transitive)
+blake3 = { version = "1.8", features = ["mmap"] }
+infer = "0.19"
+base64 = "0.22"
+mime_guess = "2.0"
+mime = "0.3"
+bytes = "1"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

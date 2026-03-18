@@ -3,8 +3,10 @@
 //! Handles binary content (images, audio, documents) from MCP tool results.
 //! Uses Content-Addressable Storage (CAS) with blake3 hashing.
 
+pub mod detect;
 pub mod error;
 pub mod types;
 
+pub use detect::{detect_mime, DetectedMime, DetectionSource};
 pub use error::MediaError;
 pub use types::{MediaBudget, MediaRef, MediaType};
