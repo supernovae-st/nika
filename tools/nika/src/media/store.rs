@@ -138,6 +138,7 @@ impl CasStore {
         }
 
         // Read-back verification only for files >= 1MB
+        // Small files: fsync guarantees integrity, verified=false to indicate skipped
         let verified = if size >= VERIFY_THRESHOLD {
             let stored = tokio::fs::read(&final_path).await.map_err(|e| {
                 MediaError::MediaStoreWrite {
@@ -155,7 +156,7 @@ impl CasStore {
             }
             true
         } else {
-            true
+            false // small file: verification skipped (fsync sufficient)
         };
 
         Ok(StoreResult {
@@ -299,7 +300,8 @@ mod tests {
 
         assert!(result.hash.starts_with("blake3:"));
         assert!(!result.deduplicated);
-        assert!(result.verified);
+        // Small files: verified=false (read-back skipped, fsync sufficient)
+        assert!(!result.verified);
         assert_eq!(result.size, data.len() as u64);
 
         let read_back = store.read(&result.hash).await.unwrap();

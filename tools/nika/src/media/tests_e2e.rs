@@ -547,7 +547,8 @@ mod tests {
 
         // Verify StoreResult
         assert!(!store_result.deduplicated);
-        assert!(store_result.verified);
+        // Small files: verified=false (read-back skipped, fsync sufficient)
+        assert!(!store_result.verified);
         assert!(store_result.pipeline_ms < 1000, "pipeline took too long: {}ms", store_result.pipeline_ms);
 
         // Verify CAS file content matches original

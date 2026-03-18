@@ -411,9 +411,10 @@ impl RmcpClientAdapter {
                         }
                     }
                     // [H2] RawResource.name is String, not Option<String> in rmcp 0.16
+                    // Convert empty string to None so skip_serializing_if works correctly
                     RawContent::ResourceLink(l) => ContentBlock::ResourceLink {
                         uri: l.uri.clone(),
-                        name: Some(l.name.clone()),
+                        name: if l.name.is_empty() { None } else { Some(l.name.clone()) },
                         mime_type: l.mime_type.clone(),
                     },
                 }
