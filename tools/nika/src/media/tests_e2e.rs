@@ -183,25 +183,37 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     #[tokio::test]
-    async fn e2e_mime_category_mismatch_uses_magic_bytes() {
+    async fn e2e_mime_category_mismatch_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
         let processor = MediaProcessor::new(store);
 
-        // Send PNG data with audio/wav MIME type
+        // Send PNG data with audio/wav MIME type → cross-category mismatch → NIKA-251
         let block = ContentBlock::image(encode_b64(&real_png_bytes()), "audio/wav");
+        let result = processor.process(&block, "t_mismatch").await;
+
+        assert!(result.is_err(), "Cross-category MIME mismatch should be rejected");
+        assert_eq!(result.unwrap_err().code(), "NIKA-251");
+    }
+
+    #[tokio::test]
+    async fn e2e_mime_same_category_mismatch_uses_magic_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let processor = MediaProcessor::new(store);
+
+        // Send PNG data with image/webp MIME type → same category → magic bytes win
+        let block = ContentBlock::image(encode_b64(&real_png_bytes()), "image/webp");
         let result = processor.process(&block, "t_mismatch").await;
 
         match result {
             Ok(Some((media_ref, _))) => {
-                // Magic bytes MUST win over server declaration
                 assert_eq!(media_ref.mime_type, "image/png",
-                    "SILENT BUG: server MIME type overrode magic bytes detection! Got: {}",
-                    media_ref.mime_type);
+                    "Magic bytes should win for same-category mismatch");
                 assert_eq!(media_ref.extension, "png");
             }
-            Ok(None) => panic!("SILENT BUG: image data returned None"),
-            Err(e) => panic!("Unexpected error on valid PNG data: {}", e),
+            Ok(None) => panic!("image data returned None"),
+            Err(e) => panic!("Same-category mismatch should not error: {}", e),
         }
     }
 
@@ -479,7 +491,7 @@ mod tests {
                 expected: "blake3:aaa".into(),
                 actual: "blake3:bbb".into(),
             },
-            MediaError::MediaStoreWrite {
+            MediaError::MediaStoreIo {
                 path: "/tmp/fail".into(),
                 source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
             },
@@ -1040,7 +1052,7 @@ mod tests {
             (MediaError::UnsupportedMediaType { mime_type: "x".into(), reason: "y".into() }, "NIKA-252"),
             (MediaError::MediaNotFound { hash: "h".into() }, "NIKA-253"),
             (MediaError::HashMismatch { expected: "a".into(), actual: "b".into() }, "NIKA-254"),
-            (MediaError::MediaStoreWrite {
+            (MediaError::MediaStoreIo {
                 path: "/x".into(),
                 source: std::io::Error::new(std::io::ErrorKind::Other, "test"),
             }, "NIKA-255"),
@@ -1059,8 +1071,8 @@ mod tests {
 
     #[test]
     fn e2e_media_error_is_recoverable() {
-        // Only MediaStoreWrite should be recoverable
-        assert!(MediaError::MediaStoreWrite {
+        // Only MediaStoreIo (I/O errors) should be recoverable
+        assert!(MediaError::MediaStoreIo {
             path: "/x".into(),
             source: std::io::Error::new(std::io::ErrorKind::Other, ""),
         }.is_recoverable());
@@ -1934,21 +1946,13 @@ mod tests {
 
     #[tokio::test]
     async fn e2e_cas_empty_data_store_and_read() {
-        // Empty data is a valid CAS entry (0 bytes)
+        // Defense-in-depth: empty data is now rejected at CAS layer (NIKA-258)
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
 
-        let result = store.store(b"").await.unwrap();
-        assert_eq!(result.size, 0);
-        assert!(!result.verified, "empty file is under threshold");
-
-        let read_back = store.read(&result.hash).await.unwrap();
-        assert!(read_back.is_empty());
-
-        // Dedup on second store
-        let r2 = store.store(b"").await.unwrap();
-        assert!(r2.deduplicated);
-        assert_eq!(result.hash, r2.hash);
+        let result = store.store(b"").await;
+        assert!(result.is_err(), "CAS should reject empty data");
+        assert_eq!(result.unwrap_err().code(), "NIKA-258");
     }
 
     #[tokio::test]

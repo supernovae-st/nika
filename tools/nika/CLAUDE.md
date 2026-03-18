@@ -61,7 +61,8 @@ src/
 | 160-164 | Policy/Boot errors |
 | 170-179 | Runtime (decompose) |
 | 200-219 | File tools + Builtin tools |
-| 250-259 | Context errors |
+| 250 | Context error |
+| 251-259 | Media pipeline |
 | 260-269 | Package URI errors |
 | 270-279 | Skill errors |
 | 280-289 | Artifacts |

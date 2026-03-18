@@ -15,6 +15,9 @@ const HASH_PREFIX: &str = "blake3:";
 /// Only verify files at or above this size (1MB).
 const VERIFY_THRESHOLD: u64 = 1024 * 1024;
 
+/// Maximum raw data size accepted by CAS store (100MB, defense-in-depth).
+const MAX_STORE_SIZE: usize = 100 * 1024 * 1024;
+
 /// Result of a CAS store operation.
 #[derive(Debug, Clone)]
 pub struct StoreResult {
@@ -98,6 +101,21 @@ impl CasStore {
         &self,
         data: &[u8],
     ) -> Result<StoreResult, MediaError> {
+        // Defense-in-depth: reject empty data at the CAS layer (D28)
+        if data.is_empty() {
+            return Err(MediaError::EmptyMediaContent {
+                task_id: "(cas-direct)".to_string(),
+            });
+        }
+
+        // Defense-in-depth: reject oversized data at the CAS layer (D23)
+        if data.len() > MAX_STORE_SIZE {
+            return Err(MediaError::Base64InputTooLarge {
+                size: data.len(),
+                max: MAX_STORE_SIZE,
+            });
+        }
+
         let process_start = std::time::Instant::now();
 
         let raw_hash = blake3::hash(data).to_hex().to_string();
@@ -109,7 +127,7 @@ impl CasStore {
         let final_path = dir.join(&raw_hash[2..]);
 
         // Create parent directories (async)
-        tokio::fs::create_dir_all(&dir).await.map_err(|e| MediaError::MediaStoreWrite {
+        tokio::fs::create_dir_all(&dir).await.map_err(|e| MediaError::MediaStoreIo {
             path: dir.clone(),
             source: e,
         })?;
@@ -135,7 +153,7 @@ impl CasStore {
                 // CRITICAL: write_fail may leave a partial file on disk-full/IO error.
                 // Clean it up to prevent permanent CAS corruption.
                 let _ = tokio::fs::remove_file(&final_path).await;
-                return Err(MediaError::MediaStoreWrite {
+                return Err(MediaError::MediaStoreIo {
                     path: final_path,
                     source: e,
                 });
@@ -146,7 +164,7 @@ impl CasStore {
         // Small files: fsync guarantees integrity, verified=false to indicate skipped
         let verified = if size >= VERIFY_THRESHOLD {
             let stored = tokio::fs::read(&final_path).await.map_err(|e| {
-                MediaError::MediaStoreWrite {
+                MediaError::MediaStoreIo {
                     path: final_path.clone(),
                     source: e,
                 }
@@ -199,7 +217,7 @@ impl CasStore {
                     hash: hash.to_string(),
                 }
             } else {
-                MediaError::MediaStoreWrite {
+                MediaError::MediaStoreIo {
                     path,
                     source: e,
                 }
@@ -403,6 +421,27 @@ mod tests {
         let store = CasStore::workspace_default(&root);
         // Just verify it constructs without panic
         assert!(!store.exists("blake3:nonexistent"));
+    }
+
+    #[tokio::test]
+    async fn store_rejects_empty_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.store(b"").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-258");
+    }
+
+    #[tokio::test]
+    async fn store_rejects_oversized_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let big = vec![0u8; MAX_STORE_SIZE + 1];
+        let result = store.store(&big).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-257");
     }
 
     #[tokio::test]

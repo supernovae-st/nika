@@ -1705,10 +1705,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         else { DS::Failed };
                                     let meta = if success {
                                         Some(format!("{:.1}s", task_result.duration.as_secs_f32()))
-                                    } else if let Some(err) = task_result.error() {
-                                        Some(format!("✗ {}", &err[..err.len().min(30)]))
                                     } else {
-                                        None
+                                        task_result.error().map(|err| format!("✗ {}", &err[..err.len().min(30)]))
                                     };
                                     dag.update_task(parent_id, status, meta);
                                     dag.redraw();

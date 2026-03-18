@@ -948,10 +948,7 @@ impl TaskExecutor {
                         content_types,
                     });
 
-                    let workspace_root = std::env::current_dir().unwrap_or_else(|_| {
-                        tracing::error!("Failed to get current directory for CAS, falling back to /tmp");
-                        std::path::PathBuf::from("/tmp")
-                    });
+                    let workspace_root = datastore.workspace_root();
                     let store = CasStore::workspace_default(&workspace_root);
                     // Use shared per-run budget from RunContext (not a fresh one per invoke)
                     let processor = MediaProcessor::with_shared_budget(
@@ -988,6 +985,11 @@ impl TaskExecutor {
                                     hash: String::new(),
                                     reason: format!("block {block_index}: {error}"),
                                 });
+                                // Non-recoverable errors (HashMismatch, BudgetExceeded, etc.)
+                                // must fail the task — don't silently swallow data corruption.
+                                if !error.is_recoverable() {
+                                    return Err(NikaError::MediaError(error));
+                                }
                             }
                         }
                     }

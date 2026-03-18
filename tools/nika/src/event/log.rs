@@ -1857,7 +1857,7 @@ mod tests {
     // WAVE 2 TESTS: NDJSON event system audit
     // ═══════════════════════════════════════════════════════════════
 
-    /// Helper: build one instance of every EventKind variant (all 32)
+    /// Helper: build one instance of every EventKind variant (all 36)
     fn all_36_variants() -> Vec<EventKind> {
         vec![
             // Workflow (6)

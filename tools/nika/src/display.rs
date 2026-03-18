@@ -129,7 +129,7 @@ pub fn print_done_summary(
     // Main done line with telemetry
     if total_tokens > 0 {
         println!(
-            "{} {} {} {} {} {} {} {}",
+            "{} {} {} {} {} {} {}",
             "\u{2713}".green().bold(), // ✓
             "Done!".green().bold(),
             elapsed_str.dimmed(),
@@ -137,8 +137,7 @@ pub fn print_done_summary(
             format!("{} tokens", total_tokens).dimmed(),
             "·".dimmed(),
             format!("${}", crate::provider::cost::format_cost(total_cost)
-                .trim_start_matches('$')).dimmed(),
-            if total_cost > 0.0 { "" } else { "" }
+                .trim_start_matches('$')).dimmed()
         );
     } else {
         println!(
@@ -253,8 +252,6 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
 pub fn format_duration(secs: f32) -> colored::ColoredString {
     let text = if secs < 0.1 {
         format!("{:.0}ms", secs * 1000.0)
-    } else if secs < 1.0 {
-        format!("{:.1}s", secs)
     } else if secs < 60.0 {
         format!("{:.1}s", secs)
     } else {

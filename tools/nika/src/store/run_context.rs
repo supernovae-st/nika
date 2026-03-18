@@ -7,6 +7,7 @@
 //! Added inputs storage for workflow `inputs:` block.
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -194,16 +195,23 @@ pub struct RunContext {
     /// Shared per-run media budget (500MB default).
     /// Lives here so all invoke tasks in a single run share one budget.
     media_budget: Arc<crate::media::MediaBudget>,
+
+    /// Workspace root for CAS store path resolution.
+    /// Set by Runner at workflow start. Defaults to current_dir().
+    workspace_root: Arc<RwLock<PathBuf>>,
 }
 
 impl Default for RunContext {
     fn default() -> Self {
+        let workspace_root = std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."));
         Self {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
             inputs: Arc::default(),
             media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             media_budget: Arc::new(crate::media::MediaBudget::new()),
+            workspace_root: Arc::new(RwLock::new(workspace_root)),
         }
     }
 }
@@ -283,6 +291,16 @@ impl RunContext {
     /// Get the shared per-run media budget.
     pub fn media_budget(&self) -> &Arc<crate::media::MediaBudget> {
         &self.media_budget
+    }
+
+    /// Set the workspace root (called by Runner at workflow start).
+    pub fn set_workspace_root(&self, root: PathBuf) {
+        *self.workspace_root.write() = root;
+    }
+
+    /// Get the workspace root path (cloned).
+    pub fn workspace_root(&self) -> PathBuf {
+        self.workspace_root.read().clone()
     }
 
     /// Resolve a dot-separated path (e.g., "weather.summary")

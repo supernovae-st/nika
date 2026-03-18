@@ -77,24 +77,27 @@ pub fn detect_mime(
         let mime_type = kind.mime_type().to_string();
         let extension = kind.extension().to_string();
 
-        // Declare-then-verify: cross-validate with server hint
+        // Declare-then-verify (D25): cross-validate with server hint
         if let Some(server) = server_mime_ref {
-            let detected_category = mime_type.split('/').next();
-            let server_category = server.split('/').next();
-            if detected_category != server_category {
-                tracing::warn!(
-                    detected = %mime_type,
-                    server = %server,
-                    "MIME category mismatch: server declared {}, magic bytes detected {}",
-                    server,
-                    mime_type,
-                );
-            } else if *server != mime_type {
-                tracing::debug!(
-                    detected = %mime_type,
-                    server = %server,
-                    "MIME subtype mismatch: magic bytes disagree with server hint, using magic bytes"
-                );
+            if !is_mime_alias(&mime_type, server) {
+                let detected_category = mime_type.split('/').next();
+                let server_category = server.split('/').next();
+                if detected_category != server_category {
+                    // Cross-category mismatch: REJECT (e.g., server=audio/*, magic=image/*)
+                    return Err(MediaError::MimeDetectionFailed {
+                        reason: format!(
+                            "MIME category conflict: server declared '{}' but magic bytes detected '{}'",
+                            server, mime_type
+                        ),
+                    });
+                } else {
+                    // Same category, different subtype: warn but accept magic bytes
+                    tracing::debug!(
+                        detected = %mime_type,
+                        server = %server,
+                        "MIME subtype mismatch: magic bytes disagree with server hint, using magic bytes"
+                    );
+                }
             }
         }
 
@@ -122,6 +125,25 @@ pub fn detect_mime(
         inspect_len,
         server_mime.map(|s| s.to_string()),
     ))
+}
+
+/// Check if two MIME types are known aliases of each other.
+///
+/// Covers common non-standard MIME variants sent by MCP servers:
+/// - `audio/mp3` ↔ `audio/mpeg`
+/// - `image/jpg` ↔ `image/jpeg`
+/// - `audio/wav` ↔ `audio/x-wav`
+pub fn is_mime_alias(a: &str, b: &str) -> bool {
+    if a == b {
+        return true;
+    }
+    let pair = (a.min(b), a.max(b));
+    matches!(
+        pair,
+        ("audio/mp3", "audio/mpeg")
+            | ("audio/wav", "audio/x-wav")
+            | ("image/jpeg", "image/jpg")
+    )
 }
 
 /// Convert a MIME type to a file extension.
@@ -224,9 +246,9 @@ mod tests {
     }
 
     #[test]
-    fn magic_bytes_preferred_over_server_hint() {
-        // PNG bytes + wrong server hint
-        let result = detect_mime(PNG_HEADER, Some("audio/wav")).unwrap();
+    fn magic_bytes_preferred_over_same_category_hint() {
+        // PNG bytes + wrong server hint (same category: image)
+        let result = detect_mime(PNG_HEADER, Some("image/webp")).unwrap();
         assert_eq!(result.mime_type, "image/png");
         assert_eq!(result.source, DetectionSource::MagicBytes);
     }
@@ -253,6 +275,52 @@ mod tests {
         let jpeg_ext = mime_to_extension("image/jpeg");
         assert!(jpeg_ext == "jpg" || jpeg_ext == "jfif", "got: {jpeg_ext}");
         assert_eq!(mime_to_extension("application/pdf"), "pdf");
+    }
+
+    #[test]
+    fn is_mime_alias_known_pairs() {
+        assert!(is_mime_alias("audio/mp3", "audio/mpeg"));
+        assert!(is_mime_alias("audio/mpeg", "audio/mp3"));
+        assert!(is_mime_alias("image/jpeg", "image/jpg"));
+        assert!(is_mime_alias("image/jpg", "image/jpeg"));
+        assert!(is_mime_alias("audio/wav", "audio/x-wav"));
+        assert!(is_mime_alias("audio/x-wav", "audio/wav"));
+    }
+
+    #[test]
+    fn is_mime_alias_identity() {
+        assert!(is_mime_alias("image/png", "image/png"));
+        assert!(is_mime_alias("audio/mpeg", "audio/mpeg"));
+    }
+
+    #[test]
+    fn is_mime_alias_non_aliases() {
+        assert!(!is_mime_alias("image/png", "image/jpeg"));
+        assert!(!is_mime_alias("audio/mp3", "image/png"));
+        assert!(!is_mime_alias("audio/ogg", "audio/flac"));
+    }
+
+    #[test]
+    fn cross_category_mismatch_is_rejected() {
+        // PNG bytes + server declares audio/wav → should fail with NIKA-251
+        let result = detect_mime(PNG_HEADER, Some("audio/wav"));
+        assert!(result.is_err(), "Cross-category mismatch should be rejected");
+        assert_eq!(result.unwrap_err().code(), "NIKA-251");
+    }
+
+    #[test]
+    fn same_category_alias_is_accepted() {
+        // WAV bytes + server declares audio/x-wav → alias, should accept
+        let result = detect_mime(WAV_HEADER, Some("audio/x-wav"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn same_category_subtype_mismatch_uses_magic_bytes() {
+        // JPEG bytes + server declares image/webp → same category, accept magic bytes
+        let result = detect_mime(JPEG_HEADER, Some("image/webp")).unwrap();
+        assert_eq!(result.mime_type, "image/jpeg");
+        assert_eq!(result.source, DetectionSource::MagicBytes);
     }
 
     #[test]

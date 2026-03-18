@@ -476,7 +476,7 @@ pub enum NikaError {
     AssertionFailed { message: String, condition: String },
 
     // ═══════════════════════════════════════════
-    // CONTEXT ERRORS (250-259)
+    // CONTEXT ERROR (250)
     // ═══════════════════════════════════════════
     #[error("[NIKA-250] Failed to load context file '{alias}' from '{path}': {reason}")]
     #[diagnostic(
@@ -493,6 +493,7 @@ pub enum NikaError {
     // MEDIA ERRORS (251-259)
     // ═══════════════════════════════════════════
     /// Media pipeline error (NIKA-251..259)
+    /// Note: miette diagnostic codes are forwarded via MediaError's own Diagnostic derive.
     #[error(transparent)]
     MediaError(#[from] crate::media::error::MediaError),
 

@@ -41,10 +41,10 @@ pub enum MediaError {
         actual: String,
     },
 
-    /// NIKA-255: Failed to write media file to CAS store
-    #[error("[NIKA-255] failed to write media store: {}: {source}", path.display())]
-    #[diagnostic(code(nika::media_store_write))]
-    MediaStoreWrite {
+    /// NIKA-255: I/O error during CAS store read or write
+    #[error("[NIKA-255] media store I/O error: {}: {source}", path.display())]
+    #[diagnostic(code(nika::media_store_io))]
+    MediaStoreIo {
         path: PathBuf,
         source: std::io::Error,
     },
@@ -91,7 +91,7 @@ impl MediaError {
             Self::UnsupportedMediaType { .. } => "NIKA-252",
             Self::MediaNotFound { .. } => "NIKA-253",
             Self::HashMismatch { .. } => "NIKA-254",
-            Self::MediaStoreWrite { .. } => "NIKA-255",
+            Self::MediaStoreIo { .. } => "NIKA-255",
             Self::Base64DecodeFailed { .. } => "NIKA-256",
             Self::Base64InputTooLarge { .. } => "NIKA-257",
             Self::EmptyMediaContent { .. } => "NIKA-258",
@@ -101,7 +101,7 @@ impl MediaError {
 
     /// Check if this error is potentially recoverable through retry.
     pub fn is_recoverable(&self) -> bool {
-        matches!(self, Self::MediaStoreWrite { .. })
+        matches!(self, Self::MediaStoreIo { .. })
     }
 
     /// Construct MimeDetectionFailed with optional server hint.
