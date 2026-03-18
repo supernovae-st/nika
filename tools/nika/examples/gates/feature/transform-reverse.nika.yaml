@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-reverse
 tasks:
   - id: gen
-    exec: 'echo ["alpha","beta","gamma"]'
+    exec:
+      command: "echo '[\"alpha\",\"beta\",\"gamma\"]'"
+      shell: true
   - id: use
     with:
-      val: $gen | reverse
+      val: $gen | parse_json | reverse
     exec:
       command: "echo Reversed is {{with.val}}"
       shell: true

@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-compact
 tasks:
   - id: gen
-    exec: 'echo [1,null,2,null,3]'
+    exec:
+      command: "echo '[1,null,2,null,3]'"
+      shell: true
   - id: use
     with:
-      val: $gen | compact
+      val: $gen | parse_json | compact
     exec:
       command: "echo Compact is {{with.val}}"
       shell: true

@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-first
 tasks:
   - id: gen
-    exec: 'echo ["alpha","beta","gamma"]'
+    exec:
+      command: "echo '[\"alpha\",\"beta\",\"gamma\"]'"
+      shell: true
   - id: use
     with:
-      val: $gen | first
+      val: $gen | parse_json | first
     exec:
       command: "echo First is {{with.val}}"
       shell: true

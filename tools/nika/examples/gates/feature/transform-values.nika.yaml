@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-values
 tasks:
   - id: gen
-    exec: 'echo {"a":1,"b":2}'
+    exec:
+      command: "echo '{\"a\":1,\"b\":2}'"
+      shell: true
   - id: use
     with:
-      val: $gen | values
+      val: $gen | parse_json | values
     exec:
       command: "echo Values are {{with.val}}"
       shell: true

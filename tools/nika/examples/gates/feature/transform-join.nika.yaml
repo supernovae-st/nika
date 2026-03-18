@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-join
 tasks:
   - id: gen
-    exec: 'echo ["a","b","c"]'
+    exec:
+      command: "echo '[\"a\",\"b\",\"c\"]'"
+      shell: true
   - id: use
     with:
-      val: $gen | join(,)
+      val: $gen | parse_json | join(,)
     exec:
       command: "echo Joined is {{with.val}}"
       shell: true

@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-unique
 tasks:
   - id: gen
-    exec: 'echo ["a","b","a","c","b"]'
+    exec:
+      command: "echo '[\"a\",\"b\",\"a\",\"c\",\"b\"]'"
+      shell: true
   - id: use
     with:
-      val: $gen | unique
+      val: $gen | parse_json | unique
     exec:
       command: "echo Unique is {{with.val}}"
       shell: true

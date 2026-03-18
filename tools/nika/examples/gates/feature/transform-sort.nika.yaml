@@ -2,10 +2,12 @@ schema: nika/workflow@0.12
 workflow: feat-transform-sort
 tasks:
   - id: gen
-    exec: 'echo ["cherry","apple","banana"]'
+    exec:
+      command: "echo '[\"cherry\",\"apple\",\"banana\"]'"
+      shell: true
   - id: use
     with:
-      val: $gen | sort
+      val: $gen | parse_json | sort
     exec:
       command: "echo Sorted is {{with.val}}"
       shell: true
