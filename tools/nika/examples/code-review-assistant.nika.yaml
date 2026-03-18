@@ -110,7 +110,7 @@ tasks:
         If metadata is unavailable, generate: "Code review for pull request with multiple file changes"
     output:
       format: text
-    flow: [pr_metadata]
+    depends_on: [pr_metadata]
 
   # ============================================================================
   # PHASE 3: DOCUMENTATION LOOKUP
@@ -143,7 +143,7 @@ tasks:
         Return ONLY a JSON array like: ["src/main.rs", "src/lib.rs", "tests/integration.rs"]
     output:
       format: json
-    flow: [changed_files]
+    depends_on: [changed_files]
 
   - id: file_reviews
     description: "Review each file in parallel"
@@ -180,7 +180,7 @@ tasks:
         Be specific with line numbers and examples.
     output:
       format: text
-    flow: [parse_files, full_diff, documentation_refs]
+    depends_on: [parse_files, full_diff, documentation_refs]
 
   # ============================================================================
   # PHASE 5: COMPREHENSIVE REVIEW
@@ -278,7 +278,7 @@ tasks:
     artifact:
       path: comprehensive-review.json
 
-    flow: [file_reviews, diff_stats, commit_history, pr_context_text]
+    depends_on: [file_reviews, diff_stats, commit_history, pr_context_text]
 
   # ============================================================================
   # PHASE 6: SUMMARY & OUTPUT
@@ -319,4 +319,4 @@ tasks:
       path: review-report.txt
       format: text
 
-    flow: [comprehensive_review]
+    depends_on: [comprehensive_review]

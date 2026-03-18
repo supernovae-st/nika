@@ -16,13 +16,13 @@ tasks:
     with:
       input: $root
     exec: "echo 'A: {{with.input}}'"
-    flow: [root]
+    depends_on: [root]
 
   - id: branch_b
     with:
       input: $root
     exec: "echo 'B: {{with.input}}'"
-    flow: [root]
+    depends_on: [root]
 
   - id: merge
     description: "Merge data from branches"
@@ -30,4 +30,4 @@ tasks:
       from_a: $branch_a
       from_b: $branch_b
     infer: "Merged: {{with.from_a}} and {{with.from_b}}"
-    flow: [branch_a, branch_b]
+    depends_on: [branch_a, branch_b]

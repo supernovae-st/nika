@@ -262,7 +262,7 @@ pub struct Task {
     ///   depends_on: [fetch_data, validate]
     ///   infer: "Process {{with.data}}"
     /// ```
-    #[serde(default, alias = "flow")]
+    #[serde(default)]
     pub depends_on: Option<Vec<String>>,
     /// Structured output configuration
     ///
@@ -396,7 +396,7 @@ impl Task {
     }
 }
 
-// Flow and FlowEndpoint types removed — edges are derived from task.depends_on
+// Edges are derived from task.depends_on
 
 #[cfg(test)]
 mod tests {
@@ -870,10 +870,10 @@ infer: "Test"
     }
 
     #[test]
-    fn test_task_flow_field_works() {
+    fn test_task_depends_on_field_works() {
         let yaml = r#"
 id: task1
-flow: [step_a, step_b]
+depends_on: [step_a, step_b]
 infer: "Test"
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");

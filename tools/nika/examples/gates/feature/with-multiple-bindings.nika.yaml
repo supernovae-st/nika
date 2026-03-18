@@ -15,4 +15,4 @@ tasks:
     exec:
       command: "echo {{with.a}} {{with.b}} {{with.c}}"
       shell: true
-    flow: [step1, step2, step3]
+    depends_on: [step1, step2, step3]

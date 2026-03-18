@@ -129,7 +129,7 @@ tasks:
     artifact:
       path: context/entity-relations.json
 
-    flow: [describe_entity]
+    depends_on: [describe_entity]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 3: Locale Knowledge Retrieval
@@ -233,7 +233,7 @@ tasks:
       - path: context/assembled/{{with.locale}}-build-log.json
         format: json
 
-    flow: [traverse_relations, retrieve_locale_atoms]
+    depends_on: [traverse_relations, retrieve_locale_atoms]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 5: Native Content Generation
@@ -361,7 +361,7 @@ tasks:
       - path: content/{{with.locale}}/entity-native.yaml
         format: yaml
 
-    flow: [assemble_context]
+    depends_on: [assemble_context]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 6: Quality Validation
@@ -465,7 +465,7 @@ tasks:
     artifact:
       path: validation/quality-report.json
 
-    flow: [generate_native_content]
+    depends_on: [generate_native_content]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 7: Generate Final Report
@@ -524,7 +524,7 @@ tasks:
       - path: reports/generation-report.json
         format: json
 
-    flow: [validate_content_quality]
+    depends_on: [validate_content_quality]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 8: Final Output
@@ -563,7 +563,7 @@ tasks:
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
-    flow: [generate_final_report]
+    depends_on: [generate_final_report]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE FLOW

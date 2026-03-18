@@ -154,7 +154,7 @@ tasks:
       path: content-strategy-brief.md
       format: text
 
-    flow: [research_orchestrator]
+    depends_on: [research_orchestrator]
 
   # Step 3: Output summary
   - id: output_summary
@@ -170,4 +170,4 @@ tasks:
       echo "  - content-strategy-brief.md"
       echo "  - artifacts.json (manifest)"
 
-    flow: [generate_brief]
+    depends_on: [generate_brief]

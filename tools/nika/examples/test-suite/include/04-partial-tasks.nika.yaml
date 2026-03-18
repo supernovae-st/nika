@@ -18,4 +18,4 @@ tasks:
     with:
       result: $proc_validate_output
     exec: "echo 'Using: {{with.result}}'"
-    flow: [proc_validate_output]
+    depends_on: [proc_validate_output]

@@ -256,21 +256,13 @@
           "$ref": "#/$defs/StructuredOutputSpec",
           "description": "Structured output validation with 4-layer defense (v0.21+)"
         },
-        "flow": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]*$"
-          },
-          "description": "Explicit dependencies — alias for depends_on (task IDs that must complete before this task)"
-        },
         "depends_on": {
           "type": "array",
           "items": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]*$"
           },
-          "description": "Explicit dependencies (preferred over flow:). Task IDs that must complete before this task."
+          "description": "Task IDs that must complete before this task."
         },
         "description": {
           "type": "string",

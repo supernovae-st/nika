@@ -24,4 +24,4 @@ tasks:
     for_each: "{{with.colors}}"
     as: color
     exec: "echo 'Color: {{with.color}}'"
-    flow: [produce_list]
+    depends_on: [produce_list]

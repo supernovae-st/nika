@@ -24,4 +24,4 @@ tasks:
   - id: cleanup_on_shutdown
     description: "Cleanup task"
     exec: "echo 'Cleanup'"
-    flow: [long_task_1, long_task_2]
+    depends_on: [long_task_1, long_task_2]

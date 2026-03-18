@@ -117,7 +117,7 @@ tasks:
     artifact:
       path: posts/{{with.kw.keyword | slugify}}.json
 
-    flow: [define_keywords]
+    depends_on: [define_keywords]
 
   # Step 3: Validate SEO quality
   - id: validate_seo
@@ -133,7 +133,7 @@ tasks:
     output:
       format: text
 
-    flow: [generate_posts]
+    depends_on: [generate_posts]
 
   # Step 4: Summary output
   - id: summary
@@ -172,4 +172,4 @@ tasks:
     artifact:
       path: sprint-summary.json
 
-    flow: [validate_seo]
+    depends_on: [validate_seo]

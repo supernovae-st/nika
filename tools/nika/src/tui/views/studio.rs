@@ -2450,16 +2450,16 @@ impl YamlEditorPanel {
         }
     }
 
-    /// Extract dependencies from task flow fields
+    /// Extract dependencies from depends_on fields
     ///
     /// Returns a map: target_task_id -> [source_task_ids]
     fn extract_flow_dependencies(&self, wf: &Workflow) -> HashMap<String, Vec<String>> {
         let mut deps: HashMap<String, Vec<String>> = HashMap::new();
 
         for task in &wf.tasks {
-            if let Some(ref flow) = task.depends_on {
+            if let Some(ref task_deps) = task.depends_on {
                 let entry = deps.entry(task.id.clone()).or_default();
-                for source in flow {
+                for source in task_deps {
                     if !entry.contains(source) {
                         entry.push(source.clone());
                     }

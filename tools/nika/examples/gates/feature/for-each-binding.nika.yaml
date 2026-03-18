@@ -11,4 +11,4 @@ tasks:
     exec:
       command: "echo Color is {{with.color}}"
       shell: true
-    flow: [gen_items]
+    depends_on: [gen_items]

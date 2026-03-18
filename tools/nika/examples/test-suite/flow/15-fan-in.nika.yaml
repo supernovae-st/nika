@@ -33,4 +33,4 @@ tasks:
       s4: $source4
       s5: $source5
     infer: "Combine: {{with.s1}}, {{with.s2}}, {{with.s3}}, {{with.s4}}, {{with.s5}}"
-    flow: [source1, source2, source3, source4, source5]
+    depends_on: [source1, source2, source3, source4, source5]

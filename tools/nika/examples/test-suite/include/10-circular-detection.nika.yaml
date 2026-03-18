@@ -20,4 +20,4 @@ tasks:
   - id: after_both
     description: "After both setups"
     exec: "echo 'After both'"
-    flow: [first_validate, second_validate]
+    depends_on: [first_validate, second_validate]

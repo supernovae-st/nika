@@ -30,4 +30,4 @@ tasks:
     with:
       data: $fetch_data
     exec: "echo '{{with.data}}' > /tmp/nika-api-result.json && echo 'Saved to /tmp/nika-api-result.json'"
-    flow: [fetch_data]
+    depends_on: [fetch_data]

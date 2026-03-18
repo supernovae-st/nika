@@ -25,4 +25,4 @@ tasks:
       b: $step2
       c: $step3
     infer: "Combine: {{with.a}}, {{with.b}}, {{with.c}}"
-    flow: [step1, step2, step3]
+    depends_on: [step1, step2, step3]

@@ -22,4 +22,4 @@ tasks:
     with:
       data: $produce_json
     infer: "Process user data: {{with.data}}"
-    flow: [produce_json]
+    depends_on: [produce_json]

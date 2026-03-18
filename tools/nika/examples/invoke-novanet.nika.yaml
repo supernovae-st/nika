@@ -57,7 +57,7 @@ tasks:
         token_budget: 10000
     output:
       format: json
-    flow: [schema]
+    depends_on: [schema]
 
   # Step 3: Walk from entity to its native content
   - id: traverse_native
@@ -75,7 +75,7 @@ tasks:
         direction: outgoing
     output:
       format: json
-    flow: [entity_context]
+    depends_on: [entity_context]
 
   # Step 4: Generate content using knowledge context
   - id: generate_content
@@ -115,4 +115,4 @@ tasks:
           cta:
             type: string
       max_retries: 2
-    flow: [traverse_native]
+    depends_on: [traverse_native]

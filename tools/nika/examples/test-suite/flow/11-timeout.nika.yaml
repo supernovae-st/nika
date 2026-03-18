@@ -25,4 +25,4 @@ tasks:
   - id: after_both
     description: "After both complete"
     exec: "echo 'Both done'"
-    flow: [quick_task, slow_path]
+    depends_on: [quick_task, slow_path]

@@ -52,7 +52,7 @@ tasks:
       url: "http://localhost:7474"
       method: GET
       timeout: 10
-    flow: [exec_setup]
+    depends_on: [exec_setup]
 
   # ---------------------------------------------------------------------------
   # VERB 3: invoke: - MCP tool call
@@ -66,7 +66,7 @@ tasks:
         describe: stats
     output:
       format: json
-    flow: [fetch_neo4j]
+    depends_on: [fetch_neo4j]
 
   # ---------------------------------------------------------------------------
   # VERB 4: infer: - LLM generation
@@ -81,7 +81,7 @@ tasks:
         {{with.stats}}
       temperature: 0.2
       max_tokens: 100
-    flow: [invoke_describe]
+    depends_on: [invoke_describe]
 
   # ---------------------------------------------------------------------------
   # VERB 5: agent: - Multi-turn agentic loop
@@ -120,7 +120,7 @@ tasks:
             type: string
           description:
             type: string
-    flow: [infer_summary]
+    depends_on: [infer_summary]
 
   # ---------------------------------------------------------------------------
   # Final: exec: - Log completion
@@ -135,4 +135,4 @@ tasks:
         echo "Agent found {{with.result.classes_found}} classes"
         echo "Selected: {{with.result.selected_class}}"
       shell: true
-    flow: [agent_explore]
+    depends_on: [agent_explore]

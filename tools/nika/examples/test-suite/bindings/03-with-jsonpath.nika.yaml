@@ -22,4 +22,4 @@ tasks:
     with:
       all_data: $produce_array
     infer: "Process items: {{with.all_data}}"
-    flow: [produce_array]
+    depends_on: [produce_array]

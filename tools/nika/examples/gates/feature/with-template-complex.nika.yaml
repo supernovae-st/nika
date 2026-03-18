@@ -15,4 +15,4 @@ tasks:
     exec:
       command: "echo '{{with.name}} v{{with.ver}} is {{with.st}}'"
       shell: true
-    flow: [name, version, status]
+    depends_on: [name, version, status]

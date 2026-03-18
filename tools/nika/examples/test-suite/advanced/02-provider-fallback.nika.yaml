@@ -20,4 +20,4 @@ tasks:
     with:
       primary: $primary_provider
     infer: "Process: {{with.primary}}"
-    flow: [primary_provider]
+    depends_on: [primary_provider]

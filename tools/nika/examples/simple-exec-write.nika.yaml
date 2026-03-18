@@ -26,4 +26,4 @@ tasks:
     with:
       timestamp: $get_date
     exec: "echo 'Workflow executed at: {{with.timestamp}}' > /tmp/nika-output.txt && echo 'Saved to /tmp/nika-output.txt'"
-    flow: [get_date]
+    depends_on: [get_date]

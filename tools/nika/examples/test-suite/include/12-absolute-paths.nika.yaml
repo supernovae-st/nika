@@ -18,4 +18,4 @@ tasks:
   - id: verify_path
     description: "Verify path resolution"
     exec: "echo 'Path resolution OK'"
-    flow: [abs_validate]
+    depends_on: [abs_validate]

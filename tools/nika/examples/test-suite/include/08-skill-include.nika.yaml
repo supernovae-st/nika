@@ -19,4 +19,4 @@ tasks:
   - id: with_skills
     description: "Task with inherited skills"
     infer: "Apply SEO optimization"
-    flow: [skill_validate]
+    depends_on: [skill_validate]

@@ -43,4 +43,4 @@ tasks:
         name: workflow.end
         payload:
           status: success
-    flow: [emit_start, logged_task]
+    depends_on: [emit_start, logged_task]

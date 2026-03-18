@@ -92,7 +92,7 @@ tasks:
             type: string
           headline:
             type: string
-    flow: [generate_per_locale]
+    depends_on: [generate_per_locale]
 
   # Step 3: Aggregate results
   - id: aggregate_results
@@ -122,7 +122,7 @@ tasks:
             enum: [success, partial]
           headlines:
             type: object
-    flow: [generate_headlines]
+    depends_on: [generate_headlines]
 
   # Step 4: Verify completion
   - id: verify_completion
@@ -135,4 +135,4 @@ tasks:
           .total_locales >= 4 and .status == "success"
         '
       shell: true
-    flow: [aggregate_results]
+    depends_on: [aggregate_results]

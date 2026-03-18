@@ -71,7 +71,7 @@ tasks:
           math:
             type: integer
       max_retries: 2
-    flow: [test_exec, test_fetch]
+    depends_on: [test_exec, test_fetch]
 
   # =========================================================================
   # TEST 4: for_each with parallel execution
@@ -114,7 +114,7 @@ tasks:
             type: integer
       max_retries: 1
 
-    flow: [test_infer_claude]
+    depends_on: [test_infer_claude]
 
   # =========================================================================
   # FINAL: Aggregate all results
@@ -143,4 +143,4 @@ tasks:
       path: test-report.txt
       format: text
 
-    flow: [test_for_each, test_agent]
+    depends_on: [test_for_each, test_agent]

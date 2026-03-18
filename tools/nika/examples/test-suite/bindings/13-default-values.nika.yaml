@@ -19,4 +19,4 @@ tasks:
         path: $maybe_empty
         default: "default-value"
     infer: "Using: {{with.data}}"
-    flow: [maybe_empty]
+    depends_on: [maybe_empty]

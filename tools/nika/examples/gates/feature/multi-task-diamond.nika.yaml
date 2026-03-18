@@ -6,10 +6,10 @@ tasks:
     exec: "echo A"
   - id: b
     exec: "echo B"
-    flow: [a]
+    depends_on: [a]
   - id: c
     exec: "echo C"
-    flow: [a]
+    depends_on: [a]
   - id: d
     exec: "echo D"
-    flow: [b, c]
+    depends_on: [b, c]

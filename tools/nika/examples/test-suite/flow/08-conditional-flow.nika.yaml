@@ -19,9 +19,9 @@ tasks:
     with:
       result: $check_condition
     exec: "echo 'Condition was true'"
-    flow: [check_condition]
+    depends_on: [check_condition]
 
   - id: always_run
     description: "Always runs after condition check"
     exec: "echo 'Always runs'"
-    flow: [check_condition]
+    depends_on: [check_condition]

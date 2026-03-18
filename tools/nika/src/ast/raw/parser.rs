@@ -656,17 +656,15 @@ fn parse_with_refs(
     parse_string_map(file, map, "with")
 }
 
-/// Parse depends_on:/flow: ordering dependencies.
+/// Parse depends_on: ordering dependencies.
 ///
-/// Accepts both `depends_on:` and `flow:` as field names (flow is the alias).
 /// Pure ordering edges — no data flows through them.
 /// Data dependencies are expressed via `with:` bindings.
 fn parse_depends_on(
     file: FileId,
     map: &marked_yaml::types::MarkedMappingNode,
 ) -> Result<Option<Spanned<Vec<Spanned<String>>>>, ParseError> {
-    // depends_on: and flow: are aliases — check both (depends_on takes priority)
-    match map.get_node("depends_on").or_else(|| map.get_node("flow")) {
+    match map.get_node("depends_on") {
         Some(Node::Scalar(s)) => {
             let span = marked_span_to_span(file, s.span());
             Ok(Some(Spanned::new(
@@ -1810,56 +1808,6 @@ tasks:
         assert_eq!(deps.value.len(), 2);
         assert_eq!(deps.value[0].value, "step1");
         assert_eq!(deps.value[1].value, "step2");
-    }
-
-    #[test]
-    fn test_parse_flow_alias_single() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-tasks:
-  - id: a
-    exec: "echo A"
-  - id: b
-    flow: [a]
-    exec: "echo B"
-"#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-        let task = workflow.get_task("b").unwrap();
-
-        let deps = task.value.depends_on.as_ref().expect("flow: should populate depends_on");
-        assert_eq!(deps.value.len(), 1);
-        assert_eq!(deps.value[0].value, "a");
-    }
-
-    #[test]
-    fn test_parse_flow_alias_diamond() {
-        let yaml = r#"
-schema: "nika/workflow@0.12"
-tasks:
-  - id: a
-    exec: "echo A"
-  - id: b
-    flow: [a]
-    exec: "echo B"
-  - id: c
-    flow: [a]
-    exec: "echo C"
-  - id: d
-    flow: [b, c]
-    exec: "echo D"
-"#;
-        let workflow = parse(yaml, FileId(0)).unwrap();
-
-        // b depends on a
-        let b_deps = workflow.get_task("b").unwrap().value.depends_on.as_ref().unwrap();
-        assert_eq!(b_deps.value.len(), 1);
-        assert_eq!(b_deps.value[0].value, "a");
-
-        // d depends on b and c
-        let d_deps = workflow.get_task("d").unwrap().value.depends_on.as_ref().unwrap();
-        assert_eq!(d_deps.value.len(), 2);
-        assert_eq!(d_deps.value[0].value, "b");
-        assert_eq!(d_deps.value[1].value, "c");
     }
 
     #[test]

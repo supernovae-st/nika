@@ -9,4 +9,4 @@ tasks:
     exec:
       command: "echo Info: {{with.info}}"
       shell: true
-    flow: [step1]
+    depends_on: [step1]

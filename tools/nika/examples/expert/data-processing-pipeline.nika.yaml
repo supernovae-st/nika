@@ -248,7 +248,7 @@ tasks:
       max_retries: 2
     artifact:
       path: validation/source-a-validation.json
-    flow: [fetch_source_a]
+    depends_on: [fetch_source_a]
 
   - id: validate_source_b
     description: "Validate source B data quality"
@@ -292,7 +292,7 @@ tasks:
       max_retries: 2
     artifact:
       path: validation/source-b-validation.json
-    flow: [fetch_source_b]
+    depends_on: [fetch_source_b]
 
   - id: validate_source_c
     description: "Validate source C data quality"
@@ -335,7 +335,7 @@ tasks:
       max_retries: 2
     artifact:
       path: validation/source-c-validation.json
-    flow: [fetch_source_c]
+    depends_on: [fetch_source_c]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 3: Data Merge (Diamond Convergence)
@@ -398,7 +398,7 @@ tasks:
       max_retries: 2
     artifact:
       path: transformed/merged-data.json
-    flow: [validate_source_a, validate_source_b, validate_source_c]
+    depends_on: [validate_source_a, validate_source_b, validate_source_c]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 4: Batch Processing
@@ -441,7 +441,7 @@ tasks:
       max_retries: 1
     artifact:
       path: batches/batch-manifest.json
-    flow: [merge_validated_data]
+    depends_on: [merge_validated_data]
 
   - id: process_batches
     description: "Process each batch with enrichment and scoring"
@@ -503,7 +503,7 @@ tasks:
         format: text
         mode: append   # Append to audit log
 
-    flow: [create_batches]
+    depends_on: [create_batches]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 5: Final Aggregation & Reporting
@@ -554,7 +554,7 @@ tasks:
     artifact:
       path: output/aggregated-results.json
 
-    flow: [process_batches]
+    depends_on: [process_batches]
 
   - id: generate_audit_report
     description: "Generate comprehensive audit report"
@@ -595,7 +595,7 @@ tasks:
         format: json
         mode: unique   # Create unique filename if exists
 
-    flow: [aggregate_results]
+    depends_on: [aggregate_results]
 
   # ═══════════════════════════════════════════════════════════════════════════════
   # STAGE 6: Final Output
@@ -626,7 +626,7 @@ tasks:
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
-    flow: [generate_audit_report]
+    depends_on: [generate_audit_report]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE FLOW DIAGRAM (Diamond Pattern)

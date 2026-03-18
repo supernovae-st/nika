@@ -34,7 +34,7 @@ tasks:
       params:
         level: info
         message: "Previous step completed"
-    flow: [first_call]
+    depends_on: [first_call]
 
   - id: parallel_call_a
     description: "Parallel call A"
@@ -67,4 +67,4 @@ tasks:
       params:
         level: info
         message: "Both parallel calls completed"
-    flow: [parallel_call_a, parallel_call_b]
+    depends_on: [parallel_call_a, parallel_call_b]

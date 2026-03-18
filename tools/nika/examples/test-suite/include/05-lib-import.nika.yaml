@@ -16,4 +16,4 @@ tasks:
   - id: use_lib
     description: "Use library tasks"
     exec: "echo 'Using library'"
-    flow: [lib_validate]
+    depends_on: [lib_validate]

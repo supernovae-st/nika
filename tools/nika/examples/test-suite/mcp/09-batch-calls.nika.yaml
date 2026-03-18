@@ -52,4 +52,4 @@ tasks:
       params:
         level: info
         message: "All batch calls complete"
-    flow: [batch_a, batch_b, batch_c]
+    depends_on: [batch_a, batch_b, batch_c]

@@ -164,7 +164,7 @@ tasks:
     output:
       format: text
 
-    flow: [research_ai_news, research_rust_news, research_startup_news]
+    depends_on: [research_ai_news, research_rust_news, research_startup_news]
 
   # =========================================================================
   # LAYER 4: Synthesis (Diamond Join)
@@ -190,7 +190,7 @@ tasks:
     output:
       format: text
 
-    flow: [scrape_hn_frontpage, scrape_techcrunch]
+    depends_on: [scrape_hn_frontpage, scrape_techcrunch]
 
   - id: check_system_health
     description: "Check system health"
@@ -210,7 +210,7 @@ tasks:
     output:
       format: text
 
-    flow: [system_context, fetch_github_status]
+    depends_on: [system_context, fetch_github_status]
 
   # =========================================================================
   # LAYER 5: Final Orchestration (Agent)
@@ -261,7 +261,7 @@ tasks:
       path: briefing.md
       format: text
 
-    flow: [check_system_health, synthesize_scraped_content, generate_topic_summaries, fetch_hacker_news_top]
+    depends_on: [check_system_health, synthesize_scraped_content, generate_topic_summaries, fetch_hacker_news_top]
 
   # =========================================================================
   # LAYER 6: Output & Archive
@@ -279,4 +279,4 @@ tasks:
       echo ""
       echo "{{with.briefing}}"
 
-    flow: [morning_briefing_agent]
+    depends_on: [morning_briefing_agent]

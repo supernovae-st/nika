@@ -16,16 +16,16 @@ tasks:
   - id: step2_forward
     description: "Step 2: Forward action"
     exec: "echo 'Step 2 forward'"
-    flow: [step1_forward]
+    depends_on: [step1_forward]
 
   - id: step3_forward
     description: "Step 3: Forward action"
     exec: "echo 'Step 3 forward'"
-    flow: [step2_forward]
+    depends_on: [step2_forward]
 
   - id: compensate_if_needed
     description: "Compensation check"
     with:
       result: $step3_forward
     exec: "echo 'Checking if compensation needed'"
-    flow: [step3_forward]
+    depends_on: [step3_forward]

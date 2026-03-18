@@ -83,7 +83,7 @@ cargo clippy -- -D warnings  # Zero warnings policy
 - **AST:** Always Raw -> Analyzed -> Lower. Never skip phases.
 - **Providers:** `RigProvider::auto()` for auto-detect. `native` for local GGUF.
 - **Extensions:** `.nika.yaml` for workflows
-- **Dependencies:** `depends_on: [task_id]` (not `flow:` which is a legacy alias)
+- **Dependencies:** `depends_on: [task_id]`
 - **Bindings:** `with: { alias: $task_id }` — `$` prefix required
 - **Timeout:** `timeout:` in seconds (parser converts to ms internally)
 - **Logging:** `tracing` macros
@@ -99,5 +99,5 @@ cargo clippy -- -D warnings  # Zero warnings policy
 | Hardcoding provider | Use `RigProvider::auto()` |
 | `.yaml` extension | Use `.nika.yaml` for workflows |
 | `cargo test` (triggers keychain) | Use `cargo test --lib` |
-| `flow:` for dependencies | Use `depends_on:` (flow is legacy alias) |
+| Missing `depends_on:` | Add `depends_on: [task_id]` for ordering deps |
 | `timeout: 30` meaning 30ms | `timeout: 30` means 30 seconds now |

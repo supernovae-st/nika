@@ -14,11 +14,11 @@ tasks:
 
   - id: process_a
     exec: "echo 'Process A'"
-    flow: [init]
+    depends_on: [init]
 
   - id: process_b
     exec: "echo 'Process B'"
 
   - id: finalize
     exec: "echo 'Finalize'"
-    flow: [process_a]
+    depends_on: [process_a]

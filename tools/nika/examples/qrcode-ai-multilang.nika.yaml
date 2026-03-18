@@ -87,7 +87,7 @@ tasks:
     artifact:
       path: locales/{{with.locale}}.json
 
-    flow: [get_entity]
+    depends_on: [get_entity]
 
   # Step 3: Generate hero section for French (primary locale)
   - id: generate_hero_fr
@@ -135,7 +135,7 @@ tasks:
     artifact:
       path: hero-fr.json
 
-    flow: [generate_locales]
+    depends_on: [generate_locales]
 
   # Step 4: Log results
   - id: log_output
@@ -149,4 +149,4 @@ tasks:
       echo "Locales processed: {{inputs.locales | length}}"
       echo "Artifacts written to: ./landing-pages/"
 
-    flow: [generate_hero_fr]
+    depends_on: [generate_hero_fr]

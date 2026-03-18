@@ -32,4 +32,4 @@ tasks:
       nullish: $null_like
       spaces: $whitespace
     infer: "Processing edge cases"
-    flow: [special_chars, empty_output, null_like, whitespace]
+    depends_on: [special_chars, empty_output, null_like, whitespace]

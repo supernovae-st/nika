@@ -18,4 +18,4 @@ tasks:
     with:
       message: $source
     exec: "echo 'Received: {{with.message}}'"
-    flow: [source]
+    depends_on: [source]

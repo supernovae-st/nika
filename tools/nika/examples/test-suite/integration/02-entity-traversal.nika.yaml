@@ -54,7 +54,7 @@ tasks:
         limit: 10
     output:
       format: json
-    flow: [introspect_entity]
+    depends_on: [introspect_entity]
 
   # Test 3: novanet_search (walk mode) - Explore from entity
   - id: traverse_entity
@@ -70,7 +70,7 @@ tasks:
         direction: outgoing
     output:
       format: json
-    flow: [search_entities]
+    depends_on: [search_entities]
 
   # Test 4: Verify traversal found nodes
   - id: verify_traversal
@@ -85,4 +85,4 @@ tasks:
           )
         '
       shell: true
-    flow: [traverse_entity]
+    depends_on: [traverse_entity]

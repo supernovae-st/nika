@@ -28,4 +28,4 @@ tasks:
       params:
         level: info
         message: "Value is: {{with.val}}"
-    flow: [get_value]
+    depends_on: [get_value]

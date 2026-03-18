@@ -90,7 +90,7 @@ tasks:
             type: string
             minLength: 3
       max_retries: 2
-    flow: [assemble_context]
+    depends_on: [assemble_context]
 
   # Step 3: Validate output structure
   - id: validate_hero
@@ -107,7 +107,7 @@ tasks:
           (.description | length) >= 20
         '
       shell: true
-    flow: [generate_hero]
+    depends_on: [generate_hero]
 
   # Step 4: Log success
   - id: log_success
@@ -118,4 +118,4 @@ tasks:
       command: |
         echo "Content generation successful: {{with.hero.headline}}"
       shell: true
-    flow: [validate_hero]
+    depends_on: [validate_hero]

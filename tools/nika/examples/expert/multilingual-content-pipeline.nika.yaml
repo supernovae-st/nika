@@ -233,7 +233,7 @@ tasks:
       - path: content/{{with.locale.code}}/meta.yaml
         format: yaml
 
-    flow: [load_entity, define_locales]
+    depends_on: [load_entity, define_locales]
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 4: Quality Assessment
@@ -292,7 +292,7 @@ tasks:
     artifact:
       path: reports/quality-assessment.json
 
-    flow: [generate_locale_content]
+    depends_on: [generate_locale_content]
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 5: Generate Summary Report
@@ -326,7 +326,7 @@ tasks:
       path: reports/pipeline-summary.md
       format: text
 
-    flow: [quality_assessment]
+    depends_on: [quality_assessment]
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 6: Output Results
@@ -357,7 +357,7 @@ tasks:
       echo ""
       echo "═══════════════════════════════════════════════════════════════"
 
-    flow: [generate_report]
+    depends_on: [generate_report]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLOW DIAGRAM

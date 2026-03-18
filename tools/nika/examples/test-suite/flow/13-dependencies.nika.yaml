@@ -14,24 +14,24 @@ tasks:
 
   - id: layer1_a
     exec: "echo 'Layer 1A'"
-    flow: [base]
+    depends_on: [base]
 
   - id: layer1_b
     exec: "echo 'Layer 1B'"
-    flow: [base]
+    depends_on: [base]
 
   - id: layer2
     exec: "echo 'Layer 2'"
-    flow: [layer1_a, layer1_b]
+    depends_on: [layer1_a, layer1_b]
 
   - id: layer3_a
     exec: "echo 'Layer 3A'"
-    flow: [layer2]
+    depends_on: [layer2]
 
   - id: layer3_b
     exec: "echo 'Layer 3B'"
-    flow: [layer2]
+    depends_on: [layer2]
 
   - id: top
     exec: "echo 'Top layer'"
-    flow: [layer3_a, layer3_b]
+    depends_on: [layer3_a, layer3_b]

@@ -167,7 +167,7 @@ tasks:
     artifact:
       path: brainstorm-ideas.json
 
-    flow: [research]
+    depends_on: [research]
 
   # ========================================================================
   # PHASE 3: Refinement
@@ -241,4 +241,4 @@ tasks:
     artifact:
       path: refined-idea.json
 
-    flow: [brainstorm]
+    depends_on: [brainstorm]

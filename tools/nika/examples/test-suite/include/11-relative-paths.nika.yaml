@@ -16,4 +16,4 @@ tasks:
   - id: check_relative
     description: "Verify relative path worked"
     exec: "echo 'Relative path OK'"
-    flow: [rel_validate]
+    depends_on: [rel_validate]

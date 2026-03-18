@@ -9,4 +9,4 @@ tasks:
     exec:
       command: "echo Type is {{with.val}}"
       shell: true
-    flow: [gen]
+    depends_on: [gen]

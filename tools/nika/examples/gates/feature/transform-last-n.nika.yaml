@@ -12,4 +12,4 @@ tasks:
     exec:
       command: "echo {{with.val}}"
       shell: true
-    flow: [gen]
+    depends_on: [gen]

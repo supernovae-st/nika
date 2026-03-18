@@ -37,4 +37,4 @@ tasks:
       f2: $fan_out_2
       f3: $fan_out_3
     exec: "echo 'Aggregated'"
-    flow: [parallel_batch, fan_out, fan_out_2, fan_out_3]
+    depends_on: [parallel_batch, fan_out, fan_out_2, fan_out_3]

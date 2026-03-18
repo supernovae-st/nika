@@ -17,7 +17,7 @@ tasks:
   - id: dependent_task
     description: "Depends on risky task"
     exec: "echo 'After risky'"
-    flow: [risky_task]
+    depends_on: [risky_task]
 
   - id: independent_task
     description: "Independent of risky task"

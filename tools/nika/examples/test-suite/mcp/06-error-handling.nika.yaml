@@ -26,4 +26,4 @@ tasks:
   - id: after_error
     description: "Task after potential error"
     exec: "echo 'After error handling'"
-    flow: [valid_call]
+    depends_on: [valid_call]

@@ -50,7 +50,7 @@ tasks:
           .node_classes | length > 0
         '
       shell: true
-    flow: [describe_schema]
+    depends_on: [describe_schema]
 
   # Test 3: novanet_describe (stats)
   - id: describe_stats
@@ -62,7 +62,7 @@ tasks:
         describe: stats
     output:
       format: json
-    flow: [verify_schema_structure]
+    depends_on: [verify_schema_structure]
 
   # Test 4: Verify stats response
   - id: verify_stats
@@ -75,4 +75,4 @@ tasks:
           has("total_nodes") or has("node_count") or type == "object"
         '
       shell: true
-    flow: [describe_stats]
+    depends_on: [describe_stats]

@@ -14,8 +14,8 @@ tasks:
 
   - id: second
     exec: "echo 'Second'"
-    flow: [first]
+    depends_on: [first]
 
   - id: third
     exec: "echo 'Third'"
-    flow: [second]
+    depends_on: [second]

@@ -20,4 +20,4 @@ tasks:
   - id: use_context
     description: "Use merged context"
     infer: "Process: {{context.files.readme}}"
-    flow: [ctx_validate]
+    depends_on: [ctx_validate]

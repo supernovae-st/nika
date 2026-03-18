@@ -20,4 +20,4 @@ tasks:
         lazy: true
         default: "fallback"
     infer: "Using data: {{with.data}}"
-    flow: [early_task]
+    depends_on: [early_task]

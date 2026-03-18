@@ -18,4 +18,4 @@ tasks:
   - id: use_package
     description: "Use package tasks"
     exec: "echo 'Using package'"
-    flow: [pkg_validate]
+    depends_on: [pkg_validate]

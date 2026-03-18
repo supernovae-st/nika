@@ -222,7 +222,7 @@ tasks:
     artifact:
       path: research/topic-research.json
 
-    flow: [check_calendar, get_trends, web_search, scrape_competitors]
+    depends_on: [check_calendar, get_trends, web_search, scrape_competitors]
 
   # -------------------------------------------------------------------------
   # PHASE 4: Content Structure & Metadata
@@ -254,7 +254,7 @@ tasks:
       path: outline/article-outline.md
       format: text
 
-    flow: [research_topics]
+    depends_on: [research_topics]
 
   - id: generate_metadata
     description: "Generate SEO metadata"
@@ -301,7 +301,7 @@ tasks:
     artifact:
       path: metadata/seo-metadata.json
 
-    flow: [research_topics, generate_outline]
+    depends_on: [research_topics, generate_outline]
 
   # -------------------------------------------------------------------------
   # PHASE 5: Article Writing
@@ -346,7 +346,7 @@ tasks:
       path: article/final-article.md
       format: text
 
-    flow: [generate_outline, generate_metadata]
+    depends_on: [generate_outline, generate_metadata]
 
   # -------------------------------------------------------------------------
   # PHASE 6: Multi-Platform Content Adaptation
@@ -389,7 +389,7 @@ tasks:
       path: platforms/{{platform.name}}.md
       format: text
 
-    flow: [write_article]
+    depends_on: [write_article]
 
   # -------------------------------------------------------------------------
   # PHASE 7: Quality Assurance
@@ -453,7 +453,7 @@ tasks:
     artifact:
       path: validation/quality-report.json
 
-    flow: [render_platforms]
+    depends_on: [render_platforms]
 
   # -------------------------------------------------------------------------
   # PHASE 8: Publication Preparation
@@ -481,7 +481,7 @@ tasks:
     artifact:
       path: publication/package.json
 
-    flow: [validate_content]
+    depends_on: [validate_content]
 
   - id: save_and_notify
     description: "Save content and generate report"
@@ -502,4 +502,4 @@ tasks:
       echo "  - validation/quality-report.json"
       echo "  - publication/package.json"
 
-    flow: [prepare_publication]
+    depends_on: [prepare_publication]

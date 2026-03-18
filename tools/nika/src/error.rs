@@ -787,7 +787,7 @@ impl FixSuggestion for NikaError {
             NikaError::TemplateParse { .. } => Some("Check template syntax: {{with.alias}}"),
             NikaError::WithUnknownTask { .. } => Some("Verify the task_id exists in your workflow"),
             NikaError::WithNotUpstream { .. } => {
-                Some("Add a flow from the source task to this task")
+                Some("Add depends_on: [source_task] to this task")
             }
             NikaError::WithCircularDep { .. } => Some("Remove the circular dependency"),
             NikaError::JsonPathUnsupported { .. } => Some("Use simple paths like $.field.subfield"),

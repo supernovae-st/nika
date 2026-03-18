@@ -11,4 +11,4 @@ tasks:
     exec:
       command: "echo Values are {{with.val}}"
       shell: true
-    flow: [gen]
+    depends_on: [gen]
