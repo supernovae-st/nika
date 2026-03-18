@@ -67,6 +67,7 @@ tasks:
   # 1. LLM content may contain quotes that break shell parsing (shell: false default)
   # 2. output.schema enforces structured JSON response
   - id: prepare_for_seo
+    depends_on: [generate_content]
     description: "Prepare content for SEO analysis"
     infer:
       prompt: |
@@ -102,6 +103,7 @@ tasks:
   # --------------------------------------------------------------------------
   # References prefixed task outputs from included workflow
   - id: assemble_page
+    depends_on: [generate_content, seo_generate_title, seo_generate_meta]
     description: "Assemble final page with SEO elements"
     with:
       seo_title: $seo_generate_title
@@ -118,21 +120,4 @@ tasks:
 
       Return the complete HTML document.
 
-# ============================================================================
-# Flows
-# ============================================================================
-# Connect main tasks to included tasks (using prefixed IDs)
-# ============================================================================
-
-
-  # Connect to included SEO tasks (prefixed with seo_)
-  - source: prepare_for_seo
-    target: seo_analyze_keywords
-
-  # Final assembly depends on SEO tasks (prefixed)
-  - source: seo_generate_meta
-    target: assemble_page
-  - source: seo_generate_title
-    target: assemble_page
-  - source: generate_content
-    target: assemble_page
+# Dependencies are now expressed via depends_on: on each task (see above).

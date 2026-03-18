@@ -20,11 +20,9 @@ tasks:
       shell: true
 
   - id: lazy_with_default
+    depends_on: [slow_producer]
     with:
-      slow_data:
-        path: $slow_producer
-        lazy: true
-        default: "fallback_value"
+      slow_data: $slow_producer ?? "fallback_value"
     exec: "echo 'Got lazy data'"
 
   # Test 3: Multiple bindings
