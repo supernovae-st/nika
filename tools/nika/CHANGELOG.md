@@ -7,6 +7,55 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.30.5](https://github.com/supernovae-st/nika/releases/tag/v0.30.5) - 2026-03-18
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.5 — DEEP AUDIT + INIT OVERHAUL                            |
+|                                                                             |
+|     519 gate workflows | 15-agent swarm | 25+ bug fixes | nika init e2e   |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **519 audit gate workflows** across 5 categories: feature (168), combo (50), error (50),
+  complex (100), use-case (30)
+- `util::truncate_str()` — UTF-8-safe string truncation helper
+- `PatternConfig::new()` constructor for cleaner completion config creation
+
+### Fixed
+
+- **UTF-8 panic** — Runner crashed on CJK/emoji in output preview (6 truncation sites fixed)
+- **`--quiet` flag was no-op** — Now correctly suppresses all non-error output
+- **Timeout unit mismatch** — unlower() lost 1000x on ms↔seconds round-trip
+- **`parallel: 0` deadlock** — Semaphore(0) blocked forever, now clamped to min 1
+- **`nika:run` edge cases** — timeout:0 and max_depth:0 now clamped to min 1
+- **MCP retry on non-retryable errors** — InvalidParams no longer retried uselessly
+- **MCP start errors non-retryable** — Saves 30s/retry when server binary missing
+- **MCP env var injection** — LD_PRELOAD/DYLD_INSERT_LIBRARIES now blocked in MCP configs
+- **MCP non-object params** — Silent None replaced with clear error message
+- **Edit tool empty old_string** — Reject instead of catastrophic str::replace("", x)
+- **nika init workflows** — Nuclear delete of old source/target flow syntax from all 30 templates
+- **nika init schema version** — Fixed 0.30.5 → 0.12 in tier-2 templates
+- **nika init timeout values** — Fixed seconds → milliseconds (30 → 30000)
+- **nika init artifact paths** — Replaced invalid {{date}} with static names
+
+### Performance
+
+- **Regex caching** — PatternConfig now compiles regex once with OnceLock (was recompiling every agent turn)
+
+### Changed
+
+- Grep tool: required schema fields reduced from 9 to 1 (`pattern` only)
+- Run tool: required schema fields reduced from 4 to 1 (`workflow` only)
+- CLAUDE.md: added 5 missing error code ranges (060-069, 120-139, 250-279)
+- README badges updated to 5,212 tests
+
+---
+
 ## [0.30.3](https://github.com/supernovae-st/nika/releases/tag/v0.30.3) - 2026-03-17
 
 ```
