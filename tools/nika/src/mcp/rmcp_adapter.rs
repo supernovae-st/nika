@@ -501,17 +501,30 @@ impl RmcpClientAdapter {
                 uri: uri.to_string(),
             })?;
 
-        // Build ResourceContent from rmcp response
-        // Serialize the resource content as JSON for simplicity
-        let text = serde_json::to_string(resource).map_err(|e| NikaError::McpToolError {
-            tool: "resources/read".to_string(),
-            reason: format!("Failed to serialize resource: {}", e),
-            error_code: None, // Serialization errors are internal
-        })?;
-
-        let content = ResourceContent::new(uri)
-            .with_text(&text)
-            .with_mime_type("application/json");
+        // Build ResourceContent from rmcp response, preserving blob data
+        use rmcp::model::ResourceContents;
+        let content = match resource {
+            ResourceContents::TextResourceContents {
+                text, mime_type, ..
+            } => {
+                let mut rc = ResourceContent::new(uri);
+                rc = rc.with_text(text.clone());
+                if let Some(mime) = mime_type {
+                    rc = rc.with_mime_type(mime.as_str());
+                }
+                rc
+            }
+            ResourceContents::BlobResourceContents {
+                blob, mime_type, ..
+            } => {
+                let mut rc = ResourceContent::new(uri);
+                rc = rc.with_blob(blob.clone());
+                if let Some(mime) = mime_type {
+                    rc = rc.with_mime_type(mime.as_str());
+                }
+                rc
+            }
+        };
 
         Ok(content)
     }

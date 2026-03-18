@@ -3269,4 +3269,356 @@ mod tests {
             "RunBudgetExceeded should NOT be recoverable");
         assert_eq!(nika_err.code(), "NIKA-259");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MONSTER INTEGRATION TEST
+    // Exercises the ENTIRE media pipeline end-to-end:
+    //   ContentBlock -> MediaProcessor -> CAS -> staging -> TaskResult
+    //   -> RunContext.insert -> resolve_path (all variants)
+    //   -> binding bridge (BindingEntry -> ResolvedBindings)
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn monster_full_pipeline_with_binding_bridge() {
+        use crate::binding::{BindingEntry, BindingSpec, ResolvedBindings};
+        use crate::store::TaskResult;
+        use std::time::Duration;
+
+        // ───────────────────────────────────────────────────
+        // Step 1: Create 3 ContentBlocks: 2 images (PNG) + 1 text
+        // ───────────────────────────────────────────────────
+
+        // PNG #1: the standard minimal PNG
+        let png1_bytes = real_png_bytes();
+        let png1_b64 = encode_b64(&png1_bytes);
+
+        // PNG #2: same header but with an extra byte to make it unique
+        let mut png2_bytes = real_png_bytes();
+        png2_bytes.push(0xFF); // different content -> different hash
+        let png2_b64 = encode_b64(&png2_bytes);
+
+        let blocks = vec![
+            ContentBlock::image(png1_b64, "image/png"),
+            ContentBlock::text("This text block should be filtered out"),
+            ContentBlock::image(png2_b64, "image/png"),
+        ];
+
+        // ───────────────────────────────────────────────────
+        // Step 2: Process through MediaProcessor -> CAS store
+        // ───────────────────────────────────────────────────
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let budget = Arc::new(MediaBudget::new());
+        let processor = MediaProcessor::with_shared_budget(store, Arc::clone(&budget));
+
+        let results = processor.process_all(&blocks, "monster_task").await;
+
+        // Text block is filtered -> only 2 results
+        assert_eq!(results.len(), 2,
+            "process_all should return 2 results (text filtered), got {}", results.len());
+
+        let mut media_refs: Vec<MediaRef> = Vec::new();
+        for (i, result) in results.into_iter().enumerate() {
+            let (media_ref, store_result) = result
+                .unwrap_or_else(|(_idx, e)| panic!("Block {i} failed: {e}"));
+            assert!(media_ref.hash.starts_with("blake3:"),
+                "media_ref[{i}] hash should start with blake3:");
+            assert_eq!(media_ref.mime_type, "image/png",
+                "media_ref[{i}] mime_type should be image/png");
+            assert_eq!(media_ref.extension, "png",
+                "media_ref[{i}] extension should be png");
+            assert!(media_ref.size_bytes > 0,
+                "media_ref[{i}] size_bytes should be > 0");
+            assert_eq!(media_ref.created_by, "monster_task",
+                "media_ref[{i}] created_by should be monster_task");
+            assert!(store_result.path.exists(),
+                "CAS file should exist for media_ref[{i}]");
+            media_refs.push(media_ref);
+        }
+
+        // Two different PNGs must produce different hashes
+        assert_ne!(media_refs[0].hash, media_refs[1].hash,
+            "Two different PNG byte sequences must produce different blake3 hashes");
+
+        // Verify hashes are correct blake3 computations
+        let expected_hash_0 = format!("blake3:{}", blake3::hash(&png1_bytes).to_hex());
+        let expected_hash_1 = format!("blake3:{}", blake3::hash(&png2_bytes).to_hex());
+        assert_eq!(media_refs[0].hash, expected_hash_0);
+        assert_eq!(media_refs[1].hash, expected_hash_1);
+
+        // Budget should have tracked both images
+        assert!(budget.current_bytes() > 0, "Budget should have tracked bytes");
+        assert_eq!(
+            budget.current_bytes(),
+            (png1_bytes.len() + png2_bytes.len()) as u64,
+            "Budget should equal total decoded bytes"
+        );
+
+        // ───────────────────────────────────────────────────
+        // Step 3: Stage in RunContext via set_media
+        // ───────────────────────────────────────────────────
+
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "monster_task".into();
+
+        ctx.set_media(&task_id, media_refs.clone());
+
+        // ───────────────────────────────────────────────────
+        // Step 4: Take from RunContext via take_media
+        // ───────────────────────────────────────────────────
+
+        let taken = ctx.take_media(&task_id);
+        assert_eq!(taken.len(), 2,
+            "take_media should return 2 staged refs, got {}", taken.len());
+
+        // Verify take_media drains the staging area
+        let taken_again = ctx.take_media(&task_id);
+        assert!(taken_again.is_empty(),
+            "Second take_media must return empty (staging drained)");
+
+        // ───────────────────────────────────────────────────
+        // Step 5: Build TaskResult with with_media
+        // ───────────────────────────────────────────────────
+
+        let tr = TaskResult::success(
+            serde_json::json!({"description": "Monster generated", "quality": 99}),
+            Duration::from_millis(42),
+        ).with_media(taken);
+
+        assert_eq!(tr.media.len(), 2, "TaskResult should carry 2 media refs");
+        assert!(tr.is_success(), "with_media should preserve success status");
+
+        // ───────────────────────────────────────────────────
+        // Step 6: Insert into RunContext
+        // ───────────────────────────────────────────────────
+
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Also insert a task with NO media for the empty-media test
+        let no_media_id: Arc<str> = "no_media_task".into();
+        let no_media_tr = TaskResult::success(
+            serde_json::json!("text only result"),
+            Duration::from_millis(5),
+        );
+        ctx.insert(Arc::clone(&no_media_id), no_media_tr);
+
+        // ───────────────────────────────────────────────────
+        // Step 7: Test EVERY resolve_path variant
+        // ───────────────────────────────────────────────────
+
+        // 7a: task.media -> full array (2 items, not 3 — text was filtered)
+        let media_val = ctx.resolve_path("monster_task.media")
+            .expect("resolve_path('monster_task.media') should return Some");
+        let media_arr = media_val.as_array()
+            .expect("media should be a JSON array");
+        assert_eq!(media_arr.len(), 2,
+            "media array should have 2 items (text block was filtered)");
+
+        // 7b: task.media[0].hash -> starts with "blake3:"
+        let hash_0 = ctx.resolve_path("monster_task.media[0].hash")
+            .expect("media[0].hash should exist");
+        let hash_0_str = hash_0.as_str().expect("hash should be a string");
+        assert!(hash_0_str.starts_with("blake3:"),
+            "hash should start with blake3:, got: {}", hash_0_str);
+        assert_eq!(hash_0_str, expected_hash_0,
+            "hash[0] should match blake3 of png1");
+
+        // 7c: task.media[0].mime_type -> "image/png"
+        let mime_0 = ctx.resolve_path("monster_task.media[0].mime_type")
+            .expect("media[0].mime_type should exist");
+        assert_eq!(mime_0, "image/png");
+
+        // 7d: task.media[0].extension -> "png"
+        let ext_0 = ctx.resolve_path("monster_task.media[0].extension")
+            .expect("media[0].extension should exist");
+        assert_eq!(ext_0, "png");
+
+        // 7e: task.media[0].size_bytes -> > 0
+        let size_0 = ctx.resolve_path("monster_task.media[0].size_bytes")
+            .expect("media[0].size_bytes should exist");
+        assert!(size_0.as_u64().unwrap() > 0,
+            "size_bytes should be > 0, got {}", size_0);
+        assert_eq!(size_0.as_u64().unwrap(), png1_bytes.len() as u64,
+            "size_bytes should match actual PNG byte count");
+
+        // 7f: task.media[0].path -> contains the CAS shard directory
+        let path_0 = ctx.resolve_path("monster_task.media[0].path")
+            .expect("media[0].path should exist");
+        let path_0_str = path_0.as_str().expect("path should be a string");
+        // CAS uses 2-char shard directories; the hash hex starts after "blake3:"
+        let hash_hex_0 = &expected_hash_0["blake3:".len()..];
+        let shard_0 = &hash_hex_0[..2];
+        assert!(path_0_str.contains(shard_0),
+            "path should contain 2-char shard dir '{}': {}", shard_0, path_0_str);
+
+        // 7g: task.media[0].created_by -> "monster_task"
+        let created_0 = ctx.resolve_path("monster_task.media[0].created_by")
+            .expect("media[0].created_by should exist");
+        assert_eq!(created_0, "monster_task");
+
+        // 7h: task.media[1].hash -> different from [0]
+        let hash_1 = ctx.resolve_path("monster_task.media[1].hash")
+            .expect("media[1].hash should exist");
+        let hash_1_str = hash_1.as_str().expect("hash[1] should be a string");
+        assert_ne!(hash_0_str, hash_1_str,
+            "media[0].hash and media[1].hash must differ (different PNG data)");
+        assert_eq!(hash_1_str, expected_hash_1);
+
+        // 7i: task.media[99].hash -> None (out of bounds)
+        let oob = ctx.resolve_path("monster_task.media[99].hash");
+        assert!(oob.is_none(),
+            "Out-of-bounds media[99].hash should return None, got {:?}", oob);
+
+        // 7j: task.media when task has no media -> empty array
+        let empty_media = ctx.resolve_path("no_media_task.media")
+            .expect("resolve_path for task with no media should return Some");
+        let empty_arr = empty_media.as_array()
+            .expect("empty media should be an array");
+        assert!(empty_arr.is_empty(),
+            "task with no media should return empty array, got {:?}", empty_arr);
+
+        // 7k: task.output_field -> still works (not shadowed by media interception)
+        let desc = ctx.resolve_path("monster_task.description")
+            .expect("non-media output field should still resolve");
+        assert_eq!(desc, "Monster generated",
+            "output field should not be shadowed by media");
+        let quality = ctx.resolve_path("monster_task.quality")
+            .expect("numeric output field should still resolve");
+        assert_eq!(quality, 99);
+
+        // ───────────────────────────────────────────────────
+        // Step 8: Test the binding bridge
+        //   BindingEntry -> ResolvedBindings::from_binding_spec
+        //   This exercises resolve_entry() with media path interception
+        // ───────────────────────────────────────────────────
+
+        let mut spec: BindingSpec = BindingSpec::default();
+
+        // Binding that reads the full media array
+        spec.insert(
+            "all_media".into(),
+            BindingEntry::new("monster_task.media"),
+        );
+        // Binding that reads a specific media field
+        spec.insert(
+            "first_hash".into(),
+            BindingEntry::new("monster_task.media[0].hash"),
+        );
+        // Binding that reads media[1].mime_type
+        spec.insert(
+            "second_mime".into(),
+            BindingEntry::new("monster_task.media[1].mime_type"),
+        );
+        // Binding that reads a regular (non-media) output field
+        spec.insert(
+            "desc".into(),
+            BindingEntry::new("monster_task.description"),
+        );
+        // Binding that reads media from a task with no media
+        spec.insert(
+            "empty".into(),
+            BindingEntry::new("no_media_task.media"),
+        );
+        // Binding that reads out-of-bounds with a default
+        spec.insert(
+            "oob_safe".into(),
+            BindingEntry::with_default(
+                "monster_task.media[99].hash",
+                serde_json::json!("no_such_media"),
+            ),
+        );
+        // Binding that reads media[0].size_bytes
+        spec.insert(
+            "img_size".into(),
+            BindingEntry::new("monster_task.media[0].size_bytes"),
+        );
+        // Binding that reads media[0].extension
+        spec.insert(
+            "img_ext".into(),
+            BindingEntry::new("monster_task.media[0].extension"),
+        );
+        // Binding that reads media[0].created_by
+        spec.insert(
+            "img_author".into(),
+            BindingEntry::new("monster_task.media[0].created_by"),
+        );
+        // Binding that reads media[0].path
+        spec.insert(
+            "img_path".into(),
+            BindingEntry::new("monster_task.media[0].path"),
+        );
+
+        let resolved = ResolvedBindings::from_binding_spec(Some(&spec), &ctx)
+            .expect("from_binding_spec should succeed for all media bindings");
+
+        // Verify all_media binding
+        let all_media = resolved.get("all_media")
+            .expect("all_media binding should be resolved");
+        assert!(all_media.is_array());
+        assert_eq!(all_media.as_array().unwrap().len(), 2);
+
+        // Verify first_hash binding
+        let first_hash = resolved.get("first_hash")
+            .expect("first_hash binding should be resolved");
+        assert_eq!(first_hash.as_str().unwrap(), expected_hash_0,
+            "first_hash binding should match direct resolve_path result");
+
+        // Verify second_mime binding
+        let second_mime = resolved.get("second_mime")
+            .expect("second_mime binding should be resolved");
+        assert_eq!(second_mime, "image/png");
+
+        // Verify desc binding (non-media, must not be affected)
+        let desc_binding = resolved.get("desc")
+            .expect("desc binding (non-media) should be resolved");
+        assert_eq!(desc_binding, "Monster generated");
+
+        // Verify empty binding (task with no media -> empty array)
+        let empty_binding = resolved.get("empty")
+            .expect("empty binding should be resolved");
+        assert!(empty_binding.is_array());
+        assert!(empty_binding.as_array().unwrap().is_empty());
+
+        // Verify oob_safe binding (out-of-bounds with default)
+        let oob_binding = resolved.get("oob_safe")
+            .expect("oob_safe binding should be resolved");
+        assert_eq!(oob_binding, "no_such_media",
+            "Out-of-bounds media path should fall back to default");
+
+        // Verify img_size binding
+        let img_size = resolved.get("img_size")
+            .expect("img_size binding should be resolved");
+        assert_eq!(img_size.as_u64().unwrap(), png1_bytes.len() as u64);
+
+        // Verify img_ext binding
+        let img_ext = resolved.get("img_ext")
+            .expect("img_ext binding should be resolved");
+        assert_eq!(img_ext, "png");
+
+        // Verify img_author binding
+        let img_author = resolved.get("img_author")
+            .expect("img_author binding should be resolved");
+        assert_eq!(img_author, "monster_task");
+
+        // Verify img_path binding
+        let img_path = resolved.get("img_path")
+            .expect("img_path binding should be resolved");
+        let img_path_str = img_path.as_str().expect("path should be a string");
+        assert!(img_path_str.contains(shard_0),
+            "binding img_path should contain CAS shard dir: {}", img_path_str);
+
+        // ───────────────────────────────────────────────────
+        // Final sanity: verify CAS files on disk are intact
+        // ───────────────────────────────────────────────────
+        let stored_data_0 = tokio::fs::read(&media_refs[0].path).await
+            .expect("CAS file for media_ref[0] should be readable");
+        assert_eq!(stored_data_0, png1_bytes,
+            "CAS stored data for png1 must match original bytes");
+
+        let stored_data_1 = tokio::fs::read(&media_refs[1].path).await
+            .expect("CAS file for media_ref[1] should be readable");
+        assert_eq!(stored_data_1, png2_bytes,
+            "CAS stored data for png2 must match original bytes");
+    }
 }

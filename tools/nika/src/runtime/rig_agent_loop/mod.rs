@@ -45,7 +45,7 @@ use crate::ast::AgentParams;
 use crate::error::NikaError;
 use crate::event::EventLog;
 use crate::mcp::McpClient;
-use crate::provider::rig::{NikaMcpTool, NikaMcpToolDef};
+use crate::provider::rig::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
 use crate::runtime::submit_tool::DynamicSubmitTool;
 use crate::runtime::SkillInjector;
 use crate::tools::{
@@ -105,6 +105,10 @@ pub struct RigAgentLoop {
     skills_map: Option<std::collections::HashMap<String, String>>,
     /// Base directory for resolving skill paths
     base_dir: Option<PathBuf>,
+    /// Shared media staging for agent tool calls (H1 side-channel).
+    /// Binary content blocks from MCP tools are collected here since
+    /// rig's ToolDyn::call() returns String only.
+    pub media_staging: AgentMediaStaging,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -114,6 +118,7 @@ impl std::fmt::Debug for RigAgentLoop {
             .field("params", &self.params)
             .field("tool_count", &self.tools.len())
             .field("history_len", &self.history.len())
+            .field("media_staged", &self.media_staging.len())
             .finish_non_exhaustive()
     }
 }
@@ -186,8 +191,11 @@ impl RigAgentLoop {
             }
         }
 
-        // Build tools from MCP clients
-        let mut tools = Self::build_tools(&params.mcp, &mcp_clients)?;
+        // Create shared media staging for agent tool calls (H1 side-channel)
+        let media_staging: AgentMediaStaging = Arc::new(dashmap::DashMap::new());
+
+        // Build tools from MCP clients (with media staging for binary content)
+        let mut tools = Self::build_tools(&params.mcp, &mcp_clients, &media_staging)?;
 
         // Add spawn_agent tool if depth_limit allows spawning (MVP 8 Phase 2)
         // Default depth is 1 (root agent). Child agents get higher depths via spawn_agent.
@@ -341,6 +349,7 @@ impl RigAgentLoop {
             skill_injector: None,
             skills_map: None,
             base_dir: None,
+            media_staging,
         })
     }
 
@@ -521,10 +530,25 @@ impl RigAgentLoop {
             .collect()
     }
 
-    /// Build NikaMcpTool instances from MCP clients
+    /// Drain collected media content blocks from all agent tool calls.
+    ///
+    /// Returns all ContentBlocks that were staged during the agent loop.
+    /// The DashMap is drained (emptied) after this call.
+    pub fn drain_media(&self) -> Vec<crate::mcp::types::ContentBlock> {
+        let mut all_blocks = Vec::new();
+        // Drain all entries from the staging map
+        for entry in self.media_staging.iter() {
+            all_blocks.extend(entry.value().iter().cloned());
+        }
+        self.media_staging.clear();
+        all_blocks
+    }
+
+    /// Build NikaMcpTool instances from MCP clients with media staging
     fn build_tools(
         mcp_names: &[String],
         mcp_clients: &FxHashMap<String, Arc<McpClient>>,
+        media_staging: &AgentMediaStaging,
     ) -> Result<Vec<Arc<dyn rig::tool::ToolDyn>>, NikaError> {
         let mut tools: Vec<Arc<dyn rig::tool::ToolDyn>> = Vec::new();
 
@@ -536,11 +560,10 @@ impl RigAgentLoop {
                 })?;
 
             // Get tool definitions from MCP client
-            // For now, we'll get mock tools if client is in mock mode
             let tool_defs = client.get_tool_definitions();
 
             for def in tool_defs {
-                let tool = NikaMcpTool::with_client(
+                let tool = NikaMcpTool::with_media_staging(
                     NikaMcpToolDef {
                         name: def.name.clone(),
                         description: def.description.clone().unwrap_or_default(),
@@ -550,6 +573,7 @@ impl RigAgentLoop {
                             .unwrap_or_else(|| serde_json::json!({"type": "object"})),
                     },
                     client.clone(),
+                    Arc::clone(media_staging),
                 );
                 tools.push(Arc::new(tool));
             }
