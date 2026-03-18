@@ -3,17 +3,16 @@
 //! Handles binary content (images, audio, documents) from MCP tool results.
 //! Uses Content-Addressable Storage (CAS) with blake3 hashing.
 
-pub mod detect;
-pub mod error;
-pub mod processor;
-pub mod store;
+pub(crate) mod detect;
+pub(crate) mod error;
+pub(crate) mod processor;
+pub(crate) mod store;
 #[cfg(test)]
 mod tests_e2e;
-pub mod types;
+pub(crate) mod types;
 
-pub use detect::{detect_mime, DetectedMime, DetectionSource};
-pub use error::MediaError;
-pub use processor::MediaProcessor;
-pub use store::{CasStore, CleanResult, StoreResult};
-pub use types::{MediaBudget, MediaRef, MediaType};
+pub(crate) use error::MediaError;
+pub(crate) use processor::MediaProcessor;
+pub(crate) use store::CasStore;
+pub(crate) use types::{MediaBudget, MediaRef};
 

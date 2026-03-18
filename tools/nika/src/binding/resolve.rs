@@ -359,6 +359,32 @@ fn resolve_entry(
     // Split path into task_id and remaining path
     let (task_id, field_path) = split_path(path);
 
+    // Intercept media paths: task_id.media, task_id.media[0].hash, etc.
+    // The media side-channel is in TaskResult.media, not in TaskResult.output,
+    // so get_output() cannot see it. Delegate to resolve_path() which handles
+    // both output and media resolution.
+    if let Some(fp) = field_path {
+        if fp == "media" || fp.starts_with("media.") || fp.starts_with("media[") {
+            let value = datastore.resolve_path(path);
+            return match value {
+                Some(v) if !v.is_null() => Ok(v),
+                Some(_) => entry
+                    .default
+                    .as_ref()
+                    .cloned()
+                    .ok_or_else(|| NikaError::NullValue {
+                        path: path.clone(),
+                        alias: alias.to_string(),
+                    }),
+                None => entry
+                    .default
+                    .as_ref()
+                    .cloned()
+                    .ok_or_else(|| NikaError::PathNotFound { path: path.clone() }),
+            };
+        }
+    }
+
     // Resolve the value from task output
     let value = match datastore.get_output(task_id) {
         Some(output) => {

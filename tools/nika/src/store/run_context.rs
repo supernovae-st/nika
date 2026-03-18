@@ -210,7 +210,13 @@ impl Default for RunContext {
             context: Arc::default(),
             inputs: Arc::default(),
             media_staging: Arc::new(DashMap::with_hasher(FxBuildHasher)),
-            media_budget: Arc::new(crate::media::MediaBudget::new()),
+            media_budget: Arc::new({
+                let max = std::env::var("NIKA_MEDIA_BUDGET")
+                    .ok()
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(crate::media::MediaBudget::DEFAULT_MAX_PER_RUN);
+                crate::media::MediaBudget::with_max_per_run(max)
+            }),
             workspace_root: Arc::new(RwLock::new(workspace_root)),
         }
     }

@@ -25,6 +25,7 @@ pub struct MediaProcessor {
 
 impl MediaProcessor {
     /// Create a new processor with the given CAS store and default budget.
+    #[allow(dead_code)] // Used in tests
     pub fn new(store: CasStore) -> Self {
         Self {
             store,
@@ -33,6 +34,7 @@ impl MediaProcessor {
     }
 
     /// Create a new processor with custom owned budget.
+    #[allow(dead_code)] // Used in tests
     pub fn with_budget(store: CasStore, budget: MediaBudget) -> Self {
         Self { store, budget: Arc::new(budget) }
     }
@@ -118,6 +120,13 @@ impl MediaProcessor {
         server_mime: Option<&str>,
         task_id: &str,
     ) -> Result<Option<(MediaRef, StoreResult)>, MediaError> {
+        tracing::debug!(
+            task_id = %task_id,
+            base64_len = base64_data.len(),
+            server_mime = ?server_mime,
+            "media: processing base64 block"
+        );
+
         // Guard: reject oversized base64 BEFORE decode
         if base64_data.len() > MAX_BASE64_INPUT_BYTES {
             return Err(MediaError::Base64InputTooLarge {
@@ -153,6 +162,13 @@ impl MediaProcessor {
             });
         }
 
+        tracing::trace!(
+            task_id = %task_id,
+            decoded_bytes = decoded.len(),
+            budget_used = self.budget.current_bytes(),
+            "media: base64 decoded successfully"
+        );
+
         // Check media budget before proceeding
         let decoded_size = decoded.len() as u64;
         self.budget.check_and_add(decoded_size, task_id)?;
@@ -174,6 +190,17 @@ impl MediaProcessor {
                 return Err(e);
             }
         };
+
+        tracing::debug!(
+            task_id = %task_id,
+            hash = %store_result.hash,
+            mime = %detected.mime_type,
+            size = store_result.size,
+            dedup = store_result.deduplicated,
+            verified = store_result.verified,
+            pipeline_ms = store_result.pipeline_ms,
+            "media: stored in CAS"
+        );
 
         let media_ref = MediaRef {
             hash: store_result.hash.clone(),

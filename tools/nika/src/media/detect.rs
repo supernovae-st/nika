@@ -25,6 +25,7 @@ pub struct DetectedMime {
 
 /// How the MIME type was determined.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Extension variant used in tests + PR2
 pub enum DetectionSource {
     /// Determined via magic byte inspection (highest confidence)
     MagicBytes,
@@ -54,15 +55,18 @@ pub fn detect_mime(
     let inspect_len = data.len().min(8192);
     let sample = &data[..inspect_len];
 
-    // SVG special handling: magic bytes won't detect SVG (it's XML-based text)
+    // SVG special handling: magic bytes won't detect SVG (it's XML-based text).
+    // Uses word-boundary check after `<svg` to avoid false positives on
+    // tags like `<svg-report>` or `<svg-data>`.
     if sample.len() >= 5 {
         let text_start = std::str::from_utf8(&sample[..sample.len().min(512)]);
         if let Ok(text) = text_start {
             let trimmed = text.trim_start();
-            if (trimmed.starts_with("<?xml") || trimmed.starts_with("<svg"))
-                && (trimmed.contains("<svg")
-                    || trimmed.contains("xmlns=\"http://www.w3.org/2000/svg\""))
-            {
+            let has_xml_prefix = trimmed.starts_with("<?xml");
+            let has_svg_tag = has_svg_element(trimmed);
+            let has_svg_ns = trimmed.contains("xmlns=\"http://www.w3.org/2000/svg\"")
+                || trimmed.contains("xmlns='http://www.w3.org/2000/svg'");
+            if has_svg_tag || (has_xml_prefix && has_svg_ns) {
                     return Ok(DetectedMime {
                         mime_type: "image/svg+xml".to_string(),
                         extension: "svg".to_string(),
@@ -197,6 +201,29 @@ pub fn mime_to_extension(mime: &str) -> String {
     }
 
     "bin".to_string()
+}
+
+/// Check if text contains an `<svg` element (not `<svg-something>`).
+///
+/// Requires `<svg` to be followed by a word boundary: space, `>`, `/`, tab, newline.
+/// This prevents false positives on tags like `<svg-report>`, `<svg-data>`, etc.
+fn has_svg_element(text: &str) -> bool {
+    let mut search_from = 0;
+    while let Some(pos) = text[search_from..].find("<svg") {
+        let abs_pos = search_from + pos;
+        let after = abs_pos + 4; // length of "<svg"
+        if after >= text.len() {
+            // `<svg` at end of string — could be start of valid SVG
+            return true;
+        }
+        let next_char = text.as_bytes()[after];
+        // Word boundary: space, >, /, tab, newline, carriage return
+        if matches!(next_char, b' ' | b'>' | b'/' | b'\t' | b'\n' | b'\r') {
+            return true;
+        }
+        search_from = abs_pos + 4;
+    }
+    false
 }
 
 /// Sanitize extension to prevent path traversal.
@@ -512,16 +539,13 @@ mod tests {
     // ---------------------------------------------------------------
 
     #[test]
-    fn svg_heuristic_false_positive_svg_prefixed_tag() {
-        // `<svg-report>` starts with `<svg` so passes starts_with guard,
-        // and `contains("<svg")` matches `<svg-report>` as a substring.
-        // The heuristic DOES fire here — this is a known false positive.
+    fn svg_heuristic_rejects_svg_prefixed_tag() {
+        // `<svg-report>` starts with `<svg` but is NOT followed by a word boundary.
+        // The tightened heuristic (has_svg_element) requires space/>/\t/\n after `<svg`.
+        // `<svg-report>` has `-` after `<svg`, which is NOT a word boundary → rejected.
         let data = b"<svg-report><item>data</item></svg-report>";
         let result = detect_mime(data, None);
-        // Current behavior: falsely detected as SVG
-        assert!(result.is_ok(), "heuristic fires on <svg-report> (known false positive)");
-        let detected = result.unwrap();
-        assert_eq!(detected.mime_type, "image/svg+xml");
+        assert!(result.is_err(), "<svg-report> should NOT be detected as SVG");
     }
 
     #[test]
