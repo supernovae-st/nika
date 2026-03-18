@@ -446,7 +446,12 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
-            cost_usd: 0.0,
+            cost_usd: crate::provider::cost::calculate_cost(
+                crate::provider::cost::ProviderKind::Claude,
+                model_name,
+                input_tokens,
+                output_tokens,
+            ),
             partial_result: None,
         })
     }

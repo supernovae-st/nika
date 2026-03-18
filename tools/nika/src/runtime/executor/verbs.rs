@@ -385,7 +385,17 @@ impl TaskExecutor {
             .write()
             .record_token_spend(actual_tokens);
 
-        // EMIT: ProviderResponded with accurate token counts from streaming response
+        // EMIT: ProviderResponded with accurate token counts and cost from streaming response
+        let cost = crate::provider::cost::ProviderKind::parse(provider_name)
+            .map(|pk| {
+                crate::provider::cost::calculate_cost(
+                    pk,
+                    model.unwrap_or("default"),
+                    stream_result.input_tokens,
+                    stream_result.output_tokens,
+                )
+            })
+            .unwrap_or(0.0);
         self.event_log.emit(EventKind::ProviderResponded {
             task_id: Arc::clone(task_id),
             request_id: None,
@@ -394,7 +404,7 @@ impl TaskExecutor {
             cache_read_tokens: stream_result.cached_input_tokens,
             ttft_ms: None,
             finish_reason: "stop".to_string(),
-            cost_usd: 0.0,
+            cost_usd: cost,
         });
 
         // Structured output validation via StructuredOutputEngine (Layers 1-3)
