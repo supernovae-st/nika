@@ -1030,6 +1030,28 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+
+            // ═══════════════════════════════════════════
+            // MEDIA EVENTS (no TUI action needed yet)
+            // ═══════════════════════════════════════════
+            EventKind::MediaExtracted { task_id, block_count, .. } => {
+                self.add_notification(Notification::info(
+                    format!("[{}] Extracted {} media block(s)", task_id, block_count),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+            EventKind::MediaProcessed { .. }
+            | EventKind::MediaStored { .. } => {
+                // Tracked via events, no TUI notification for individual blocks
+            }
+            EventKind::MediaStoreFailed { task_id, reason, .. } => {
+                self.add_notification(Notification::error(
+                    format!("[{}] Media store failed: {}", task_id, reason),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 

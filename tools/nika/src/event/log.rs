@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 32 variants across 10 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/structured-output)
+//! - EventKind: 36 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -451,6 +451,55 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // MEDIA EVENTS
+    // ═══════════════════════════════════════════
+    /// Media content blocks extracted from MCP tool result
+    MediaExtracted {
+        task_id: Arc<str>,
+        /// Number of non-text content blocks found
+        block_count: u32,
+        /// Content types found (e.g., ["image", "audio"])
+        content_types: Vec<String>,
+    },
+
+    /// Single media block processed (decoded + detected)
+    MediaProcessed {
+        task_id: Arc<str>,
+        /// blake3 hash of the decoded content (with "blake3:" prefix)
+        hash: String,
+        /// Detected MIME type
+        mime_type: String,
+        /// File size in bytes (decoded)
+        size_bytes: u64,
+    },
+
+    /// Media file stored in CAS
+    MediaStored {
+        task_id: Arc<str>,
+        /// blake3 hash (with "blake3:" prefix)
+        hash: String,
+        /// File path in CAS store
+        path: String,
+        /// File size in bytes
+        size_bytes: u64,
+        /// Whether read-back verification passed (or skipped for small files)
+        verified: bool,
+        /// Whether this was a dedup hit
+        deduplicated: bool,
+        /// Pipeline latency in milliseconds (decode -> store)
+        pipeline_ms: u64,
+    },
+
+    /// Media storage failed
+    MediaStoreFailed {
+        task_id: Arc<str>,
+        /// blake3 hash (if available, empty string if pre-hash failure)
+        hash: String,
+        /// Error description
+        reason: String,
+    },
+
+    // ═══════════════════════════════════════════
     // STRUCTURED OUTPUT EVENTS
     // ═══════════════════════════════════════════
     /// Structured output extraction attempt at a specific layer
@@ -510,6 +559,10 @@ impl EventKind {
             | Self::AgentComplete { task_id, .. }
             | Self::ArtifactWritten { task_id, .. }
             | Self::ArtifactFailed { task_id, .. }
+            | Self::MediaExtracted { task_id, .. }
+            | Self::MediaProcessed { task_id, .. }
+            | Self::MediaStored { task_id, .. }
+            | Self::MediaStoreFailed { task_id, .. }
             | Self::StructuredOutputAttempt { task_id, .. }
             | Self::StructuredOutputSuccess { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
@@ -1805,7 +1858,7 @@ mod tests {
     // ═══════════════════════════════════════════════════════════════
 
     /// Helper: build one instance of every EventKind variant (all 32)
-    fn all_32_variants() -> Vec<EventKind> {
+    fn all_36_variants() -> Vec<EventKind> {
         vec![
             // Workflow (6)
             EventKind::WorkflowStarted {
@@ -1991,6 +2044,32 @@ mod tests {
                 path: "/tmp/output.json".into(),
                 reason: "permission denied".into(),
             },
+            // Media (4)
+            EventKind::MediaExtracted {
+                task_id: "gen_img".into(),
+                block_count: 2,
+                content_types: vec!["image".into(), "audio".into()],
+            },
+            EventKind::MediaProcessed {
+                task_id: "gen_img".into(),
+                hash: "blake3:a1b2c3d4".into(),
+                mime_type: "image/png".into(),
+                size_bytes: 4096,
+            },
+            EventKind::MediaStored {
+                task_id: "gen_img".into(),
+                hash: "blake3:a1b2c3d4".into(),
+                path: ".nika/media/store/a1/b2c3d4".into(),
+                size_bytes: 4096,
+                verified: true,
+                deduplicated: false,
+                pipeline_ms: 42,
+            },
+            EventKind::MediaStoreFailed {
+                task_id: "gen_img".into(),
+                hash: "blake3:a1b2c3d4".into(),
+                reason: "disk full".into(),
+            },
             // Structured Output (2)
             EventKind::StructuredOutputAttempt {
                 task_id: "t1".into(),
@@ -2010,18 +2089,18 @@ mod tests {
     }
 
     #[test]
-    fn wave2_variant_count_is_32() {
-        let variants = all_32_variants();
+    fn wave2_variant_count_is_36() {
+        let variants = all_36_variants();
         assert_eq!(
             variants.len(),
-            32,
-            "EventKind should have exactly 32 variants"
+            36,
+            "EventKind should have exactly 36 variants"
         );
     }
 
     #[test]
     fn wave2_all_variants_serialize_deserialize_roundtrip() {
-        for (i, variant) in all_32_variants().into_iter().enumerate() {
+        for (i, variant) in all_36_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant)
                 .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
             let back: EventKind = serde_json::from_str(&json)
@@ -2033,7 +2112,7 @@ mod tests {
     #[test]
     fn wave2_ndjson_no_embedded_newlines() {
         // NDJSON = one JSON object per line, no embedded newlines
-        for (i, variant) in all_32_variants().into_iter().enumerate() {
+        for (i, variant) in all_36_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant).unwrap();
             assert!(
                 !json.contains('\n'),
@@ -2241,7 +2320,7 @@ mod tests {
 
     #[test]
     fn wave2_task_id_extraction_all_variants() {
-        let variants = all_32_variants();
+        let variants = all_36_variants();
         // Variants WITH task_id (26 of them)
         let with_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_some()).collect();
         // Variants WITHOUT task_id (8): 6 workflow + McpConnected + McpError
@@ -2251,8 +2330,8 @@ mod tests {
         // Log has task_id: Some("t1"), so it goes in with
         assert_eq!(
             with_task_id.len(),
-            23,
-            "23 variants should have task_id (including Log with Some)"
+            27,
+            "27 variants should have task_id (including Log with Some, 4 media events)"
         );
         assert_eq!(
             without_task_id.len(),
