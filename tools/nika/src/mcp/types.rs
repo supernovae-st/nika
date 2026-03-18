@@ -364,6 +364,26 @@ impl ToolCallResult {
             _ => None,
         })
     }
+
+    /// Check if result contains any non-text content (images, audio, resources).
+    pub fn has_media(&self) -> bool {
+        self.content.iter().any(|b| !b.is_text())
+    }
+
+    /// Get all image content blocks.
+    pub fn images(&self) -> Vec<&ContentBlock> {
+        self.content.iter().filter(|b| b.is_image()).collect()
+    }
+
+    /// Get all audio content blocks.
+    pub fn audio_blocks(&self) -> Vec<&ContentBlock> {
+        self.content.iter().filter(|b| b.is_audio()).collect()
+    }
+
+    /// Get all non-text content blocks (images, audio, resources, resource links).
+    pub fn media_blocks(&self) -> Vec<&ContentBlock> {
+        self.content.iter().filter(|b| !b.is_text()).collect()
+    }
 }
 
 /// Content block in MCP tool results.
