@@ -1,0 +1,10 @@
+# FEATURE: with: { home: $env.HOME } accessing env var directly
+schema: nika/workflow@0.12
+workflow: feat-with-binding-env-path
+tasks:
+  - id: use_env
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo Home is {{with.home}}"
+      shell: true

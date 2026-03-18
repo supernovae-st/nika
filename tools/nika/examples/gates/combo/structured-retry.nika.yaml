@@ -1,0 +1,24 @@
+# COMBO: structured with max_retries inside chain
+schema: nika/workflow@0.12
+workflow: combo-structured-retry
+
+tasks:
+  - id: seed
+    exec: "echo 'Generate metadata'"
+
+  - id: extract
+    depends_on: [seed]
+    with:
+      instruction: $seed
+    infer: "{{with.instruction}}: Return JSON with title and score (1-10)"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    max_retries: 2
+    structured:
+      schema:
+        type: object
+        properties:
+          title: { type: string }
+          score: { type: integer }
+        required: [title, score]

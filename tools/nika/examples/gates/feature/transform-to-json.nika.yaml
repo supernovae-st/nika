@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-to-json
+tasks:
+  - id: gen
+    exec: 'echo ["alpha","beta","gamma"]'
+  - id: use
+    with:
+      val: $gen | to_json
+    exec:
+      command: "echo JSON is {{with.val}}"
+      shell: true
+    flow: [gen]

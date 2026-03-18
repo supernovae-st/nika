@@ -743,7 +743,7 @@ tasks:
     assert!(result.error.is_none());
 
     // Count turns with token info
-    let turn_tokens: Vec<u32> = result
+    let turn_tokens: Vec<u64> = result
         .events
         .iter()
         .filter_map(|e| {

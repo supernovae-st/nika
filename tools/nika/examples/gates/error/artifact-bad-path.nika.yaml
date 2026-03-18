@@ -1,0 +1,14 @@
+# ERROR: artifact with invalid characters in path (null byte)
+# Expected: run failure — NIKA-280 invalid artifact path
+schema: nika/workflow@0.12
+workflow: artifact-bad-path-test
+
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+
+tasks:
+  - id: bad_artifact
+    exec: "echo 'data'"
+    artifact:
+      path: "../../../\x00/invalid/path"
+      format: text

@@ -1,0 +1,8 @@
+schema: nika/workflow@0.12
+workflow: feat-for-each-basic
+tasks:
+  - id: loop
+    for_each: ["a", "b", "c"]
+    exec:
+      command: "echo {{with.item}}"
+      shell: true

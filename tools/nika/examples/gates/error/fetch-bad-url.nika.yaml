@@ -1,0 +1,10 @@
+# ERROR: fetch: with unreachable URL (port 99999 is invalid)
+# Expected: run failure — connection refused or invalid URL
+schema: nika/workflow@0.12
+workflow: fetch-bad-url-test
+
+tasks:
+  - id: bad_fetch
+    fetch:
+      url: "http://localhost:99999/nonexistent"
+      method: GET

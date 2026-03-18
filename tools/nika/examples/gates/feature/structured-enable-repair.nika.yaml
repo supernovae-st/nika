@@ -1,0 +1,18 @@
+schema: nika/workflow@0.12
+workflow: feat-structured-enable-repair
+tasks:
+  - id: extract
+    infer: "Return JSON with city='Paris' and country='France'"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          city:
+            type: string
+          country:
+            type: string
+        required: [city, country]
+      enable_repair: true

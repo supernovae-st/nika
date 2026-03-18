@@ -1,0 +1,8 @@
+# ERROR: exec: with a command that doesn't exist
+# Expected: run failure — command not found error
+schema: nika/workflow@0.12
+workflow: exec-command-not-found-test
+
+tasks:
+  - id: ghost_cmd
+    exec: "nonexistent_command_xyz123_nika_test"

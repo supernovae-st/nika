@@ -1,0 +1,17 @@
+# ERROR: invoke: references an MCP server that isn't running
+# Expected: run failure — NIKA-100 MCP connection error
+schema: nika/workflow@0.12
+workflow: invoke-mcp-not-running-test
+
+mcp:
+  ghost_server:
+    command: /nonexistent/path/to/mcp-server-xyz123
+    args: []
+
+tasks:
+  - id: dead_mcp
+    invoke:
+      server: ghost_server
+      tool: some_tool
+      params:
+        key: value

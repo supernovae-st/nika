@@ -1,0 +1,16 @@
+# COMBO: task chain with different providers
+schema: nika/workflow@0.12
+workflow: combo-provider-mix-chain
+
+tasks:
+  - id: step_openai
+    infer: "Say 'openai step' and nothing else."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: step_exec
+    depends_on: [step_openai]
+    with:
+      prev: $step_openai
+    exec: "echo 'After OpenAI: {{with.prev}}'"

@@ -1,0 +1,11 @@
+# FEATURE: for_each with 10 items and concurrency: 5
+schema: nika/workflow@0.12
+workflow: feat-for-each-large
+tasks:
+  - id: process
+    for_each: ["a","b","c","d","e","f","g","h","i","j"]
+    as: letter
+    concurrency: 5
+    exec:
+      command: "echo Letter {{with.letter}}"
+      shell: true

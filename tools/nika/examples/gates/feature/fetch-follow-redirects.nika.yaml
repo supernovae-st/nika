@@ -1,0 +1,6 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-follow-redirects
+tasks:
+  - id: redirect
+    fetch:
+      url: "https://httpbin.org/redirect/1"

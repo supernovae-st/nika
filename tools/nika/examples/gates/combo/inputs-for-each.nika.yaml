@@ -1,0 +1,16 @@
+# COMBO: inputs used as for_each items source
+schema: nika/workflow@0.12
+workflow: combo-inputs-for-each
+
+inputs:
+  langs:
+    default: '["rust", "go", "python"]'
+
+tasks:
+  - id: describe
+    for_each: ["rust", "go", "python"]
+    as: lang
+    infer: "One word to describe {{with.lang}}."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

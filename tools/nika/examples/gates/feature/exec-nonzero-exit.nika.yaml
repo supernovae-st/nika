@@ -1,0 +1,8 @@
+# FEATURE: exec with non-zero exit code (should fail gracefully)
+schema: nika/workflow@0.12
+workflow: feat-exec-nonzero
+tasks:
+  - id: will_fail
+    exec:
+      command: "exit 1"
+      shell: true

@@ -1,0 +1,8 @@
+# FEATURE: fetch that returns sizeable JSON response
+schema: nika/workflow@0.12
+workflow: feat-fetch-large-response
+tasks:
+  - id: big_fetch
+    fetch:
+      url: https://jsonplaceholder.typicode.com/posts
+      method: GET

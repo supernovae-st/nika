@@ -1,0 +1,18 @@
+# COMBO: for_each + artifact with unique paths per item
+schema: nika/workflow@0.12
+workflow: combo-artifact-for-each-unique
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: generate
+    for_each: ["intro", "body", "conclusion"]
+    as: section
+    infer: "Write one sentence for the {{with.section}} of an essay about Rust."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: "essay-{{with.section}}.txt"
+      format: text

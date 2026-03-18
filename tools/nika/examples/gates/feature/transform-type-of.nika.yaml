@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-type-of
+tasks:
+  - id: gen
+    exec: "echo 42"
+  - id: use
+    with:
+      val: $gen | type_of
+    exec:
+      command: "echo Type is {{with.val}}"
+      shell: true
+    flow: [gen]

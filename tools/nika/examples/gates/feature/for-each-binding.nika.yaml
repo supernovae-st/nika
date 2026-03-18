@@ -1,0 +1,14 @@
+schema: nika/workflow@0.12
+workflow: feat-for-each-binding
+tasks:
+  - id: gen_items
+    exec: 'echo ["red","green","blue"]'
+  - id: process
+    for_each: "$gen_items"
+    as: color
+    with:
+      items: $gen_items
+    exec:
+      command: "echo Color is {{with.color}}"
+      shell: true
+    flow: [gen_items]

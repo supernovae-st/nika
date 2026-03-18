@@ -1,0 +1,11 @@
+schema: nika/workflow@0.12
+workflow: feat-builtin-grep-regex
+tasks:
+  - id: grepper
+    agent:
+      prompt: "Call nika_grep with pattern='schema:.*0\\.12' and path='./examples/gates/feature/'. Then call nika_complete with result='GREP_OK'"
+      tools: [builtin]
+      max_turns: 3
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

@@ -1,0 +1,20 @@
+# COMBO: context files + for_each loop
+schema: nika/workflow@0.12
+workflow: combo-context-for-each
+
+context:
+  files:
+    brand: ./examples/context/brand.md
+
+tasks:
+  - id: adapt
+    for_each: ["twitter", "linkedin", "email"]
+    as: channel
+    infer: |
+      Given this brand info:
+      {{context.files.brand}}
+
+      Write a one-sentence {{with.channel}} post for this brand.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

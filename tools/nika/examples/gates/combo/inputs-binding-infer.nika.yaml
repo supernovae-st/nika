@@ -1,0 +1,16 @@
+# COMBO: inputs params used in with: binding -> infer
+schema: nika/workflow@0.12
+workflow: combo-inputs-binding-infer
+
+inputs:
+  subject:
+    default: "quantum computing"
+
+tasks:
+  - id: research
+    with:
+      topic: $inputs.subject
+    infer: "Explain {{with.topic}} in one sentence for a beginner."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

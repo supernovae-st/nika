@@ -1,0 +1,19 @@
+# COMBO: infer with output:json -> binding to next task
+schema: nika/workflow@0.12
+workflow: combo-infer-output-json-binding
+
+tasks:
+  - id: produce
+    infer: "Return a JSON object with keys: language and year. Use language=Rust year=2015."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    output:
+      format: json
+
+  - id: consume
+    depends_on: [produce]
+    with:
+      lang: $produce.language
+      year: $produce.year
+    exec: "echo '{{with.lang}} was released in {{with.year}}'"

@@ -1,0 +1,13 @@
+# ERROR: agent: with max_turns: 0 (invalid)
+# Expected: check or run failure — max_turns must be >= 1
+schema: nika/workflow@0.12
+workflow: agent-bad-max-iterations-test
+
+tasks:
+  - id: zero_turns
+    agent:
+      prompt: "Do something"
+      tools: [builtin]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 0

@@ -1,0 +1,11 @@
+# FEATURE: artifact with source field
+schema: nika/workflow@0.12
+workflow: feat-artifact-source
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen
+    exec: "echo 'source content here'"
+    artifact:
+      path: sourced.txt
+      source: stdout

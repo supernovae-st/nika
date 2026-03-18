@@ -1,0 +1,27 @@
+# ERROR: structured output with impossible required fields
+# Expected: run failure — structured validation fails (model can't produce required fields)
+schema: nika/workflow@0.12
+workflow: structured-missing-required-test
+
+tasks:
+  - id: impossible_schema
+    infer: "Say hello"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          quantum_entanglement_coefficient:
+            type: number
+          interdimensional_frequency:
+            type: number
+          temporal_displacement_vector:
+            type: array
+            items:
+              type: number
+        required:
+          - quantum_entanglement_coefficient
+          - interdimensional_frequency
+          - temporal_displacement_vector

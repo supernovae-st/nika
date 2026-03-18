@@ -1,0 +1,5 @@
+schema: nika/workflow@0.12
+workflow: feat-security-exec-safe
+tasks:
+  - id: safe
+    exec: "echo safe command"

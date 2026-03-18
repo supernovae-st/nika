@@ -1,0 +1,24 @@
+# COMBO: context files loaded + used in with: + infer
+schema: nika/workflow@0.12
+workflow: combo-context-binding-infer
+
+context:
+  files:
+    brand: ./examples/context/brand.md
+
+tasks:
+  - id: get_topic
+    exec: "echo 'marketing strategy'"
+
+  - id: analyze
+    depends_on: [get_topic]
+    with:
+      topic: $get_topic
+    infer: |
+      Given this brand document:
+      {{context.files.brand}}
+
+      Write one sentence about {{with.topic}} for this brand.
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

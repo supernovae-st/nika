@@ -1,0 +1,8 @@
+# ERROR: exec: with empty string
+# Expected: check or run failure — command must not be empty
+schema: nika/workflow@0.12
+workflow: exec-empty-command-test
+
+tasks:
+  - id: empty_cmd
+    exec: ""

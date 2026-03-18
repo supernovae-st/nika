@@ -1,0 +1,14 @@
+# ERROR: with: value is not a valid binding expression
+# Expected: check failure — invalid binding syntax
+schema: nika/workflow@0.12
+workflow: bad-with-syntax-test
+
+tasks:
+  - id: source
+    exec: "echo 'data'"
+
+  - id: bad_binding
+    depends_on: [source]
+    with:
+      data: "%%%not_a_valid_binding%%%"
+    exec: "echo '{{with.data}}'"

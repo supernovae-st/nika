@@ -1,0 +1,10 @@
+# FEATURE: infer with thinking: true (extended thinking)
+schema: nika/workflow@0.12
+workflow: feat-infer-thinking
+tasks:
+  - id: think
+    infer: "What is 17 * 23? Just the number."
+    provider: openai
+    model: gpt-4.1-mini
+    thinking: true
+    max_tokens: 50

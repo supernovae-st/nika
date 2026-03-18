@@ -1,0 +1,8 @@
+schema: nika/workflow@0.12
+workflow: feat-infer-basic
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: hello
+    infer: "Say hello in one word"
+    max_tokens: 50

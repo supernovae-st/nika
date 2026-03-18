@@ -1,0 +1,8 @@
+# ERROR: Reference to nonexistent environment variable
+# Expected: run failure — environment variable not found
+schema: nika/workflow@0.12
+workflow: bad-env-ref-test
+
+tasks:
+  - id: env_missing
+    exec: "echo '{{$env.NIKA_NONEXISTENT_VAR_XYZ_12345}}'"

@@ -1,0 +1,8 @@
+# FEATURE: log: { level: debug }
+schema: nika/workflow@0.12
+workflow: feat-log-level
+log:
+  level: debug
+tasks:
+  - id: hello
+    exec: "echo 'debug logging enabled'"

@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-round
+tasks:
+  - id: gen
+    exec: "echo 3.14159"
+  - id: use
+    with:
+      val: $gen | round(2)
+    exec:
+      command: "echo Rounded is {{with.val}}"
+      shell: true
+    flow: [gen]

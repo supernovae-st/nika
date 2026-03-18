@@ -1,0 +1,8 @@
+# ERROR: Missing schema field entirely
+# Expected: check failure — NIKA-010 or similar schema error
+# The schema: field is mandatory in every workflow
+workflow: missing-schema-test
+
+tasks:
+  - id: hello
+    exec: "echo 'should never run'"

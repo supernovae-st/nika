@@ -1,0 +1,21 @@
+# COMBO: agent with context files loaded
+schema: nika/workflow@0.12
+workflow: combo-agent-context
+
+context:
+  files:
+    brand: ./examples/context/brand.md
+
+tasks:
+  - id: agent_ctx
+    agent:
+      prompt: |
+        Given this brand context:
+        {{context.files.brand}}
+
+        Summarize the brand in one word. Then call nika_complete.
+      tools: [nika_complete]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      max_tokens: 50

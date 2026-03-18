@@ -1,0 +1,6 @@
+schema: nika/workflow@0.12
+workflow: feat-for-each-single-item
+tasks:
+  - id: loop
+    for_each: ["only"]
+    exec: "echo {{with.item}}"

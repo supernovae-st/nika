@@ -1,0 +1,16 @@
+# COMBO: exec output -> binding -> infer prompt
+schema: nika/workflow@0.12
+workflow: combo-exec-binding-infer
+
+tasks:
+  - id: discover
+    exec: "uname -s"
+
+  - id: explain
+    depends_on: [discover]
+    with:
+      os: $discover
+    infer: "What is {{with.os}}? Answer in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

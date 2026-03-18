@@ -1,0 +1,11 @@
+# ERROR: include: references a workflow file that doesn't exist
+# Expected: check failure — included file not found
+schema: nika/workflow@0.12
+workflow: import-file-not-found-test
+
+include:
+  - path: ./nonexistent/ghost-workflow-xyz.nika.yaml
+
+tasks:
+  - id: main_task
+    exec: "echo 'should never run'"

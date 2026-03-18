@@ -1,0 +1,14 @@
+# ERROR: with: binding references a deeply nested path that won't exist
+# Expected: run failure — JSONPath resolution failure or null result
+schema: nika/workflow@0.12
+workflow: bad-jsonpath-test
+
+tasks:
+  - id: source
+    exec: 'echo ''{"name": "nika"}'''
+
+  - id: deep_path
+    depends_on: [source]
+    with:
+      data: $source.really.deep.nonexistent.path.that.goes.nowhere
+    exec: "echo '{{with.data}}'"

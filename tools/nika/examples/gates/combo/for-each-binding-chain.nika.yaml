@@ -1,0 +1,22 @@
+# COMBO: for_each items from previous task + with binding
+schema: nika/workflow@0.12
+workflow: combo-for-each-binding-chain
+
+tasks:
+  - id: produce
+    exec: 'echo ''["alpha","beta","gamma"]'''
+
+  - id: iterate
+    depends_on: [produce]
+    for_each: "$produce"
+    as: item
+    infer: "Define the word '{{with.item}}' in one sentence."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: collect
+    depends_on: [iterate]
+    with:
+      results: $iterate
+    exec: "echo 'Collected: {{with.results}}'"

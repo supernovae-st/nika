@@ -1,0 +1,9 @@
+# ERROR: depends_on references a task that doesn't exist
+# Expected: check failure — unknown task reference in depends_on
+schema: nika/workflow@0.12
+workflow: missing-dep-ref-test
+
+tasks:
+  - id: real_task
+    depends_on: [ghost_task_that_doesnt_exist]
+    exec: "echo 'waiting for a ghost'"

@@ -1,0 +1,10 @@
+# ERROR: with: binding references a task that doesn't exist
+# Expected: check failure — unknown task reference in with: block
+schema: nika/workflow@0.12
+workflow: missing-with-ref-test
+
+tasks:
+  - id: consumer
+    with:
+      data: $nonexistent_task
+    exec: "echo '{{with.data}}'"

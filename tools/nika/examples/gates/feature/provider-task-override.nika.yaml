@@ -1,0 +1,13 @@
+schema: nika/workflow@0.12
+workflow: feat-provider-task-override
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: default_provider
+    infer: "Say hello in one word"
+    max_tokens: 50
+  - id: override
+    infer: "Say world in one word"
+    provider: openai
+    model: gpt-4.1-nano
+    max_tokens: 50

@@ -1,0 +1,11 @@
+# ERROR: Workflow includes itself (circular include)
+# Expected: check failure — circular include detected
+schema: nika/workflow@0.12
+workflow: import-circular-test
+
+include:
+  - path: ./import-circular.nika.yaml
+
+tasks:
+  - id: main_task
+    exec: "echo 'should never run — circular include'"

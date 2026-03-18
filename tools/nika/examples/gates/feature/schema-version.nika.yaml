@@ -1,0 +1,6 @@
+# FEATURE: verify schema: nika/workflow@0.12 works
+schema: nika/workflow@0.12
+workflow: feat-schema-version
+tasks:
+  - id: verify
+    exec: "echo 'schema 0.12 accepted'"

@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-with-binding-path
+tasks:
+  - id: step1
+    exec: 'echo {"name":"nika","version":"0.12"}'
+  - id: step2
+    with:
+      info: $step1
+    exec:
+      command: "echo Info: {{with.info}}"
+      shell: true
+    flow: [step1]

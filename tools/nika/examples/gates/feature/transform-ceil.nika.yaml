@@ -1,0 +1,13 @@
+# FEATURE: with: { val: $step | ceil } — ceiling of numeric value
+schema: nika/workflow@0.12
+workflow: feat-transform-ceil
+tasks:
+  - id: gen
+    exec: "echo 3.14"
+  - id: use
+    with:
+      val: $gen | ceil
+    exec:
+      command: "echo {{with.val}}"
+      shell: true
+    flow: [gen]

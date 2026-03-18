@@ -1,0 +1,13 @@
+# FEATURE: with: { val: $step | shell } — interpret output as shell command
+schema: nika/workflow@0.12
+workflow: feat-transform-shell
+tasks:
+  - id: gen
+    exec: "echo 'echo hello from shell transform'"
+  - id: use
+    with:
+      val: $gen | shell
+    exec:
+      command: "echo {{with.val}}"
+      shell: true
+    flow: [gen]

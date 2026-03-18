@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-unique
+tasks:
+  - id: gen
+    exec: 'echo ["a","b","a","c","b"]'
+  - id: use
+    with:
+      val: $gen | unique
+    exec:
+      command: "echo Unique is {{with.val}}"
+      shell: true
+    flow: [gen]

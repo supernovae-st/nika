@@ -1,0 +1,13 @@
+# ERROR: Two tasks depend on each other (A <-> B)
+# Expected: check failure — NIKA-020 cycle detection
+schema: nika/workflow@0.12
+workflow: circular-dep-pair-test
+
+tasks:
+  - id: alpha
+    depends_on: [beta]
+    exec: "echo 'alpha'"
+
+  - id: beta
+    depends_on: [alpha]
+    exec: "echo 'beta'"

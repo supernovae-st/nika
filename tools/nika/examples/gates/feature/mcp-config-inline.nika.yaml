@@ -1,0 +1,10 @@
+# FEATURE: MCP server defined inline in workflow
+schema: nika/workflow@0.12
+workflow: feat-mcp-config-inline
+mcp:
+  echo-server:
+    command: echo
+    args: ["mcp server configured"]
+tasks:
+  - id: check
+    exec: "echo 'mcp config parsed'"

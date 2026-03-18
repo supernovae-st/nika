@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-post-json
+tasks:
+  - id: post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      json:
+        key: value
+        count: 42

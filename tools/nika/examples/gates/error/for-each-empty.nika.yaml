@@ -1,0 +1,14 @@
+# ERROR: for_each with empty array
+# Expected: check or run behavior — should it error or produce zero iterations?
+schema: nika/workflow@0.12
+workflow: for-each-empty-test
+
+tasks:
+  - id: source
+    exec: 'echo ''[]'''
+
+  - id: iterate
+    depends_on: [source]
+    for_each: "$source"
+    as: item
+    exec: "echo '{{with.item}}'"

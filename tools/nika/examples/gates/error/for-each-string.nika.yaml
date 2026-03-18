@@ -1,0 +1,10 @@
+# ERROR: for_each with a plain string literal (not a binding)
+# Expected: check or run failure — for_each must reference an array
+schema: nika/workflow@0.12
+workflow: for-each-string-test
+
+tasks:
+  - id: iterate
+    for_each: "plain_string"
+    as: item
+    exec: "echo '{{with.item}}'"

@@ -1,0 +1,39 @@
+# COMBO: Everything — context + inputs + exec + infer + binding + for_each + artifact + log
+schema: nika/workflow@0.12
+workflow: combo-full-pipeline
+
+inputs:
+  topic:
+    default: "AI"
+
+log:
+  level: info
+
+artifacts:
+  dir: ./examples/gates/.test-output/pipeline
+
+tasks:
+  - id: research
+    exec: "echo 'Research data about {{inputs.topic}}'"
+
+  - id: analyze
+    depends_on: [research]
+    with:
+      data: $research
+    infer: "Summarize in one sentence: {{with.data}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: distribute
+    depends_on: [analyze]
+    for_each: ["en", "fr"]
+    as: lang
+    with:
+      summary: $analyze
+    infer: "Translate to {{with.lang}}: {{with.summary}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: "{{with.lang}}.txt"

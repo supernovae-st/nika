@@ -1,0 +1,10 @@
+# FEATURE: inputs with multiple params and defaults
+schema: nika/workflow@0.12
+workflow: feat-inputs-override
+inputs:
+  greeting: "Hello"
+  name: "Nika"
+  punctuation: "!"
+tasks:
+  - id: greet
+    exec: "echo '{{inputs.greeting}} {{inputs.name}}{{inputs.punctuation}}'"

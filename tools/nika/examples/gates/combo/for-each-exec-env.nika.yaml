@@ -1,0 +1,13 @@
+# COMBO: for_each + exec with env vars
+schema: nika/workflow@0.12
+workflow: combo-for-each-exec-env
+
+tasks:
+  - id: process
+    for_each: ["dev", "staging", "prod"]
+    as: env
+    exec:
+      command: "echo 'Deploying to $TARGET_ENV'"
+      shell: true
+      env:
+        TARGET_ENV: "{{with.env}}"

@@ -1,0 +1,13 @@
+# FEATURE: with: { val: $step | last(2) } — take last N items
+schema: nika/workflow@0.12
+workflow: feat-transform-last-n
+tasks:
+  - id: gen
+    exec: 'echo ["a","b","c","d","e"]'
+  - id: use
+    with:
+      val: $gen | last(2)
+    exec:
+      command: "echo {{with.val}}"
+      shell: true
+    flow: [gen]

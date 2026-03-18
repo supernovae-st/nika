@@ -1,0 +1,10 @@
+# FEATURE: 3 independent tasks (no deps = parallel execution)
+schema: nika/workflow@0.12
+workflow: feat-multi-task-parallel
+tasks:
+  - id: task_a
+    exec: "echo 'A'"
+  - id: task_b
+    exec: "echo 'B'"
+  - id: task_c
+    exec: "echo 'C'"

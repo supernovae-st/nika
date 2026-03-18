@@ -1,0 +1,18 @@
+schema: nika/workflow@0.12
+workflow: feat-with-multiple-bindings
+tasks:
+  - id: step1
+    exec: "echo hello"
+  - id: step2
+    exec: "echo world"
+  - id: step3
+    exec: "echo 42"
+  - id: combined
+    with:
+      a: $step1
+      b: $step2
+      c: $step3
+    exec:
+      command: "echo {{with.a}} {{with.b}} {{with.c}}"
+      shell: true
+    flow: [step1, step2, step3]

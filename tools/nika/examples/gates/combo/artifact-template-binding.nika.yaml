@@ -1,0 +1,22 @@
+# COMBO: artifact with template using {{with.x}} from binding
+schema: nika/workflow@0.12
+workflow: combo-artifact-template-binding
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: get_name
+    exec: "echo 'report'"
+
+  - id: generate
+    depends_on: [get_name]
+    with:
+      name: $get_name
+    infer: "Write one sentence about workflow engines."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: "{{with.name}}-output.txt"
+      format: text

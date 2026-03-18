@@ -1,0 +1,18 @@
+# COMBO: agent + MCP config + builtin tools
+schema: nika/workflow@0.12
+workflow: combo-agent-mcp-builtin
+
+mcp:
+  novanet:
+    command: echo
+    args: ["novanet-stub"]
+
+tasks:
+  - id: agent_tools
+    agent:
+      prompt: "List files in the current directory, then call nika_complete"
+      tools: [nika_glob, nika_complete]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      max_tokens: 50

@@ -1,0 +1,11 @@
+schema: nika/workflow@0.12
+workflow: feat-builtin-assert-fail
+tasks:
+  - id: assert_fail
+    agent:
+      prompt: "Call nika_assert with condition=false and message='expected failure'. Then call nika_complete with result='ASSERT_FAILED'"
+      tools: [builtin]
+      max_turns: 3
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

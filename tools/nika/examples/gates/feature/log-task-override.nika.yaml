@@ -1,0 +1,13 @@
+# FEATURE: task-level log override
+schema: nika/workflow@0.12
+workflow: feat-log-task-override
+log:
+  level: info
+tasks:
+  - id: quiet
+    exec: "echo 'default info level'"
+  - id: verbose
+    depends_on: [quiet]
+    exec: "echo 'debug level for this task'"
+    log:
+      level: debug

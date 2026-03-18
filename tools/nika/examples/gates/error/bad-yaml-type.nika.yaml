@@ -1,0 +1,6 @@
+# ERROR: tasks is a string, not an array
+# Expected: check failure — tasks must be an array
+schema: nika/workflow@0.12
+workflow: bad-yaml-type-test
+
+tasks: "this is not an array"

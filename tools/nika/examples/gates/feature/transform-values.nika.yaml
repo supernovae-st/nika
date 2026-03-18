@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-values
+tasks:
+  - id: gen
+    exec: 'echo {"a":1,"b":2}'
+  - id: use
+    with:
+      val: $gen | values
+    exec:
+      command: "echo Values are {{with.val}}"
+      shell: true
+    flow: [gen]

@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: feat-context-meta
+artifacts:
+  dir: /tmp
+tasks:
+  - id: meta_test
+    exec: "echo context meta date template"
+    artifact:
+      path: "nika-meta-output.txt"

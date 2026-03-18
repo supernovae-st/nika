@@ -1,0 +1,14 @@
+# ERROR: artifact dir pointing to non-existent deep path
+# Expected: run failure — NIKA-280 artifact directory not found or not creatable
+schema: nika/workflow@0.12
+workflow: artifact-no-dir-test
+
+artifacts:
+  dir: /nonexistent/deeply/nested/path/that/does/not/exist/artifacts
+
+tasks:
+  - id: orphan_artifact
+    exec: "echo 'data'"
+    artifact:
+      path: output.txt
+      format: text

@@ -1,0 +1,19 @@
+# COMBO: structured output inside for_each (color schema variant)
+schema: nika/workflow@0.12
+workflow: combo-structured-for-each
+
+tasks:
+  - id: colors
+    for_each: ["red", "blue", "green"]
+    as: color
+    infer: "Return JSON with color name and hex code for {{with.color}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          color: { type: string }
+          hex: { type: string }
+        required: [color, hex]

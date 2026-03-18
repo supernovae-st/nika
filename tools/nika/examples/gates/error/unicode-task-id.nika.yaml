@@ -1,0 +1,11 @@
+# ERROR: Task ID with unicode/emoji characters
+# Expected: check failure — task IDs must be ASCII alphanumeric + underscore
+schema: nika/workflow@0.12
+workflow: unicode-task-id-test
+
+tasks:
+  - id: "task_with_emoji_\U0001F680_and_\u00E9\u00E0\u00FC"
+    exec: "echo 'unicode id'"
+
+  - id: "\u6D4B\u8BD5_chinese_task"
+    exec: "echo 'chinese chars in id'"

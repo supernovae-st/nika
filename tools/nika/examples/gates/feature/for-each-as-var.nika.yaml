@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: feat-for-each-as-var
+tasks:
+  - id: loop
+    for_each: ["x", "y", "z"]
+    as: letter
+    exec:
+      command: "echo {{with.letter}}"
+      shell: true

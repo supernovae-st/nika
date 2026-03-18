@@ -1,0 +1,14 @@
+# ERROR: for_each with a number instead of an array
+# Expected: run failure — for_each source must be an array
+schema: nika/workflow@0.12
+workflow: for-each-not-array-test
+
+tasks:
+  - id: source
+    exec: "echo '42'"
+
+  - id: iterate
+    depends_on: [source]
+    for_each: "$source"
+    as: item
+    exec: "echo '{{with.item}}'"

@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-parse-json
+tasks:
+  - id: gen
+    exec: 'echo {"name":"nika","version":12}'
+  - id: use
+    with:
+      val: $gen | parse_json
+    exec:
+      command: "echo Parsed is {{with.val}}"
+      shell: true
+    flow: [gen]

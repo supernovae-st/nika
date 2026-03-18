@@ -1,0 +1,8 @@
+# ERROR: Invalid schema version (nonexistent)
+# Expected: check failure — unknown schema version error
+schema: nika/workflow@99.99
+workflow: bad-schema-version-test
+
+tasks:
+  - id: hello
+    exec: "echo 'should never run'"

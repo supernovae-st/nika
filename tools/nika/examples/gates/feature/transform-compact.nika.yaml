@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-compact
+tasks:
+  - id: gen
+    exec: 'echo [1,null,2,null,3]'
+  - id: use
+    with:
+      val: $gen | compact
+    exec:
+      command: "echo Compact is {{with.val}}"
+      shell: true
+    flow: [gen]

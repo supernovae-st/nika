@@ -1,0 +1,13 @@
+# FEATURE: MCP server with env vars using ${ENV_VAR} syntax
+schema: nika/workflow@0.12
+workflow: feat-mcp-env-vars
+mcp:
+  example-server:
+    command: echo
+    args: ["mcp with env"]
+    env:
+      API_KEY: "${TEST_API_KEY}"
+      BASE_URL: "${TEST_BASE_URL}"
+tasks:
+  - id: check
+    exec: "echo 'mcp env vars parsed'"

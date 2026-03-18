@@ -1,0 +1,8 @@
+# ERROR: Unclosed {{ template expression
+# Expected: check or run failure — template syntax error (unclosed braces)
+schema: nika/workflow@0.12
+workflow: bad-template-syntax-test
+
+tasks:
+  - id: broken_template
+    exec: "echo '{{with.data'"

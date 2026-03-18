@@ -1,0 +1,8 @@
+# FEATURE: exec that writes to stderr (should still succeed)
+schema: nika/workflow@0.12
+workflow: feat-exec-stderr
+tasks:
+  - id: stderr_test
+    exec:
+      command: "echo stdout_msg && echo stderr_msg >&2"
+      shell: true

@@ -1,0 +1,15 @@
+# COMBO: transform result used in for_each context
+schema: nika/workflow@0.12
+workflow: combo-transform-for-each
+
+tasks:
+  - id: source
+    exec: "echo '  HELLO WORLD  '"
+
+  - id: iterate
+    depends_on: [source]
+    for_each: ["prefix", "suffix"]
+    as: mode
+    with:
+      clean: $source | trim | lower
+    exec: "echo '{{with.mode}}: {{with.clean}}'"

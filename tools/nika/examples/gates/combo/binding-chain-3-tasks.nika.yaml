@@ -1,0 +1,22 @@
+# COMBO: 3-task chain with bindings A -> B -> C
+schema: nika/workflow@0.12
+workflow: combo-binding-chain-3
+
+tasks:
+  - id: step_a
+    exec: "echo 'SEED_DATA'"
+
+  - id: step_b
+    depends_on: [step_a]
+    with:
+      input: $step_a
+    infer: "Transform this text to lowercase: {{with.input}}. Reply with just the result."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: step_c
+    depends_on: [step_b]
+    with:
+      result: $step_b
+    exec: "echo 'Final: {{with.result}}'"

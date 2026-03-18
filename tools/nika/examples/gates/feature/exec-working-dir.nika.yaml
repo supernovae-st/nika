@@ -1,0 +1,7 @@
+schema: nika/workflow@0.12
+workflow: feat-exec-working-dir
+tasks:
+  - id: pwd
+    exec:
+      command: "pwd"
+      cwd: /tmp

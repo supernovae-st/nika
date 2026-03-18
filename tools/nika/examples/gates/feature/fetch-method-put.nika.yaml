@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-method-put
+tasks:
+  - id: put
+    fetch:
+      url: "https://httpbin.org/put"
+      method: PUT
+      json:
+        updated: true

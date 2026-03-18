@@ -1,0 +1,22 @@
+# COMBO: sequential chain exec -> fetch -> infer with deps
+schema: nika/workflow@0.12
+workflow: combo-multi-verb-sequential
+
+tasks:
+  - id: prepare
+    exec: "echo 'httpbin.org'"
+
+  - id: call_api
+    depends_on: [prepare]
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+
+  - id: summarize
+    depends_on: [call_api]
+    with:
+      response: $call_api
+    infer: "Describe this HTTP response in one sentence: {{with.response}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

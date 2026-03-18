@@ -1,0 +1,11 @@
+# ERROR: fetch: with 1ms timeout (guaranteed to fail)
+# Expected: run failure — request timed out
+schema: nika/workflow@0.12
+workflow: fetch-timeout-short-test
+
+tasks:
+  - id: timeout_fetch
+    fetch:
+      url: "https://httpbin.org/delay/10"
+      method: GET
+    timeout_ms: 1

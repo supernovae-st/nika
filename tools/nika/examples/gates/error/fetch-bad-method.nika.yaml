@@ -1,0 +1,10 @@
+# ERROR: fetch: with invalid HTTP method
+# Expected: check or run failure — invalid HTTP method
+schema: nika/workflow@0.12
+workflow: fetch-bad-method-test
+
+tasks:
+  - id: bad_method
+    fetch:
+      url: "https://httpbin.org/get"
+      method: INVALID

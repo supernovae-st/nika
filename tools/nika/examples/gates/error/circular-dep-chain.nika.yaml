@@ -1,0 +1,17 @@
+# ERROR: Three-task cycle A -> B -> C -> A
+# Expected: check failure — NIKA-020 cycle detection
+schema: nika/workflow@0.12
+workflow: circular-dep-chain-test
+
+tasks:
+  - id: alpha
+    depends_on: [charlie]
+    exec: "echo 'alpha'"
+
+  - id: bravo
+    depends_on: [alpha]
+    exec: "echo 'bravo'"
+
+  - id: charlie
+    depends_on: [bravo]
+    exec: "echo 'charlie'"

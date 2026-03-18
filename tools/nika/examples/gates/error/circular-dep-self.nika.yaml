@@ -1,0 +1,9 @@
+# ERROR: Task depends on itself
+# Expected: check failure — NIKA-020 cycle detection (self-loop)
+schema: nika/workflow@0.12
+workflow: circular-dep-self-test
+
+tasks:
+  - id: narcissist
+    depends_on: [narcissist]
+    exec: "echo 'I depend on myself'"

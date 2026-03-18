@@ -1,0 +1,14 @@
+# FEATURE: task-level model override different from workflow
+schema: nika/workflow@0.12
+workflow: feat-model-override-task
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: default_model
+    infer: "Say hello in one word"
+    max_tokens: 50
+  - id: override_model
+    depends_on: [default_model]
+    infer: "Say goodbye in one word"
+    model: gpt-4.1-nano
+    max_tokens: 50

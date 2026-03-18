@@ -1,0 +1,17 @@
+# FEATURE: artifact with mode: append
+schema: nika/workflow@0.12
+workflow: feat-artifact-append
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: line1
+    exec: "echo 'first line'"
+    artifact:
+      path: appended.txt
+      mode: append
+  - id: line2
+    depends_on: [line1]
+    exec: "echo 'second line'"
+    artifact:
+      path: appended.txt
+      mode: append

@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-invoke-basic
+mcp:
+  test:
+    command: echo
+tasks:
+  - id: call
+    invoke:
+      mcp: test
+      tool: test_tool
+      params:
+        query: hello

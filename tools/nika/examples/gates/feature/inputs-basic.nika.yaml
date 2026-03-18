@@ -1,0 +1,8 @@
+# FEATURE: inputs: with default and {{inputs.name}} in template
+schema: nika/workflow@0.12
+workflow: feat-inputs-basic
+inputs:
+  name: "world"
+tasks:
+  - id: greet
+    exec: "echo 'Hello {{inputs.name}}'"

@@ -1,0 +1,25 @@
+# COMBO: multiple transforms piped in chain
+schema: nika/workflow@0.12
+workflow: combo-transform-chain-binding
+
+tasks:
+  - id: source
+    exec: "echo '  Hello, World, Foo  '"
+
+  - id: step1
+    depends_on: [source]
+    with:
+      clean: $source | trim
+    exec: "echo 'trimmed=[{{with.clean}}]'"
+
+  - id: step2
+    depends_on: [source]
+    with:
+      lowered: $source | trim | lower
+    exec: "echo 'lowered=[{{with.lowered}}]'"
+
+  - id: step3
+    depends_on: [source]
+    with:
+      upper: $source | trim | upper
+    exec: "echo 'upper=[{{with.upper}}]'"

@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-artifact-fail-mode
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen
+    exec: "echo fail mode content"
+    artifact:
+      path: "fail-mode-output.txt"
+      mode: fail

@@ -1,0 +1,9 @@
+# ERROR: exec: with very short timeout on a long-running command
+# Expected: run failure — task timed out
+schema: nika/workflow@0.12
+workflow: exec-timeout-test
+
+tasks:
+  - id: slow_cmd
+    exec: "sleep 10"
+    timeout_ms: 100

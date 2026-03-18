@@ -1,0 +1,28 @@
+# COMBO: 3 infer tasks: generate -> analyze -> summarize
+schema: nika/workflow@0.12
+workflow: combo-infer-chain-summary
+
+tasks:
+  - id: generate
+    infer: "List 3 benefits of Rust in one sentence each."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: analyze
+    depends_on: [generate]
+    with:
+      points: $generate
+    infer: "Which of these benefits is most important? {{with.points}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: summarize
+    depends_on: [analyze]
+    with:
+      analysis: $analyze
+    infer: "Summarize in one sentence: {{with.analysis}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

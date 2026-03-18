@@ -1,0 +1,10 @@
+# FEATURE: workflow-level artifacts: { dir: ... }
+schema: nika/workflow@0.12
+workflow: feat-artifact-dir-workflow
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen
+    exec: "echo 'output to workflow dir'"
+    artifact:
+      path: dir-test.txt

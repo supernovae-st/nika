@@ -1,0 +1,8 @@
+schema: nika/workflow@0.12
+workflow: feat-event-task-completed
+tasks:
+  - id: step_a
+    exec: "echo step a"
+  - id: step_b
+    depends_on: [step_a]
+    exec: "echo step b completed"

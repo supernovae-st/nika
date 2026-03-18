@@ -1,0 +1,11 @@
+# FEATURE: output: { format: yaml }
+schema: nika/workflow@0.12
+workflow: feat-output-yaml
+tasks:
+  - id: yaml_out
+    infer: "Return a YAML object with key: hello and value: world"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    output:
+      format: yaml

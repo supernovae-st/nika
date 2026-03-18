@@ -1,0 +1,12 @@
+# COMBO: log config + for_each
+schema: nika/workflow@0.12
+workflow: combo-log-for-each
+
+log:
+  level: info
+
+tasks:
+  - id: iterate
+    for_each: ["step1", "step2", "step3"]
+    as: step
+    exec: "echo 'Executing {{with.step}}'"

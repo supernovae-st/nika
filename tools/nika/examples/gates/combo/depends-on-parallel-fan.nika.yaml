@@ -1,0 +1,30 @@
+# COMBO: fan-out: 1 task -> 3 parallel -> 1 merge
+schema: nika/workflow@0.12
+workflow: combo-depends-on-parallel-fan
+
+tasks:
+  - id: seed
+    exec: "echo 'DATA'"
+
+  - id: worker_1
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W1({{with.d}})'"
+
+  - id: worker_2
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W2({{with.d}})'"
+
+  - id: worker_3
+    depends_on: [seed]
+    with: { d: $seed }
+    exec: "echo 'W3({{with.d}})'"
+
+  - id: merge
+    depends_on: [worker_1, worker_2, worker_3]
+    with:
+      r1: $worker_1
+      r2: $worker_2
+      r3: $worker_3
+    exec: "echo '{{with.r1}} | {{with.r2}} | {{with.r3}}'"

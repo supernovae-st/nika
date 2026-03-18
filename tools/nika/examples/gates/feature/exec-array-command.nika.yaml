@@ -1,0 +1,5 @@
+schema: nika/workflow@0.12
+workflow: feat-exec-array-command
+tasks:
+  - id: simple
+    exec: "echo hello"

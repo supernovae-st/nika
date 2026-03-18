@@ -1,0 +1,15 @@
+# COMBO: agent inside for_each loop
+schema: nika/workflow@0.12
+workflow: combo-agent-for-each
+
+tasks:
+  - id: agent_loop
+    for_each: ["math", "science"]
+    as: topic
+    agent:
+      prompt: "Say one fact about {{with.topic}}, then call nika_complete"
+      tools: [nika_complete]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      max_tokens: 50

@@ -1,0 +1,18 @@
+# COMBO: Multiple fallback ?? operators in chain
+schema: nika/workflow@0.12
+workflow: combo-binding-fallback-chain
+
+tasks:
+  - id: empty
+    exec: "true"
+
+  - id: partial
+    exec: 'printf ''{"name":"Nika"}'''
+
+  - id: use_fallbacks
+    depends_on: [empty, partial]
+    with:
+      val1: $empty ?? "fallback_empty"
+      val2: $partial.missing ?? "fallback_missing"
+      val3: $partial.name ?? "fallback_name"
+    exec: "echo 'v1={{with.val1}} v2={{with.val2}} v3={{with.val3}}'"

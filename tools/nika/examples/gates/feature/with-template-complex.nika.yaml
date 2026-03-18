@@ -1,0 +1,18 @@
+schema: nika/workflow@0.12
+workflow: feat-with-template-complex
+tasks:
+  - id: name
+    exec: "echo Nika"
+  - id: version
+    exec: "echo 0.12"
+  - id: status
+    exec: "echo running"
+  - id: report
+    with:
+      name: $name
+      ver: $version
+      st: $status
+    exec:
+      command: "echo '{{with.name}} v{{with.ver}} is {{with.st}}'"
+      shell: true
+    flow: [name, version, status]

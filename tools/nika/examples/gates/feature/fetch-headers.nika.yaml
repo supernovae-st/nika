@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-headers
+tasks:
+  - id: get
+    fetch:
+      url: "https://httpbin.org/headers"
+      headers:
+        X-Custom: test-value
+        Accept: application/json

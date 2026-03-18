@@ -1,0 +1,16 @@
+# COMBO: exec output bound to infer prompt
+schema: nika/workflow@0.12
+workflow: combo-multi-verb-binding
+
+tasks:
+  - id: gather
+    exec: "echo 'Rust is a systems programming language'"
+
+  - id: analyze
+    depends_on: [gather]
+    with:
+      text: $gather
+    infer: "Summarize in 5 words: {{with.text}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

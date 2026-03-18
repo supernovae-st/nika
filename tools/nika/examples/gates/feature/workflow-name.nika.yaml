@@ -1,0 +1,6 @@
+# FEATURE: workflow: field with custom name
+schema: nika/workflow@0.12
+workflow: my-custom-workflow-name
+tasks:
+  - id: hello
+    exec: "echo 'workflow name is my-custom-workflow-name'"

@@ -1,0 +1,10 @@
+# COMBO: exec in for_each with concurrency
+schema: nika/workflow@0.12
+workflow: combo-exec-for-each-parallel
+
+tasks:
+  - id: batch
+    for_each: ["a", "b", "c", "d"]
+    as: item
+    concurrency: 2
+    exec: "echo 'Processing {{with.item}}'"

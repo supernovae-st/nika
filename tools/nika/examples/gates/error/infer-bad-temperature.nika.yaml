@@ -1,0 +1,12 @@
+# ERROR: temperature: 999 (wildly out of range)
+# Expected: check or run failure — temperature must be between 0.0 and 2.0
+schema: nika/workflow@0.12
+workflow: infer-bad-temperature-test
+
+tasks:
+  - id: hot_take
+    infer: "Say hello"
+    provider: openai
+    model: gpt-4.1-mini
+    temperature: 999
+    max_tokens: 50

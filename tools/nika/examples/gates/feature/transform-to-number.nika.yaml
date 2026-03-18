@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-to-number
+tasks:
+  - id: gen
+    exec: "echo 42"
+  - id: use
+    with:
+      val: $gen | to_number
+    exec:
+      command: "echo Number is {{with.val}}"
+      shell: true
+    flow: [gen]

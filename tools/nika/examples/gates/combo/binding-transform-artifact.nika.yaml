@@ -1,0 +1,19 @@
+# COMBO: with transform + artifact write
+schema: nika/workflow@0.12
+workflow: combo-binding-transform-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: source
+    exec: "echo '  hello world  '"
+
+  - id: save
+    depends_on: [source]
+    with:
+      clean: $source | trim | upper
+    exec: "echo '{{with.clean}}'"
+    artifact:
+      path: transformed.txt
+      format: text

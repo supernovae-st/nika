@@ -1,0 +1,8 @@
+# ERROR: Task with no action verb
+# Expected: check failure — task must have one of infer/exec/fetch/invoke/agent
+schema: nika/workflow@0.12
+workflow: missing-verb-test
+
+tasks:
+  - id: no_verb
+    description: "This task has no verb — no infer, exec, fetch, invoke, or agent"

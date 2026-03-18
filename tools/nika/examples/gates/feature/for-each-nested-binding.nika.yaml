@@ -1,0 +1,13 @@
+# FEATURE: for_each with object items accessing nested fields
+schema: nika/workflow@0.12
+workflow: feat-for-each-nested-binding
+tasks:
+  - id: process
+    for_each:
+      - user: { name: "alice", level: 5 }
+      - user: { name: "bob", level: 3 }
+      - user: { name: "carol", level: 8 }
+    as: item
+    exec:
+      command: "echo {{with.item}}"
+      shell: true

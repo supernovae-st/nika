@@ -1,0 +1,13 @@
+# ERROR: agent: with empty tools array
+# Expected: check or run failure — agent requires at least one tool
+schema: nika/workflow@0.12
+workflow: agent-no-tools-test
+
+tasks:
+  - id: toolless_agent
+    agent:
+      prompt: "Do something without any tools"
+      tools: []
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3

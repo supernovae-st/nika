@@ -1,0 +1,11 @@
+# FEATURE: agent with 4+ tools
+schema: nika/workflow@0.12
+workflow: feat-agent-multi-tool
+tasks:
+  - id: multi
+    agent:
+      prompt: "Call nika_log with message='hello', then call nika_complete with result='DONE' confidence=1.0 reasoning='multi-tool test'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3
+      tools: [nika_complete, nika_log, nika_sleep, nika_read]

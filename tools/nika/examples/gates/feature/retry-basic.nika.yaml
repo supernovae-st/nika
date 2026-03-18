@@ -1,0 +1,8 @@
+# FEATURE: retry: { max_attempts: 3 }
+schema: nika/workflow@0.12
+workflow: feat-retry-basic
+tasks:
+  - id: flaky
+    exec: "echo 'attempt succeeded'"
+    retry:
+      max_attempts: 3

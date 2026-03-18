@@ -1,0 +1,9 @@
+schema: nika/workflow@0.12
+workflow: feat-with-env-binding
+tasks:
+  - id: show
+    with:
+      home: $env.HOME
+    exec:
+      command: "echo Home: {{with.home}}"
+      shell: true

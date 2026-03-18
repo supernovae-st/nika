@@ -1,0 +1,12 @@
+# ERROR: invoke: references an MCP server but no mcp: config
+# Expected: check failure — MCP server not configured
+schema: nika/workflow@0.12
+workflow: invoke-missing-mcp-test
+
+tasks:
+  - id: orphan_invoke
+    invoke:
+      server: novanet
+      tool: novanet_describe
+      params:
+        describe: schema

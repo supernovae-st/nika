@@ -1,0 +1,10 @@
+# FEATURE: workflow-level artifacts with manifest: true
+schema: nika/workflow@0.12
+workflow: feat-artifact-manifest
+artifacts:
+  dir: ./examples/gates/.test-output/manifest-test
+  manifest: true
+tasks:
+  - id: gen
+    exec: "echo manifest test data"
+    artifact: true

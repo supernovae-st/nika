@@ -1,0 +1,6 @@
+schema: nika/workflow@0.12
+workflow: feat-workflow-empty-description
+description: ""
+tasks:
+  - id: hello
+    exec: "echo hello"

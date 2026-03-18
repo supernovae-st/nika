@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-with-binding-basic
+tasks:
+  - id: step1
+    exec: "echo hello world"
+  - id: step2
+    with:
+      data: $step1
+    exec:
+      command: "echo Got: {{with.data}}"
+      shell: true
+    flow: [step1]

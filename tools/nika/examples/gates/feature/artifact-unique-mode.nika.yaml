@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-artifact-unique-mode
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen
+    exec: "echo unique content"
+    artifact:
+      path: "unique-mode-output.txt"
+      mode: unique

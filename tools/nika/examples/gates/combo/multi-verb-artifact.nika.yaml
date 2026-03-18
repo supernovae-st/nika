@@ -1,0 +1,30 @@
+# COMBO: exec + infer + fetch all with artifacts
+schema: nika/workflow@0.12
+workflow: combo-multi-verb-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: exec_art
+    exec: "echo 'exec output content'"
+    artifact:
+      path: exec-result.txt
+      format: text
+
+  - id: infer_art
+    infer: "Say 'hello world' and nothing else."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: infer-result.txt
+      format: text
+
+  - id: fetch_art
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+    artifact:
+      path: fetch-result.json
+      format: json

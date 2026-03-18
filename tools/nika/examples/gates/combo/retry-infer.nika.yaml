@@ -1,0 +1,11 @@
+# COMBO: retry config on infer task
+schema: nika/workflow@0.12
+workflow: combo-retry-infer
+
+tasks:
+  - id: flaky_infer
+    infer: "Say 'hello' and nothing else."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    max_retries: 3

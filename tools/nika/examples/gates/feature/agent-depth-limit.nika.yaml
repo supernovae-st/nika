@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-agent-depth-limit
+tasks:
+  - id: shallow
+    agent:
+      prompt: "Say hello and call nika_complete"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [builtin]
+      max_turns: 3
+      depth_limit: 2
+      max_tokens: 50

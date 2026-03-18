@@ -1,0 +1,10 @@
+# ERROR: Invalid YAML — tabs instead of spaces, broken structure
+# Expected: parse failure — YAML syntax error
+schema: nika/workflow@0.12
+workflow: bad-yaml-syntax-test
+
+tasks:
+	- id: broken
+	  exec: "echo 'tabs used for indentation'"
+  - id: also_broken
+    exec: "echo 'mixed indentation

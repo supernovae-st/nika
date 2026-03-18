@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-split
+tasks:
+  - id: gen
+    exec: "echo a,b,c"
+  - id: use
+    with:
+      val: $gen | split(,)
+    exec:
+      command: "echo Split is {{with.val}}"
+      shell: true
+    flow: [gen]

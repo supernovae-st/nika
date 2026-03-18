@@ -1,0 +1,16 @@
+# ERROR: context.files references a file that doesn't exist
+# Expected: check or run failure — context file not found
+schema: nika/workflow@0.12
+workflow: context-file-not-found-test
+
+context:
+  files:
+    ghost: ./nonexistent/path/to/ghost-file-xyz.md
+    phantom: ./also/does/not/exist/phantom.json
+
+tasks:
+  - id: use_ghost
+    infer: "Summarize: {{context.files.ghost}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

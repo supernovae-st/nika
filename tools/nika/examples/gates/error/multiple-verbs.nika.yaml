@@ -1,0 +1,11 @@
+# ERROR: Task with two verbs (infer + exec)
+# Expected: check failure — only one verb per task allowed
+schema: nika/workflow@0.12
+workflow: multiple-verbs-test
+
+tasks:
+  - id: double_verb
+    infer: "Generate something"
+    exec: "echo 'also run this'"
+    provider: openai
+    model: gpt-4.1-mini

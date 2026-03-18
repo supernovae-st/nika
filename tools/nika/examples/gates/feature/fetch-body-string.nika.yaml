@@ -1,0 +1,8 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-body-string
+tasks:
+  - id: post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body: "plain text body content"

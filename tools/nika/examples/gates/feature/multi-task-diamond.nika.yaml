@@ -1,0 +1,15 @@
+# FEATURE: diamond dependency pattern (a->b, a->c, b->d, c->d)
+schema: nika/workflow@0.12
+workflow: feat-multi-task-diamond
+tasks:
+  - id: a
+    exec: "echo A"
+  - id: b
+    exec: "echo B"
+    flow: [a]
+  - id: c
+    exec: "echo C"
+    flow: [a]
+  - id: d
+    exec: "echo D"
+    flow: [b, c]

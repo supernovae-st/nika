@@ -1,0 +1,17 @@
+# COMBO: explicit depends_on + with binding (both)
+schema: nika/workflow@0.12
+workflow: combo-depends-on-binding
+
+tasks:
+  - id: first
+    exec: "echo 'FIRST'"
+
+  - id: second
+    exec: "echo 'SECOND'"
+
+  - id: third
+    depends_on: [first, second]
+    with:
+      a: $first
+      b: $second
+    exec: "echo '{{with.a}} and {{with.b}}'"

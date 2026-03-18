@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-with-fallback
+tasks:
+  - id: step1
+    exec: "echo hello"
+  - id: step2
+    with:
+      data: $step1 ?? "default_value"
+    exec:
+      command: "echo {{with.data}}"
+      shell: true
+    flow: [step1]

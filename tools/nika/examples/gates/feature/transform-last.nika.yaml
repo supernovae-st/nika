@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-last
+tasks:
+  - id: gen
+    exec: 'echo ["alpha","beta","gamma"]'
+  - id: use
+    with:
+      val: $gen | last
+    exec:
+      command: "echo Last is {{with.val}}"
+      shell: true
+    flow: [gen]

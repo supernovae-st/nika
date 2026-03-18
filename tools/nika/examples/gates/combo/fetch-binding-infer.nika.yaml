@@ -1,0 +1,18 @@
+# COMBO: fetch response -> binding -> infer processing
+schema: nika/workflow@0.12
+workflow: combo-fetch-binding-infer
+
+tasks:
+  - id: call_api
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+
+  - id: interpret
+    depends_on: [call_api]
+    with:
+      data: $call_api
+    infer: "Describe this JSON in one sentence: {{with.data}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

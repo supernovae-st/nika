@@ -1,0 +1,8 @@
+# FEATURE: provider: mock (no API call)
+schema: nika/workflow@0.12
+workflow: feat-provider-mock
+provider: mock
+tasks:
+  - id: hello
+    infer: "Say hello in one word"
+    max_tokens: 50

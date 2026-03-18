@@ -1,0 +1,22 @@
+# FEATURE: structured with multiple properties
+schema: nika/workflow@0.12
+workflow: feat-structured-properties
+tasks:
+  - id: extract
+    infer: "Return a JSON object describing a book: title=Dune, author=Frank Herbert, year=1965, genre=sci-fi"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          title:
+            type: string
+          author:
+            type: string
+          year:
+            type: integer
+          genre:
+            type: string
+        required: [title, author, year, genre]

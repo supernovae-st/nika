@@ -1,0 +1,14 @@
+schema: nika/workflow@0.12
+workflow: feat-multi-verb-workflow
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: step_exec
+    exec: "echo nika"
+  - id: step_infer
+    infer:
+      prompt: "Say hello in one word"
+      max_tokens: 50
+  - id: step_fetch
+    fetch:
+      url: "https://httpbin.org/get"

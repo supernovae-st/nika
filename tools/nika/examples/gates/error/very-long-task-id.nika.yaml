@@ -1,0 +1,8 @@
+# ERROR: Task ID that is 500+ characters long
+# Expected: check failure — task ID exceeds maximum length
+schema: nika/workflow@0.12
+workflow: very-long-task-id-test
+
+tasks:
+  - id: this_is_an_extremely_long_task_id_that_goes_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_and_on_end
+    exec: "echo 'absurdly long id'"

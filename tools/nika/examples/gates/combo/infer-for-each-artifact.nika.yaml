@@ -1,0 +1,18 @@
+# COMBO: infer in for_each + artifact per item
+schema: nika/workflow@0.12
+workflow: combo-infer-for-each-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: tips
+    for_each: ["security", "performance", "readability"]
+    as: topic
+    infer: "One tip about {{with.topic}} in programming."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: "tip-{{with.topic}}.txt"
+      format: text

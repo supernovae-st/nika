@@ -1,0 +1,19 @@
+# COMBO: agent + artifact output
+schema: nika/workflow@0.12
+workflow: combo-agent-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: agent_write
+    agent:
+      prompt: "Generate a short greeting message, then call nika_complete"
+      tools: [nika_complete]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      max_tokens: 50
+    artifact:
+      path: agent-output.txt
+      format: text

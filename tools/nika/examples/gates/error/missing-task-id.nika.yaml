@@ -1,0 +1,7 @@
+# ERROR: Task without an id field
+# Expected: check failure — every task must have id:
+schema: nika/workflow@0.12
+workflow: missing-task-id-test
+
+tasks:
+  - exec: "echo 'no id on this task'"

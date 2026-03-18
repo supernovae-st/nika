@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-with-transform-trim
+tasks:
+  - id: step1
+    exec: "echo '  padded  '"
+  - id: step2
+    with:
+      data: $step1 | trim
+    exec:
+      command: "echo '{{with.data}}'"
+      shell: true
+    flow: [step1]

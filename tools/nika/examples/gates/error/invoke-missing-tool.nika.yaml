@@ -1,0 +1,16 @@
+# ERROR: invoke: without specifying which tool
+# Expected: check failure — invoke verb requires tool field
+schema: nika/workflow@0.12
+workflow: invoke-missing-tool-test
+
+mcp:
+  test:
+    command: echo
+    args: ["hello"]
+
+tasks:
+  - id: no_tool
+    invoke:
+      server: test
+      params:
+        key: value

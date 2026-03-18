@@ -1,0 +1,9 @@
+# ERROR: fetch: without url field
+# Expected: check failure — fetch verb requires url
+schema: nika/workflow@0.12
+workflow: fetch-missing-url-test
+
+tasks:
+  - id: no_url
+    fetch:
+      method: GET

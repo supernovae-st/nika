@@ -1,0 +1,13 @@
+# FEATURE: invoke with MCP timeout
+schema: nika/workflow@0.12
+workflow: feat-mcp-timeout
+mcp:
+  test:
+    command: echo
+tasks:
+  - id: call_with_timeout
+    invoke:
+      mcp: test
+      tool: test_tool
+      params:
+        query: hello

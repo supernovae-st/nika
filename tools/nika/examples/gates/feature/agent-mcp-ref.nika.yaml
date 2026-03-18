@@ -1,0 +1,16 @@
+schema: nika/workflow@0.12
+workflow: feat-agent-mcp-ref
+mcp:
+  novanet:
+    command: "echo"
+    args: ["noop"]
+tasks:
+  - id: with_mcp
+    agent:
+      prompt: "Say DONE and call nika_complete"
+      provider: openai
+      model: gpt-4.1-mini
+      tools: [builtin]
+      mcp: [novanet]
+      max_turns: 2
+      max_tokens: 50

@@ -1,0 +1,16 @@
+# FEATURE: 3 tasks in a chain with bindings
+schema: nika/workflow@0.12
+workflow: feat-multi-task-chain
+tasks:
+  - id: step1
+    exec: "echo 'alpha'"
+  - id: step2
+    depends_on: [step1]
+    with:
+      prev: $step1
+    exec: "echo '{{with.prev}}-beta'"
+  - id: step3
+    depends_on: [step2]
+    with:
+      prev: $step2
+    exec: "echo '{{with.prev}}-gamma'"

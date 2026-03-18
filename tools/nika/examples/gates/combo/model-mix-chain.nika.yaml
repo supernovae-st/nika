@@ -1,0 +1,19 @@
+# COMBO: task chain with different models
+schema: nika/workflow@0.12
+workflow: combo-model-mix-chain
+
+tasks:
+  - id: draft
+    infer: "Write one sentence about AI safety."
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+
+  - id: refine
+    depends_on: [draft]
+    with:
+      text: $draft
+    infer: "Make this sentence shorter: {{with.text}}"
+    provider: openai
+    model: gpt-4.1-nano
+    max_tokens: 50

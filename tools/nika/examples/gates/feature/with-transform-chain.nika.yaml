@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-with-transform-chain
+tasks:
+  - id: step1
+    exec: "echo '  HELLO WORLD  '"
+  - id: step2
+    with:
+      data: $step1 | lower | trim
+    exec:
+      command: "echo '{{with.data}}'"
+      shell: true
+    flow: [step1]

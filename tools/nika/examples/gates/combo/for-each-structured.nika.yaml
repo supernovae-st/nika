@@ -1,0 +1,19 @@
+# COMBO: for_each + structured output
+schema: nika/workflow@0.12
+workflow: combo-for-each-structured
+
+tasks:
+  - id: extract
+    for_each: ["Alice", "Bob"]
+    as: name
+    infer: "Return JSON with name and age for {{with.name}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          age: { type: integer }
+        required: [name, age]

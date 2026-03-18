@@ -1,0 +1,23 @@
+# COMBO: structured output saved as artifact
+schema: nika/workflow@0.12
+workflow: combo-structured-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: extract
+    infer: "Return JSON with tool=Nika and version=0.12"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          tool: { type: string }
+          version: { type: string }
+        required: [tool, version]
+    artifact:
+      path: structured-data.json
+      format: json

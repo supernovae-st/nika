@@ -1,0 +1,12 @@
+# ERROR: agent: without a prompt field
+# Expected: check failure — agent verb requires prompt
+schema: nika/workflow@0.12
+workflow: agent-missing-prompt-test
+
+tasks:
+  - id: no_prompt_agent
+    agent:
+      tools: [builtin]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 3

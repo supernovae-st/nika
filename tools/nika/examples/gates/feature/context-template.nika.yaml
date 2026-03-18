@@ -1,0 +1,12 @@
+# FEATURE: context file used in template: {{context.files.readme}}
+schema: nika/workflow@0.12
+workflow: feat-context-template
+context:
+  files:
+    readme: ./README.md
+tasks:
+  - id: summarize
+    infer: "Summarize this in one sentence: {{context.files.readme}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50

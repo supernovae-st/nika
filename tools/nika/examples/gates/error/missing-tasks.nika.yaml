@@ -1,0 +1,4 @@
+# ERROR: No tasks field at all
+# Expected: check failure — tasks field is required
+schema: nika/workflow@0.12
+workflow: missing-tasks-test

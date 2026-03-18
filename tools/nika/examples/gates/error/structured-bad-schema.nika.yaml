@@ -1,0 +1,15 @@
+# ERROR: structured output with invalid JSON schema definition
+# Expected: check or run failure — NIKA-300 invalid structured schema
+schema: nika/workflow@0.12
+workflow: structured-bad-schema-test
+
+tasks:
+  - id: bad_structured
+    infer: "Generate something"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200
+    structured:
+      schema:
+        type: not_a_real_type
+        properties: "should be an object not a string"

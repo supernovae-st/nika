@@ -1,0 +1,14 @@
+# ERROR: with: binding uses a non-existent transform
+# Expected: check or run failure — unknown transform function
+schema: nika/workflow@0.12
+workflow: bad-transform-test
+
+tasks:
+  - id: source
+    exec: "echo 'hello world'"
+
+  - id: transform_fail
+    depends_on: [source]
+    with:
+      data: $source | nonexistent_transform_xyz
+    exec: "echo '{{with.data}}'"

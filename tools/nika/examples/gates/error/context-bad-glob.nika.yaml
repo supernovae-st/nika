@@ -1,0 +1,15 @@
+# ERROR: context with invalid glob pattern
+# Expected: check or run failure — invalid glob syntax
+schema: nika/workflow@0.12
+workflow: context-bad-glob-test
+
+context:
+  files:
+    broken: "./[invalid[glob[pattern"
+
+tasks:
+  - id: use_broken_glob
+    infer: "Process: {{context.files.broken}}"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

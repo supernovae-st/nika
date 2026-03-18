@@ -1,0 +1,8 @@
+schema: nika/workflow@0.12
+workflow: feat-depends-on
+tasks:
+  - id: first
+    exec: "echo first"
+  - id: second
+    depends_on: [first]
+    exec: "echo second"

@@ -1,0 +1,7 @@
+# FEATURE: description: field
+schema: nika/workflow@0.12
+workflow: feat-workflow-description
+description: "A workflow that tests the description field"
+tasks:
+  - id: hello
+    exec: "echo 'workflow has a description'"

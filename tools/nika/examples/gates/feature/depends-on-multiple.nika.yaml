@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-depends-on-multiple
+tasks:
+  - id: a
+    exec: "echo alpha"
+  - id: b
+    exec: "echo bravo"
+  - id: c
+    depends_on: [a, b]
+    exec: "echo charlie after a and b"

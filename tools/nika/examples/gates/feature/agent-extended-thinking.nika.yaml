@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-agent-extended-thinking
+tasks:
+  - id: thinker
+    agent:
+      prompt: "Think deeply and say hello"
+      provider: claude
+      model: claude-sonnet-4-20250514
+      tools: [builtin]
+      max_turns: 2
+      max_tokens: 1024
+      extended_thinking: true

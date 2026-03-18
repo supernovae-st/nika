@@ -1,0 +1,26 @@
+# COMBO: Diamond DAG with data flow through bindings
+schema: nika/workflow@0.12
+workflow: combo-binding-diamond
+
+tasks:
+  - id: source
+    exec: "echo 'DIAMOND'"
+
+  - id: left
+    depends_on: [source]
+    with:
+      data: $source
+    exec: "echo 'LEFT({{with.data}})'"
+
+  - id: right
+    depends_on: [source]
+    with:
+      data: $source
+    exec: "echo 'RIGHT({{with.data}})'"
+
+  - id: merge
+    depends_on: [left, right]
+    with:
+      l: $left
+      r: $right
+    exec: "echo '{{with.l}} + {{with.r}}'"

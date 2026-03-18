@@ -1,0 +1,7 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-timeout
+tasks:
+  - id: get
+    fetch:
+      url: "https://httpbin.org/get"
+      timeout: 10

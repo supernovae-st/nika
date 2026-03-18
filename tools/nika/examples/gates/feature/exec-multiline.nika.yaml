@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-exec-multiline
+tasks:
+  - id: multi
+    exec:
+      command: |
+        echo "line one"
+        echo "line two"
+        echo "line three"
+      shell: true

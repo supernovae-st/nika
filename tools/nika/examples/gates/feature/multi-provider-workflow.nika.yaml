@@ -1,0 +1,14 @@
+# FEATURE: workflow-level provider with task-level override to mock
+schema: nika/workflow@0.12
+workflow: feat-multi-provider-workflow
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: openai_task
+    infer: "Say hello in one word"
+    max_tokens: 50
+  - id: mock_task
+    depends_on: [openai_task]
+    infer: "Say goodbye in one word"
+    provider: mock
+    max_tokens: 50

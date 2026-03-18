@@ -1,0 +1,7 @@
+schema: nika/workflow@0.12
+workflow: feat-exec-pipe
+tasks:
+  - id: piped
+    exec:
+      command: "echo hello | tr a-z A-Z"
+      shell: true

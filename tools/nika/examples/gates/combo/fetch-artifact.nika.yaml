@@ -1,0 +1,15 @@
+# COMBO: fetch + save response as artifact
+schema: nika/workflow@0.12
+workflow: combo-fetch-artifact
+
+artifacts:
+  dir: ./examples/gates/.test-output/combo
+
+tasks:
+  - id: download
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    artifact:
+      path: api-response.json
+      format: json

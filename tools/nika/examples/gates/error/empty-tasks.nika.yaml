@@ -1,0 +1,6 @@
+# ERROR: Empty tasks array
+# Expected: check failure — at least one task required
+schema: nika/workflow@0.12
+workflow: empty-tasks-test
+
+tasks: []

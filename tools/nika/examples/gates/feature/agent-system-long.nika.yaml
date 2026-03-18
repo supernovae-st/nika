@@ -1,0 +1,20 @@
+# FEATURE: agent with long multi-line system prompt
+schema: nika/workflow@0.12
+workflow: feat-agent-system-long
+tasks:
+  - id: verbose_agent
+    agent:
+      system: |
+        You are a helpful assistant specialized in data analysis.
+        You must follow these rules:
+        1. Always be concise in your responses.
+        2. Use structured formats when possible.
+        3. If uncertain, state your confidence level.
+        4. Never make up information.
+        5. When asked to complete, use the nika_complete tool.
+      prompt: "Call nika_complete with result='OK' confidence=1.0 reasoning='system prompt test'"
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      tools: [nika_complete]
+      max_tokens: 50

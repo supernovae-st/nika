@@ -1,0 +1,13 @@
+schema: nika/workflow@0.12
+workflow: feat-for-each-objects
+tasks:
+  - id: loop
+    for_each:
+      - name: "alice"
+        role: "dev"
+      - name: "bob"
+        role: "ops"
+    as: person
+    exec:
+      command: "echo {{with.person}}"
+      shell: true

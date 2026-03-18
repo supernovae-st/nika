@@ -1,0 +1,11 @@
+# ERROR: infer: with valid provider but nonexistent model
+# Expected: run failure — model not found or API error
+schema: nika/workflow@0.12
+workflow: infer-bad-model-test
+
+tasks:
+  - id: bad_model
+    infer: "Say hello"
+    provider: openai
+    model: nonexistent-model-xyz-999
+    max_tokens: 50

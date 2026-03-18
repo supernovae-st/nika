@@ -1,0 +1,11 @@
+# COMBO: fetch inside for_each loop
+schema: nika/workflow@0.12
+workflow: combo-fetch-for-each
+
+tasks:
+  - id: multi_fetch
+    for_each: ["get", "headers", "ip"]
+    as: endpoint
+    fetch:
+      url: "https://httpbin.org/{{with.endpoint}}"
+      method: GET

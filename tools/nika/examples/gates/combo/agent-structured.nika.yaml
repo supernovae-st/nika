@@ -1,0 +1,20 @@
+# COMBO: agent + structured output
+schema: nika/workflow@0.12
+workflow: combo-agent-structured
+
+tasks:
+  - id: agent_struct
+    agent:
+      prompt: "Return a JSON object with name and role fields. Then call nika_complete."
+      tools: [nika_complete]
+      provider: openai
+      model: gpt-4.1-mini
+      max_turns: 2
+      max_tokens: 50
+    structured:
+      schema:
+        type: object
+        properties:
+          name: { type: string }
+          role: { type: string }
+        required: [name, role]

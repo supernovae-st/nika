@@ -1,0 +1,16 @@
+# COMBO: retry config on fetch task
+schema: nika/workflow@0.12
+workflow: combo-retry-fetch
+
+tasks:
+  - id: resilient_fetch
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+    max_retries: 2
+
+  - id: process
+    depends_on: [resilient_fetch]
+    with:
+      data: $resilient_fetch
+    exec: "echo 'Fetched: {{with.data}}'"

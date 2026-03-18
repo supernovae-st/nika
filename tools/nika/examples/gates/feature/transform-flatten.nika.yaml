@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-flatten
+tasks:
+  - id: gen
+    exec: 'echo [[1,2],[3,4]]'
+  - id: use
+    with:
+      val: $gen | flatten
+    exec:
+      command: "echo Flat is {{with.val}}"
+      shell: true
+    flow: [gen]

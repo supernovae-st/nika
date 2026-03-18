@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-infer-system-prompt
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: greet
+    infer:
+      prompt: "Say hello"
+      system: "You are a pirate. Respond in one sentence."
+      max_tokens: 50

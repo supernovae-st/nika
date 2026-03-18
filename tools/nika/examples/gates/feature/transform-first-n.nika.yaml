@@ -1,0 +1,13 @@
+# FEATURE: with: { val: $step | first(2) } — take first N items
+schema: nika/workflow@0.12
+workflow: feat-transform-first-n
+tasks:
+  - id: gen
+    exec: 'echo ["a","b","c","d","e"]'
+  - id: use
+    with:
+      val: $gen | first(2)
+    exec:
+      command: "echo {{with.val}}"
+      shell: true
+    flow: [gen]

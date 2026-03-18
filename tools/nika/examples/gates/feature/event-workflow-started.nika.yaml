@@ -1,0 +1,5 @@
+schema: nika/workflow@0.12
+workflow: feat-event-workflow-started
+tasks:
+  - id: ping
+    exec: "echo workflow started event test"

@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-abs
+tasks:
+  - id: gen
+    exec: "echo -5"
+  - id: use
+    with:
+      val: $gen | abs
+    exec:
+      command: "echo Absolute is {{with.val}}"
+      shell: true
+    flow: [gen]

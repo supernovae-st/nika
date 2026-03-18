@@ -1,0 +1,14 @@
+# FEATURE: artifact with template field
+schema: nika/workflow@0.12
+workflow: feat-artifact-template
+artifacts:
+  dir: ./examples/gates/.test-output/artifacts
+tasks:
+  - id: gen
+    infer: "Say hello in one word"
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 50
+    artifact:
+      path: templated.md
+      template: "# Greeting\n\n{{task.output}}"

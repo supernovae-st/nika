@@ -1,0 +1,11 @@
+# FEATURE: retry with exponential backoff
+schema: nika/workflow@0.12
+workflow: feat-retry-backoff
+tasks:
+  - id: flaky
+    fetch:
+      url: "https://httpbin.org/get"
+      retry:
+        max_attempts: 3
+        backoff_ms: 100
+        multiplier: 2

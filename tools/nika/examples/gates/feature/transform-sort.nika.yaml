@@ -1,0 +1,12 @@
+schema: nika/workflow@0.12
+workflow: feat-transform-sort
+tasks:
+  - id: gen
+    exec: 'echo ["cherry","apple","banana"]'
+  - id: use
+    with:
+      val: $gen | sort
+    exec:
+      command: "echo Sorted is {{with.val}}"
+      shell: true
+    flow: [gen]

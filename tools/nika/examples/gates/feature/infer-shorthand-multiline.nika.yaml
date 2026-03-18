@@ -1,0 +1,10 @@
+schema: nika/workflow@0.12
+workflow: feat-infer-shorthand-multiline
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: multi
+    infer: |
+      You are a helpful assistant.
+      Say exactly one word: hello.
+    max_tokens: 50

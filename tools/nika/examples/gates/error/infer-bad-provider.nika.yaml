@@ -1,0 +1,11 @@
+# ERROR: infer: with a provider that doesn't exist
+# Expected: run failure — NIKA-030 unknown provider
+schema: nika/workflow@0.12
+workflow: infer-bad-provider-test
+
+tasks:
+  - id: bad_provider
+    infer: "Say hello"
+    provider: nonexistent_provider_xyz
+    model: some-model
+    max_tokens: 50

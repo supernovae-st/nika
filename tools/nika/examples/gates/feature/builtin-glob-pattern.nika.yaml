@@ -1,0 +1,11 @@
+schema: nika/workflow@0.12
+workflow: feat-builtin-glob-pattern
+tasks:
+  - id: globber
+    agent:
+      prompt: "Call nika_glob with pattern='*.yaml' and path='./examples/gates/feature/'. Then call nika_complete with result='GLOB_OK'"
+      tools: [builtin]
+      max_turns: 3
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

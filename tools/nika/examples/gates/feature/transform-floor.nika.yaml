@@ -1,0 +1,13 @@
+# FEATURE: with: { val: $step | floor } — floor of numeric value
+schema: nika/workflow@0.12
+workflow: feat-transform-floor
+tasks:
+  - id: gen
+    exec: "echo 3.99"
+  - id: use
+    with:
+      val: $gen | floor
+    exec:
+      command: "echo {{with.val}}"
+      shell: true
+    flow: [gen]

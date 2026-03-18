@@ -1,0 +1,11 @@
+# ERROR: Two tasks with the same id
+# Expected: check failure — duplicate task id detected
+schema: nika/workflow@0.12
+workflow: duplicate-task-id-test
+
+tasks:
+  - id: step1
+    exec: "echo 'first'"
+
+  - id: step1
+    exec: "echo 'duplicate'"

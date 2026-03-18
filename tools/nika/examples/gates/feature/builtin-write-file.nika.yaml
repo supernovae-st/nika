@@ -1,0 +1,11 @@
+schema: nika/workflow@0.12
+workflow: feat-builtin-write-file
+tasks:
+  - id: writer
+    agent:
+      prompt: "Call nika_write with path='/tmp/nika-test-write.txt' and content='hello from nika'. Then call nika_complete with result='WRITE_OK'"
+      tools: [builtin]
+      max_turns: 3
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 100

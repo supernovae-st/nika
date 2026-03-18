@@ -1,0 +1,6 @@
+schema: nika/workflow@0.12
+workflow: feat-fetch-basic
+tasks:
+  - id: get
+    fetch:
+      url: "https://httpbin.org/get"
