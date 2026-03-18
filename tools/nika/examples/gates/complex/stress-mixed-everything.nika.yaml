@@ -27,9 +27,7 @@ tasks:
     fetch:
       url: "https://httpbin.org/post"
       method: POST
-      body:
-        topic: "{{inputs.topic}}"
-        verb: "fetch"
+      body: '{"topic":"{{inputs.topic}}","verb":"fetch"}'
     description: "Verb 2: fetch POST"
 
   # VERB 3: infer (with structured output)

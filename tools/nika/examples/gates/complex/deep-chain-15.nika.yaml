@@ -75,9 +75,7 @@ tasks:
     fetch:
       url: "https://httpbin.org/post"
       method: POST
-      body:
-        chain_data: "{{with.d}}"
-        step: 11
+      body: '{"chain_data":"{{with.d}}","step":11}'
 
   - id: c12
     depends_on: [c11]

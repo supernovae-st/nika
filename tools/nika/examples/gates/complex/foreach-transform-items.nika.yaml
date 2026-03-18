@@ -8,16 +8,23 @@ tasks:
     exec: "echo '  [\"Alpha\", \"Beta\", \"Gamma\", \"Delta\", \"Epsilon\"]  '"
     description: "Raw data with whitespace padding"
 
-  - id: process_each
+  - id: trimmed_data
     depends_on: [raw_data]
-    for_each: "$raw_data | trim"
+    with:
+      raw: $raw_data | trim
+    exec: "echo '{{with.raw}}'"
+    description: "Trim whitespace from raw data"
+
+  - id: process_each
+    depends_on: [trimmed_data]
+    for_each: "$trimmed_data"
     as: item
     exec: "echo 'ITEM={{with.item}}'"
     description: "for_each over trimmed data"
 
   - id: transform_each
-    depends_on: [raw_data]
-    for_each: "$raw_data | trim"
+    depends_on: [trimmed_data]
+    for_each: "$trimmed_data"
     as: item
     infer: "Translate '{{with.item}}' to its Greek alphabet position number. Return only the number."
     provider: openai
@@ -26,8 +33,8 @@ tasks:
     description: "Transform each item via LLM"
 
   - id: enrich_each
-    depends_on: [raw_data]
-    for_each: "$raw_data | trim"
+    depends_on: [trimmed_data]
+    for_each: "$trimmed_data"
     as: letter
     with:
       home: $env.HOME

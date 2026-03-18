@@ -56,9 +56,7 @@ tasks:
     fetch:
       url: "https://httpbin.org/post"
       method: POST
-      body:
-        title: "{{with.title}}"
-        step: 6
+      body: '{"title":"{{with.title}}","step":6}'
     description: "Step 6: Post the title to httpbin"
 
   - id: t7_exec

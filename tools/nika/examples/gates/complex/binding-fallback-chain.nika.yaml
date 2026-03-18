@@ -36,7 +36,7 @@ tasks:
   - id: fallback_with_transform
     depends_on: [partial_data]
     with:
-      val: $partial_data.name ?? "fallback" | upper
+      val: $partial_data.name ?? "FALLBACK"
     exec: "echo 'Transformed={{with.val}}'"
     description: "Fallback combined with transform"
 
