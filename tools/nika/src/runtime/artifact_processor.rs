@@ -1453,4 +1453,82 @@ mod tests {
         let written = std::fs::read(&result.paths[0]).unwrap();
         assert_eq!(written, b"image data 2");
     }
+
+    // ========== Binary artifact edge cases ==========
+
+    #[tokio::test]
+    async fn test_binary_artifact_missing_source_binding_error() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: Some("nonexistent_source".to_string()),
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &[], // No media refs
+        )
+        .await;
+
+        assert_eq!(result.written, 0);
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0].contains("not found"),
+            "Error should mention source not found: {}",
+            result.errors[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_binary_artifact_no_media_no_source_error() {
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let bindings = ResolvedBindings::default();
+        let datastore = RunContext::new();
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: None, // No source specified
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "task1",
+            "text output",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &[], // No media refs either
+        )
+        .await;
+
+        assert_eq!(result.written, 0);
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0].contains("no media"),
+            "Error should mention no media: {}",
+            result.errors[0]
+        );
+    }
 }
