@@ -748,4 +748,381 @@ mod tests {
         assert_eq!(MediaType::from_mime(""), MediaType::Unknown);
         assert_eq!(MediaType::from_mime("garbage"), MediaType::Unknown);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PHASE E2: AGGRESSIVE EDGE CASES — SILENT BUG HUNTING
+    // ═══════════════════════════════════════════════════════════════
+
+    // --- Base64 stress tests ---
+
+    #[tokio::test]
+    async fn e2e_base64_with_spaces_fails() {
+        // Some servers insert spaces in base64
+        let (processor, _dir) = make_processor_e2e();
+        let b64 = encode_b64(&real_png_bytes());
+        let with_spaces = b64.chars()
+            .enumerate()
+            .map(|(i, c)| if i > 0 && i % 20 == 0 { format!(" {c}") } else { c.to_string() })
+            .collect::<String>();
+        let block = ContentBlock::image(with_spaces, "image/png");
+        let result = processor.process(&block, "t_spaces").await;
+        // STANDARD base64 rejects whitespace → should be NIKA-256
+        assert!(result.is_err(), "Base64 with spaces should fail");
+        assert_eq!(result.unwrap_err().code(), "NIKA-256");
+    }
+
+    #[tokio::test]
+    async fn e2e_base64_single_char_fails() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::image("A", "image/png");
+        let result = processor.process(&block, "t_single").await;
+        // Single char is invalid base64 (not multiple of 4)
+        assert!(result.is_err(), "Single char base64 should fail");
+    }
+
+    #[tokio::test]
+    async fn e2e_base64_just_padding_fails() {
+        let (processor, _dir) = make_processor_e2e();
+        let block = ContentBlock::image("====", "image/png");
+        let result = processor.process(&block, "t_padding").await;
+        // Just padding chars is invalid
+        assert!(result.is_err(), "Padding-only base64 should fail");
+    }
+
+    #[tokio::test]
+    async fn e2e_base64_decodes_to_single_byte() {
+        let (processor, _dir) = make_processor_e2e();
+        // Single byte 0xFF → base64 "/w=="
+        let b64 = encode_b64(&[0xFF]);
+        let block = ContentBlock::image(b64, "application/octet-stream");
+        let result = processor.process(&block, "t_1byte").await;
+        // 1 byte → infer::get() returns None → server hint "application/octet-stream" → error
+        assert!(result.is_err(), "Single byte with octet-stream should fail MIME detection");
+        assert_eq!(result.unwrap_err().code(), "NIKA-251");
+    }
+
+    // --- MIME detection stress ---
+
+    #[test]
+    fn e2e_detect_empty_data_fails() {
+        // Empty slice should fail
+        let result = detect_mime(&[], None);
+        assert!(result.is_err(), "Empty data should fail MIME detection");
+    }
+
+    #[test]
+    fn e2e_detect_single_byte_fails() {
+        let result = detect_mime(&[0x89], None);
+        assert!(result.is_err(), "Single byte should fail MIME detection");
+    }
+
+    #[test]
+    fn e2e_detect_almost_png_fails() {
+        // First 3 bytes of PNG but incomplete signature
+        let almost_png = &[0x89, 0x50, 0x4E];
+        let result = detect_mime(almost_png, None);
+        // Should NOT detect as PNG — incomplete signature
+        match result {
+            Ok(detected) => {
+                assert_ne!(detected.mime_type, "image/png",
+                    "SILENT BUG: incomplete PNG signature detected as PNG!");
+            }
+            Err(_) => {} // Expected: detection fails
+        }
+    }
+
+    #[test]
+    fn e2e_detect_webp_header() {
+        // RIFF....WEBP
+        let webp = &[
+            0x52, 0x49, 0x46, 0x46, // RIFF
+            0x00, 0x00, 0x00, 0x00, // size
+            0x57, 0x45, 0x42, 0x50, // WEBP
+        ];
+        let result = detect_mime(webp, None).unwrap();
+        assert_eq!(result.mime_type, "image/webp");
+    }
+
+    #[test]
+    fn e2e_detect_mp3_id3_header() {
+        let mp3 = real_mp3_bytes();
+        let result = detect_mime(&mp3, None).unwrap();
+        assert!(result.mime_type.contains("mp3") || result.mime_type.contains("mpeg"),
+            "MP3 not detected: {}", result.mime_type);
+    }
+
+    #[test]
+    fn e2e_detect_xml_not_svg() {
+        // XML that is NOT SVG — should NOT be detected as image/svg+xml
+        let xml = b"<?xml version=\"1.0\"?><root><data>hello</data></root>";
+        let result = detect_mime(xml, None);
+        match result {
+            Ok(detected) => {
+                assert_ne!(detected.mime_type, "image/svg+xml",
+                    "SILENT BUG: non-SVG XML detected as SVG!");
+            }
+            Err(_) => {} // Expected: not detected
+        }
+    }
+
+    #[test]
+    fn e2e_detect_svg_with_xml_declaration() {
+        let svg = b"<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"><circle/></svg>";
+        let result = detect_mime(svg, None).unwrap();
+        assert_eq!(result.mime_type, "image/svg+xml");
+    }
+
+    #[test]
+    fn e2e_detect_server_mime_alias_audio_mp3() {
+        // Server says "audio/mp3" (non-standard) for an actual MP3
+        let mp3 = real_mp3_bytes();
+        let result = detect_mime(&mp3, Some("audio/mp3")).unwrap();
+        // Magic bytes should detect correctly regardless of non-standard server hint
+        assert!(result.mime_type.contains("mpeg") || result.mime_type.contains("mp3"),
+            "MP3 detection failed with non-standard server hint: {}", result.mime_type);
+    }
+
+    // --- CAS store edge cases ---
+
+    #[tokio::test]
+    async fn e2e_cas_store_large_file_without_verify() {
+        // File just under verify threshold (1MB) — should NOT be verified
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let data = vec![0xAB_u8; 1024 * 1024 - 1]; // 1MB - 1 byte
+        let result = store.store(&data).await.unwrap();
+        assert!(!result.verified, "File under 1MB should not be verified");
+        assert!(!result.deduplicated);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_store_exact_threshold_is_verified() {
+        // File exactly at verify threshold (1MB) — SHOULD be verified
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let data = vec![0xCD_u8; 1024 * 1024]; // Exactly 1MB
+        let result = store.store(&data).await.unwrap();
+        assert!(result.verified, "File at exactly 1MB should be verified");
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_read_with_raw_hash_no_prefix() {
+        // read() should accept both "blake3:..." and raw hash
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let data = b"read with raw hash";
+        let result = store.store(data).await.unwrap();
+
+        // Read with full prefix
+        let data1 = store.read(&result.hash).await.unwrap();
+        assert_eq!(data1, data);
+
+        // Read with raw hash (strip "blake3:" prefix)
+        let raw_hash = result.hash.strip_prefix("blake3:").unwrap();
+        let data2 = store.read(raw_hash).await.unwrap();
+        assert_eq!(data2, data);
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_exists_with_raw_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        let result = store.store(b"exists check").await.unwrap();
+
+        assert!(store.exists(&result.hash));
+        let raw = result.hash.strip_prefix("blake3:").unwrap();
+        assert!(store.exists(raw));
+    }
+
+    #[tokio::test]
+    async fn e2e_cas_read_invalid_short_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        // Hash too short (< 3 chars)
+        let result = store.read("ab").await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), "NIKA-253");
+    }
+
+    // --- Process pipeline integration ---
+
+    #[tokio::test]
+    async fn e2e_process_audio_block() {
+        let (processor, _dir) = make_processor_e2e();
+        let mp3 = real_mp3_bytes();
+        let block = ContentBlock::audio(encode_b64(&mp3), "audio/mpeg");
+        let result = processor.process(&block, "gen_audio").await
+            .expect("process should succeed")
+            .expect("audio should return Some");
+        let (media_ref, _) = result;
+        assert!(media_ref.mime_type.contains("mpeg") || media_ref.mime_type.contains("mp3"),
+            "Audio MIME type wrong: {}", media_ref.mime_type);
+        assert_eq!(media_ref.created_by, "gen_audio");
+    }
+
+    #[tokio::test]
+    async fn e2e_process_resource_with_blob_and_mime() {
+        let (processor, _dir) = make_processor_e2e();
+        let pdf = real_pdf_bytes();
+        let rc = ResourceContent::new("file:///doc.pdf")
+            .with_blob(encode_b64(&pdf))
+            .with_mime_type("application/pdf");
+        let block = ContentBlock::Resource(rc);
+        let result = processor.process(&block, "gen_pdf").await
+            .expect("process should succeed")
+            .expect("blob resource should return Some");
+        let (media_ref, _) = result;
+        assert_eq!(media_ref.mime_type, "application/pdf");
+    }
+
+    #[tokio::test]
+    async fn e2e_process_all_only_errors() {
+        let (processor, _dir) = make_processor_e2e();
+        let blocks = vec![
+            ContentBlock::image("BAD_BASE64!!!", "image/png"),
+            ContentBlock::audio("ALSO_BAD!!!", "audio/wav"),
+        ];
+        let results = processor.process_all(&blocks, "fail_all").await;
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.is_err()),
+            "All blocks should fail");
+    }
+
+    #[tokio::test]
+    async fn e2e_process_all_empty_vec() {
+        let (processor, _dir) = make_processor_e2e();
+        let results = processor.process_all(&[], "empty").await;
+        assert!(results.is_empty(), "Empty input should produce empty output");
+    }
+
+    #[tokio::test]
+    async fn e2e_process_all_text_only() {
+        let (processor, _dir) = make_processor_e2e();
+        let blocks = vec![
+            ContentBlock::text("hello"),
+            ContentBlock::text("world"),
+        ];
+        let results = processor.process_all(&blocks, "text_only").await;
+        assert!(results.is_empty(), "Text-only blocks should produce empty output");
+    }
+
+    // --- Shared budget e2e ---
+
+    #[tokio::test]
+    async fn e2e_shared_budget_across_processors() {
+        let budget = Arc::new(MediaBudget::with_max_per_run(200));
+
+        let dir1 = tempfile::tempdir().unwrap();
+        let dir2 = tempfile::tempdir().unwrap();
+        let p1 = MediaProcessor::with_shared_budget(
+            CasStore::new(dir1.path()), Arc::clone(&budget));
+        let p2 = MediaProcessor::with_shared_budget(
+            CasStore::new(dir2.path()), Arc::clone(&budget));
+
+        let png = real_png_bytes();
+        let b64 = encode_b64(&png);
+
+        // First processor succeeds
+        let r1 = p1.process(&ContentBlock::image(b64.clone(), "image/png"), "t1").await;
+        assert!(r1.is_ok(), "First process should succeed: {:?}", r1.err());
+
+        // Second processor succeeds (still under budget)
+        let r2 = p2.process(&ContentBlock::image(b64.clone(), "image/png"), "t2").await;
+        assert!(r2.is_ok(), "Second process should succeed: {:?}", r2.err());
+
+        // Third processor should fail (budget exceeded: ~70 bytes x 3 > 200)
+        let r3 = p1.process(&ContentBlock::image(b64.clone(), "image/png"), "t3").await;
+        assert!(r3.is_err(), "Third process should exceed budget");
+        assert_eq!(r3.unwrap_err().code(), "NIKA-259");
+    }
+
+    // --- Error code regression tests ---
+
+    #[test]
+    fn e2e_all_error_variants_have_display() {
+        // Every error variant must have a non-empty Display and contain its NIKA code
+        let cases: Vec<(MediaError, &str)> = vec![
+            (MediaError::mime_detection_failed(100, Some("image/png".into())), "NIKA-251"),
+            (MediaError::UnsupportedMediaType { mime_type: "x".into(), reason: "y".into() }, "NIKA-252"),
+            (MediaError::MediaNotFound { hash: "h".into() }, "NIKA-253"),
+            (MediaError::HashMismatch { expected: "a".into(), actual: "b".into() }, "NIKA-254"),
+            (MediaError::MediaStoreWrite {
+                path: "/x".into(),
+                source: std::io::Error::new(std::io::ErrorKind::Other, "test"),
+            }, "NIKA-255"),
+            (MediaError::Base64DecodeFailed { source_desc: "x".into(), reason: "y".into() }, "NIKA-256"),
+            (MediaError::Base64InputTooLarge { size: 200, max: 100 }, "NIKA-257"),
+            (MediaError::EmptyMediaContent { task_id: "t".into() }, "NIKA-258"),
+            (MediaError::RunBudgetExceeded { current: 600, max: 500 }, "NIKA-259"),
+        ];
+        for (err, code) in &cases {
+            let display = format!("{err}");
+            assert!(!display.is_empty(), "{code} has empty display");
+            assert!(display.contains(code), "{code} display missing code: {display}");
+            assert_eq!(err.code(), *code);
+        }
+    }
+
+    #[test]
+    fn e2e_media_error_is_recoverable() {
+        // Only MediaStoreWrite should be recoverable
+        assert!(MediaError::MediaStoreWrite {
+            path: "/x".into(),
+            source: std::io::Error::new(std::io::ErrorKind::Other, ""),
+        }.is_recoverable());
+
+        assert!(!MediaError::mime_detection_failed(0, None).is_recoverable());
+        assert!(!MediaError::Base64DecodeFailed { source_desc: "".into(), reason: "".into() }.is_recoverable());
+        assert!(!MediaError::RunBudgetExceeded { current: 0, max: 0 }.is_recoverable());
+    }
+
+    // --- ContentBlock serde exhaustive ---
+
+    #[test]
+    fn e2e_content_block_audio_json_format() {
+        let block = ContentBlock::audio("data123", "audio/mpeg");
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "audio");
+        assert_eq!(json["data"], "data123");
+        assert_eq!(json["mimeType"], "audio/mpeg");
+        // Must NOT have mime_type (snake_case)
+        assert!(json.get("mime_type").is_none());
+    }
+
+    #[test]
+    fn e2e_content_block_resource_link_with_all_fields() {
+        let block = ContentBlock::resource_link(
+            "file:///test",
+            Some("myfile.pdf".into()),
+            Some("application/pdf".into()),
+        );
+        let json = serde_json::to_value(&block).unwrap();
+        assert_eq!(json["type"], "resource_link");
+        assert_eq!(json["uri"], "file:///test");
+        assert_eq!(json["name"], "myfile.pdf");
+        assert_eq!(json["mimeType"], "application/pdf");
+    }
+
+    #[test]
+    fn e2e_content_block_deserialize_unknown_type_fails() {
+        // Unknown type should fail deserialization
+        let json = r#"{"type": "video", "data": "abc"}"#;
+        let result: Result<ContentBlock, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "Unknown content type 'video' should fail deserialization");
+    }
+
+    #[test]
+    fn e2e_content_block_missing_type_fails() {
+        let json = r#"{"text": "hello"}"#;
+        let result: Result<ContentBlock, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "Missing 'type' field should fail deserialization");
+    }
+
+    // --- Helper ---
+
+    fn make_processor_e2e() -> (MediaProcessor, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        (MediaProcessor::new(store), dir)
+    }
 }
