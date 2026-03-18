@@ -265,3 +265,214 @@ pub fn print_task_summary(
         );
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAG VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Task info for DAG rendering.
+pub struct DagTask {
+    pub id: String,
+    pub verb: String,
+    pub status: DagTaskStatus,
+}
+
+/// Task status for coloring.
+#[derive(Clone, Copy, PartialEq)]
+pub enum DagTaskStatus {
+    Pending,
+    Success,
+    Failed,
+}
+
+/// Render a beautiful DAG visualization to the terminal.
+///
+/// Each task is rendered as a boxed node with verb icon.
+/// Connections show fan-out and fan-in patterns.
+///
+/// ```text
+///     ┌──────────────┐
+///     │ ⚡ read_code  │
+///     └──────┬───────┘
+///        ┌───┴───┐
+///   ┌────┴─────┐ ┌─────┴────┐
+///   │ 🧠 review │ │ 🧠 check │
+///   └────┬─────┘ └─────┬────┘
+///        └───┬───┘
+///     ┌──────┴───────┐
+///     │ 🧠 report    │
+///     └──────────────┘
+/// ```
+pub fn render_dag(
+    tasks: &[DagTask],
+    deps: &std::collections::HashMap<String, Vec<String>>,
+) {
+    if tasks.is_empty() {
+        return;
+    }
+
+    // Compute depth layers
+    let layers = compute_layers(tasks, deps);
+    let max_depth = layers.len();
+
+    // Render title
+    println!(
+        "\n  {} {} tasks, {} layers\n",
+        "DAG".cyan().bold(),
+        tasks.len().to_string().bold(),
+        max_depth.to_string().bold()
+    );
+
+    // Render each layer with boxed nodes
+    for (i, layer) in layers.iter().enumerate() {
+        if i > 0 {
+            render_box_connectors(&layers[i - 1], layer, tasks);
+        }
+        render_box_layer(layer, tasks);
+    }
+
+    println!();
+}
+
+fn compute_layers(
+    tasks: &[DagTask],
+    deps: &std::collections::HashMap<String, Vec<String>>,
+) -> Vec<Vec<String>> {
+    use std::collections::HashMap;
+
+    let mut depth: HashMap<&str, usize> = HashMap::new();
+    for t in tasks {
+        depth.insert(&t.id, 0);
+    }
+
+    // Iteratively compute max-depth
+    let mut changed = true;
+    let mut iterations = 0;
+    while changed && iterations < 100 {
+        changed = false;
+        iterations += 1;
+        for t in tasks {
+            if let Some(task_deps) = deps.get(&t.id) {
+                for dep in task_deps {
+                    if let Some(&dep_depth) = depth.get(dep.as_str()) {
+                        let new_depth = dep_depth + 1;
+                        if new_depth > depth[t.id.as_str()] {
+                            depth.insert(&t.id, new_depth);
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let max_depth = depth.values().copied().max().unwrap_or(0);
+    let mut layers: Vec<Vec<String>> = vec![Vec::new(); max_depth + 1];
+    for t in tasks {
+        layers[depth[t.id.as_str()]].push(t.id.clone());
+    }
+    layers
+}
+
+/// Width of each task box (not counting emoji width variance).
+const BOX_PAD: usize = 2; // spaces inside box on each side
+
+fn render_box_layer(layer: &[String], tasks: &[DagTask]) {
+    // Calculate box width for each task
+    let boxes: Vec<(String, String, DagTaskStatus)> = layer
+        .iter()
+        .map(|task_id| {
+            let task = tasks.iter().find(|t| t.id == *task_id);
+            let (verb, status) = task
+                .map(|t| (t.verb.as_str(), t.status))
+                .unwrap_or(("exec", DagTaskStatus::Pending));
+            let icon = match verb {
+                "infer" => "🧠",
+                "exec" => "⚡",
+                "fetch" => "🌐",
+                "invoke" => "🔌",
+                "agent" => "🤖",
+                _ => "●",
+            };
+            (format!("{} {}", icon, task_id), task_id.clone(), status)
+        })
+        .collect();
+
+    // Top border
+    let mut top = String::from("    ");
+    for (i, (label, _, status)) in boxes.iter().enumerate() {
+        if i > 0 {
+            top.push_str("  ");
+        }
+        let w = label.len() + BOX_PAD * 2 + 1; // +1 for emoji width
+        let border = format!("┌{}┐", "─".repeat(w));
+        top.push_str(&color_border(&border, *status));
+    }
+    println!("{}", top);
+
+    // Content
+    let mut mid = String::from("    ");
+    for (i, (label, _, status)) in boxes.iter().enumerate() {
+        if i > 0 {
+            mid.push_str("  ");
+        }
+        let w = label.len() + BOX_PAD * 2 + 1;
+        let pad_left = " ".repeat(BOX_PAD);
+        let pad_right = " ".repeat(w - label.len() - BOX_PAD);
+        let content = format!("│{}{}{}│", pad_left, label, pad_right);
+        mid.push_str(&color_border(&content, *status));
+    }
+    println!("{}", mid);
+
+    // Bottom border
+    let mut bottom = String::from("    ");
+    for (i, (label, _, status)) in boxes.iter().enumerate() {
+        if i > 0 {
+            bottom.push_str("  ");
+        }
+        let w = label.len() + BOX_PAD * 2 + 1;
+        let border = format!("└{}┘", "─".repeat(w));
+        bottom.push_str(&color_border(&border, *status));
+    }
+    println!("{}", bottom);
+}
+
+fn color_border(s: &str, status: DagTaskStatus) -> String {
+    match status {
+        DagTaskStatus::Success => s.green().to_string(),
+        DagTaskStatus::Failed => s.red().bold().to_string(),
+        DagTaskStatus::Pending => s.dimmed().to_string(),
+    }
+}
+
+fn render_box_connectors(prev: &[String], next: &[String], _tasks: &[DagTask]) {
+    if prev.len() == 1 && next.len() == 1 {
+        println!("    {}     {}", " ".repeat(prev[0].len()), "│".dimmed());
+    } else if prev.len() >= 1 && next.len() > prev.len() {
+        // Fan-out: show spreading lines
+        println!(
+            "    {}     {}",
+            " ".repeat(prev[0].len() / 2),
+            "├────────┐".dimmed()
+        );
+    } else if prev.len() > 1 && next.len() <= 1 {
+        // Fan-in: show converging lines
+        println!(
+            "    {}     {}",
+            " ".repeat(4),
+            "└────────┘".dimmed()
+        );
+    } else {
+        // Parallel continuation
+        let mut line = String::from("          ");
+        for (i, _) in prev.iter().enumerate() {
+            if i > 0 {
+                line.push_str("          ");
+            }
+            line.push_str(&"│".dimmed().to_string());
+        }
+        println!("{}", line);
+    }
+}
+
+// Old non-boxed renderers removed — using boxed versions above.

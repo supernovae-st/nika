@@ -792,6 +792,29 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
         if schema_count > 0 {
             println!("  Schemas: {} validated", schema_count);
         }
+
+        // Show DAG visualization for multi-task workflows
+        if workflow.tasks.len() > 1 {
+            use nika::display::{DagTask, DagTaskStatus, render_dag};
+            use std::collections::HashMap;
+
+            let dag_tasks: Vec<DagTask> = workflow.tasks.iter().map(|t| {
+                DagTask {
+                    id: t.id.clone(),
+                    verb: t.action.verb_name().to_string(),
+                    status: DagTaskStatus::Pending,
+                }
+            }).collect();
+
+            let mut deps_map: HashMap<String, Vec<String>> = HashMap::new();
+            for task in &workflow.tasks {
+                if let Some(ref task_deps) = task.depends_on {
+                    deps_map.insert(task.id.clone(), task_deps.clone());
+                }
+            }
+
+            render_dag(&dag_tasks, &deps_map);
+        }
     }
 
     Ok(())
