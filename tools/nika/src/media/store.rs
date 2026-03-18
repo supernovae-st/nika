@@ -114,14 +114,14 @@ impl CasStore {
             source: e,
         })?;
 
-        // Atomic write via io::atomic::write_fail (O_EXCL)
+        // Atomic write via O_EXCL (create_new). On success: new file.
+        // On AlreadyExists: dedup hit. On other error: clean up partial file.
         match crate::io::atomic::write_fail(&final_path, data).await {
             Ok(()) => {
-                // New file stored
+                // New file stored successfully
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 // Content-addressed: same hash = same content, skip write.
-                // verified=false because we did NOT re-read and re-hash the existing file.
                 return Ok(StoreResult {
                     hash: prefixed_hash,
                     path: final_path,
@@ -132,6 +132,9 @@ impl CasStore {
                 });
             }
             Err(e) => {
+                // CRITICAL: write_fail may leave a partial file on disk-full/IO error.
+                // Clean it up to prevent permanent CAS corruption.
+                let _ = tokio::fs::remove_file(&final_path).await;
                 return Err(MediaError::MediaStoreWrite {
                     path: final_path,
                     source: e,

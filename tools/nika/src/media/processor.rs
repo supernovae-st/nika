@@ -98,7 +98,7 @@ impl MediaProcessor {
                 Ok(Some(pair)) => results.push(Ok(pair)),
                 Ok(None) => {}
                 Err(e) => {
-                    tracing::warn!(
+                    tracing::error!(
                         task_id = %task_id,
                         block_index = i,
                         error = %e,
@@ -126,10 +126,11 @@ impl MediaProcessor {
             });
         }
 
-        // Guard: reject empty data
+        // Guard: reject empty data — malformed Image/Audio block
         if base64_data.is_empty() {
-            tracing::warn!(task_id = %task_id, "Empty base64 data, skipping");
-            return Ok(None);
+            return Err(MediaError::EmptyMediaContent {
+                task_id: task_id.to_string(),
+            });
         }
 
         // Decode base64 — strip whitespace first since many MCP servers
@@ -231,11 +232,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn process_empty_base64_returns_none() {
+    async fn process_empty_base64_returns_error() {
         let (processor, _dir) = make_processor_with_dir();
         let block = ContentBlock::image("", "image/png");
-        let result = processor.process(&block, "t1").await.unwrap();
-        assert!(result.is_none());
+        let result = processor.process(&block, "t1").await;
+        assert!(result.is_err(), "Empty base64 image should error (NIKA-258)");
+        assert_eq!(result.unwrap_err().code(), "NIKA-258");
     }
 
     #[tokio::test]

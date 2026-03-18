@@ -949,7 +949,7 @@ impl TaskExecutor {
                     });
 
                     let workspace_root = std::env::current_dir().unwrap_or_else(|_| {
-                        tracing::warn!("Failed to get current directory for CAS, using /tmp");
+                        tracing::error!("Failed to get current directory for CAS, falling back to /tmp");
                         std::path::PathBuf::from("/tmp")
                     });
                     let store = CasStore::workspace_default(&workspace_root);
