@@ -381,10 +381,13 @@ impl LiveDag {
         if !self.drawn || self.line_count == 0 {
             return;
         }
-        // Move cursor up to the start of the DAG
-        eprint!("\x1b[{}A", self.line_count);
+        // Move cursor up to the start of the DAG (stdout, not stderr)
+        print!("\x1b[{}A", self.line_count);
         // Clear from cursor to end of screen
-        eprint!("\x1b[J");
+        print!("\x1b[J");
+        // Flush to ensure ANSI codes are sent immediately
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
         // Recalculate line count (may change if meta added)
         self.line_count = self.count_dag_lines();
         // Re-render

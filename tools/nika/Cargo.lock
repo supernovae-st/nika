@@ -3804,7 +3804,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.30.7"
+version = "0.30.8"
 dependencies = [
  "arboard",
  "async-stream",
