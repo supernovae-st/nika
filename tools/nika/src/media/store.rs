@@ -138,6 +138,17 @@ fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
                 source: e,
             }
         })?;
+
+        // SECURITY: detect if decompression was truncated (decompression bomb)
+        // If the limit was hit, there may be more data — reject the blob
+        let mut probe = [0u8; 1];
+        if std::io::Read::read(&mut decoder, &mut probe).unwrap_or(0) > 0 {
+            return Err(MediaError::Base64InputTooLarge {
+                size: MAX_DECOMPRESS_SIZE as usize + 1,
+                max: MAX_DECOMPRESS_SIZE as usize,
+            });
+        }
+
         Ok(output)
     } else {
         Ok(data) // Not compressed — return as-is

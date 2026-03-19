@@ -144,20 +144,15 @@ impl MediaOp for VerifyOp {
                     }
                 }
 
-                // Validation status
-                let validation_status = reader.validation_status()
-                    .map(|statuses| {
-                        if statuses.is_empty() {
-                            "valid".to_string()
-                        } else {
-                            // Check if any status is a failure
-                            let has_failure = statuses.iter().any(|s| {
-                                s.code().starts_with("assertion") || s.code().starts_with("claim")
-                            });
-                            if has_failure { "invalid".to_string() } else { "valid".to_string() }
-                        }
-                    })
-                    .unwrap_or_else(|| "valid".to_string()); // No validation issues = valid
+                // Validation status:
+                // None = validation not performed → "unverified"
+                // Some([]) = no issues found → "valid"
+                // Some([...]) = issues found → "invalid"
+                let validation_status = match reader.validation_status() {
+                    None => "unverified".to_string(),
+                    Some(statuses) if statuses.is_empty() => "valid".to_string(),
+                    Some(_) => "invalid".to_string(),
+                };
 
                 // EU AI Act compliance check
                 let has_manifest = true;

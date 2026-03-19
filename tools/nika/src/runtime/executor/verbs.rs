@@ -372,8 +372,25 @@ impl TaskExecutor {
         // VISION PATH — multimodal content (text + images)
         // ═══════════════════════════════════════════════════════════════════
         if has_content {
+            // Defense-in-depth: limit vision content to prevent OOM from massive payloads
+            const MAX_VISION_IMAGE_PARTS: usize = 20;
+            const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
+
             let resolve_start = Instant::now();
             let content = infer.content.as_ref().unwrap();
+
+            let image_part_count = content.iter().filter(|p| {
+                matches!(p, crate::ast::content::ContentPart::Image { .. })
+            }).count();
+            if image_part_count > MAX_VISION_IMAGE_PARTS {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "Vision content has {} image parts (max {})",
+                        image_part_count, MAX_VISION_IMAGE_PARTS
+                    ),
+                });
+            }
+
             let mut user_content: Vec<rig::completion::message::UserContent> = Vec::new();
             let mut image_count: u32 = 0;
             let mut total_bytes: u64 = 0;
@@ -416,6 +433,16 @@ impl TaskExecutor {
                         total_bytes += image_data.len() as u64;
                         image_count += 1;
 
+                        // Defense-in-depth: cumulative size check
+                        if total_bytes > MAX_VISION_TOTAL_BYTES {
+                            return Err(NikaError::ValidationError {
+                                reason: format!(
+                                    "Vision content exceeds {} MB total image data",
+                                    MAX_VISION_TOTAL_BYTES / (1024 * 1024)
+                                ),
+                            });
+                        }
+
                         // Detect MIME type from magic bytes
                         let media_type = detect_image_media_type(&image_data);
 
@@ -444,6 +471,16 @@ impl TaskExecutor {
                     crate::ast::content::ContentPart::ImageUrl { url, detail } => {
                         // Resolve template in URL
                         let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
+
+                        // SECURITY: validate URL scheme to prevent SSRF
+                        if !resolved_url.starts_with("https://") && !resolved_url.starts_with("http://") {
+                            return Err(NikaError::ValidationError {
+                                reason: format!(
+                                    "Vision image_url must use http:// or https:// scheme, got: {}",
+                                    &resolved_url[..resolved_url.len().min(50)]
+                                ),
+                            });
+                        }
 
                         let rig_detail = match detail {
                             crate::ast::content::ImageDetail::Low => {
@@ -506,12 +543,21 @@ impl TaskExecutor {
                 }
             };
 
-            // EMIT: ProviderResponded (basic — no token counts from non-streaming vision)
+            // Estimate tokens for vision (prompt text only — image tokens are provider-specific)
+            let estimated_input = estimate_tokens(prompt.len());
+            let estimated_output = estimate_tokens(vision_result.len());
+
+            // Record token spend for policy enforcement
+            self.policy_enforcer
+                .write()
+                .record_token_spend(estimated_input + estimated_output);
+
+            // EMIT: ProviderResponded
             self.event_log.emit(EventKind::ProviderResponded {
                 task_id: Arc::clone(task_id),
                 request_id: None,
-                input_tokens: estimate_tokens(total_bytes as usize + prompt.len()),
-                output_tokens: estimate_tokens(vision_result.len()),
+                input_tokens: estimated_input,
+                output_tokens: estimated_output,
                 cache_read_tokens: 0,
                 ttft_ms: None,
                 finish_reason: "stop".to_string(),
