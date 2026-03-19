@@ -131,13 +131,46 @@ impl TaskExecutor {
         // Mock provider support for testing (no API call)
         // Generates a generic JSON response with common test fields
         if provider_name == "mock" {
-            // Generate a response that satisfies common test schemas
-            // Includes: name, value, result, status, message, items, keywords, key_phrases, user, metadata
+            // For vision content, include content metadata in mock response
+            let vision_info = if has_content {
+                let parts = infer.content.as_ref().unwrap();
+                let image_count = parts
+                    .iter()
+                    .filter(|p| {
+                        matches!(
+                            p,
+                            crate::ast::content::ContentPart::Image { .. }
+                                | crate::ast::content::ContentPart::ImageUrl { .. }
+                        )
+                    })
+                    .count();
+                let text_count = parts
+                    .iter()
+                    .filter(|p| matches!(p, crate::ast::content::ContentPart::Text { .. }))
+                    .count();
+                serde_json::json!({
+                    "vision": true,
+                    "image_count": image_count,
+                    "text_count": text_count,
+                    "total_parts": parts.len(),
+                })
+            } else {
+                serde_json::json!({ "vision": false })
+            };
+
+            // EMIT: ProviderCalled for mock (consistent with non-mock path)
+            self.event_log.emit(EventKind::ProviderCalled {
+                task_id: Arc::clone(task_id),
+                provider: "mock".to_string(),
+                model: infer.model.as_deref().unwrap_or("mock-model").to_string(),
+                prompt_len: prompt.len(),
+            });
+
             let mock_response = serde_json::json!({
                 "mock": true,
                 "task_id": task_id.as_ref(),
                 "name": "mock_value",
-                "age": 25,  // For validation tests requiring age field
+                "age": 25,
                 "value": 42,
                 "result": "mock_result",
                 "status": "success",
@@ -147,7 +180,7 @@ impl TaskExecutor {
                 "key_phrases": ["mock response", "test workflow"],
                 "content": format!("Mock content for task {}", task_id),
                 "prompt_len": prompt.len(),
-                // Structured output fields for complex schema tests
+                "vision_info": vision_info,
                 "user": {
                     "name": "Mock User",
                     "email": "mock@example.com",
