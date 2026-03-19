@@ -80,13 +80,26 @@ impl CasStore {
 
     /// Create a CAS store at the workspace default location.
     ///
-    /// Respects `NIKA_MEDIA_STORE` env var as override.
+    /// Respects `NIKA_MEDIA_STORE` env var as override (canonicalized).
     /// Otherwise uses `{workspace_root}/.nika/media/store/`.
     pub fn workspace_default(workspace_root: &Path) -> Self {
         if let Ok(override_path) = std::env::var("NIKA_MEDIA_STORE") {
-            return Self::new(PathBuf::from(override_path));
+            let path = PathBuf::from(&override_path);
+            // Canonicalize if the path exists (resolves symlinks, `..`, etc.).
+            // If it doesn't exist yet, use the raw path -- store() will create it.
+            let resolved = path.canonicalize().unwrap_or(path);
+            return Self::new(resolved);
         }
         Self::new(workspace_root.join(".nika").join("media").join("store"))
+    }
+
+    /// The root directory of this CAS store.
+    ///
+    /// Used by the runner for lockfile placement and by the CLI for GC checks.
+    /// The lockfile MUST be placed inside the actual store root so that
+    /// `NIKA_MEDIA_STORE` overrides are respected.
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 
     /// Store binary data in the CAS (async).
@@ -495,5 +508,239 @@ mod tests {
         // Exactly one should be non-deduplicated
         let non_dedup_count = results.iter().filter(|r| !r.deduplicated).count();
         assert_eq!(non_dedup_count, 1, "exactly one writer should be non-dedup");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NIKA_MEDIA_STORE env var + root() accessor + path validation
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn root_accessor_returns_store_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+        assert_eq!(store.root(), dir.path());
+    }
+
+    #[test]
+    fn workspace_default_without_env_uses_nika_media_store_path() {
+        // Ensure NIKA_MEDIA_STORE is NOT set for this test
+        let saved = std::env::var("NIKA_MEDIA_STORE").ok();
+        std::env::remove_var("NIKA_MEDIA_STORE");
+
+        let workspace = PathBuf::from("/tmp/test-workspace");
+        let store = CasStore::workspace_default(&workspace);
+        let expected = workspace.join(".nika").join("media").join("store");
+        assert_eq!(store.root(), expected.as_path());
+
+        // Restore env var if it was set
+        if let Some(val) = saved {
+            std::env::set_var("NIKA_MEDIA_STORE", val);
+        }
+    }
+
+    #[test]
+    fn workspace_default_respects_nika_media_store_env() {
+        let dir = tempfile::tempdir().unwrap();
+        let override_path = dir.path().join("custom-store");
+
+        let saved = std::env::var("NIKA_MEDIA_STORE").ok();
+        std::env::set_var("NIKA_MEDIA_STORE", override_path.to_str().unwrap());
+
+        let store = CasStore::workspace_default(Path::new("/ignored/workspace"));
+
+        // The override path doesn't exist yet, so canonicalize falls back to raw path
+        assert_eq!(store.root(), override_path.as_path());
+
+        match saved {
+            Some(val) => std::env::set_var("NIKA_MEDIA_STORE", val),
+            None => std::env::remove_var("NIKA_MEDIA_STORE"),
+        }
+    }
+
+    #[test]
+    fn workspace_default_canonicalizes_existing_override_path() {
+        let dir = tempfile::tempdir().unwrap();
+        // Create a subdirectory so canonicalize has something to resolve
+        let actual = dir.path().join("store");
+        std::fs::create_dir_all(&actual).unwrap();
+
+        // Construct a path with `..` that resolves to the same place
+        let dotdot_path = dir.path().join("store").join("..").join("store");
+
+        let saved = std::env::var("NIKA_MEDIA_STORE").ok();
+        std::env::set_var("NIKA_MEDIA_STORE", dotdot_path.to_str().unwrap());
+
+        let store = CasStore::workspace_default(Path::new("/ignored"));
+
+        // After canonicalization, the `..` should be resolved
+        let resolved = store.root().to_path_buf();
+        assert!(
+            !resolved.to_str().unwrap().contains(".."),
+            "path should be canonicalized, got: {}",
+            resolved.display()
+        );
+        // The canonical paths should match
+        assert_eq!(
+            resolved.canonicalize().unwrap(),
+            actual.canonicalize().unwrap(),
+            "resolved path should point to the same directory"
+        );
+
+        match saved {
+            Some(val) => std::env::set_var("NIKA_MEDIA_STORE", val),
+            None => std::env::remove_var("NIKA_MEDIA_STORE"),
+        }
+    }
+
+    #[tokio::test]
+    async fn env_override_store_is_fully_functional() {
+        let dir = tempfile::tempdir().unwrap();
+        let override_path = dir.path().join("custom-cas");
+
+        let saved = std::env::var("NIKA_MEDIA_STORE").ok();
+        std::env::set_var("NIKA_MEDIA_STORE", override_path.to_str().unwrap());
+
+        let store = CasStore::workspace_default(Path::new("/ignored/workspace"));
+
+        // Store data -- should create directories inside the custom path
+        let data = b"env override test data";
+        let result = store.store(data).await.unwrap();
+
+        assert!(result.hash.starts_with("blake3:"));
+        assert!(
+            result.path.starts_with(&override_path),
+            "stored file should be inside override path, got: {}",
+            result.path.display()
+        );
+
+        // Read back
+        let read_back = store.read(&result.hash).await.unwrap();
+        assert_eq!(read_back, data);
+
+        // List
+        let entries = store.list();
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].path.starts_with(&override_path));
+
+        // Exists
+        assert!(store.exists(&result.hash));
+
+        // Clean
+        let clean = store.clean_all();
+        assert_eq!(clean.removed, 1);
+        assert_eq!(store.list().len(), 0);
+
+        match saved {
+            Some(val) => std::env::set_var("NIKA_MEDIA_STORE", val),
+            None => std::env::remove_var("NIKA_MEDIA_STORE"),
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECURITY: CAS hash-to-path safety tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn cas_path_is_always_within_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let payloads: Vec<&[u8]> = vec![
+            b"payload one",
+            b"payload two",
+            b"\x00\x01\x02\xff\xfe\xfd",
+            b"../../../etc/passwd",
+        ];
+
+        let canonical_root = dir.path().canonicalize().unwrap();
+
+        for payload in payloads {
+            let result = store.store(payload).await.unwrap();
+
+            let canonical_path = result.path.canonicalize().unwrap();
+            assert!(
+                canonical_path.starts_with(&canonical_root),
+                "CAS file {:?} escapes root {:?}",
+                canonical_path,
+                canonical_root,
+            );
+
+            let shard = result
+                .path
+                .parent()
+                .unwrap()
+                .file_name()
+                .unwrap()
+                .to_string_lossy();
+            let filename = result.path.file_name().unwrap().to_string_lossy();
+
+            assert_eq!(shard.len(), 2, "Shard directory must be 2 hex chars");
+            assert!(
+                shard.chars().all(|c| c.is_ascii_hexdigit()),
+                "Shard '{}' contains non-hex chars",
+                shard
+            );
+            assert!(
+                filename.chars().all(|c| c.is_ascii_hexdigit()),
+                "Filename '{}' contains non-hex chars",
+                filename
+            );
+        }
+    }
+
+    #[test]
+    fn cas_hash_prefix_strip_safety() {
+        assert_eq!(strip_hash_prefix("blake3:abcdef"), "abcdef");
+        assert_eq!(strip_hash_prefix("abcdef"), "abcdef");
+        // Theoretical adversarial input -- in practice blake3 only outputs hex
+        assert_eq!(strip_hash_prefix("blake3:../../etc"), "../../etc");
+    }
+
+    #[test]
+    fn cas_exists_rejects_short_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        assert!(!store.exists("ab"));
+        assert!(!store.exists("a"));
+        assert!(!store.exists(""));
+        assert!(!store.exists("blake3:ab"));
+        assert!(!store.exists("blake3:a"));
+    }
+
+    #[tokio::test]
+    async fn cas_read_rejects_short_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = store.read("ab").await;
+        assert!(result.is_err());
+        let result = store.read("blake3:ab").await;
+        assert!(result.is_err());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cas_store_uses_o_excl_prevents_symlink_attack() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let data = b"symlink attack test data";
+        let raw_hash = blake3::hash(data).to_hex().to_string();
+        let shard_dir = dir.path().join(&raw_hash[..2]);
+        std::fs::create_dir_all(&shard_dir).unwrap();
+        let final_path = shard_dir.join(&raw_hash[2..]);
+
+        let decoy = dir.path().join("decoy");
+        std::fs::write(&decoy, b"decoy content").unwrap();
+        symlink(&decoy, &final_path).unwrap();
+
+        let result = store.store(data).await.unwrap();
+        assert!(
+            result.deduplicated,
+            "Symlink at CAS path must be treated as existing file (O_EXCL semantics)"
+        );
     }
 }

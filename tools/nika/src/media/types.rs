@@ -122,8 +122,16 @@ impl MediaBudget {
     }
 
     /// Roll back a budget allocation (e.g., when CAS store fails after budget was charged).
+    ///
+    /// Uses `fetch_update` with `saturating_sub` to prevent underflow.
+    /// Without this, a rollback larger than the current value would wrap to `u64::MAX`,
+    /// effectively disabling budget enforcement for the rest of the run.
     pub fn rollback(&self, size: u64) {
-        self.run_bytes.fetch_sub(size, Ordering::AcqRel);
+        let _ = self.run_bytes.fetch_update(
+            Ordering::AcqRel,
+            Ordering::Acquire,
+            |current| Some(current.saturating_sub(size)),
+        );
     }
 
     /// Get current accumulated bytes.
