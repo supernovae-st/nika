@@ -65,9 +65,9 @@ impl Provider {
 /// - **MCP (11)**: neo4j, github, slack, perplexity, firecrawl, supadata, dataforseo, ahrefs, postgres, filesystem, memory
 /// - **Local (1)**: native (mistral.rs)
 pub static KNOWN_PROVIDERS: &[Provider] = &[
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // LLM PROVIDERS (7)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     Provider {
         id: "anthropic",
         name: "Anthropic Claude",
@@ -138,9 +138,9 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         requires_key: true,
         description: "Grok models (Grok-3, Grok-4)",
     },
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // MCP PROVIDERS (11)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     Provider {
         id: "neo4j",
         name: "Neo4j",
@@ -251,9 +251,9 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
         requires_key: false,
         description: "Persistent memory MCP server",
     },
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // LOCAL PROVIDERS (1)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     Provider {
         id: "native",
         name: "Native Inference",
@@ -273,7 +273,7 @@ pub static KNOWN_PROVIDERS: &[Provider] = &[
 /// # Example
 ///
 /// ```
-/// use nika::core::providers::find_provider;
+/// use nika_core::catalogs::providers::find_provider;
 ///
 /// let provider = find_provider("anthropic").unwrap();
 /// assert_eq!(provider.env_var, "ANTHROPIC_API_KEY");
@@ -296,7 +296,7 @@ pub fn find_provider(name: &str) -> Option<&'static Provider> {
 /// # Example
 ///
 /// ```
-/// use nika::core::providers::provider_to_env_var;
+/// use nika_core::catalogs::providers::provider_to_env_var;
 ///
 /// assert_eq!(provider_to_env_var("anthropic"), Some("ANTHROPIC_API_KEY"));
 /// assert_eq!(provider_to_env_var("unknown"), None);
@@ -310,7 +310,7 @@ pub fn provider_to_env_var(id: &str) -> Option<&'static str> {
 /// # Example
 ///
 /// ```
-/// use nika::core::providers::{providers_by_category, ProviderCategory};
+/// use nika_core::catalogs::providers::{providers_by_category, ProviderCategory};
 ///
 /// let llm_providers = providers_by_category(ProviderCategory::Llm);
 /// assert!(llm_providers.iter().any(|p| p.id == "anthropic"));
@@ -332,7 +332,7 @@ pub fn providers_by_category(category: ProviderCategory) -> Vec<&'static Provide
 /// # Example
 ///
 /// ```
-/// use nika::core::providers::{find_provider, validate_key_format};
+/// use nika_core::catalogs::providers::{find_provider, validate_key_format};
 ///
 /// let anthropic = find_provider("anthropic").unwrap();
 /// assert!(validate_key_format(anthropic, "sk-ant-1234567890"));
@@ -387,23 +387,23 @@ mod tests {
 
     #[test]
     fn test_find_provider_by_alias() {
-        // "claude" → anthropic
+        // "claude" -> anthropic
         let p = find_provider("claude").unwrap();
         assert_eq!(p.id, "anthropic");
 
-        // "gpt" → openai
+        // "gpt" -> openai
         let p = find_provider("gpt").unwrap();
         assert_eq!(p.id, "openai");
 
-        // "deep-seek" → deepseek
+        // "deep-seek" -> deepseek
         let p = find_provider("deep-seek").unwrap();
         assert_eq!(p.id, "deepseek");
 
-        // "google" → gemini
+        // "google" -> gemini
         let p = find_provider("google").unwrap();
         assert_eq!(p.id, "gemini");
 
-        // "local" → native
+        // "local" -> native
         let p = find_provider("local").unwrap();
         assert_eq!(p.id, "native");
 

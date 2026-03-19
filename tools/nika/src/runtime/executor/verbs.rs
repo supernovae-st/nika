@@ -381,8 +381,7 @@ impl TaskExecutor {
             }
         }
 
-        // Old inline vision path — unreachable after dispatch above.
-        // Will be removed in a follow-up cleanup commit.
+        // (Dead vision block removed — dispatched via run_infer_vision before Layer 0)
         if false {
             // Defense-in-depth: limit vision content to prevent OOM from massive payloads
             const MAX_VISION_IMAGE_PARTS: usize = 20;
@@ -491,7 +490,7 @@ impl TaskExecutor {
                             return Err(NikaError::ValidationError {
                                 reason: format!(
                                     "Vision image_url must use http:// or https:// scheme, got: {}",
-                                    &resolved_url[..resolved_url.len().min(50)]
+                                    &resolved_url.chars().take(50).collect::<String>()
                                 ),
                             });
                         }
@@ -718,7 +717,12 @@ impl TaskExecutor {
         const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024;
 
         let resolve_start = Instant::now();
-        let content = infer.content.as_ref().unwrap();
+        let content = infer
+            .content
+            .as_ref()
+            .ok_or_else(|| NikaError::ValidationError {
+                reason: "run_infer_vision called without content".to_string(),
+            })?;
 
         let image_part_count = content
             .iter()
@@ -802,7 +806,7 @@ impl TaskExecutor {
                         return Err(NikaError::ValidationError {
                             reason: format!(
                                 "image_url must use http(s)://, got: {}",
-                                &resolved_url[..resolved_url.len().min(50)]
+                                &resolved_url.chars().take(50).collect::<String>()
                             ),
                         });
                     }
