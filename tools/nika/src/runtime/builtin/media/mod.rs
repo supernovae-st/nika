@@ -36,6 +36,8 @@ mod svg;
 mod convert;
 #[cfg(feature = "media-thumbnail")]
 mod strip;
+#[cfg(test)]
+mod tests_integration;
 
 use std::future::Future;
 use std::pin::Pin;
