@@ -780,7 +780,7 @@
         },
         "format": {
           "type": "string",
-          "enum": ["text", "json", "yaml"],
+          "enum": ["text", "json", "yaml", "binary"],
           "default": "text",
           "description": "Default output format"
         },
@@ -829,7 +829,7 @@
             },
             "format": {
               "type": "string",
-              "enum": ["text", "json", "yaml"],
+              "enum": ["text", "json", "yaml", "binary"],
               "description": "Output format override"
             },
             "mode": {
@@ -849,7 +849,7 @@
               "path": { "type": "string" },
               "source": { "type": "string" },
               "template": { "type": "string", "description": "Template string (v0.22+)" },
-              "format": { "type": "string", "enum": ["text", "json", "yaml"] },
+              "format": { "type": "string", "enum": ["text", "json", "yaml", "binary"] },
               "mode": { "type": "string", "enum": ["overwrite", "append", "unique", "fail"] }
             }
           }
