@@ -1164,16 +1164,16 @@ mod tests {
     #[test]
     fn fixture_all_fixtures_no_panic() {
         let fixtures = [
-            "missing-colon.nika.yaml",
-            "incomplete-task.nika.yaml",
-            "duplicate-verb.nika.yaml",
-            "mixed-indentation.nika.yaml",
-            "truncated-file.nika.yaml",
-            "empty-document.nika.yaml",
-            "comments-only.nika.yaml",
-            "missing-schema.nika.yaml",
-            "broken-template.nika.yaml",
-            "broken-content.nika.yaml",
+            "missing-colon.broken.yaml",
+            "incomplete-task.broken.yaml",
+            "duplicate-verb.broken.yaml",
+            "mixed-indentation.broken.yaml",
+            "truncated-file.broken.yaml",
+            "empty-document.broken.yaml",
+            "comments-only.broken.yaml",
+            "missing-schema.broken.yaml",
+            "broken-template.broken.yaml",
+            "broken-content.broken.yaml",
         ];
         for name in &fixtures {
             let _pw = fixture(name);
