@@ -42,6 +42,10 @@ mod tests_integration;
 mod tests_paranoid;
 #[cfg(test)]
 mod tests_e2e_workflow;
+#[cfg(test)]
+mod tests_security;
+#[cfg(test)]
+mod tests_comprehensive;
 
 use std::future::Future;
 use std::pin::Pin;

@@ -14,9 +14,7 @@ mod tests {
 
   use crate::media::CasStore;
   use crate::runtime::builtin::media::context::MediaToolContext;
-  use crate::runtime::builtin::media::{
-    create_media_tool_adapters, MediaOp, MediaOpResult, MediaToolAdapter,
-  };
+  use crate::runtime::builtin::media::{MediaOpResult, MediaToolAdapter};
   use crate::runtime::builtin::BuiltinToolRouter;
   use crate::tools::{PermissionMode, ToolContext};
 
@@ -825,7 +823,7 @@ mod tests {
     let results: Vec<_> = futures::future::join_all(handles).await;
     for (i, r) in results.iter().enumerate() {
       let inner = r.as_ref().unwrap();
-      assert!(inner.is_ok(), "concurrent tool {} failed: {:?}", i, inner.err());
+      assert!(inner.is_ok(), "concurrent tool {} failed: {:?}", i, inner.as_ref().err());
     }
   }
 
