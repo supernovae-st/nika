@@ -550,6 +550,24 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // VISION EVENTS
+    // ═══════════════════════════════════════════
+    /// Vision content parts resolved for multimodal inference.
+    ///
+    /// Emitted when CAS image references in `content:` are resolved
+    /// to base64 data before sending to a vision-capable LLM.
+    VisionContentResolved {
+        /// Task that triggered vision resolution
+        task_id: Arc<str>,
+        /// Number of image parts resolved
+        image_count: u32,
+        /// Total bytes of image data resolved from CAS
+        total_bytes: u64,
+        /// Time to resolve all images (ms)
+        resolve_ms: u64,
+    },
+
+    // ═══════════════════════════════════════════
     // MEDIA CLEANUP EVENTS
     // ═══════════════════════════════════════════
     /// Media store cleanup (GC) operation completed
@@ -583,6 +601,7 @@ impl EventKind {
             | Self::AgentComplete { task_id, .. }
             | Self::ArtifactWritten { task_id, .. }
             | Self::ArtifactFailed { task_id, .. }
+            | Self::VisionContentResolved { task_id, .. }
             | Self::MediaExtracted { task_id, .. }
             | Self::MediaProcessed { task_id, .. }
             | Self::MediaStored { task_id, .. }
@@ -3268,5 +3287,32 @@ mod tests {
             assert!(*deduplicated, "Second store should be dedup hit");
             assert!(*pipeline_ms < 10, "Dedup fast path should be < 10ms");
         }
+    }
+
+    #[test]
+    fn vision_content_resolved_serde_round_trip() {
+        let event = EventKind::VisionContentResolved {
+            task_id: Arc::from("describe_image"),
+            image_count: 3,
+            total_bytes: 1_048_576,
+            resolve_ms: 42,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("vision_content_resolved"));
+        assert!(json.contains("describe_image"));
+        assert!(json.contains("1048576"));
+        let parsed: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, parsed);
+    }
+
+    #[test]
+    fn vision_content_resolved_has_task_id() {
+        let event = EventKind::VisionContentResolved {
+            task_id: Arc::from("my_task"),
+            image_count: 1,
+            total_bytes: 512,
+            resolve_ms: 5,
+        };
+        assert_eq!(event.task_id(), Some("my_task"));
     }
 }

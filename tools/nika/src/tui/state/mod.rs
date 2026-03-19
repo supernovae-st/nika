@@ -1070,6 +1070,17 @@ impl TuiState {
                     self.dirty.notifications = true;
                 }
             }
+
+            EventKind::VisionContentResolved { task_id, image_count, total_bytes, resolve_ms } => {
+                self.add_notification(Notification::info(
+                    format!(
+                        "Vision: {} image(s) resolved ({} bytes, {}ms) for task {}",
+                        image_count, total_bytes, resolve_ms, task_id
+                    ),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
         }
     }
 
