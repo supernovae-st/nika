@@ -21,7 +21,8 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 builtin tools (sleep, log, emit, assert, etc.)
+│   ├── builtin/         #   12 core + 9 media tools (nika:thumbnail, etc.)
+│   │   └── media/       #   Media tools: thumbnail, metadata, optimize, svg, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── mcp/                 # MCP client (rmcp adapter, pool, retry, validation)
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
@@ -66,12 +67,13 @@ src/
 | 260-269 | Package URI errors |
 | 270-279 | Skill errors |
 | 280-285 | Artifacts + Media (path, write, size, integrity, cleanup, lock) |
+| 290-297 | Media tools (tool error, format, dependency, timeout, args, pipeline, security) |
 | 300-309 | Structured output |
 
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (5221, safe — no keychain)
+cargo test --lib             # Unit tests (5731+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
@@ -90,6 +92,28 @@ cargo clippy -- -D warnings  # Zero warnings policy
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
+## Media Tools (v0.33.0)
+
+9 builtin media tools accessible via `invoke: nika:*`:
+
+| Tool | Feature | Description |
+|------|---------|-------------|
+| `nika:dimensions` | always-on | Image dimensions from headers (~0.1ms) |
+| `nika:thumbhash` | always-on | 25-byte image placeholder |
+| `nika:dominant_color` | always-on | Color palette extraction |
+| `nika:thumbnail` | media-thumbnail | SIMD-accelerated resize (Lanczos3) |
+| `nika:metadata` | media-metadata | Universal EXIF/audio/video metadata |
+| `nika:optimize` | media-optimize | Lossless PNG optimization (oxipng) |
+| `nika:svg_render` | media-svg | SVG to PNG rasterization (resvg) |
+| `nika:convert` | media-thumbnail | Format conversion (PNG↔JPEG↔WebP) |
+| `nika:strip` | media-thumbnail | Remove metadata (decode+re-encode) |
+
+**Security rules:**
+- NEVER use `image::load_from_memory()` directly → use `decode_image_safe()` with Limits
+- SVG: always call `sanitize_svg()` BEFORE parsing
+- Timeout: 30s default on all operations
+- Feature `media-core` (default) enables all Tier 2 tools
+
 ## Common Mistakes
 
 | Mistake | Correct |
@@ -102,3 +126,5 @@ cargo clippy -- -D warnings  # Zero warnings policy
 | `cargo test` (triggers keychain) | Use `cargo test --lib` |
 | Missing `depends_on:` | Add `depends_on: [task_id]` for ordering deps |
 | `timeout: 30` meaning 30ms | `timeout: 30` means 30 seconds now |
+| `image::load_from_memory()` | Use `decode_image_safe()` from media/safety.rs |
+| SVG without sanitize | Always `sanitize_svg()` BEFORE usvg parsing |
