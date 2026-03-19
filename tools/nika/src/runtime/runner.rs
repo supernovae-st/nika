@@ -44,6 +44,41 @@ use crate::ast::artifact::ArtifactsConfig;
 use std::path::PathBuf;
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RAII Lockfile Guard
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// RAII guard that removes a lockfile on drop.
+///
+/// The media store lockfile (`.nika-run.lock`) prevents `nika media clean` from
+/// garbage-collecting blobs that are still in use by a running workflow. Without
+/// this guard, any early return via `?`, `return Err(...)`, or panic would leave
+/// a stale lockfile that permanently blocks GC until manually deleted.
+///
+/// The guard writes the lockfile on creation and removes it when dropped,
+/// covering **all** exit paths: normal completion, error propagation, and
+/// unwinding panics.
+struct LockfileGuard {
+    path: PathBuf,
+}
+
+impl LockfileGuard {
+    /// Create the lockfile and return a guard that will remove it on drop.
+    fn create(path: PathBuf) -> Self {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&path, format!("pid:{}", std::process::id()));
+        Self { path }
+    }
+}
+
+impl Drop for LockfileGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -410,11 +445,14 @@ impl Runner {
     /// Verify media integrity: check that all MediaRef paths exist and sizes match.
     ///
     /// Called after all tasks complete but before WorkflowCompleted event.
-    /// Returns warning count. Never fails the workflow — only warns.
+    /// Emits a `MediaIntegrityCheck` event with results.
+    /// Returns warning count. Never fails the workflow -- only warns.
     fn verify_media_integrity(&self) -> usize {
         let mut warnings = 0;
+        let mut checked: u64 = 0;
         for (task_id, result) in self.datastore.iter_results() {
             for media_ref in &result.media {
+                checked += 1;
                 if !media_ref.path.exists() {
                     tracing::warn!(
                         task_id = %task_id,
@@ -450,6 +488,15 @@ impl Runner {
                 }
             }
         }
+
+        // Emit structured event for telemetry consumers
+        if checked > 0 {
+            self.event_log.emit(EventKind::MediaIntegrityCheck {
+                checked,
+                warnings: warnings as u64,
+            });
+        }
+
         warnings
     }
 
@@ -960,16 +1007,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Set workspace root for CAS media store path resolution
         self.datastore.set_workspace_root(base_path.clone());
 
-        // Create media store lockfile to prevent GC during workflow execution
-        let media_lockfile = base_path
-            .join(".nika")
-            .join("media")
-            .join("store")
-            .join(".nika-run.lock");
-        if let Some(parent) = media_lockfile.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = std::fs::write(&media_lockfile, format!("pid:{}", std::process::id()));
+        // RAII lockfile: auto-removed on all exit paths (normal, error, panic)
+        let _lockfile_guard = LockfileGuard::create(
+            base_path
+                .join(".nika")
+                .join("media")
+                .join("store")
+                .join(".nika-run.lock"),
+        );
 
         if !self.workflow.context_files.is_empty() {
             let loaded_context =
@@ -1954,8 +1999,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Verify media integrity (warn-only, never fail successful workflows)
         let media_warnings = self.verify_media_integrity();
 
-        // Remove media store lockfile (GC is now safe)
-        let _ = std::fs::remove_file(&media_lockfile);
+        // Lockfile is removed automatically when `_lockfile_guard` drops
+        // (at function exit -- normal return, error, or panic).
 
         // Get final output
         let output = self.get_final_output().unwrap_or_default();
@@ -4945,5 +4990,87 @@ mod tests {
         let roundtripped = policy.source_structured_spec.unwrap();
         assert_eq!(roundtripped.max_retries, Some(5));
         assert_eq!(roundtripped.enable_repair, Some(false));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LOCKFILE GUARD RAII TESTS
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn lockfile_guard_creates_and_removes_on_drop() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("store").join(".nika-run.lock");
+
+        {
+            let _guard = LockfileGuard::create(lock_path.clone());
+            assert!(lock_path.exists(), "Lockfile should exist while guard is alive");
+
+            let content = std::fs::read_to_string(&lock_path).unwrap();
+            assert!(
+                content.starts_with("pid:"),
+                "Lockfile should contain pid, got: {content}"
+            );
+        }
+
+        assert!(
+            !lock_path.exists(),
+            "Lockfile should be removed after guard is dropped"
+        );
+    }
+
+    #[test]
+    fn lockfile_guard_removes_on_panic_unwind() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("store").join(".nika-run.lock");
+
+        let result = std::panic::catch_unwind(|| {
+            let _guard = LockfileGuard::create(lock_path.clone());
+            assert!(lock_path.exists(), "Lockfile should exist before panic");
+            panic!("simulated runner panic");
+        });
+
+        assert!(result.is_err(), "Should have caught the panic");
+        assert!(
+            !lock_path.exists(),
+            "Lockfile should be removed even after panic unwind"
+        );
+    }
+
+    #[test]
+    fn lockfile_guard_removes_on_early_return() {
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("store").join(".nika-run.lock");
+
+        fn simulate_early_return(path: &std::path::Path) -> Result<(), &'static str> {
+            let _guard = LockfileGuard::create(path.to_path_buf());
+            assert!(path.exists(), "Lockfile should exist before early return");
+            Err("simulated ? operator bail-out")?;
+            unreachable!()
+        }
+
+        let result = simulate_early_return(&lock_path);
+        assert!(result.is_err());
+        assert!(
+            !lock_path.exists(),
+            "Lockfile should be removed after early return via ?"
+        );
+    }
+
+    #[test]
+    fn lockfile_guard_tolerates_missing_file() {
+        // If someone manually deletes the lockfile during a run,
+        // Drop should not panic.
+        let dir = tempfile::tempdir().unwrap();
+        let lock_path = dir.path().join("store").join(".nika-run.lock");
+
+        let guard = LockfileGuard::create(lock_path.clone());
+        assert!(lock_path.exists());
+
+        // Simulate external deletion
+        std::fs::remove_file(&lock_path).unwrap();
+        assert!(!lock_path.exists());
+
+        // Drop should not panic
+        drop(guard);
     }
 }
