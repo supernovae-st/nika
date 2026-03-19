@@ -13,6 +13,11 @@ use rustc_hash::FxHasher;
 
 use crate::position::{LineIndex, PositionIndex};
 
+/// Maximum file size for LSP processing (64 MB).
+/// Files larger than this are rejected to prevent u32 overflow
+/// in byte-offset arithmetic (LineIndex, PositionIndex, TextRange).
+pub const MAX_FILE_SIZE: usize = 64 * 1024 * 1024;
+
 type FxDashMap<K, V> = DashMap<K, V, BuildHasherDefault<FxHasher>>;
 
 // ---------------------------------------------------------------------------
@@ -101,8 +106,17 @@ impl WorldDatabase {
     }
 
     /// Insert or update a file. Returns the new revision.
+    ///
+    /// Files larger than [`MAX_FILE_SIZE`] are silently skipped to
+    /// prevent u32 overflow in byte-offset arithmetic.
     pub fn set_text(&self, uri: &str, text: String) -> u64 {
         let rev = self.revision.fetch_add(1, Ordering::SeqCst) + 1;
+
+        if text.len() > MAX_FILE_SIZE {
+            tracing::warn!(uri, len = text.len(), "file too large, skipping");
+            return rev;
+        }
+
         let key = FileKey::from_uri(uri);
         let text: Arc<str> = text.into();
 
@@ -118,7 +132,9 @@ impl WorldDatabase {
                 revision: rev,
             },
         );
-        // Position index is built lazily or by background analysis.
+
+        // Clear stale position index -- caller must rebuild after re-analysis.
+        self.position_indices.remove(&key);
 
         rev
     }
@@ -486,15 +502,66 @@ tasks:
         let yaml_v2 = yaml.replace("gpt-4", "gpt-4o");
         db.set_text(uri, yaml_v2);
 
-        // 6. Position index cleared (new text, old position_index is stale
-        //    but the text revision changed -- caller should check)
+        // 6. Position index cleared -- stale index removed by set_text
         let snap3 = db.snapshot(uri).unwrap();
         assert!(snap3.revision > snap2.revision);
+        assert!(
+            snap3.position_index.is_empty(),
+            "stale position_index must be cleared after set_text"
+        );
 
         // 7. Close: editor sends didClose
         db.remove(uri);
         assert_eq!(db.file_count(), 0);
         assert!(db.snapshot(uri).is_none());
+    }
+
+    #[test]
+    fn set_text_clears_stale_position_index() {
+        let db = WorldDatabase::new();
+        let uri = "file:///a.yaml";
+        db.set_text(uri, "schema: '@0.12'".into());
+
+        // Simulate background analysis producing a position index.
+        let idx = PositionIndex::from_entries(vec![SpanEntry {
+            start: 0,
+            end: 15,
+            kind: SpanKind::Schema,
+        }]);
+        db.set_position_index(uri, idx);
+        assert_eq!(db.snapshot(uri).unwrap().position_index.len(), 1);
+
+        // Edit the file -- position index must be cleared.
+        db.set_text(uri, "schema: '@0.13'".into());
+        let snap = db.snapshot(uri).unwrap();
+        assert!(
+            snap.position_index.is_empty(),
+            "position_index must be empty after set_text (was {})",
+            snap.position_index.len()
+        );
+    }
+
+    #[test]
+    fn set_text_large_file_rejected() {
+        let db = WorldDatabase::new();
+        let uri = "file:///huge.yaml";
+        let big = "x".repeat(MAX_FILE_SIZE + 1);
+        let rev = db.set_text(uri, big);
+        // Revision is still incremented, but no file is stored.
+        assert!(rev > 0);
+        assert_eq!(db.file_count(), 0);
+        assert!(db.snapshot(uri).is_none());
+    }
+
+    #[test]
+    fn set_text_exactly_max_size_accepted() {
+        let db = WorldDatabase::new();
+        let uri = "file:///max.yaml";
+        let text = "y".repeat(MAX_FILE_SIZE);
+        db.set_text(uri, text);
+        assert_eq!(db.file_count(), 1);
+        let snap = db.snapshot(uri).unwrap();
+        assert_eq!(snap.text.len(), MAX_FILE_SIZE);
     }
 
     #[test]

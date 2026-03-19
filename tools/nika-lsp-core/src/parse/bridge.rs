@@ -7,6 +7,8 @@
 
 use tree_sitter::{Node, Tree};
 
+use crate::position::safe_u32;
+
 use super::{PartialField, PartialTask, PartialWorkflow, TextRange};
 
 /// Known Nika verbs for detection in broken YAML.
@@ -17,6 +19,12 @@ const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
     "schema", "workflow", "tasks", "mcp", "context", "imports",
     "inputs", "edges", "skills", "agents",
 ];
+
+/// Maximum recursion depth for CST walkers.
+///
+/// Deeply nested YAML (or maliciously crafted input) could exhaust the
+/// stack. We bail out after this many levels of recursion.
+const MAX_WALK_DEPTH: u32 = 64;
 
 // ===========================================================================
 // Public API
@@ -30,7 +38,7 @@ pub fn extract_partial(text: &str, tree: &Tree) -> PartialWorkflow {
     let root = tree.root_node();
 
     let mut error_ranges = Vec::new();
-    collect_error_ranges(&root, &mut error_ranges);
+    collect_error_ranges(&root, &mut error_ranges, 0);
 
     let mut result = PartialWorkflow {
         has_errors: root.has_error(),
@@ -44,7 +52,7 @@ pub fn extract_partial(text: &str, tree: &Tree) -> PartialWorkflow {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         match child.kind() {
-            "document" => walk_document(text, &child, &mut result),
+            "document" => walk_document(text, &child, &mut result, 1),
             "block_mapping_pair" => {
                 // Root-level ERROR recovery: pairs directly under root/ERROR
                 process_top_level_pair(text, &child, &mut result);
@@ -65,38 +73,47 @@ pub fn extract_partial(text: &str, tree: &Tree) -> PartialWorkflow {
 // ===========================================================================
 
 /// Recursively collect all ERROR node ranges.
-fn collect_error_ranges(node: &Node, ranges: &mut Vec<TextRange>) {
+fn collect_error_ranges(node: &Node, ranges: &mut Vec<TextRange>, depth: u32) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     if node.kind() == "ERROR" || node.is_error() {
         ranges.push(TextRange::new(
-            node.start_byte() as u32,
-            node.end_byte() as u32,
+            safe_u32(node.start_byte()),
+            safe_u32(node.end_byte()),
         ));
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.id() != node.id() {
-            collect_error_ranges(&child, ranges);
+            collect_error_ranges(&child, ranges, depth + 1);
         }
     }
 }
 
-fn walk_document(text: &str, doc: &Node, result: &mut PartialWorkflow) {
+fn walk_document(text: &str, doc: &Node, result: &mut PartialWorkflow, depth: u32) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     let mut cursor = doc.walk();
     for child in doc.children(&mut cursor) {
         match child.kind() {
-            "block_node" => walk_block_node(text, &child, result),
+            "block_node" => walk_block_node(text, &child, result, depth + 1),
             "block_mapping" => extract_top_level_mapping(text, &child, result),
             _ => {}
         }
     }
 }
 
-fn walk_block_node(text: &str, node: &Node, result: &mut PartialWorkflow) {
+fn walk_block_node(text: &str, node: &Node, result: &mut PartialWorkflow, depth: u32) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
             "block_mapping" => extract_top_level_mapping(text, &child, result),
-            "block_node" => walk_block_node(text, &child, result),
+            "block_node" => walk_block_node(text, &child, result, depth + 1),
             _ => {}
         }
     }
@@ -226,16 +243,19 @@ fn extract_single_task(text: &str, item: &Node) -> PartialTask {
         verb_span: None,
     };
 
-    walk_task_children(text, item, &mut task);
+    walk_task_children(text, item, &mut task, 0);
     task
 }
 
-fn walk_task_children(text: &str, node: &Node, task: &mut PartialTask) {
+fn walk_task_children(text: &str, node: &Node, task: &mut PartialTask, depth: u32) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
             "block_mapping" => extract_task_mapping(text, &child, task),
-            "block_node" => walk_task_children(text, &child, task),
+            "block_node" => walk_task_children(text, &child, task, depth + 1),
             _ => {}
         }
     }
@@ -312,10 +332,13 @@ fn extract_with_aliases(text: &str, node: &Node, task: &mut PartialTask) {
 
 fn extract_depends_on_refs(text: &str, node: &Node, task: &mut PartialTask) {
     // depends_on can be a flow sequence: [a, b] or a block sequence
-    collect_scalar_values(text, node, &mut task.depends_on_refs);
+    collect_scalar_values(text, node, &mut task.depends_on_refs, 0);
 }
 
-fn collect_scalar_values(text: &str, node: &Node, out: &mut Vec<String>) {
+fn collect_scalar_values(text: &str, node: &Node, out: &mut Vec<String>, depth: u32) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     match node.kind() {
         "plain_scalar" | "single_quote_scalar" | "double_quote_scalar" => {
             let val = node_text_trimmed(text, node)
@@ -330,7 +353,7 @@ fn collect_scalar_values(text: &str, node: &Node, out: &mut Vec<String>) {
         | "block_sequence_item" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                collect_scalar_values(text, &child, out);
+                collect_scalar_values(text, &child, out, depth + 1);
             }
         }
         _ => {
@@ -338,7 +361,7 @@ fn collect_scalar_values(text: &str, node: &Node, out: &mut Vec<String>) {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.is_named() {
-                    collect_scalar_values(text, &child, out);
+                    collect_scalar_values(text, &child, out, depth + 1);
                 }
             }
         }
@@ -463,8 +486,12 @@ fn node_text_trimmed(text: &str, node: &Node) -> String {
 }
 
 /// Get the byte range of a node.
+///
+/// Uses [`safe_u32`] to clamp byte offsets, preventing silent
+/// truncation on files larger than 4 GB (defensive -- callers
+/// already reject files > 64 MB).
 fn node_range(node: &Node) -> TextRange {
-    TextRange::new(node.start_byte() as u32, node.end_byte() as u32)
+    TextRange::new(safe_u32(node.start_byte()), safe_u32(node.end_byte()))
 }
 
 /// Walk into block_node wrappers to find a block_mapping, then call `f`.
@@ -472,12 +499,22 @@ fn walk_to_block_mapping<F>(node: &Node, f: &mut F)
 where
     F: FnMut(&Node),
 {
+    walk_to_block_mapping_inner(node, f, 0);
+}
+
+fn walk_to_block_mapping_inner<F>(node: &Node, f: &mut F, depth: u32)
+where
+    F: FnMut(&Node),
+{
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     match node.kind() {
         "block_mapping" => f(node),
         "block_node" | "block_sequence_item" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                walk_to_block_mapping(&child, f);
+                walk_to_block_mapping_inner(&child, f, depth + 1);
             }
         }
         _ => {
@@ -485,7 +522,7 @@ where
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.is_named() {
-                    walk_to_block_mapping(&child, f);
+                    walk_to_block_mapping_inner(&child, f, depth + 1);
                 }
             }
         }
@@ -497,19 +534,29 @@ fn walk_to_block_sequence<F>(text: &str, node: &Node, f: &mut F)
 where
     F: FnMut(&str, &Node),
 {
+    walk_to_block_sequence_inner(text, node, f, 0);
+}
+
+fn walk_to_block_sequence_inner<F>(text: &str, node: &Node, f: &mut F, depth: u32)
+where
+    F: FnMut(&str, &Node),
+{
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     match node.kind() {
         "block_sequence" => f(text, node),
         "block_node" | "block_sequence_item" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                walk_to_block_sequence(text, &child, f);
+                walk_to_block_sequence_inner(text, &child, f, depth + 1);
             }
         }
         _ => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.is_named() {
-                    walk_to_block_sequence(text, &child, f);
+                    walk_to_block_sequence_inner(text, &child, f, depth + 1);
                 }
             }
         }
@@ -522,6 +569,18 @@ fn collect_scalar_values_into_fields(
     node: &Node,
     out: &mut Vec<PartialField>,
 ) {
+    collect_scalar_values_into_fields_inner(text, node, out, 0);
+}
+
+fn collect_scalar_values_into_fields_inner(
+    text: &str,
+    node: &Node,
+    out: &mut Vec<PartialField>,
+    depth: u32,
+) {
+    if depth > MAX_WALK_DEPTH {
+        return;
+    }
     match node.kind() {
         "plain_scalar" | "single_quote_scalar" | "double_quote_scalar" => {
             let span = node_range(node);
@@ -538,7 +597,7 @@ fn collect_scalar_values_into_fields(
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.is_named() {
-                    collect_scalar_values_into_fields(text, &child, out);
+                    collect_scalar_values_into_fields_inner(text, &child, out, depth + 1);
                 }
             }
         }
@@ -1011,6 +1070,28 @@ mod tests {
         assert_eq!(pw.tasks[0].id.as_deref(), Some("single-quoted"));
     }
 
+    #[test]
+    fn deeply_nested_generated_yaml_no_stack_overflow() {
+        // Generate 100-level nesting programmatically.
+        let mut yaml = String::new();
+        for i in 0..100 {
+            let indent = "  ".repeat(i);
+            yaml.push_str(&format!("{indent}level_{i}:\n"));
+        }
+        yaml.push_str(&format!("{}value: deep\n", "  ".repeat(100)));
+        let pw = partial(&yaml);
+        // Must not panic. No workflow structure expected.
+        assert!(pw.tasks.is_empty());
+    }
+
+    #[test]
+    fn empty_file_no_panic() {
+        let pw = partial("");
+        assert!(pw.tasks.is_empty());
+        assert!(pw.schema.is_none());
+        assert!(!pw.has_errors);
+    }
+
     // =======================================================================
     // Fixture-based tests
     // =======================================================================
@@ -1174,10 +1255,20 @@ mod tests {
             "missing-schema.broken.yaml",
             "broken-template.broken.yaml",
             "broken-content.broken.yaml",
+            "deeply-nested.broken.yaml",
         ];
         for name in &fixtures {
             let _pw = fixture(name);
         }
+    }
+
+    #[test]
+    fn fixture_deeply_nested_yaml_no_stack_overflow() {
+        // 100-level nesting must not blow the stack thanks to MAX_WALK_DEPTH.
+        let pw = fixture("deeply-nested.broken.yaml");
+        // The document is valid YAML (deeply nested mappings), but has no
+        // Nika workflow structure. Main assertion: no panic / stack overflow.
+        assert!(pw.tasks.is_empty());
     }
 
     // =======================================================================

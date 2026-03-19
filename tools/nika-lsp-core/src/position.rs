@@ -4,6 +4,20 @@
 //! [`PositionIndex`] maps byte offsets to AST context (which span contains this offset).
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Safely convert a `usize` to `u32`, clamping to `u32::MAX` on overflow.
+///
+/// In practice, files processed by the LSP are bounded by
+/// [`crate::db::MAX_FILE_SIZE`] (64 MB), so this never actually clamps.
+/// The function exists as a safety net for edge cases (e.g. tree-sitter
+/// byte offsets or external callers).
+pub(crate) fn safe_u32(n: usize) -> u32 {
+    u32::try_from(n).unwrap_or(u32::MAX)
+}
+
+// ---------------------------------------------------------------------------
 // LineIndex
 // ---------------------------------------------------------------------------
 
@@ -22,16 +36,20 @@ pub struct LineIndex {
 
 impl LineIndex {
     /// Build a `LineIndex` from text. O(n) scan.
+    ///
+    /// If `text.len()` exceeds `u32::MAX`, offsets are clamped via
+    /// [`safe_u32`]. In practice the caller ([`WorldDatabase::set_text`])
+    /// rejects files larger than 64 MB, so this is purely defensive.
     pub fn new(text: &str) -> Self {
         let mut line_starts = vec![0u32];
         for (i, byte) in text.bytes().enumerate() {
             if byte == b'\n' {
-                line_starts.push((i + 1) as u32);
+                line_starts.push(safe_u32(i + 1));
             }
         }
         Self {
             line_starts,
-            len: text.len() as u32,
+            len: safe_u32(text.len()),
         }
     }
 
@@ -189,6 +207,27 @@ impl PositionIndex {
 
 #[cfg(test)]
 mod tests {
+    // -----------------------------------------------------------------------
+    // safe_u32 tests
+    // -----------------------------------------------------------------------
+
+    mod safe_u32_tests {
+        use crate::position::safe_u32;
+
+        #[test]
+        fn fits_in_u32() {
+            assert_eq!(safe_u32(0), 0);
+            assert_eq!(safe_u32(42), 42);
+            assert_eq!(safe_u32(u32::MAX as usize), u32::MAX);
+        }
+
+        #[test]
+        fn overflows_clamps_to_max() {
+            assert_eq!(safe_u32(u32::MAX as usize + 1), u32::MAX);
+            assert_eq!(safe_u32(usize::MAX), u32::MAX);
+        }
+    }
+
     // -----------------------------------------------------------------------
     // LineIndex tests
     // -----------------------------------------------------------------------
