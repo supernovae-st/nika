@@ -14,5 +14,10 @@
 //! - TUI (ratatui)
 //! - LSP server (tower-lsp)
 
+pub use serde_saphyr as serde_yaml;
+
+pub mod ast;
+pub mod binding;
 pub mod catalogs;
+pub mod error;
 pub mod source;
