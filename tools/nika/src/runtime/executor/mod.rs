@@ -65,6 +65,8 @@ pub struct TaskExecutor {
     /// When cancelled, MCP invoke operations race against this token
     /// so they can abort promptly instead of waiting for INVOKE_TASK_DEADLINE.
     cancel_token: CancellationToken,
+    /// CAS store for reading media blobs (used by vision content resolution)
+    cas: Arc<CasStore>,
 }
 
 impl TaskExecutor {
@@ -113,6 +115,8 @@ impl TaskExecutor {
         let media_ctx = Arc::new(MediaToolContext::new(
             CasStore::workspace_default(&working_dir),
         ));
+        // Separate CAS handle for vision content resolution (same directory)
+        let cas = Arc::new(CasStore::workspace_default(&working_dir));
 
         Self {
             http_client,
@@ -127,6 +131,7 @@ impl TaskExecutor {
             builtin_router: Arc::new(BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx)),
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
             cancel_token: CancellationToken::new(),
+            cas,
         }
     }
 

@@ -28,6 +28,8 @@ use crate::runtime::{BuiltinToolRouter, InferCallback, RigAgentLoop, StructuredO
 use crate::store::RunContext;
 use crate::util::{EXEC_TIMEOUT, INVOKE_TASK_DEADLINE};
 
+use base64::Engine;
+
 use super::TaskExecutor;
 
 /// Estimate token count from character length using ceiling division.
@@ -38,6 +40,25 @@ use super::TaskExecutor;
 #[inline]
 fn estimate_tokens(char_len: usize) -> u64 {
     char_len.div_ceil(4) as u64
+}
+
+/// Detect image MIME type from magic bytes and return rig-core ImageMediaType.
+fn detect_image_media_type(data: &[u8]) -> Option<rig::completion::message::ImageMediaType> {
+    use rig::completion::message::ImageMediaType;
+    if data.len() < 4 {
+        return None;
+    }
+    if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        Some(ImageMediaType::PNG)
+    } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some(ImageMediaType::JPEG)
+    } else if data.starts_with(b"GIF8") {
+        Some(ImageMediaType::GIF)
+    } else if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        Some(ImageMediaType::WEBP)
+    } else {
+        None
+    }
 }
 
 impl TaskExecutor {
@@ -345,6 +366,141 @@ impl TaskExecutor {
                     }
                 }
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // VISION PATH — multimodal content (text + images)
+        // ═══════════════════════════════════════════════════════════════════
+        if has_content {
+            let resolve_start = Instant::now();
+            let content = infer.content.as_ref().unwrap();
+            let mut user_content: Vec<rig::completion::message::UserContent> = Vec::new();
+            let mut image_count: u32 = 0;
+            let mut total_bytes: u64 = 0;
+
+            // If prompt is non-empty, prepend as first text part
+            if !prompt.trim().is_empty() {
+                user_content.push(rig::completion::message::UserContent::text(prompt.clone()));
+            }
+
+            for part in content {
+                match part {
+                    crate::ast::content::ContentPart::Text { text } => {
+                        // Resolve templates in text
+                        let resolved = template_resolve(text, bindings, datastore)?.into_owned();
+                        user_content.push(rig::completion::message::UserContent::text(resolved));
+                    }
+                    crate::ast::content::ContentPart::Image { source, detail } => {
+                        // Resolve template in source (e.g., {{with.photo.media[0].hash}})
+                        let resolved_source = template_resolve(source, bindings, datastore)?.into_owned();
+
+                        // Read image data from CAS
+                        let image_data = self.cas.read(&resolved_source).await.map_err(|e| {
+                            NikaError::ProviderApiError {
+                                message: format!(
+                                    "Vision: failed to read CAS image '{}': {}",
+                                    resolved_source, e
+                                ),
+                            }
+                        })?;
+
+                        total_bytes += image_data.len() as u64;
+                        image_count += 1;
+
+                        // Detect MIME type from magic bytes
+                        let media_type = detect_image_media_type(&image_data);
+
+                        // Base64 encode
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(&image_data);
+
+                        // Convert Nika ImageDetail to rig ImageDetail
+                        let rig_detail = match detail {
+                            crate::ast::content::ImageDetail::Low => {
+                                Some(rig::completion::message::ImageDetail::Low)
+                            }
+                            crate::ast::content::ImageDetail::High => {
+                                Some(rig::completion::message::ImageDetail::High)
+                            }
+                            crate::ast::content::ImageDetail::Auto => {
+                                Some(rig::completion::message::ImageDetail::Auto)
+                            }
+                        };
+
+                        user_content.push(rig::completion::message::UserContent::image_base64(
+                            b64,
+                            media_type,
+                            rig_detail,
+                        ));
+                    }
+                    crate::ast::content::ContentPart::ImageUrl { url, detail } => {
+                        // Resolve template in URL
+                        let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
+
+                        let rig_detail = match detail {
+                            crate::ast::content::ImageDetail::Low => {
+                                Some(rig::completion::message::ImageDetail::Low)
+                            }
+                            crate::ast::content::ImageDetail::High => {
+                                Some(rig::completion::message::ImageDetail::High)
+                            }
+                            crate::ast::content::ImageDetail::Auto => {
+                                Some(rig::completion::message::ImageDetail::Auto)
+                            }
+                        };
+
+                        user_content.push(rig::completion::message::UserContent::image_url(
+                            resolved_url,
+                            None, // media_type unknown for URLs
+                            rig_detail,
+                        ));
+                    }
+                }
+            }
+
+            let resolve_ms = resolve_start.elapsed().as_millis() as u64;
+
+            // EMIT: VisionContentResolved
+            self.event_log.emit(EventKind::VisionContentResolved {
+                task_id: Arc::clone(task_id),
+                image_count,
+                total_bytes,
+                resolve_ms,
+            });
+
+            debug!(
+                task_id = %task_id,
+                image_count = image_count,
+                total_bytes = total_bytes,
+                resolve_ms = resolve_ms,
+                "Vision content resolved, calling infer_vision"
+            );
+
+            // Call vision provider method
+            let vision_result = provider
+                .infer_vision(
+                    user_content,
+                    model,
+                    infer.system.as_deref(),
+                    infer.max_tokens,
+                )
+                .await
+                .map_err(|e| NikaError::ProviderApiError {
+                    message: e.to_string(),
+                })?;
+
+            // EMIT: ProviderResponded (basic — no token counts from non-streaming vision)
+            self.event_log.emit(EventKind::ProviderResponded {
+                task_id: Arc::clone(task_id),
+                request_id: None,
+                input_tokens: estimate_tokens(total_bytes as usize + prompt.len()),
+                output_tokens: estimate_tokens(vision_result.len()),
+                cache_read_tokens: 0,
+                ttft_ms: None,
+                finish_reason: "stop".to_string(),
+                cost_usd: 0.0,
+            });
+
+            return Ok(vision_result);
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -1732,5 +1888,51 @@ mod tests {
         };
 
         assert_eq!(response, "");
+    }
+
+    // =========================================================================
+    // Vision Helper Tests
+    // =========================================================================
+
+    #[test]
+    fn detect_image_media_type_png() {
+        let data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        let result = super::detect_image_media_type(&data);
+        assert_eq!(result, Some(rig::completion::message::ImageMediaType::PNG));
+    }
+
+    #[test]
+    fn detect_image_media_type_jpeg() {
+        let data = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        let result = super::detect_image_media_type(&data);
+        assert_eq!(result, Some(rig::completion::message::ImageMediaType::JPEG));
+    }
+
+    #[test]
+    fn detect_image_media_type_gif() {
+        let data = b"GIF89a\x00\x00";
+        let result = super::detect_image_media_type(data);
+        assert_eq!(result, Some(rig::completion::message::ImageMediaType::GIF));
+    }
+
+    #[test]
+    fn detect_image_media_type_webp() {
+        let data = b"RIFF\x00\x00\x00\x00WEBP";
+        let result = super::detect_image_media_type(data);
+        assert_eq!(result, Some(rig::completion::message::ImageMediaType::WEBP));
+    }
+
+    #[test]
+    fn detect_image_media_type_unknown() {
+        let data = [0x00, 0x01, 0x02, 0x03];
+        let result = super::detect_image_media_type(&data);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn detect_image_media_type_too_small() {
+        let data = [0x89, 0x50];
+        let result = super::detect_image_media_type(&data);
+        assert_eq!(result, None);
     }
 }
