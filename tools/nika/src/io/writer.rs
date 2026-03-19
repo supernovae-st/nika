@@ -288,39 +288,61 @@ impl ArtifactWriter {
         // Final path validation after directory creation (mitigates TOCTOU)
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
 
-        // Copy binary from source
+        // Copy binary from source using atomic temp+rename pattern.
+        //
+        // reflink_or_copy uses O_EXCL (create_new) semantics -- it fails if the
+        // destination exists. A remove+copy approach (even with retries) has a
+        // fundamental TOCTOU race under high concurrency. The correct fix is the
+        // same pattern write_atomic uses: copy to a unique temp file, then
+        // atomically rename. POSIX rename() on the same filesystem is atomic --
+        // concurrent renames to the same path all succeed, last writer wins.
         let size = match request.source {
             BinarySource::CasPath(ref src) => {
-                // reflink_or_copy uses create_new semantics — remove existing file first
-                // to support overwrite mode (the default for artifacts)
-                let _ = fs::remove_file(&final_path).await;
+                let parent = final_path.parent().unwrap_or(Path::new("."));
+                let temp_path = parent.join(format!(
+                    ".nika-tmp-{}-{}",
+                    std::process::id(),
+                    uuid::Uuid::new_v4().simple()
+                ));
 
-                // Use reflink_or_copy: instant on APFS/btrfs, fallback on ext4/NTFS
-                // This is a sync operation, so we spawn_blocking to avoid blocking the runtime
                 let src = src.clone();
-                let dst = final_path.clone();
+                let tmp = temp_path.clone();
                 tokio::task::spawn_blocking(move || {
-                    reflink_copy::reflink_or_copy(&src, &dst)
+                    reflink_copy::reflink_or_copy(&src, &tmp)
                 })
                 .await
                 .map_err(|e| NikaError::ArtifactWriteError {
                     path: final_path.display().to_string(),
                     reason: format!("Task join error: {}", e),
                 })?
-                .map_err(|e| NikaError::ArtifactWriteError {
-                    path: final_path.display().to_string(),
-                    reason: format!("Binary copy failed: {}", e),
+                .map_err(|e| {
+                    let _ = std::fs::remove_file(&temp_path);
+                    NikaError::ArtifactWriteError {
+                        path: final_path.display().to_string(),
+                        reason: format!("Binary copy failed: {}", e),
+                    }
                 })?;
 
-                // reflink_or_copy returns Option<u64> — None means reflink (0-cost), Some(n) means n bytes copied
-                // Either way, the file is now at final_path. Get actual size.
-                fs::metadata(&final_path)
+                let size = fs::metadata(&temp_path)
                     .await
                     .map(|m| m.len())
                     .map_err(|e| NikaError::ArtifactWriteError {
                         path: final_path.display().to_string(),
-                        reason: format!("Failed to stat written file: {}", e),
-                    })?
+                        reason: format!("Failed to stat temp file: {}", e),
+                    })?;
+
+                match fs::rename(&temp_path, &final_path).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        let _ = fs::remove_file(&temp_path).await;
+                        return Err(NikaError::ArtifactWriteError {
+                            path: final_path.display().to_string(),
+                            reason: format!("Atomic rename failed: {}", e),
+                        });
+                    }
+                }
+
+                size
             }
         };
 
@@ -680,5 +702,446 @@ mod tests {
 
         let result = writer.write_binary(request).await.unwrap();
         assert_eq!(result.format, OutputFormat::Binary, "Binary write should report Binary format");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECURITY: Binary artifact output path traversal tests
+    // Verify that write_binary blocks output paths containing ".."
+    // or absolute paths, matching the same protections as text write.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_write_binary_output_path_traversal_blocked() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"secret").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "../../../etc/shadow".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 6,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Path traversal in binary output must be blocked");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, NikaError::ArtifactPathError { .. }),
+            "Expected ArtifactPathError, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_output_absolute_path_blocked() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"test").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "/tmp/escape.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 4,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Absolute output path in binary write must be blocked");
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_output_hidden_traversal_blocked() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"test").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "a/../../escape.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 4,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Hidden traversal in binary output path must be blocked");
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_output_null_byte_blocked() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"test").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output\0.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 4,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Null bytes in binary output path must be blocked");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SECURITY: Binary artifact source path validation tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_write_binary_source_outside_cas_fails_gracefully() {
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(PathBuf::from("/nonexistent/fake/cas/ab/cdef")),
+            expected_size: 42,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Missing CAS source file must produce an error");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_write_binary_symlink_source_reads_target() {
+        // Verify behavior when CAS path is a symlink: reflink_or_copy follows
+        // symlinks by default. This test documents the behavior.
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let real_file = temp.path().join("real_data");
+        std::fs::write(&real_file, b"real content").unwrap();
+        let symlink_path = temp.path().join("cas_symlink");
+        symlink(&real_file, &symlink_path).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(symlink_path),
+            expected_size: 12,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        let written = std::fs::read(&result.path).unwrap();
+        assert_eq!(written, b"real content",
+            "Symlink source is followed by reflink_or_copy (documented behavior)");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_write_binary_symlink_in_output_parent_dir() {
+        // Security test: if a parent directory in the output path is a symlink
+        // that points outside the artifact directory, validate_artifact_path
+        // uses normalize_path (logical, not filesystem), so it cannot detect this.
+        // This test documents the known limitation.
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(&canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("data");
+        std::fs::write(&cas_file, b"test data").unwrap();
+
+        // Create a symlink inside the artifact dir that points outside
+        let escape_target = temp.path().join("escape_target");
+        std::fs::create_dir_all(&escape_target).unwrap();
+        let symlink_dir = canonical_dir.join("evil_link");
+        symlink(&escape_target, &symlink_dir).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "evil_link/file.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 9,
+        };
+
+        // This currently SUCCEEDS because normalize_path doesn't resolve symlinks.
+        // Documented as a known limitation -- defense relies on the artifact_dir
+        // being created by nika itself (not user-controlled).
+        let result = writer.write_binary(request).await;
+        assert!(result.is_ok(),
+            "Symlink-in-parent currently passes logical validation (known limitation)");
+
+        let escaped_file = escape_target.join("file.bin");
+        assert!(escaped_file.exists(),
+            "File was written through symlink to escape target (known limitation)");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Edge case tests for reflink-copy behavior
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_write_binary_empty_source_file() {
+        // Edge case: source file is 0 bytes
+        // reflink_or_copy should handle this gracefully
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("empty");
+        std::fs::write(&cas_file, b"").unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 0,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert_eq!(result.size, 0, "Empty source should produce empty output");
+
+        let content = std::fs::read(&result.path).unwrap();
+        assert!(content.is_empty(), "Output file should be empty");
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_source_is_symlink() {
+        // Edge case: source file is a symlink — reflink should follow it
+        // On macOS, clonefile handles symlinks. The fallback fs::copy also follows symlinks.
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        // Create real file and a symlink to it
+        let real_file = temp.path().join("real_data");
+        std::fs::write(&real_file, b"symlink target data").unwrap();
+
+        let symlink_path = temp.path().join("link_to_real");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real_file, &symlink_path).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&real_file, &symlink_path).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "from_symlink.bin".to_string(),
+            source: BinarySource::CasPath(symlink_path),
+            expected_size: 19,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        let content = std::fs::read(&result.path).unwrap();
+        assert_eq!(content, b"symlink target data", "Should copy the symlink target content");
+        assert_eq!(result.size, 19);
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_source_deleted_before_copy() {
+        // Edge case: CAS file deleted between request creation and copy execution
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        // Create then immediately delete the source file
+        let cas_file = temp.path().join("ephemeral");
+        std::fs::write(&cas_file, b"will be deleted").unwrap();
+        std::fs::remove_file(&cas_file).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file),
+            expected_size: 15,
+        };
+
+        let result = writer.write_binary(request).await;
+        assert!(result.is_err(), "Should fail when source file is missing");
+
+        let err = result.unwrap_err();
+        if let NikaError::ArtifactWriteError { reason, .. } = &err {
+            assert!(
+                reason.contains("Binary copy failed"),
+                "Error should mention copy failure: {}",
+                reason
+            );
+        } else {
+            panic!("Expected ArtifactWriteError, got: {:?}", err);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_read_only_source_works() {
+        // Edge case: source file is read-only — copy should still work
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(canonical_dir, "test-workflow");
+
+        let cas_file = temp.path().join("readonly");
+        std::fs::write(&cas_file, b"read-only content").unwrap();
+
+        // Make the source file read-only
+        let mut perms = std::fs::metadata(&cas_file).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&cas_file, perms).unwrap();
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: BinarySource::CasPath(cas_file.clone()),
+            expected_size: 17,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert_eq!(result.size, 17);
+        let content = std::fs::read(&result.path).unwrap();
+        assert_eq!(content, b"read-only content");
+
+        // Restore permissions for cleanup
+        let mut perms = std::fs::metadata(&cas_file).unwrap().permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(&cas_file, perms).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_write_binary_no_partial_file_on_missing_source() {
+        // Verify that when reflink_or_copy fails, no partial destination file is left
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = ArtifactWriter::new(&canonical_dir, "test-workflow");
+
+        let request = BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "should_not_exist.bin".to_string(),
+            source: BinarySource::CasPath(PathBuf::from("/nonexistent/path/file")),
+            expected_size: 100,
+        };
+
+        let _ = writer.write_binary(request).await;
+
+        // Verify no partial file was left at the destination
+        let ghost = canonical_dir.join("should_not_exist.bin");
+        assert!(
+            !ghost.exists(),
+            "Failed copy should not leave a partial file at: {}",
+            ghost.display()
+        );
+    }
+
+    /// Stress test: 10 concurrent binary writes to the SAME output path.
+    ///
+    /// Verifies the retry loop handles the TOCTOU race between remove_file
+    /// and reflink_or_copy (which uses create_new / O_EXCL internally).
+    /// All writes must succeed and the final file must be consistent.
+    #[tokio::test]
+    async fn test_write_binary_concurrent_same_path() {
+        use std::sync::Arc as StdArc;
+        use tokio::task::JoinSet;
+
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+        let writer = StdArc::new(ArtifactWriter::new(&canonical_dir, "test-workflow"));
+
+        // Create 10 distinct CAS source files with identifiable content
+        let cas_dir = temp.path().join("cas");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+
+        let mut cas_files = Vec::new();
+        for i in 0..10u8 {
+            let cas_file = cas_dir.join(format!("source_{}", i));
+            // Each file has unique content: 1KB of repeated byte value
+            let data = vec![i; 1024];
+            std::fs::write(&cas_file, &data).unwrap();
+            cas_files.push(cas_file);
+        }
+
+        // Spawn 10 concurrent write_binary calls to the SAME output path
+        let mut join_set = JoinSet::new();
+        for (i, cas_file) in cas_files.into_iter().enumerate() {
+            let writer = StdArc::clone(&writer);
+            join_set.spawn(async move {
+                let request = BinaryWriteRequest {
+                    task_id: format!("task_{}", i),
+                    output_path: "shared_output.bin".to_string(),
+                    source: BinarySource::CasPath(cas_file),
+                    expected_size: 1024,
+                };
+                (i, writer.write_binary(request).await)
+            });
+        }
+
+        // Collect results — all should succeed (no errors)
+        let mut successes = 0;
+        let mut errors = 0;
+        while let Some(join_result) = join_set.join_next().await {
+            let (idx, write_result) = join_result.expect("task should not panic");
+            match write_result {
+                Ok(result) => {
+                    assert_eq!(result.size, 1024, "task_{} wrote wrong size", idx);
+                    successes += 1;
+                }
+                Err(e) => {
+                    eprintln!("task_{} failed: {}", idx, e);
+                    errors += 1;
+                }
+            }
+        }
+
+        // ALL writes must succeed — no TOCTOU errors
+        assert_eq!(
+            errors, 0,
+            "All concurrent binary writes should succeed, but {} failed", errors
+        );
+        assert_eq!(successes, 10, "All 10 writes should succeed");
+
+        // The final file must contain valid data (1024 bytes of a single repeated value)
+        let final_path = canonical_dir.join("shared_output.bin");
+        let content = std::fs::read(&final_path).unwrap();
+        assert_eq!(content.len(), 1024, "File should be exactly 1024 bytes");
+
+        // All bytes should be the same value (from one consistent writer)
+        let first_byte = content[0];
+        assert!(
+            content.iter().all(|&b| b == first_byte),
+            "File content should be consistent (all bytes from one writer), \
+             but found mixed data — indicates corruption from concurrent writes"
+        );
     }
 }

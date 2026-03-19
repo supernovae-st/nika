@@ -131,11 +131,17 @@ pub async fn process_task_artifacts(
 
                 // Emit ArtifactWritten event if event_log provided
                 if let Some(log) = event_log {
+                    let checksum = if write_result.format == OutputFormat::Binary {
+                        resolve_binary_checksum(&output_spec, media_refs)
+                    } else {
+                        None
+                    };
                     log.emit(EventKind::ArtifactWritten {
                         task_id: Arc::from(task_id),
                         path: write_result.path.display().to_string(),
                         size: write_result.size,
                         format: format!("{:?}", write_result.format).to_lowercase(),
+                        checksum,
                     });
                 }
 
@@ -188,16 +194,17 @@ async fn write_single_artifact(
         .or(workflow_config.map(|c| c.format))
         .unwrap_or(ArtifactFormat::Text);
 
-    // Binary format: resolve source to CAS path and copy
-    if format == ArtifactFormat::Binary {
-        return write_binary_artifact(task_id, output_spec, writer, bindings, datastore, media_refs).await;
-    }
-
-    // Determine mode (task spec > workflow default)
+    // Determine mode (task spec > workflow default) — computed before binary
+    // branch so that binary artifacts can validate and reject unsupported modes.
     let mode = output_spec
         .mode
         .or(workflow_config.map(|c| c.mode))
         .unwrap_or(ArtifactMode::Overwrite);
+
+    // Binary format: resolve source to CAS path and copy
+    if format == ArtifactFormat::Binary {
+        return write_binary_artifact(task_id, output_spec, mode, writer, bindings, datastore, media_refs).await;
+    }
 
     // Determine content source: source binding > template > task output
     let raw_content: String = if let Some(ref source_alias) = output_spec.source {
@@ -339,58 +346,107 @@ async fn write_single_artifact(
 ///
 /// Resolves the `source` binding to a media hash or path, then copies from CAS store.
 /// Falls back to the first media ref if no explicit source is specified.
+///
+/// # Mode support
+///
+/// Binary artifacts only support `Overwrite` (default) and `Fail` modes.
+/// `Append` and `Unique` are rejected with NIKA-281 because binary data
+/// cannot be meaningfully appended or deduplicated by filename suffix.
 async fn write_binary_artifact(
     task_id: &str,
     output_spec: &ArtifactOutput,
+    mode: ArtifactMode,
     writer: &ArtifactWriter,
     bindings: &ResolvedBindings,
     datastore: &RunContext,
     media_refs: &[MediaRef],
 ) -> Result<WriteResult, NikaError> {
+    // Reject unsupported modes for binary artifacts
+    match mode {
+        ArtifactMode::Append => {
+            return Err(NikaError::ArtifactWriteError {
+                path: output_spec.path.clone(),
+                reason: "Binary artifacts do not support append mode".to_string(),
+            });
+        }
+        ArtifactMode::Unique => {
+            return Err(NikaError::ArtifactWriteError {
+                path: output_spec.path.clone(),
+                reason: "Binary artifacts do not support unique mode".to_string(),
+            });
+        }
+        ArtifactMode::Overwrite | ArtifactMode::Fail => {
+            // Supported -- continue
+        }
+    }
+
     // Resolve source to a MediaRef:
     // 1. If source is specified, look it up in bindings/media_refs
     // 2. Otherwise, use first media ref from the task
+    //
+    // Resolution order for `source: alias`:
+    //   a) Direct match: media_refs.created_by == alias || media_refs.hash == alias
+    //   b) Binding indirection: resolve alias -> source task ID -> media_refs.created_by
+    //   c) Hash indirection: binding value is a hash string -> media_refs.hash == hash
     let media_ref = if let Some(ref source_alias) = output_spec.source {
         // Try to find media by source alias (could be a task_id or hash)
         // First check if any media ref was created by a task matching the source alias
-        let from_media = media_refs.iter().find(|m| m.created_by == *source_alias || m.hash == *source_alias);
+        let from_media = media_refs
+            .iter()
+            .find(|m| m.created_by == *source_alias || m.hash == *source_alias);
         if let Some(mr) = from_media {
             mr.clone()
         } else {
-            // Try resolving from bindings — the value might contain a media hash
-            let hash_value = if let Some(value) = bindings.get(source_alias) {
-                match value {
-                    serde_json::Value::String(s) => Some(s.clone()),
-                    _ => None,
-                }
+            // Try binding indirection: source_alias is a with-binding alias
+            // that maps to a task (e.g., `source: img` where `with: { img: $gen_img }`)
+            // Resolve the source task ID and find media by created_by.
+            let from_binding_source = bindings
+                .source_task_id(source_alias)
+                .and_then(|task_id| {
+                    media_refs
+                        .iter()
+                        .find(|m| m.created_by == task_id)
+                        .cloned()
+                });
+
+            if let Some(mr) = from_binding_source {
+                mr
             } else {
-                datastore.get_output(source_alias).and_then(|v| {
-                    match v.as_ref() {
+                // Try resolving from bindings — the value might contain a media hash
+                let hash_value = if let Some(value) = bindings.get(source_alias) {
+                    match value {
                         serde_json::Value::String(s) => Some(s.clone()),
                         _ => None,
                     }
-                })
-            };
+                } else {
+                    datastore.get_output(source_alias).and_then(|v| match v.as_ref() {
+                        serde_json::Value::String(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                };
 
-            if let Some(hash) = hash_value {
-                // Find media ref by hash
-                media_refs.iter().find(|m| m.hash == hash).cloned().ok_or_else(|| {
-                    NikaError::ArtifactWriteError {
+                if let Some(hash) = hash_value {
+                    // Find media ref by hash
+                    media_refs
+                        .iter()
+                        .find(|m| m.hash == hash)
+                        .cloned()
+                        .ok_or_else(|| NikaError::ArtifactWriteError {
+                            path: output_spec.path.clone(),
+                            reason: format!(
+                                "Binary artifact source '{}' resolved to hash '{}' but no media ref matches",
+                                source_alias, hash
+                            ),
+                        })?
+                } else {
+                    return Err(NikaError::ArtifactWriteError {
                         path: output_spec.path.clone(),
                         reason: format!(
-                            "Binary artifact source '{}' resolved to hash '{}' but no media ref matches",
-                            source_alias, hash
+                            "Binary artifact source '{}' not found in media refs or bindings",
+                            source_alias
                         ),
-                    }
-                })?
-            } else {
-                return Err(NikaError::ArtifactWriteError {
-                    path: output_spec.path.clone(),
-                    reason: format!(
-                        "Binary artifact source '{}' not found in media refs or bindings",
-                        source_alias
-                    ),
-                });
+                    });
+                }
             }
         }
     } else {
@@ -417,6 +473,17 @@ async fn write_binary_artifact(
     let artifact_dir_str = ""; // Binary artifacts use the raw path
     let normalized_path = normalize_artifact_path(&resolved_path, artifact_dir_str);
 
+    // For Fail mode, check that the target does not already exist
+    if mode == ArtifactMode::Fail {
+        let resolved = writer.validate_path(task_id, &normalized_path)?;
+        if resolved.exists() {
+            return Err(NikaError::ArtifactWriteError {
+                path: resolved.display().to_string(),
+                reason: "File already exists and mode is 'fail'".to_string(),
+            });
+        }
+    }
+
     let request = BinaryWriteRequest {
         task_id: task_id.to_string(),
         output_path: normalized_path,
@@ -425,6 +492,23 @@ async fn write_binary_artifact(
     };
 
     writer.write_binary(request).await
+}
+
+/// Resolve the blake3 checksum for a binary artifact from media refs.
+///
+/// Looks up the matching MediaRef by source alias or falls back to the first ref.
+/// Returns `Some("blake3:...")` if found, `None` otherwise.
+fn resolve_binary_checksum(output_spec: &ArtifactOutput, media_refs: &[MediaRef]) -> Option<String> {
+    if let Some(ref source_alias) = output_spec.source {
+        // Match by creator task_id or by hash
+        media_refs
+            .iter()
+            .find(|m| m.created_by == *source_alias || m.hash == *source_alias)
+            .map(|m| m.hash.clone())
+    } else {
+        // No explicit source -- use first media ref (same logic as write_binary_artifact)
+        media_refs.first().map(|m| m.hash.clone())
+    }
 }
 
 /// Format output content based on artifact format
@@ -510,7 +594,7 @@ async fn resolve_artifact_dir(
 /// where user-controlled binding values enter the filesystem path context.
 fn sanitize_for_path(value: &str) -> String {
     value
-        .replace(['/', '\\'], "_")
+        .replace(['/', '\\', ':'], "_")
         .replace('\0', "")
         .replace("..", "_")
         .replace('~', "_")
@@ -553,7 +637,35 @@ fn resolve_artifact_path_bindings(path: &str, output: &str, bindings: &ResolvedB
         } else if let Some(alias) = var_name.strip_prefix("with.") {
             // Extract top-level alias (e.g., "with.timestamp" → "timestamp")
             let top_alias = alias.split('.').next().unwrap_or(alias);
-            if let Some(value) = bindings.get(top_alias) {
+
+            // Check for media paths: {{with.alias.media[N].field}}
+            // Media refs live in the TaskResult side-channel, not in the task
+            // output value, so we must resolve via datastore.resolve_path()
+            // using the original source task ID.
+            let nested_path = alias.split_once('.').map(|x| x.1).unwrap_or("");
+            let is_media_path = nested_path == "media"
+                || nested_path.starts_with("media.")
+                || nested_path.starts_with("media[");
+
+            if is_media_path {
+                // Resolve media path via datastore using source task ID
+                if let Some(source_task_id) = bindings.source_task_id(top_alias) {
+                    let full_path = format!("{}.{}", source_task_id, nested_path);
+                    if let Some(value) = datastore.resolve_path(&full_path) {
+                        let raw_value = match &value {
+                            serde_json::Value::String(s) => s.clone(),
+                            other => other.to_string(),
+                        };
+                        let sanitized = sanitize_for_path(&raw_value);
+                        result.replace_range(start..end, &sanitized);
+                        pos = start + sanitized.len();
+                    } else {
+                        pos = end;
+                    }
+                } else {
+                    pos = end;
+                }
+            } else if let Some(value) = bindings.get(top_alias) {
                 // For nested paths like "with.data.name", do JSONPath-like access
                 let raw_value = if alias.contains('.') {
                     // Navigate into the JSON value
@@ -1527,5 +1639,359 @@ mod tests {
             "Error should mention no media: {}",
             result.errors[0]
         );
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Binary artifact mode validation tests
+    // ═══════════════════════════════════════════════════
+
+    fn setup_binary_mode_fixtures() -> (
+        tempfile::TempDir,
+        Vec<crate::media::MediaRef>,
+        ResolvedBindings,
+        RunContext,
+    ) {
+        use crate::media::MediaRef;
+        let base = tempdir().unwrap();
+        std::fs::create_dir_all(base.path().join(".nika/artifacts")).unwrap();
+        let cas_dir = base.path().join(".nika/media/store/ab");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("testbin");
+        std::fs::write(&cas_file, b"binary payload").unwrap();
+        let media_refs = vec![MediaRef {
+            hash: "blake3:testbin".to_string(),
+            mime_type: "application/octet-stream".to_string(),
+            size_bytes: 14,
+            path: cas_file,
+            extension: "bin".to_string(),
+            created_by: "producer".to_string(),
+        }];
+        (base, media_refs, ResolvedBindings::default(), RunContext::new())
+    }
+
+    #[tokio::test]
+    async fn test_binary_mode_append_is_rejected() {
+        let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: Some(ArtifactMode::Append),
+        });
+        let result = process_task_artifacts(
+            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        ).await;
+        assert_eq!(result.written, 0, "Append mode must be rejected for binary");
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0].contains("Binary artifacts do not support append mode"),
+            "got: {}", result.errors[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_binary_mode_unique_is_rejected() {
+        let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: Some(ArtifactMode::Unique),
+        });
+        let result = process_task_artifacts(
+            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        ).await;
+        assert_eq!(result.written, 0, "Unique mode must be rejected for binary");
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0].contains("Binary artifacts do not support unique mode"),
+            "got: {}", result.errors[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_binary_mode_overwrite_succeeds() {
+        let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: Some(ArtifactMode::Overwrite),
+        });
+        let result = process_task_artifacts(
+            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        ).await;
+        assert_eq!(result.written, 1, "Overwrite should work, errors: {:?}", result.errors);
+        assert!(result.errors.is_empty());
+        assert_eq!(std::fs::read(&result.paths[0]).unwrap(), b"binary payload");
+    }
+
+    #[tokio::test]
+    async fn test_binary_mode_fail_rejects_existing_file() {
+        let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
+        // Pre-create the target so fail mode triggers
+        let target = base.path().join(".nika/artifacts/output.bin");
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, b"existing data").unwrap();
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output.bin".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: Some(ArtifactMode::Fail),
+        });
+        let result = process_task_artifacts(
+            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        ).await;
+        assert_eq!(result.written, 0, "Fail mode should reject existing file");
+        assert_eq!(result.errors.len(), 1);
+        assert!(
+            result.errors[0].contains("already exists"),
+            "got: {}", result.errors[0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_binary_mode_fail_succeeds_for_new_file() {
+        let (base, media_refs, bindings, datastore) = setup_binary_mode_fixtures();
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "fresh_output.bin".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: Some(ArtifactMode::Fail),
+        });
+        let result = process_task_artifacts(
+            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        ).await;
+        assert_eq!(result.written, 1, "Fail mode should succeed for new file, errors: {:?}", result.errors);
+        assert!(result.errors.is_empty());
+        assert_eq!(std::fs::read(&result.paths[0]).unwrap(), b"binary payload");
+    }
+
+    // ========== Media binding template tests (source_task_id tracking) ==========
+
+    #[test]
+    fn test_path_bindings_media_hash_via_source_task() {
+        use crate::media::MediaRef;
+        use crate::store::TaskResult;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let datastore = RunContext::new();
+        let mut task_result =
+            TaskResult::success_str("LLM text output".to_string(), Duration::from_millis(100));
+        task_result.media = vec![MediaRef {
+            hash: "blake3:af1349b9".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 4096,
+            path: std::path::PathBuf::from("/tmp/cas/af/1349b9"),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+        datastore.insert(Arc::from("gen_img"), task_result);
+
+        let mut bindings = ResolvedBindings::new();
+        bindings.set_with_source("img", serde_json::json!("LLM text output"), "gen_img");
+
+        let result = resolve_artifact_path_bindings(
+            "output/{{with.img.media[0].hash}}.bin",
+            "",
+            &bindings,
+            &datastore,
+        );
+        assert_eq!(
+            result, "output/blake3_af1349b9.bin",
+            "Media hash should resolve via source task ID, with : sanitized to _"
+        );
+    }
+
+    #[test]
+    fn test_path_bindings_media_extension_via_source_task() {
+        use crate::media::MediaRef;
+        use crate::store::TaskResult;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let datastore = RunContext::new();
+        let mut task_result =
+            TaskResult::success_str("output".to_string(), Duration::from_millis(50));
+        task_result.media = vec![MediaRef {
+            hash: "blake3:deadbeef".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 1024,
+            path: std::path::PathBuf::from("/tmp/cas/de/adbeef"),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+        datastore.insert(Arc::from("gen_img"), task_result);
+
+        let mut bindings = ResolvedBindings::new();
+        bindings.set_with_source("img", serde_json::json!("output"), "gen_img");
+
+        let result = resolve_artifact_path_bindings(
+            "output/{{with.img.media[0].extension}}/result.bin",
+            "",
+            &bindings,
+            &datastore,
+        );
+        assert_eq!(
+            result, "output/png/result.bin",
+            "Media extension should resolve via source task ID"
+        );
+    }
+
+    #[test]
+    fn test_path_bindings_media_without_source_task_unresolved() {
+        let bindings = ResolvedBindings::new();
+        let datastore = RunContext::new();
+
+        let result = resolve_artifact_path_bindings(
+            "output/{{with.img.media[0].hash}}.bin",
+            "",
+            &bindings,
+            &datastore,
+        );
+        assert_eq!(
+            result, "output/{{with.img.media[0].hash}}.bin",
+            "Without source task tracking, media path should remain unresolved"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_binary_artifact_source_via_binding_alias() {
+        use crate::media::MediaRef;
+        use crate::store::TaskResult;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        let cas_dir = base.path().join(".nika/media/store/ab");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("cdef1234");
+        let binary_data = b"\x89PNG fake image";
+        std::fs::write(&cas_file, binary_data).unwrap();
+
+        let datastore = RunContext::new();
+        let mut task_result =
+            TaskResult::success_str("generated image".to_string(), Duration::from_millis(100));
+        task_result.media = vec![MediaRef {
+            hash: "blake3:abcdef1234".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file.clone(),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+        datastore.insert(Arc::from("gen_img"), task_result);
+
+        let mut bindings = ResolvedBindings::new();
+        bindings.set_with_source("img", serde_json::json!("generated image"), "gen_img");
+
+        let media_refs = vec![MediaRef {
+            hash: "blake3:abcdef1234".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file,
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output/image.bin".to_string(),
+            source: Some("img".to_string()),
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "save_img", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        )
+        .await;
+
+        assert_eq!(
+            result.written, 1,
+            "Binary artifact should resolve via binding alias indirection, errors: {:?}",
+            result.errors
+        );
+        assert!(result.errors.is_empty(), "No errors expected: {:?}", result.errors);
+
+        let written = std::fs::read(&result.paths[0]).unwrap();
+        assert_eq!(written, binary_data, "Binary content should match CAS source");
+    }
+
+    #[tokio::test]
+    async fn test_binary_artifact_path_with_media_extension_template() {
+        use crate::media::MediaRef;
+        use crate::store::TaskResult;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let base = tempdir().unwrap();
+        let artifact_dir = base.path().join(".nika/artifacts");
+        std::fs::create_dir_all(&artifact_dir).unwrap();
+
+        let cas_dir = base.path().join(".nika/media/store/xx");
+        std::fs::create_dir_all(&cas_dir).unwrap();
+        let cas_file = cas_dir.join("yy1234");
+        let binary_data = b"image bytes";
+        std::fs::write(&cas_file, binary_data).unwrap();
+
+        let datastore = RunContext::new();
+        let mut task_result =
+            TaskResult::success_str("done".to_string(), Duration::from_millis(50));
+        task_result.media = vec![MediaRef {
+            hash: "blake3:xxyy1234".to_string(),
+            mime_type: "image/jpeg".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file.clone(),
+            extension: "jpg".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+        datastore.insert(Arc::from("gen_img"), task_result);
+
+        let mut bindings = ResolvedBindings::new();
+        bindings.set_with_source("img", serde_json::json!("done"), "gen_img");
+
+        let media_refs = vec![MediaRef {
+            hash: "blake3:xxyy1234".to_string(),
+            mime_type: "image/jpeg".to_string(),
+            size_bytes: binary_data.len() as u64,
+            path: cas_file,
+            extension: "jpg".to_string(),
+            created_by: "gen_img".to_string(),
+        }];
+
+        let spec = ArtifactSpec::Single(ArtifactOutput {
+            path: "output/result.{{with.img.media[0].extension}}".to_string(),
+            source: None,
+            template: None,
+            format: Some(ArtifactFormat::Binary),
+            mode: None,
+        });
+
+        let result = process_task_artifacts(
+            "gen_img", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+        )
+        .await;
+
+        assert_eq!(result.written, 1, "errors: {:?}", result.errors);
+
+        let path_str = result.paths[0].display().to_string();
+        assert!(
+            path_str.ends_with("result.jpg"),
+            "Path should end with resolved extension 'result.jpg', got: {}",
+            path_str
+        );
+
+        let written = std::fs::read(&result.paths[0]).unwrap();
+        assert_eq!(written, binary_data);
     }
 }

@@ -405,6 +405,96 @@ mod tests {
         assert!(result.is_err());
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // SECURITY: Symlink attack detection tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[cfg(unix)]
+    #[test]
+    fn test_validate_canonicalized_boundary_detects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let base_dir = temp.path().join("artifacts");
+        fs::create_dir_all(&base_dir).unwrap();
+
+        let escape_target = temp.path().join("outside");
+        fs::create_dir_all(&escape_target).unwrap();
+        let secret_file = escape_target.join("secret.txt");
+        fs::write(&secret_file, "sensitive data").unwrap();
+
+        let symlink_path = base_dir.join("evil");
+        symlink(&escape_target, &symlink_path).unwrap();
+
+        let result = validate_canonicalized_boundary(
+            &base_dir,
+            &symlink_path.join("secret.txt"),
+        );
+        assert!(result.is_err(),
+            "validate_canonicalized_boundary must detect symlink-based escape");
+        assert!(result.unwrap_err().reason.contains("traversal"),
+            "Error should mention path traversal");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_validate_artifact_path_does_not_resolve_symlinks() {
+        // validate_artifact_path uses normalize_path (logical) not canonicalize.
+        // This documents the known limitation: symlinks inside the artifact dir
+        // that point outside are NOT detected by this function.
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let artifact_dir = temp.path().join("artifacts");
+        fs::create_dir_all(&artifact_dir).unwrap();
+        let canonical_dir = artifact_dir.canonicalize().unwrap();
+
+        let escape_target = temp.path().join("outside");
+        fs::create_dir_all(&escape_target).unwrap();
+        let symlink_dir = canonical_dir.join("escape_link");
+        symlink(&escape_target, &symlink_dir).unwrap();
+
+        let result = validate_artifact_path(
+            &canonical_dir,
+            Path::new("escape_link/file.txt"),
+        );
+        assert!(result.is_ok(),
+            "validate_artifact_path does not resolve symlinks (known limitation)");
+    }
+
+    #[test]
+    fn test_validate_artifact_path_dot_dot_in_middle() {
+        let artifact_dir = PathBuf::from("/project/artifacts");
+        let result = validate_artifact_path(
+            &artifact_dir,
+            Path::new("subdir/../../escape"),
+        );
+        assert!(result.is_err(),
+            "Path with .. escaping via subdirectory must be blocked");
+    }
+
+    #[test]
+    fn test_validate_artifact_path_deep_traversal() {
+        let artifact_dir = PathBuf::from("/project/artifacts");
+        let result = validate_artifact_path(
+            &artifact_dir,
+            Path::new("a/b/c/d/../../../../../../../../etc/passwd"),
+        );
+        assert!(result.is_err(),
+            "Deep path traversal must be blocked");
+    }
+
+    #[test]
+    fn test_validate_artifact_path_control_chars_blocked() {
+        let artifact_dir = PathBuf::from("/project/artifacts");
+        let result = validate_artifact_path(
+            &artifact_dir,
+            Path::new("file\r\ninjection"),
+        );
+        assert!(result.is_err(),
+            "Control characters in path must be blocked");
+    }
+
     #[test]
     fn test_normalize_path_preserves_unresolvable_parent() {
         // Relative path with leading `..` — should be preserved, not swallowed

@@ -100,6 +100,14 @@ impl LazyBinding {
 pub struct ResolvedBindings {
     /// Alias -> binding mappings (resolved or pending)
     bindings: FxHashMap<String, LazyBinding>,
+    /// Alias -> source task ID (for media path resolution)
+    ///
+    /// When a binding like `img: $gen_img` is created, this maps
+    /// `"img"` -> `"gen_img"`. This is needed because media refs live
+    /// in the TaskResult side-channel, not in the task output value.
+    /// Without this, templates like `{{with.img.media[0].hash}}` and
+    /// binary artifact `source: img` cannot resolve media paths.
+    source_tasks: FxHashMap<String, String>,
 }
 
 impl ResolvedBindings {
@@ -133,6 +141,17 @@ impl ResolvedBindings {
         let mut resolved = Self::new();
 
         for (alias, entry) in spec {
+            // Track source task ID for media path resolution
+            let (task_id, _) = split_path(&entry.path);
+            if !task_id.starts_with("inputs.")
+                && !task_id.starts_with("context.")
+                && !task_id.starts_with("env.")
+            {
+                resolved
+                    .source_tasks
+                    .insert(alias.clone(), task_id.to_string());
+            }
+
             if entry.is_lazy() {
                 // Lazy binding - defer resolution
                 resolved.bindings.insert(
@@ -179,6 +198,13 @@ impl ResolvedBindings {
         let mut bindings = Self::new();
 
         for (alias, entry) in spec {
+            // Track source task ID for media path resolution
+            if let Some(task_id) = entry.source.task_id() {
+                bindings
+                    .source_tasks
+                    .insert(alias.clone(), task_id.to_string());
+            }
+
             if entry.is_lazy() {
                 bindings.bindings.insert(
                     alias.clone(),
@@ -208,6 +234,32 @@ impl ResolvedBindings {
     pub fn set(&mut self, alias: impl Into<String>, value: Value) {
         self.bindings
             .insert(alias.into(), LazyBinding::Resolved(value));
+    }
+
+    /// Set a resolved value with source task ID tracking.
+    ///
+    /// Use this when the binding originates from a task output, so that
+    /// media path resolution (e.g., `{{with.alias.media[0].hash}}`) can
+    /// trace back to the correct task's media refs.
+    pub fn set_with_source(
+        &mut self,
+        alias: impl Into<String>,
+        value: Value,
+        source_task_id: impl Into<String>,
+    ) {
+        let alias = alias.into();
+        self.source_tasks
+            .insert(alias.clone(), source_task_id.into());
+        self.bindings
+            .insert(alias, LazyBinding::Resolved(value));
+    }
+
+    /// Get the source task ID for a binding alias.
+    ///
+    /// Returns `Some("gen_img")` when the binding was `img: $gen_img`.
+    /// Used by artifact processor to resolve media paths and binary artifact sources.
+    pub fn source_task_id(&self, alias: &str) -> Option<&str> {
+        self.source_tasks.get(alias).map(|s| s.as_str())
     }
 
     /// Get a resolved value (only works for already-resolved bindings)
@@ -2533,5 +2585,50 @@ mod tests {
         assert_eq!(json_type_name(&json!("str")), "string");
         assert_eq!(json_type_name(&json!([])), "array");
         assert_eq!(json_type_name(&json!({})), "object");
+    }
+
+    // ========== source_task_id tracking ==========
+
+    #[test]
+    fn source_task_id_set_with_source() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set_with_source("img", json!("output text"), "gen_img");
+
+        assert_eq!(bindings.source_task_id("img"), Some("gen_img"));
+        assert_eq!(bindings.source_task_id("nonexistent"), None);
+
+        // The value should still be accessible
+        assert_eq!(bindings.get("img"), Some(&json!("output text")));
+    }
+
+    #[test]
+    fn source_task_id_plain_set_has_no_tracking() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("img", json!("output text"));
+
+        // Plain set() does not track source task ID
+        assert_eq!(bindings.source_task_id("img"), None);
+    }
+
+    #[test]
+    fn source_task_id_from_binding_spec() {
+        use crate::binding::entry::BindingEntry;
+
+        let mut spec = BindingSpec::default();
+        spec.insert("forecast".to_string(), BindingEntry::new("weather.summary"));
+
+        let store = RunContext::new();
+        store.insert(
+            std::sync::Arc::from("weather"),
+            crate::store::TaskResult::success(
+                json!({"summary": "Sunny"}),
+                std::time::Duration::from_secs(1),
+            ),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // "forecast" binding came from $weather -> source task ID is "weather"
+        assert_eq!(bindings.source_task_id("forecast"), Some("weather"));
     }
 }

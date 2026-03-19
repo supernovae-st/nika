@@ -321,6 +321,7 @@ max_size: 52428800
         assert_eq!(ArtifactFormat::Text.to_string(), "text");
         assert_eq!(ArtifactFormat::Json.to_string(), "json");
         assert_eq!(ArtifactFormat::Yaml.to_string(), "yaml");
+        assert_eq!(ArtifactFormat::Binary.to_string(), "binary");
     }
 
     #[test]
@@ -328,6 +329,7 @@ max_size: 52428800
         assert_eq!(ArtifactFormat::Text.extension(), "txt");
         assert_eq!(ArtifactFormat::Json.extension(), "json");
         assert_eq!(ArtifactFormat::Yaml.extension(), "yaml");
+        assert_eq!(ArtifactFormat::Binary.extension(), "bin");
     }
 
     #[test]
