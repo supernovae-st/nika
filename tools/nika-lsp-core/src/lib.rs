@@ -4,7 +4,9 @@
 //! all the infrastructure that LSP handlers need, without depending
 //! on the heavy nika runtime.
 
+pub mod analysis;
 pub mod db;
 pub mod document;
+pub mod handlers;
 pub mod parse;
 pub mod position;
