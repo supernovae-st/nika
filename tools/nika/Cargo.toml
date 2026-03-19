@@ -40,6 +40,7 @@ media-chart = ["dep:charts-rs"]
 media-provenance = ["dep:c2pa"]
 # PR4 features
 media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
+media-compression = ["dep:zstd"]
 
 [dependencies]
 # CLI
@@ -210,6 +211,7 @@ pdf-extract = { version = "0.10", optional = true }
 charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
 c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
 qrcode-ai-scanner-core = { version = "0.2", optional = true }
+zstd = { version = "0.13", optional = true, default-features = false }
 
 # Logging
 tracing = "0.1"
