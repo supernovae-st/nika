@@ -108,8 +108,12 @@ infer:
 
 - `prompt:` optional when `content:` present (if both: prompt prepended as first Text part)
 - CAS images auto-resolved to base64 (paths never leak to LLM APIs)
-- Supported: Claude, OpenAI, Mistral, Groq, Gemini, xAI
-- Unsupported: DeepSeek (returns VisionNotSupported error), Native
+- Cloud vision: Claude, OpenAI, Mistral, Groq, Gemini, xAI
+- Native vision: Supported via `NativeModelKind::VisionHf` (HuggingFace + ISQ)
+  - `nika model vision Qwen/Qwen2.5-VL-7B-Instruct --isq Q4K`
+  - Targets: Gemma 3 4B (~3 GB), Qwen2.5-VL 7B (~5 GB), Gemma 3 12B (~8 GB)
+  - Note: GGUF models are text-only — vision requires VisionModelBuilder + ISQ from safetensors
+- Unsupported: DeepSeek (returns VisionNotSupported error)
 
 ## Media Tools (v0.34.0)
 
@@ -171,4 +175,5 @@ infer:
 | `image::load_from_memory()` | Use `decode_image_safe()` from media/safety.rs |
 | SVG without sanitize | Always `sanitize_svg()` BEFORE usvg parsing |
 | Import without path validation | Use `validate_import_path()` to block traversal attacks |
+| GGUF model for native vision | GGUF is text-only — use `NativeModelKind::VisionHf` with HuggingFace model ID |
 | Skipping pre-read size check | Always check file size before reading into memory |

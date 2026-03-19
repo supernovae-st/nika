@@ -204,6 +204,71 @@ pub struct DownloadResult {
 }
 
 // ============================================================================
+// Native Model Kind
+// ============================================================================
+
+/// Specifies which kind of native model to load.
+///
+/// The native runtime supports two loading paths:
+/// - `TextGguf` — local GGUF files via `GgufModelBuilder` (text-only)
+/// - `VisionHf` — HuggingFace vision models via `VisionModelBuilder`
+///
+/// The default is `TextGguf` for backward compatibility. When `VisionHf`
+/// is used, `model_path` in `InferenceBackend::load()` is ignored -- the
+/// model is fetched from HuggingFace by `model_id`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum NativeModelKind {
+    /// Load a local GGUF file (text-only, existing behavior).
+    #[default]
+    TextGguf,
+    /// Load a HuggingFace vision model by model ID.
+    VisionHf {
+        /// HuggingFace model ID (e.g., "HuggingFaceM4/Idefics3-8B-Llama3").
+        model_id: String,
+        /// Optional ISQ quantization type string (e.g., "Q4K", "Q8_0").
+        /// Parsed at load time via `mistralrs::parse_isq_value`.
+        isq: Option<String>,
+    },
+}
+
+impl NativeModelKind {
+    /// Returns true if this is a vision model kind.
+    #[must_use]
+    pub fn is_vision(&self) -> bool {
+        matches!(self, Self::VisionHf { .. })
+    }
+}
+
+// ============================================================================
+// Vision Image
+// ============================================================================
+
+/// An image to send to a vision model for inference.
+///
+/// Contains raw image bytes and the MIME media type. The native runtime
+/// will decode these bytes into a `DynamicImage` before passing them to
+/// the mistral.rs `VisionMessages` / `RequestBuilder` API.
+#[derive(Debug, Clone)]
+pub struct VisionImage {
+    /// Raw image bytes (PNG, JPEG, WebP, etc.).
+    pub bytes: Vec<u8>,
+    /// MIME type (e.g., "image/png", "image/jpeg").
+    pub media_type: String,
+}
+
+impl VisionImage {
+    /// Create a new vision image from bytes and media type.
+    #[must_use]
+    pub fn new(bytes: Vec<u8>, media_type: impl Into<String>) -> Self {
+        Self {
+            bytes,
+            media_type: media_type.into(),
+        }
+    }
+}
+
+// ============================================================================
 // Load Configuration
 // ============================================================================
 
@@ -218,6 +283,10 @@ pub struct LoadConfig {
     pub context_size: Option<u32>,
     /// Keep model loaded in memory (prevent unload).
     pub keep_alive: bool,
+    /// Which kind of native model to load.
+    /// Defaults to `TextGguf` for backward compatibility.
+    #[serde(default)]
+    pub model_kind: NativeModelKind,
 }
 
 impl Default for LoadConfig {
@@ -227,6 +296,7 @@ impl Default for LoadConfig {
             gpu_layers: -1, // All layers on GPU by default
             context_size: None,
             keep_alive: false,
+            model_kind: NativeModelKind::default(),
         }
     }
 }

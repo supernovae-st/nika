@@ -3,9 +3,20 @@
 //! This module provides the `NativeRuntime` struct which implements
 //! the `InferenceBackend` trait using the mistral.rs library.
 //!
+//! # Model Kinds
+//!
+//! Two loading paths are supported:
+//! - **TextGguf** — local GGUF files via `GgufModelBuilder` (text-only, default)
+//! - **VisionHf** — HuggingFace vision models via `VisionModelBuilder`
+//!
+//! After loading, the runtime inspects `ModelCategory` from the loaded model
+//! to determine vision capability. Vision inference methods
+//! (`infer_vision`, `infer_vision_stream`) are only available when a vision
+//! model is loaded.
 
 use crate::core::backend::{
-    ChatMessage, ChatOptions, ChatResponse, ChatRole, LoadConfig, ModelInfo,
+    ChatMessage, ChatOptions, ChatResponse, ChatRole, LoadConfig, ModelInfo, NativeModelKind,
+    VisionImage,
 };
 use crate::core::storage::extract_quantization;
 use crate::provider::native::error::NativeError;
@@ -23,15 +34,15 @@ use parking_lot::Mutex;
 #[cfg(feature = "native-inference")]
 use std::path::Path;
 #[cfg(feature = "native-inference")]
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 #[cfg(feature = "native-inference")]
 #[allow(unused_imports)] // Used in infer_stream for stream.next()
 use futures::StreamExt as _;
 #[cfg(feature = "native-inference")]
 use mistralrs::{
-    GgufModelBuilder, MemoryGpuConfig, Model, PagedAttentionMetaBuilder, RequestBuilder,
-    TextMessageRole, TextMessages,
+    GgufModelBuilder, MemoryGpuConfig, Model, ModelCategory, PagedAttentionMetaBuilder,
+    RequestBuilder, TextMessageRole, TextMessages, VisionMessages, VisionModelBuilder,
 };
 #[cfg(feature = "native-inference")]
 use tokio::sync::RwLock;
@@ -49,8 +60,14 @@ struct TrackedTask {
 
 /// Native runtime for local LLM inference.
 ///
-/// Uses mistral.rs for high-performance inference on GGUF models.
-/// Supports CPU and GPU (Metal on macOS, CUDA on Linux) acceleration.
+/// Uses mistral.rs for high-performance inference on GGUF and HuggingFace
+/// models. Supports CPU and GPU (Metal on macOS, CUDA on Linux) acceleration.
+///
+/// # Vision Support
+///
+/// When a vision model is loaded via `NativeModelKind::VisionHf`, the runtime
+/// supports `infer_vision()` and `infer_vision_stream()` for multimodal
+/// image+text inference. The `supports_vision()` method indicates capability.
 ///
 /// # Cancellation Support
 ///
@@ -62,14 +79,24 @@ struct TrackedTask {
 ///
 /// ```ignore
 /// use nika::provider::native::NativeRuntime;
-/// use nika::core::backend::LoadConfig;
+/// use nika::core::backend::{LoadConfig, NativeModelKind};
 ///
 /// let mut runtime = NativeRuntime::new();
+///
+/// // Text model (GGUF)
 /// runtime.load("model.gguf".into(), LoadConfig::default()).await?;
 /// let response = runtime.infer("Hello!", Default::default()).await?;
 ///
-/// // Cancel all in-flight tasks
-/// runtime.cancel_all();
+/// // Vision model (HuggingFace)
+/// let config = LoadConfig {
+///     model_kind: NativeModelKind::VisionHf {
+///         model_id: "HuggingFaceM4/Idefics3-8B-Llama3".to_string(),
+///         isq: Some("Q4K".to_string()),
+///     },
+///     ..Default::default()
+/// };
+/// runtime.load(PathBuf::new(), config).await?;
+/// assert!(runtime.supports_vision());
 /// ```
 #[allow(dead_code)] // Fields used only with inference feature
 pub struct NativeRuntime {
@@ -85,6 +112,10 @@ pub struct NativeRuntime {
 
     /// Load configuration used for the current model.
     config: Option<LoadConfig>,
+
+    /// Whether the loaded model supports vision (derived from ModelCategory).
+    /// Set during `load()` by inspecting `Model::config().category`.
+    is_vision: bool,
 
     /// Master cancellation token for all spawned tasks.
     cancellation_token: CancellationToken,
@@ -102,6 +133,7 @@ impl std::fmt::Debug for NativeRuntime {
             .field("model_path", &self.model_path)
             .field("config", &self.config)
             .field("is_loaded", &self.is_loaded())
+            .field("is_vision", &self.is_vision)
             .field("is_cancelled", &self.cancellation_token.is_cancelled());
 
         #[cfg(feature = "native-inference")]
@@ -124,6 +156,7 @@ impl Clone for NativeRuntime {
             model_info: self.model_info.clone(),
             model_path: self.model_path.clone(),
             config: self.config.clone(),
+            is_vision: self.is_vision,
             cancellation_token: self.cancellation_token.clone(),
             #[cfg(feature = "native-inference")]
             tasks: Arc::clone(&self.tasks),
@@ -144,6 +177,7 @@ impl NativeRuntime {
             model_info: None,
             model_path: None,
             config: None,
+            is_vision: false,
             cancellation_token: CancellationToken::new(),
             #[cfg(feature = "native-inference")]
             tasks: Arc::new(Mutex::new(Vec::new())),
@@ -260,77 +294,437 @@ impl Default for NativeRuntime {
     }
 }
 
+// ============================================================================
+// Helpers (native-inference only)
+// ============================================================================
+
+/// Extract quantization from file path.
+#[cfg(feature = "native-inference")]
+fn extract_quantization_from_path(path: &Path) -> Option<String> {
+    let filename = path.file_name()?.to_string_lossy();
+    extract_quantization(&filename)
+}
+
+/// Build a `RequestBuilder` from `ChatOptions`, applying sampling parameters.
+#[cfg(feature = "native-inference")]
+fn apply_sampling_params(mut request: RequestBuilder, options: &ChatOptions) -> RequestBuilder {
+    // Apply temperature if provided (convert f32 to f64)
+    if let Some(temp) = options.temperature {
+        request = request.set_sampler_temperature(f64::from(temp));
+    }
+
+    // Apply max_tokens if provided
+    if let Some(max_tokens) = options.max_tokens {
+        request = request.set_sampler_max_len(max_tokens as usize);
+    }
+
+    // Apply top_p if provided
+    if let Some(top_p) = options.top_p {
+        request = request.set_sampler_topp(f64::from(top_p));
+    }
+
+    // Apply top_k if provided
+    if let Some(top_k) = options.top_k {
+        request = request.set_sampler_topk(top_k as usize);
+    }
+
+    request
+}
+
+/// Parse a `ChatCompletionResponse` into a `ChatResponse`.
+#[cfg(feature = "native-inference")]
+fn parse_chat_completion(
+    response: &mistralrs::ChatCompletionResponse,
+) -> Result<ChatResponse, NativeError> {
+    let content = response
+        .choices
+        .first()
+        .and_then(|c| c.message.content.clone())
+        .ok_or_else(|| {
+            NativeError::InferenceFailed("Model returned empty response (no choices)".to_string())
+        })?;
+
+    // Log performance metrics for debugging and optimization
+    debug!(
+        prompt_tokens = response.usage.prompt_tokens,
+        completion_tokens = response.usage.completion_tokens,
+        avg_prompt_tok_per_sec = ?response.usage.avg_prompt_tok_per_sec,
+        avg_compl_tok_per_sec = ?response.usage.avg_compl_tok_per_sec,
+        "Inference completed"
+    );
+
+    Ok(ChatResponse {
+        message: ChatMessage {
+            role: ChatRole::Assistant,
+            content,
+        },
+        done: true,
+        total_duration: None,
+        prompt_eval_count: Some(response.usage.prompt_tokens as u64),
+        eval_count: Some(response.usage.completion_tokens as u64),
+    })
+}
+
+/// Decode `VisionImage` bytes into `image::DynamicImage` instances.
+///
+/// Uses `image::load_from_memory` which auto-detects format from bytes.
+/// This is safe because mistralrs validates images further in the pipeline.
+#[cfg(feature = "native-inference")]
+fn decode_vision_images(images: &[VisionImage]) -> Result<Vec<image::DynamicImage>, NativeError> {
+    images
+        .iter()
+        .enumerate()
+        .map(|(i, img)| {
+            image::load_from_memory(&img.bytes).map_err(|e| {
+                NativeError::InferenceFailed(format!(
+                    "Failed to decode image {} ({}): {}",
+                    i, img.media_type, e
+                ))
+            })
+        })
+        .collect()
+}
+
+/// Detect whether a loaded `Model` is a vision model by inspecting its config.
+///
+/// Returns `true` if `ModelCategory::Vision`, `false` for all other categories
+/// or if config cannot be retrieved.
+#[cfg(feature = "native-inference")]
+fn detect_vision_capability(model: &Model) -> bool {
+    match model.config() {
+        Ok(config) => matches!(config.category, ModelCategory::Vision { .. }),
+        Err(e) => {
+            warn!(
+                "Could not read model config to detect vision capability: {}",
+                e
+            );
+            false
+        }
+    }
+}
+
+// ============================================================================
+// Streaming helper — shared between text and vision streams
+// ============================================================================
+
+/// Spawn a streaming inference task and return an mpsc-backed `Stream`.
+///
+/// This encapsulates the `TrackedTask` + `mpsc` + `CancellationToken` pattern
+/// used by both `infer_stream` and `infer_vision_stream`.
+#[cfg(feature = "native-inference")]
+fn spawn_stream_task(
+    runtime: &NativeRuntime,
+    model_arc: Arc<RwLock<Model>>,
+    request: RequestBuilder,
+) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+    use crate::util::constants::STREAM_CHUNK_TIMEOUT;
+    use async_stream::stream;
+    use mistralrs::Response;
+    use tokio::sync::mpsc;
+
+    // Check for cancellation before starting
+    if runtime.cancellation_token.is_cancelled() {
+        return Err(NativeError::Cancelled);
+    }
+
+    // Create channel for streaming chunks
+    let (tx, mut rx) = mpsc::channel::<Result<String, NativeError>>(32);
+
+    // Get a child cancellation token for this task
+    let task_token = runtime.child_token();
+    let task_token_clone = task_token.clone();
+
+    // Spawn streaming task that holds the model lock
+    // Task will be cancelled when: receiver dropped, parent cancelled, or task_token cancelled
+    let handle = tokio::spawn(async move {
+        let model = model_arc.read().await;
+
+        // Stream chat request with per-chunk timeout
+        match model.stream_chat_request(request).await {
+            Ok(mut stream) => {
+                loop {
+                    // Check for cancellation at each iteration
+                    if task_token_clone.is_cancelled() {
+                        debug!("Streaming task cancelled");
+                        let _ = tx.send(Err(NativeError::Cancelled)).await;
+                        break;
+                    }
+
+                    // Race between: cancellation, timeout, and next chunk
+                    let chunk_result = tokio::select! {
+                        biased;
+
+                        _ = task_token_clone.cancelled() => {
+                            debug!("Streaming task cancelled during chunk wait");
+                            let _ = tx.send(Err(NativeError::Cancelled)).await;
+                            break;
+                        }
+
+                        result = tokio::time::timeout(
+                            STREAM_CHUNK_TIMEOUT,
+                            stream.next(),
+                        ) => {
+                            result
+                        }
+                    };
+
+                    let chunk = match chunk_result {
+                        Ok(Some(c)) => c,
+                        Ok(None) => break, // Stream ended normally
+                        Err(_) => {
+                            // Chunk timeout - send error and stop
+                            let _ = tx
+                                .send(Err(NativeError::InferenceTimeout {
+                                    timeout_secs: STREAM_CHUNK_TIMEOUT.as_secs(),
+                                }))
+                                .await;
+                            break;
+                        }
+                    };
+
+                    match chunk {
+                        Response::Chunk(chunk_response) => {
+                            if let Some(choice) = chunk_response.choices.first() {
+                                if let Some(text) = &choice.delta.content {
+                                    if tx.send(Ok(text.clone())).await.is_err() {
+                                        // Receiver dropped, stop streaming
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Response::Done(_) => {
+                            debug!("Streaming completed");
+                            break;
+                        }
+                        Response::ModelError(msg, _) => {
+                            let _ = tx
+                                .send(Err(NativeError::InferenceFailed(format!(
+                                    "Model error: {}",
+                                    msg
+                                ))))
+                                .await;
+                            break;
+                        }
+                        Response::ValidationError(err) => {
+                            let _ = tx
+                                .send(Err(NativeError::InferenceFailed(format!(
+                                    "Validation error: {:?}",
+                                    err
+                                ))))
+                                .await;
+                            break;
+                        }
+                        Response::InternalError(err) => {
+                            let _ = tx
+                                .send(Err(NativeError::InferenceFailed(format!(
+                                    "Internal error: {:?}",
+                                    err
+                                ))))
+                                .await;
+                            break;
+                        }
+                        _ => {
+                            // Other response types, continue
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = tx
+                    .send(Err(NativeError::InferenceFailed(format!(
+                        "Failed to start streaming: {}",
+                        e
+                    ))))
+                    .await;
+            }
+        }
+    });
+
+    // Track the spawned task for cleanup
+    {
+        let mut tasks = runtime.tasks.lock();
+        tasks.push(TrackedTask {
+            handle,
+            token: task_token,
+        });
+    }
+
+    // Clean up completed tasks periodically
+    runtime.cleanup_completed_tasks();
+
+    // Convert mpsc receiver to Stream
+    Ok(stream! {
+        while let Some(result) = rx.recv().await {
+            yield result;
+        }
+    })
+}
+
+// ============================================================================
+// InferenceBackend implementation (native-inference enabled)
+// ============================================================================
+
 #[cfg(feature = "native-inference")]
 impl InferenceBackend for NativeRuntime {
     async fn load(&mut self, model_path: PathBuf, config: LoadConfig) -> Result<(), NativeError> {
-        info!(?model_path, "Loading GGUF model");
-
         // Unload any existing model
         if self.model.is_some() {
             self.unload().await?;
         }
 
-        // Validate path exists
-        if !model_path.exists() {
-            return Err(NativeError::ModelNotFound {
-                repo: "local".to_string(),
-                filename: model_path.to_string_lossy().to_string(),
-            });
+        // Clone model_kind to avoid borrow conflict (config is moved into self.config)
+        let model_kind = config.model_kind.clone();
+
+        match &model_kind {
+            // ================================================================
+            // TextGguf — existing GGUF loading path
+            // ================================================================
+            NativeModelKind::TextGguf => {
+                info!(?model_path, "Loading GGUF model");
+
+                // Validate path exists
+                if !model_path.exists() {
+                    return Err(NativeError::ModelNotFound {
+                        repo: "local".to_string(),
+                        filename: model_path.to_string_lossy().to_string(),
+                    });
+                }
+
+                // Build the model using GgufModelBuilder
+                // API: GgufModelBuilder::new(directory, vec![filename])
+                let parent = model_path
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| ".".to_string());
+                let filename = model_path
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .ok_or_else(|| {
+                        NativeError::InvalidConfig("Invalid model path: no filename".to_string())
+                    })?;
+
+                debug!(gpu_layers = config.gpu_layers, %parent, %filename, "Building GGUF model");
+
+                // Build model with PagedAttention for better memory management.
+                // PagedAttention enables efficient KV cache handling for longer contexts.
+                // Use context_size from LoadConfig, defaulting to 2048 if not specified.
+                let context_size = config.context_size.unwrap_or(2048);
+                let model = GgufModelBuilder::new(parent, vec![filename])
+                    .with_logging()
+                    .with_paged_attn(|| {
+                        PagedAttentionMetaBuilder::default()
+                            .with_block_size(32)
+                            .with_gpu_memory(MemoryGpuConfig::ContextSize(context_size as usize))
+                            .build()
+                    })
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!("PagedAttention config error: {e}"))
+                    })?
+                    .build()
+                    .await
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!("Failed to build model: {e}"))
+                    })?;
+
+                // GGUF models are always text-only (no VisionModelBuilder)
+                let is_vision = detect_vision_capability(&model);
+
+                // Extract model info from the loaded model
+                let info = ModelInfo {
+                    name: model_path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    size: tokio::fs::metadata(&model_path)
+                        .await
+                        .map(|m| m.len())
+                        .unwrap_or(0),
+                    quantization: extract_quantization_from_path(&model_path),
+                    parameters: None,
+                    digest: None,
+                };
+
+                self.model = Some(Arc::new(RwLock::new(model)));
+                self.model_info = Some(info);
+                self.model_path = Some(model_path);
+                self.is_vision = is_vision;
+                self.config = Some(config);
+
+                info!(is_vision, "GGUF model loaded successfully");
+            }
+
+            // ================================================================
+            // VisionHf — HuggingFace vision model loading path
+            // ================================================================
+            NativeModelKind::VisionHf { model_id, isq } => {
+                info!(%model_id, ?isq, "Loading HuggingFace vision model");
+
+                let context_size = config.context_size.unwrap_or(4096);
+
+                // Start building the vision model
+                let mut builder = VisionModelBuilder::new(model_id).with_logging();
+
+                // Apply ISQ quantization if specified.
+                // ISQ (In-Situ Quantization) quantizes the model weights after loading,
+                // reducing memory usage while maintaining quality.
+                if let Some(isq_str) = isq {
+                    let isq_type = mistralrs::parse_isq_value(isq_str, None).map_err(|e| {
+                        NativeError::InvalidConfig(format!("Invalid ISQ type '{}': {}", isq_str, e))
+                    })?;
+                    debug!(?isq_type, "Applying ISQ quantization");
+                    builder = builder.with_isq(isq_type);
+                }
+
+                // Apply PagedAttention for efficient KV cache handling
+                builder = builder
+                    .with_paged_attn(|| {
+                        PagedAttentionMetaBuilder::default()
+                            .with_block_size(32)
+                            .with_gpu_memory(MemoryGpuConfig::ContextSize(context_size as usize))
+                            .build()
+                    })
+                    .map_err(|e| {
+                        NativeError::InvalidConfig(format!("PagedAttention config error: {e}"))
+                    })?;
+
+                // Build the model (downloads from HuggingFace if not cached)
+                let model = builder.build().await.map_err(|e| {
+                    NativeError::InvalidConfig(format!(
+                        "Failed to build vision model '{}': {}",
+                        model_id, e
+                    ))
+                })?;
+
+                // Verify this is actually a vision model
+                let is_vision = detect_vision_capability(&model);
+                if !is_vision {
+                    warn!(
+                        %model_id,
+                        "Model loaded via VisionHf path but does not report Vision category"
+                    );
+                }
+
+                // Build model info for vision models
+                let info = ModelInfo {
+                    name: model_id.clone(),
+                    size: 0, // HF models don't have a single file size
+                    quantization: isq.clone(),
+                    parameters: None,
+                    digest: None,
+                };
+
+                self.model = Some(Arc::new(RwLock::new(model)));
+                self.model_info = Some(info);
+                // For HF models, model_path is not meaningful (they're cached by HF)
+                self.model_path = None;
+                self.is_vision = is_vision;
+                self.config = Some(config);
+
+                info!(is_vision, %model_id, "Vision model loaded successfully");
+            }
         }
 
-        // Build the model using GgufModelBuilder
-        // API: GgufModelBuilder::new(directory, vec![filename])
-        let parent = model_path
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| ".".to_string());
-        let filename = model_path
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .ok_or_else(|| {
-                NativeError::InvalidConfig("Invalid model path: no filename".to_string())
-            })?;
-
-        debug!(gpu_layers = config.gpu_layers, %parent, %filename, "Building model");
-
-        // Build model with PagedAttention for better memory management.
-        // PagedAttention enables efficient KV cache handling for longer contexts.
-        // Use context_size from LoadConfig, defaulting to 2048 if not specified.
-        let context_size = config.context_size.unwrap_or(2048);
-        let model = GgufModelBuilder::new(parent, vec![filename])
-            .with_logging()
-            .with_paged_attn(|| {
-                PagedAttentionMetaBuilder::default()
-                    .with_block_size(32)
-                    .with_gpu_memory(MemoryGpuConfig::ContextSize(context_size as usize))
-                    .build()
-            })
-            .map_err(|e| NativeError::InvalidConfig(format!("PagedAttention config error: {e}")))?
-            .build()
-            .await
-            .map_err(|e| NativeError::InvalidConfig(format!("Failed to build model: {e}")))?;
-
-        // Extract model info from the loaded model
-        let info = ModelInfo {
-            name: model_path
-                .file_stem()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "unknown".to_string()),
-            size: tokio::fs::metadata(&model_path)
-                .await
-                .map(|m| m.len())
-                .unwrap_or(0),
-            quantization: extract_quantization_from_path(&model_path),
-            parameters: None,
-            digest: None,
-        };
-
-        self.model = Some(Arc::new(RwLock::new(model)));
-        self.model_info = Some(info);
-        self.model_path = Some(model_path);
-        self.config = Some(config);
-
-        info!("Model loaded successfully");
         Ok(())
     }
 
@@ -341,6 +735,7 @@ impl InferenceBackend for NativeRuntime {
             self.model_info = None;
             self.model_path = None;
             self.config = None;
+            self.is_vision = false;
         }
         Ok(())
     }
@@ -353,35 +748,31 @@ impl InferenceBackend for NativeRuntime {
         self.model_info.as_ref()
     }
 
+    fn supports_vision(&self) -> bool {
+        self.is_vision
+    }
+
+    // ========================================================================
+    // Text inference (non-streaming)
+    // ========================================================================
+
     async fn infer(&self, prompt: &str, options: ChatOptions) -> Result<ChatResponse, NativeError> {
         let model = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
-
         let model = model.read().await;
 
         // Build messages - just user prompt for now
-        // System messages should be passed as part of the prompt or via messages API
         let messages = TextMessages::new().add_message(TextMessageRole::User, prompt);
 
         debug!(
             temperature = options.temperature,
             max_tokens = options.max_tokens,
-            "Running inference"
+            "Running text inference"
         );
 
         // Build request with sampling parameters
-        let mut request = RequestBuilder::from(messages);
+        let request = apply_sampling_params(RequestBuilder::from(messages), &options);
 
-        // Apply temperature if provided (convert f32 to f64)
-        if let Some(temp) = options.temperature {
-            request = request.set_sampler_temperature(f64::from(temp));
-        }
-
-        // Apply max_tokens if provided
-        if let Some(max_tokens) = options.max_tokens {
-            request = request.set_sampler_max_len(max_tokens as usize);
-        }
-
-        // Send request with sampling parameters and timeout
+        // Send request with timeout
         let response = tokio::time::timeout(INFER_TIMEOUT, model.send_chat_request(request))
             .await
             .map_err(|_| NativeError::InferenceTimeout {
@@ -389,211 +780,160 @@ impl InferenceBackend for NativeRuntime {
             })?
             .map_err(|e| NativeError::InferenceFailed(format!("Inference failed: {e}")))?;
 
-        // Extract response content - fail if no content returned
-        let content = response
-            .choices
-            .first()
-            .and_then(|c| c.message.content.clone())
-            .ok_or_else(|| {
-                NativeError::InferenceFailed(
-                    "Model returned empty response (no choices)".to_string(),
-                )
-            })?;
-
-        // Log performance metrics for debugging and optimization
-        debug!(
-            prompt_tokens = response.usage.prompt_tokens,
-            completion_tokens = response.usage.completion_tokens,
-            avg_prompt_tok_per_sec = ?response.usage.avg_prompt_tok_per_sec,
-            avg_compl_tok_per_sec = ?response.usage.avg_compl_tok_per_sec,
-            "Inference completed"
-        );
-
-        Ok(ChatResponse {
-            message: ChatMessage {
-                role: ChatRole::Assistant,
-                content,
-            },
-            done: true,
-            total_duration: None,
-            prompt_eval_count: Some(response.usage.prompt_tokens as u64),
-            eval_count: Some(response.usage.completion_tokens as u64),
-        })
+        parse_chat_completion(&response)
     }
+
+    // ========================================================================
+    // Text inference (streaming)
+    // ========================================================================
 
     async fn infer_stream(
         &self,
         prompt: &str,
         options: ChatOptions,
     ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
-        use crate::util::constants::STREAM_CHUNK_TIMEOUT;
-        use async_stream::stream;
-        use mistralrs::Response;
-        use tokio::sync::mpsc;
-
-        // Check for cancellation before starting
+        // Check for cancellation before starting (matches original behavior)
         if self.cancellation_token.is_cancelled() {
             return Err(NativeError::Cancelled);
         }
 
         let model = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
         let model_arc = Arc::clone(model);
-        let prompt_owned = prompt.to_string();
 
-        // Create channel for streaming chunks
-        let (tx, mut rx) = mpsc::channel::<Result<String, NativeError>>(32);
+        // Build text messages and request
+        let messages = TextMessages::new().add_message(TextMessageRole::User, prompt);
+        let request = apply_sampling_params(RequestBuilder::from(messages), &options);
 
-        // Get a child cancellation token for this task
-        let task_token = self.child_token();
-        let task_token_clone = task_token.clone();
+        spawn_stream_task(self, model_arc, request)
+    }
 
-        // Spawn streaming task that holds the model lock
-        // Task will be cancelled when: receiver dropped, parent cancelled, or task_token cancelled
-        let handle = tokio::spawn(async move {
-            let model = model_arc.read().await;
+    // ========================================================================
+    // Vision inference (non-streaming)
+    // ========================================================================
 
-            // Build messages
-            let messages = TextMessages::new().add_message(TextMessageRole::User, &prompt_owned);
+    async fn infer_vision(
+        &self,
+        prompt: &str,
+        images: Vec<VisionImage>,
+        options: ChatOptions,
+    ) -> Result<ChatResponse, NativeError> {
+        // Guard: model must be loaded
+        let model_lock = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
 
-            // Build request with sampling parameters
-            let mut request = RequestBuilder::from(messages);
-
-            if let Some(temp) = options.temperature {
-                request = request.set_sampler_temperature(f64::from(temp));
-            }
-
-            if let Some(max_tokens) = options.max_tokens {
-                request = request.set_sampler_max_len(max_tokens as usize);
-            }
-
-            // Stream chat request with per-chunk timeout
-            match model.stream_chat_request(request).await {
-                Ok(mut stream) => {
-                    loop {
-                        // Check for cancellation at each iteration
-                        if task_token_clone.is_cancelled() {
-                            debug!("Streaming task cancelled");
-                            let _ = tx.send(Err(NativeError::Cancelled)).await;
-                            break;
-                        }
-
-                        // Race between: cancellation, timeout, and next chunk
-                        let chunk_result = tokio::select! {
-                            biased;
-
-                            _ = task_token_clone.cancelled() => {
-                                debug!("Streaming task cancelled during chunk wait");
-                                let _ = tx.send(Err(NativeError::Cancelled)).await;
-                                break;
-                            }
-
-                            result = tokio::time::timeout(STREAM_CHUNK_TIMEOUT, stream.next()) => {
-                                result
-                            }
-                        };
-
-                        let chunk = match chunk_result {
-                            Ok(Some(c)) => c,
-                            Ok(None) => break, // Stream ended normally
-                            Err(_) => {
-                                // Chunk timeout - send error and stop
-                                let _ = tx
-                                    .send(Err(NativeError::InferenceTimeout {
-                                        timeout_secs: STREAM_CHUNK_TIMEOUT.as_secs(),
-                                    }))
-                                    .await;
-                                break;
-                            }
-                        };
-
-                        match chunk {
-                            Response::Chunk(chunk_response) => {
-                                if let Some(choice) = chunk_response.choices.first() {
-                                    if let Some(text) = &choice.delta.content {
-                                        if tx.send(Ok(text.clone())).await.is_err() {
-                                            // Receiver dropped, stop streaming
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            Response::Done(_) => {
-                                debug!("Streaming completed");
-                                break;
-                            }
-                            Response::ModelError(msg, _) => {
-                                let _ = tx
-                                    .send(Err(NativeError::InferenceFailed(format!(
-                                        "Model error: {}",
-                                        msg
-                                    ))))
-                                    .await;
-                                break;
-                            }
-                            Response::ValidationError(err) => {
-                                let _ = tx
-                                    .send(Err(NativeError::InferenceFailed(format!(
-                                        "Validation error: {:?}",
-                                        err
-                                    ))))
-                                    .await;
-                                break;
-                            }
-                            Response::InternalError(err) => {
-                                let _ = tx
-                                    .send(Err(NativeError::InferenceFailed(format!(
-                                        "Internal error: {:?}",
-                                        err
-                                    ))))
-                                    .await;
-                                break;
-                            }
-                            _ => {
-                                // Other response types, continue
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx
-                        .send(Err(NativeError::InferenceFailed(format!(
-                            "Failed to start streaming: {}",
-                            e
-                        ))))
-                        .await;
-                }
-            }
-        });
-
-        // Track the spawned task for cleanup
-        {
-            let mut tasks = self.tasks.lock();
-            tasks.push(TrackedTask {
-                handle,
-                token: task_token,
-            });
+        // Guard: model must support vision
+        if !self.is_vision {
+            return Err(NativeError::InvalidConfig(
+                "Loaded model does not support vision. Load a vision model via \
+                 NativeModelKind::VisionHf"
+                    .to_string(),
+            ));
         }
 
-        // Clean up completed tasks periodically
-        self.cleanup_completed_tasks();
+        // Guard: at least one image required
+        if images.is_empty() {
+            return Err(NativeError::InvalidConfig(
+                "infer_vision requires at least one image".to_string(),
+            ));
+        }
 
-        // Convert mpsc receiver to Stream
-        Ok(stream! {
-            while let Some(result) = rx.recv().await {
-                yield result;
-            }
-        })
+        let model = model_lock.read().await;
+
+        debug!(
+            image_count = images.len(),
+            temperature = options.temperature,
+            max_tokens = options.max_tokens,
+            "Running vision inference"
+        );
+
+        // Decode image bytes into DynamicImage instances
+        let dynamic_images = decode_vision_images(&images)?;
+
+        // Build VisionMessages with images.
+        // VisionMessages::add_image_message requires a &Model reference to get
+        // the model-specific image prefixer (e.g., "<image>" tokens).
+        let vision_messages = VisionMessages::new()
+            .add_image_message(TextMessageRole::User, prompt, dynamic_images, &model)
+            .map_err(|e| {
+                NativeError::InferenceFailed(format!("Failed to build vision message: {}", e))
+            })?;
+
+        // Convert to RequestBuilder and apply sampling params
+        let request = apply_sampling_params(RequestBuilder::from(vision_messages), &options);
+
+        // Send request with timeout
+        let response = tokio::time::timeout(INFER_TIMEOUT, model.send_chat_request(request))
+            .await
+            .map_err(|_| NativeError::InferenceTimeout {
+                timeout_secs: INFER_TIMEOUT.as_secs(),
+            })?
+            .map_err(|e| NativeError::InferenceFailed(format!("Vision inference failed: {e}")))?;
+
+        parse_chat_completion(&response)
+    }
+
+    // ========================================================================
+    // Vision inference (streaming)
+    // ========================================================================
+
+    async fn infer_vision_stream(
+        &self,
+        prompt: &str,
+        images: Vec<VisionImage>,
+        options: ChatOptions,
+    ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+        // Guard: model must be loaded
+        let model_lock = self.model.as_ref().ok_or(NativeError::ModelNotLoaded)?;
+
+        // Guard: model must support vision
+        if !self.is_vision {
+            return Err(NativeError::InvalidConfig(
+                "Loaded model does not support vision. Load a vision model via \
+                 NativeModelKind::VisionHf"
+                    .to_string(),
+            ));
+        }
+
+        // Guard: at least one image required
+        if images.is_empty() {
+            return Err(NativeError::InvalidConfig(
+                "infer_vision_stream requires at least one image".to_string(),
+            ));
+        }
+
+        debug!(
+            image_count = images.len(),
+            temperature = options.temperature,
+            max_tokens = options.max_tokens,
+            "Starting vision inference stream"
+        );
+
+        // Decode images (done before spawning task to fail fast on bad data)
+        let dynamic_images = decode_vision_images(&images)?;
+
+        // Build VisionMessages — requires read lock for model-specific prefixer.
+        // We acquire the lock briefly here to build the message, then release it
+        // so the spawned task can re-acquire for streaming.
+        let request = {
+            let model = model_lock.read().await;
+
+            let vision_messages = VisionMessages::new()
+                .add_image_message(TextMessageRole::User, prompt, dynamic_images, &model)
+                .map_err(|e| {
+                    NativeError::InferenceFailed(format!("Failed to build vision message: {}", e))
+                })?;
+
+            apply_sampling_params(RequestBuilder::from(vision_messages), &options)
+        };
+
+        let model_arc = Arc::clone(model_lock);
+        spawn_stream_task(self, model_arc, request)
     }
 }
 
-/// Extract quantization from file path.
-#[cfg(feature = "native-inference")]
-fn extract_quantization_from_path(path: &Path) -> Option<String> {
-    let filename = path.file_name()?.to_string_lossy();
-    extract_quantization(&filename)
-}
-
+// ============================================================================
 // Stub implementation when inference feature is not enabled
+// ============================================================================
+
 #[cfg(not(feature = "native-inference"))]
 impl InferenceBackend for NativeRuntime {
     async fn load(&mut self, _model_path: PathBuf, _config: LoadConfig) -> Result<(), NativeError> {
@@ -612,6 +952,10 @@ impl InferenceBackend for NativeRuntime {
 
     fn model_info(&self) -> Option<&ModelInfo> {
         None
+    }
+
+    fn supports_vision(&self) -> bool {
+        false
     }
 
     async fn infer(
@@ -633,7 +977,33 @@ impl InferenceBackend for NativeRuntime {
             "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
         ))
     }
+
+    async fn infer_vision(
+        &self,
+        _prompt: &str,
+        _images: Vec<VisionImage>,
+        _options: ChatOptions,
+    ) -> Result<ChatResponse, NativeError> {
+        Err(NativeError::InvalidConfig(
+            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+        ))
+    }
+
+    async fn infer_vision_stream(
+        &self,
+        _prompt: &str,
+        _images: Vec<VisionImage>,
+        _options: ChatOptions,
+    ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+        Err::<futures::stream::Empty<Result<String, NativeError>>, _>(NativeError::InvalidConfig(
+            "Inference feature not enabled. Rebuild with --features native-inference".to_string(),
+        ))
+    }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -646,6 +1016,7 @@ mod tests {
         assert!(runtime.model_info().is_none());
         assert!(runtime.model_path().is_none());
         assert!(!runtime.is_cancelled());
+        assert!(!runtime.supports_vision());
     }
 
     #[test]
@@ -653,6 +1024,7 @@ mod tests {
         let runtime = NativeRuntime::default();
         assert!(!runtime.is_loaded());
         assert!(!runtime.is_cancelled());
+        assert!(!runtime.supports_vision());
     }
 
     #[test]
@@ -709,6 +1081,36 @@ mod tests {
         let runtime = NativeRuntime::new();
         let debug_str = format!("{:?}", runtime);
         assert!(debug_str.contains("is_cancelled"));
+        assert!(debug_str.contains("is_vision"));
+    }
+
+    #[test]
+    fn test_vision_image_construction() {
+        let img = VisionImage::new(vec![0xFF, 0xD8], "image/jpeg");
+        assert_eq!(img.bytes, vec![0xFF, 0xD8]);
+        assert_eq!(img.media_type, "image/jpeg");
+    }
+
+    #[test]
+    fn test_native_model_kind_default() {
+        let kind = NativeModelKind::default();
+        assert!(matches!(kind, NativeModelKind::TextGguf));
+        assert!(!kind.is_vision());
+    }
+
+    #[test]
+    fn test_native_model_kind_vision() {
+        let kind = NativeModelKind::VisionHf {
+            model_id: "test/model".to_string(),
+            isq: Some("Q4K".to_string()),
+        };
+        assert!(kind.is_vision());
+    }
+
+    #[test]
+    fn test_load_config_default_has_text_gguf() {
+        let config = LoadConfig::default();
+        assert!(matches!(config.model_kind, NativeModelKind::TextGguf));
     }
 
     #[tokio::test]
@@ -731,6 +1133,21 @@ mod tests {
         let runtime = NativeRuntime::new();
         let result = runtime.infer("test", ChatOptions::default()).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[cfg(not(feature = "native-inference"))]
+    async fn test_infer_vision_without_feature() {
+        let runtime = NativeRuntime::new();
+        let images = vec![VisionImage::new(vec![0xFF], "image/png")];
+        let result = runtime
+            .infer_vision("describe", images, ChatOptions::default())
+            .await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Inference feature not enabled"));
     }
 
     #[cfg(feature = "native-inference")]
@@ -771,6 +1188,30 @@ mod tests {
                 .await;
             assert!(result.is_ok());
             assert!(runtime.is_cancelled());
+        }
+
+        #[tokio::test]
+        async fn test_infer_vision_requires_loaded_model() {
+            let runtime = NativeRuntime::new();
+            let images = vec![VisionImage::new(vec![0xFF], "image/png")];
+            let result = runtime
+                .infer_vision("describe", images, ChatOptions::default())
+                .await;
+            assert!(matches!(result, Err(NativeError::ModelNotLoaded)));
+        }
+
+        #[tokio::test]
+        async fn test_infer_vision_stream_requires_loaded_model() {
+            let runtime = NativeRuntime::new();
+            let images = vec![VisionImage::new(vec![0xFF], "image/png")];
+            let result = runtime
+                .infer_vision_stream("describe", images, ChatOptions::default())
+                .await;
+            match result {
+                Err(NativeError::ModelNotLoaded) => {} // Expected
+                Err(other) => panic!("Expected ModelNotLoaded, got {:?}", other),
+                Ok(_) => panic!("Expected Err, got Ok"),
+            }
         }
     }
 }

@@ -94,6 +94,29 @@ pub enum NativeError {
         path: String,
     },
 
+    /// Vision inference not supported by this model/configuration.
+    #[error("Vision not supported: {reason}")]
+    VisionNotSupported {
+        /// Human-readable explanation.
+        reason: String,
+    },
+
+    /// Failed to load a vision model from HuggingFace.
+    #[error("Vision model load failed for '{model_id}': {reason}")]
+    VisionModelLoadFailed {
+        /// HuggingFace model ID that failed to load.
+        model_id: String,
+        /// Explanation of the failure.
+        reason: String,
+    },
+
+    /// Image data is invalid or unsupported by the vision pipeline.
+    #[error("Invalid image data: {reason}")]
+    InvalidImageData {
+        /// What went wrong with the image.
+        reason: String,
+    },
+
     /// Backend-specific error (catch-all for BackendError variants).
     #[error("Backend error: {0}")]
     Backend(String),

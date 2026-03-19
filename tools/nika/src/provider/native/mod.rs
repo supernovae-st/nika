@@ -61,7 +61,7 @@ pub use traits::{DynInferenceBackend, InferenceBackend};
 // Re-export backend types from core
 pub use crate::core::backend::{
     ChatMessage, ChatOptions, ChatResponse, ChatRole, DownloadRequest, DownloadResult, LoadConfig,
-    ModelInfo, PullProgress,
+    ModelInfo, NativeModelKind, PullProgress, VisionImage,
 };
 
 // Re-export storage types from core

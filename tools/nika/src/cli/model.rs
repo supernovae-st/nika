@@ -62,6 +62,27 @@ pub enum ModelAction {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Load a HuggingFace vision model with ISQ quantization
+    ///
+    /// Vision models use VisionModelBuilder + ISQ (in-situ quantization)
+    /// from HuggingFace safetensors. GGUF models are text-only.
+    ///
+    /// Example: nika model vision Qwen/Qwen2.5-VL-7B-Instruct --isq Q4K
+    /// Example: nika model vision google/gemma-3-4b-it --isq Q8_0
+    Vision {
+        /// HuggingFace model ID (e.g., Qwen/Qwen2.5-VL-7B-Instruct)
+        model_id: String,
+
+        /// ISQ quantization level (e.g., Q4K, Q8_0, Q6K)
+        /// Reduces memory usage by quantizing weights after loading.
+        #[arg(long)]
+        isq: Option<String>,
+
+        /// Context size (token window, default: 4096)
+        #[arg(long, default_value = "4096")]
+        context_size: u32,
+    },
 }
 
 /// Find filename for a given quantization string in a known model.
@@ -397,6 +418,74 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
 
             if !quiet {
                 println!("{} Model deleted: {}", "✓".green(), path.display());
+            }
+            Ok(())
+        }
+
+        ModelAction::Vision {
+            model_id,
+            isq,
+            context_size,
+        } => {
+            use nika::core::backend::{LoadConfig, NativeModelKind};
+            use nika::provider::native::InferenceBackend;
+
+            if !quiet {
+                println!("{} Loading vision model: {}", "⬇".cyan(), model_id.bold());
+                if let Some(ref isq_level) = isq {
+                    println!("  ISQ quantization: {}", isq_level.cyan());
+                }
+                println!("  Context size: {} tokens", context_size);
+                println!();
+                println!(
+                    "{}",
+                    "This will download from HuggingFace and quantize in-situ.".dimmed()
+                );
+                println!(
+                    "{}",
+                    "First run may take several minutes depending on model size.".dimmed()
+                );
+                println!();
+            }
+
+            let config = LoadConfig {
+                model_kind: NativeModelKind::VisionHf {
+                    model_id: model_id.clone(),
+                    isq: isq.clone(),
+                },
+                context_size: Some(context_size),
+                ..Default::default()
+            };
+
+            let mut runtime = nika::provider::native::NativeRuntime::new();
+
+            // Load the vision model (downloads from HuggingFace, applies ISQ)
+            runtime
+                .load(std::path::PathBuf::new(), config)
+                .await
+                .map_err(|e| NikaError::ConfigError {
+                    reason: format!("Failed to load vision model: {}", e),
+                })?;
+
+            if !quiet {
+                let vision_status = if runtime.supports_vision() {
+                    "vision".green().to_string()
+                } else {
+                    "text-only (unexpected)".yellow().to_string()
+                };
+
+                println!("{} Vision model loaded successfully!", "✓".green());
+                println!("  Model:       {}", model_id.cyan());
+                println!("  Capability:  {}", vision_status);
+                if let Some(ref isq_level) = isq {
+                    println!("  ISQ:         {}", isq_level);
+                }
+                println!();
+                println!(
+                    "{}",
+                    "Use 'provider: native' with 'content:' in workflows for vision inference."
+                        .dimmed()
+                );
             }
             Ok(())
         }
