@@ -19,4 +19,10 @@ pub enum CoreError {
     /// NIKA-056: Invalid default value in a binding expression.
     #[error("[NIKA-056] Invalid default value '{raw}': {reason}")]
     InvalidDefault { raw: String, reason: String },
+
+    /// Validation error (generic).
+    ///
+    /// Used by AST modules (limits, include) for semantic validation failures.
+    #[error("{reason}")]
+    ValidationError { reason: String },
 }
