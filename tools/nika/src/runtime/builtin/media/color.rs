@@ -103,11 +103,7 @@ fn extract_palette(
   };
 
   #[cfg(not(feature = "media-thumbnail"))]
-  let (pixels, format) = {
-    // Try to interpret as raw RGB if we can detect image format
-    // Fall back: extract from raw bytes
-    (data.to_vec(), color_thief::ColorFormat::Rgb)
-  };
+  return Err(super::error::dependency_missing("dominant_color", "media-thumbnail"));
 
   let palette = color_thief::get_palette(&pixels, format, quality, max_colors)
     .map_err(|e| tool_error("dominant_color", format!("palette extraction failed: {e}")))?;

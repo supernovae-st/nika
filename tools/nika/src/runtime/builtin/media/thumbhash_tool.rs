@@ -89,15 +89,11 @@ fn compute_thumbhash(data: &[u8]) -> Result<Vec<u8>, NikaError> {
     Ok(hash)
   }
 
-  // Fallback: use imagesize for dimensions and raw approach
+  // Without the image crate, we cannot decode pixels for thumbhash
   #[cfg(not(feature = "media-thumbnail"))]
   {
-    // Without the image crate, we can't decode pixels.
-    // Return a deterministic placeholder hash based on file content.
-    let file_hash = blake3::hash(data);
-    let bytes = file_hash.as_bytes();
-    // Use first 25 bytes as a pseudo-thumbhash
-    Ok(bytes[..25].to_vec())
+    let _ = data;
+    Err(super::error::dependency_missing("thumbhash", "media-thumbnail"))
   }
 }
 
@@ -238,9 +234,7 @@ mod tests {
       let sr = ctx.cas.store(&data).await.unwrap();
       let op = ThumbhashOp;
       // Should not panic, may error
-      let _ = std::panic::AssertUnwindSafe(
-        op.execute(serde_json::json!({"hash": sr.hash}), &ctx)
-      );
+      let _ = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
     }
   }
 }

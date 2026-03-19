@@ -97,9 +97,10 @@ impl ComputePool {
       pool: rayon::ThreadPoolBuilder::new()
         .num_threads(num_cpus().min(4))
         .thread_name(|idx| format!("nika-media-{idx}"))
-        .panic_handler(|_| {
-          // Silently absorb panics — they're caught by the oneshot channel
-          // (receiver gets RecvError when sender is dropped by the panic).
+        .panic_handler(|info| {
+          // Log the panic for debugging, then absorb — the oneshot channel
+          // receiver gets RecvError which is mapped to a NikaError.
+          tracing::error!("media compute thread panicked: {info:?}");
         })
         .build()
         .expect("failed to create media compute pool"),

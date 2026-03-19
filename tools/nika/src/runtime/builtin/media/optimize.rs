@@ -65,19 +65,20 @@ impl MediaOp for OptimizeOp {
           .map_err(|e| tool_error("optimize", format!("optimization failed: {e}")))
       }).await??;
 
+      let optimized_size = optimized.len();
       let savings_pct = if original_size > 0 {
-        ((original_size as f64 - optimized.len() as f64) / original_size as f64 * 100.0).max(0.0)
+        ((original_size as f64 - optimized_size as f64) / original_size as f64 * 100.0).max(0.0)
       } else {
         0.0
       };
 
       Ok(MediaOpResult::Binary {
-        data: optimized.clone(),
+        data: optimized,
         mime_type: "image/png".to_string(),
         extension: "png".to_string(),
         metadata: serde_json::json!({
           "original_size": original_size,
-          "optimized_size": optimized.len(),
+          "optimized_size": optimized_size,
           "savings_pct": format!("{savings_pct:.1}"),
           "level": level,
         }),

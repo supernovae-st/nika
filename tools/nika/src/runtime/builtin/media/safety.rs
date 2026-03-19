@@ -28,20 +28,11 @@ pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> 
   use image::ImageReader;
   use std::io::Cursor;
 
-  let mut reader = ImageReader::new(Cursor::new(data));
-  reader.set_format(
-    reader.format()
-      .or_else(|| {
-        // Try to guess the format from magic bytes
-        image::ImageReader::new(Cursor::new(data))
-          .with_guessed_format()
-          .ok()
-          .and_then(|r| r.format())
-      })
-      .unwrap_or(image::ImageFormat::Png)
-  );
+  // Guess format from magic bytes, then apply resource limits
+  let mut reader = ImageReader::new(Cursor::new(data))
+    .with_guessed_format()
+    .map_err(|e| tool_error("decode", format!("format detection: {e}")))?;
 
-  // Set resource limits to prevent decompression bombs
   let mut limits = image::Limits::default();
   limits.max_alloc = Some(MAX_DECODED_BYTES);
   limits.max_image_width = Some(MAX_IMAGE_DIM);
@@ -75,10 +66,9 @@ pub fn sanitize_svg(input: &str) -> Result<&str, NikaError> {
   }
 
   // Event handlers: onload=, onclick=, onerror=, etc.
-  if regex::Regex::new(r"\bon\w+\s*=")
-    .expect("valid regex")
-    .is_match(&lower)
-  {
+  static EVENT_HANDLER_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"\bon\w+\s*=").unwrap());
+  if EVENT_HANDLER_RE.is_match(&lower) {
     return Err(security_violation(
       "svg_render",
       "SVG contains event handler attribute",
