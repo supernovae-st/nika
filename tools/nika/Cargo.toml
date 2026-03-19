@@ -38,6 +38,8 @@ media-phash = ["dep:image_hasher", "dep:image"]
 media-pdf = ["dep:pdf-extract"]
 media-chart = ["dep:charts-rs"]
 media-provenance = ["dep:c2pa"]
+# PR4 features
+media-qr = ["dep:qrcode-ai-scanner-core", "dep:image"]
 
 [dependencies]
 # CLI
@@ -207,6 +209,7 @@ image_hasher = { version = "3.1", optional = true }
 pdf-extract = { version = "0.10", optional = true }
 charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
 c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
+qrcode-ai-scanner-core = { version = "0.2", optional = true }
 
 # Logging
 tracing = "0.1"
@@ -221,6 +224,7 @@ pretty_assertions = "1.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 serial_test = "3.1"
 wiremock = "0.6"
+qrcode = "0.14"  # QR code generation for test fixtures
 
 # ═══════════════════════════════════════════════════════════════════════════
 # BENCHMARKS - Run with: cargo bench

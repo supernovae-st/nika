@@ -48,6 +48,8 @@ mod compare;
 mod pdf;
 #[cfg(feature = "media-provenance")]
 mod provenance;
+#[cfg(feature = "media-qr")]
+mod qr;
 mod pipeline;
 #[cfg(test)]
 mod tests_integration;
@@ -292,6 +294,14 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
   {
     tools.push(Box::new(MediaToolAdapter::new(
       Arc::new(provenance::ProvenanceOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-qr")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(qr::QrValidateOp),
       Arc::clone(&ctx),
     )));
   }
