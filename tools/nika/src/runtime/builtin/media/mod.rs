@@ -36,6 +36,14 @@ mod svg;
 mod convert;
 #[cfg(feature = "media-thumbnail")]
 mod strip;
+// PR3b tools
+#[cfg(feature = "media-phash")]
+mod phash;
+#[cfg(feature = "media-phash")]
+mod compare;
+#[cfg(feature = "media-pdf")]
+mod pdf;
+mod pipeline;
 #[cfg(test)]
 mod tests_integration;
 #[cfg(test)]
@@ -236,6 +244,33 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
       Arc::clone(&ctx),
     )));
   }
+
+  // Tier 3 — PR3b tools
+  #[cfg(feature = "media-phash")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(phash::PhashOp),
+      Arc::clone(&ctx),
+    )));
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(compare::CompareOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-pdf")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(pdf::PdfExtractOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  // Pipeline — always on (orchestrates other tools)
+  tools.push(Box::new(MediaToolAdapter::new(
+    Arc::new(pipeline::PipelineOp),
+    Arc::clone(&ctx),
+  )));
 
   tools
 }
