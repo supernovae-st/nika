@@ -53,6 +53,17 @@ mod provenance;
 mod qr;
 #[cfg(feature = "media-iqa")]
 mod quality;
+// PR5b tools — Web extraction builtins
+#[cfg(feature = "fetch-html")]
+mod css_select;
+#[cfg(feature = "fetch-html")]
+mod extract_links;
+#[cfg(feature = "fetch-html")]
+mod extract_metadata;
+#[cfg(feature = "fetch-markdown")]
+mod html_to_md;
+#[cfg(feature = "fetch-article")]
+mod readability;
 #[cfg(test)]
 mod tests_comprehensive;
 #[cfg(test)]
@@ -318,6 +329,39 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
     {
         tools.push(Box::new(MediaToolAdapter::new(
             Arc::new(quality::QualityOp),
+            Arc::clone(&ctx),
+        )));
+    }
+
+    // PR5b — Web extraction builtins
+    #[cfg(feature = "fetch-html")]
+    {
+        tools.push(Box::new(MediaToolAdapter::new(
+            Arc::new(css_select::CssSelectOp),
+            Arc::clone(&ctx),
+        )));
+        tools.push(Box::new(MediaToolAdapter::new(
+            Arc::new(extract_metadata::ExtractMetadataOp),
+            Arc::clone(&ctx),
+        )));
+        tools.push(Box::new(MediaToolAdapter::new(
+            Arc::new(extract_links::ExtractLinksOp),
+            Arc::clone(&ctx),
+        )));
+    }
+
+    #[cfg(feature = "fetch-markdown")]
+    {
+        tools.push(Box::new(MediaToolAdapter::new(
+            Arc::new(html_to_md::HtmlToMdOp),
+            Arc::clone(&ctx),
+        )));
+    }
+
+    #[cfg(feature = "fetch-article")]
+    {
+        tools.push(Box::new(MediaToolAdapter::new(
+            Arc::new(readability::ReadabilityOp),
             Arc::clone(&ctx),
         )));
     }

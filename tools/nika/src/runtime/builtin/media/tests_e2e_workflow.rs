@@ -325,6 +325,18 @@ mod tests {
         {
             expected += 1; // quality
         }
+        #[cfg(feature = "fetch-html")]
+        {
+            expected += 3; // css_select, extract_metadata, extract_links
+        }
+        #[cfg(feature = "fetch-markdown")]
+        {
+            expected += 1; // html_to_md
+        }
+        #[cfg(feature = "fetch-article")]
+        {
+            expected += 1; // readability
+        }
 
         assert_eq!(
             total, expected,
