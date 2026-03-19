@@ -1331,6 +1331,12 @@ impl TaskExecutor {
                     for result in results {
                         match result {
                             Ok((media_ref, store_result)) => {
+                                self.event_log.emit(EventKind::MediaProcessed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: media_ref.hash.clone(),
+                                    mime_type: media_ref.mime_type.clone(),
+                                    size_bytes: media_ref.size_bytes,
+                                });
                                 self.event_log.emit(EventKind::MediaStored {
                                     task_id: Arc::clone(task_id),
                                     hash: media_ref.hash.clone(),
@@ -1342,8 +1348,13 @@ impl TaskExecutor {
                                 });
                                 media_refs.push(media_ref);
                             }
-                            Err((_, error)) => {
+                            Err((idx, error)) => {
                                 tracing::warn!(task_id = %task_id, error = %error, "Resource blob media processing failed");
+                                self.event_log.emit(EventKind::MediaStoreFailed {
+                                    task_id: Arc::clone(task_id),
+                                    hash: format!("blob_index:{}", idx),
+                                    reason: error.to_string(),
+                                });
                             }
                         }
                     }
