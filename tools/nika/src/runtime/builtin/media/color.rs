@@ -33,7 +33,7 @@ impl MediaOp for DominantColorOp {
           "type": "integer",
           "description": "Number of colors to extract (default: 5, max: 20)",
           "default": 5,
-          "minimum": 1,
+          "minimum": 2,
           "maximum": 20
         },
         "quality": {
@@ -65,7 +65,7 @@ impl MediaOp for DominantColorOp {
         .get("count")
         .and_then(|v| v.as_u64())
         .unwrap_or(5)
-        .min(20) as u8;
+        .clamp(2, 20) as u8; // color_thief requires max_colors >= 2
 
       let quality = args
         .get("quality")

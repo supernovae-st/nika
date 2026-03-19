@@ -66,12 +66,12 @@ impl MediaOp for ThumbnailOp {
         let img = decode_image_safe(&data)?;
         let (orig_w, orig_h) = (img.width(), img.height());
 
-        // Calculate target height preserving aspect ratio
+        // Calculate target height preserving aspect ratio, clamped to safe range
         let th = target_height.unwrap_or_else(|| {
           let ratio = orig_h as f64 / orig_w as f64;
           (target_width as f64 * ratio).round() as u32
-        }).max(1);
-        let tw = target_width;
+        }).clamp(1, 10_000);
+        let tw = target_width.min(10_000);
 
         // Resize using image crate's built-in resize (which uses fast algorithms)
         let resized = img.resize_exact(tw, th, image::imageops::FilterType::Lanczos3);

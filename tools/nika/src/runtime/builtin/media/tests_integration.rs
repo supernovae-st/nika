@@ -215,6 +215,58 @@ mod tests {
   }
 
   // ═══════════════════════════════════════════
+  // BUG REGRESSION TESTS (from deep analysis)
+  // ═══════════════════════════════════════════
+
+  #[cfg(feature = "media-thumbnail")]
+  #[tokio::test]
+  async fn bug_color_count_1_does_not_panic() {
+    // BUG: color_thief asserts max_colors >= 2 internally.
+    // count=1 was allowed by schema, causing rayon panic.
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png_100x50();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = crate::runtime::builtin::media::color::DominantColorOp;
+    // count=1 should be clamped to 2, not panic
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "count": 1
+    }), &ctx).await;
+    assert!(result.is_ok(), "count=1 should succeed (clamped to 2), got: {:?}", result.err());
+
+    if let Ok(MediaOpResult::Metadata(v)) = result {
+      let colors = v["colors"].as_array().unwrap();
+      assert!(colors.len() >= 1, "should return at least 1 color");
+    }
+  }
+
+  #[cfg(feature = "media-thumbnail")]
+  #[tokio::test]
+  async fn bug_thumbnail_extreme_aspect_no_oom() {
+    // BUG: 1x10000 image + width=10000 computes height=100M, causing OOM.
+    // Computed height must be clamped to 10000.
+    let (_dir, ctx) = setup().await;
+
+    let img = image::ImageBuffer::from_pixel(1, 5000, image::Rgba([255u8, 0, 0, 255]));
+    let mut buf = Vec::new();
+    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+    image::ImageEncoder::write_image(enc, img.as_raw(), 1, 5000, image::ExtendedColorType::Rgba8).unwrap();
+    let sr = ctx.cas.store(&buf).await.unwrap();
+
+    let op = crate::runtime::builtin::media::thumbnail::ThumbnailOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "width": 5000
+    }), &ctx).await;
+
+    // Should succeed but with clamped height, NOT OOM
+    assert!(result.is_ok(), "extreme aspect ratio should not OOM: {:?}", result.err());
+    if let Ok(MediaOpResult::Binary { metadata, .. }) = result {
+      let h = metadata["height"].as_u64().unwrap();
+      assert!(h <= 10_000, "height must be clamped to 10000, got {h}");
+    }
+  }
+
+  // ═══════════════════════════════════════════
   // SECURITY HARDENING TESTS (from audit)
   // ═══════════════════════════════════════════
 
