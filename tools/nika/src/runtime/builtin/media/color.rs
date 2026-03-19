@@ -93,7 +93,12 @@ fn extract_palette(
   max_colors: u8,
   quality: u8,
 ) -> Result<Vec<serde_json::Value>, NikaError> {
-  // Decode with image crate if available, otherwise fall back
+  #[cfg(not(feature = "media-thumbnail"))]
+  {
+    let _ = (data, quality, max_colors);
+    return Err(super::error::dependency_missing("dominant_color", "media-thumbnail"));
+  }
+
   #[cfg(feature = "media-thumbnail")]
   let (pixels, format) = {
     use super::safety::decode_image_safe;
@@ -102,25 +107,25 @@ fn extract_palette(
     (rgb.into_raw(), color_thief::ColorFormat::Rgb)
   };
 
-  #[cfg(not(feature = "media-thumbnail"))]
-  return Err(super::error::dependency_missing("dominant_color", "media-thumbnail"));
+  #[cfg(feature = "media-thumbnail")]
+  {
+    let palette = color_thief::get_palette(&pixels, format, quality, max_colors)
+      .map_err(|e| tool_error("dominant_color", format!("palette extraction failed: {e}")))?;
 
-  let palette = color_thief::get_palette(&pixels, format, quality, max_colors)
-    .map_err(|e| tool_error("dominant_color", format!("palette extraction failed: {e}")))?;
-
-  let colors: Vec<serde_json::Value> = palette
-    .iter()
-    .map(|c| {
-      serde_json::json!({
-        "r": c.r,
-        "g": c.g,
-        "b": c.b,
-        "hex": format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b),
+    let colors: Vec<serde_json::Value> = palette
+      .iter()
+      .map(|c| {
+        serde_json::json!({
+          "r": c.r,
+          "g": c.g,
+          "b": c.b,
+          "hex": format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b),
+        })
       })
-    })
-    .collect();
+      .collect();
 
-  Ok(colors)
+    Ok(colors)
+  }
 }
 
 #[cfg(test)]
