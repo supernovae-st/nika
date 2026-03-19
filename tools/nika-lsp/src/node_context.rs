@@ -152,15 +152,15 @@ pub fn find_context_at_position(content: &str, line: u32, character: u32) -> Con
             if offset_in_span(offset, &task.span) {
                 let task_id = Some(task.value.id.value.clone());
 
-                // Check if we're in the use: block
-                if let Some(ref use_refs) = task.value.use_refs {
-                    if offset_in_span(offset, &use_refs.span) {
+                // Check if we're in the with: block
+                if let Some(ref with_refs) = task.value.with_refs {
+                    if offset_in_span(offset, &with_refs.span) {
                         return ContextResult {
                             context: AstContext::UseBlock {
                                 alias: None, // Would need finer span tracking
                                 partial_ref: word_at_cursor.clone(),
                             },
-                            span: Some(use_refs.span),
+                            span: Some(with_refs.span),
                             word_at_cursor,
                         };
                     }
