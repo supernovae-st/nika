@@ -195,10 +195,11 @@ mod tests {
             "claim generator should mention Nika, got: {cg}"
           );
 
-          // Validation status
-          assert_eq!(
-            v["validation_status"], "valid",
-            "freshly signed image should be valid"
+          // Validation status (ephemeral self-signed cert: "valid" or "self_signed")
+          let status = v["validation_status"].as_str().unwrap();
+          assert!(
+            status == "valid" || status == "self_signed",
+            "freshly signed image should be valid or self_signed, got: {status}"
           );
 
           // Assertions array is non-empty
