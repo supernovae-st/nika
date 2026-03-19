@@ -1101,7 +1101,11 @@ impl TaskExecutor {
                             MAX_RESPONSE_SIZE
                         )));
                     }
-                    return Ok(raw_body);
+                    return super::extract::apply_extract(
+                        &raw_body,
+                        fetch.extract.as_deref(),
+                        fetch.selector.as_deref(),
+                    );
                 }
                 Err(e) => {
                     // Network errors are retryable
