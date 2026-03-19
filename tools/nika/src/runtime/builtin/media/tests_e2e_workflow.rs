@@ -277,12 +277,14 @@ mod tests {
 
     // 7 core + 5 file = 12 baseline
     // + 3 always-on media (dimensions, thumbhash, dominant_color)
+    // + 1 always-on (pipeline)
     // + 3 media-thumbnail (thumbnail, convert, strip)
     // + 1 media-metadata (metadata)
     // + 1 media-optimize (optimize)
     // + 1 media-svg (svg_render)
-    // = 21 with all features enabled (media-core = all sub-features)
-    let mut expected = 12 + 3; // baseline + always-on media
+    // + 2 media-phash (phash, compare)
+    // + 1 media-pdf (pdf_extract)
+    let mut expected = 12 + 3 + 1; // baseline + always-on media + pipeline
 
     #[cfg(feature = "media-thumbnail")]
     {
@@ -297,6 +299,14 @@ mod tests {
       expected += 1;
     }
     #[cfg(feature = "media-svg")]
+    {
+      expected += 1;
+    }
+    #[cfg(feature = "media-phash")]
+    {
+      expected += 2; // phash + compare
+    }
+    #[cfg(feature = "media-pdf")]
     {
       expected += 1;
     }

@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.33.0"
+version = "0.34.0"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 description = "Semantic YAML workflow engine for AI tasks - DAG execution, MCP integration, multi-provider LLM support"
@@ -27,12 +27,17 @@ native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Window
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
 integration = []  # Enable integration tests with real MCP servers
 
-# Media tool features (v0.33.0 — PR3)
+# Media tool features (v0.33.0 — PR3a, v0.34.0 — PR3b)
 media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
 media-thumbnail = ["dep:fast_image_resize", "dep:image"]
 media-metadata = ["dep:nom-exif", "dep:lofty"]
 media-optimize = ["dep:oxipng"]
 media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
+# PR3b features
+media-phash = ["dep:image_hasher", "dep:image"]
+media-pdf = ["dep:pdf-extract"]
+media-chart = ["dep:charts-rs"]
+media-provenance = ["dep:c2pa"]
 
 [dependencies]
 # CLI
@@ -196,6 +201,12 @@ resvg = { version = "0.47", optional = true }
 usvg = { version = "0.47", optional = true }
 tiny-skia = { version = "0.12", optional = true }
 fontdb = { version = "0.23", optional = true }
+
+# Media tools — Tier 3 (PR3b, opt-in)
+image_hasher = { version = "3.1", optional = true }
+pdf-extract = { version = "0.10", optional = true }
+charts-rs = { version = "0.3", optional = true }
+c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
 
 # Logging
 tracing = "0.1"
