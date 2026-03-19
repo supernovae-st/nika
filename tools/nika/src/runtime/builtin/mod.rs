@@ -32,6 +32,7 @@ mod complete;
 mod emit;
 mod file_adapter;
 mod log;
+pub(crate) mod media;
 mod prompt;
 mod rig_adapter;
 mod router;

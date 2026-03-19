@@ -2631,4 +2631,240 @@ mod tests {
         // "forecast" binding came from $weather -> source task ID is "weather"
         assert_eq!(bindings.source_task_id("forecast"), Some("weather"));
     }
+
+    // =========================================================================
+    // Media Tool Results → Binding Spec → Template Resolution
+    // =========================================================================
+    //
+    // These tests verify the end-to-end path:
+    //   invoke result → RunContext → BindingSpec → ResolvedBindings → get_resolved
+    //
+    // Three scenarios:
+    //   1. Invoke output (JSON) fields accessible via binding paths
+    //   2. Media refs (side-channel) accessible via media[N].field paths
+    //   3. Chained bindings: gen.media[0].hash + thumb.hash both accessible
+
+    /// Helper: populate a RunContext with a "gen" task that has media refs
+    /// and a "thumb" task that has thumbnail JSON output.
+    fn store_with_media_chain() -> RunContext {
+        let store = RunContext::new();
+
+        // Task "gen": produces an image with media refs in the side-channel
+        let gen_media = vec![crate::media::MediaRef {
+            hash: "blake3:abc123def456".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 1048576,
+            path: std::path::PathBuf::from("/tmp/cas/ab/c123def456"),
+            extension: "png".to_string(),
+            created_by: "gen".to_string(),
+            metadata: {
+                let mut m = serde_json::Map::new();
+                m.insert("width".to_string(), json!(1024));
+                m.insert("height".to_string(), json!(768));
+                m
+            },
+        }];
+        store.insert(
+            Arc::from("gen"),
+            TaskResult::success(json!({"prompt": "a sunset photo"}), Duration::from_secs(3))
+                .with_media(gen_media),
+        );
+
+        // Task "thumb": invoke result stored as JSON-string output
+        store.insert(
+            Arc::from("thumb"),
+            TaskResult::success_str(
+                r#"{"hash":"blake3:thumb_999","mime_type":"image/png","size_bytes":2048,"metadata":{"width":256,"height":192}}"#,
+                Duration::from_millis(100),
+            ),
+        );
+
+        store
+    }
+
+    // ----- Scenario 1: Invoke output fields via binding spec -----
+
+    #[test]
+    fn binding_spec_resolves_invoke_output_hash() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // with: { thumb_hash: $thumb.hash }
+        spec.insert("thumb_hash".to_string(), BindingEntry::new("thumb.hash"));
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("thumb_hash", &store).unwrap();
+        assert_eq!(value, json!("blake3:thumb_999"));
+    }
+
+    #[test]
+    fn binding_spec_resolves_invoke_output_nested_metadata() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // with: { thumb_width: $thumb.metadata.width }
+        spec.insert(
+            "thumb_width".to_string(),
+            BindingEntry::new("thumb.metadata.width"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("thumb_width", &store).unwrap();
+        assert_eq!(value, json!(256));
+    }
+
+    #[test]
+    fn binding_spec_resolves_invoke_output_mime_type() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        spec.insert(
+            "thumb_mime".to_string(),
+            BindingEntry::new("thumb.mime_type"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("thumb_mime", &store).unwrap();
+        assert_eq!(value, json!("image/png"));
+    }
+
+    // ----- Scenario 2: Media refs via binding spec -----
+
+    #[test]
+    fn binding_spec_resolves_media_ref_hash() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // with: { gen_hash: $gen.media[0].hash }
+        spec.insert(
+            "gen_hash".to_string(),
+            BindingEntry::new("gen.media[0].hash"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("gen_hash", &store).unwrap();
+        assert_eq!(value, json!("blake3:abc123def456"));
+    }
+
+    #[test]
+    fn binding_spec_resolves_media_ref_enriched_width() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // with: { gen_width: $gen.media[0].metadata.width }
+        spec.insert(
+            "gen_width".to_string(),
+            BindingEntry::new("gen.media[0].metadata.width"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("gen_width", &store).unwrap();
+        assert_eq!(value, json!(1024));
+    }
+
+    #[test]
+    fn binding_spec_resolves_media_ref_mime_type() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        spec.insert(
+            "gen_mime".to_string(),
+            BindingEntry::new("gen.media[0].mime_type"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("gen_mime", &store).unwrap();
+        assert_eq!(value, json!("image/png"));
+    }
+
+    #[test]
+    fn binding_spec_resolves_media_full_array() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // with: { all_media: $gen.media }
+        spec.insert("all_media".to_string(), BindingEntry::new("gen.media"));
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        let value = bindings.get_resolved("all_media", &store).unwrap();
+        let arr = value.as_array().expect("media should be an array");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["hash"], "blake3:abc123def456");
+    }
+
+    // ----- Scenario 3: Chained bindings -----
+
+    #[test]
+    fn binding_spec_chained_gen_media_and_thumb_output() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+
+        // Bind both gen.media[0].hash and thumb.hash in one spec
+        spec.insert(
+            "source_hash".to_string(),
+            BindingEntry::new("gen.media[0].hash"),
+        );
+        spec.insert(
+            "thumb_hash".to_string(),
+            BindingEntry::new("thumb.hash"),
+        );
+        spec.insert(
+            "thumb_width".to_string(),
+            BindingEntry::new("thumb.metadata.width"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // Verify all three bindings resolve correctly
+        assert_eq!(
+            bindings.get_resolved("source_hash", &store).unwrap(),
+            json!("blake3:abc123def456"),
+            "gen.media[0].hash should resolve via media side-channel"
+        );
+        assert_eq!(
+            bindings.get_resolved("thumb_hash", &store).unwrap(),
+            json!("blake3:thumb_999"),
+            "thumb.hash should resolve via JSON-string auto-parse"
+        );
+        assert_eq!(
+            bindings.get_resolved("thumb_width", &store).unwrap(),
+            json!(256),
+            "thumb.metadata.width should resolve via nested JSON-string traversal"
+        );
+    }
+
+    #[test]
+    fn binding_spec_lazy_media_ref_resolves_on_access() {
+        use crate::binding::entry::BindingEntry;
+
+        let store = store_with_media_chain();
+        let mut spec = BindingSpec::default();
+        // Lazy binding: resolution deferred until get_resolved
+        spec.insert(
+            "lazy_hash".to_string(),
+            BindingEntry {
+                path: "gen.media[0].hash".to_string(),
+                default: None,
+                lazy: true,
+            },
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // Should be pending initially
+        assert!(bindings.is_lazy("lazy_hash"));
+
+        // But still resolves correctly via get_resolved
+        let value = bindings.get_resolved("lazy_hash", &store).unwrap();
+        assert_eq!(value, json!("blake3:abc123def456"));
+    }
 }

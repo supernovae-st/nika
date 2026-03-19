@@ -29,6 +29,12 @@ pub struct MediaRef {
 
     /// Task ID that produced this media
     pub created_by: String,
+
+    /// Auto-enriched metadata (dimensions, thumbhash, etc.)
+    ///
+    /// Template access: `{{with.task.media[0].metadata.width}}`
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub metadata: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Broad media type classification.
@@ -187,6 +193,7 @@ mod tests {
             path: PathBuf::from("/tmp/store/af/1349b9"),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         };
         let json = serde_json::to_string(&mr).unwrap();
         let back: MediaRef = serde_json::from_str(&json).unwrap();
