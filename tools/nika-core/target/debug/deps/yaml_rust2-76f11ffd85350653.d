@@ -1,0 +1,11 @@
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/yaml_rust2-76f11ffd85350653.d: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs
+
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/libyaml_rust2-76f11ffd85350653.rmeta: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs
+
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs:

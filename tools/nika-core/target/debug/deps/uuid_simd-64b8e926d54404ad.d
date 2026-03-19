@@ -1,0 +1,11 @@
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/uuid_simd-64b8e926d54404ad.d: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/error.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/spec.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/format.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/parse.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/multiversion.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/ext.rs
+
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/libuuid_simd-64b8e926d54404ad.rmeta: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/error.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/spec.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/format.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/parse.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/multiversion.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/ext.rs
+
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/lib.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/error.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/spec.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/format.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/parse.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/multiversion.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-simd-0.8.0/src/ext.rs:

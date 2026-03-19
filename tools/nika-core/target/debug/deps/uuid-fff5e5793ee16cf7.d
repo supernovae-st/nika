@@ -1,0 +1,13 @@
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/uuid-fff5e5793ee16cf7.d: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/macros.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/builder.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/error.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/non_nil.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/parser.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/fmt.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/timestamp.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/external.rs
+
+/Users/thibaut/dev/supernovae/nika/tools/nika-core/target/debug/deps/libuuid-fff5e5793ee16cf7.rmeta: /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/lib.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/macros.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/builder.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/error.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/non_nil.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/parser.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/fmt.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/timestamp.rs /Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/external.rs
+
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/lib.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/macros.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/builder.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/error.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/non_nil.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/parser.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/fmt.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/timestamp.rs:
+/Users/thibaut/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.22.0/src/external.rs:

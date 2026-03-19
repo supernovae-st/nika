@@ -1,0 +1,29 @@
+[package]
+name = "nika-core"
+version = "0.34.0"
+edition = "2021"
+authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
+description = "Lightweight AST and analysis core for Nika workflows"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/supernovae-st/nika"
+rust-version = "1.86"
+
+[dependencies]
+marked-yaml = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-saphyr = "0.0.20"
+indexmap = "2.7"
+rustc-hash = "2.1"
+thiserror = "1.0"
+miette = { version = "7.6", features = ["fancy"] }
+tracing = "0.1"
+strsim = "0.11"
+smallvec = "1.13"
+semver = "1.0"
+jsonschema = "0.26"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+insta = { version = "1.34", features = ["yaml"] }
+proptest = "1.4"
