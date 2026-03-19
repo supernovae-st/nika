@@ -202,6 +202,12 @@ pub struct AnalyzedFetchAction {
     /// Response mode: "full" or "binary"
     pub response: Option<String>,
 
+    /// Extraction mode: markdown, article, text, selector, metadata, links, feed, jsonpath, llm_txt
+    pub extract: Option<String>,
+
+    /// CSS selector or JSONPath expression (used with extract)
+    pub selector: Option<String>,
+
     /// Span of the action
     pub span: Span,
 }

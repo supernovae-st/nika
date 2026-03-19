@@ -369,6 +369,12 @@ pub struct FetchParams {
     /// Response mode: "full" (status + headers + body JSON) or "binary" (CAS store)
     #[serde(default)]
     pub response: Option<String>,
+    /// Extraction mode: markdown, article, text, selector, metadata, links, feed, jsonpath, llm_txt
+    #[serde(default)]
+    pub extract: Option<String>,
+    /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
+    #[serde(default)]
+    pub selector: Option<String>,
 }
 
 impl FetchParams {
@@ -408,6 +414,26 @@ impl FetchParams {
                     reason: format!("Invalid response mode '{}', expected 'full' or 'binary'", r),
                 });
             }
+        }
+        if let Some(ref extract) = self.extract {
+            let valid = [
+                "markdown", "article", "text", "selector", "metadata", "links", "feed", "jsonpath",
+                "llm_txt",
+            ];
+            if !valid.contains(&extract.as_str()) {
+                return Err(NikaError::ValidationError {
+                    reason: format!(
+                        "fetch extract must be one of: {}, got '{}'",
+                        valid.join(", "),
+                        extract
+                    ),
+                });
+            }
+        }
+        if self.selector.is_some() && self.extract.is_none() {
+            return Err(NikaError::ValidationError {
+                reason: "fetch 'selector' requires 'extract' to be set".to_string(),
+            });
         }
         Ok(())
     }
@@ -1381,6 +1407,8 @@ agent:
                 retry: None,
                 follow_redirects: None,
                 response: None,
+                extract: None,
+                selector: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1589,6 +1617,8 @@ fetch:
                 retry: None,
                 follow_redirects: None,
                 response: None,
+                extract: None,
+                selector: None,
             },
         };
 

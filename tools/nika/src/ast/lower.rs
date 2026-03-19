@@ -207,6 +207,8 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         retry: retry.map(lower_retry),
         follow_redirects: Some(fetch.follow_redirects),
         response: fetch.response,
+        extract: fetch.extract,
+        selector: fetch.selector,
     }
 }
 
@@ -629,6 +631,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             timeout_ms: fetch.timeout.map(|s| s * 1000),
             follow_redirects: fetch.follow_redirects.unwrap_or(true),
             response: fetch.response.clone(),
+            extract: None,
+            selector: None,
             span: Span::dummy(),
         }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
@@ -888,6 +892,8 @@ mod tests {
                 timeout_ms: Some(5000),
                 follow_redirects: false,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1385,6 +1391,8 @@ mod tests {
                 timeout_ms: None,
                 follow_redirects: true,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1420,6 +1428,8 @@ mod tests {
                 timeout_ms: None,
                 follow_redirects: true,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1456,6 +1466,8 @@ mod tests {
                 timeout_ms: None,
                 follow_redirects: true,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1496,6 +1508,8 @@ mod tests {
                 timeout_ms: None,
                 follow_redirects: true,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1537,6 +1551,8 @@ mod tests {
                 timeout_ms: None,
                 follow_redirects: true,
                 response: None,
+                extract: None,
+                selector: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1951,6 +1967,8 @@ mod tests {
                 }),
                 follow_redirects: None,
                 response: None,
+                extract: None,
+                selector: None,
             },
         };
         let result = unlower_retry(&action);
