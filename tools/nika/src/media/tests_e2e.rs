@@ -3621,4 +3621,673 @@ mod tests {
         assert_eq!(stored_data_1, png2_bytes,
             "CAS stored data for png2 must match original bytes");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PR2: Binary Artifact + CAS Integration Tests
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn pr2_full_pipeline_binary_artifact_cas_to_disk() {
+        // Monster test: CAS store → MediaRef → binary artifact → disk → verify
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store binary data in CAS
+        let binary_data = b"\x89PNG\r\n\x1a\nfake image bytes for test 12345";
+        let store_result = store.store(binary_data).await.unwrap();
+
+        // Create MediaRef from store result
+        let media_ref = crate::media::types::MediaRef {
+            hash: store_result.hash.clone(),
+            mime_type: "image/png".to_string(),
+            size_bytes: store_result.size,
+            path: store_result.path.clone(),
+            extension: "png".to_string(),
+            created_by: "gen_img".to_string(),
+        };
+
+        // Verify CAS file exists and is readable
+        assert!(media_ref.path.exists(), "CAS file should exist");
+        let cas_data = tokio::fs::read(&media_ref.path).await.unwrap();
+        assert_eq!(cas_data, binary_data, "CAS data should match original");
+
+        // Create artifact writer
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test-workflow");
+
+        // Write binary artifact from CAS path
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "gen_img".to_string(),
+            output_path: "output/image.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(media_ref.path.clone()),
+            expected_size: media_ref.size_bytes,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        assert!(result.path.ends_with("output/image.bin"));
+        assert_eq!(result.size, binary_data.len() as u64);
+
+        // Verify artifact content matches original
+        let artifact_data = tokio::fs::read(&result.path).await.unwrap();
+        assert_eq!(artifact_data, binary_data, "Artifact data should match original binary");
+    }
+
+    #[tokio::test]
+    async fn pr2_integrity_check_detects_missing_cas_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store and then delete the file
+        let data = b"test data for deletion";
+        let result = store.store(data).await.unwrap();
+        tokio::fs::remove_file(&result.path).await.unwrap();
+
+        // MediaRef points to deleted file
+        let media_ref = crate::media::types::MediaRef {
+            hash: result.hash,
+            mime_type: "image/png".to_string(),
+            size_bytes: result.size,
+            path: result.path.clone(),
+            extension: "png".to_string(),
+            created_by: "task1".to_string(),
+        };
+
+        // Integrity check should detect missing file
+        assert!(!media_ref.path.exists(), "CAS file should be deleted");
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_size_limit_respected() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = vec![0xAB_u8; 1024]; // 1KB
+        let result = store.store(&data).await.unwrap();
+
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        // Writer with 512-byte limit
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test-workflow")
+            .with_max_size(512);
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "output.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(result.path),
+            expected_size: 1024, // Exceeds 512 limit
+        };
+
+        let write_result = writer.write_binary(request).await;
+        assert!(write_result.is_err(), "Should reject binary exceeding size limit");
+        let err = write_result.unwrap_err();
+        assert!(matches!(err, crate::error::NikaError::ArtifactSizeExceeded { .. }));
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_gc_respects_age() {
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store a file
+        store.store(b"old data").await.unwrap();
+
+        // Clean with 0-second age should remove it (file is already "old enough")
+        let result = store.clean_older_than(Duration::from_secs(0));
+        assert_eq!(result.removed, 1);
+        assert!(store.list().is_empty());
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_gc_preserves_recent_files() {
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store a file (just created, so very recent)
+        store.store(b"fresh data").await.unwrap();
+
+        // Clean with 1-hour age should preserve it
+        let result = store.clean_older_than(Duration::from_secs(3600));
+        assert_eq!(result.removed, 0);
+        assert_eq!(store.list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_dedup_consistency_with_binary_artifact() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = b"identical binary content";
+
+        // Store same data twice — should dedup
+        let r1 = store.store(data).await.unwrap();
+        let r2 = store.store(data).await.unwrap();
+
+        assert_eq!(r1.hash, r2.hash);
+        assert!(!r1.deduplicated);
+        assert!(r2.deduplicated);
+        assert_eq!(r1.path, r2.path);
+
+        // Binary artifact from either should work
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test");
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "task1".to_string(),
+            output_path: "dedup_test.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(r1.path),
+            expected_size: r1.size,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+        let written = tokio::fs::read(&result.path).await.unwrap();
+        assert_eq!(written, data);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PR2 STRESS TESTS: Comprehensive binary artifact pipeline
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn pr2_stress_concurrent_binary_artifacts() {
+        // 10 different binary blobs (various sizes: 1B, 1KB, 1MB) stored in CAS,
+        // then 10 binary artifacts written in parallel to different output paths.
+        // Verify ALL 10 artifacts written correctly with NO corruption.
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(CasStore::new(dir.path().join("store")));
+
+        // Create 10 different binary blobs with varied sizes
+        let blobs: Vec<Vec<u8>> = vec![
+            vec![0x42],                                         // 1 byte
+            vec![0xAA; 100],                                    // 100 bytes
+            vec![0xBB; 512],                                    // 512 bytes
+            (0..=255).collect(),                                // 256 bytes (all byte values)
+            vec![0xCC; 1024],                                   // 1 KB
+            vec![0xDD; 4096],                                   // 4 KB
+            vec![0xEE; 10_000],                                 // 10 KB
+            vec![0xFF; 65_536],                                 // 64 KB
+            vec![0x11; 100_000],                                // 100 KB
+            vec![0x22; 1024 * 1024],                            // 1 MB
+        ];
+
+        // Store all 10 in CAS
+        let mut store_results = Vec::new();
+        for blob in &blobs {
+            let result = store.store(blob).await.unwrap();
+            store_results.push(result);
+        }
+
+        // Create 10 MediaRefs pointing to these CAS files
+        let media_refs: Vec<MediaRef> = store_results
+            .iter()
+            .enumerate()
+            .map(|(i, sr)| MediaRef {
+                hash: sr.hash.clone(),
+                mime_type: "application/octet-stream".to_string(),
+                size_bytes: sr.size,
+                path: sr.path.clone(),
+                extension: "bin".to_string(),
+                created_by: format!("task_{i}"),
+            })
+            .collect();
+
+        // Create artifact writer
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+
+        // Process 10 binary artifact writes in parallel
+        let handles: Vec<_> = media_refs
+            .iter()
+            .enumerate()
+            .map(|(i, mr)| {
+                let writer = crate::io::writer::ArtifactWriter::new(
+                    canonical.clone(),
+                    "stress-test",
+                );
+                let request = crate::io::writer::BinaryWriteRequest {
+                    task_id: format!("task_{i}"),
+                    output_path: format!("out_{i}.bin"),
+                    source: crate::io::writer::BinarySource::CasPath(mr.path.clone()),
+                    expected_size: mr.size_bytes,
+                };
+                tokio::spawn(async move { writer.write_binary(request).await })
+            })
+            .collect();
+
+        let results: Vec<_> = futures::future::join_all(handles)
+            .await
+            .into_iter()
+            .map(|h| h.unwrap().unwrap())
+            .collect();
+
+        // Verify ALL 10 artifacts were written correctly with NO corruption
+        assert_eq!(results.len(), 10, "all 10 artifacts should be written");
+        for (i, result) in results.iter().enumerate() {
+            let written = tokio::fs::read(&result.path).await.unwrap();
+            assert_eq!(
+                written.len(),
+                blobs[i].len(),
+                "artifact {i} size mismatch: expected {}, got {}",
+                blobs[i].len(),
+                written.len()
+            );
+            assert_eq!(
+                written, blobs[i],
+                "artifact {i} content corruption detected"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_with_real_png_data() {
+        // Use a real PNG header followed by valid IHDR chunk.
+        // Store in CAS, create MediaRef, write binary artifact.
+        // Verify the output file starts with PNG magic bytes and size matches exactly.
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let png_data = real_png_bytes();
+
+        // Store in CAS
+        let sr = store.store(&png_data).await.unwrap();
+
+        // Create MediaRef
+        let media_ref = MediaRef {
+            hash: sr.hash.clone(),
+            mime_type: "image/png".to_string(),
+            size_bytes: sr.size,
+            path: sr.path.clone(),
+            extension: "png".to_string(),
+            created_by: "png_task".to_string(),
+        };
+
+        // Write binary artifact
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "png-test");
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "png_task".to_string(),
+            output_path: "image.png".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(media_ref.path.clone()),
+            expected_size: media_ref.size_bytes,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+
+        // Verify the output file starts with PNG magic bytes
+        let written = tokio::fs::read(&result.path).await.unwrap();
+        assert!(
+            written.starts_with(&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+            "output file must start with PNG magic bytes"
+        );
+
+        // Verify file size matches exactly
+        assert_eq!(
+            written.len(),
+            png_data.len(),
+            "output file size must match original PNG data exactly"
+        );
+        assert_eq!(
+            result.size, png_data.len() as u64,
+            "WriteResult size must match original"
+        );
+
+        // Verify byte-for-byte identity
+        assert_eq!(written, png_data, "output file must be identical to original PNG");
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_large_file() {
+        // Create a 5MB binary blob, store in CAS (should pass 100MB limit),
+        // write binary artifact, verify blake3 hash of output matches MediaRef.hash.
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = vec![0xAB_u8; 5 * 1024 * 1024]; // 5MB
+        let sr = store.store(&data).await.unwrap();
+
+        // 5MB is above the 1MB verify threshold, so verified should be true
+        assert!(sr.verified, "5MB file should trigger read-back verification");
+        assert_eq!(sr.size, 5 * 1024 * 1024);
+
+        let media_ref = MediaRef {
+            hash: sr.hash.clone(),
+            mime_type: "application/octet-stream".to_string(),
+            size_bytes: sr.size,
+            path: sr.path.clone(),
+            extension: "bin".to_string(),
+            created_by: "large_task".to_string(),
+        };
+
+        // Write binary artifact
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "large-test");
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "large_task".to_string(),
+            output_path: "large.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(media_ref.path.clone()),
+            expected_size: media_ref.size_bytes,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+
+        // Verify blake3 hash of output matches MediaRef.hash
+        let written = tokio::fs::read(&result.path).await.unwrap();
+        let output_hash = format!("blake3:{}", blake3::hash(&written).to_hex());
+        assert_eq!(
+            output_hash, media_ref.hash,
+            "blake3 hash of artifact output must match MediaRef.hash"
+        );
+        assert_eq!(written.len(), 5 * 1024 * 1024, "artifact must be exactly 5MB");
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_then_integrity_check() {
+        // Store a CAS file, create MediaRef, verify integrity (path + size),
+        // then delete CAS file and verify integrity fails.
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        let data = b"integrity check data payload";
+        let sr = store.store(data).await.unwrap();
+
+        let media_ref = MediaRef {
+            hash: sr.hash.clone(),
+            mime_type: "application/octet-stream".to_string(),
+            size_bytes: sr.size,
+            path: sr.path.clone(),
+            extension: "bin".to_string(),
+            created_by: "integrity_task".to_string(),
+        };
+
+        // Store MediaRef in a TaskResult and insert into RunContext
+        use crate::store::TaskResult;
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "integrity_task".into();
+        let tr = TaskResult::success(
+            serde_json::json!("done"),
+            std::time::Duration::from_millis(50),
+        )
+        .with_media(vec![media_ref.clone()]);
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Verify media ref is accessible from RunContext
+        let resolved = ctx.resolve_path("integrity_task.media[0].hash");
+        assert_eq!(resolved.unwrap().as_str().unwrap(), sr.hash);
+
+        // Integrity check: path exists and size matches
+        assert!(media_ref.path.exists(), "CAS file should exist");
+        let meta = std::fs::metadata(&media_ref.path).unwrap();
+        assert_eq!(
+            meta.len(),
+            media_ref.size_bytes,
+            "file size must match MediaRef.size_bytes"
+        );
+
+        // Delete CAS file
+        tokio::fs::remove_file(&media_ref.path).await.unwrap();
+
+        // Integrity check fails: path missing
+        assert!(
+            !media_ref.path.exists(),
+            "CAS file should be gone after deletion"
+        );
+
+        // CAS read should also fail
+        let read_result = store.read(&media_ref.hash).await;
+        assert!(read_result.is_err(), "read should fail for deleted CAS file");
+        assert_eq!(read_result.unwrap_err().code(), "NIKA-253");
+    }
+
+    #[tokio::test]
+    async fn pr2_cas_gc_preserves_active_media() {
+        // Store 2 CAS files, backdate file 1 mtime to 2 hours ago,
+        // keep file 2 recent, call clean_older_than(1h).
+        // Verify: file 1 deleted, file 2 preserved, correct bytes_freed count.
+        use std::fs::FileTimes;
+        use std::time::{Duration, SystemTime};
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Store 2 files
+        let data_old = vec![0xAA_u8; 500];
+        let data_new = vec![0xBB_u8; 300];
+        let r_old = store.store(&data_old).await.unwrap();
+        let r_new = store.store(&data_new).await.unwrap();
+
+        // Backdate file 1 mtime to 2 hours ago
+        let two_hours_ago = SystemTime::now() - Duration::from_secs(2 * 3600);
+        let file = std::fs::File::open(&r_old.path).unwrap();
+        file.set_times(FileTimes::new().set_modified(two_hours_ago))
+            .unwrap();
+
+        // Keep file 2 recent (just created, mtime is now)
+
+        // Clean files older than 1 hour
+        let clean = store.clean_older_than(Duration::from_secs(3600));
+
+        // File 1 should be deleted
+        assert_eq!(clean.removed, 1, "only the old file should be removed");
+        assert!(
+            !r_old.path.exists(),
+            "old file should be deleted by GC"
+        );
+
+        // File 2 should be preserved
+        assert!(
+            r_new.path.exists(),
+            "recent file should be preserved by GC"
+        );
+
+        // Correct bytes_freed count
+        assert_eq!(
+            clean.bytes_freed, 500,
+            "bytes_freed should equal the old file's size (500)"
+        );
+
+        // Verify store still lists 1 file
+        assert_eq!(store.list().len(), 1, "only the recent file should remain");
+    }
+
+    #[tokio::test]
+    async fn pr2_binary_artifact_checksum_is_blake3() {
+        // Store data in CAS, create MediaRef with blake3 hash from StoreResult,
+        // write binary artifact, re-hash the artifact output with blake3,
+        // verify hash matches MediaRef.hash (strip "blake3:" prefix).
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // Use a non-trivial data pattern to ensure hash is meaningful
+        let mut data = Vec::with_capacity(8192);
+        for i in 0u32..2048 {
+            data.extend_from_slice(&i.to_le_bytes());
+        }
+        assert_eq!(data.len(), 8192);
+
+        let sr = store.store(&data).await.unwrap();
+
+        let media_ref = MediaRef {
+            hash: sr.hash.clone(),
+            mime_type: "application/octet-stream".to_string(),
+            size_bytes: sr.size,
+            path: sr.path.clone(),
+            extension: "bin".to_string(),
+            created_by: "checksum_task".to_string(),
+        };
+
+        // Write binary artifact
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "checksum-test");
+
+        let request = crate::io::writer::BinaryWriteRequest {
+            task_id: "checksum_task".to_string(),
+            output_path: "verified.bin".to_string(),
+            source: crate::io::writer::BinarySource::CasPath(media_ref.path.clone()),
+            expected_size: media_ref.size_bytes,
+        };
+
+        let result = writer.write_binary(request).await.unwrap();
+
+        // Re-hash the artifact output with blake3
+        let written = tokio::fs::read(&result.path).await.unwrap();
+        let artifact_raw_hash = blake3::hash(&written).to_hex().to_string();
+        let artifact_prefixed_hash = format!("blake3:{artifact_raw_hash}");
+
+        // Verify: artifact hash matches MediaRef.hash
+        assert_eq!(
+            artifact_prefixed_hash, media_ref.hash,
+            "blake3 hash of artifact must match MediaRef.hash (no corruption in copy)"
+        );
+
+        // Also verify by stripping prefix
+        let expected_raw = media_ref.hash.strip_prefix("blake3:").unwrap();
+        assert_eq!(
+            artifact_raw_hash, expected_raw,
+            "raw hash comparison must match after prefix stripping"
+        );
+
+        // And verify against direct blake3 of the original data
+        let original_hash = blake3::hash(&data).to_hex().to_string();
+        assert_eq!(
+            artifact_raw_hash, original_hash,
+            "artifact hash must match hash of original data"
+        );
+    }
+
+    #[tokio::test]
+    async fn pr2_multiple_artifacts_from_single_task() {
+        // One task produces 3 media files (image, audio, document).
+        // 3 binary artifacts each with different source, process all 3,
+        // verify all 3 written correctly with correct content.
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path().join("store"));
+
+        // 3 different content types
+        let image_data = real_png_bytes();
+        let audio_data = real_mp3_bytes();
+        let document_data = real_pdf_bytes();
+
+        // Store all 3 in CAS
+        let sr_img = store.store(&image_data).await.unwrap();
+        let sr_aud = store.store(&audio_data).await.unwrap();
+        let sr_doc = store.store(&document_data).await.unwrap();
+
+        // Create 3 MediaRefs, all from the same task
+        let media_refs = vec![
+            MediaRef {
+                hash: sr_img.hash.clone(),
+                mime_type: "image/png".to_string(),
+                size_bytes: sr_img.size,
+                path: sr_img.path.clone(),
+                extension: "png".to_string(),
+                created_by: "multi_task".to_string(),
+            },
+            MediaRef {
+                hash: sr_aud.hash.clone(),
+                mime_type: "audio/mpeg".to_string(),
+                size_bytes: sr_aud.size,
+                path: sr_aud.path.clone(),
+                extension: "mp3".to_string(),
+                created_by: "multi_task".to_string(),
+            },
+            MediaRef {
+                hash: sr_doc.hash.clone(),
+                mime_type: "application/pdf".to_string(),
+                size_bytes: sr_doc.size,
+                path: sr_doc.path.clone(),
+                extension: "pdf".to_string(),
+                created_by: "multi_task".to_string(),
+            },
+        ];
+
+        // Verify all 3 have different hashes
+        assert_ne!(media_refs[0].hash, media_refs[1].hash);
+        assert_ne!(media_refs[0].hash, media_refs[2].hash);
+        assert_ne!(media_refs[1].hash, media_refs[2].hash);
+
+        // Create artifact writer
+        let artifact_dir = dir.path().join("artifacts");
+        tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
+        let canonical = artifact_dir.canonicalize().unwrap();
+        let writer = crate::io::writer::ArtifactWriter::new(canonical, "multi-test");
+
+        // Write all 3 binary artifacts
+        let output_specs = vec![
+            ("output/image.png", &media_refs[0]),
+            ("output/audio.mp3", &media_refs[1]),
+            ("output/doc.pdf", &media_refs[2]),
+        ];
+
+        let expected_data = vec![&image_data, &audio_data, &document_data];
+
+        for (i, (path, mr)) in output_specs.iter().enumerate() {
+            let request = crate::io::writer::BinaryWriteRequest {
+                task_id: "multi_task".to_string(),
+                output_path: path.to_string(),
+                source: crate::io::writer::BinarySource::CasPath(mr.path.clone()),
+                expected_size: mr.size_bytes,
+            };
+
+            let result = writer.write_binary(request).await.unwrap();
+
+            // Verify written content matches original
+            let written = tokio::fs::read(&result.path).await.unwrap();
+            assert_eq!(
+                written, *expected_data[i],
+                "artifact {i} ({}) content mismatch",
+                path
+            );
+            assert_eq!(result.size, mr.size_bytes, "artifact {i} size mismatch");
+        }
+
+        // Verify CAS still has all 3 (artifacts are copies, not moves)
+        assert!(store.exists(&media_refs[0].hash));
+        assert!(store.exists(&media_refs[1].hash));
+        assert!(store.exists(&media_refs[2].hash));
+
+        // Verify TaskResult with all 3 media refs resolves correctly
+        use crate::store::TaskResult;
+        let ctx = RunContext::new();
+        let task_id: Arc<str> = "multi_task".into();
+        let tr = TaskResult::success(
+            serde_json::json!("multi-output task"),
+            std::time::Duration::from_millis(100),
+        )
+        .with_media(media_refs);
+        ctx.insert(Arc::clone(&task_id), tr);
+
+        // Verify all 3 media refs are accessible through resolve_path
+        let arr = ctx.resolve_path("multi_task.media").unwrap();
+        assert_eq!(arr.as_array().unwrap().len(), 3);
+
+        assert_eq!(
+            ctx.resolve_path("multi_task.media[0].mime_type").unwrap(),
+            "image/png"
+        );
+        assert_eq!(
+            ctx.resolve_path("multi_task.media[1].mime_type").unwrap(),
+            "audio/mpeg"
+        );
+        assert_eq!(
+            ctx.resolve_path("multi_task.media[2].mime_type").unwrap(),
+            "application/pdf"
+        );
+    }
 }

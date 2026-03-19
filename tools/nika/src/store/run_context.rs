@@ -242,6 +242,21 @@ impl RunContext {
         self.results.contains_key(task_id)
     }
 
+    /// Iterate over all task results (cloned).
+    ///
+    /// Returns (task_id, TaskResult) pairs for all stored results.
+    /// Used by integrity checks at workflow end.
+    ///
+    /// Note: for_each tasks store both individual iteration entries (task[0], task[1], ...)
+    /// and an aggregated parent entry (task). Media refs appear in both, so callers
+    /// doing per-file checks may see duplicates. This is acceptable for warn-only checks.
+    pub(crate) fn iter_results(&self) -> Vec<(Arc<str>, TaskResult)> {
+        self.results
+            .iter()
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect()
+    }
+
     /// Check if task succeeded
     pub fn is_success(&self, task_id: &str) -> bool {
         self.get(task_id).is_some_and(|r| r.is_success())
@@ -1294,5 +1309,42 @@ mod tests {
         // Standard output field should still resolve normally
         let prompt = store.resolve_path("gen_img.prompt").unwrap();
         assert_eq!(prompt, "a cat");
+    }
+
+    #[test]
+    fn iter_results_returns_all_entries() {
+        let store = RunContext::new();
+        store.insert(
+            Arc::from("task1"),
+            TaskResult::success_str("out1", Duration::from_millis(10)),
+        );
+        store.insert(
+            Arc::from("task2"),
+            TaskResult::success_str("out2", Duration::from_millis(20)),
+        );
+        store.insert(
+            Arc::from("task3"),
+            TaskResult::failed("err", Duration::from_millis(5)),
+        );
+
+        let results = store.iter_results();
+        assert_eq!(results.len(), 3);
+
+        // All task IDs should be present
+        let ids: Vec<String> = results.iter().map(|(id, _)| id.to_string()).collect();
+        assert!(ids.contains(&"task1".to_string()));
+        assert!(ids.contains(&"task2".to_string()));
+        assert!(ids.contains(&"task3".to_string()));
+    }
+
+    #[test]
+    fn iter_results_includes_media_refs() {
+        let store = RunContext::new();
+        store.insert(Arc::from("gen_img"), task_with_media());
+
+        let results = store.iter_results();
+        let (_, result) = results.iter().find(|(id, _)| id.as_ref() == "gen_img").unwrap();
+        assert_eq!(result.media.len(), 2);
+        assert_eq!(result.media[0].hash, "blake3:af1349b9");
     }
 }

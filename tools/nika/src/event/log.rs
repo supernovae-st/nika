@@ -2,7 +2,7 @@
 //!
 //! Provides full audit trail with replay capability.
 //! - Event: envelope with id + timestamp + kind
-//! - EventKind: 36 variants across 11 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output)
+//! - EventKind: 37 variants across 12 categories (workflow/task/fine-grained/MCP/context/agent/guardrails/builtin/artifact/media/structured-output/media-cleanup)
 //! - EventLog: thread-safe, append-only log
 //!
 //! `AgentTurnMetadata` provides reasoning capture (thinking, tokens, stop_reason).
@@ -437,8 +437,11 @@ pub enum EventKind {
         path: String,
         /// Size in bytes
         size: u64,
-        /// Output format (text, json)
+        /// Output format (text, json, binary)
         format: String,
+        /// Blake3 checksum from CAS (binary artifacts only)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        checksum: Option<String>,
     },
     /// Artifact write failed
     ArtifactFailed {
@@ -499,6 +502,14 @@ pub enum EventKind {
         reason: String,
     },
 
+    /// Media integrity check completed (emitted after all tasks finish)
+    MediaIntegrityCheck {
+        /// Number of media refs checked
+        checked: u64,
+        /// Number of integrity warnings (missing files, size mismatches)
+        warnings: u64,
+    },
+
     // ═══════════════════════════════════════════
     // STRUCTURED OUTPUT EVENTS
     // ═══════════════════════════════════════════
@@ -536,6 +547,19 @@ pub enum EventKind {
         layer_name: String,
         /// Total attempts across all layers before success
         total_attempts: u32,
+    },
+
+    // ═══════════════════════════════════════════
+    // MEDIA CLEANUP EVENTS
+    // ═══════════════════════════════════════════
+    /// Media store cleanup (GC) operation completed
+    MediaCleanup {
+        /// Number of files removed
+        removed: u64,
+        /// Total bytes freed
+        bytes_freed: u64,
+        /// Whether this was a dry-run (no files actually deleted)
+        dry_run: bool,
     },
 }
 
@@ -581,7 +605,9 @@ impl EventKind {
             | Self::WorkflowPaused
             | Self::WorkflowResumed
             | Self::McpConnected { .. }
-            | Self::McpError { .. } => None,
+            | Self::McpError { .. }
+            | Self::MediaCleanup { .. }
+            | Self::MediaIntegrityCheck { .. } => None,
         }
     }
 
@@ -1857,8 +1883,8 @@ mod tests {
     // WAVE 2 TESTS: NDJSON event system audit
     // ═══════════════════════════════════════════════════════════════
 
-    /// Helper: build one instance of every EventKind variant (all 36)
-    fn all_36_variants() -> Vec<EventKind> {
+    /// Helper: build one instance of every EventKind variant (all 37)
+    fn all_38_variants() -> Vec<EventKind> {
         vec![
             // Workflow (6)
             EventKind::WorkflowStarted {
@@ -2038,6 +2064,7 @@ mod tests {
                 path: "/tmp/output.json".into(),
                 size: 1024,
                 format: "json".into(),
+                checksum: None,
             },
             EventKind::ArtifactFailed {
                 task_id: "t1".into(),
@@ -2085,22 +2112,33 @@ mod tests {
                 layer_name: "rig_extractor".into(),
                 total_attempts: 1,
             },
+            // Media Cleanup (1)
+            EventKind::MediaCleanup {
+                removed: 5,
+                bytes_freed: 10240,
+                dry_run: false,
+            },
+            // Media Integrity Check (1)
+            EventKind::MediaIntegrityCheck {
+                checked: 10,
+                warnings: 0,
+            },
         ]
     }
 
     #[test]
-    fn wave2_variant_count_is_36() {
-        let variants = all_36_variants();
+    fn wave2_variant_count_is_38() {
+        let variants = all_38_variants();
         assert_eq!(
             variants.len(),
-            36,
-            "EventKind should have exactly 36 variants"
+            38,
+            "EventKind should have exactly 38 variants"
         );
     }
 
     #[test]
     fn wave2_all_variants_serialize_deserialize_roundtrip() {
-        for (i, variant) in all_36_variants().into_iter().enumerate() {
+        for (i, variant) in all_38_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant)
                 .unwrap_or_else(|e| panic!("variant {i} failed to serialize: {e}"));
             let back: EventKind = serde_json::from_str(&json)
@@ -2112,7 +2150,7 @@ mod tests {
     #[test]
     fn wave2_ndjson_no_embedded_newlines() {
         // NDJSON = one JSON object per line, no embedded newlines
-        for (i, variant) in all_36_variants().into_iter().enumerate() {
+        for (i, variant) in all_38_variants().into_iter().enumerate() {
             let json = serde_json::to_string(&variant).unwrap();
             assert!(
                 !json.contains('\n'),
@@ -2320,10 +2358,10 @@ mod tests {
 
     #[test]
     fn wave2_task_id_extraction_all_variants() {
-        let variants = all_36_variants();
-        // Variants WITH task_id (26 of them)
+        let variants = all_38_variants();
+        // Variants WITH task_id (27 of them)
         let with_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_some()).collect();
-        // Variants WITHOUT task_id (8): 6 workflow + McpConnected + McpError
+        // Variants WITHOUT task_id (11): 6 workflow + McpConnected + McpError + Custom(None) + MediaCleanup + MediaIntegrityCheck
         let without_task_id: Vec<_> = variants.iter().filter(|v| v.task_id().is_none()).collect();
 
         // Custom has task_id: None in our test data, so it goes in without
@@ -2335,8 +2373,8 @@ mod tests {
         );
         assert_eq!(
             without_task_id.len(),
-            9,
-            "9 variants should lack task_id (workflow-level + McpConnected + McpError + Custom with None)"
+            11,
+            "11 variants should lack task_id (workflow-level + McpConnected + McpError + Custom with None + MediaCleanup + MediaIntegrityCheck)"
         );
     }
 

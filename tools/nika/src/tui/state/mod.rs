@@ -1052,6 +1052,24 @@ impl TuiState {
                 ));
                 self.dirty.notifications = true;
             }
+            EventKind::MediaCleanup { removed, bytes_freed, dry_run } => {
+                if !dry_run {
+                    self.add_notification(Notification::info(
+                        format!("Media cleanup: removed {} files, freed {} bytes", removed, bytes_freed),
+                        timestamp_ms,
+                    ));
+                    self.dirty.notifications = true;
+                }
+            }
+            EventKind::MediaIntegrityCheck { checked, warnings } => {
+                if *warnings > 0 {
+                    self.add_notification(Notification::warning(
+                        format!("Media integrity: {}/{} refs had warnings", warnings, checked),
+                        timestamp_ms,
+                    ));
+                    self.dirty.notifications = true;
+                }
+            }
         }
     }
 

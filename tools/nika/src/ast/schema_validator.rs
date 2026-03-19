@@ -640,6 +640,69 @@ tasks:
         let result = validator.validate_value(&value);
         assert!(result.is_ok(), "JSON value validation should work");
     }
+
+    // ========================================================================
+    // Test: Artifact format: binary passes schema validation
+    // Binary format was added for CAS media pipeline support
+    // ========================================================================
+    #[test]
+    fn test_artifact_format_binary_passes_schema() {
+        let validator = WorkflowSchemaValidator::new().unwrap();
+
+        // Task-level artifact with format: binary
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: download_image
+    exec: "curl -o /tmp/img.png https://example.com/img.png"
+    artifact:
+      path: ./output/image.bin
+      format: binary
+"#;
+        let result = validator.validate_yaml(yaml);
+        assert!(
+            result.is_ok(),
+            "Artifact format: binary should pass schema validation: {:?}",
+            result
+        );
+
+        // Workflow-level artifacts config with format: binary
+        let yaml2 = r#"
+schema: "nika/workflow@0.12"
+artifacts:
+  dir: ./output
+  format: binary
+tasks:
+  - id: step1
+    exec: "echo hello"
+    artifact: true
+"#;
+        let result2 = validator.validate_yaml(yaml2);
+        assert!(
+            result2.is_ok(),
+            "Workflow-level artifacts format: binary should pass: {:?}",
+            result2
+        );
+
+        // Multiple artifacts array with format: binary
+        let yaml3 = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: multi_output
+    exec: "echo done"
+    artifact:
+      - path: ./output/data.json
+        format: json
+      - path: ./output/image.bin
+        format: binary
+"#;
+        let result3 = validator.validate_yaml(yaml3);
+        assert!(
+            result3.is_ok(),
+            "Multiple artifacts with format: binary should pass: {:?}",
+            result3
+        );
+    }
 }
 
 // ========================================================================

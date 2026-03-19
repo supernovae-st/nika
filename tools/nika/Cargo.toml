@@ -166,6 +166,7 @@ tower-lsp = { version = "0.20", optional = true }
 
 # Media pipeline (2 genuinely new + 4 zero-cost promotes from transitive)
 blake3 = { version = "1.8", features = ["mmap"] }
+reflink-copy = "0.1"  # Cross-platform reflink (instant on APFS/btrfs, fallback copy on ext4)
 infer = "0.19"
 base64 = "0.22"
 mime_guess = "2.0"
