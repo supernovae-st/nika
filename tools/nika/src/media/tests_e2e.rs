@@ -322,6 +322,7 @@ mod tests {
             path: "/tmp/store/ab/c123".into(),
             extension: "png".into(),
             created_by: "test_task".into(),
+            metadata: serde_json::Map::new(),
         }];
 
         ctx.set_media(&task_id, refs.clone());
@@ -367,6 +368,7 @@ mod tests {
             path: "/tmp/store/de/adbeef".into(),
             extension: "png".into(),
             created_by: "gen".into(),
+            metadata: serde_json::Map::new(),
         }];
 
         let tr = tr.with_media(refs);
@@ -1310,6 +1312,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/store/ab/cdef1234567890"),
             extension: "png".into(),
             created_by: "task_gen".into(),
+            metadata: serde_json::Map::new(),
         };
         let json = serde_json::to_value(&mr).unwrap();
 
@@ -1353,6 +1356,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/store/aa/bbccdd11223344"),
                 extension: "png".into(),
                 created_by: "gen_img".into(),
+                metadata: serde_json::Map::new(),
             },
             MediaRef {
                 hash: "blake3:eeff0011aabbccdd".into(),
@@ -1361,6 +1365,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/store/ee/ff0011aabbccdd"),
                 extension: "mp3".into(),
                 created_by: "gen_img".into(),
+                metadata: serde_json::Map::new(),
             },
         ]);
         ctx.insert(Arc::clone(&task_id), tr);
@@ -2203,6 +2208,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/aa/aa111122223333"),
             extension: "jpg".into(),
             created_by: "task_a".into(),
+            metadata: serde_json::Map::new(),
         }];
         let tr_a = crate::store::TaskResult::success(
             serde_json::json!({"prompt": "a dog"}),
@@ -2220,6 +2226,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/cas/bb/bb444455556666"),
                 extension: "wav".into(),
                 created_by: "task_b".into(),
+                metadata: serde_json::Map::new(),
             },
             MediaRef {
                 hash: "blake3:bbbb777788889999".into(),
@@ -2228,6 +2235,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/cas/bb/bb777788889999"),
                 extension: "mp3".into(),
                 created_by: "task_b".into(),
+                metadata: serde_json::Map::new(),
             },
         ];
         let tr_b = crate::store::TaskResult::success(
@@ -2340,6 +2348,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/fa/ce0000dead0000"),
             extension: "png".into(),
             created_by: "gen".into(),
+            metadata: serde_json::Map::new(),
         }];
         let tr = crate::store::TaskResult::success(
             serde_json::json!({
@@ -2408,6 +2417,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/re/al_media_hash000"),
             extension: "webp".into(),
             created_by: "tricky".into(),
+            metadata: serde_json::Map::new(),
         }];
         let tr = crate::store::TaskResult::success(
             serde_json::json!({
@@ -2474,6 +2484,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/01/23456789abcdef"),
             extension: "pdf".into(),
             created_by: "pdf_gen".into(),
+            metadata: serde_json::Map::new(),
         };
         let json = serde_json::to_value(&mr).unwrap();
         let obj = json
@@ -2512,6 +2523,7 @@ mod tests {
             path: std::path::PathBuf::from("/var/nika/cas/ab/cdef0123456789"),
             extension: "png".into(),
             created_by: "test".into(),
+            metadata: serde_json::Map::new(),
         };
         let json = serde_json::to_value(&mr).unwrap();
         let path_str = json["path"].as_str().unwrap();
@@ -2545,6 +2557,7 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/cas/00/00"),
                 extension: "png".into(),
                 created_by: "test".into(),
+                metadata: serde_json::Map::new(),
             };
             let json = serde_json::to_value(&mr).unwrap();
             let serialized_hash = json["hash"].as_str().unwrap();
@@ -2566,6 +2579,7 @@ mod tests {
             path: std::path::PathBuf::from("/opt/nika/cas/de/adbeefcafebabe"),
             extension: "wav".into(),
             created_by: "audio_task".into(),
+            metadata: serde_json::Map::new(),
         };
         let json_str = serde_json::to_string(&original).unwrap();
         let deserialized: MediaRef = serde_json::from_str(&json_str).unwrap();
@@ -2591,6 +2605,7 @@ mod tests {
             path: std::path::PathBuf::from("/data/cas/a1/b2c3d4e5f60000"),
             extension: "gif".into(),
             created_by: "roundtrip".into(),
+            metadata: serde_json::Map::new(),
         }];
         let tr = crate::store::TaskResult::success(
             serde_json::json!({"done": true}),
@@ -3644,6 +3659,7 @@ mod tests {
             path: store_result.path.clone(),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Verify CAS file exists and is readable
@@ -3692,6 +3708,7 @@ mod tests {
             path: result.path.clone(),
             extension: "png".to_string(),
             created_by: "task1".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Integrity check should detect missing file
@@ -3836,6 +3853,7 @@ mod tests {
                 path: sr.path.clone(),
                 extension: "bin".to_string(),
                 created_by: format!("task_{i}"),
+                metadata: serde_json::Map::new(),
             })
             .collect();
 
@@ -3908,6 +3926,7 @@ mod tests {
             path: sr.path.clone(),
             extension: "png".to_string(),
             created_by: "png_task".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Write binary artifact
@@ -3968,6 +3987,7 @@ mod tests {
             path: sr.path.clone(),
             extension: "bin".to_string(),
             created_by: "large_task".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Write binary artifact
@@ -4012,6 +4032,7 @@ mod tests {
             path: sr.path.clone(),
             extension: "bin".to_string(),
             created_by: "integrity_task".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Store MediaRef in a TaskResult and insert into RunContext
@@ -4128,6 +4149,7 @@ mod tests {
             path: sr.path.clone(),
             extension: "bin".to_string(),
             created_by: "checksum_task".to_string(),
+            metadata: serde_json::Map::new(),
         };
 
         // Write binary artifact
@@ -4198,6 +4220,7 @@ mod tests {
                 path: sr_img.path.clone(),
                 extension: "png".to_string(),
                 created_by: "multi_task".to_string(),
+                metadata: serde_json::Map::new(),
             },
             MediaRef {
                 hash: sr_aud.hash.clone(),
@@ -4206,6 +4229,7 @@ mod tests {
                 path: sr_aud.path.clone(),
                 extension: "mp3".to_string(),
                 created_by: "multi_task".to_string(),
+                metadata: serde_json::Map::new(),
             },
             MediaRef {
                 hash: sr_doc.hash.clone(),
@@ -4214,6 +4238,7 @@ mod tests {
                 path: sr_doc.path.clone(),
                 extension: "pdf".to_string(),
                 created_by: "multi_task".to_string(),
+                metadata: serde_json::Map::new(),
             },
         ];
 

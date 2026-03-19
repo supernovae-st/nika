@@ -202,6 +202,23 @@ impl MediaProcessor {
             "media: stored in CAS"
         );
 
+        // Auto-enrich metadata for images
+        let mut metadata = serde_json::Map::new();
+        if detected.mime_type.starts_with("image/") {
+            // Dimensions (fast, header-only via imagesize)
+            if let Ok(size) = imagesize::blob_size(&decoded) {
+                metadata.insert("width".into(), serde_json::json!(size.width));
+                metadata.insert("height".into(), serde_json::json!(size.height));
+            }
+
+            // ThumbHash (skip images > 10MB to avoid excessive CPU)
+            if decoded.len() < 10_000_000 {
+                if let Some(hash) = compute_thumbhash_for_enrichment(&decoded) {
+                    metadata.insert("thumbhash".into(), serde_json::json!(hash));
+                }
+            }
+        }
+
         let media_ref = MediaRef {
             hash: store_result.hash.clone(),
             mime_type: detected.mime_type,
@@ -209,9 +226,36 @@ impl MediaProcessor {
             path: store_result.path.clone(),
             extension: detected.extension,
             created_by: task_id.to_string(),
+            metadata,
         };
 
         Ok(Some((media_ref, store_result)))
+    }
+}
+
+/// Compute a thumbhash for auto-enrichment.
+///
+/// Best-effort: returns None if decoding fails.
+/// Uses the image crate when available, otherwise returns a content-based hash.
+fn compute_thumbhash_for_enrichment(data: &[u8]) -> Option<String> {
+    #[cfg(feature = "media-thumbnail")]
+    {
+        let img = image::load_from_memory(data).ok()?;
+        let small = img.resize(100, 100, image::imageops::FilterType::Triangle);
+        let rgba = small.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        let hash = thumbhash::rgba_to_thumb_hash(w as usize, h as usize, rgba.as_raw());
+        use base64::Engine;
+        Some(base64::engine::general_purpose::STANDARD.encode(&hash))
+    }
+
+    #[cfg(not(feature = "media-thumbnail"))]
+    {
+        // Without image crate, generate a content-based pseudo-hash
+        let file_hash = blake3::hash(data);
+        let bytes = file_hash.as_bytes();
+        use base64::Engine;
+        Some(base64::engine::general_purpose::STANDARD.encode(&bytes[..25]))
     }
 }
 
@@ -418,5 +462,134 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
+    }
+
+    // ═══════════════════════════════════════════
+    // AUTO-ENRICHMENT TESTS
+    // ═══════════════════════════════════════════
+
+    #[tokio::test]
+    async fn enrichment_png_has_dimensions() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image(png_base64(), "image/png");
+        let result = processor.process(&block, "t1").await.unwrap();
+        let (media_ref, _) = result.unwrap();
+
+        // PNG should have width/height in metadata
+        assert!(
+            media_ref.metadata.contains_key("width"),
+            "metadata should contain 'width', got: {:?}",
+            media_ref.metadata
+        );
+        assert!(
+            media_ref.metadata.contains_key("height"),
+            "metadata should contain 'height', got: {:?}",
+            media_ref.metadata
+        );
+    }
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn enrichment_png_has_thumbhash() {
+        // Need a FULL decodable PNG for thumbhash (png_base64 is just header)
+        let full_png = {
+            use image::{ImageBuffer, Rgb};
+            let img = ImageBuffer::from_pixel(4, 4, Rgb([255u8, 0, 0]));
+            let mut buf = Vec::new();
+            let enc = image::codecs::png::PngEncoder::new(&mut buf);
+            image::ImageEncoder::write_image(enc, img.as_raw(), 4, 4, image::ExtendedColorType::Rgb8).unwrap();
+            base64::engine::general_purpose::STANDARD.encode(&buf)
+        };
+
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image(full_png, "image/png");
+        let result = processor.process(&block, "t1").await.unwrap();
+        let (media_ref, _) = result.unwrap();
+
+        // Should have thumbhash
+        assert!(
+            media_ref.metadata.contains_key("thumbhash"),
+            "metadata should contain 'thumbhash', got: {:?}",
+            media_ref.metadata
+        );
+        let th = media_ref.metadata.get("thumbhash").unwrap().as_str().unwrap();
+        // Verify it's valid base64
+        assert!(
+            base64::engine::general_purpose::STANDARD.decode(th).is_ok(),
+            "thumbhash should be valid base64: {th}"
+        );
+    }
+
+    #[tokio::test]
+    async fn enrichment_non_image_no_dimensions() {
+        // WAV RIFF header (minimal)
+        let wav_data: Vec<u8> = vec![
+            0x52, 0x49, 0x46, 0x46, // "RIFF"
+            0x24, 0x00, 0x00, 0x00, // chunk size
+            0x57, 0x41, 0x56, 0x45, // "WAVE"
+            0x66, 0x6D, 0x74, 0x20, // "fmt "
+            0x10, 0x00, 0x00, 0x00, // subchunk size
+            0x01, 0x00,             // PCM
+            0x01, 0x00,             // mono
+            0x44, 0xAC, 0x00, 0x00, // 44100 Hz
+            0x88, 0x58, 0x01, 0x00, // byte rate
+            0x02, 0x00,             // block align
+            0x10, 0x00,             // bits per sample
+            0x64, 0x61, 0x74, 0x61, // "data"
+            0x00, 0x00, 0x00, 0x00, // data size
+        ];
+        let wav_b64 = base64::engine::general_purpose::STANDARD.encode(&wav_data);
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::audio(wav_b64, "audio/wav");
+        let result = processor.process(&block, "t1").await.unwrap();
+        let (media_ref, _) = result.unwrap();
+
+        // Audio should NOT have dimensions or thumbhash
+        assert!(
+            !media_ref.metadata.contains_key("width"),
+            "audio should not have width in metadata"
+        );
+        assert!(
+            !media_ref.metadata.contains_key("thumbhash"),
+            "audio should not have thumbhash in metadata"
+        );
+    }
+
+    #[tokio::test]
+    async fn enrichment_metadata_serializes_cleanly() {
+        let (processor, _dir) = make_processor_with_dir();
+        let block = ContentBlock::image(png_base64(), "image/png");
+        let result = processor.process(&block, "t1").await.unwrap();
+        let (media_ref, _) = result.unwrap();
+
+        // Roundtrip through JSON
+        let json = serde_json::to_string(&media_ref).unwrap();
+        let back: MediaRef = serde_json::from_str(&json).unwrap();
+        assert_eq!(media_ref, back);
+
+        // With metadata populated, the JSON should contain the metadata
+        if media_ref.metadata.contains_key("width") {
+            assert!(json.contains("metadata"));
+            assert!(json.contains("width"));
+        }
+    }
+
+    #[tokio::test]
+    async fn enrichment_empty_metadata_not_serialized() {
+        // Test that empty metadata is skipped in serialization
+        let mr = MediaRef {
+            hash: "blake3:test".to_string(),
+            mime_type: "text/plain".to_string(),
+            size_bytes: 10,
+            path: std::path::PathBuf::from("/tmp/test"),
+            extension: "txt".to_string(),
+            created_by: "test".to_string(),
+            metadata: serde_json::Map::new(),
+        };
+        let json = serde_json::to_string(&mr).unwrap();
+        assert!(
+            !json.contains("metadata"),
+            "empty metadata should not appear in JSON: {json}"
+        );
     }
 }

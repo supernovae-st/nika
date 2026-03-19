@@ -1202,6 +1202,7 @@ mod tests {
                 path: PathBuf::from("/tmp/cas/af/1349b9"),
                 extension: "png".to_string(),
                 created_by: "gen_img".to_string(),
+                metadata: serde_json::Map::new(),
             },
             crate::media::MediaRef {
                 hash: "blake3:deadbeef".to_string(),
@@ -1210,6 +1211,7 @@ mod tests {
                 path: PathBuf::from("/tmp/cas/de/adbeef"),
                 extension: "wav".to_string(),
                 created_by: "gen_img".to_string(),
+                metadata: serde_json::Map::new(),
             },
         ];
         TaskResult::success(json!({"prompt": "a cat"}), Duration::from_secs(1))

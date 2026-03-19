@@ -1467,6 +1467,7 @@ mod tests {
             path: cas_file.clone(),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -1525,6 +1526,7 @@ mod tests {
                 path: cas_file1,
                 extension: "png".to_string(),
                 created_by: "gen_img".to_string(),
+                metadata: serde_json::Map::new(),
             },
             MediaRef {
                 hash: "blake3:hash2".to_string(),
@@ -1533,6 +1535,7 @@ mod tests {
                 path: cas_file2.clone(),
                 extension: "jpg".to_string(),
                 created_by: "gen_thumb".to_string(),
+                metadata: serde_json::Map::new(),
             },
         ];
 
@@ -1665,6 +1668,7 @@ mod tests {
             path: cas_file,
             extension: "bin".to_string(),
             created_by: "producer".to_string(),
+            metadata: serde_json::Map::new(),
         }];
         (base, media_refs, ResolvedBindings::default(), RunContext::new())
     }
@@ -1791,6 +1795,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/af/1349b9"),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
         datastore.insert(Arc::from("gen_img"), task_result);
 
@@ -1826,6 +1831,7 @@ mod tests {
             path: std::path::PathBuf::from("/tmp/cas/de/adbeef"),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
         datastore.insert(Arc::from("gen_img"), task_result);
 
@@ -1888,6 +1894,7 @@ mod tests {
             path: cas_file.clone(),
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
         datastore.insert(Arc::from("gen_img"), task_result);
 
@@ -1901,6 +1908,7 @@ mod tests {
             path: cas_file,
             extension: "png".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
@@ -1954,6 +1962,7 @@ mod tests {
             path: cas_file.clone(),
             extension: "jpg".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
         datastore.insert(Arc::from("gen_img"), task_result);
 
@@ -1967,6 +1976,7 @@ mod tests {
             path: cas_file,
             extension: "jpg".to_string(),
             created_by: "gen_img".to_string(),
+            metadata: serde_json::Map::new(),
         }];
 
         let spec = ArtifactSpec::Single(ArtifactOutput {
