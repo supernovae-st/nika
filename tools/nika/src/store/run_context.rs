@@ -1349,4 +1349,167 @@ mod tests {
         assert_eq!(result.media.len(), 2);
         assert_eq!(result.media[0].hash, "blake3:af1349b9");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MEDIA TOOL INVOKE RESULT — Template binding integration
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn invoke_json_result_accessible_via_template_binding() {
+        // When invoke: nika:thumbnail returns a JSON string like:
+        // {"hash":"blake3:abc","mime_type":"image/png","size_bytes":1234,"metadata":{"width":256}}
+        // The result is stored as Value::String(json_str).
+        // Downstream tasks must be able to access {{with.thumb.hash}} etc.
+
+        let store = RunContext::new();
+        // Simulate what run_invoke + make_task_result does: stores JSON as Value::String
+        let invoke_output = r#"{"hash":"blake3:abc123","mime_type":"image/png","size_bytes":1234,"metadata":{"width":256,"height":192}}"#;
+        store.insert(
+            Arc::from("thumb"),
+            TaskResult::success_str(invoke_output, Duration::from_millis(100)),
+        );
+
+        // These must resolve correctly via auto-parse of JSON strings
+        let hash = store.resolve_path("thumb.hash").unwrap();
+        assert_eq!(hash, "blake3:abc123", "{{{{with.thumb.hash}}}} must resolve");
+
+        let mime = store.resolve_path("thumb.mime_type").unwrap();
+        assert_eq!(mime, "image/png", "{{{{with.thumb.mime_type}}}} must resolve");
+
+        let size = store.resolve_path("thumb.size_bytes").unwrap();
+        assert_eq!(size, 1234, "{{{{with.thumb.size_bytes}}}} must resolve");
+
+        // Nested metadata access
+        let width = store.resolve_path("thumb.metadata.width").unwrap();
+        assert_eq!(width, 256, "{{{{with.thumb.metadata.width}}}} must resolve");
+
+        let height = store.resolve_path("thumb.metadata.height").unwrap();
+        assert_eq!(height, 192, "{{{{with.thumb.metadata.height}}}} must resolve");
+    }
+
+    #[test]
+    fn invoke_json_result_with_array_accessible() {
+        // nika:dominant_color returns {"colors":[{"r":255,"g":0,"b":0,"hex":"#ff0000"}],"count":1}
+        let store = RunContext::new();
+        let invoke_output = r##"{"colors":[{"r":255,"g":0,"b":0,"hex":"#ff0000"},{"r":0,"g":0,"b":255,"hex":"#0000ff"}],"count":2}"##;
+        store.insert(
+            Arc::from("colors"),
+            TaskResult::success_str(invoke_output, Duration::from_millis(50)),
+        );
+
+        let count = store.resolve_path("colors.count").unwrap();
+        assert_eq!(count, 2);
+
+        let first_hex = store.resolve_path("colors.colors[0].hex").unwrap();
+        assert_eq!(first_hex, "#ff0000");
+
+        let second_r = store.resolve_path("colors.colors[1].r").unwrap();
+        assert_eq!(second_r, 0);
+    }
+
+    #[test]
+    fn invoke_dimensions_result_accessible() {
+        // nika:dimensions returns {"width":1024,"height":768,"orientation":"landscape"}
+        let store = RunContext::new();
+        let invoke_output = r#"{"width":1024,"height":768,"orientation":"landscape"}"#;
+        store.insert(
+            Arc::from("dim"),
+            TaskResult::success_str(invoke_output, Duration::from_millis(10)),
+        );
+
+        assert_eq!(store.resolve_path("dim.width").unwrap(), 1024);
+        assert_eq!(store.resolve_path("dim.height").unwrap(), 768);
+        assert_eq!(store.resolve_path("dim.orientation").unwrap(), "landscape");
+    }
+
+    #[test]
+    fn enriched_media_ref_metadata_accessible() {
+        // MediaRef with enriched metadata must be accessible
+        let store = RunContext::new();
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("width".into(), json!(512));
+        metadata.insert("height".into(), json!(384));
+        metadata.insert("thumbhash".into(), json!("dGVzdA=="));
+
+        let media = vec![crate::media::MediaRef {
+            hash: "blake3:enriched123".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 2048,
+            path: std::path::PathBuf::from("/cas/en/riched123"),
+            extension: "png".to_string(),
+            created_by: "gen".to_string(),
+            metadata,
+        }];
+
+        store.insert(
+            Arc::from("gen"),
+            TaskResult::success(json!("image generated"), Duration::from_secs(1))
+                .with_media(media),
+        );
+
+        // Media ref fields
+        assert_eq!(
+            store.resolve_path("gen.media[0].hash").unwrap(),
+            "blake3:enriched123"
+        );
+        // Enriched metadata
+        assert_eq!(
+            store.resolve_path("gen.media[0].metadata.width").unwrap(),
+            512
+        );
+        assert_eq!(
+            store.resolve_path("gen.media[0].metadata.height").unwrap(),
+            384
+        );
+        assert_eq!(
+            store.resolve_path("gen.media[0].metadata.thumbhash").unwrap(),
+            "dGVzdA=="
+        );
+    }
+
+    #[test]
+    fn chained_invoke_bindings_work() {
+        // Simulate: gen → media[0].hash → thumb (invoke) → dim (invoke)
+        let store = RunContext::new();
+
+        // Task "gen" has media
+        let media = vec![crate::media::MediaRef {
+            hash: "blake3:source_hash".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 5000,
+            path: std::path::PathBuf::from("/cas/so/urce"),
+            extension: "png".to_string(),
+            created_by: "gen".to_string(),
+            metadata: serde_json::Map::new(),
+        }];
+        store.insert(
+            Arc::from("gen"),
+            TaskResult::success(json!("ok"), Duration::from_secs(1)).with_media(media),
+        );
+
+        // Task "thumb" returns invoke result (JSON string)
+        store.insert(
+            Arc::from("thumb"),
+            TaskResult::success_str(
+                r#"{"hash":"blake3:thumb_hash","size_bytes":1500,"metadata":{"width":256}}"#,
+                Duration::from_millis(200),
+            ),
+        );
+
+        // Task "dim" returns dimensions (JSON string)
+        store.insert(
+            Arc::from("dim"),
+            TaskResult::success_str(
+                r#"{"width":256,"height":192,"orientation":"landscape"}"#,
+                Duration::from_millis(10),
+            ),
+        );
+
+        // Verify full chain is accessible
+        assert_eq!(store.resolve_path("gen.media[0].hash").unwrap(), "blake3:source_hash");
+        assert_eq!(store.resolve_path("thumb.hash").unwrap(), "blake3:thumb_hash");
+        assert_eq!(store.resolve_path("thumb.metadata.width").unwrap(), 256);
+        assert_eq!(store.resolve_path("dim.width").unwrap(), 256);
+        assert_eq!(store.resolve_path("dim.orientation").unwrap(), "landscape");
+    }
 }

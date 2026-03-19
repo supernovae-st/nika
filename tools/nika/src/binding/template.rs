@@ -3193,4 +3193,294 @@ mod v028_template_tests {
             );
         }
     }
+
+    // =========================================================================
+    // Media Tool Results → Template Resolution (Full Pipeline)
+    // =========================================================================
+    //
+    // End-to-end tests for media tool results flowing through template_resolve().
+    //
+    // Architecture:
+    //   RunContext (task results + media refs)
+    //     → BindingSpec (with: block declarations)
+    //       → ResolvedBindings (from_binding_spec resolves eagerly or lazily)
+    //         → template_resolve() (substitutes {{with.alias}} in strings)
+    //
+    // Media refs live in TaskResult.media (side-channel), NOT in TaskResult.output.
+    // The binding spec intercepts "media" paths and delegates to RunContext.resolve_path().
+    // This means:
+    //   - `hash: $gen.media[0].hash` works (binding spec intercepts media prefix)
+    //   - `{{with.hash}}` resolves to the hash value
+    //
+    // Direct template traversal like `{{with.gen.media[0].hash}}` where gen is
+    // bound to the entire task output does NOT work because the template engine
+    // traverses the output JSON, which does not contain media refs.
+
+    /// Helper: build RunContext + ResolvedBindings for media template tests.
+    fn media_template_fixtures() -> (RunContext, ResolvedBindings) {
+        use crate::binding::entry::{BindingEntry, BindingSpec};
+
+        let store = RunContext::new();
+
+        // Task "gen": image generation with media refs
+        let gen_media = vec![crate::media::MediaRef {
+            hash: "blake3:abc123".to_string(),
+            mime_type: "image/png".to_string(),
+            size_bytes: 524288,
+            path: std::path::PathBuf::from("/tmp/cas/ab/c123"),
+            extension: "png".to_string(),
+            created_by: "gen".to_string(),
+            metadata: {
+                let mut m = serde_json::Map::new();
+                m.insert("width".to_string(), json!(1024));
+                m.insert("height".to_string(), json!(768));
+                m
+            },
+        }];
+        store.insert(
+            std::sync::Arc::from("gen"),
+            crate::store::TaskResult::success(
+                json!({"prompt": "a sunset photo"}),
+                std::time::Duration::from_secs(3),
+            )
+            .with_media(gen_media),
+        );
+
+        // Task "thumb": invoke returns JSON-string output
+        store.insert(
+            std::sync::Arc::from("thumb"),
+            crate::store::TaskResult::success_str(
+                r#"{"hash":"blake3:def456","mime_type":"image/png","size_bytes":2048,"metadata":{"width":256,"height":192}}"#,
+                std::time::Duration::from_millis(100),
+            ),
+        );
+
+        // Build binding spec (simulates the with: block)
+        let mut spec = BindingSpec::default();
+        // Direct media ref bindings (resolved eagerly via binding spec interception)
+        spec.insert(
+            "source_hash".to_string(),
+            BindingEntry::new("gen.media[0].hash"),
+        );
+        spec.insert(
+            "source_width".to_string(),
+            BindingEntry::new("gen.media[0].metadata.width"),
+        );
+        // Invoke output bindings (resolved eagerly via JSON-string auto-parse)
+        spec.insert("thumb".to_string(), BindingEntry::new("thumb"));
+        spec.insert(
+            "thumb_hash".to_string(),
+            BindingEntry::new("thumb.hash"),
+        );
+        spec.insert(
+            "thumb_width".to_string(),
+            BindingEntry::new("thumb.metadata.width"),
+        );
+
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+        (store, bindings)
+    }
+
+    #[test]
+    fn media_template_resolve_source_hash() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "Source image hash: {{with.source_hash}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "Source image hash: blake3:abc123");
+    }
+
+    #[test]
+    fn media_template_resolve_source_width() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "Original width: {{with.source_width}}px",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "Original width: 1024px");
+    }
+
+    #[test]
+    fn media_template_resolve_thumb_hash() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "Thumbnail hash: {{with.thumb_hash}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "Thumbnail hash: blake3:def456");
+    }
+
+    #[test]
+    fn media_template_resolve_thumb_nested_width() {
+        let (store, bindings) = media_template_fixtures();
+
+        let result = resolve(
+            "Thumb is {{with.thumb_width}}px wide",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(result.as_ref(), "Thumb is 256px wide");
+    }
+
+    #[test]
+    fn media_template_thumb_output_traversal_requires_binding_spec() {
+        let (store, bindings) = media_template_fixtures();
+
+        // When "thumb" is bound to the entire invoke output (a JSON string),
+        // the template engine cannot traverse `.hash` because it sees a
+        // Value::String, not a parsed object. This is expected behavior:
+        // the binding spec must declare the specific path (e.g., thumb.hash)
+        // rather than relying on template-level traversal of JSON strings.
+        //
+        // Use the dedicated binding: {{with.thumb_hash}} (bound to $thumb.hash)
+        let result = resolve(
+            "Hash via binding spec: {{with.thumb_hash}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(result.as_ref(), "Hash via binding spec: blake3:def456");
+
+        // Template-level traversal on a JSON-string value errors correctly
+        let err = resolve(
+            "Broken: {{with.thumb.hash}}",
+            &bindings,
+            &store,
+        );
+        assert!(
+            err.is_err(),
+            "Traversing .hash on a JSON-string Value::String should error"
+        );
+    }
+
+    #[test]
+    fn media_template_thumb_deep_traversal_via_binding_spec() {
+        let (store, bindings) = media_template_fixtures();
+
+        // Deep path thumb.metadata.width works via binding spec (thumb_width)
+        let result = resolve(
+            "Width: {{with.thumb_width}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(result.as_ref(), "Width: 256");
+    }
+
+    #[test]
+    fn media_template_thumb_output_as_parsed_json_object() {
+        // When invoke output is stored as Value::Object (not Value::String),
+        // template-level traversal works. This happens when the runner parses
+        // JSON before storing in TaskResult (the Value variant, not success_str).
+        let store = RunContext::new();
+        store.insert(
+            std::sync::Arc::from("thumb2"),
+            crate::store::TaskResult::success(
+                json!({
+                    "hash": "blake3:parsed_obj",
+                    "metadata": { "width": 128 }
+                }),
+                std::time::Duration::from_millis(50),
+            ),
+        );
+
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("thumb2", json!({"hash": "blake3:parsed_obj", "metadata": {"width": 128}}));
+
+        let result = resolve(
+            "Hash: {{with.thumb2.hash}}, Width: {{with.thumb2.metadata.width}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.as_ref(),
+            "Hash: blake3:parsed_obj, Width: 128"
+        );
+    }
+
+    #[test]
+    fn media_template_chained_bindings_in_one_template() {
+        let (store, bindings) = media_template_fixtures();
+
+        // Use multiple media bindings in a single template string
+        let result = resolve(
+            "Source: {{with.source_hash}}, Thumb: {{with.thumb_hash}}, Width: {{with.thumb_width}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.as_ref(),
+            "Source: blake3:abc123, Thumb: blake3:def456, Width: 256"
+        );
+    }
+
+    #[test]
+    fn media_template_chained_bindings_in_prompt() {
+        let (store, bindings) = media_template_fixtures();
+
+        // Realistic prompt that chains multiple media outputs
+        let result = resolve(
+            "The image ({{with.source_hash}}) was resized to {{with.thumb_width}}px. \
+             The thumbnail hash is {{with.thumb_hash}}.",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        assert_eq!(
+            result.as_ref(),
+            "The image (blake3:abc123) was resized to 256px. \
+             The thumbnail hash is blake3:def456."
+        );
+    }
+
+    #[test]
+    fn media_template_no_templates_returns_borrowed() {
+        let (store, bindings) = media_template_fixtures();
+
+        // No templates -> should return Cow::Borrowed (zero allocation)
+        let result = resolve("plain text without templates", &bindings, &store).unwrap();
+        assert!(
+            matches!(result, std::borrow::Cow::Borrowed(_)),
+            "No-template strings should be zero-alloc Cow::Borrowed"
+        );
+    }
+
+    #[test]
+    fn media_template_json_context_escaping() {
+        let (store, bindings) = media_template_fixtures();
+
+        // When a template appears inside a JSON string context, values are
+        // JSON-escaped. This is important for media hashes in JSON payloads.
+        let result = resolve(
+            r#"{"source": "{{with.source_hash}}", "thumb": "{{with.thumb_hash}}"}"#,
+            &bindings,
+            &store,
+        )
+        .unwrap();
+
+        // Parse as JSON to verify it's valid
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["source"], "blake3:abc123");
+        assert_eq!(parsed["thumb"], "blake3:def456");
+    }
 }
