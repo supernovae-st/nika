@@ -215,6 +215,81 @@ mod tests {
   }
 
   // ═══════════════════════════════════════════
+  // SECURITY HARDENING TESTS (from audit)
+  // ═══════════════════════════════════════════
+
+  #[test]
+  fn security_svg_xlink_href_blocked() {
+    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg">
+      <image xlink:href="https://evil.com/track" width="10" height="10"/>
+    </svg>"#;
+    let result = sanitize_svg(svg);
+    assert!(result.is_err(), "xlink:href should be blocked");
+    assert!(result.unwrap_err().to_string().contains("NIKA-297"));
+  }
+
+  #[test]
+  fn security_svg_file_protocol_blocked() {
+    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg">
+      <image href="file:///etc/passwd" width="10" height="10"/>
+    </svg>"#;
+    let result = sanitize_svg(svg);
+    assert!(result.is_err(), "file:// should be blocked");
+  }
+
+  #[test]
+  fn security_svg_data_html_blocked() {
+    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg">
+      <image href="data:text/html,<script>alert(1)</script>" width="10" height="10"/>
+    </svg>"#;
+    let result = sanitize_svg(svg);
+    assert!(result.is_err(), "data:text/html should be blocked");
+  }
+
+  #[tokio::test]
+  async fn security_cas_path_traversal_blocked() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = CasStore::new(dir.path());
+    // Attempt path traversal via crafted hash
+    let result = store.read("blake3:../../etc/passwd").await;
+    assert!(result.is_err(), "path traversal hash should be rejected");
+  }
+
+  #[tokio::test]
+  async fn security_cas_non_hex_hash_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = CasStore::new(dir.path());
+    let result = store.read("blake3:zzzzzzzzzz").await;
+    assert!(result.is_err(), "non-hex hash should be rejected");
+  }
+
+  #[cfg(feature = "media-thumbnail")]
+  #[tokio::test]
+  async fn security_thumbnail_width_clamped() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png_100x50();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = crate::runtime::builtin::media::thumbnail::ThumbnailOp;
+    // Width > 10000 should be rejected
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "width": 50000
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+  }
+
+  #[tokio::test]
+  async fn security_cancelled_workflow_stops_tools() {
+    let (_dir, ctx) = setup().await;
+    ctx.cancel.cancel(); // Cancel the workflow
+
+    let op = DimensionsOp;
+    let result = op.execute(serde_json::json!({"hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000"}), &ctx).await;
+    assert!(result.is_err(), "cancelled workflow should stop tool execution");
+  }
+
+  // ═══════════════════════════════════════════
   // FUZZ — No tool should ever panic
   // ═══════════════════════════════════════════
 

@@ -41,11 +41,12 @@ impl MediaOp for ConvertOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("convert", "missing 'hash'"))?;
       let format = args.get("format").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("convert", "missing 'format'"))?;
-      let quality = args.get("quality").and_then(|v| v.as_u64()).unwrap_or(85) as u8;
+      let quality = args.get("quality").and_then(|v| v.as_u64()).unwrap_or(85).clamp(1, 100) as u8;
 
       let data = ctx.read_media(hash).await?;
       let format_owned = format.to_string();

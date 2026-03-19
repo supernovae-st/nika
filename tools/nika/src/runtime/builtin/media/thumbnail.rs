@@ -43,6 +43,7 @@ impl MediaOp for ThumbnailOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("thumbnail", "missing 'hash'"))?;
       let target_width = args.get("width").and_then(|v| v.as_u64())
@@ -50,8 +51,13 @@ impl MediaOp for ThumbnailOp {
       let target_height = args.get("height").and_then(|v| v.as_u64()).map(|h| h as u32);
       let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("png").to_string();
 
-      if target_width == 0 {
-        return Err(invalid_args("thumbnail", "width must be > 0"));
+      if target_width == 0 || target_width > 10_000 {
+        return Err(invalid_args("thumbnail", "width must be 1..10000"));
+      }
+      if let Some(h) = target_height {
+        if h == 0 || h > 10_000 {
+          return Err(invalid_args("thumbnail", "height must be 1..10000"));
+        }
       }
 
       let data = ctx.read_media(hash).await?;

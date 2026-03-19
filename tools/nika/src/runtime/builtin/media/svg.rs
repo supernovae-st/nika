@@ -54,6 +54,7 @@ impl MediaOp for SvgRenderOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("svg_render", "missing 'hash'"))?;
       let req_width = args.get("width").and_then(|v| v.as_u64()).map(|w| w as u32);
@@ -93,8 +94,8 @@ impl MediaOp for SvgRenderOp {
           (None, None) => (svg_size.width() as u32, svg_size.height() as u32),
         };
 
-        let w = w.max(1);
-        let h = h.max(1);
+        let w = w.clamp(1, 10_000);
+        let h = h.clamp(1, 10_000);
 
         let mut pixmap = tiny_skia::Pixmap::new(w, h)
           .ok_or_else(|| tool_error("svg_render", format!("failed to create {w}x{h} pixmap")))?;

@@ -65,7 +65,7 @@ pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> 
 pub fn sanitize_svg(input: &str) -> Result<&str, NikaError> {
   let lower = input.to_ascii_lowercase();
 
-  for pattern in ["<script", "<foreignobject", "javascript:"] {
+  for pattern in ["<script", "<foreignobject", "javascript:", "xlink:href", "file://", "data:text/html"] {
     if lower.contains(pattern) {
       return Err(security_violation(
         "svg_render",

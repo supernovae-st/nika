@@ -240,7 +240,10 @@ impl MediaProcessor {
 fn compute_thumbhash_for_enrichment(data: &[u8]) -> Option<String> {
     #[cfg(feature = "media-thumbnail")]
     {
-        let img = image::load_from_memory(data).ok()?;
+        // SECURITY: Use decode_image_safe() with Limits — never load_from_memory() directly.
+        // Enrichment is best-effort, so errors silently return None.
+        use crate::runtime::builtin::media::safety::decode_image_safe;
+        let img = decode_image_safe(data).ok()?;
         let small = img.resize(100, 100, image::imageops::FilterType::Triangle);
         let rgba = small.to_rgba8();
         let (w, h) = rgba.dimensions();

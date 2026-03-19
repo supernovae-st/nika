@@ -41,6 +41,7 @@ impl MediaOp for OptimizeOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("optimize", "missing 'hash'"))?;
       let level = args.get("level").and_then(|v| v.as_u64()).unwrap_or(2).clamp(1, 6) as u8;

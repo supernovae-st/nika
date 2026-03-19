@@ -41,6 +41,7 @@ impl MediaOp for MetadataOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("metadata", "missing 'hash'"))?;
 

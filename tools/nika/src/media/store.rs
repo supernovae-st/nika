@@ -208,7 +208,7 @@ impl CasStore {
     /// Check if a hash exists in the store.
     pub fn exists(&self, hash: &str) -> bool {
         let raw = strip_hash_prefix(hash);
-        if raw.len() < 3 {
+        if raw.len() < 3 || validate_hash_hex(raw).is_err() {
             return false;
         }
         let path = self.root.join(&raw[..2]).join(&raw[2..]);
@@ -223,6 +223,8 @@ impl CasStore {
                 hash: hash.to_string(),
             });
         }
+        // SECURITY: validate hex-only to prevent path traversal
+        validate_hash_hex(raw)?;
         let path = self.root.join(&raw[..2]).join(&raw[2..]);
         tokio::fs::read(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -318,8 +320,20 @@ impl CasStore {
 }
 
 /// Strip the algorithm prefix from a hash string, if present.
+/// Also validates that the remainder is hex-only to prevent path traversal.
 fn strip_hash_prefix(hash: &str) -> &str {
     hash.strip_prefix(HASH_PREFIX).unwrap_or(hash)
+}
+
+/// Validate that a raw hash string contains only hex characters.
+/// Prevents path traversal via crafted hash strings like "../../etc/passwd".
+fn validate_hash_hex(raw: &str) -> Result<(), MediaError> {
+    if !raw.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(MediaError::MediaNotFound {
+            hash: format!("{HASH_PREFIX}{raw}"),
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]

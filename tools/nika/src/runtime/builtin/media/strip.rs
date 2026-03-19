@@ -40,6 +40,7 @@ impl MediaOp for StripOp {
     ctx: &'a MediaToolContext,
   ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
     Box::pin(async move {
+      ctx.check_cancelled()?;
       let hash = args.get("hash").and_then(|v| v.as_str())
         .ok_or_else(|| invalid_args("strip", "missing 'hash'"))?;
       let format_override = args.get("format").and_then(|v| v.as_str()).map(|s| s.to_string());
