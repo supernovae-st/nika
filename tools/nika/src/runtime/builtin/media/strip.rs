@@ -8,7 +8,7 @@ use std::pin::Pin;
 use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
-use super::safety::decode_image_safe;
+use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
 
 pub struct StripOp;
@@ -63,7 +63,9 @@ impl MediaOp for StripOp {
         let mut buf = Vec::new();
         let (mime, ext) = match format {
           "jpeg" | "jpg" => {
-            let rgb = img.to_rgb8();
+            // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
+            // RGB(255,0,0). We must composite on white before JPEG encoding.
+            let rgb = composite_on_white(&img);
             // Quality 100 minimizes re-encoding loss — strip should not degrade image data
             let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 100);
             image::ImageEncoder::write_image(

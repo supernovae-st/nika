@@ -132,47 +132,48 @@ impl BuiltinTool for MediaToolAdapter {
     args: String,
   ) -> Pin<Box<dyn Future<Output = Result<String, NikaError>> + Send + 'a>> {
     Box::pin(async move {
-      // Parse JSON args
+      // Parse JSON args (outside timeout — parsing is instant)
       let parsed: serde_json::Value =
         serde_json::from_str(&args).map_err(|e| error::invalid_args(self.op.name(), e.to_string()))?;
 
-      // Execute with timeout
-      let result = tokio::time::timeout(DEFAULT_TIMEOUT, self.op.execute(parsed, &self.ctx))
-        .await
-        .map_err(|_| timeout_error(self.op.name()))??;
+      // Timeout wraps BOTH execute AND CAS write to prevent unbounded operations
+      let tool_name = self.op.name();
+      tokio::time::timeout(DEFAULT_TIMEOUT, async {
+        let result = self.op.execute(parsed, &self.ctx).await?;
 
-      // Convert result to JSON string
-      match result {
-        MediaOpResult::Metadata(value) => {
-          serde_json::to_string(&value).map_err(|e| {
-            error::tool_error(self.op.name(), format!("serialize metadata: {e}"))
-          })
+        match result {
+          MediaOpResult::Metadata(value) => {
+            serde_json::to_string(&value).map_err(|e| {
+              error::tool_error(tool_name, format!("serialize metadata: {e}"))
+            })
+          }
+          MediaOpResult::Binary {
+            data,
+            mime_type,
+            extension,
+            metadata,
+          } => {
+            // Store in CAS (inside timeout)
+            let store_result = self.ctx.store_media(&data, "media_tool").await?;
+
+            let response = serde_json::json!({
+              "hash": store_result.hash,
+              "path": store_result.path.to_string_lossy(),
+              "size_bytes": store_result.size,
+              "mime_type": mime_type,
+              "extension": extension,
+              "deduplicated": store_result.deduplicated,
+              "metadata": metadata,
+            });
+
+            serde_json::to_string(&response).map_err(|e| {
+              error::tool_error(tool_name, format!("serialize result: {e}"))
+            })
+          }
         }
-        MediaOpResult::Binary {
-          data,
-          mime_type,
-          extension,
-          metadata,
-        } => {
-          // Store in CAS
-          let store_result = self.ctx.store_media(&data, "media_tool").await?;
-
-          // Build response with MediaRef-like structure
-          let response = serde_json::json!({
-            "hash": store_result.hash,
-            "path": store_result.path.to_string_lossy(),
-            "size_bytes": store_result.size,
-            "mime_type": mime_type,
-            "extension": extension,
-            "deduplicated": store_result.deduplicated,
-            "metadata": metadata,
-          });
-
-          serde_json::to_string(&response).map_err(|e| {
-            error::tool_error(self.op.name(), format!("serialize result: {e}"))
-          })
-        }
-      }
+      })
+      .await
+      .map_err(|_| timeout_error(tool_name))?
     })
   }
 }

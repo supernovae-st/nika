@@ -9,7 +9,7 @@ use std::pin::Pin;
 use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
-use super::safety::decode_image_safe;
+use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
 
 pub struct ThumbnailOp;
@@ -80,8 +80,9 @@ impl MediaOp for ThumbnailOp {
         let mut buf = Vec::new();
         let (mime, ext) = match format.as_str() {
           "jpeg" | "jpg" => {
-            // Composite transparent onto white for JPEG
-            let rgb = resized.to_rgb8();
+            // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
+            // RGB(255,0,0). We must composite on white before JPEG encoding.
+            let rgb = composite_on_white(&resized);
             let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85);
             image::ImageEncoder::write_image(
               encoder, rgb.as_raw(), tw, th, image::ExtendedColorType::Rgb8,

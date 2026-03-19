@@ -44,6 +44,32 @@ pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> 
     .map_err(|e| tool_error("decode", format!("decode failed: {e}")))
 }
 
+/// Composite RGBA image onto white background, returning an RGB image.
+///
+/// `image::DynamicImage::to_rgb8()` does NOT composite — it silently drops
+/// the alpha channel, so RGBA(255,0,0,0) (fully transparent red) becomes
+/// RGB(255,0,0) (solid red). This function performs proper alpha blending
+/// against a white background before stripping alpha.
+///
+/// MUST be called whenever encoding to a format that does not support
+/// transparency (JPEG).
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+pub fn composite_on_white(img: &image::DynamicImage) -> image::RgbImage {
+  let rgba = img.to_rgba8();
+  let (w, h) = (rgba.width(), rgba.height());
+  image::RgbImage::from_fn(w, h, |x, y| {
+    let px = rgba.get_pixel(x, y);
+    let [r, g, b, a] = px.0;
+    let alpha = a as f32 / 255.0;
+    let inv = 1.0 - alpha;
+    image::Rgb([
+      (r as f32 * alpha + 255.0 * inv) as u8,
+      (g as f32 * alpha + 255.0 * inv) as u8,
+      (b as f32 * alpha + 255.0 * inv) as u8,
+    ])
+  })
+}
+
 /// Sanitize SVG content by rejecting dangerous elements.
 ///
 /// MUST be called BEFORE any SVG parsing (usvg, resvg).

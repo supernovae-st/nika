@@ -197,9 +197,8 @@ mod tests {
     if let MediaOpResult::Binary { data, .. } = result {
       let img = image::load_from_memory(&data).unwrap().to_rgb8();
       let center = img.get_pixel(10, 10);
-      // ConvertOp does img.to_rgb8() which just drops the alpha channel.
-      // The result is RGB(255,0,0) since the raw color data is kept.
-      // We simply verify the output is decodable with correct dimensions.
+      // ConvertOp composites transparent pixels on white before JPEG encoding.
+      // Verify the output is decodable with correct dimensions.
       assert_eq!(img.width(), 20);
       assert_eq!(img.height(), 20);
       let _center = img.get_pixel(10, 10);

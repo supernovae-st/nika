@@ -8,7 +8,7 @@ use std::pin::Pin;
 use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error, unsupported_format};
-use super::safety::decode_image_safe;
+use super::safety::{composite_on_white, decode_image_safe};
 use super::{MediaOp, MediaOpResult};
 
 pub struct ConvertOp;
@@ -58,8 +58,9 @@ impl MediaOp for ConvertOp {
 
         let (mime, ext) = match format_owned.as_str() {
           "jpeg" | "jpg" => {
-            // Composite transparent onto white
-            let rgb = img.to_rgb8();
+            // SAFETY: to_rgb8() silently drops alpha — RGBA(255,0,0,0) becomes
+            // RGB(255,0,0). We must composite on white before JPEG encoding.
+            let rgb = composite_on_white(&img);
             let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
             image::ImageEncoder::write_image(
               encoder, rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8,
@@ -197,6 +198,54 @@ mod tests {
         let op = ConvertOp;
         let _ = op.execute(serde_json::json!({"hash": sr.hash, "format": "png"}), &ctx).await;
       }
+    }
+  }
+
+  #[tokio::test]
+  async fn convert_transparent_png_to_jpeg_white_background() {
+    // CRITICAL: transparent PNG → JPEG must composite on white, not just drop alpha
+    let (_dir, ctx) = setup().await;
+    // Fully transparent red pixel: RGBA(255, 0, 0, 0)
+    let img = image::ImageBuffer::from_pixel(10, 10, image::Rgba([255u8, 0, 0, 0]));
+    let mut buf = Vec::new();
+    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+    image::ImageEncoder::write_image(enc, img.as_raw(), 10, 10, image::ExtendedColorType::Rgba8).unwrap();
+    let sr = ctx.cas.store(&buf).await.unwrap();
+
+    let op = ConvertOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "format": "jpeg"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, .. } = result {
+      let output = image::load_from_memory(&data).unwrap().to_rgb8();
+      let pixel = output.get_pixel(5, 5);
+      // Fully transparent → should be white (255,255,255), NOT red (255,0,0)
+      assert!(pixel[0] > 250, "R should be ~255 (white), got {}", pixel[0]);
+      assert!(pixel[1] > 250, "G should be ~255 (white), got {}", pixel[1]);
+      assert!(pixel[2] > 250, "B should be ~255 (white), got {}", pixel[2]);
+    }
+  }
+
+  #[tokio::test]
+  async fn convert_semitransparent_png_to_jpeg_blends() {
+    // Semi-transparent red RGBA(255,0,0,128) on white → ~RGB(255,128,128)
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png(); // Uses RGBA(255,0,0,128)
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ConvertOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "format": "jpeg"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, .. } = result {
+      let output = image::load_from_memory(&data).unwrap().to_rgb8();
+      let pixel = output.get_pixel(5, 5);
+      // 50% alpha red on white → approximately (255, 128, 128) ± JPEG compression
+      assert!(pixel[0] > 200, "R should be high (~255), got {}", pixel[0]);
+      assert!(pixel[1] > 90 && pixel[1] < 180, "G should be ~128, got {}", pixel[1]);
+      assert!(pixel[2] > 90 && pixel[2] < 180, "B should be ~128, got {}", pixel[2]);
     }
   }
 
