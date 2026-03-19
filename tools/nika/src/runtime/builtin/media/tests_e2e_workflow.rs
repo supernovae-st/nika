@@ -319,7 +319,15 @@ mod tests {
     }
     #[cfg(feature = "media-provenance")]
     {
-      expected += 1;
+      expected += 2; // provenance + verify
+    }
+    #[cfg(feature = "media-qr")]
+    {
+      expected += 1; // qr_validate
+    }
+    #[cfg(feature = "media-iqa")]
+    {
+      expected += 1; // quality
     }
 
     assert_eq!(

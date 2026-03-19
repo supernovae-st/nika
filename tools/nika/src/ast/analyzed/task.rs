@@ -128,7 +128,7 @@ impl AnalyzedTaskAction {
 /// Analyzed infer action.
 #[derive(Debug, Clone, Default)]
 pub struct AnalyzedInferAction {
-    /// The prompt to send to the LLM
+    /// The prompt to send to the LLM (may be empty when content is present)
     pub prompt: String,
 
     /// System prompt override
@@ -145,6 +145,9 @@ pub struct AnalyzedInferAction {
 
     /// Thinking budget tokens
     pub thinking_budget: Option<u32>,
+
+    /// Multimodal content parts for vision (analyzed, spans stripped)
+    pub content: Option<Vec<crate::ast::content::AnalyzedContentPart>>,
 
     /// Span of the action
     pub span: Span,

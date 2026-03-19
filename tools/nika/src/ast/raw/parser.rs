@@ -434,6 +434,14 @@ fn parse_action(
 }
 
 /// Parse infer action - supports both shorthand (string) and full form (mapping).
+///
+/// # Content / Prompt Rules
+///
+/// - `infer: "prompt"` — shorthand, text-only
+/// - `infer: { prompt: "..." }` — full form, text-only
+/// - `infer: { content: [...] }` — vision mode, prompt optional
+/// - `infer: { prompt: "...", content: [...] }` — prompt prepended as first Text part
+/// - Error if neither `prompt` nor `content` is present
 fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, ParseError> {
     let span = node_to_span(file, node);
 
@@ -446,14 +454,24 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             max_tokens: None,
             thinking: None,
             thinking_budget: None,
+            content: None,
         }),
-        // Full form: infer: { prompt: "...", temperature: ... }
+        // Full form: infer: { prompt: "...", temperature: ..., content: [...] }
         Node::Mapping(m) => {
-            let prompt = get_string_field(file, m, "prompt")?.ok_or_else(|| ParseError {
-                kind: ParseErrorKind::MissingField,
-                span,
-                message: "infer action requires 'prompt' field".to_string(),
-            })?;
+            let prompt = get_string_field(file, m, "prompt")?;
+            let content = parse_content_field(file, m)?;
+
+            // Require at least one of prompt or content
+            if prompt.is_none() && content.is_none() {
+                return Err(ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span,
+                    message: "infer action requires 'prompt' or 'content' field".to_string(),
+                });
+            }
+
+            // If content is present but no prompt, use empty prompt (validated later)
+            let prompt = prompt.unwrap_or_else(|| Spanned::new(String::new(), span));
 
             Ok(RawInferAction {
                 prompt,
@@ -466,6 +484,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                     "extended_thinking",
                 )?),
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
+                content,
             })
         }
         _ => Err(ParseError {
@@ -474,6 +493,109 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             message: "infer must be a string or mapping".to_string(),
         }),
     }
+}
+
+/// Parse the `content:` field from an infer mapping.
+///
+/// Returns `None` if the field is absent. Parses a YAML sequence where each
+/// element is a mapping with `type`, and type-specific fields.
+fn parse_content_field(
+    file: FileId,
+    map: &marked_yaml::types::MarkedMappingNode,
+) -> Result<Option<Spanned<Vec<crate::ast::content::RawContentPart>>>, ParseError> {
+    use crate::ast::content::RawContentPart;
+
+    let node = match map.get_node("content") {
+        Some(n) => n,
+        None => return Ok(None),
+    };
+
+    let span = node_to_span(file, node);
+
+    let seq = match node {
+        Node::Sequence(s) => s,
+        _ => {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidType,
+                span,
+                message: "content must be a sequence".to_string(),
+            });
+        }
+    };
+
+    if seq.is_empty() {
+        return Err(ParseError {
+            kind: ParseErrorKind::InvalidType,
+            span,
+            message: "content must not be empty".to_string(),
+        });
+    }
+
+    let mut parts = Vec::with_capacity(seq.len());
+
+    for item in seq.iter() {
+        let item_span = node_to_span(file, item);
+        let m = match item {
+            Node::Mapping(m) => m,
+            _ => {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span: item_span,
+                    message: "each content part must be a mapping with 'type' field".to_string(),
+                });
+            }
+        };
+
+        let type_field = get_string_field(file, m, "type")?.ok_or_else(|| ParseError {
+            kind: ParseErrorKind::MissingField,
+            span: item_span,
+            message: "content part requires 'type' field".to_string(),
+        })?;
+
+        let part = match type_field.value.as_str() {
+            "text" => {
+                let text = get_string_field(file, m, "text")?.ok_or_else(|| ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span: item_span,
+                    message: "text content part requires 'text' field".to_string(),
+                })?;
+                RawContentPart::Text { text }
+            }
+            "image" => {
+                let source =
+                    get_string_field(file, m, "source")?.ok_or_else(|| ParseError {
+                        kind: ParseErrorKind::MissingField,
+                        span: item_span,
+                        message: "image content part requires 'source' field".to_string(),
+                    })?;
+                let detail = get_string_field(file, m, "detail")?;
+                RawContentPart::Image { source, detail }
+            }
+            "image_url" => {
+                let url = get_string_field(file, m, "url")?.ok_or_else(|| ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span: item_span,
+                    message: "image_url content part requires 'url' field".to_string(),
+                })?;
+                let detail = get_string_field(file, m, "detail")?;
+                RawContentPart::ImageUrl { url, detail }
+            }
+            other => {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidType,
+                    span: type_field.span,
+                    message: format!(
+                        "unknown content part type '{}', expected: text, image, image_url",
+                        other
+                    ),
+                });
+            }
+        };
+
+        parts.push(part);
+    }
+
+    Ok(Some(Spanned::new(parts, span)))
 }
 
 /// Parse exec action - supports both shorthand (string) and full form (mapping).
@@ -2218,5 +2340,192 @@ tasks:
     fn parse_whitespace_only_errors() {
         let result = parse("   \n\n  \t  ", FileId(0));
         assert!(result.is_err(), "whitespace-only input should fail");
+    }
+
+    // =========================================================================
+    // Vision / Content Parsing Tests
+    // =========================================================================
+
+    #[test]
+    fn parse_infer_with_content_text_and_image() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: vision-test
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: describe
+    infer:
+      content:
+        - type: text
+          text: "Describe this image"
+        - type: image
+          source: "blake3:abc123"
+          detail: high
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "vision content should parse: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0];
+        match &task.value.action {
+            Some(RawTaskAction::Infer(s)) => {
+                let content = s.value.content.as_ref().expect("content should be Some");
+                assert_eq!(content.value.len(), 2);
+            }
+            other => panic!("expected Some(Infer), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_infer_content_only_no_prompt() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: vision-no-prompt
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer:
+      content:
+        - type: text
+          text: "What is this?"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "content without prompt should parse: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0];
+        match &task.value.action {
+            Some(RawTaskAction::Infer(s)) => {
+                assert!(s.value.prompt.value.is_empty(), "prompt should be empty string");
+                assert!(s.value.content.is_some(), "content should be present");
+            }
+            other => panic!("expected Some(Infer), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_infer_prompt_and_content() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: both
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer:
+      prompt: "Analyze carefully"
+      content:
+        - type: image
+          source: "blake3:xyz"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "prompt+content should parse: {:?}", result.err());
+        let wf = result.unwrap();
+        let task = &wf.tasks.value[0];
+        match &task.value.action {
+            Some(RawTaskAction::Infer(s)) => {
+                assert_eq!(s.value.prompt.value, "Analyze carefully");
+                assert!(s.value.content.is_some());
+            }
+            other => panic!("expected Some(Infer), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_infer_shorthand_still_works() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: shorthand
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer: "Just a simple prompt"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok());
+        let wf = result.unwrap();
+        match &wf.tasks.value[0].value.action {
+            Some(RawTaskAction::Infer(s)) => {
+                assert_eq!(s.value.prompt.value, "Just a simple prompt");
+                assert!(s.value.content.is_none());
+            }
+            other => panic!("expected Some(Infer), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_infer_neither_prompt_nor_content_errors() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: err
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer:
+      temperature: 0.5
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "neither prompt nor content should fail");
+        let err = result.unwrap_err();
+        assert!(err.message.contains("prompt") || err.message.contains("content"));
+    }
+
+    #[test]
+    fn parse_infer_content_invalid_type_errors() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: err
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer:
+      content:
+        - type: video
+          url: "https://example.com"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "unknown content type should fail");
+        let err = result.unwrap_err();
+        assert!(err.message.contains("unknown content part type"));
+    }
+
+    #[test]
+    fn parse_infer_content_empty_sequence_errors() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: err
+provider: claude
+model: claude-sonnet-4-6
+tasks:
+  - id: t
+    infer:
+      content: []
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_err(), "empty content should fail");
+    }
+
+    #[test]
+    fn parse_infer_content_image_url_part() {
+        let yaml = r#"
+schema: "nika/workflow@0.12"
+workflow: url
+provider: openai
+model: gpt-4o
+tasks:
+  - id: t
+    infer:
+      content:
+        - type: image_url
+          url: "https://example.com/photo.jpg"
+          detail: low
+        - type: text
+          text: "What is in this photo?"
+"#;
+        let result = parse(yaml, FileId(0));
+        assert!(result.is_ok(), "image_url should parse: {:?}", result.err());
     }
 }

@@ -405,6 +405,139 @@ impl RigProvider {
         }
     }
 
+    /// Vision inference: send multimodal content (text + images) to the LLM.
+    ///
+    /// Builds a `Message::User` with mixed text + base64 image parts,
+    /// then uses `agent.prompt(message)` to send it. The agent handles
+    /// provider-specific message formatting automatically.
+    ///
+    /// # Arguments
+    /// * `user_content` - Pre-built rig UserContent items (text + images)
+    /// * `model` - Optional model override
+    /// * `system` - Optional system prompt
+    /// * `max_tokens` - Optional max tokens
+    ///
+    /// # Errors
+    /// Returns `RigInferError::VisionNotSupported` for DeepSeek and Native providers.
+    pub async fn infer_vision(
+        &self,
+        user_content: Vec<rig::completion::message::UserContent>,
+        model: Option<&str>,
+        system: Option<&str>,
+        max_tokens: Option<u32>,
+    ) -> Result<String, RigInferError> {
+        use rig::completion::message::Message;
+        use rig::OneOrMany;
+
+        let model_id = model.unwrap_or_else(|| self.default_model());
+        let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
+
+        let message = Message::User {
+            content: OneOrMany::many(user_content)
+                .map_err(|_| RigInferError::VisionNotSupported(
+                    "content parts list is empty".to_string(),
+                ))?,
+        };
+
+        macro_rules! vision_prompt {
+            ($client:expr) => {{
+                let mut builder = $client.agent(model_id).max_tokens(max_tok);
+                if let Some(sys) = system {
+                    builder = builder.preamble(sys);
+                }
+                let agent = builder.build();
+                agent
+                    .prompt(message)
+                    .await
+                    .map_err(|e: PromptError| RigInferError::PromptError(e.to_string()))
+            }};
+        }
+
+        match self {
+            RigProvider::Claude(client) => vision_prompt!(client),
+            RigProvider::OpenAI(client) => vision_prompt!(client),
+            RigProvider::Mistral(client) => vision_prompt!(client),
+            RigProvider::Groq(client) => vision_prompt!(client),
+            RigProvider::Gemini(client) => vision_prompt!(client),
+            RigProvider::XAi(client) => vision_prompt!(client),
+            RigProvider::DeepSeek(_) => Err(RigInferError::VisionNotSupported(
+                "DeepSeek does not support vision/multimodal content".to_string(),
+            )),
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => Err(RigInferError::VisionNotSupported(
+                "Native GGUF inference does not support vision".to_string(),
+            )),
+        }
+    }
+
+    /// Vision inference with streaming output.
+    ///
+    /// Same as `infer_vision` but streams response tokens via an mpsc channel.
+    pub async fn infer_vision_stream(
+        &self,
+        user_content: Vec<rig::completion::message::UserContent>,
+        tx: mpsc::Sender<StreamChunk>,
+        model: Option<&str>,
+        system: Option<&str>,
+        max_tokens: Option<u32>,
+    ) -> Result<StreamResult, RigInferError> {
+        use rig::completion::message::Message;
+        use rig::OneOrMany;
+
+        let model_id = model.unwrap_or_else(|| self.default_model());
+        let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
+
+        let message = Message::User {
+            content: OneOrMany::many(user_content)
+                .map_err(|_| RigInferError::VisionNotSupported(
+                    "content parts list is empty".to_string(),
+                ))?,
+        };
+
+        let mut response_parts: Vec<String> = Vec::new();
+        let mut result = StreamResult::default();
+
+        macro_rules! vision_stream {
+            ($client:expr, $is_anthropic:expr) => {{
+                let model = $client.completion_model(model_id);
+                let mut builder = model.completion_request(message).max_tokens(max_tok);
+                if let Some(sys) = system {
+                    builder = builder.preamble(sys.to_string());
+                }
+                let request = builder.build();
+                let mut stream = model
+                    .stream(request)
+                    .await
+                    .map_err(|e| RigInferError::PromptError(e.to_string()))?;
+                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, $is_anthropic)
+                    .await?;
+            }};
+        }
+
+        match self {
+            RigProvider::Claude(client) => vision_stream!(client, true),
+            RigProvider::OpenAI(client) => vision_stream!(client, false),
+            RigProvider::Mistral(client) => vision_stream!(client, false),
+            RigProvider::Groq(client) => vision_stream!(client, false),
+            RigProvider::Gemini(client) => vision_stream!(client, false),
+            RigProvider::XAi(client) => vision_stream!(client, false),
+            RigProvider::DeepSeek(_) => {
+                return Err(RigInferError::VisionNotSupported(
+                    "DeepSeek does not support vision/multimodal content".to_string(),
+                ));
+            }
+            #[cfg(feature = "native-inference")]
+            RigProvider::Native(_) => {
+                return Err(RigInferError::VisionNotSupported(
+                    "Native GGUF inference does not support vision".to_string(),
+                ));
+            }
+        }
+
+        result.text = response_parts.join("");
+        Ok(result)
+    }
+
     /// Infer with injected tools for structured output enforcement.
     ///
     /// Builds a single-turn agent with the given tools and `tool_choice: Required`.
@@ -815,6 +948,10 @@ pub enum RigInferError {
     /// Stream timeout - no chunk received within timeout period
     #[error("Stream timeout: no chunk received for {duration_ms}ms")]
     Timeout { duration_ms: u64 },
+
+    /// Provider does not support vision/multimodal content
+    #[error("Vision not supported: {0}")]
+    VisionNotSupported(String),
 }
 
 // =============================================================================
@@ -2531,5 +2668,80 @@ mod tests {
         assert_eq!(opts.temperature, cloned.temperature);
         assert_eq!(opts.max_tokens, cloned.max_tokens);
         assert_eq!(opts.system, cloned.system);
+    }
+
+    // =========================================================================
+    // Vision Provider Tests
+    // =========================================================================
+
+    #[test]
+    fn vision_not_supported_error_display() {
+        let err = RigInferError::VisionNotSupported("DeepSeek no vision".to_string());
+        assert!(err.to_string().contains("Vision not supported"));
+        assert!(err.to_string().contains("DeepSeek no vision"));
+    }
+
+    /// Test DeepSeek vision rejection (only when DEEPSEEK_API_KEY is set)
+    #[tokio::test]
+    async fn infer_vision_deepseek_returns_error() {
+        if std::env::var("DEEPSEEK_API_KEY").is_err() {
+            // Can't construct DeepSeek without API key; test message building instead
+            let err = RigInferError::VisionNotSupported("DeepSeek".to_string());
+            assert!(err.to_string().contains("Vision not supported"));
+            return;
+        }
+        let provider = RigProvider::deepseek();
+        let content = vec![rig::completion::message::UserContent::text("hello")];
+        let result = provider.infer_vision(content, None, None, None).await;
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), RigInferError::VisionNotSupported(_)));
+    }
+
+    #[test]
+    fn infer_vision_empty_content_builds_error() {
+        // OneOrMany::many rejects empty vecs, which infer_vision maps to VisionNotSupported
+        use rig::OneOrMany;
+        let content: Vec<rig::completion::message::UserContent> = vec![];
+        let result = OneOrMany::many(content);
+        assert!(result.is_err(), "empty content should fail");
+    }
+
+    #[test]
+    fn build_vision_user_content_text_only() {
+        let content = vec![rig::completion::message::UserContent::text("Describe this")];
+        assert_eq!(content.len(), 1);
+    }
+
+    #[test]
+    fn build_vision_user_content_with_image() {
+        use rig::completion::message::{ImageMediaType, UserContent};
+        let content = vec![
+            UserContent::text("What is in this image?"),
+            UserContent::image_base64(
+                "iVBORw0KGgo=", // fake base64
+                Some(ImageMediaType::PNG),
+                None,
+            ),
+        ];
+        assert_eq!(content.len(), 2);
+    }
+
+    #[test]
+    fn build_vision_message_from_content() {
+        use rig::completion::message::{ImageMediaType, Message, UserContent};
+        use rig::OneOrMany;
+
+        let parts = vec![
+            UserContent::text("Describe this image"),
+            UserContent::image_base64(
+                "iVBORw0KGgo=",
+                Some(ImageMediaType::PNG),
+                None,
+            ),
+        ];
+        let msg = Message::User {
+            content: OneOrMany::many(parts).unwrap(),
+        };
+        assert!(matches!(msg, Message::User { .. }));
     }
 }

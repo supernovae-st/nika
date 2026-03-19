@@ -73,7 +73,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (6129+, safe — no keychain)
+cargo test --lib             # Unit tests (6200+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
@@ -92,9 +92,28 @@ cargo clippy -- -D warnings  # Zero warnings policy
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
-## Media Tools (v0.33.0)
+## Vision Support (v0.34.0 — PR4)
 
-18 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
+The `infer:` verb supports multimodal `content:` for sending images to vision-capable LLMs:
+
+```yaml
+infer:
+  content:
+    - type: image
+      source: "{{with.photo.media[0].hash}}"  # CAS hash → base64 automatically
+      detail: high
+    - type: text
+      text: "Describe this image"
+```
+
+- `prompt:` optional when `content:` present (if both: prompt prepended as first Text part)
+- CAS images auto-resolved to base64 (paths never leak to LLM APIs)
+- Supported: Claude, OpenAI, Mistral, Groq, Gemini, xAI
+- Unsupported: DeepSeek (returns VisionNotSupported error), Native
+
+## Media Tools (v0.34.0)
+
+21 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
 
 ### Tier 1 — Always-on (5 tools)
 
@@ -117,7 +136,7 @@ cargo clippy -- -D warnings  # Zero warnings policy
 | `nika:optimize` | media-optimize | Lossless PNG optimization (oxipng) |
 | `nika:svg_render` | media-svg | SVG to PNG rasterization (resvg) |
 
-### Tier 3 — Opt-in (5 tools)
+### Tier 3 — Opt-in (8 tools)
 
 | Tool | Feature | Description |
 |------|---------|-------------|
@@ -125,7 +144,10 @@ cargo clippy -- -D warnings  # Zero warnings policy
 | `nika:compare` | media-phash | Visual comparison via perceptual hash |
 | `nika:pdf_extract` | media-pdf | PDF text extraction |
 | `nika:chart` | media-chart | Bar/line/pie charts from JSON data |
-| `nika:provenance` | media-provenance | C2PA content credentials |
+| `nika:provenance` | media-provenance | C2PA content credentials (sign) |
+| `nika:verify` | media-provenance | C2PA manifest verification + EU AI Act compliance |
+| `nika:qr_validate` | media-qr | QR decode + 0-100 scan score (qrcode-ai-scanner-core) |
+| `nika:quality` | media-iqa | Image quality assessment (DSSIM/SSIM) |
 
 **Security rules:**
 - NEVER use `image::load_from_memory()` directly → use `decode_image_safe()` with Limits

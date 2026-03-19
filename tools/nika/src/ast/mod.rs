@@ -48,6 +48,9 @@ pub mod schema;
 // Security - YAML bomb protection
 pub mod budget;
 
+// Vision/multimodal content parts
+pub mod content;
+
 // Runtime types (consumed by runner/executor)
 mod action;
 mod agent;

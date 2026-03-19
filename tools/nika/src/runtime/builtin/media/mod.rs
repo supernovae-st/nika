@@ -48,6 +48,12 @@ mod compare;
 mod pdf;
 #[cfg(feature = "media-provenance")]
 mod provenance;
+#[cfg(feature = "media-provenance")]
+mod verify;
+#[cfg(feature = "media-qr")]
+mod qr;
+#[cfg(feature = "media-iqa")]
+mod quality;
 mod pipeline;
 #[cfg(test)]
 mod tests_integration;
@@ -63,6 +69,8 @@ mod tests_e2e_workflow;
 mod tests_security;
 #[cfg(test)]
 mod tests_comprehensive;
+#[cfg(test)]
+mod tests_pr4_pipelines;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -292,6 +300,26 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
   {
     tools.push(Box::new(MediaToolAdapter::new(
       Arc::new(provenance::ProvenanceOp),
+      Arc::clone(&ctx),
+    )));
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(verify::VerifyOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-qr")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(qr::QrValidateOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-iqa")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(quality::QualityOp),
       Arc::clone(&ctx),
     )));
   }

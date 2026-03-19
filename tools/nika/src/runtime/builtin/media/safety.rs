@@ -7,11 +7,11 @@ use crate::error::NikaError;
 use super::error::{security_violation, tool_error};
 
 /// Maximum decoded pixel buffer size (256 MB).
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash", feature = "media-qr", feature = "media-iqa"))]
 const MAX_DECODED_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Maximum image dimension (10000x10000).
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash", feature = "media-qr", feature = "media-iqa"))]
 const MAX_IMAGE_DIM: u32 = 10_000;
 
 /// Safely decode an image with resource limits.
@@ -23,7 +23,7 @@ const MAX_IMAGE_DIM: u32 = 10_000;
 /// - `max_alloc`: 256 MB
 /// - `max_image_width`: 10,000 px
 /// - `max_image_height`: 10,000 px
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash", feature = "media-qr", feature = "media-iqa"))]
 pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> {
   use image::ImageReader;
   use std::io::Cursor;

@@ -72,6 +72,8 @@ pub struct InferParams {
     pub extended_thinking: Option<bool>,
     /// Token budget for extended thinking (1024-65536, default 4096, Claude only)
     pub thinking_budget: Option<u64>,
+    /// Multimodal content parts for vision models (text + images)
+    pub content: Option<Vec<crate::ast::content::ContentPart>>,
 }
 
 impl<'de> Deserialize<'de> for InferParams {
@@ -84,6 +86,7 @@ impl<'de> Deserialize<'de> for InferParams {
         enum InferParamsHelper {
             Short(String),
             Full {
+                #[serde(default)]
                 prompt: String,
                 #[serde(default)]
                 provider: Option<String>,
@@ -101,6 +104,8 @@ impl<'de> Deserialize<'de> for InferParams {
                 extended_thinking: Option<bool>,
                 #[serde(default)]
                 thinking_budget: Option<u64>,
+                #[serde(default)]
+                content: Option<Vec<crate::ast::content::ContentPart>>,
             },
         }
 
@@ -115,6 +120,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 response_format: None,
                 extended_thinking: None,
                 thinking_budget: None,
+                content: None,
             }),
             InferParamsHelper::Full {
                 prompt,
@@ -126,6 +132,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 response_format,
                 extended_thinking,
                 thinking_budget,
+                content,
             } => Ok(InferParams {
                 prompt,
                 provider,
@@ -136,6 +143,7 @@ impl<'de> Deserialize<'de> for InferParams {
                 response_format,
                 extended_thinking,
                 thinking_budget,
+                content,
             }),
         }
     }
@@ -153,9 +161,11 @@ impl InferParams {
     /// - `thinking_budget` is outside valid range (1024..=65536)
     ///
     pub fn validate(&self) -> Result<(), NikaError> {
-        if self.prompt.trim().is_empty() {
+        // Prompt can be empty when content is present (vision mode)
+        let has_content = self.content.as_ref().is_some_and(|c| !c.is_empty());
+        if self.prompt.trim().is_empty() && !has_content {
             return Err(NikaError::ValidationError {
-                reason: "Infer prompt cannot be empty".into(),
+                reason: "Infer requires 'prompt' or 'content' (neither provided)".into(),
             });
         }
 
@@ -551,14 +561,8 @@ infer:
     fn test_infer_params_validate_ok() {
         let params = InferParams {
             prompt: "Generate something".to_string(),
-            provider: None,
-            model: None,
             temperature: Some(0.7),
-            max_tokens: None,
-            system: None,
-            response_format: None,
-            extended_thinking: None,
-            thinking_budget: None,
+            ..Default::default()
         };
         assert!(params.validate().is_ok());
     }
@@ -571,7 +575,7 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("empty"));
+        assert!(result.unwrap_err().to_string().contains("neither provided"));
     }
 
     #[test]
@@ -582,7 +586,48 @@ infer:
         };
         let result = params.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("empty"));
+        assert!(result.unwrap_err().to_string().contains("neither provided"));
+    }
+
+    #[test]
+    fn test_infer_params_validate_content_without_prompt_ok() {
+        use crate::ast::content::{ContentPart, ImageDetail};
+        let params = InferParams {
+            prompt: "".to_string(),
+            content: Some(vec![
+                ContentPart::Image {
+                    source: "blake3:abc".to_string(),
+                    detail: ImageDetail::Auto,
+                },
+            ]),
+            ..Default::default()
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_infer_params_validate_content_and_prompt_ok() {
+        use crate::ast::content::ContentPart;
+        let params = InferParams {
+            prompt: "Describe this image".to_string(),
+            content: Some(vec![
+                ContentPart::Text { text: "hello".to_string() },
+            ]),
+            ..Default::default()
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_infer_params_validate_empty_content_vec_rejected() {
+        let params = InferParams {
+            prompt: "".to_string(),
+            content: Some(vec![]),
+            ..Default::default()
+        };
+        let result = params.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("neither provided"));
     }
 
     #[test]
