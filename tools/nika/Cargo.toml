@@ -48,8 +48,8 @@ media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
 nika-core = { path = "../nika-core" }
 
 # CLI
-clap = { version = "4.5", features = ["derive"] }
-clap_complete = "4.5"  # Shell completion generation
+clap = { version = "4.6", features = ["derive"] }
+clap_complete = "4.6"  # Shell completion generation
 
 # Async
 tokio = { version = "1.49", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal"] }
@@ -225,7 +225,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = { version = "0.3.32", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-tempfile = "3.14"
+tempfile = "3.27"
 proptest = "1.4"
 insta = { version = "1.34", features = ["yaml"] }
 pretty_assertions = "1.4"
