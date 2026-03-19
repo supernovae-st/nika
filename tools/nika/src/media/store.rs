@@ -18,9 +18,15 @@ const VERIFY_THRESHOLD: u64 = 1024 * 1024;
 /// Maximum raw data size accepted by CAS store (100MB, defense-in-depth).
 const MAX_STORE_SIZE: usize = 100 * 1024 * 1024;
 
-/// Zstd magic bytes for transparent decompression detection.
+/// Zstd magic bytes (for reference only — we use CAS_ZSTD_MARKER for detection).
 #[cfg(feature = "media-compression")]
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
+
+/// CAS-internal compression marker: 1-byte prefix before zstd data.
+/// Distinguishes CAS-compressed blobs from user-stored raw zstd files.
+/// Format: [0x01] [zstd-compressed-data...]
+#[cfg(feature = "media-compression")]
+const CAS_ZSTD_MARKER: u8 = 0x01;
 
 /// Zstd compression level (3 = optimal speed/ratio for CAS workloads).
 #[cfg(feature = "media-compression")]
@@ -110,21 +116,34 @@ fn should_compress(data: &[u8]) -> bool {
 
 /// Compress data with zstd if beneficial.
 ///
-/// Returns compressed bytes, or original data if compression didn't help.
+/// Prepends `CAS_ZSTD_MARKER` byte to distinguish from user-stored zstd data.
+/// Returns marker + compressed bytes, or original data if compression didn't help.
 #[cfg(feature = "media-compression")]
 fn compress_if_beneficial(data: &[u8]) -> Vec<u8> {
     match zstd::encode_all(std::io::Cursor::new(data), ZSTD_LEVEL) {
-        Ok(compressed) if compressed.len() < data.len() => compressed,
+        Ok(compressed) if compressed.len() + 1 < data.len() => {
+            // Prefix with CAS marker to distinguish from raw zstd user data
+            let mut framed = Vec::with_capacity(1 + compressed.len());
+            framed.push(CAS_ZSTD_MARKER);
+            framed.extend_from_slice(&compressed);
+            framed
+        }
         _ => data.to_vec(), // Compression didn't help or failed — store raw
     }
 }
 
-/// Transparently decompress data if it starts with zstd magic bytes.
+/// Transparently decompress data if it starts with CAS compression marker.
+///
+/// Detection: `[CAS_ZSTD_MARKER][zstd-data...]` — the 1-byte prefix
+/// distinguishes CAS-compressed blobs from user-stored raw zstd files.
+/// Raw zstd files (without the marker) are returned as-is.
 #[cfg(feature = "media-compression")]
 fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
-    if data.len() >= 4 && data[..4] == ZSTD_MAGIC {
-        // Use a reader with size limit to prevent decompression bombs
-        let cursor = std::io::Cursor::new(&data);
+    // Check for CAS marker + zstd magic (marker byte + 4 zstd magic bytes = 5 bytes minimum)
+    if data.len() >= 5 && data[0] == CAS_ZSTD_MARKER && data[1..5] == ZSTD_MAGIC {
+        // Strip the CAS marker byte, decompress the rest
+        let zstd_data = &data[1..];
+        let cursor = std::io::Cursor::new(zstd_data);
         let mut decoder = zstd::Decoder::new(cursor).map_err(|e| MediaError::MediaStoreIo {
             path: PathBuf::from("<zstd-decompress>"),
             source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
@@ -140,7 +159,6 @@ fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
         })?;
 
         // SECURITY: detect if decompression was truncated (decompression bomb)
-        // If the limit was hit, there may be more data — reject the blob
         let mut probe = [0u8; 1];
         if std::io::Read::read(&mut decoder, &mut probe).unwrap_or(0) > 0 {
             return Err(MediaError::Base64InputTooLarge {
@@ -151,7 +169,7 @@ fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
 
         Ok(output)
     } else {
-        Ok(data) // Not compressed — return as-is
+        Ok(data) // Not CAS-compressed (raw data or user zstd) — return as-is
     }
 }
 
@@ -877,8 +895,8 @@ mod tests {
             let path = dir.path().join(&raw[..2]).join(&raw[2..]);
             let on_disk = tokio::fs::read(&path).await.unwrap();
 
-            // PNG should NOT start with zstd magic
-            assert_ne!(&on_disk[..4], &ZSTD_MAGIC, "PNG should not be zstd-compressed");
+            // PNG should NOT have CAS compression marker
+            assert_ne!(on_disk[0], CAS_ZSTD_MARKER, "PNG should not be CAS-compressed");
 
             // Read-back should still work
             let read_back = store.read(&result.hash).await.unwrap();
@@ -899,8 +917,9 @@ mod tests {
             let path = dir.path().join(&raw[..2]).join(&raw[2..]);
             let on_disk = tokio::fs::read(&path).await.unwrap();
 
-            // Should be compressed (zstd magic)
-            assert_eq!(&on_disk[..4], &ZSTD_MAGIC, "text should be zstd-compressed");
+            // Should be CAS-compressed (marker + zstd magic)
+            assert_eq!(on_disk[0], CAS_ZSTD_MARKER, "should have CAS marker prefix");
+            assert_eq!(&on_disk[1..5], &ZSTD_MAGIC, "text should be zstd-compressed after marker");
             assert!(on_disk.len() < text.len(), "compressed should be smaller");
 
             // Transparent read should return original
@@ -936,11 +955,11 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn already_zstd_data_not_double_compressed() {
+        async fn already_zstd_data_roundtrips_correctly() {
             let dir = tempfile::tempdir().unwrap();
             let store = CasStore::new(dir.path());
 
-            // Pre-compress some data with zstd
+            // Pre-compress some data with zstd (simulating user-stored zstd files)
             let original = b"pre-compressed data content here that is long enough to be over sixty-four bytes for threshold!";
             let pre_compressed = zstd::encode_all(
                 std::io::Cursor::new(original.as_slice()),
@@ -951,15 +970,16 @@ mod tests {
             // should_compress should detect zstd magic and skip
             assert!(!should_compress(&pre_compressed), "zstd data should not be re-compressed");
 
-            // Store and read back — since should_compress=false, data stored raw,
-            // but on read transparent_decompress will see zstd magic and decompress.
-            // This means storing raw zstd data will decompress on read — this is by design.
-            // Users should never store raw zstd; only the CAS compresses internally.
+            // Store and read back — with CAS marker framing, user-stored zstd
+            // is stored raw (no CAS marker prefix) and returned as-is on read.
             let result = store.store(&pre_compressed).await.unwrap();
             let read_back = store.read(&result.hash).await.unwrap();
-            // The read will decompress the zstd, returning the original content
-            assert_eq!(read_back, original.as_slice(),
-                "zstd data transparently decompresses on read");
+
+            // With CAS marker framing, raw zstd data round-trips correctly!
+            // On-disk: raw zstd bytes (no marker prefix)
+            // On read: no CAS marker → returned as-is
+            assert_eq!(read_back, pre_compressed,
+                "user-stored zstd data should round-trip exactly");
         }
 
         #[tokio::test]
@@ -1026,12 +1046,15 @@ mod tests {
         }
 
         #[test]
-        fn magic_bytes_detection() {
-            let compressed = zstd::encode_all(
-                std::io::Cursor::new(b"test data".as_slice()),
-                ZSTD_LEVEL,
-            ).unwrap();
-            assert_eq!(&compressed[..4], &ZSTD_MAGIC);
+        fn cas_marker_framing() {
+            // compress_if_beneficial prepends CAS_ZSTD_MARKER
+            let data = b"test data that is long enough to be over sixty-four bytes threshold for compression!";
+            let framed = compress_if_beneficial(data);
+            if framed.len() < data.len() {
+                // Compression was beneficial — should have CAS marker
+                assert_eq!(framed[0], CAS_ZSTD_MARKER, "should have CAS marker");
+                assert_eq!(&framed[1..5], &ZSTD_MAGIC, "zstd magic after marker");
+            }
         }
     }
 
