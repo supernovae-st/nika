@@ -378,4 +378,113 @@ mod tests {
     assert!(digital_source_type("ai.modified").contains("composite"));
     assert!(digital_source_type("human.created").contains("humanCreation"));
   }
+
+  /// C2PA readback: sign a JPEG, then use c2pa::Reader to verify the manifest
+  /// round-trips correctly — title, claim generator, and c2pa.actions assertion.
+  #[tokio::test]
+  async fn provenance_readback_c2pa_manifest() {
+    use c2pa::Reader;
+
+    let (_dir, ctx) = setup().await;
+    let jpeg = fixture_jpeg(100, 100, 42, 128, 200);
+    let sr = ctx.cas.store(&jpeg).await.unwrap();
+
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash,
+      "assertion": "ai.generated",
+      "title": "Readback Test"
+    }), &ctx).await.unwrap();
+
+    let signed_data = match result {
+      MediaOpResult::Binary { data, .. } => data,
+      other => panic!("expected Binary result, got: {other:?}"),
+    };
+
+    // Read the C2PA manifest back from the signed JPEG bytes
+    let mut cursor = std::io::Cursor::new(&signed_data);
+    let reader = Reader::from_stream("image/jpeg", &mut cursor)
+      .expect("Reader should parse the signed JPEG");
+
+    let manifest = reader.active_manifest()
+      .expect("signed output should have an active manifest");
+
+    // Verify title
+    assert_eq!(manifest.title(), Some("Readback Test"), "manifest title must match");
+
+    // Verify claim generator contains "Nika"
+    let cgi = manifest.claim_generator_info.as_ref()
+      .expect("claim_generator_info should be present");
+    assert!(
+      cgi.iter().any(|g| g.name.contains("Nika")),
+      "claim generator should contain 'Nika', got: {cgi:?}"
+    );
+
+    // Verify c2pa.actions assertion exists with correct digitalSourceType
+    let assertion_labels: Vec<&str> = manifest.assertions().iter()
+      .map(|a| a.label())
+      .collect();
+    let actions_assertion = manifest.assertions().iter()
+      .find(|a| a.label().starts_with("c2pa.actions"))
+      .unwrap_or_else(|| panic!(
+        "c2pa.actions assertion should be present, found labels: {assertion_labels:?}"
+      ));
+
+    let value = actions_assertion.value()
+      .expect("c2pa.actions should have JSON value");
+    let actions = value["actions"].as_array()
+      .expect("actions should be an array");
+    assert!(!actions.is_empty(), "actions array should not be empty");
+
+    let first_action = &actions[0];
+    assert_eq!(first_action["action"], "c2pa.created");
+    let dst = first_action["digitalSourceType"].as_str()
+      .expect("digitalSourceType should be a string");
+    assert!(
+      dst.contains("trainedAlgorithmicMedia"),
+      "ai.generated should map to trainedAlgorithmicMedia, got: {dst}"
+    );
+  }
+
+  /// C2PA readback for PNG: ensure PNG signing also produces a valid manifest.
+  #[tokio::test]
+  async fn provenance_readback_c2pa_png() {
+    use c2pa::Reader;
+
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png(64, 64, 0, 200, 100);
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash,
+      "assertion": "human.created",
+      "title": "PNG Readback"
+    }), &ctx).await.unwrap();
+
+    let signed_data = match result {
+      MediaOpResult::Binary { data, .. } => data,
+      other => panic!("expected Binary result, got: {other:?}"),
+    };
+
+    let mut cursor = std::io::Cursor::new(&signed_data);
+    let reader = Reader::from_stream("image/png", &mut cursor)
+      .expect("Reader should parse the signed PNG");
+
+    let manifest = reader.active_manifest()
+      .expect("signed PNG should have an active manifest");
+
+    assert_eq!(manifest.title(), Some("PNG Readback"));
+
+    // Verify human.created maps to correct digitalSourceType
+    let actions_assertion = manifest.assertions().iter()
+      .find(|a| a.label().starts_with("c2pa.actions"))
+      .expect("c2pa.actions assertion should be present");
+    let value = actions_assertion.value().unwrap();
+    let dst = value["actions"][0]["digitalSourceType"].as_str().unwrap();
+    assert!(
+      dst.contains("humanCreation"),
+      "human.created should map to humanCreation, got: {dst}"
+    );
+  }
 }

@@ -46,8 +46,11 @@ impl MediaOp for PdfExtractOp {
       let data = ctx.read_media(hash).await?;
 
       // SECURITY: Run PDF extraction in a dedicated thread with limited stack
-      // to contain potential stack overflows from recursive PDF structures
-      let text = extract_pdf_safe(&data)?;
+      // to contain potential stack overflows from recursive PDF structures.
+      // Use spawn_blocking to avoid blocking the tokio runtime thread.
+      let text = tokio::task::spawn_blocking(move || extract_pdf_safe(&data))
+        .await
+        .map_err(|e| tool_error("pdf_extract", format!("join failed: {e}")))??;
 
       let word_count = text.split_whitespace().count();
       let char_count = text.len();
