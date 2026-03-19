@@ -204,6 +204,7 @@ async fn test_execute_fetch_invalid_url() {
             timeout: None,
             retry: None,
             follow_redirects: None,
+            response: None,
         },
     };
 
@@ -232,6 +233,7 @@ async fn test_execute_fetch_with_template_url() {
             timeout: None,
             retry: None,
             follow_redirects: None,
+            response: None,
         },
     };
 
@@ -850,6 +852,7 @@ async fn test_action_type_helper() {
             timeout: None,
             retry: None,
             follow_redirects: None,
+            response: None,
         },
     };
     assert_eq!(action_type(&fetch_action), "fetch");
@@ -1030,6 +1033,7 @@ async fn test_execute_fetch_blocked_by_policy() {
             timeout: None,
             retry: None,
             follow_redirects: None,
+            response: None,
         },
     };
 
@@ -1069,6 +1073,7 @@ async fn test_execute_fetch_disabled_by_policy() {
             timeout: None,
             retry: None,
             follow_redirects: None,
+            response: None,
         },
     };
 

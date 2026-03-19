@@ -123,6 +123,9 @@ pub struct RawFetchAction {
 
     /// Follow redirects
     pub follow_redirects: Option<Spanned<bool>>,
+
+    /// Response mode: "full" (status + headers + body) or "binary" (CAS store)
+    pub response: Option<Spanned<String>>,
 }
 
 /// Parameters for the `invoke` verb (MCP tool invocation).

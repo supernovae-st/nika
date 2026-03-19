@@ -199,6 +199,9 @@ pub struct AnalyzedFetchAction {
     /// Follow redirects
     pub follow_redirects: bool,
 
+    /// Response mode: "full" or "binary"
+    pub response: Option<String>,
+
     /// Span of the action
     pub span: Span,
 }

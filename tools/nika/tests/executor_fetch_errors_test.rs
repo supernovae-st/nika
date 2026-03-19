@@ -46,6 +46,7 @@ fn fetch_params(url: &str) -> FetchParams {
         timeout: None,
         retry: None,
         follow_redirects: None,
+        response: None,
     }
 }
 
