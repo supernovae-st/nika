@@ -7,11 +7,11 @@ use crate::error::NikaError;
 use super::error::{security_violation, tool_error};
 
 /// Maximum decoded pixel buffer size (256 MB).
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
 const MAX_DECODED_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Maximum image dimension (10000x10000).
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
 const MAX_IMAGE_DIM: u32 = 10_000;
 
 /// Safely decode an image with resource limits.
@@ -23,7 +23,7 @@ const MAX_IMAGE_DIM: u32 = 10_000;
 /// - `max_alloc`: 256 MB
 /// - `max_image_width`: 10,000 px
 /// - `max_image_height`: 10,000 px
-#[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+#[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
 pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> {
   use image::ImageReader;
   use std::io::Cursor;
@@ -179,7 +179,7 @@ mod tests {
   // IMAGE DECODE SAFETY TESTS
   // ═══════════════════════════════════════════
 
-  #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+  #[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
   #[test]
   fn decode_image_safe_valid_png() {
     // Minimal 1x1 red PNG
@@ -189,7 +189,7 @@ mod tests {
     assert_eq!(img.height(), 1);
   }
 
-  #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+  #[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
   #[test]
   fn decode_image_safe_rejects_garbage() {
     let garbage = vec![0xFF, 0xFE, 0xFD, 0xFC, 0xFB];
@@ -198,14 +198,14 @@ mod tests {
     assert!(result.unwrap_err().to_string().contains("NIKA-290"));
   }
 
-  #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+  #[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
   #[test]
   fn decode_image_safe_empty_data() {
     let result = decode_image_safe(&[]);
     assert!(result.is_err());
   }
 
-  #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+  #[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
   #[test]
   fn decode_image_safe_fuzz_no_panic() {
     use std::panic;
@@ -218,7 +218,7 @@ mod tests {
   }
 
   /// Create a minimal valid 1x1 red PNG for testing.
-  #[cfg(any(feature = "media-thumbnail", feature = "media-svg"))]
+  #[cfg(any(feature = "media-thumbnail", feature = "media-svg", feature = "media-phash"))]
   fn create_test_png_1x1() -> Vec<u8> {
     use image::{ImageBuffer, Rgba};
     let img = ImageBuffer::from_pixel(1, 1, Rgba([255u8, 0, 0, 255]));

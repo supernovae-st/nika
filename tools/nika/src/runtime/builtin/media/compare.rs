@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use crate::error::NikaError;
 use super::context::MediaToolContext;
-use super::error::{invalid_args, tool_error};
+use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
 
@@ -115,16 +115,46 @@ mod tests {
       assert_eq!(v["distance"], 0);
       assert_eq!(v["identical"], true);
       assert_eq!(v["similarity_pct"], 100.0);
+    } else {
+      panic!("expected Metadata result");
     }
   }
 
   #[tokio::test]
   async fn compare_different_images() {
     let (_dir, ctx) = setup().await;
-    let red = fixture_png(50, 50, 255, 0, 0);
-    let blue = fixture_png(50, 50, 0, 0, 255);
-    let sr1 = ctx.cas.store(&red).await.unwrap();
-    let sr2 = ctx.cas.store(&blue).await.unwrap();
+    // Use images with actual visual variation (not solid colors, which produce
+    // identical DCT hashes because they have no frequency components)
+    let img_a = {
+      use image::{ImageBuffer, Rgb};
+      let mut img = ImageBuffer::from_pixel(50u32, 50, Rgb([255u8, 0, 0]));
+      // Add a white stripe on the left half
+      for x in 0..25 {
+        for y in 0..50 {
+          img.put_pixel(x, y, Rgb([255, 255, 255]));
+        }
+      }
+      let mut buf = Vec::new();
+      let enc = image::codecs::png::PngEncoder::new(&mut buf);
+      image::ImageEncoder::write_image(enc, img.as_raw(), 50, 50, image::ExtendedColorType::Rgb8).unwrap();
+      buf
+    };
+    let img_b = {
+      use image::{ImageBuffer, Rgb};
+      let mut img = ImageBuffer::from_pixel(50u32, 50, Rgb([0u8, 0, 255]));
+      // Add a black stripe on the bottom half
+      for x in 0..50 {
+        for y in 25..50 {
+          img.put_pixel(x, y, Rgb([0, 0, 0]));
+        }
+      }
+      let mut buf = Vec::new();
+      let enc = image::codecs::png::PngEncoder::new(&mut buf);
+      image::ImageEncoder::write_image(enc, img.as_raw(), 50, 50, image::ExtendedColorType::Rgb8).unwrap();
+      buf
+    };
+    let sr1 = ctx.cas.store(&img_a).await.unwrap();
+    let sr2 = ctx.cas.store(&img_b).await.unwrap();
 
     let op = CompareOp;
     let result = op.execute(serde_json::json!({
@@ -134,8 +164,51 @@ mod tests {
     if let MediaOpResult::Metadata(v) = result {
       assert_eq!(v["identical"], false);
       let sim = v["similarity_pct"].as_f64().unwrap();
-      assert!(sim < 100.0, "different images should not be 100% similar");
+      assert!(sim < 100.0, "visually different images should not be 100% similar");
+    } else {
+      panic!("expected Metadata result");
     }
+  }
+
+  #[tokio::test]
+  async fn compare_cancelled_workflow() {
+    let (_dir, ctx) = setup().await;
+    ctx.cancel.cancel();
+    let op = CompareOp;
+    let result = op.execute(serde_json::json!({
+      "hash_a": "x", "hash_b": "y"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("cancelled"));
+  }
+
+  #[tokio::test]
+  async fn compare_fuzz_no_panic() {
+    let (_dir, ctx) = setup().await;
+    let op = CompareOp;
+    let bad_inputs = vec![
+      serde_json::json!(null),
+      serde_json::json!(42),
+      serde_json::json!({"hash_a": 123, "hash_b": 456}),
+      serde_json::json!({"hash_a": "x"}),
+      serde_json::json!({"hash_b": "y"}),
+      serde_json::json!({}),
+    ];
+    for input in bad_inputs {
+      let result = op.execute(input.clone(), &ctx).await;
+      assert!(result.is_err(), "bad input should error: {input}");
+    }
+  }
+
+  #[tokio::test]
+  async fn compare_nonexistent_hash() {
+    let (_dir, ctx) = setup().await;
+    let op = CompareOp;
+    let result = op.execute(serde_json::json!({
+      "hash_a": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+      "hash_b": "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+    }), &ctx).await;
+    assert!(result.is_err());
   }
 
   #[tokio::test]

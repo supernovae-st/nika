@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use crate::error::NikaError;
 use super::context::MediaToolContext;
-use super::error::{invalid_args, tool_error};
+use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
 
