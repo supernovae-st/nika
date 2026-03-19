@@ -9,6 +9,7 @@ use std::pin::Pin;
 use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
+#[cfg(feature = "media-thumbnail")]
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
 
