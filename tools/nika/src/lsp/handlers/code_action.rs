@@ -14,10 +14,10 @@
 //! - Context-aware refactoring based on actual workflow structure
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
@@ -33,7 +33,7 @@ use super::super::utils::extract_task_ids;
 #[cfg(feature = "lsp")]
 pub fn compute_code_actions_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
     range: Range,
     diagnostics: &[Diagnostic],
@@ -75,7 +75,7 @@ pub fn compute_code_actions_with_ast(
 fn create_quickfix_for_diagnostic_with_ast(
     text: &str,
     diagnostic: &Diagnostic,
-    uri: &Url,
+    uri: &Uri,
     ast_task_ids: &[String],
 ) -> Option<CodeActionOrCommand> {
     let code = diagnostic.code.as_ref()?;
@@ -98,7 +98,7 @@ fn create_quickfix_for_diagnostic_with_ast(
 fn create_unknown_task_fix_with_ast(
     text: &str,
     diagnostic: &Diagnostic,
-    uri: &Url,
+    uri: &Uri,
     ast_task_ids: &[String],
 ) -> Option<CodeActionOrCommand> {
     let message = &diagnostic.message;
@@ -254,7 +254,7 @@ pub fn compute_code_actions(
     text: &str,
     range: Range,
     diagnostics: &[Diagnostic],
-    uri: Url,
+    uri: Uri,
 ) -> CodeActionResponse {
     let mut actions = Vec::new();
 
@@ -276,7 +276,7 @@ pub fn compute_code_actions(
 fn create_quickfix_for_diagnostic(
     text: &str,
     diagnostic: &Diagnostic,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<CodeActionOrCommand> {
     let code = diagnostic.code.as_ref()?;
     let code_str = match code {
@@ -299,7 +299,7 @@ fn create_fix_for_code(
     _code: i32,
     _text: &str,
     _diagnostic: &Diagnostic,
-    _uri: &Url,
+    _uri: &Uri,
 ) -> Option<CodeActionOrCommand> {
     // Handle numeric codes if needed
     None
@@ -310,7 +310,7 @@ fn create_fix_for_code(
 fn create_unknown_task_fix(
     text: &str,
     diagnostic: &Diagnostic,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<CodeActionOrCommand> {
     // Extract the unknown task name from the diagnostic message
     let message = &diagnostic.message;
@@ -354,7 +354,7 @@ fn create_unknown_task_fix(
 
 /// Fix for duplicate task ID (NIKA-141)
 #[cfg(feature = "lsp")]
-fn create_duplicate_task_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeActionOrCommand> {
+fn create_duplicate_task_fix(diagnostic: &Diagnostic, uri: &Uri) -> Option<CodeActionOrCommand> {
     // Suggest renaming with a suffix
     let line_num = diagnostic.range.start.line;
     let suggested_id = format!("task_{}", line_num);
@@ -385,7 +385,7 @@ fn create_duplicate_task_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeA
 
 /// Fix for invalid schema version (NIKA-142)
 #[cfg(feature = "lsp")]
-fn create_invalid_schema_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeActionOrCommand> {
+fn create_invalid_schema_fix(diagnostic: &Diagnostic, uri: &Uri) -> Option<CodeActionOrCommand> {
     let edit = TextEdit {
         range: diagnostic.range,
         new_text: "schema: nika/workflow@0.12".to_string(),
@@ -415,7 +415,7 @@ fn create_invalid_schema_fix(diagnostic: &Diagnostic, uri: &Url) -> Option<CodeA
 fn create_missing_field_fix(
     _text: &str,
     diagnostic: &Diagnostic,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<CodeActionOrCommand> {
     let message = &diagnostic.message;
 
@@ -468,7 +468,7 @@ fn create_missing_field_fix(
 
 /// Create refactoring actions based on context
 #[cfg(feature = "lsp")]
-fn create_refactoring_actions(text: &str, range: Range, uri: &Url) -> Vec<CodeActionOrCommand> {
+fn create_refactoring_actions(text: &str, range: Range, uri: &Uri) -> Vec<CodeActionOrCommand> {
     let mut actions = Vec::new();
 
     let lines: Vec<&str> = text.lines().collect();
@@ -505,7 +505,7 @@ fn create_refactoring_actions(text: &str, range: Range, uri: &Url) -> Vec<CodeAc
 
 /// Create action to expand shorthand infer to full form
 #[cfg(feature = "lsp")]
-fn create_expand_infer_action(line: &str, line_num: u32, uri: &Url) -> Option<CodeActionOrCommand> {
+fn create_expand_infer_action(line: &str, line_num: u32, uri: &Uri) -> Option<CodeActionOrCommand> {
     let trimmed = line.trim();
     let indent = line.len() - trimmed.len();
 
@@ -556,7 +556,7 @@ fn create_expand_infer_action(line: &str, line_num: u32, uri: &Url) -> Option<Co
 
 /// Create action to expand shorthand exec to full form
 #[cfg(feature = "lsp")]
-fn create_expand_exec_action(line: &str, line_num: u32, uri: &Url) -> Option<CodeActionOrCommand> {
+fn create_expand_exec_action(line: &str, line_num: u32, uri: &Uri) -> Option<CodeActionOrCommand> {
     let trimmed = line.trim();
     let indent = line.len() - trimmed.len();
 
@@ -607,7 +607,7 @@ fn create_expand_exec_action(line: &str, line_num: u32, uri: &Url) -> Option<Cod
 
 /// Create action to add with: block for data binding
 #[cfg(feature = "lsp")]
-fn create_add_with_block_action(line_num: u32, uri: &Url) -> CodeActionOrCommand {
+fn create_add_with_block_action(line_num: u32, uri: &Uri) -> CodeActionOrCommand {
     let edit = TextEdit {
         range: Range {
             start: Position {
@@ -666,7 +666,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_expand_infer_action() {
         let line = "    infer: \"Generate a headline\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let action = create_expand_infer_action(line, 5, &uri);
 
         assert!(action.is_some());
@@ -680,7 +680,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_expand_exec_action() {
         let line = "    exec: \"npm run build\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let action = create_expand_exec_action(line, 3, &uri);
 
         assert!(action.is_some());
@@ -693,7 +693,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_code_actions_for_diagnostics() {
         let text = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         let diagnostic = Diagnostic {
             range: Range {
@@ -824,7 +824,7 @@ tasks:
       input: $setp1
     infer: "World"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         ast_index.parse_document(&uri, text, 0);
 
@@ -884,7 +884,7 @@ tasks:
     fn test_code_actions_with_ast_fallback() {
         // Test that it falls back gracefully when AST is not available
         let text = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         // Don't parse - simulate AST not being available
 
@@ -933,7 +933,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_duplicate_task_fix() {
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostic = Diagnostic {
             range: Range {
                 start: Position {
@@ -967,7 +967,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_missing_field_fix_id() {
         let text = "schema: nika/workflow@0.12\ntasks:\n  - infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostic = Diagnostic {
             range: Range {
                 start: Position {
@@ -1000,7 +1000,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_missing_field_fix_schema() {
         let text = "workflow: test\ntasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostic = Diagnostic {
             range: Range {
                 start: Position {
@@ -1033,7 +1033,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_refactoring_add_with_block() {
         let text = "tasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let range = Range {
             start: Position {
                 line: 1,
@@ -1062,7 +1062,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_no_actions_for_unknown_diagnostic_code() {
         let text = "schema: nika/workflow@0.12";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostic = Diagnostic {
             range: Range {
                 start: Position {
@@ -1095,7 +1095,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_code_actions_no_diagnostics_still_has_refactoring() {
         let text = "tasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let range = Range {
             start: Position {
                 line: 2,

@@ -14,14 +14,14 @@
 //! - AstIndex provides task context for richer documentation
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
 use crate::lsp::ast_index::{AstIndex, AstNode};
 
-// Re-export Url for use in compute_hover_with_ast
+// Re-export Uri for use in compute_hover_with_ast
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 /// Compute hover information using AstIndex for semantic context
 ///
@@ -36,7 +36,7 @@ pub use tower_lsp::lsp_types::Url;
 #[cfg(feature = "lsp")]
 pub fn compute_hover_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
     position: Position,
 ) -> Option<Hover> {
@@ -741,7 +741,7 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_compute_hover_with_ast_within_task() {
         let ast_index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
@@ -782,7 +782,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_compute_hover_with_ast_verb_fallback() {
         let ast_index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = "    infer: \"Hello\""; // Just verb line without full workflow
                                            // Don't parse - so AST returns None, fallback to text-based
 
@@ -812,7 +812,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_compute_hover_with_ast_task() {
         let ast_index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:
@@ -978,7 +978,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_compute_hover_with_ast_fallback() {
         let ast_index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 tasks:

@@ -13,10 +13,10 @@
 //! - Spans from AST give precise definition locations
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
@@ -30,7 +30,7 @@ use crate::lsp::conversion::{position_to_offset, span_to_range};
 #[cfg(feature = "lsp")]
 pub fn find_definition_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
     position: Position,
 ) -> Option<GotoDefinitionResponse> {
@@ -66,7 +66,7 @@ pub fn find_definition_with_ast(
 
 /// Find definition location for element at position
 #[cfg(feature = "lsp")]
-pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoDefinitionResponse> {
+pub fn find_definition(text: &str, position: Position, uri: Uri) -> Option<GotoDefinitionResponse> {
     let offset = position_to_offset(position, text);
     let lines: Vec<&str> = text.lines().collect();
     let line_idx = position.line as usize;
@@ -101,7 +101,7 @@ pub fn find_definition(text: &str, position: Position, uri: Url) -> Option<GotoD
 fn find_task_reference_definition(
     text: &str,
     line: &str,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<GotoDefinitionResponse> {
     let trimmed = line.trim();
 
@@ -143,7 +143,7 @@ fn find_template_definition(
     text: &str,
     line: &str,
     col: usize,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<GotoDefinitionResponse> {
     // Find template at cursor position
     let mut search_start = 0;
@@ -225,12 +225,12 @@ fn extract_include_path(line: &str) -> Option<&str> {
 fn find_include_definition(
     line: &str,
     _offset: usize,
-    doc_uri: &Url,
+    doc_uri: &Uri,
 ) -> Option<GotoDefinitionResponse> {
     let path_str = extract_include_path(line)?;
 
     // Resolve the document URI to a filesystem path
-    let doc_path = doc_uri.to_file_path().ok()?;
+    let doc_path = doc_uri.to_file_path()?;
     let parent_dir = doc_path.parent()?;
 
     // Resolve the include path relative to the document's parent directory
@@ -240,7 +240,7 @@ fn find_include_definition(
     // This also verifies the file exists on disk.
     let canonical = resolved.canonicalize().ok()?;
 
-    let target_uri = Url::from_file_path(canonical).ok()?;
+    let target_uri = Uri::from_file_path(canonical)?;
 
     Some(GotoDefinitionResponse::Scalar(Location::new(
         target_uri,
@@ -258,7 +258,7 @@ fn find_task_reference_definition_with_ast(
     text: &str,
     line: &str,
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<GotoDefinitionResponse> {
     let trimmed = line.trim();
 
@@ -306,7 +306,7 @@ fn find_template_definition_with_ast(
     line: &str,
     col: usize,
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<GotoDefinitionResponse> {
     // Find template at cursor position
     let mut search_start = 0;
@@ -357,7 +357,7 @@ fn find_task_location_with_ast(
     text: &str,
     task_id: &str,
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
 ) -> Option<Location> {
     // Try to get task from AST cache
     if let Some(cached) = ast_index.get(uri) {
@@ -383,7 +383,7 @@ fn find_task_location_with_ast(
 
 /// Find the location of a task definition by ID (text-based)
 #[cfg(feature = "lsp")]
-fn find_task_location(text: &str, task_id: &str, uri: &Url) -> Option<Location> {
+fn find_task_location(text: &str, task_id: &str, uri: &Uri) -> Option<Location> {
     let pattern = format!("id: {}", task_id);
     let list_pattern = format!("- id: {}", task_id);
 
@@ -418,7 +418,7 @@ fn find_task_location(text: &str, task_id: &str, uri: &Url) -> Option<Location> 
 
 /// Find the location of a with: binding by alias
 #[cfg(feature = "lsp")]
-fn find_with_binding_location(text: &str, alias: &str, uri: &Url) -> Option<Location> {
+fn find_with_binding_location(text: &str, alias: &str, uri: &Uri) -> Option<Location> {
     let pattern = format!("{}:", alias);
     let mut in_with_block = false;
 
@@ -460,7 +460,7 @@ fn find_with_binding_location(text: &str, alias: &str, uri: &Url) -> Option<Loca
 
 /// Find the location of a context file by name
 #[cfg(feature = "lsp")]
-fn find_context_file_location(text: &str, name: &str, uri: &Url) -> Option<Location> {
+fn find_context_file_location(text: &str, name: &str, uri: &Uri) -> Option<Location> {
     let pattern = format!("{}:", name);
     let mut in_context_files = false;
 
@@ -516,7 +516,7 @@ tasks:
       input: $step1
     infer: "World"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let location = find_task_location(text, "step1", &uri);
 
         assert!(location.is_some());
@@ -534,7 +534,7 @@ tasks:
     data: other_task
   infer: "Process {{with.input}}"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let location = find_with_binding_location(text, "input", &uri);
 
         assert!(location.is_some());
@@ -554,7 +554,7 @@ tasks:
       input: $generate
     infer: "Process"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let response = find_task_reference_definition(text, "      input: $generate", &uri);
 
         assert!(response.is_some());
@@ -569,7 +569,7 @@ context:
     brand: ./brand.md
     data: ./data.json
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let location = find_context_file_location(text, "brand", &uri);
 
         assert!(location.is_some());
@@ -585,7 +585,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let location = find_task_location(text, "nonexistent", &uri);
 
         assert!(location.is_none());
@@ -608,7 +608,7 @@ tasks:
       input: $step1
     infer: "World"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -635,7 +635,7 @@ tasks:
   - id: process
     infer: "Process"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -659,7 +659,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///uncached.nika.yaml").unwrap();
+        let uri = "file:///uncached.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         // Deliberately NOT parsing into AST index
 
@@ -683,7 +683,7 @@ tasks:
   - id: process
     infer: "Process {{$data}}"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -706,7 +706,7 @@ tasks:
   - id: "quoted_task"
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let location = find_task_location(text, "quoted_task", &uri);
         assert!(location.is_some(), "Should find quoted task ID");
     }
@@ -724,7 +724,7 @@ tasks:
       data: api_call.body.json
     infer: "Process"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         // The path "api_call.body.json" should resolve to task "api_call"
         let response = find_task_reference_definition(text, "      data: api_call.body.json", &uri);
         assert!(
@@ -737,7 +737,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_find_definition_skips_json_values() {
         let text = "tasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         // A line with a JSON object value should not be treated as a task ref
         let response = find_task_reference_definition(text, "      data: {\"key\": \"val\"}", &uri);
         assert!(response.is_none());
@@ -747,7 +747,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_find_definition_skips_array_values() {
         let text = "tasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let response = find_task_reference_definition(text, "      items: [\"a\", \"b\"]", &uri);
         assert!(response.is_none());
     }
@@ -756,7 +756,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_find_definition_skips_string_values() {
         let text = "tasks:\n  - id: step1\n    infer: \"test\"";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let response = find_task_reference_definition(text, "      prompt: \"hello world\"", &uri);
         assert!(response.is_none());
     }
@@ -771,7 +771,7 @@ tasks:
     second: step2
   infer: "{{with.first}} and {{with.second}}"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         let loc1 = find_with_binding_location(text, "first", &uri);
         let loc2 = find_with_binding_location(text, "second", &uri);
@@ -788,7 +788,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_find_definition_empty_text() {
         let text = "";
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let result = find_definition(
             text,
             Position {
@@ -809,7 +809,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -899,7 +899,7 @@ tasks:
         .unwrap();
 
         let main_file = dir.join("main.nika.yaml");
-        let doc_uri = Url::from_file_path(&main_file).unwrap();
+        let doc_uri = Uri::from_file_path(&main_file).unwrap();
 
         let line = "    - path: ./lib/seo-tasks.nika.yaml";
         let result = find_include_definition(line, 0, &doc_uri);
@@ -913,7 +913,7 @@ tasks:
         if let Some(GotoDefinitionResponse::Scalar(location)) = result {
             // canonicalize() resolves symlinks (e.g. /var -> /private/var on macOS)
             let canonical_target = target_file.canonicalize().unwrap();
-            let target_uri = Url::from_file_path(&canonical_target).unwrap();
+            let target_uri = Uri::from_file_path(&canonical_target).unwrap();
             assert_eq!(location.uri, target_uri);
             // Range should be at the start of the file
             assert_eq!(location.range.start.line, 0);
@@ -929,7 +929,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_include_definition_nonexistent_file() {
-        let doc_uri = Url::parse("file:///project/main.nika.yaml").unwrap();
+        let doc_uri = "file:///project/main.nika.yaml".parse::<Uri>().unwrap();
         let line = "    - path: ./lib/nonexistent.nika.yaml";
         let result = find_include_definition(line, 0, &doc_uri);
         assert!(result.is_none(), "Should return None for non-existent file");
@@ -938,7 +938,7 @@ tasks:
     #[test]
     #[cfg(feature = "lsp")]
     fn test_find_include_definition_non_path_line() {
-        let doc_uri = Url::parse("file:///project/main.nika.yaml").unwrap();
+        let doc_uri = "file:///project/main.nika.yaml".parse::<Uri>().unwrap();
         let line = "    prefix: seo_";
         let result = find_include_definition(line, 0, &doc_uri);
         assert!(result.is_none(), "Should return None for non-path line");

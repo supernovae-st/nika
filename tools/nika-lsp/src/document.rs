@@ -28,7 +28,7 @@ impl DocumentState {
     }
 
     /// Apply an incremental change from the LSP protocol.
-    pub fn apply_change(&mut self, change: &lsp_types::TextDocumentContentChangeEvent) {
+    pub fn apply_change(&mut self, change: &tower_lsp_server::ls_types::TextDocumentContentChangeEvent) {
         if let Some(range) = change.range {
             // Incremental change
             let start_idx = self.position_to_char_idx(range.start);
@@ -50,7 +50,7 @@ impl DocumentState {
     }
 
     /// Convert LSP Position to character index.
-    fn position_to_char_idx(&self, position: lsp_types::Position) -> usize {
+    fn position_to_char_idx(&self, position: tower_lsp_server::ls_types::Position) -> usize {
         let line = position.line as usize;
         let col = position.character as usize;
 
@@ -65,7 +65,7 @@ impl DocumentState {
     }
 
     /// Convert byte offset to LSP Position.
-    pub fn byte_offset_to_position(&self, byte_offset: usize) -> lsp_types::Position {
+    pub fn byte_offset_to_position(&self, byte_offset: usize) -> tower_lsp_server::ls_types::Position {
         // Convert byte offset to char index
         let char_idx = self
             .rope
@@ -74,13 +74,13 @@ impl DocumentState {
     }
 
     /// Convert character index to LSP Position.
-    pub fn char_idx_to_position(&self, char_idx: usize) -> lsp_types::Position {
+    pub fn char_idx_to_position(&self, char_idx: usize) -> tower_lsp_server::ls_types::Position {
         let char_idx = char_idx.min(self.rope.len_chars());
         let line = self.rope.char_to_line(char_idx);
         let line_start = self.rope.line_to_char(line);
         let col = char_idx - line_start;
 
-        lsp_types::Position {
+        tower_lsp_server::ls_types::Position {
             line: line as u32,
             character: col as u32,
         }
@@ -96,7 +96,7 @@ impl DocumentState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+    use tower_lsp_server::ls_types::{Position, Range, TextDocumentContentChangeEvent};
 
     #[test]
     fn test_document_creation() {

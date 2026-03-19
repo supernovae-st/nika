@@ -8,10 +8,10 @@
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────┐
 //! │  DocumentStore                                                      │
-//! │  ├── documents: HashMap<Url, String>  (raw text)                   │
+//! │  ├── documents: HashMap<Uri, String>  (raw text)                   │
 //! │                                                                     │
 //! │  AstIndex                                                           │
-//! │  ├── cache: DashMap<Url, CachedAst>                                │
+//! │  ├── cache: DashMap<Uri, CachedAst>                                │
 //! │  │   ├── raw: Option<RawWorkflow>       (Phase 1 parse)            │
 //! │  │   ├── analyzed: Option<AnalyzedWorkflow>  (Phase 2 analyze)     │
 //! │  │   ├── errors: Vec<AnalyzeError>       (for diagnostics)         │
@@ -29,7 +29,7 @@
 use dashmap::DashMap;
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::{Position, Url};
+use tower_lsp_server::ls_types::{Position, Uri};
 
 #[cfg(feature = "lsp")]
 use crate::ast::analyzed::{AnalyzedTask, AnalyzedTaskAction, AnalyzedWorkflow};
@@ -73,7 +73,7 @@ pub struct CachedAst {
 #[cfg(feature = "lsp")]
 pub struct AstIndex {
     /// Cached ASTs per document URI.
-    cache: DashMap<Url, CachedAst>,
+    cache: DashMap<Uri, CachedAst>,
 }
 
 #[cfg(feature = "lsp")]
@@ -97,7 +97,7 @@ impl AstIndex {
     /// This runs both Phase 1 (parse) and Phase 2 (analyze).
     /// Returns the list of analysis errors for diagnostic publishing.
     /// Parse errors are stored in the cache and can be retrieved via `get_parse_error`.
-    pub fn parse_document(&self, uri: &Url, text: &str, version: i32) -> Vec<AnalyzeError> {
+    pub fn parse_document(&self, uri: &Uri, text: &str, version: i32) -> Vec<AnalyzeError> {
         let file_id = FileId(0); // Single-file mode for now
 
         // Phase 1: Parse to Raw AST
@@ -130,17 +130,17 @@ impl AstIndex {
     }
 
     /// Get the parse error for a document, if any.
-    pub fn get_parse_error(&self, uri: &Url) -> Option<ParseError> {
+    pub fn get_parse_error(&self, uri: &Uri) -> Option<ParseError> {
         self.cache.get(uri).and_then(|c| c.parse_error.clone())
     }
 
     /// Invalidate the cache for a document.
-    pub fn invalidate(&self, uri: &Url) {
+    pub fn invalidate(&self, uri: &Uri) {
         self.cache.remove(uri);
     }
 
     /// Get the cached AST for a document.
-    pub fn get(&self, uri: &Url) -> Option<dashmap::mapref::one::Ref<'_, Url, CachedAst>> {
+    pub fn get(&self, uri: &Uri) -> Option<dashmap::mapref::one::Ref<'_, Uri, CachedAst>> {
         self.cache.get(uri)
     }
 
@@ -154,7 +154,7 @@ impl AstIndex {
     /// Get the AST node at a given position.
     ///
     /// Returns the most specific node at the position.
-    pub fn get_node_at_position(&self, uri: &Url, position: Position) -> Option<AstNode> {
+    pub fn get_node_at_position(&self, uri: &Uri, position: Position) -> Option<AstNode> {
         let cached = self.cache.get(uri)?;
 
         // Convert LSP position to byte offset
@@ -232,7 +232,7 @@ impl AstIndex {
     }
 
     /// Get the task at a given position.
-    pub fn get_task_at_position(&self, uri: &Url, position: Position) -> Option<String> {
+    pub fn get_task_at_position(&self, uri: &Uri, position: Position) -> Option<String> {
         match self.get_node_at_position(uri, position)? {
             AstNode::Task(name, _) => Some(name),
             AstNode::Verb(_, _) => {
@@ -268,7 +268,7 @@ impl AstIndex {
     }
 
     /// Get all task names in the document.
-    pub fn get_task_names(&self, uri: &Url) -> Vec<String> {
+    pub fn get_task_names(&self, uri: &Uri) -> Vec<String> {
         if let Some(cached) = self.cache.get(uri) {
             if let Some(ref analyzed) = cached.analyzed {
                 return analyzed.tasks.iter().map(|t| t.name.clone()).collect();
@@ -278,7 +278,7 @@ impl AstIndex {
     }
 
     /// Get all MCP server names in the document.
-    pub fn get_mcp_server_names(&self, uri: &Url) -> Vec<String> {
+    pub fn get_mcp_server_names(&self, uri: &Uri) -> Vec<String> {
         if let Some(cached) = self.cache.get(uri) {
             if let Some(ref analyzed) = cached.analyzed {
                 return analyzed.mcp_servers.keys().cloned().collect();
@@ -288,7 +288,7 @@ impl AstIndex {
     }
 
     /// Get all context file names (aliases) in the document.
-    pub fn get_context_file_names(&self, uri: &Url) -> Vec<String> {
+    pub fn get_context_file_names(&self, uri: &Uri) -> Vec<String> {
         if let Some(cached) = self.cache.get(uri) {
             if let Some(ref analyzed) = cached.analyzed {
                 return analyzed
@@ -395,7 +395,7 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_ast_index_parse_simple_workflow() {
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -416,7 +416,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_ast_index_get_task_names() {
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -438,7 +438,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_ast_index_invalidate() {
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = "schema: nika/workflow@0.12\n";
 
         index.parse_document(&uri, text, 1);
@@ -476,7 +476,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_get_node_at_position_schema() {
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -505,7 +505,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_get_node_at_position_task() {
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 

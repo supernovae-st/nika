@@ -30,7 +30,7 @@ mod node_context;
 mod position;
 mod template_validation;
 
-use tower_lsp::{LspService, Server};
+use tower_lsp_server::{LspService, Server};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]

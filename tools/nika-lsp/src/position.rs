@@ -15,7 +15,7 @@
 //! assert_eq!(pos.character, 2);
 //! ```
 
-use lsp_types::{Position, Range};
+use tower_lsp_server::ls_types::{Position, Range};
 
 /// A byte offset in a source file (mirrors nika::source::ByteOffset).
 ///

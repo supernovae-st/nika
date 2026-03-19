@@ -24,8 +24,7 @@ path = "src/main.rs"
 
 [dependencies]
 # LSP
-tower-lsp = "0.20"
-lsp-types = "0.94"  # Must match tower-lsp's lsp-types version
+tower-lsp-server = "0.23"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

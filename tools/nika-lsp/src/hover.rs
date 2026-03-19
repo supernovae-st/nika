@@ -6,7 +6,7 @@
 //! - Schema versions
 //! - Parameters
 
-use lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Position};
+use tower_lsp_server::ls_types::{Hover, HoverContents, MarkupContent, MarkupKind, Position};
 
 use crate::document::DocumentState;
 

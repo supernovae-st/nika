@@ -14,10 +14,10 @@
 //! - TaskTable provides O(1) task lookup with precise spans
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
@@ -33,7 +33,7 @@ use crate::lsp::conversion::span_to_range;
 #[cfg(feature = "lsp")]
 pub fn compute_document_symbols_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
 ) -> Vec<DocumentSymbol> {
     let mut symbols = Vec::new();
@@ -500,9 +500,11 @@ pub fn compute_document_symbols(text: &str) -> Vec<SymbolInformation> {
 /// The actual document URI should ideally be passed, but compute_document_symbols
 /// doesn't receive it. This is a limitation of the current API.
 #[cfg(feature = "lsp")]
-fn placeholder_url() -> Url {
+fn placeholder_url() -> Uri {
     // Use `expect` since this is a known-valid URL literal that cannot fail
-    Url::parse("file:///placeholder").expect("static valid URL")
+    "file:///placeholder"
+        .parse::<Uri>()
+        .expect("static valid URL")
 }
 
 /// Create a SymbolInformation
@@ -734,7 +736,7 @@ tasks:
   - id: step2
     exec: "npm run build"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -761,7 +763,7 @@ tasks:
   - id: generate
     infer: "Generate something"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
 
         // Parse document into AST index
@@ -801,7 +803,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///uncached.nika.yaml").unwrap();
+        let uri = "file:///uncached.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         // Deliberately NOT parsing into AST index
 

@@ -11,10 +11,10 @@
 //! - Context detection via `node_context::find_context_at_position()`
 
 use dashmap::DashMap;
-use lsp_types::*;
+use tower_lsp_server::ls_types::*;
 use tokio::sync::mpsc;
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp_server::jsonrpc::Result;
+use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
 use crate::completion::{
@@ -27,7 +27,7 @@ use crate::hover::get_hover;
 
 /// Request to validate a document.
 pub struct ValidationRequest {
-    pub uri: Url,
+    pub uri: Uri,
     pub content: String,
     pub version: i32,
 }
@@ -37,7 +37,7 @@ pub struct NikaBackend {
     /// LSP client for sending notifications
     client: Client,
     /// Open documents
-    documents: DashMap<Url, DocumentState>,
+    documents: DashMap<Uri, DocumentState>,
     /// Validation request channel
     validation_tx: mpsc::Sender<ValidationRequest>,
 }
@@ -63,7 +63,7 @@ impl NikaBackend {
     ///
     /// Uses `ast_integration::extract_task_ids_from_ast()` for accurate
     /// parsing with fallback to string patterns for incomplete YAML.
-    fn extract_task_ids(&self, uri: &Url) -> Vec<String> {
+    fn extract_task_ids(&self, uri: &Uri) -> Vec<String> {
         let doc = match self.documents.get(uri) {
             Some(d) => d,
             None => return vec![],
@@ -106,7 +106,6 @@ async fn validation_worker(mut rx: mpsc::Receiver<ValidationRequest>, client: Cl
     }
 }
 
-#[tower_lsp::async_trait]
 impl LanguageServer for NikaBackend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
@@ -154,6 +153,7 @@ impl LanguageServer for NikaBackend {
                 name: "nika-lsp".to_string(),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
+            offset_encoding: None,
         })
     }
 
@@ -177,7 +177,7 @@ impl LanguageServer for NikaBackend {
         let content = params.text_document.text;
         let version = params.text_document.version;
 
-        tracing::debug!("Document opened: {}", uri);
+        tracing::debug!("Document opened: {:?}", uri);
 
         // Store document
         self.documents
@@ -218,13 +218,13 @@ impl LanguageServer for NikaBackend {
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        tracing::debug!("Document saved: {}", params.text_document.uri);
+        tracing::debug!("Document saved: {:?}", params.text_document.uri);
         // Validation is already triggered by did_change
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = params.text_document.uri;
-        tracing::debug!("Document closed: {}", uri);
+        tracing::debug!("Document closed: {:?}", uri);
 
         // Remove document
         self.documents.remove(&uri);

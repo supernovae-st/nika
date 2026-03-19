@@ -25,10 +25,10 @@
 //! - `compute_semantic_tokens`: Text-based fallback (regex scanning)
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
@@ -327,7 +327,7 @@ pub fn compute_semantic_tokens(text: &str) -> Vec<RawToken> {
 #[cfg(feature = "lsp")]
 pub fn compute_semantic_tokens_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
 ) -> Vec<RawToken> {
     // Start with text-based tokens (accurate positions from line scanning)
@@ -1001,7 +1001,7 @@ tasks:
   - id: step1
     infer: "Generate content"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         ast_index.parse_document(&uri, text, 0);
 
@@ -1019,7 +1019,7 @@ tasks:
     #[cfg(feature = "lsp")]
     fn test_ast_tokens_fallback_when_no_cache() {
         let text = "schema: nika/workflow@0.12\nworkflow: test\n";
-        let uri = Url::parse("file:///uncached.nika.yaml").unwrap();
+        let uri = "file:///uncached.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         // Deliberately NOT parsing into AST index
 
@@ -1044,7 +1044,7 @@ tasks:
       mcp: novanet
       tool: novanet_search
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         ast_index.parse_document(&uri, text, 0);
 
@@ -1071,7 +1071,7 @@ tasks:
     depends_on: [generate]
     exec: "echo done"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         ast_index.parse_document(&uri, text, 0);
 
@@ -1108,7 +1108,7 @@ tasks:
     depends_on: [transform]
     infer: "Summarize the results"
 "#;
-        let uri = Url::parse("file:///enrichment-test.nika.yaml").unwrap();
+        let uri = "file:///enrichment-test.nika.yaml".parse::<Uri>().unwrap();
         let ast_index = AstIndex::new();
         ast_index.parse_document(&uri, text, 0);
 

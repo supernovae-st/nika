@@ -3,7 +3,7 @@
 //! Provides intelligent completions for MCP server names and tool names
 //! based on workflow definitions and static knowledge of common MCP servers.
 
-use lsp_types::{
+use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent, MarkupKind,
 };
 

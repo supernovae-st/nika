@@ -2,8 +2,8 @@
 //!
 //! Converts `AnalyzeError` to LSP `Diagnostic` for real-time error display.
 
-use lsp_types::{
-    Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Url,
+use tower_lsp_server::ls_types::{
+    Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, Location, Range, Uri,
 };
 use nika::ast::analyzer::{AnalyzeError, AnalyzeErrorKind};
 use nika::source::{SourceRegistry, Span};
@@ -14,7 +14,7 @@ use crate::document::DocumentState;
 pub fn to_lsp_diagnostic(
     error: &AnalyzeError,
     doc: &DocumentState,
-    uri: &Url,
+    uri: &Uri,
     _registry: Option<&SourceRegistry>,
 ) -> Diagnostic {
     let range = span_to_range(&error.span, doc);
@@ -54,7 +54,7 @@ pub fn to_lsp_diagnostic(
     Diagnostic {
         range,
         severity: Some(severity),
-        code: Some(lsp_types::NumberOrString::String(
+        code: Some(tower_lsp_server::ls_types::NumberOrString::String(
             error.kind.code().to_string(),
         )),
         code_description: None,
@@ -71,11 +71,11 @@ pub fn span_to_range(span: &Span, doc: &DocumentState) -> Range {
     if span.is_dummy() {
         // Dummy span: point to start of document
         return Range {
-            start: lsp_types::Position {
+            start: tower_lsp_server::ls_types::Position {
                 line: 0,
                 character: 0,
             },
-            end: lsp_types::Position {
+            end: tower_lsp_server::ls_types::Position {
                 line: 0,
                 character: 1,
             },
@@ -89,7 +89,7 @@ pub fn span_to_range(span: &Span, doc: &DocumentState) -> Range {
 }
 
 /// Validate a document and return diagnostics.
-pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
+pub fn validate_document(content: &str, uri: &Uri) -> Vec<Diagnostic> {
     use nika::ast::analyzer::analyze;
     use nika::ast::raw;
     use nika::source::FileId;
@@ -134,7 +134,7 @@ pub fn validate_document(content: &str, uri: &Url) -> Vec<Diagnostic> {
             diagnostics.push(Diagnostic {
                 range,
                 severity: Some(DiagnosticSeverity::ERROR),
-                code: Some(lsp_types::NumberOrString::String(
+                code: Some(tower_lsp_server::ls_types::NumberOrString::String(
                     parse_error.kind.code().to_string(),
                 )),
                 code_description: None,
@@ -163,7 +163,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostics = validate_document(content, &uri);
 
         // Should have no errors for valid workflow
@@ -187,7 +187,7 @@ tasks:
       data: $unknown_task
     infer: "World"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostics = validate_document(content, &uri);
 
         // Should have error for unknown task reference
@@ -204,7 +204,7 @@ tasks:
   - id: step1
     infer: "Hello"
 "#;
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let diagnostics = validate_document(content, &uri);
 
         // Should have error for invalid schema

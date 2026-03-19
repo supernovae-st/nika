@@ -65,7 +65,7 @@ pub use server::NikaLanguageServer;
 /// This is the main entry point called by `nika lsp`.
 #[cfg(feature = "lsp")]
 pub async fn run_stdio() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use tower_lsp::{LspService, Server};
+    use tower_lsp_server::{LspService, Server};
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

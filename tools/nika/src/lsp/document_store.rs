@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::{TextDocumentContentChangeEvent, Url};
+use tower_lsp_server::ls_types::{TextDocumentContentChangeEvent, Uri};
 
 #[cfg(feature = "lsp")]
 use super::conversion::position_to_offset;
@@ -19,7 +19,7 @@ use super::conversion::position_to_offset;
 pub struct DocumentStore {
     /// Map from document URI to current text content
     #[cfg(feature = "lsp")]
-    documents: HashMap<Url, String>,
+    documents: HashMap<Uri, String>,
     #[cfg(not(feature = "lsp"))]
     documents: HashMap<String, String>,
 }
@@ -34,25 +34,25 @@ impl DocumentStore {
 
     /// Insert or replace a document's content
     #[cfg(feature = "lsp")]
-    pub fn insert(&mut self, uri: Url, content: String) {
+    pub fn insert(&mut self, uri: Uri, content: String) {
         self.documents.insert(uri, content);
     }
 
     /// Get a document's current content
     #[cfg(feature = "lsp")]
-    pub fn get(&self, uri: &Url) -> Option<&String> {
+    pub fn get(&self, uri: &Uri) -> Option<&String> {
         self.documents.get(uri)
     }
 
     /// Remove a document from the store
     #[cfg(feature = "lsp")]
-    pub fn remove(&mut self, uri: &Url) -> Option<String> {
+    pub fn remove(&mut self, uri: &Uri) -> Option<String> {
         self.documents.remove(uri)
     }
 
     /// Check if a document is open
     #[cfg(feature = "lsp")]
-    pub fn contains(&self, uri: &Url) -> bool {
+    pub fn contains(&self, uri: &Uri) -> bool {
         self.documents.contains_key(uri)
     }
 
@@ -61,7 +61,7 @@ impl DocumentStore {
     /// Handles both full-document and range-based changes.
     /// Returns true if the document was found and updated, false otherwise.
     #[cfg(feature = "lsp")]
-    pub fn apply_change(&mut self, uri: &Url, change: TextDocumentContentChangeEvent) -> bool {
+    pub fn apply_change(&mut self, uri: &Uri, change: TextDocumentContentChangeEvent) -> bool {
         if let Some(content) = self.documents.get_mut(uri) {
             match change.range {
                 Some(range) => {
@@ -106,7 +106,7 @@ impl DocumentStore {
 
     /// Get all document URIs
     #[cfg(feature = "lsp")]
-    pub fn uris(&self) -> impl Iterator<Item = &Url> {
+    pub fn uris(&self) -> impl Iterator<Item = &Uri> {
         self.documents.keys()
     }
 }
@@ -146,7 +146,7 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_insert_and_get() {
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let content = "schema: nika/workflow@0.12".to_string();
 
         store.insert(uri.clone(), content.clone());
@@ -161,7 +161,7 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_remove() {
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "content".to_string());
         assert!(store.contains(&uri));
@@ -174,10 +174,10 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_apply_full_change() {
-        use tower_lsp::lsp_types::TextDocumentContentChangeEvent;
+        use tower_lsp_server::ls_types::TextDocumentContentChangeEvent;
 
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "old content".to_string());
 
@@ -195,10 +195,10 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_apply_incremental_change() {
-        use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+        use tower_lsp_server::ls_types::{Position, Range, TextDocumentContentChangeEvent};
 
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "hello world".to_string());
 
@@ -225,10 +225,10 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_apply_incremental_insert() {
-        use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+        use tower_lsp_server::ls_types::{Position, Range, TextDocumentContentChangeEvent};
 
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "helloworld".to_string());
 
@@ -255,10 +255,10 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_apply_incremental_delete() {
-        use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+        use tower_lsp_server::ls_types::{Position, Range, TextDocumentContentChangeEvent};
 
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "hello world".to_string());
 
@@ -285,10 +285,10 @@ mod tests {
     #[test]
     #[cfg(feature = "lsp")]
     fn test_apply_multiline_change() {
-        use tower_lsp::lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+        use tower_lsp_server::ls_types::{Position, Range, TextDocumentContentChangeEvent};
 
         let mut store = DocumentStore::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri.clone(), "line1\nline2\nline3".to_string());
 
@@ -316,8 +316,8 @@ mod tests {
     #[cfg(feature = "lsp")]
     fn test_multiple_documents() {
         let mut store = DocumentStore::new();
-        let uri1 = Url::parse("file:///test1.nika.yaml").unwrap();
-        let uri2 = Url::parse("file:///test2.nika.yaml").unwrap();
+        let uri1 = "file:///test1.nika.yaml".parse::<Uri>().unwrap();
+        let uri2 = "file:///test2.nika.yaml".parse::<Uri>().unwrap();
 
         store.insert(uri1.clone(), "content1".to_string());
         store.insert(uri2.clone(), "content2".to_string());

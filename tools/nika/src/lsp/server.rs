@@ -9,11 +9,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[cfg(feature = "lsp")]
-use tower_lsp::jsonrpc::Result;
+use tower_lsp_server::jsonrpc::Result;
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 #[cfg(feature = "lsp")]
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp_server::{Client, LanguageServer};
 
 #[cfg(feature = "lsp")]
 use crate::ast::analyzer::AnalyzeError;
@@ -62,7 +62,7 @@ impl NikaLanguageServer {
     ///
     /// Uses AstIndex for caching and analysis. The AST is cached for
     /// subsequent hover, completion, and definition requests.
-    async fn analyze_document(&self, uri: &Url, text: &str) {
+    async fn analyze_document(&self, uri: &Uri, text: &str) {
         // Use AstIndex to parse and cache the document
         // This handles both Phase 1 (parse) and Phase 2 (analyze)
         let errors = self.ast_index.parse_document(uri, text, 0);
@@ -116,7 +116,6 @@ impl NikaLanguageServer {
 }
 
 #[cfg(feature = "lsp")]
-#[tower_lsp::async_trait]
 impl LanguageServer for NikaLanguageServer {
     async fn initialize(&self, _params: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
@@ -125,6 +124,7 @@ impl LanguageServer for NikaLanguageServer {
                 name: "nika-lsp".to_string(),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
+            offset_encoding: None,
         })
     }
 
@@ -165,7 +165,7 @@ impl LanguageServer for NikaLanguageServer {
                 self.client
                     .log_message(
                         MessageType::WARNING,
-                        format!("Received did_change for unopened document: {}", uri),
+                        format!("Received did_change for unopened document: {:?}", uri),
                     )
                     .await;
                 return;

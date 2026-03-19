@@ -3,7 +3,7 @@
 //! Converts between Nika's byte-offset Spans and LSP's line/character positions.
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::{Position, Range};
+use tower_lsp_server::ls_types::{Position, Range};
 
 use crate::source::Span;
 

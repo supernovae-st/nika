@@ -3,7 +3,7 @@
 //! Validates that `{{with.alias}}` template references in task prompts
 //! are defined in the task's `with:` block.
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
+use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, Range};
 use nika::ast::analyzed::AnalyzedWorkflow;
 use nika::ast::raw::{RawTaskAction, RawWorkflow};
 use regex::Regex;
@@ -109,7 +109,7 @@ pub fn validate_templates(
                     diagnostics.push(Diagnostic {
                         range,
                         severity: Some(DiagnosticSeverity::ERROR),
-                        code: Some(lsp_types::NumberOrString::String("NIKA-141".to_string())),
+                        code: Some(tower_lsp_server::ls_types::NumberOrString::String("NIKA-141".to_string())),
                         code_description: None,
                         source: Some("nika".to_string()),
                         message: format!(

@@ -7,7 +7,7 @@
 //! - MCP server names
 //! - Common parameters
 
-use lsp_types::{
+use tower_lsp_server::ls_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation,
     InsertTextFormat, MarkupContent, MarkupKind, Position,
 };

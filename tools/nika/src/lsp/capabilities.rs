@@ -3,7 +3,7 @@
 //! Defines what features the Nika language server supports.
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
 use super::handlers::semantic_tokens::semantic_token_legend;
@@ -104,8 +104,8 @@ pub fn server_capabilities() -> ServerCapabilities {
         experimental: None,
         position_encoding: None,
         diagnostic_provider: None,
-        // Note: inline_completion_provider and notebook_document_sync removed
-        // (not available in lsp-types 0.94.x used by tower-lsp 0.20)
+        inline_completion_provider: None,
+        notebook_document_sync: None,
     }
 }
 

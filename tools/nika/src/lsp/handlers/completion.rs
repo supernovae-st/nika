@@ -10,10 +10,10 @@
 //! - AstIndex provides accurate task names and MCP servers
 
 #[cfg(feature = "lsp")]
-use tower_lsp::lsp_types::*;
+use tower_lsp_server::ls_types::*;
 
 #[cfg(feature = "lsp")]
-pub use tower_lsp::lsp_types::Url;
+pub use tower_lsp_server::ls_types::Uri;
 
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
@@ -53,7 +53,7 @@ pub enum CompletionContext {
 #[cfg(feature = "lsp")]
 pub fn compute_completions_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
     position: Position,
 ) -> Vec<CompletionItem> {
@@ -812,7 +812,7 @@ fn template_completions(text: &str) -> Vec<CompletionItem> {
 fn verb_value_completions_with_ast(
     verb: &str,
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
 ) -> Vec<CompletionItem> {
     // Get base verb completions
     let mut items = verb_value_completions(verb);
@@ -843,7 +843,7 @@ fn verb_value_completions_with_ast(
 #[cfg(feature = "lsp")]
 fn binding_completions_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
 ) -> Vec<CompletionItem> {
     // Try to get task names from AST first
@@ -876,7 +876,7 @@ fn binding_completions_with_ast(
 #[cfg(feature = "lsp")]
 fn template_completions_with_ast(
     ast_index: &AstIndex,
-    uri: &Url,
+    uri: &Uri,
     text: &str,
 ) -> Vec<CompletionItem> {
     let mut items = vec![
@@ -1010,7 +1010,7 @@ tasks:
         use super::super::super::ast_index::AstIndex;
 
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -1039,7 +1039,7 @@ tasks:
         use super::super::super::ast_index::AstIndex;
 
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"
 tasks:
   - id: step1
@@ -1060,7 +1060,7 @@ tasks:
         use super::super::super::ast_index::AstIndex;
 
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -1093,7 +1093,7 @@ tasks:
         use super::super::super::ast_index::AstIndex;
 
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
@@ -1159,7 +1159,7 @@ tasks:
         use super::super::super::ast_index::AstIndex;
 
         let index = AstIndex::new();
-        let uri = Url::parse("file:///test.nika.yaml").unwrap();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
         let text = r#"schema: nika/workflow@0.12
 workflow: test
 
