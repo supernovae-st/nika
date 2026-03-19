@@ -862,6 +862,9 @@ impl TaskExecutor {
         bindings: &ResolvedBindings,
         datastore: &RunContext,
     ) -> Result<String, NikaError> {
+        // Validate fetch params (empty URL, invalid response mode)
+        fetch.validate()?;
+
         // Resolve {{with.alias}} templates
         let url = template_resolve(&fetch.url, bindings, datastore)?;
 
