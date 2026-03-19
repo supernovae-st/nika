@@ -65,7 +65,7 @@ src/
 | 251-259 | Media pipeline |
 | 260-269 | Package URI errors |
 | 270-279 | Skill errors |
-| 280-289 | Artifacts |
+| 280-285 | Artifacts + Media (path, write, size, integrity, cleanup, lock) |
 | 300-309 | Structured output |
 
 ## Testing

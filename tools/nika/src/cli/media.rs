@@ -48,7 +48,9 @@ pub enum MediaAction {
 pub async fn handle_media_command(action: MediaAction, quiet: bool) -> Result<(), NikaError> {
     let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let store = CasStore::workspace_default(&workspace_root);
-    let store_root = workspace_root.join(".nika").join("media").join("store");
+    // Derive store_root from the actual CasStore root, NOT hardcoded.
+    // This ensures NIKA_MEDIA_STORE overrides are respected for lockfile checks.
+    let store_root = store.root().to_path_buf();
 
     match action {
         MediaAction::List => handle_list(&store, quiet),
@@ -176,9 +178,9 @@ fn handle_clean(
     if !force {
         let lockfile = store_root.join(LOCKFILE_NAME);
         if lockfile.exists() {
-            return Err(NikaError::ConfigError {
+            return Err(NikaError::MediaStoreLocked {
                 reason: format!(
-                    "Media store is locked by a running workflow ({}). \
+                    "Locked by a running workflow ({}). \
                      Use --force to override or wait for the workflow to complete.",
                     lockfile.display()
                 ),
@@ -224,6 +226,11 @@ fn handle_clean(
         }
     } else {
         let result = store.clean_older_than(duration);
+        // TODO(PR2): Emit EventKind::MediaCleanup here. The CLI has no EventLog
+        // because it runs outside the workflow runner context. Options: accept an
+        // optional EventLog param, write one-shot NDJSON to trace dir, or defer
+        // until `nika media clean` integrates with the TUI. The MediaCleanup
+        // variant exists in EventKind but is never emitted.
         if !quiet {
             println!(
                 "{} Removed {} file(s), freed {}",
@@ -323,4 +330,170 @@ mod tests {
         let result = handle_clean(&store, dir.path(), "1h", true, true, true);
         assert!(result.is_ok());
     }
+
+    // ── Functional tests with actual CAS data ──────────────────────────
+
+    /// Backdate a file's mtime by the given duration.
+    fn backdate_mtime(path: &std::path::Path, age: Duration) {
+        let old_time = std::time::SystemTime::now() - age;
+        let file = std::fs::File::open(path).unwrap();
+        file.set_times(std::fs::FileTimes::new().set_modified(old_time))
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_list_with_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        store.store(b"alpha").await.unwrap();
+        store.store(b"bravo").await.unwrap();
+        store.store(b"charlie").await.unwrap();
+
+        // handle_list with quiet=true prints entries to stdout but should not error
+        let result = handle_list(&store, true);
+        assert!(result.is_ok());
+
+        let entries = store.list();
+        assert_eq!(entries.len(), 3, "expected 3 entries, got {}", entries.len());
+    }
+
+    #[tokio::test]
+    async fn test_stats_with_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let blob_a = b"stats-blob-alpha";
+        let blob_b = b"stats-blob-bravo!!";
+
+        store.store(blob_a).await.unwrap();
+        store.store(blob_b).await.unwrap();
+
+        // handle_stats with quiet=false prints table to stdout but should not error
+        let result = handle_stats(&store, false);
+        assert!(result.is_ok());
+
+        let entries = store.list();
+        assert_eq!(entries.len(), 2);
+
+        let total_size: u64 = entries.iter().map(|e| e.size).sum();
+        assert_eq!(
+            total_size,
+            (blob_a.len() + blob_b.len()) as u64,
+            "total size mismatch"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_clean_removes_old_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Store a blob and backdate its mtime to 2 hours ago
+        let sr = store.store(b"old-file-content").await.unwrap();
+        backdate_mtime(&sr.path, Duration::from_secs(7200));
+
+        assert_eq!(store.list().len(), 1, "precondition: 1 file before clean");
+
+        // Clean with older_than=1h, dry_run=false, force=false
+        let clean = handle_clean(&store, dir.path(), "1h", false, false, true);
+        assert!(clean.is_ok());
+
+        // File backdated 2h ago exceeds the 1h threshold; it should be gone
+        assert_eq!(
+            store.list().len(),
+            0,
+            "file backdated 2h should have been removed by 1h threshold"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_clean_dry_run_preserves_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Store and backdate to 2 hours ago
+        let sr = store.store(b"dry-run-content").await.unwrap();
+        backdate_mtime(&sr.path, Duration::from_secs(7200));
+
+        assert_eq!(store.list().len(), 1, "precondition: 1 file before dry-run");
+
+        // dry_run=true: report what would be deleted, but don't actually delete
+        let clean = handle_clean(&store, dir.path(), "1h", true, false, true);
+        assert!(clean.is_ok());
+
+        assert_eq!(store.list().len(), 1, "dry-run must not delete files");
+    }
+
+    #[tokio::test]
+    async fn test_clean_min_age_floor() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Store a blob and backdate to only 3 minutes ago
+        let sr = store.store(b"young-file").await.unwrap();
+        backdate_mtime(&sr.path, Duration::from_secs(180));
+
+        assert_eq!(store.list().len(), 1, "precondition: 1 file");
+
+        // Request older_than="1m" -- the 5-minute safety floor clamps this to 5m.
+        // The file is only 3 minutes old (< 5m floor), so it must survive.
+        let clean = handle_clean(&store, dir.path(), "1m", false, false, true);
+        assert!(clean.is_ok());
+
+        assert_eq!(
+            store.list().len(),
+            1,
+            "file aged 3m must survive when floor clamps 1m to 5m"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_stats_shard_distribution() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Store 20 distinct blobs for hash diversity across shards
+        for i in 0u32..20 {
+            let blob = format!("shard-test-blob-{i:04}");
+            store.store(blob.as_bytes()).await.unwrap();
+        }
+
+        let entries = store.list();
+        assert_eq!(entries.len(), 20, "should have 20 unique entries");
+
+        // Count distinct shards (first 2 hex chars of hash after "blake3:")
+        let mut shards = std::collections::BTreeSet::new();
+        for entry in &entries {
+            let raw = entry.hash.strip_prefix("blake3:").unwrap();
+            shards.insert(raw[..2].to_string());
+        }
+
+        // 20 random-ish blake3 hashes across 256 possible shards: P(all same) ~ 1e-46
+        assert!(
+            shards.len() >= 2,
+            "expected >= 2 distinct shards from 20 files, got {}",
+            shards.len()
+        );
+
+        // Verify the shard distribution logic matches handle_stats internals
+        let mut shard_map: std::collections::BTreeMap<String, (usize, u64)> =
+            std::collections::BTreeMap::new();
+        for entry in &entries {
+            let shard = entry
+                .hash
+                .strip_prefix("blake3:")
+                .map(|h| h[..2].to_string())
+                .unwrap();
+            let counter = shard_map.entry(shard).or_insert((0, 0));
+            counter.0 += 1;
+            counter.1 += entry.size;
+        }
+        assert_eq!(shard_map.len(), shards.len());
+
+        // handle_stats itself should not error
+        let result = handle_stats(&store, false);
+        assert!(result.is_ok());
+    }
+
 }

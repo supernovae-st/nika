@@ -28,7 +28,7 @@
 //! - NIKA-220-229: Reserved (DAG Panel - not implemented)
 //! - NIKA-230-239: Reserved (Session persistence - not implemented)
 //! - NIKA-240-249: Reserved (Animation/Export - not implemented)
-//! - NIKA-280-289: Artifact errors (path validation, write, size limits)
+//! - NIKA-280-285: Artifact/media errors (path validation, write, size, integrity, cleanup, lock)
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
 
 use crate::mcp::types::McpErrorCode;
@@ -552,6 +552,27 @@ pub enum NikaError {
         max_size: u64,
     },
 
+    #[error("[NIKA-283] Media integrity warning: {reason}")]
+    #[diagnostic(
+        code(nika::media_integrity_warning),
+        help("CAS file may have been deleted or corrupted during workflow execution")
+    )]
+    MediaIntegrityWarning { reason: String },
+
+    #[error("[NIKA-284] Media cleanup failed: {reason}")]
+    #[diagnostic(
+        code(nika::media_cleanup_error),
+        help("Check file permissions and disk space in .nika/media/store/")
+    )]
+    MediaCleanupError { reason: String },
+
+    #[error("[NIKA-285] Media store is locked: {reason}")]
+    #[diagnostic(
+        code(nika::media_store_locked),
+        help("A workflow is currently running. Use --force to override or wait for completion")
+    )]
+    MediaStoreLocked { reason: String },
+
     // ═══════════════════════════════════════════
     // STRUCTURED OUTPUT ERRORS (300-309)
     // ═══════════════════════════════════════════
@@ -702,6 +723,9 @@ impl NikaError {
             Self::ArtifactPathError { .. } => "NIKA-280",
             Self::ArtifactWriteError { .. } => "NIKA-281",
             Self::ArtifactSizeExceeded { .. } => "NIKA-282",
+            Self::MediaIntegrityWarning { .. } => "NIKA-283",
+            Self::MediaCleanupError { .. } => "NIKA-284",
+            Self::MediaStoreLocked { .. } => "NIKA-285",
             // Structured Output errors
             Self::StructuredOutputExtractionFailed { .. } => "NIKA-300",
             Self::StructuredOutputValidationFailed { .. } => "NIKA-301",
@@ -922,6 +946,15 @@ impl FixSuggestion for NikaError {
             }
             NikaError::ArtifactSizeExceeded { .. } => {
                 Some("Increase artifacts.max_size in workflow or reduce output size")
+            }
+            NikaError::MediaIntegrityWarning { .. } => {
+                Some("CAS file may have been deleted or corrupted during workflow execution")
+            }
+            NikaError::MediaCleanupError { .. } => {
+                Some("Check file permissions and disk space in .nika/media/store/")
+            }
+            NikaError::MediaStoreLocked { .. } => {
+                Some("A workflow is currently running. Use --force to override or wait for completion")
             }
             // Structured Output errors
             NikaError::StructuredOutputExtractionFailed { .. } => {
