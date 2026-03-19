@@ -59,7 +59,7 @@ impl RawTaskAction {
 /// Parameters for the `infer` verb (LLM inference).
 #[derive(Debug, Clone, Default)]
 pub struct RawInferAction {
-    /// The prompt to send to the LLM
+    /// The prompt to send to the LLM (optional when `content` is present)
     pub prompt: Spanned<String>,
 
     /// System prompt override
@@ -76,6 +76,9 @@ pub struct RawInferAction {
 
     /// Thinking budget tokens
     pub thinking_budget: Option<Spanned<u32>>,
+
+    /// Multimodal content parts (text + images) for vision models
+    pub content: Option<Spanned<Vec<crate::ast::content::RawContentPart>>>,
 }
 
 /// Parameters for the `exec` verb (shell command execution).

@@ -174,6 +174,9 @@ fn lower_infer(
         response_format: None,
         extended_thinking: infer.thinking,
         thinking_budget: infer.thinking_budget.map(u64::from),
+        content: infer
+            .content
+            .map(|parts| parts.into_iter().map(Into::into).collect()),
     }
 }
 
@@ -592,6 +595,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             thinking_budget: infer
                 .thinking_budget
                 .map(|b| u32::try_from(b).unwrap_or(u32::MAX)),
+            content: None, // Content is consumed during lowering; not round-tripped
             span: Span::dummy(),
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
@@ -796,6 +800,7 @@ mod tests {
                 max_tokens: Some(100),
                 thinking: Some(true),
                 thinking_budget: Some(8192),
+                content: None,
                 span: Span::dummy(),
             }),
             provider: Some("mistral".to_string()),

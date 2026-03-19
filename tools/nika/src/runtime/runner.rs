@@ -541,6 +541,10 @@ impl Runner {
             response_format: None,
             extended_thinking: None,
             thinking_budget: None,
+            content: infer_action
+                .content
+                .as_ref()
+                .map(|parts| parts.iter().cloned().map(Into::into).collect()),
         };
 
         Some((schema, max_retries, infer_params))

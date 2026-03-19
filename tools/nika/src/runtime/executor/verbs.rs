@@ -56,7 +56,9 @@ impl TaskExecutor {
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
 
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
-        if prompt.trim().is_empty() {
+        // Skip this check when content is present (vision mode — prompt is optional)
+        let has_content = infer.content.as_ref().is_some_and(|c| !c.is_empty());
+        if prompt.trim().is_empty() && !has_content {
             return Err(NikaError::ValidationError {
                 reason: format!(
                     "Resolved prompt is empty (task: {}). Check your template bindings.",

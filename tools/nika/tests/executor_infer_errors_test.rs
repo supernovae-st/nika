@@ -38,14 +38,7 @@ fn create_mock_executor() -> TaskExecutor {
 fn infer_params(prompt: &str) -> InferParams {
     InferParams {
         prompt: prompt.to_string(),
-        model: None,
-        provider: None,
-        temperature: None,
-        max_tokens: None,
-        system: None,
-        response_format: None,
-        extended_thinking: None,
-        thinking_budget: None,
+        ..Default::default()
     }
 }
 
@@ -305,14 +298,8 @@ async fn test_infer_unknown_provider() {
     let action = TaskAction::Infer {
         infer: InferParams {
             prompt: "Test prompt".to_string(),
-            model: None,
             provider: Some("unknown_provider".to_string()),
-            temperature: None,
-            max_tokens: None,
-            system: None,
-            response_format: None,
-            extended_thinking: None,
-            thinking_budget: None,
+            ..Default::default()
         },
     };
     let bindings = ResolvedBindings::new();

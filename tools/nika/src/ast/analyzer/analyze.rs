@@ -668,6 +668,8 @@ fn analyze_action(raw: &RawTaskAction) -> AnalyzedTaskAction {
 }
 
 fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
+    use crate::ast::content::analyze_content_part;
+
     AnalyzedInferAction {
         prompt: raw.prompt.value.clone(),
         system: raw.system.as_ref().map(|s| s.value.clone()),
@@ -675,6 +677,9 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         thinking: raw.thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
+        content: raw.content.as_ref().map(|spanned| {
+            spanned.value.iter().map(analyze_content_part).collect()
+        }),
         span: raw.prompt.span,
     }
 }
