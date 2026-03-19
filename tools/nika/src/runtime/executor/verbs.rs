@@ -394,15 +394,24 @@ impl TaskExecutor {
                         // Resolve template in source (e.g., {{with.photo.media[0].hash}})
                         let resolved_source = template_resolve(source, bindings, datastore)?.into_owned();
 
-                        // Read image data from CAS
-                        let image_data = self.cas.read(&resolved_source).await.map_err(|e| {
-                            NikaError::ProviderApiError {
-                                message: format!(
-                                    "Vision: failed to read CAS image '{}': {}",
-                                    resolved_source, e
-                                ),
+                        // Read image data from CAS (with cancellation)
+                        let cas_read = self.cas.read(&resolved_source);
+                        let image_data = tokio::select! {
+                            result = cas_read => {
+                                result.map_err(|e| NikaError::ProviderApiError {
+                                    message: format!(
+                                        "Vision: failed to read CAS image '{}': {}",
+                                        resolved_source, e
+                                    ),
+                                })?
                             }
-                        })?;
+                            _ = self.cancel_token.cancelled() => {
+                                return Err(NikaError::TaskCancelled {
+                                    task_id: task_id.to_string(),
+                                    reason: "workflow cancelled during vision CAS read".to_string(),
+                                });
+                            }
+                        };
 
                         total_bytes += image_data.len() as u64;
                         image_count += 1;
@@ -475,18 +484,27 @@ impl TaskExecutor {
                 "Vision content resolved, calling infer_vision"
             );
 
-            // Call vision provider method
-            let vision_result = provider
-                .infer_vision(
-                    user_content,
-                    model,
-                    infer.system.as_deref(),
-                    infer.max_tokens,
-                )
-                .await
-                .map_err(|e| NikaError::ProviderApiError {
-                    message: e.to_string(),
-                })?;
+            // Call vision provider method (with cancellation support)
+            let vision_work = provider.infer_vision(
+                user_content,
+                model,
+                infer.system.as_deref(),
+                infer.max_tokens,
+            );
+
+            let vision_result = tokio::select! {
+                result = vision_work => {
+                    result.map_err(|e| NikaError::ProviderApiError {
+                        message: e.to_string(),
+                    })?
+                }
+                _ = self.cancel_token.cancelled() => {
+                    return Err(NikaError::TaskCancelled {
+                        task_id: task_id.to_string(),
+                        reason: "workflow cancelled during vision inference".to_string(),
+                    });
+                }
+            };
 
             // EMIT: ProviderResponded (basic — no token counts from non-streaming vision)
             self.event_log.emit(EventKind::ProviderResponded {
