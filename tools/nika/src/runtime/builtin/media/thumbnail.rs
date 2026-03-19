@@ -214,6 +214,61 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn thumbnail_output_is_decodable() {
+    // Verify the output is an actual valid image, not just magic bytes
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png_100x50();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ThumbnailOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "width": 30
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, .. } = result {
+      // Actually decode the output and verify real dimensions
+      let output_img = image::load_from_memory(&data).expect("output must be decodable");
+      assert_eq!(output_img.width(), 30, "output width must match requested");
+      assert_eq!(output_img.height(), 15, "aspect ratio must be preserved (100:50 = 30:15)");
+    }
+  }
+
+  #[tokio::test]
+  async fn thumbnail_extreme_aspect_ratio() {
+    // Very wide image: 1000x1 → width 100 should give height 1 (not 0)
+    let (_dir, ctx) = setup().await;
+    let img = image::ImageBuffer::from_pixel(1000, 1, image::Rgba([255u8, 0, 0, 255]));
+    let mut buf = Vec::new();
+    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+    image::ImageEncoder::write_image(enc, img.as_raw(), 1000, 1, image::ExtendedColorType::Rgba8).unwrap();
+    let sr = ctx.cas.store(&buf).await.unwrap();
+
+    let op = ThumbnailOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "width": 100
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { metadata, .. } = result {
+      let h = metadata["height"].as_u64().unwrap();
+      assert!(h >= 1, "height must be at least 1, got {h}");
+    }
+  }
+
+  #[tokio::test]
+  async fn thumbnail_width_over_limit_rejected() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png_100x50();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ThumbnailOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "width": 20000
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+  }
+
+  #[tokio::test]
   async fn thumbnail_random_bytes_no_panic() {
     let (_dir, ctx) = setup().await;
     let op = ThumbnailOp;

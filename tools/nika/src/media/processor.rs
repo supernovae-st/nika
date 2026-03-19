@@ -254,11 +254,9 @@ fn compute_thumbhash_for_enrichment(data: &[u8]) -> Option<String> {
 
     #[cfg(not(feature = "media-thumbnail"))]
     {
-        // Without image crate, generate a content-based pseudo-hash
-        let file_hash = blake3::hash(data);
-        let bytes = file_hash.as_bytes();
-        use base64::Engine;
-        Some(base64::engine::general_purpose::STANDARD.encode(&bytes[..25]))
+        // Without image crate, cannot decode pixels for real thumbhash
+        let _ = data;
+        None
     }
 }
 

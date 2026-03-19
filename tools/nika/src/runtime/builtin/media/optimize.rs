@@ -79,7 +79,7 @@ impl MediaOp for OptimizeOp {
         metadata: serde_json::json!({
           "original_size": original_size,
           "optimized_size": optimized_size,
-          "savings_pct": format!("{savings_pct:.1}"),
+          "savings_pct": (savings_pct * 10.0).round() / 10.0,
           "level": level,
         }),
       })
@@ -154,5 +154,41 @@ mod tests {
     let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
     // Should error, not panic
     assert!(result.is_err());
+  }
+
+  #[tokio::test]
+  async fn optimize_output_is_decodable_png() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = OptimizeOp;
+    let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, metadata, .. } = result {
+      // Verify output is a real decodable PNG
+      let img = image::load_from_memory(&data).expect("optimized output must be decodable");
+      assert_eq!(img.width(), 50);
+      assert_eq!(img.height(), 50);
+      // Verify savings_pct is a number (not string)
+      assert!(metadata["savings_pct"].is_f64() || metadata["savings_pct"].is_u64(),
+        "savings_pct should be numeric, got: {:?}", metadata["savings_pct"]);
+    }
+  }
+
+  #[tokio::test]
+  async fn optimize_preserves_dimensions() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png();
+    let original_size = png.len();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = OptimizeOp;
+    let result = op.execute(serde_json::json!({"hash": sr.hash, "level": 2}), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, metadata, .. } = result {
+      assert!(data.len() <= original_size, "optimized should not be larger than original");
+      assert_eq!(metadata["original_size"].as_u64().unwrap(), original_size as u64);
+    }
   }
 }

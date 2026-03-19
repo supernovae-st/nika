@@ -142,6 +142,65 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn convert_png_to_jpeg_decodable() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ConvertOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash, "format": "jpeg"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, .. } = result {
+      let img = image::load_from_memory(&data).expect("JPEG output must be decodable");
+      assert_eq!(img.width(), 10);
+      assert_eq!(img.height(), 10);
+    }
+  }
+
+  #[tokio::test]
+  async fn convert_jpeg_to_png() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png();
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    // First convert to JPEG
+    let op = ConvertOp;
+    let jpeg_result = op.execute(serde_json::json!({
+      "hash": sr.hash, "format": "jpeg"
+    }), &ctx).await.unwrap();
+
+    let jpeg_hash = if let MediaOpResult::Binary { data, .. } = &jpeg_result {
+      ctx.cas.store(data).await.unwrap().hash
+    } else { panic!("expected Binary"); };
+
+    // Then convert back to PNG
+    let png_result = op.execute(serde_json::json!({
+      "hash": jpeg_hash, "format": "png"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, mime_type, .. } = png_result {
+      assert_eq!(mime_type, "image/png");
+      assert_eq!(&data[..4], &[137, 80, 78, 71]); // PNG magic
+      let img = image::load_from_memory(&data).expect("PNG must be decodable");
+      assert_eq!(img.width(), 10);
+    }
+  }
+
+  #[tokio::test]
+  async fn convert_corrupt_input_no_panic() {
+    let (_dir, ctx) = setup().await;
+    for i in 1..30u8 {
+      let data: Vec<u8> = (0..=i).collect();
+      if let Ok(sr) = ctx.cas.store(&data).await {
+        let op = ConvertOp;
+        let _ = op.execute(serde_json::json!({"hash": sr.hash, "format": "png"}), &ctx).await;
+      }
+    }
+  }
+
+  #[tokio::test]
   async fn convert_missing_format() {
     let (_dir, ctx) = setup().await;
     let png = fixture_png();

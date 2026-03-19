@@ -28,7 +28,11 @@
 //! - NIKA-220-229: Reserved (DAG Panel - not implemented)
 //! - NIKA-230-239: Reserved (Session persistence - not implemented)
 //! - NIKA-240-249: Reserved (Animation/Export - not implemented)
+//! - NIKA-251-259: Media pipeline errors (MIME, CAS, base64, budget — src/media/error.rs)
+//! - NIKA-260-269: Package URI errors
+//! - NIKA-270-279: Skill errors
 //! - NIKA-280-285: Artifact/media errors (path validation, write, size, integrity, cleanup, lock)
+//! - NIKA-290-297: Media tool errors (tool, format, deps, timeout, args, pipeline, security)
 //! - NIKA-300-309: Structured Output errors (JSON Schema validation, extraction, repair)
 
 use crate::mcp::types::McpErrorCode;
