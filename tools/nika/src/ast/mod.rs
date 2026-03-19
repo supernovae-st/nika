@@ -51,6 +51,9 @@ pub mod budget;
 // Vision/multimodal content parts
 pub mod content;
 
+#[cfg(test)]
+mod tests_200_workflows;
+
 // Runtime types (consumed by runner/executor)
 mod action;
 mod agent;
