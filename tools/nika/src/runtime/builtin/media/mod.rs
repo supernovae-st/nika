@@ -38,6 +38,10 @@ mod convert;
 mod strip;
 #[cfg(test)]
 mod tests_integration;
+#[cfg(test)]
+mod tests_paranoid;
+#[cfg(test)]
+mod tests_e2e_workflow;
 
 use std::future::Future;
 use std::pin::Pin;
