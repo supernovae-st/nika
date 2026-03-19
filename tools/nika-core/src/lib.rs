@@ -14,4 +14,4 @@
 //! - TUI (ratatui)
 //! - LSP server (tower-lsp)
 
-// Modules will be added as files are moved from nika
+pub mod source;
