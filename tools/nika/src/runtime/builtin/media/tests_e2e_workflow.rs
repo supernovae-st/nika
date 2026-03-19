@@ -319,7 +319,7 @@ mod tests {
     }
     #[cfg(feature = "media-provenance")]
     {
-      expected += 1;
+      expected += 2; // provenance + verify
     }
     #[cfg(feature = "media-qr")]
     {
