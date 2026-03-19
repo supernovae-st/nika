@@ -1020,9 +1020,26 @@ impl TaskExecutor {
                     }
 
                     // Success or non-retryable error status
-                    return response.text().await.map_err(|e| {
+                    const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
+                    if let Some(len) = response.content_length() {
+                        if len > MAX_RESPONSE_SIZE {
+                            return Err(NikaError::Execution(format!(
+                                "Response too large ({} bytes, max {} bytes)",
+                                len, MAX_RESPONSE_SIZE
+                            )));
+                        }
+                    }
+                    let raw_body = response.text().await.map_err(|e| {
                         NikaError::Execution(format!("Failed to read response: {}", e))
-                    });
+                    })?;
+                    if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
+                        return Err(NikaError::Execution(format!(
+                            "Response body too large ({} bytes, max {} bytes)",
+                            raw_body.len(),
+                            MAX_RESPONSE_SIZE
+                        )));
+                    }
+                    return Ok(raw_body);
                 }
                 Err(e) => {
                     // Network errors are retryable
