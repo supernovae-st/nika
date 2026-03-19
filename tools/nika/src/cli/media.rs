@@ -28,6 +28,9 @@ pub enum MediaAction {
     /// Show store statistics (count, size, shard distribution)
     Stats,
 
+    /// List available media tools and their features
+    Tools,
+
     /// Remove old media files from the store
     Clean {
         /// Minimum age for deletion (e.g., "1h", "7d", "30m"). Default: 1h
@@ -55,6 +58,10 @@ pub async fn handle_media_command(action: MediaAction, quiet: bool) -> Result<()
     match action {
         MediaAction::List => handle_list(&store, quiet),
         MediaAction::Stats => handle_stats(&store, quiet),
+        MediaAction::Tools => {
+            handle_tools();
+            Ok(())
+        }
         MediaAction::Clean {
             older_than,
             dry_run,
@@ -496,4 +503,61 @@ mod tests {
         assert!(result.is_ok());
     }
 
+}
+
+/// Display available media tools and their feature flags.
+fn handle_tools() {
+    println!("{}", "Available Media Tools".bold());
+    println!("{}", "─".repeat(60));
+    println!();
+
+    // Always-on tools (Tier 1)
+    println!("{}", "Tier 1 — Always On".cyan().bold());
+    println!("  {} — Image dimensions from headers (~0.1ms)", "nika:dimensions".green());
+    println!("  {} — 25-byte compact image placeholder", "nika:thumbhash".green());
+    println!("  {} — Color palette extraction", "nika:dominant_color".green());
+    println!("  {} — Chain operations in-memory (1 read → N ops → 1 write)", "nika:pipeline".green());
+    println!();
+
+    // Feature-gated tools (Tier 2)
+    println!("{}", "Tier 2 — Default Features (media-core)".cyan().bold());
+
+    let tools_tier2 = [
+        ("nika:thumbnail", "media-thumbnail", "SIMD-accelerated image resize", cfg!(feature = "media-thumbnail")),
+        ("nika:convert", "media-thumbnail", "Format conversion (PNG/JPEG/WebP)", cfg!(feature = "media-thumbnail")),
+        ("nika:strip", "media-thumbnail", "Remove metadata (re-encode)", cfg!(feature = "media-thumbnail")),
+        ("nika:metadata", "media-metadata", "Universal EXIF/audio metadata", cfg!(feature = "media-metadata")),
+        ("nika:optimize", "media-optimize", "Lossless PNG optimization (oxipng)", cfg!(feature = "media-optimize")),
+        ("nika:svg_render", "media-svg", "SVG to PNG rasterization (resvg)", cfg!(feature = "media-svg")),
+    ];
+
+    for (name, feature, desc, enabled) in &tools_tier2 {
+        let status = if *enabled { "✓" } else { "✗" };
+        let status_colored = if *enabled { status.green() } else { status.red() };
+        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+    }
+    println!();
+
+    // Tier 3 — Opt-in
+    println!("{}", "Tier 3 — Opt-In Features".cyan().bold());
+
+    let tools_tier3 = [
+        ("nika:phash", "media-phash", "Perceptual image hashing (near-duplicate detection)", cfg!(feature = "media-phash")),
+        ("nika:compare", "media-phash", "Visual comparison between two images", cfg!(feature = "media-phash")),
+        ("nika:pdf_extract", "media-pdf", "PDF text extraction", cfg!(feature = "media-pdf")),
+    ];
+
+    for (name, feature, desc, enabled) in &tools_tier3 {
+        let status = if *enabled { "✓" } else { "✗" };
+        let status_colored = if *enabled { status.green() } else { status.red() };
+        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+    }
+    println!();
+
+    // Count
+    let enabled_count = tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
+        + tools_tier3.iter().filter(|(_, _, _, e)| *e).count()
+        + 4; // always-on
+    let total = 4 + tools_tier2.len() + tools_tier3.len();
+    println!("{} {} / {} tools enabled", "Total:".bold(), enabled_count, total);
 }
