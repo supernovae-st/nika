@@ -594,12 +594,10 @@ infer:
         use crate::ast::content::{ContentPart, ImageDetail};
         let params = InferParams {
             prompt: "".to_string(),
-            content: Some(vec![
-                ContentPart::Image {
-                    source: "blake3:abc".to_string(),
-                    detail: ImageDetail::Auto,
-                },
-            ]),
+            content: Some(vec![ContentPart::Image {
+                source: "blake3:abc".to_string(),
+                detail: ImageDetail::Auto,
+            }]),
             ..Default::default()
         };
         assert!(params.validate().is_ok());
@@ -610,9 +608,9 @@ infer:
         use crate::ast::content::ContentPart;
         let params = InferParams {
             prompt: "Describe this image".to_string(),
-            content: Some(vec![
-                ContentPart::Text { text: "hello".to_string() },
-            ]),
+            content: Some(vec![ContentPart::Text {
+                text: "hello".to_string(),
+            }]),
             ..Default::default()
         };
         assert!(params.validate().is_ok());

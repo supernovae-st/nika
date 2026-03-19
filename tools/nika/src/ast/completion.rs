@@ -397,7 +397,10 @@ impl PatternConfig {
                 let regex = self
                     .compiled_regex
                     .get_or_init(|| Regex::new(&self.value).ok());
-                regex.as_ref().map(|re| re.is_match(output)).unwrap_or(false)
+                regex
+                    .as_ref()
+                    .map(|re| re.is_match(output))
+                    .unwrap_or(false)
             }
         }
     }

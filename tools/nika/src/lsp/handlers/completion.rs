@@ -312,7 +312,9 @@ fn task_field_completions() -> Vec<CompletionItem> {
     items.push(CompletionItem {
         label: "provider".to_string(),
         kind: Some(CompletionItemKind::PROPERTY),
-        insert_text: Some("provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string()),
+        insert_text: Some(
+            "provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string(),
+        ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         documentation: Some(Documentation::String(
             "Override LLM provider for this task.".to_string(),
@@ -349,7 +351,9 @@ fn task_field_completions() -> Vec<CompletionItem> {
     items.push(CompletionItem {
         label: "artifact".to_string(),
         kind: Some(CompletionItemKind::PROPERTY),
-        insert_text: Some("artifact:\n  path: ${1:output.txt}\n  format: ${2|text,json|}".to_string()),
+        insert_text: Some(
+            "artifact:\n  path: ${1:output.txt}\n  format: ${2|text,json|}".to_string(),
+        ),
         insert_text_format: Some(InsertTextFormat::SNIPPET),
         documentation: Some(Documentation::String(
             "Persist task output to a file.".to_string(),
@@ -644,7 +648,9 @@ fn verb_value_completions(verb: &str) -> Vec<CompletionItem> {
             CompletionItem {
                 label: "provider".to_string(),
                 kind: Some(CompletionItemKind::PROPERTY),
-                insert_text: Some("provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string()),
+                insert_text: Some(
+                    "provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}".to_string(),
+                ),
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 documentation: Some(Documentation::String(
                     "LLM provider override for this agent.".to_string(),
@@ -674,7 +680,9 @@ fn verb_value_completions(verb: &str) -> Vec<CompletionItem> {
             CompletionItem {
                 label: "tools".to_string(),
                 kind: Some(CompletionItemKind::PROPERTY),
-                insert_text: Some("tools: [${1|builtin,nika:read,nika:write,nika:edit|}]".to_string()),
+                insert_text: Some(
+                    "tools: [${1|builtin,nika:read,nika:write,nika:edit|}]".to_string(),
+                ),
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 documentation: Some(Documentation::String(
                     "Builtin tools: [builtin] for all, or specific nika:* tools.".to_string(),

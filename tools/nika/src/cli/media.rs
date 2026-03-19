@@ -83,9 +83,15 @@ const MAX_CLI_IMPORT_SIZE: u64 = 500 * 1024 * 1024;
 
 /// Sensitive system directories that import must never read from.
 const CLI_SENSITIVE_PREFIXES: &[&str] = &[
-    "/etc/", "/proc/", "/sys/", "/dev/",
-    "/var/run/", "/var/log/",
-    "/private/etc/", "/private/var/run/", "/private/var/log/",
+    "/etc/",
+    "/proc/",
+    "/sys/",
+    "/dev/",
+    "/var/run/",
+    "/var/log/",
+    "/private/etc/",
+    "/private/var/run/",
+    "/private/var/log/",
 ];
 
 /// Validate import path: reject path traversal and sensitive directories.
@@ -97,7 +103,9 @@ fn validate_cli_import_path(path: &std::path::Path) -> Result<(), NikaError> {
         if matches!(component, std::path::Component::ParentDir) {
             return Err(NikaError::BuiltinToolError {
                 tool: "nika:import".to_string(),
-                reason: format!("[NIKA-297] security violation: path traversal not allowed: {path_str}"),
+                reason: format!(
+                    "[NIKA-297] security violation: path traversal not allowed: {path_str}"
+                ),
             });
         }
     }
@@ -107,7 +115,9 @@ fn validate_cli_import_path(path: &std::path::Path) -> Result<(), NikaError> {
         if path_str.starts_with(prefix) {
             return Err(NikaError::BuiltinToolError {
                 tool: "nika:import".to_string(),
-                reason: format!("[NIKA-297] security violation: reading from {prefix} is not allowed"),
+                reason: format!(
+                    "[NIKA-297] security violation: reading from {prefix} is not allowed"
+                ),
             });
         }
     }
@@ -119,7 +129,9 @@ fn validate_cli_import_path(path: &std::path::Path) -> Result<(), NikaError> {
             if canonical_str.starts_with(prefix) {
                 return Err(NikaError::BuiltinToolError {
                     tool: "nika:import".to_string(),
-                    reason: format!("[NIKA-297] security violation: reading from {prefix} is not allowed"),
+                    reason: format!(
+                        "[NIKA-297] security violation: reading from {prefix} is not allowed"
+                    ),
                 });
             }
         }
@@ -128,21 +140,27 @@ fn validate_cli_import_path(path: &std::path::Path) -> Result<(), NikaError> {
     Ok(())
 }
 
-async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) -> Result<(), NikaError> {
+async fn handle_import(
+    store: &CasStore,
+    file: &std::path::Path,
+    quiet: bool,
+) -> Result<(), NikaError> {
     // Security: reject path traversal and sensitive directories
     validate_cli_import_path(file)?;
 
     // Async metadata check (no blocking I/O)
-    let metadata = tokio::fs::metadata(file).await.map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => NikaError::BuiltinInvalidParams {
-            tool: "nika:import".to_string(),
-            reason: format!("[NIKA-294] file not found: {}", file.display()),
-        },
-        _ => NikaError::BuiltinToolError {
-            tool: "nika:import".to_string(),
-            reason: format!("[NIKA-290] cannot stat file: {e}"),
-        },
-    })?;
+    let metadata = tokio::fs::metadata(file)
+        .await
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => NikaError::BuiltinInvalidParams {
+                tool: "nika:import".to_string(),
+                reason: format!("[NIKA-294] file not found: {}", file.display()),
+            },
+            _ => NikaError::BuiltinToolError {
+                tool: "nika:import".to_string(),
+                reason: format!("[NIKA-290] cannot stat file: {e}"),
+            },
+        })?;
 
     if !metadata.is_file() {
         return Err(NikaError::BuiltinInvalidParams {
@@ -161,15 +179,21 @@ async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) ->
     if metadata.len() > MAX_CLI_IMPORT_SIZE {
         return Err(NikaError::BuiltinInvalidParams {
             tool: "nika:import".to_string(),
-            reason: format!("[NIKA-294] file too large ({} bytes, max {} bytes)", metadata.len(), MAX_CLI_IMPORT_SIZE),
+            reason: format!(
+                "[NIKA-294] file too large ({} bytes, max {} bytes)",
+                metadata.len(),
+                MAX_CLI_IMPORT_SIZE
+            ),
         });
     }
 
     // Read the file (size already validated)
-    let data = tokio::fs::read(file).await.map_err(|e| NikaError::BuiltinToolError {
-        tool: "nika:import".to_string(),
-        reason: format!("[NIKA-290] read failed: {e}"),
-    })?;
+    let data = tokio::fs::read(file)
+        .await
+        .map_err(|e| NikaError::BuiltinToolError {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-290] read failed: {e}"),
+        })?;
 
     // Detect MIME type via magic bytes
     let mime_type = infer::get(&data)
@@ -179,10 +203,13 @@ async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) ->
     let size = data.len() as u64;
 
     // Store in CAS
-    let result = store.store(&data).await.map_err(|e| NikaError::BuiltinToolError {
-        tool: "nika:import".to_string(),
-        reason: format!("[NIKA-290] CAS store failed: {e}"),
-    })?;
+    let result = store
+        .store(&data)
+        .await
+        .map_err(|e| NikaError::BuiltinToolError {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-290] CAS store failed: {e}"),
+        })?;
 
     if quiet {
         println!("{}", result.hash);
@@ -244,7 +271,8 @@ fn handle_stats(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
     let count = entries.len();
 
     // Shard distribution
-    let mut shards: std::collections::BTreeMap<String, (usize, u64)> = std::collections::BTreeMap::new();
+    let mut shards: std::collections::BTreeMap<String, (usize, u64)> =
+        std::collections::BTreeMap::new();
     for entry in &entries {
         // Extract shard prefix (first 2 chars of hash after "blake3:")
         let shard = entry
@@ -292,7 +320,10 @@ fn handle_clean(
 ) -> Result<(), NikaError> {
     // Parse duration
     let duration = humantime::parse_duration(older_than).map_err(|e| NikaError::ConfigError {
-        reason: format!("Invalid duration '{}': {}. Examples: 1h, 30m, 7d", older_than, e),
+        reason: format!(
+            "Invalid duration '{}': {}. Examples: 1h, 30m, 7d",
+            older_than, e
+        ),
     })?;
 
     // Enforce minimum GC age (5 minutes)
@@ -396,6 +427,149 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Display available media tools and their feature flags.
+fn handle_tools() {
+    println!("{}", "Available Media Tools".bold());
+    println!("{}", "─".repeat(60));
+    println!();
+
+    // Always-on tools (Tier 1)
+    println!("{}", "Tier 1 — Always On".cyan().bold());
+    println!(
+        "  {} — Import any file into CAS (image, audio, video, PDF)",
+        "nika:import".green()
+    );
+    println!(
+        "  {} — Image dimensions from headers (~0.1ms)",
+        "nika:dimensions".green()
+    );
+    println!(
+        "  {} — 25-byte compact image placeholder",
+        "nika:thumbhash".green()
+    );
+    println!(
+        "  {} — Color palette extraction",
+        "nika:dominant_color".green()
+    );
+    println!(
+        "  {} — Chain operations in-memory (1 read → N ops → 1 write)",
+        "nika:pipeline".green()
+    );
+    println!();
+
+    // Feature-gated tools (Tier 2)
+    println!("{}", "Tier 2 — Default Features (media-core)".cyan().bold());
+
+    let tools_tier2 = [
+        (
+            "nika:thumbnail",
+            "media-thumbnail",
+            "SIMD-accelerated image resize",
+            cfg!(feature = "media-thumbnail"),
+        ),
+        (
+            "nika:convert",
+            "media-thumbnail",
+            "Format conversion (PNG/JPEG/WebP)",
+            cfg!(feature = "media-thumbnail"),
+        ),
+        (
+            "nika:strip",
+            "media-thumbnail",
+            "Remove metadata (re-encode)",
+            cfg!(feature = "media-thumbnail"),
+        ),
+        (
+            "nika:metadata",
+            "media-metadata",
+            "Universal EXIF/audio metadata",
+            cfg!(feature = "media-metadata"),
+        ),
+        (
+            "nika:optimize",
+            "media-optimize",
+            "Lossless PNG optimization (oxipng)",
+            cfg!(feature = "media-optimize"),
+        ),
+        (
+            "nika:svg_render",
+            "media-svg",
+            "SVG to PNG rasterization (resvg)",
+            cfg!(feature = "media-svg"),
+        ),
+    ];
+
+    for (name, feature, desc, enabled) in &tools_tier2 {
+        let status = if *enabled { "✓" } else { "✗" };
+        let status_colored = if *enabled {
+            status.green()
+        } else {
+            status.red()
+        };
+        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+    }
+    println!();
+
+    // Tier 3 — Opt-in
+    println!("{}", "Tier 3 — Opt-In Features".cyan().bold());
+
+    let tools_tier3 = [
+        (
+            "nika:phash",
+            "media-phash",
+            "Perceptual image hashing (near-duplicate detection)",
+            cfg!(feature = "media-phash"),
+        ),
+        (
+            "nika:compare",
+            "media-phash",
+            "Visual comparison between two images",
+            cfg!(feature = "media-phash"),
+        ),
+        (
+            "nika:pdf_extract",
+            "media-pdf",
+            "PDF text extraction",
+            cfg!(feature = "media-pdf"),
+        ),
+        (
+            "nika:chart",
+            "media-chart",
+            "Generate charts (bar/line/pie) from JSON data",
+            cfg!(feature = "media-chart"),
+        ),
+        (
+            "nika:provenance",
+            "media-provenance",
+            "Add C2PA content credentials (provenance)",
+            cfg!(feature = "media-provenance"),
+        ),
+    ];
+
+    for (name, feature, desc, enabled) in &tools_tier3 {
+        let status = if *enabled { "✓" } else { "✗" };
+        let status_colored = if *enabled {
+            status.green()
+        } else {
+            status.red()
+        };
+        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
+    }
+    println!();
+
+    // Count
+    let enabled_count = tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
+        + tools_tier3.iter().filter(|(_, _, _, e)| *e).count()
+        + 5; // always-on (import, dimensions, thumbhash, dominant_color, pipeline)
+    let total = 5 + tools_tier2.len() + tools_tier3.len();
+    println!(
+        "{} {} / {} tools enabled",
+        "Total:".bold(),
+        enabled_count,
+        total
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,7 +664,12 @@ mod tests {
         assert!(result.is_ok());
 
         let entries = store.list();
-        assert_eq!(entries.len(), 3, "expected 3 entries, got {}", entries.len());
+        assert_eq!(
+            entries.len(),
+            3,
+            "expected 3 entries, got {}",
+            entries.len()
+        );
     }
 
     #[tokio::test]
@@ -644,7 +823,14 @@ mod tests {
             let img = ImageBuffer::from_pixel(4u32, 4u32, Rgb([255u8, 0, 0]));
             let mut buf = Vec::new();
             let enc = image::codecs::png::PngEncoder::new(&mut buf);
-            image::ImageEncoder::write_image(enc, img.as_raw(), 4, 4, image::ExtendedColorType::Rgb8).unwrap();
+            image::ImageEncoder::write_image(
+                enc,
+                img.as_raw(),
+                4,
+                4,
+                image::ExtendedColorType::Rgb8,
+            )
+            .unwrap();
             buf
         };
 
@@ -665,7 +851,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
 
-        let result = handle_import(&store, std::path::Path::new("/tmp/no_such_file_99999.xyz"), true).await;
+        let result = handle_import(
+            &store,
+            std::path::Path::new("/tmp/no_such_file_99999.xyz"),
+            true,
+        )
+        .await;
         assert!(result.is_err());
     }
 
@@ -728,64 +919,4 @@ mod tests {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         assert!(validate_cli_import_path(tmp.path()).is_ok());
     }
-}
-
-/// Display available media tools and their feature flags.
-fn handle_tools() {
-    println!("{}", "Available Media Tools".bold());
-    println!("{}", "─".repeat(60));
-    println!();
-
-    // Always-on tools (Tier 1)
-    println!("{}", "Tier 1 — Always On".cyan().bold());
-    println!("  {} — Import any file into CAS (image, audio, video, PDF)", "nika:import".green());
-    println!("  {} — Image dimensions from headers (~0.1ms)", "nika:dimensions".green());
-    println!("  {} — 25-byte compact image placeholder", "nika:thumbhash".green());
-    println!("  {} — Color palette extraction", "nika:dominant_color".green());
-    println!("  {} — Chain operations in-memory (1 read → N ops → 1 write)", "nika:pipeline".green());
-    println!();
-
-    // Feature-gated tools (Tier 2)
-    println!("{}", "Tier 2 — Default Features (media-core)".cyan().bold());
-
-    let tools_tier2 = [
-        ("nika:thumbnail", "media-thumbnail", "SIMD-accelerated image resize", cfg!(feature = "media-thumbnail")),
-        ("nika:convert", "media-thumbnail", "Format conversion (PNG/JPEG/WebP)", cfg!(feature = "media-thumbnail")),
-        ("nika:strip", "media-thumbnail", "Remove metadata (re-encode)", cfg!(feature = "media-thumbnail")),
-        ("nika:metadata", "media-metadata", "Universal EXIF/audio metadata", cfg!(feature = "media-metadata")),
-        ("nika:optimize", "media-optimize", "Lossless PNG optimization (oxipng)", cfg!(feature = "media-optimize")),
-        ("nika:svg_render", "media-svg", "SVG to PNG rasterization (resvg)", cfg!(feature = "media-svg")),
-    ];
-
-    for (name, feature, desc, enabled) in &tools_tier2 {
-        let status = if *enabled { "✓" } else { "✗" };
-        let status_colored = if *enabled { status.green() } else { status.red() };
-        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
-    }
-    println!();
-
-    // Tier 3 — Opt-in
-    println!("{}", "Tier 3 — Opt-In Features".cyan().bold());
-
-    let tools_tier3 = [
-        ("nika:phash", "media-phash", "Perceptual image hashing (near-duplicate detection)", cfg!(feature = "media-phash")),
-        ("nika:compare", "media-phash", "Visual comparison between two images", cfg!(feature = "media-phash")),
-        ("nika:pdf_extract", "media-pdf", "PDF text extraction", cfg!(feature = "media-pdf")),
-        ("nika:chart", "media-chart", "Generate charts (bar/line/pie) from JSON data", cfg!(feature = "media-chart")),
-        ("nika:provenance", "media-provenance", "Add C2PA content credentials (provenance)", cfg!(feature = "media-provenance")),
-    ];
-
-    for (name, feature, desc, enabled) in &tools_tier3 {
-        let status = if *enabled { "✓" } else { "✗" };
-        let status_colored = if *enabled { status.green() } else { status.red() };
-        println!("  {} {} — {} [{}]", status_colored, name, desc, feature);
-    }
-    println!();
-
-    // Count
-    let enabled_count = tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
-        + tools_tier3.iter().filter(|(_, _, _, e)| *e).count()
-        + 5; // always-on (import, dimensions, thumbhash, dominant_color, pipeline)
-    let total = 5 + tools_tier2.len() + tools_tier3.len();
-    println!("{} {} / {} tools enabled", "Total:".bold(), enabled_count, total);
 }

@@ -554,14 +554,18 @@ mod tests {
 
     #[test]
     fn test_merge_workflow_tasks() {
-        let mut main = RawWorkflow::default();
-        main.tasks = Spanned::dummy(vec![Spanned::dummy(RawTask::new("main_task"))]);
+        let mut main = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("main_task"))]),
+            ..Default::default()
+        };
 
-        let mut imported = RawWorkflow::default();
-        imported.tasks = Spanned::dummy(vec![
-            Spanned::dummy(RawTask::new("step1")),
-            Spanned::dummy(RawTask::new("step2")),
-        ]);
+        let imported = RawWorkflow {
+            tasks: Spanned::dummy(vec![
+                Spanned::dummy(RawTask::new("step1")),
+                Spanned::dummy(RawTask::new("step2")),
+            ]),
+            ..Default::default()
+        };
 
         merge_raw_workflow(&mut main, imported, Some("lib_")).unwrap();
 
@@ -573,11 +577,15 @@ mod tests {
 
     #[test]
     fn test_merge_workflow_no_prefix() {
-        let mut main = RawWorkflow::default();
-        main.tasks = Spanned::dummy(vec![]);
+        let mut main = RawWorkflow {
+            tasks: Spanned::dummy(vec![]),
+            ..Default::default()
+        };
 
-        let mut imported = RawWorkflow::default();
-        imported.tasks = Spanned::dummy(vec![Spanned::dummy(RawTask::new("task_a"))]);
+        let imported = RawWorkflow {
+            tasks: Spanned::dummy(vec![Spanned::dummy(RawTask::new("task_a"))]),
+            ..Default::default()
+        };
 
         merge_raw_workflow(&mut main, imported, None).unwrap();
 
@@ -587,16 +595,17 @@ mod tests {
 
     #[test]
     fn test_merge_workflow_mcp_servers() {
-        let mut main = RawWorkflow::default();
         let mut main_mcp = RawMcpConfig::new();
         main_mcp.servers.insert(
             Spanned::dummy("novanet".to_string()),
             Spanned::dummy(RawMcpServer::with_command("cargo run")),
         );
-        main.mcp = Some(Spanned::dummy(main_mcp));
-        main.tasks = Spanned::dummy(vec![]);
+        let mut main = RawWorkflow {
+            mcp: Some(Spanned::dummy(main_mcp)),
+            tasks: Spanned::dummy(vec![]),
+            ..Default::default()
+        };
 
-        let mut imported = RawWorkflow::default();
         let mut imported_mcp = RawMcpConfig::new();
         // Same name as main (should NOT overwrite)
         imported_mcp.servers.insert(
@@ -608,8 +617,11 @@ mod tests {
             Spanned::dummy("perplexity".to_string()),
             Spanned::dummy(RawMcpServer::with_command("npx perplexity")),
         );
-        imported.mcp = Some(Spanned::dummy(imported_mcp));
-        imported.tasks = Spanned::dummy(vec![]);
+        let imported = RawWorkflow {
+            mcp: Some(Spanned::dummy(imported_mcp)),
+            tasks: Spanned::dummy(vec![]),
+            ..Default::default()
+        };
 
         merge_raw_workflow(&mut main, imported, None).unwrap();
 
@@ -624,18 +636,22 @@ mod tests {
 
     #[test]
     fn test_merge_workflow_mcp_servers_main_has_none() {
-        let mut main = RawWorkflow::default();
-        main.tasks = Spanned::dummy(vec![]);
         // main has no MCP config
+        let mut main = RawWorkflow {
+            tasks: Spanned::dummy(vec![]),
+            ..Default::default()
+        };
 
-        let mut imported = RawWorkflow::default();
         let mut imported_mcp = RawMcpConfig::new();
         imported_mcp.servers.insert(
             Spanned::dummy("perplexity".to_string()),
             Spanned::dummy(RawMcpServer::with_command("npx perplexity")),
         );
-        imported.mcp = Some(Spanned::dummy(imported_mcp));
-        imported.tasks = Spanned::dummy(vec![]);
+        let imported = RawWorkflow {
+            mcp: Some(Spanned::dummy(imported_mcp)),
+            tasks: Spanned::dummy(vec![]),
+            ..Default::default()
+        };
 
         merge_raw_workflow(&mut main, imported, None).unwrap();
 

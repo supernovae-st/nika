@@ -562,12 +562,11 @@ fn parse_content_field(
                 RawContentPart::Text { text }
             }
             "image" => {
-                let source =
-                    get_string_field(file, m, "source")?.ok_or_else(|| ParseError {
-                        kind: ParseErrorKind::MissingField,
-                        span: item_span,
-                        message: "image content part requires 'source' field".to_string(),
-                    })?;
+                let source = get_string_field(file, m, "source")?.ok_or_else(|| ParseError {
+                    kind: ParseErrorKind::MissingField,
+                    span: item_span,
+                    message: "image content part requires 'source' field".to_string(),
+                })?;
                 let detail = get_string_field(file, m, "detail")?;
                 RawContentPart::Image { source, detail }
             }
@@ -671,8 +670,9 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         json: parse_json_value(file, m, "json")?,
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
-            None => get_u64_field(file, m, "timeout")?
-                .map(|s| Spanned::new(s.value * 1000, s.span)),
+            None => {
+                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value * 1000, s.span))
+            }
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
     })
@@ -705,8 +705,9 @@ fn parse_invoke_action(file: FileId, node: &Node) -> Result<RawInvokeAction, Par
         mcp: get_string_field(file, m, "mcp")?.or(get_string_field(file, m, "server")?),
         timeout_ms: match get_u64_field(file, m, "timeout_ms")? {
             Some(v) => Some(v),
-            None => get_u64_field(file, m, "timeout")?
-                .map(|s| Spanned::new(s.value * 1000, s.span)),
+            None => {
+                get_u64_field(file, m, "timeout")?.map(|s| Spanned::new(s.value * 1000, s.span))
+            }
         },
     })
 }
@@ -2364,7 +2365,11 @@ tasks:
           detail: high
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "vision content should parse: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "vision content should parse: {:?}",
+            result.err()
+        );
         let wf = result.unwrap();
         let task = &wf.tasks.value[0];
         match &task.value.action {
@@ -2391,12 +2396,19 @@ tasks:
           text: "What is this?"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "content without prompt should parse: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "content without prompt should parse: {:?}",
+            result.err()
+        );
         let wf = result.unwrap();
         let task = &wf.tasks.value[0];
         match &task.value.action {
             Some(RawTaskAction::Infer(s)) => {
-                assert!(s.value.prompt.value.is_empty(), "prompt should be empty string");
+                assert!(
+                    s.value.prompt.value.is_empty(),
+                    "prompt should be empty string"
+                );
                 assert!(s.value.content.is_some(), "content should be present");
             }
             other => panic!("expected Some(Infer), got {:?}", other),
@@ -2419,7 +2431,11 @@ tasks:
           source: "blake3:xyz"
 "#;
         let result = parse(yaml, FileId(0));
-        assert!(result.is_ok(), "prompt+content should parse: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "prompt+content should parse: {:?}",
+            result.err()
+        );
         let wf = result.unwrap();
         let task = &wf.tasks.value[0];
         match &task.value.action {

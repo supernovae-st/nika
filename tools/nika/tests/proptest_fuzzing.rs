@@ -320,12 +320,9 @@ tasks:
             // Parser should handle empty for_each without panic.
             // Empty array validation happens at runtime (validate_for_each).
             let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
-            match result {
-                Ok(raw) => {
-                    // If parsed, analyze should also not panic
-                    let _ = nika::ast::analyzer::analyze(raw);
-                }
-                Err(_) => {} // Parse error is acceptable for edge cases
+            if let Ok(raw) = result {
+                // If parsed, analyze should also not panic
+                let _ = nika::ast::analyzer::analyze(raw);
             }
         }
 
@@ -347,12 +344,9 @@ tasks:
             );
             // Parser treats these as scalar strings. Should not panic.
             let result = nika::ast::raw::parse(&yaml, nika::source::FileId(0));
-            match result {
-                Ok(raw) => {
-                    // Non-binding, non-array for_each should not crash analyzer
-                    let _ = nika::ast::analyzer::analyze(raw);
-                }
-                Err(_) => {} // Parse error is acceptable
+            if let Ok(raw) = result {
+                // Non-binding, non-array for_each should not crash analyzer
+                let _ = nika::ast::analyzer::analyze(raw);
             }
         }
 
@@ -623,12 +617,12 @@ mod pipeline_roundtrip_fuzzing {
         ) -> String {
             let n = n.min(prompts.len());
             let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
-            for i in 0..n {
+            for (i, prompt) in prompts.iter().enumerate().take(n) {
                 yaml.push_str(&format!("  - id: task_{}\n", i));
                 if i > 0 {
                     yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
                 }
-                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompt));
             }
             yaml
         }
@@ -645,10 +639,10 @@ mod pipeline_roundtrip_fuzzing {
             // First task: standalone
             yaml.push_str(&format!("  - id: task_0\n    infer: \"{}\"\n", prompts[0]));
             // Remaining tasks: each binds previous via with:
-            for i in 1..n {
+            for (i, prompt) in prompts.iter().enumerate().take(n).skip(1) {
                 yaml.push_str(&format!("  - id: task_{}\n", i));
                 yaml.push_str(&format!("    with:\n      prev: $task_{}\n", i - 1));
-                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompt));
             }
             yaml
         }
@@ -669,9 +663,9 @@ mod pipeline_roundtrip_fuzzing {
                     yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
                 }
                 if i % 2 == 0 {
-                    yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                    yaml.push_str(&format!("    infer: \"{}\"\n", &prompts[i]));
                 } else {
-                    yaml.push_str(&format!("    exec: \"{}\"\n", commands[i]));
+                    yaml.push_str(&format!("    exec: \"{}\"\n", &commands[i]));
                 }
             }
             yaml
@@ -793,12 +787,12 @@ mod algebraic_property_tests {
         ) -> String {
             let n = n.min(prompts.len());
             let mut yaml = String::from("schema: nika/workflow@0.12\ntasks:\n");
-            for i in 0..n {
+            for (i, prompt) in prompts.iter().enumerate().take(n) {
                 yaml.push_str(&format!("  - id: task_{}\n", i));
                 if i > 0 {
                     yaml.push_str(&format!("    depends_on: [task_{}]\n", i - 1));
                 }
-                yaml.push_str(&format!("    infer: \"{}\"\n", prompts[i]));
+                yaml.push_str(&format!("    infer: \"{}\"\n", prompt));
             }
             yaml
         }

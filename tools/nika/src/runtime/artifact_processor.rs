@@ -20,7 +20,9 @@ use crate::error::NikaError;
 use crate::event::{EventKind, EventLog};
 use crate::io::atomic::{write_append, write_fail, write_unique};
 use crate::io::security::DEFAULT_ARTIFACT_DIR;
-use crate::io::writer::{ArtifactWriter, BinarySource, BinaryWriteRequest, WriteRequest, WriteResult};
+use crate::io::writer::{
+    ArtifactWriter, BinarySource, BinaryWriteRequest, WriteRequest, WriteResult,
+};
 use crate::media::MediaRef;
 use crate::serde_yaml;
 use crate::store::RunContext;
@@ -203,7 +205,16 @@ async fn write_single_artifact(
 
     // Binary format: resolve source to CAS path and copy
     if format == ArtifactFormat::Binary {
-        return write_binary_artifact(task_id, output_spec, mode, writer, bindings, datastore, media_refs).await;
+        return write_binary_artifact(
+            task_id,
+            output_spec,
+            mode,
+            writer,
+            bindings,
+            datastore,
+            media_refs,
+        )
+        .await;
     }
 
     // Determine content source: source binding > template > task output
@@ -277,7 +288,8 @@ async fn write_single_artifact(
 
     // Pre-resolve {{with.*}} and {{output}} binding references in the path
     // before the TemplateResolver handles {{task_id}}, {{date}}, etc.
-    let resolved_path = resolve_artifact_path_bindings(&output_spec.path, output, bindings, datastore);
+    let resolved_path =
+        resolve_artifact_path_bindings(&output_spec.path, output, bindings, datastore);
 
     // Normalize the artifact path to prevent doubled paths when user specifies
     // full path like ./artifacts/custom.txt instead of just custom.txt
@@ -402,12 +414,7 @@ async fn write_binary_artifact(
             // Resolve the source task ID and find media by created_by.
             let from_binding_source = bindings
                 .source_task_id(source_alias)
-                .and_then(|task_id| {
-                    media_refs
-                        .iter()
-                        .find(|m| m.created_by == task_id)
-                        .cloned()
-                });
+                .and_then(|task_id| media_refs.iter().find(|m| m.created_by == task_id).cloned());
 
             if let Some(mr) = from_binding_source {
                 mr
@@ -419,10 +426,12 @@ async fn write_binary_artifact(
                         _ => None,
                     }
                 } else {
-                    datastore.get_output(source_alias).and_then(|v| match v.as_ref() {
-                        serde_json::Value::String(s) => Some(s.clone()),
-                        _ => None,
-                    })
+                    datastore
+                        .get_output(source_alias)
+                        .and_then(|v| match v.as_ref() {
+                            serde_json::Value::String(s) => Some(s.clone()),
+                            _ => None,
+                        })
                 };
 
                 if let Some(hash) = hash_value {
@@ -451,12 +460,14 @@ async fn write_binary_artifact(
         }
     } else {
         // No explicit source — use first media ref
-        media_refs.first().cloned().ok_or_else(|| {
-            NikaError::ArtifactWriteError {
+        media_refs
+            .first()
+            .cloned()
+            .ok_or_else(|| NikaError::ArtifactWriteError {
                 path: output_spec.path.clone(),
-                reason: "Binary artifact requires media content but task produced no media".to_string(),
-            }
-        })?
+                reason: "Binary artifact requires media content but task produced no media"
+                    .to_string(),
+            })?
     };
 
     debug!(
@@ -498,7 +509,10 @@ async fn write_binary_artifact(
 ///
 /// Looks up the matching MediaRef by source alias or falls back to the first ref.
 /// Returns `Some("blake3:...")` if found, `None` otherwise.
-fn resolve_binary_checksum(output_spec: &ArtifactOutput, media_refs: &[MediaRef]) -> Option<String> {
+fn resolve_binary_checksum(
+    output_spec: &ArtifactOutput,
+    media_refs: &[MediaRef],
+) -> Option<String> {
     if let Some(ref source_alias) = output_spec.source {
         // Match by creator task_id or by hash
         media_refs
@@ -551,7 +565,8 @@ fn format_output(output: &str, format: ArtifactFormat) -> Result<String, NikaErr
             // This path should not be reached for binary format
             Err(NikaError::ArtifactWriteError {
                 path: "".to_string(),
-                reason: "Binary format must be written via write_binary(), not format_output()".to_string(),
+                reason: "Binary format must be written via write_binary(), not format_output()"
+                    .to_string(),
             })
         }
     }
@@ -617,7 +632,12 @@ fn sanitize_for_path(value: &str) -> String {
 ///
 /// Values are sanitized via `sanitize_for_path()` to prevent path traversal.
 /// Unresolved `{{with.*}}` references are left as-is (will error in TemplateResolver).
-fn resolve_artifact_path_bindings(path: &str, output: &str, bindings: &ResolvedBindings, datastore: &RunContext) -> String {
+fn resolve_artifact_path_bindings(
+    path: &str,
+    output: &str,
+    bindings: &ResolvedBindings,
+    datastore: &RunContext,
+) -> String {
     let mut result = path.to_string();
     let mut pos = 0;
 
@@ -1265,8 +1285,12 @@ mod tests {
     fn test_path_bindings_output() {
         let bindings = ResolvedBindings::default();
 
-        let result =
-            resolve_artifact_path_bindings("./outputs/{{output}}.json", "my-report", &bindings, &RunContext::new());
+        let result = resolve_artifact_path_bindings(
+            "./outputs/{{output}}.json",
+            "my-report",
+            &bindings,
+            &RunContext::new(),
+        );
         assert_eq!(result, "./outputs/my-report.json");
     }
 
@@ -1304,7 +1328,12 @@ mod tests {
         let mut bindings = ResolvedBindings::default();
         bindings.set("name", serde_json::json!("../../etc/passwd"));
 
-        let result = resolve_artifact_path_bindings("./outputs/{{with.name}}.txt", "", &bindings, &RunContext::new());
+        let result = resolve_artifact_path_bindings(
+            "./outputs/{{with.name}}.txt",
+            "",
+            &bindings,
+            &RunContext::new(),
+        );
         // Path traversal characters should be sanitized
         assert!(!result.contains(".."));
         assert!(!result.contains("etc/passwd"));
@@ -1329,8 +1358,12 @@ mod tests {
         let bindings = ResolvedBindings::default();
 
         // Unknown binding should be left as-is
-        let result =
-            resolve_artifact_path_bindings("./outputs/{{with.unknown}}.json", "", &bindings, &RunContext::new());
+        let result = resolve_artifact_path_bindings(
+            "./outputs/{{with.unknown}}.json",
+            "",
+            &bindings,
+            &RunContext::new(),
+        );
         assert_eq!(result, "./outputs/{{with.unknown}}.json");
     }
 
@@ -1339,8 +1372,12 @@ mod tests {
         let bindings = ResolvedBindings::default();
 
         // Path with no binding references should pass through unchanged
-        let result =
-            resolve_artifact_path_bindings("{{task_id}}/{{date}}/output.json", "", &bindings, &RunContext::new());
+        let result = resolve_artifact_path_bindings(
+            "{{task_id}}/{{date}}/output.json",
+            "",
+            &bindings,
+            &RunContext::new(),
+        );
         assert_eq!(result, "{{task_id}}/{{date}}/output.json");
     }
 
@@ -1350,7 +1387,8 @@ mod tests {
         let long_value = "a".repeat(300);
         bindings.set("name", serde_json::json!(long_value));
 
-        let result = resolve_artifact_path_bindings("{{with.name}}.txt", "", &bindings, &RunContext::new());
+        let result =
+            resolve_artifact_path_bindings("{{with.name}}.txt", "", &bindings, &RunContext::new());
         // sanitize_for_path truncates to 200 chars
         assert!(result.len() <= 204); // 200 + ".txt"
     }
@@ -1491,8 +1529,16 @@ mod tests {
         )
         .await;
 
-        assert_eq!(result.written, 1, "Expected 1 binary artifact, errors: {:?}", result.errors);
-        assert!(result.errors.is_empty(), "Unexpected errors: {:?}", result.errors);
+        assert_eq!(
+            result.written, 1,
+            "Expected 1 binary artifact, errors: {:?}",
+            result.errors
+        );
+        assert!(
+            result.errors.is_empty(),
+            "Unexpected errors: {:?}",
+            result.errors
+        );
 
         // Verify file was copied correctly
         let written = std::fs::read(&result.paths[0]).unwrap();
@@ -1670,7 +1716,12 @@ mod tests {
             created_by: "producer".to_string(),
             metadata: serde_json::Map::new(),
         }];
-        (base, media_refs, ResolvedBindings::default(), RunContext::new())
+        (
+            base,
+            media_refs,
+            ResolvedBindings::default(),
+            RunContext::new(),
+        )
     }
 
     #[tokio::test]
@@ -1684,13 +1735,23 @@ mod tests {
             mode: Some(ArtifactMode::Append),
         });
         let result = process_task_artifacts(
-            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
-        ).await;
+            "producer",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
         assert_eq!(result.written, 0, "Append mode must be rejected for binary");
         assert_eq!(result.errors.len(), 1);
         assert!(
             result.errors[0].contains("Binary artifacts do not support append mode"),
-            "got: {}", result.errors[0]
+            "got: {}",
+            result.errors[0]
         );
     }
 
@@ -1705,13 +1766,23 @@ mod tests {
             mode: Some(ArtifactMode::Unique),
         });
         let result = process_task_artifacts(
-            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
-        ).await;
+            "producer",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
         assert_eq!(result.written, 0, "Unique mode must be rejected for binary");
         assert_eq!(result.errors.len(), 1);
         assert!(
             result.errors[0].contains("Binary artifacts do not support unique mode"),
-            "got: {}", result.errors[0]
+            "got: {}",
+            result.errors[0]
         );
     }
 
@@ -1726,9 +1797,22 @@ mod tests {
             mode: Some(ArtifactMode::Overwrite),
         });
         let result = process_task_artifacts(
-            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
-        ).await;
-        assert_eq!(result.written, 1, "Overwrite should work, errors: {:?}", result.errors);
+            "producer",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+        assert_eq!(
+            result.written, 1,
+            "Overwrite should work, errors: {:?}",
+            result.errors
+        );
         assert!(result.errors.is_empty());
         assert_eq!(std::fs::read(&result.paths[0]).unwrap(), b"binary payload");
     }
@@ -1748,13 +1832,23 @@ mod tests {
             mode: Some(ArtifactMode::Fail),
         });
         let result = process_task_artifacts(
-            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
-        ).await;
+            "producer",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
         assert_eq!(result.written, 0, "Fail mode should reject existing file");
         assert_eq!(result.errors.len(), 1);
         assert!(
             result.errors[0].contains("already exists"),
-            "got: {}", result.errors[0]
+            "got: {}",
+            result.errors[0]
         );
     }
 
@@ -1769,9 +1863,22 @@ mod tests {
             mode: Some(ArtifactMode::Fail),
         });
         let result = process_task_artifacts(
-            "producer", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
-        ).await;
-        assert_eq!(result.written, 1, "Fail mode should succeed for new file, errors: {:?}", result.errors);
+            "producer",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
+        )
+        .await;
+        assert_eq!(
+            result.written, 1,
+            "Fail mode should succeed for new file, errors: {:?}",
+            result.errors
+        );
         assert!(result.errors.is_empty());
         assert_eq!(std::fs::read(&result.paths[0]).unwrap(), b"binary payload");
     }
@@ -1920,7 +2027,15 @@ mod tests {
         });
 
         let result = process_task_artifacts(
-            "save_img", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+            "save_img",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
         )
         .await;
 
@@ -1929,10 +2044,17 @@ mod tests {
             "Binary artifact should resolve via binding alias indirection, errors: {:?}",
             result.errors
         );
-        assert!(result.errors.is_empty(), "No errors expected: {:?}", result.errors);
+        assert!(
+            result.errors.is_empty(),
+            "No errors expected: {:?}",
+            result.errors
+        );
 
         let written = std::fs::read(&result.paths[0]).unwrap();
-        assert_eq!(written, binary_data, "Binary content should match CAS source");
+        assert_eq!(
+            written, binary_data,
+            "Binary content should match CAS source"
+        );
     }
 
     #[tokio::test]
@@ -1988,7 +2110,15 @@ mod tests {
         });
 
         let result = process_task_artifacts(
-            "gen_img", "", &spec, None, base.path(), None, &bindings, &datastore, &media_refs,
+            "gen_img",
+            "",
+            &spec,
+            None,
+            base.path(),
+            None,
+            &bindings,
+            &datastore,
+            &media_refs,
         )
         .await;
 

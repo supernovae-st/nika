@@ -15,11 +15,11 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
+use crate::error::NikaError;
 
 pub struct QrValidateOp;
 
@@ -59,7 +59,9 @@ impl MediaOp for QrValidateOp {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
-            let hash = args.get("hash").and_then(|v| v.as_str())
+            let hash = args
+                .get("hash")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| invalid_args("qr_validate", "missing 'hash'"))?;
 
             let fast = args.get("fast").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -67,78 +69,92 @@ impl MediaOp for QrValidateOp {
             let data = ctx.read_media(hash).await?;
 
             // Decode + validate on compute pool (CPU-bound: image decode, multi-decoder, stress tests)
-            let result = ctx.compute.compute(move || -> Result<serde_json::Value, NikaError> {
-                // Phase 1: Safe decode with Nika resource limits (10k x 10k, 256MB)
-                let img = decode_image_safe(&data)?;
+            let result = ctx
+                .compute
+                .compute(move || -> Result<serde_json::Value, NikaError> {
+                    // Phase 1: Safe decode with Nika resource limits (10k x 10k, 256MB)
+                    let img = decode_image_safe(&data)?;
 
-                // Phase 2: Multi-decoder with 4-tier preprocessing (rxing + rqrr)
-                let decode_result = qrcode_ai_scanner_core::decoder::multi_decode_image(&img);
+                    // Phase 2: Multi-decoder with 4-tier preprocessing (rxing + rqrr)
+                    let decode_result = qrcode_ai_scanner_core::decoder::multi_decode_image(&img);
 
-                match decode_result {
-                    Ok(decode) => {
-                        // Phase 3: Stress tests for scannability score
-                        let stress = if fast {
-                            qrcode_ai_scanner_core::scorer::run_fast_stress_tests(&img)
-                        } else {
-                            qrcode_ai_scanner_core::scorer::run_stress_tests_on_image(&img)
-                        };
+                    match decode_result {
+                        Ok(decode) => {
+                            // Phase 3: Stress tests for scannability score
+                            let stress = if fast {
+                                qrcode_ai_scanner_core::scorer::run_fast_stress_tests(&img)
+                            } else {
+                                qrcode_ai_scanner_core::scorer::run_stress_tests_on_image(&img)
+                            };
 
-                        let num_decoders = decode.metadata.as_ref()
-                            .map(|m| m.decoders_success.len())
-                            .unwrap_or(1);
+                            let num_decoders = decode
+                                .metadata
+                                .as_ref()
+                                .map(|m| m.decoders_success.len())
+                                .unwrap_or(1);
 
-                        let score = match stress {
-                            Ok(ref s) if fast => {
-                                qrcode_ai_scanner_core::scorer::calculate_fast_score(s, num_decoders)
-                            }
-                            Ok(ref s) => {
-                                qrcode_ai_scanner_core::scorer::calculate_score(s, num_decoders)
-                            }
-                            Err(_) => 50, // Decode succeeded but stress tests failed — partial score
-                        };
+                            let score = match stress {
+                                Ok(ref s) if fast => {
+                                    qrcode_ai_scanner_core::scorer::calculate_fast_score(
+                                        s,
+                                        num_decoders,
+                                    )
+                                }
+                                Ok(ref s) => {
+                                    qrcode_ai_scanner_core::scorer::calculate_score(s, num_decoders)
+                                }
+                                Err(_) => 50, // Decode succeeded but stress tests failed — partial score
+                            };
 
-                        let stress_json = stress.as_ref().ok().map(|s| serde_json::json!({
-                            "original": s.original,
-                            "downscale_50": s.downscale_50,
-                            "downscale_25": s.downscale_25,
-                            "blur_light": s.blur_light,
-                            "blur_medium": s.blur_medium,
-                            "low_contrast": s.low_contrast,
-                        }));
+                            let stress_json = stress.as_ref().ok().map(|s| {
+                                serde_json::json!({
+                                    "original": s.original,
+                                    "downscale_50": s.downscale_50,
+                                    "downscale_25": s.downscale_25,
+                                    "blur_light": s.blur_light,
+                                    "blur_medium": s.blur_medium,
+                                    "low_contrast": s.low_contrast,
+                                })
+                            });
 
-                        let metadata_json = decode.metadata.as_ref().map(|m| serde_json::json!({
-                            "version": m.version,
-                            "error_correction": format!("{:?}", m.error_correction),
-                            "modules": m.modules,
-                            "decoders_success": m.decoders_success,
-                        }));
+                            let metadata_json = decode.metadata.as_ref().map(|m| {
+                                serde_json::json!({
+                                    "version": m.version,
+                                    "error_correction": format!("{:?}", m.error_correction),
+                                    "modules": m.modules,
+                                    "decoders_success": m.decoders_success,
+                                })
+                            });
 
-                        let ec = decode.metadata.as_ref()
-                            .map(|m| format!("{:?}", m.error_correction))
-                            .unwrap_or_default();
+                            let ec = decode
+                                .metadata
+                                .as_ref()
+                                .map(|m| format!("{:?}", m.error_correction))
+                                .unwrap_or_default();
 
-                        Ok(serde_json::json!({
-                            "decoded": true,
-                            "data": decode.content,
-                            "error_correction": ec,
-                            "scan_score": score,
-                            "metadata": metadata_json,
-                            "stress_results": stress_json,
-                        }))
+                            Ok(serde_json::json!({
+                                "decoded": true,
+                                "data": decode.content,
+                                "error_correction": ec,
+                                "scan_score": score,
+                                "metadata": metadata_json,
+                                "stress_results": stress_json,
+                            }))
+                        }
+                        Err(_) => {
+                            // QR decode failed entirely
+                            Ok(serde_json::json!({
+                                "decoded": false,
+                                "data": null,
+                                "error_correction": null,
+                                "scan_score": 0,
+                                "metadata": null,
+                                "stress_results": null,
+                            }))
+                        }
                     }
-                    Err(_) => {
-                        // QR decode failed entirely
-                        Ok(serde_json::json!({
-                            "decoded": false,
-                            "data": null,
-                            "error_correction": null,
-                            "scan_score": 0,
-                            "metadata": null,
-                            "stress_results": null,
-                        }))
-                    }
-                }
-            }).await??;
+                })
+                .await??;
 
             Ok(MediaOpResult::Metadata(result))
         })
@@ -159,7 +175,7 @@ mod tests {
 
     /// Generate a clean QR code PNG using the `qrcode` crate (dev-dependency).
     fn fixture_qr_png(text: &str) -> Vec<u8> {
-        use image::{Luma, ImageEncoder};
+        use image::{ImageEncoder, Luma};
 
         let code = qrcode::QrCode::new(text.as_bytes()).expect("QR encode should work");
         let module_count = code.width() as u32;
@@ -188,7 +204,14 @@ mod tests {
 
         let mut buf = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut buf);
-        encoder.write_image(img.as_raw(), img_size, img_size, image::ExtendedColorType::L8).unwrap();
+        encoder
+            .write_image(
+                img.as_raw(),
+                img_size,
+                img_size,
+                image::ExtendedColorType::L8,
+            )
+            .unwrap();
         buf
     }
 
@@ -197,7 +220,8 @@ mod tests {
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
         let mut buf = Vec::new();
         let enc = image::codecs::png::PngEncoder::new(&mut buf);
-        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8)
+            .unwrap();
         buf
     }
 
@@ -208,7 +232,10 @@ mod tests {
         let sr = ctx.cas.store(&qr_png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["decoded"], true);
@@ -226,7 +253,10 @@ mod tests {
         let sr = ctx.cas.store(&qr_png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
         if let MediaOpResult::Metadata(v) = result {
             assert!(v["metadata"].is_object(), "metadata should be present");
             let meta = &v["metadata"];
@@ -242,9 +272,15 @@ mod tests {
         let sr = ctx.cas.store(&qr_png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash, "fast": true}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash, "fast": true}), &ctx)
+            .await
+            .unwrap();
         if let MediaOpResult::Metadata(v) = result {
-            assert!(v["stress_results"].is_object(), "stress_results should be present");
+            assert!(
+                v["stress_results"].is_object(),
+                "stress_results should be present"
+            );
         }
     }
 
@@ -255,7 +291,10 @@ mod tests {
         let sr = ctx.cas.store(&png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["decoded"], false);
             assert_eq!(v["scan_score"], 0);
@@ -296,7 +335,9 @@ mod tests {
         let (_dir, ctx) = setup().await;
         ctx.cancel.cancel();
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": "blake3:abc"}), &ctx).await;
+        let result = op
+            .execute(serde_json::json!({"hash": "blake3:abc"}), &ctx)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cancelled"));
     }
@@ -310,7 +351,10 @@ mod tests {
             if let Ok(sr) = ctx.cas.store(&data).await {
                 let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
                 if let Err(e) = &result {
-                    assert!(!e.to_string().contains("panicked"), "fuzz input {i} panicked");
+                    assert!(
+                        !e.to_string().contains("panicked"),
+                        "fuzz input {i} panicked"
+                    );
                 }
             }
         }
@@ -323,7 +367,10 @@ mod tests {
         let sr = ctx.cas.store(&qr_png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
         if let MediaOpResult::Metadata(v) = result {
             let score = v["scan_score"].as_u64().unwrap();
             assert!(score >= 50, "clean QR should score >= 50, got {score}");
@@ -334,10 +381,7 @@ mod tests {
     async fn qr_adapter_dispatch() {
         use crate::runtime::builtin::BuiltinTool;
         let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(
-            Arc::new(QrValidateOp),
-            ctx,
-        );
+        let adapter = super::super::MediaToolAdapter::new(Arc::new(QrValidateOp), ctx);
         assert_eq!(adapter.name(), "qr_validate");
     }
 
@@ -348,7 +392,10 @@ mod tests {
         let sr = ctx.cas.store(&qr_png).await.unwrap();
 
         let op = QrValidateOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash, "fast": false}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash, "fast": false}), &ctx)
+            .await
+            .unwrap();
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["decoded"], true);
             let stress = &v["stress_results"];

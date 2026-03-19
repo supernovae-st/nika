@@ -44,6 +44,9 @@ media-compression = ["dep:zstd"]
 media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
 
 [dependencies]
+# Core AST and analysis (protocol-agnostic)
+nika-core = { path = "../nika-core" }
+
 # CLI
 clap = { version = "4.5", features = ["derive"] }
 clap_complete = "4.5"  # Shell completion generation

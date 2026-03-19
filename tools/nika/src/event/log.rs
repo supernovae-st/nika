@@ -2769,7 +2769,15 @@ mod tests {
             ),
             (
                 "stored",
-                media_stored("t_store", BLAKE3_PDF, ".nika/media/store/6b/86b2", 4096, true, false, 5),
+                media_stored(
+                    "t_store",
+                    BLAKE3_PDF,
+                    ".nika/media/store/6b/86b2",
+                    4096,
+                    true,
+                    false,
+                    5,
+                ),
             ),
             (
                 "failed",
@@ -2873,7 +2881,12 @@ mod tests {
         // Verify the full Event envelope (id + timestamp_ms + kind) serializes to single-line
         let log = EventLog::new();
         log.emit(media_extracted("envelope_test", 1, &["image"]));
-        log.emit(media_processed("envelope_test", BLAKE3_PNG, "image/png", 4096));
+        log.emit(media_processed(
+            "envelope_test",
+            BLAKE3_PNG,
+            "image/png",
+            4096,
+        ));
         log.emit(media_stored(
             "envelope_test",
             BLAKE3_PNG,
@@ -2909,7 +2922,11 @@ mod tests {
     #[test]
     fn media_extracted_appears_in_eventlog_events() {
         let log = EventLog::new();
-        let id = log.emit(media_extracted("media_task", 3, &["image", "audio", "video"]));
+        let id = log.emit(media_extracted(
+            "media_task",
+            3,
+            &["image", "audio", "video"],
+        ));
 
         let events = log.events();
         assert_eq!(events.len(), 1);
@@ -2944,7 +2961,9 @@ mod tests {
         ));
 
         // Subscriber should receive the event
-        let received = rx.try_recv().expect("Subscriber should receive MediaStored event");
+        let received = rx
+            .try_recv()
+            .expect("Subscriber should receive MediaStored event");
         assert_eq!(received.id, 0);
 
         if let EventKind::MediaStored {
@@ -3001,12 +3020,22 @@ mod tests {
         log.emit(media_extracted("other_task", 2, &["audio", "video"]));
 
         let gen_events = log.filter_task("gen_image");
-        assert_eq!(gen_events.len(), 4, "gen_image should have 4 events (1 task + 3 media)");
+        assert_eq!(
+            gen_events.len(),
+            4,
+            "gen_image should have 4 events (1 task + 3 media)"
+        );
 
         // Verify media events are in order
         assert!(matches!(&gen_events[0].kind, EventKind::TaskStarted { .. }));
-        assert!(matches!(&gen_events[1].kind, EventKind::MediaExtracted { .. }));
-        assert!(matches!(&gen_events[2].kind, EventKind::MediaProcessed { .. }));
+        assert!(matches!(
+            &gen_events[1].kind,
+            EventKind::MediaExtracted { .. }
+        ));
+        assert!(matches!(
+            &gen_events[2].kind,
+            EventKind::MediaProcessed { .. }
+        ));
         assert!(matches!(&gen_events[3].kind, EventKind::MediaStored { .. }));
 
         let other_events = log.filter_task("other_task");
@@ -3023,7 +3052,10 @@ mod tests {
 
         let events = log.filter_task("fail_task");
         assert_eq!(events.len(), 3);
-        assert!(matches!(&events[2].kind, EventKind::MediaStoreFailed { .. }));
+        assert!(matches!(
+            &events[2].kind,
+            EventKind::MediaStoreFailed { .. }
+        ));
     }
 
     #[test]
@@ -3063,11 +3095,23 @@ mod tests {
         log.emit(workflow_started(1));
         log.emit(media_extracted("t1", 1, &["image"]));
         log.emit(media_processed("t1", BLAKE3_PNG, "image/png", 4096));
-        log.emit(media_stored("t1", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 10));
+        log.emit(media_stored(
+            "t1",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            10,
+        ));
         log.emit(media_store_failed("t1", "", "boom"));
 
         let wf_events = log.workflow_events();
-        assert_eq!(wf_events.len(), 1, "Media events must NOT appear in workflow_events()");
+        assert_eq!(
+            wf_events.len(),
+            1,
+            "Media events must NOT appear in workflow_events()"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -3077,19 +3121,46 @@ mod tests {
     #[test]
     fn media_stored_pipeline_ms_reasonable_values() {
         // Normal processing: sub-second
-        let event = media_stored("fast_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 42);
+        let event = media_stored(
+            "fast_store",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            42,
+        );
         if let EventKind::MediaStored { pipeline_ms, .. } = &event {
-            assert!(*pipeline_ms < 10000, "pipeline_ms={pipeline_ms} should be < 10000ms");
+            assert!(
+                *pipeline_ms < 10000,
+                "pipeline_ms={pipeline_ms} should be < 10000ms"
+            );
         }
 
         // Zero is valid (dedup fast path)
-        let event_zero = media_stored("dedup_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, false, true, 0);
+        let event_zero = media_stored(
+            "dedup_store",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            false,
+            true,
+            0,
+        );
         if let EventKind::MediaStored { pipeline_ms, .. } = &event_zero {
             assert_eq!(*pipeline_ms, 0, "Dedup fast path can have 0ms pipeline");
         }
 
         // Edge: just under threshold
-        let event_edge = media_stored("slow_store", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 4096, true, false, 9999);
+        let event_edge = media_stored(
+            "slow_store",
+            BLAKE3_PNG,
+            ".nika/media/store/a7/ffc6",
+            4096,
+            true,
+            false,
+            9999,
+        );
         if let EventKind::MediaStored { pipeline_ms, .. } = &event_edge {
             assert!(*pipeline_ms < 10000);
         }
@@ -3152,7 +3223,12 @@ mod tests {
                 let suffix = p.strip_prefix(".nika/media/store/").unwrap();
                 let parts: Vec<&str> = suffix.splitn(2, '/').collect();
                 assert_eq!(parts.len(), 2, "CAS path suffix must be dir/file: {suffix}");
-                assert_eq!(parts[0].len(), 2, "CAS directory prefix must be 2 chars: {}", parts[0]);
+                assert_eq!(
+                    parts[0].len(),
+                    2,
+                    "CAS directory prefix must be 2 chars: {}",
+                    parts[0]
+                );
                 assert!(!parts[1].is_empty(), "CAS filename must not be empty");
             }
         }
@@ -3166,10 +3242,21 @@ mod tests {
     fn media_events_serde_tags_are_snake_case() {
         let variants: Vec<(&str, EventKind)> = vec![
             ("media_extracted", media_extracted("t", 1, &["image"])),
-            ("media_processed", media_processed("t", BLAKE3_PNG, "image/png", 100)),
+            (
+                "media_processed",
+                media_processed("t", BLAKE3_PNG, "image/png", 100),
+            ),
             (
                 "media_stored",
-                media_stored("t", BLAKE3_PNG, ".nika/media/store/a7/ffc6", 100, true, false, 5),
+                media_stored(
+                    "t",
+                    BLAKE3_PNG,
+                    ".nika/media/store/a7/ffc6",
+                    100,
+                    true,
+                    false,
+                    5,
+                ),
             ),
             ("media_store_failed", media_store_failed("t", "", "err")),
         ];
@@ -3196,7 +3283,12 @@ mod tests {
         });
         let extracted: EventKind = serde_json::from_value(json_extracted).unwrap();
         assert_eq!(extracted.task_id(), Some("from_json"));
-        if let EventKind::MediaExtracted { block_count, content_types, .. } = &extracted {
+        if let EventKind::MediaExtracted {
+            block_count,
+            content_types,
+            ..
+        } = &extracted
+        {
             assert_eq!(*block_count, 2);
             assert_eq!(content_types, &["image", "audio"]);
         } else {
@@ -3214,7 +3306,13 @@ mod tests {
             "pipeline_ms": 33
         });
         let stored: EventKind = serde_json::from_value(json_stored).unwrap();
-        if let EventKind::MediaStored { pipeline_ms, verified, deduplicated, .. } = &stored {
+        if let EventKind::MediaStored {
+            pipeline_ms,
+            verified,
+            deduplicated,
+            ..
+        } = &stored
+        {
             assert_eq!(*pipeline_ms, 33);
             assert!(*verified);
             assert!(!*deduplicated);
@@ -3271,7 +3369,11 @@ mod tests {
         });
 
         let events = log.filter_task(task);
-        assert_eq!(events.len(), 7, "Full lifecycle: 1 started + 1 extracted + 2 processed + 2 stored + 1 completed");
+        assert_eq!(
+            events.len(),
+            7,
+            "Full lifecycle: 1 started + 1 extracted + 2 processed + 2 stored + 1 completed"
+        );
 
         // Verify ordering
         assert!(matches!(&events[0].kind, EventKind::TaskStarted { .. }));
@@ -3283,7 +3385,12 @@ mod tests {
         assert!(matches!(&events[6].kind, EventKind::TaskCompleted { .. }));
 
         // Verify the dedup store was the second one
-        if let EventKind::MediaStored { deduplicated, pipeline_ms, .. } = &events[5].kind {
+        if let EventKind::MediaStored {
+            deduplicated,
+            pipeline_ms,
+            ..
+        } = &events[5].kind
+        {
             assert!(*deduplicated, "Second store should be dedup hit");
             assert!(*pipeline_ms < 10, "Dedup fast path should be < 10ms");
         }

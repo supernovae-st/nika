@@ -490,7 +490,11 @@ mod tests {
         let ctx = test_context();
         let result = ctx.validate_path("src/main.rs");
         // Relative paths should be resolved against working_dir, not rejected
-        assert!(result.is_ok(), "relative path should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "relative path should resolve: {:?}",
+            result.err()
+        );
         let resolved = result.unwrap();
         assert!(resolved.is_absolute(), "resolved path must be absolute");
         assert!(resolved.ends_with("src/main.rs"));

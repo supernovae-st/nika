@@ -426,14 +426,15 @@ mod tests {
         let symlink_path = base_dir.join("evil");
         symlink(&escape_target, &symlink_path).unwrap();
 
-        let result = validate_canonicalized_boundary(
-            &base_dir,
-            &symlink_path.join("secret.txt"),
+        let result = validate_canonicalized_boundary(&base_dir, &symlink_path.join("secret.txt"));
+        assert!(
+            result.is_err(),
+            "validate_canonicalized_boundary must detect symlink-based escape"
         );
-        assert!(result.is_err(),
-            "validate_canonicalized_boundary must detect symlink-based escape");
-        assert!(result.unwrap_err().reason.contains("traversal"),
-            "Error should mention path traversal");
+        assert!(
+            result.unwrap_err().reason.contains("traversal"),
+            "Error should mention path traversal"
+        );
     }
 
     #[cfg(unix)]
@@ -454,23 +455,21 @@ mod tests {
         let symlink_dir = canonical_dir.join("escape_link");
         symlink(&escape_target, &symlink_dir).unwrap();
 
-        let result = validate_artifact_path(
-            &canonical_dir,
-            Path::new("escape_link/file.txt"),
+        let result = validate_artifact_path(&canonical_dir, Path::new("escape_link/file.txt"));
+        assert!(
+            result.is_ok(),
+            "validate_artifact_path does not resolve symlinks (known limitation)"
         );
-        assert!(result.is_ok(),
-            "validate_artifact_path does not resolve symlinks (known limitation)");
     }
 
     #[test]
     fn test_validate_artifact_path_dot_dot_in_middle() {
         let artifact_dir = PathBuf::from("/project/artifacts");
-        let result = validate_artifact_path(
-            &artifact_dir,
-            Path::new("subdir/../../escape"),
+        let result = validate_artifact_path(&artifact_dir, Path::new("subdir/../../escape"));
+        assert!(
+            result.is_err(),
+            "Path with .. escaping via subdirectory must be blocked"
         );
-        assert!(result.is_err(),
-            "Path with .. escaping via subdirectory must be blocked");
     }
 
     #[test]
@@ -480,19 +479,17 @@ mod tests {
             &artifact_dir,
             Path::new("a/b/c/d/../../../../../../../../etc/passwd"),
         );
-        assert!(result.is_err(),
-            "Deep path traversal must be blocked");
+        assert!(result.is_err(), "Deep path traversal must be blocked");
     }
 
     #[test]
     fn test_validate_artifact_path_control_chars_blocked() {
         let artifact_dir = PathBuf::from("/project/artifacts");
-        let result = validate_artifact_path(
-            &artifact_dir,
-            Path::new("file\r\ninjection"),
+        let result = validate_artifact_path(&artifact_dir, Path::new("file\r\ninjection"));
+        assert!(
+            result.is_err(),
+            "Control characters in path must be blocked"
         );
-        assert!(result.is_err(),
-            "Control characters in path must be blocked");
     }
 
     #[test]

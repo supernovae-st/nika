@@ -36,7 +36,10 @@ impl MediaProcessor {
     /// Create a new processor with custom owned budget.
     #[allow(dead_code)] // Used in tests
     pub fn with_budget(store: CasStore, budget: MediaBudget) -> Self {
-        Self { store, budget: Arc::new(budget) }
+        Self {
+            store,
+            budget: Arc::new(budget),
+        }
     }
 
     /// Create a new processor with a shared per-run budget.
@@ -57,20 +60,19 @@ impl MediaProcessor {
             ContentBlock::Text { .. } => Ok(None),
 
             ContentBlock::Image { data, mime_type } => {
-                self.process_base64(data, Some(mime_type.as_str()), task_id).await
+                self.process_base64(data, Some(mime_type.as_str()), task_id)
+                    .await
             }
 
             ContentBlock::Audio { data, mime_type } => {
-                self.process_base64(data, Some(mime_type.as_str()), task_id).await
+                self.process_base64(data, Some(mime_type.as_str()), task_id)
+                    .await
             }
 
             ContentBlock::Resource(rc) => {
                 if let Some(blob) = &rc.blob {
-                    self.process_base64(
-                        blob,
-                        rc.mime_type.as_deref(),
-                        task_id,
-                    ).await
+                    self.process_base64(blob, rc.mime_type.as_deref(), task_id)
+                        .await
                 } else {
                     Ok(None)
                 }
@@ -145,7 +147,8 @@ impl MediaProcessor {
         // Decode base64 — strip whitespace first since many MCP servers
         // return PEM-style base64 with \n at 76-char boundaries (OpenAI, etc.)
         use base64::Engine;
-        let clean_b64: String = base64_data.chars()
+        let clean_b64: String = base64_data
+            .chars()
             .filter(|c| !c.is_ascii_whitespace())
             .collect();
         let decoded = base64::engine::general_purpose::STANDARD
@@ -321,7 +324,10 @@ mod tests {
         let (processor, _dir) = make_processor_with_dir();
         let block = ContentBlock::image("", "image/png");
         let result = processor.process(&block, "t1").await;
-        assert!(result.is_err(), "Empty base64 image should error (NIKA-258)");
+        assert!(
+            result.is_err(),
+            "Empty base64 image should error (NIKA-258)"
+        );
         assert_eq!(result.unwrap_err().code(), "NIKA-258");
     }
 
@@ -401,18 +407,28 @@ mod tests {
         // Process should fail on MIME detection (NIKA-251)
         let block = ContentBlock::image(b64, "application/octet-stream");
         let result = processor.process(&block, "t_mime_fail").await;
-        assert!(result.is_err(), "unrecognizable bytes with octet-stream should fail");
+        assert!(
+            result.is_err(),
+            "unrecognizable bytes with octet-stream should fail"
+        );
         assert_eq!(result.unwrap_err().code(), "NIKA-251");
 
         // CRITICAL: budget must be rolled back to 0
-        assert_eq!(budget.current_bytes(), 0,
+        assert_eq!(
+            budget.current_bytes(),
+            0,
             "budget must be rolled back after MIME detection failure, got {}",
-            budget.current_bytes());
+            budget.current_bytes()
+        );
 
         // Prove the budget is usable: a valid image should still succeed
         let block2 = ContentBlock::image(png_base64(), "image/png");
         let result2 = processor.process(&block2, "t_after_rollback").await;
-        assert!(result2.is_ok(), "valid image should succeed after rollback: {:?}", result2.err());
+        assert!(
+            result2.is_ok(),
+            "valid image should succeed after rollback: {:?}",
+            result2.err()
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -434,7 +450,8 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o444)).unwrap();
+            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o444))
+                .unwrap();
         }
 
         let store = CasStore::new(&readonly_path);
@@ -449,19 +466,27 @@ mod tests {
         // Should fail with I/O error (NIKA-255)
         assert!(result.is_err(), "CAS store to read-only dir should fail");
         let err = result.unwrap_err();
-        assert_eq!(err.code(), "NIKA-255",
-            "expected MediaStoreIo (NIKA-255), got {}", err.code());
+        assert_eq!(
+            err.code(),
+            "NIKA-255",
+            "expected MediaStoreIo (NIKA-255), got {}",
+            err.code()
+        );
 
         // CRITICAL: budget must be rolled back to 0
-        assert_eq!(budget.current_bytes(), 0,
+        assert_eq!(
+            budget.current_bytes(),
+            0,
             "budget must be rolled back after CAS store failure, got {}",
-            budget.current_bytes());
+            budget.current_bytes()
+        );
 
         // Restore permissions for cleanup
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            std::fs::set_permissions(&readonly_path, std::fs::Permissions::from_mode(0o755))
+                .unwrap();
         }
     }
 
@@ -498,7 +523,14 @@ mod tests {
             let img = ImageBuffer::from_pixel(4, 4, Rgb([255u8, 0, 0]));
             let mut buf = Vec::new();
             let enc = image::codecs::png::PngEncoder::new(&mut buf);
-            image::ImageEncoder::write_image(enc, img.as_raw(), 4, 4, image::ExtendedColorType::Rgb8).unwrap();
+            image::ImageEncoder::write_image(
+                enc,
+                img.as_raw(),
+                4,
+                4,
+                image::ExtendedColorType::Rgb8,
+            )
+            .unwrap();
             base64::engine::general_purpose::STANDARD.encode(&buf)
         };
 
@@ -513,7 +545,12 @@ mod tests {
             "metadata should contain 'thumbhash', got: {:?}",
             media_ref.metadata
         );
-        let th = media_ref.metadata.get("thumbhash").unwrap().as_str().unwrap();
+        let th = media_ref
+            .metadata
+            .get("thumbhash")
+            .unwrap()
+            .as_str()
+            .unwrap();
         // Verify it's valid base64
         assert!(
             base64::engine::general_purpose::STANDARD.decode(th).is_ok(),
@@ -530,12 +567,12 @@ mod tests {
             0x57, 0x41, 0x56, 0x45, // "WAVE"
             0x66, 0x6D, 0x74, 0x20, // "fmt "
             0x10, 0x00, 0x00, 0x00, // subchunk size
-            0x01, 0x00,             // PCM
-            0x01, 0x00,             // mono
+            0x01, 0x00, // PCM
+            0x01, 0x00, // mono
             0x44, 0xAC, 0x00, 0x00, // 44100 Hz
             0x88, 0x58, 0x01, 0x00, // byte rate
-            0x02, 0x00,             // block align
-            0x10, 0x00,             // bits per sample
+            0x02, 0x00, // block align
+            0x10, 0x00, // bits per sample
             0x64, 0x61, 0x74, 0x61, // "data"
             0x00, 0x00, 0x00, 0x00, // data size
         ];

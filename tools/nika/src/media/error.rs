@@ -15,29 +15,19 @@ use std::path::PathBuf;
 pub enum MediaError {
     /// NIKA-251: Declared MIME type conflicts with detected magic bytes
     #[diagnostic(code(nika::mime_detection_failed))]
-    MimeDetectionFailed {
-        reason: String,
-    },
+    MimeDetectionFailed { reason: String },
 
     /// NIKA-252: Media type is recognized but not supported for processing
     #[diagnostic(code(nika::unsupported_media_type))]
-    UnsupportedMediaType {
-        mime_type: String,
-        reason: String,
-    },
+    UnsupportedMediaType { mime_type: String, reason: String },
 
     /// NIKA-253: Referenced media hash not found in CAS store
     #[diagnostic(code(nika::media_not_found))]
-    MediaNotFound {
-        hash: String,
-    },
+    MediaNotFound { hash: String },
 
     /// NIKA-254: CAS read-back verification failed
     #[diagnostic(code(nika::hash_mismatch))]
-    HashMismatch {
-        expected: String,
-        actual: String,
-    },
+    HashMismatch { expected: String, actual: String },
 
     /// NIKA-255: I/O error during CAS store read or write
     #[diagnostic(code(nika::media_store_io))]
@@ -48,30 +38,19 @@ pub enum MediaError {
 
     /// NIKA-256: Base64 decoding failed for media content block
     #[diagnostic(code(nika::base64_decode_failed))]
-    Base64DecodeFailed {
-        source_desc: String,
-        reason: String,
-    },
+    Base64DecodeFailed { source_desc: String, reason: String },
 
     /// NIKA-257: Media content exceeds maximum allowed size
     #[diagnostic(code(nika::media_too_large))]
-    Base64InputTooLarge {
-        size: usize,
-        max: usize,
-    },
+    Base64InputTooLarge { size: usize, max: usize },
 
     /// NIKA-258: Content block decoded to zero bytes
     #[diagnostic(code(nika::empty_media_content))]
-    EmptyMediaContent {
-        task_id: String,
-    },
+    EmptyMediaContent { task_id: String },
 
     /// NIKA-259: Per-run media budget exceeded
     #[diagnostic(code(nika::run_budget_exceeded))]
-    RunBudgetExceeded {
-        current: u64,
-        max: u64,
-    },
+    RunBudgetExceeded { current: u64, max: u64 },
 }
 
 impl std::fmt::Display for MediaError {
@@ -82,7 +61,10 @@ impl std::fmt::Display for MediaError {
             }
 
             Self::UnsupportedMediaType { mime_type, reason } => {
-                write!(f, "[NIKA-252] unsupported media type '{mime_type}': {reason}")
+                write!(
+                    f,
+                    "[NIKA-252] unsupported media type '{mime_type}': {reason}"
+                )
             }
 
             Self::MediaNotFound { hash } => {
@@ -100,11 +82,20 @@ impl std::fmt::Display for MediaError {
                 // Show only the filename or last 2 components to avoid leaking
                 // full filesystem paths in user-facing output.
                 let display_path = sanitize_path_for_display(path);
-                write!(f, "[NIKA-255] media store I/O error at {display_path}: {source}")
+                write!(
+                    f,
+                    "[NIKA-255] media store I/O error at {display_path}: {source}"
+                )
             }
 
-            Self::Base64DecodeFailed { source_desc, reason } => {
-                write!(f, "[NIKA-256] base64 decode failed for {source_desc}: {reason}")
+            Self::Base64DecodeFailed {
+                source_desc,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "[NIKA-256] base64 decode failed for {source_desc}: {reason}"
+                )
             }
 
             Self::Base64InputTooLarge { size, max } => {
@@ -142,11 +133,7 @@ impl std::fmt::Display for MediaError {
                         format_size(*max),
                     )
                 } else {
-                    format!(
-                        "at {}, limit: {}",
-                        format_size(*current),
-                        format_size(*max),
-                    )
+                    format!("at {}, limit: {}", format_size(*current), format_size(*max),)
                 };
                 write!(f, "[NIKA-259] run media budget exceeded ({used})")
             }
@@ -273,7 +260,10 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("NIKA-251"), "missing code: {msg}");
         assert!(msg.contains("8192 bytes"), "missing byte count: {msg}");
-        assert!(msg.contains("no server MIME hint"), "missing guidance: {msg}");
+        assert!(
+            msg.contains("no server MIME hint"),
+            "missing guidance: {msg}"
+        );
     }
 
     #[test]
@@ -281,7 +271,10 @@ mod tests {
         let err = MediaError::mime_detection_failed(100, Some("application/octet-stream".into()));
         let msg = err.to_string();
         assert!(msg.contains("NIKA-251"), "missing code: {msg}");
-        assert!(msg.contains("application/octet-stream"), "missing hint: {msg}");
+        assert!(
+            msg.contains("application/octet-stream"),
+            "missing hint: {msg}"
+        );
         assert!(msg.contains("not usable"), "missing guidance: {msg}");
     }
 
@@ -306,9 +299,15 @@ mod tests {
         assert!(msg.contains("NIKA-257"), "missing code: {msg}");
         assert!(msg.contains("150.0 MB"), "missing human size: {msg}");
         assert!(msg.contains("100.0 MB"), "missing human max: {msg}");
-        assert!(msg.contains("media content too large"), "wrong label: {msg}");
+        assert!(
+            msg.contains("media content too large"),
+            "wrong label: {msg}"
+        );
         // Must NOT say "base64 input" since CAS uses this for raw bytes too
-        assert!(!msg.contains("base64 input"), "should not say 'base64 input': {msg}");
+        assert!(
+            !msg.contains("base64 input"),
+            "should not say 'base64 input': {msg}"
+        );
     }
 
     #[test]
@@ -330,9 +329,15 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("NIKA-258"), "missing code: {msg}");
         assert!(msg.contains("CAS store"), "should mention CAS: {msg}");
-        assert!(msg.contains("internal guard"), "should say internal guard: {msg}");
+        assert!(
+            msg.contains("internal guard"),
+            "should say internal guard: {msg}"
+        );
         // Should NOT show the raw "(cas-direct)" sentinel to the user
-        assert!(!msg.contains("(cas-direct)"), "should not show sentinel: {msg}");
+        assert!(
+            !msg.contains("(cas-direct)"),
+            "should not show sentinel: {msg}"
+        );
     }
 
     #[test]
@@ -355,7 +360,10 @@ mod tests {
         assert!(msg.contains("NIKA-259"), "missing code: {msg}");
         assert!(msg.contains("600.0 MB"), "missing attempted total: {msg}");
         assert!(msg.contains("500.0 MB"), "missing limit: {msg}");
-        assert!(msg.contains("attempted total"), "should say attempted: {msg}");
+        assert!(
+            msg.contains("attempted total"),
+            "should say attempted: {msg}"
+        );
     }
 
     #[test]
@@ -391,7 +399,9 @@ mod tests {
                 mime_type: "video/mp4".into(),
                 reason: "not supported".into(),
             },
-            MediaError::MediaNotFound { hash: "blake3:xxx".into() },
+            MediaError::MediaNotFound {
+                hash: "blake3:xxx".into(),
+            },
             MediaError::HashMismatch {
                 expected: "blake3:aaa".into(),
                 actual: "blake3:bbb".into(),
@@ -404,20 +414,31 @@ mod tests {
                 source_desc: "test".into(),
                 reason: "bad".into(),
             },
-            MediaError::Base64InputTooLarge { size: 200, max: 100 },
-            MediaError::EmptyMediaContent { task_id: "t1".into() },
-            MediaError::RunBudgetExceeded { current: 600, max: 500 },
+            MediaError::Base64InputTooLarge {
+                size: 200,
+                max: 100,
+            },
+            MediaError::EmptyMediaContent {
+                task_id: "t1".into(),
+            },
+            MediaError::RunBudgetExceeded {
+                current: 600,
+                max: 500,
+            },
         ];
 
         let expected_codes = [
-            "NIKA-251", "NIKA-252", "NIKA-253", "NIKA-254",
-            "NIKA-255", "NIKA-256", "NIKA-257", "NIKA-258", "NIKA-259",
+            "NIKA-251", "NIKA-252", "NIKA-253", "NIKA-254", "NIKA-255", "NIKA-256", "NIKA-257",
+            "NIKA-258", "NIKA-259",
         ];
 
         for (i, (err, code)) in errors.iter().zip(expected_codes.iter()).enumerate() {
             let display = err.to_string();
             assert!(!display.is_empty(), "Error {i} Display is empty");
-            assert!(display.contains(code), "Error {i} Display missing code: {display}");
+            assert!(
+                display.contains(code),
+                "Error {i} Display missing code: {display}"
+            );
             assert_eq!(err.code(), *code, "Error {i} code mismatch");
         }
     }

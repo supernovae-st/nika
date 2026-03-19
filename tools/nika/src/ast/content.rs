@@ -137,12 +137,8 @@ impl From<AnalyzedContentPart> for ContentPart {
     fn from(part: AnalyzedContentPart) -> Self {
         match part {
             AnalyzedContentPart::Text { text } => ContentPart::Text { text },
-            AnalyzedContentPart::Image { source, detail } => {
-                ContentPart::Image { source, detail }
-            }
-            AnalyzedContentPart::ImageUrl { url, detail } => {
-                ContentPart::ImageUrl { url, detail }
-            }
+            AnalyzedContentPart::Image { source, detail } => ContentPart::Image { source, detail },
+            AnalyzedContentPart::ImageUrl { url, detail } => ContentPart::ImageUrl { url, detail },
         }
     }
 }

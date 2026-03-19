@@ -250,8 +250,7 @@ impl ResolvedBindings {
         let alias = alias.into();
         self.source_tasks
             .insert(alias.clone(), source_task_id.into());
-        self.bindings
-            .insert(alias, LazyBinding::Resolved(value));
+        self.bindings.insert(alias, LazyBinding::Resolved(value));
     }
 
     /// Get the source task ID for a binding alias.
@@ -567,21 +566,25 @@ fn resolve_binding_path(
                 Some(crate::binding::types::PathSegment::Field(f)) if f.as_ref() == "media"
             ) {
                 // Reconstruct the full dot-separated path for resolve_path
-                let full_path = format!("{}{}", task_id, binding_path.segments.iter().fold(
-                    String::new(),
-                    |mut acc, seg| {
-                        match seg {
-                            crate::binding::types::PathSegment::Field(f) => {
-                                acc.push('.');
-                                acc.push_str(f);
+                let full_path = format!(
+                    "{}{}",
+                    task_id,
+                    binding_path
+                        .segments
+                        .iter()
+                        .fold(String::new(), |mut acc, seg| {
+                            match seg {
+                                crate::binding::types::PathSegment::Field(f) => {
+                                    acc.push('.');
+                                    acc.push_str(f);
+                                }
+                                crate::binding::types::PathSegment::Index(i) => {
+                                    acc.push_str(&format!("[{}]", i));
+                                }
                             }
-                            crate::binding::types::PathSegment::Index(i) => {
-                                acc.push_str(&format!("[{}]", i));
-                            }
-                        }
-                        acc
-                    }
-                ));
+                            acc
+                        })
+                );
                 return Ok(datastore.resolve_path(&full_path));
             }
 
@@ -632,10 +635,7 @@ fn resolve_binding_path(
 /// Navigate a sequence of PathSegments through a JSON value
 ///
 /// Returns `Ok(None)` if a segment doesn't match (missing field, out-of-bounds index).
-fn navigate_segments(
-    value: &Value,
-    segments: &[PathSegment],
-) -> Result<Option<Value>, NikaError> {
+fn navigate_segments(value: &Value, segments: &[PathSegment]) -> Result<Option<Value>, NikaError> {
     if segments.is_empty() {
         return Ok(Some(value.clone()));
     }
@@ -2303,7 +2303,7 @@ mod tests {
         let store = RunContext::new();
         store.insert(
             Arc::from("step1"),
-            TaskResult::success(json!({"val": 3.14}), Duration::from_secs(1)),
+            TaskResult::success(json!({"val": 3.12}), Duration::from_secs(1)),
         );
 
         let mut spec = WithSpec::default();
@@ -2558,12 +2558,12 @@ mod tests {
     #[test]
     fn validate_type_number_accepts_int_and_float() {
         validate_binding_type(&json!(42), BindingType::Number, "a", "p").unwrap();
-        validate_binding_type(&json!(3.14), BindingType::Number, "a", "p").unwrap();
+        validate_binding_type(&json!(3.12), BindingType::Number, "a", "p").unwrap();
     }
 
     #[test]
     fn validate_type_integer_rejects_float() {
-        let result = validate_binding_type(&json!(3.14), BindingType::Integer, "a", "p");
+        let result = validate_binding_type(&json!(3.12), BindingType::Integer, "a", "p");
         assert!(result.is_err());
     }
 
@@ -2813,10 +2813,7 @@ mod tests {
             "source_hash".to_string(),
             BindingEntry::new("gen.media[0].hash"),
         );
-        spec.insert(
-            "thumb_hash".to_string(),
-            BindingEntry::new("thumb.hash"),
-        );
+        spec.insert("thumb_hash".to_string(), BindingEntry::new("thumb.hash"));
         spec.insert(
             "thumb_width".to_string(),
             BindingEntry::new("thumb.metadata.width"),

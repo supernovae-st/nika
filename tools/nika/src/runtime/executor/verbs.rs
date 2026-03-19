@@ -210,6 +210,19 @@ impl TaskExecutor {
         }
 
         // ═══════════════════════════════════════════════════════════════════
+        // VISION DISPATCH — must run BEFORE Layer 0
+        // ═══════════════════════════════════════════════════════════════════
+        // Layer 0 uses text-only tool injection which ignores content: parts.
+        // Vision must bypass structured output and go directly to infer_vision.
+        if has_content {
+            return self
+                .run_infer_vision(
+                    task_id, infer, &prompt, bindings, datastore, &provider, model,
+                )
+                .await;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
         // LAYER 0: Tool Injection (DynamicSubmitTool)
         // ═══════════════════════════════════════════════════════════════════
         // If structured output is configured, try tool injection first.
@@ -368,10 +381,9 @@ impl TaskExecutor {
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // VISION PATH — multimodal content (text + images)
-        // ═══════════════════════════════════════════════════════════════════
-        if has_content {
+        // Old inline vision path — unreachable after dispatch above.
+        // Will be removed in a follow-up cleanup commit.
+        if false {
             // Defense-in-depth: limit vision content to prevent OOM from massive payloads
             const MAX_VISION_IMAGE_PARTS: usize = 20;
             const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
@@ -379,9 +391,10 @@ impl TaskExecutor {
             let resolve_start = Instant::now();
             let content = infer.content.as_ref().unwrap();
 
-            let image_part_count = content.iter().filter(|p| {
-                matches!(p, crate::ast::content::ContentPart::Image { .. })
-            }).count();
+            let image_part_count = content
+                .iter()
+                .filter(|p| matches!(p, crate::ast::content::ContentPart::Image { .. }))
+                .count();
             if image_part_count > MAX_VISION_IMAGE_PARTS {
                 return Err(NikaError::ValidationError {
                     reason: format!(
@@ -409,7 +422,8 @@ impl TaskExecutor {
                     }
                     crate::ast::content::ContentPart::Image { source, detail } => {
                         // Resolve template in source (e.g., {{with.photo.media[0].hash}})
-                        let resolved_source = template_resolve(source, bindings, datastore)?.into_owned();
+                        let resolved_source =
+                            template_resolve(source, bindings, datastore)?.into_owned();
 
                         // Read image data from CAS (with cancellation)
                         let cas_read = self.cas.read(&resolved_source);
@@ -463,9 +477,7 @@ impl TaskExecutor {
                         };
 
                         user_content.push(rig::completion::message::UserContent::image_base64(
-                            b64,
-                            media_type,
-                            rig_detail,
+                            b64, media_type, rig_detail,
                         ));
                     }
                     crate::ast::content::ContentPart::ImageUrl { url, detail } => {
@@ -473,7 +485,9 @@ impl TaskExecutor {
                         let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
 
                         // SECURITY: validate URL scheme to prevent SSRF
-                        if !resolved_url.starts_with("https://") && !resolved_url.starts_with("http://") {
+                        if !resolved_url.starts_with("https://")
+                            && !resolved_url.starts_with("http://")
+                        {
                             return Err(NikaError::ValidationError {
                                 reason: format!(
                                     "Vision image_url must use http:// or https:// scheme, got: {}",
@@ -683,6 +697,188 @@ impl TaskExecutor {
         }
 
         Ok(stream_result.text)
+    }
+
+    /// Vision inference: resolve content parts, base64-encode CAS images, call provider.
+    ///
+    /// Dispatched from `run_infer` BEFORE structured output Layer 0 to ensure
+    /// vision content parts are never intercepted by text-only tool injection.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_infer_vision(
+        &self,
+        task_id: &Arc<str>,
+        infer: &InferParams,
+        prompt: &str,
+        bindings: &ResolvedBindings,
+        datastore: &RunContext,
+        provider: &crate::provider::rig::RigProvider,
+        model: Option<&str>,
+    ) -> Result<String, NikaError> {
+        const MAX_VISION_IMAGE_PARTS: usize = 20;
+        const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024;
+
+        let resolve_start = Instant::now();
+        let content = infer.content.as_ref().unwrap();
+
+        let image_part_count = content
+            .iter()
+            .filter(|p| matches!(p, crate::ast::content::ContentPart::Image { .. }))
+            .count();
+        if image_part_count > MAX_VISION_IMAGE_PARTS {
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "Vision content has {} image parts (max {})",
+                    image_part_count, MAX_VISION_IMAGE_PARTS
+                ),
+            });
+        }
+
+        let mut user_content: Vec<rig::completion::message::UserContent> = Vec::new();
+        let mut image_count: u32 = 0;
+        let mut total_bytes: u64 = 0;
+
+        if !prompt.trim().is_empty() {
+            user_content.push(rig::completion::message::UserContent::text(prompt));
+        }
+
+        for part in content {
+            match part {
+                crate::ast::content::ContentPart::Text { text } => {
+                    let resolved = template_resolve(text, bindings, datastore)?.into_owned();
+                    user_content.push(rig::completion::message::UserContent::text(resolved));
+                }
+                crate::ast::content::ContentPart::Image { source, detail } => {
+                    let resolved_source =
+                        template_resolve(source, bindings, datastore)?.into_owned();
+                    let cas_read = self.cas.read(&resolved_source);
+                    let image_data = tokio::select! {
+                        result = cas_read => {
+                            result.map_err(|e| NikaError::ProviderApiError {
+                                message: format!("Vision: CAS read '{}': {}", resolved_source, e),
+                            })?
+                        }
+                        _ = self.cancel_token.cancelled() => {
+                            return Err(NikaError::TaskCancelled {
+                                task_id: task_id.to_string(),
+                                reason: "cancelled during vision CAS read".to_string(),
+                            });
+                        }
+                    };
+
+                    total_bytes += image_data.len() as u64;
+                    image_count += 1;
+
+                    if total_bytes > MAX_VISION_TOTAL_BYTES {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "Vision content exceeds {} MB",
+                                MAX_VISION_TOTAL_BYTES / (1024 * 1024)
+                            ),
+                        });
+                    }
+
+                    let media_type = detect_image_media_type(&image_data);
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&image_data);
+                    let rig_detail = Some(match detail {
+                        crate::ast::content::ImageDetail::Low => {
+                            rig::completion::message::ImageDetail::Low
+                        }
+                        crate::ast::content::ImageDetail::High => {
+                            rig::completion::message::ImageDetail::High
+                        }
+                        crate::ast::content::ImageDetail::Auto => {
+                            rig::completion::message::ImageDetail::Auto
+                        }
+                    });
+                    user_content.push(rig::completion::message::UserContent::image_base64(
+                        b64, media_type, rig_detail,
+                    ));
+                }
+                crate::ast::content::ContentPart::ImageUrl { url, detail } => {
+                    let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
+                    // SECURITY: SSRF protection
+                    if !resolved_url.starts_with("https://") && !resolved_url.starts_with("http://")
+                    {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "image_url must use http(s)://, got: {}",
+                                &resolved_url[..resolved_url.len().min(50)]
+                            ),
+                        });
+                    }
+                    let rig_detail = Some(match detail {
+                        crate::ast::content::ImageDetail::Low => {
+                            rig::completion::message::ImageDetail::Low
+                        }
+                        crate::ast::content::ImageDetail::High => {
+                            rig::completion::message::ImageDetail::High
+                        }
+                        crate::ast::content::ImageDetail::Auto => {
+                            rig::completion::message::ImageDetail::Auto
+                        }
+                    });
+                    user_content.push(rig::completion::message::UserContent::image_url(
+                        resolved_url,
+                        None,
+                        rig_detail,
+                    ));
+                }
+            }
+        }
+
+        let resolve_ms = resolve_start.elapsed().as_millis() as u64;
+
+        self.event_log.emit(EventKind::VisionContentResolved {
+            task_id: Arc::clone(task_id),
+            image_count,
+            total_bytes,
+            resolve_ms,
+        });
+
+        debug!(
+            task_id = %task_id,
+            image_count,
+            total_bytes,
+            resolve_ms,
+            "Vision content resolved, calling infer_vision"
+        );
+
+        let vision_work = provider.infer_vision(
+            user_content,
+            model,
+            infer.system.as_deref(),
+            infer.max_tokens,
+        );
+        let vision_result = tokio::select! {
+            result = vision_work => {
+                result.map_err(|e| NikaError::ProviderApiError { message: e.to_string() })?
+            }
+            _ = self.cancel_token.cancelled() => {
+                return Err(NikaError::TaskCancelled {
+                    task_id: task_id.to_string(),
+                    reason: "cancelled during vision inference".to_string(),
+                });
+            }
+        };
+
+        let est_in = estimate_tokens(prompt.len());
+        let est_out = estimate_tokens(vision_result.len());
+        self.policy_enforcer
+            .write()
+            .record_token_spend(est_in + est_out);
+
+        self.event_log.emit(EventKind::ProviderResponded {
+            task_id: Arc::clone(task_id),
+            request_id: None,
+            input_tokens: est_in,
+            output_tokens: est_out,
+            cache_read_tokens: 0,
+            ttft_ms: None,
+            finish_reason: "stop".to_string(),
+            cost_usd: 0.0,
+        });
+
+        Ok(vision_result)
     }
 
     pub(super) async fn run_exec(
@@ -1195,7 +1391,9 @@ impl TaskExecutor {
                         std::sync::Arc::clone(datastore.media_budget()),
                     );
 
-                    let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
+                    let process_results = processor
+                        .process_all(&tool_result.content, task_id.as_ref())
+                        .await;
 
                     // Process all results: emit events for EVERY block first,
                     // then fail on non-recoverable errors. This ensures the trace
@@ -1260,11 +1458,14 @@ impl TaskExecutor {
                     use crate::mcp::types::ContentBlock;
                     use crate::media::{CasStore, MediaProcessor};
 
-                    let mime = content.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+                    let mime = content
+                        .mime_type
+                        .clone()
+                        .unwrap_or_else(|| "application/octet-stream".to_string());
                     let block = ContentBlock::Resource(
                         crate::mcp::types::ResourceContent::new(resource.clone())
                             .with_blob(blob.clone())
-                            .with_optional_mime(content.mime_type.clone())
+                            .with_optional_mime(content.mime_type.clone()),
                     );
 
                     tracing::debug!(
@@ -1529,7 +1730,10 @@ impl TaskExecutor {
             // based on the provider field we just set.
             // Wrap in catch_unwind to convert rig-core panics to NikaErrors.
             let run_future = agent_loop.run_auto();
-            match std::panic::AssertUnwindSafe(run_future).catch_unwind().await {
+            match std::panic::AssertUnwindSafe(run_future)
+                .catch_unwind()
+                .await
+            {
                 Ok(result) => result?,
                 Err(panic_info) => {
                     let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
@@ -1589,13 +1793,18 @@ impl TaskExecutor {
             self.event_log.emit(EventKind::MediaExtracted {
                 task_id: Arc::clone(task_id),
                 block_count: staged_media.len() as u32,
-                content_types: staged_media.iter().map(|b| match b {
-                    crate::mcp::types::ContentBlock::Image { .. } => "image".to_string(),
-                    crate::mcp::types::ContentBlock::Audio { .. } => "audio".to_string(),
-                    crate::mcp::types::ContentBlock::Resource(_) => "resource".to_string(),
-                    crate::mcp::types::ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
-                    crate::mcp::types::ContentBlock::Text { .. } => "text".to_string(),
-                }).collect(),
+                content_types: staged_media
+                    .iter()
+                    .map(|b| match b {
+                        crate::mcp::types::ContentBlock::Image { .. } => "image".to_string(),
+                        crate::mcp::types::ContentBlock::Audio { .. } => "audio".to_string(),
+                        crate::mcp::types::ContentBlock::Resource(_) => "resource".to_string(),
+                        crate::mcp::types::ContentBlock::ResourceLink { .. } => {
+                            "resource_link".to_string()
+                        }
+                        crate::mcp::types::ContentBlock::Text { .. } => "text".to_string(),
+                    })
+                    .collect(),
             });
 
             let workspace_root = datastore.workspace_root();

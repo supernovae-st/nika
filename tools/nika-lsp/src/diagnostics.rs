@@ -29,9 +29,7 @@ pub fn to_lsp_diagnostic(
 
         // Errors that might cause runtime issues
         AnalyzeErrorKind::InvalidValue
-        | AnalyzeErrorKind::InvalidTemplate
-        | AnalyzeErrorKind::UnknownFlow
-        | AnalyzeErrorKind::UnknownMcpServer
+        | AnalyzeErrorKind::InvalidBinding
         | AnalyzeErrorKind::UnsupportedFeature => DiagnosticSeverity::ERROR,
     };
 
@@ -159,7 +157,7 @@ mod tests {
     #[test]
     fn test_validate_valid_workflow() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
@@ -179,14 +177,14 @@ tasks:
     #[test]
     fn test_validate_unknown_task_reference() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
     infer: "Hello"
   - id: step2
-    use:
-      data: unknown_task
+    with:
+      data: $unknown_task
     infer: "World"
 "#;
         let uri = Url::parse("file:///test.nika.yaml").unwrap();

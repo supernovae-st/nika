@@ -398,9 +398,7 @@ impl ToolCallResult {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     /// Plain text content
-    Text {
-        text: String,
-    },
+    Text { text: String },
 
     /// Base64-encoded image with MIME type
     Image {
@@ -799,7 +797,9 @@ mod tests {
 
         assert!(block.is_resource());
         assert!(!block.is_text());
-        assert!(matches!(block, ContentBlock::Resource(ref rc) if rc.uri == "file:///tmp/test.txt"));
+        assert!(
+            matches!(block, ContentBlock::Resource(ref rc) if rc.uri == "file:///tmp/test.txt")
+        );
     }
 
     #[test]
@@ -1153,7 +1153,7 @@ mod tests {
 
     #[test]
     fn test_content_block_serde_roundtrip_all_variants() {
-        let blocks = vec![
+        let blocks = [
             ContentBlock::text("hello"),
             ContentBlock::image("b64", "image/png"),
             ContentBlock::audio("b64", "audio/wav"),
@@ -1175,9 +1175,22 @@ mod tests {
             ("text", ContentBlock::text("hello")),
             ("image", ContentBlock::image("b64", "image/png")),
             ("audio", ContentBlock::audio("b64", "audio/wav")),
-            ("resource", ContentBlock::resource(ResourceContent::new("file:///test").with_text("content"))),
-            ("resource_link_none", ContentBlock::resource_link("file:///link", None, None)),
-            ("resource_link_full", ContentBlock::resource_link("file:///link", Some("test.txt".into()), Some("text/plain".into()))),
+            (
+                "resource",
+                ContentBlock::resource(ResourceContent::new("file:///test").with_text("content")),
+            ),
+            (
+                "resource_link_none",
+                ContentBlock::resource_link("file:///link", None, None),
+            ),
+            (
+                "resource_link_full",
+                ContentBlock::resource_link(
+                    "file:///link",
+                    Some("test.txt".into()),
+                    Some("text/plain".into()),
+                ),
+            ),
         ];
         for (label, block) in &blocks {
             let json = serde_json::to_string_pretty(block).unwrap();
@@ -1199,7 +1212,10 @@ mod tests {
         let json = serde_json::to_value(&block).unwrap();
         assert_eq!(json["type"], "image");
         assert_eq!(json["mimeType"], "image/png");
-        assert!(json.get("mime_type").is_none(), "should use mimeType not mime_type");
+        assert!(
+            json.get("mime_type").is_none(),
+            "should use mimeType not mime_type"
+        );
     }
 
     #[test]
@@ -1207,7 +1223,10 @@ mod tests {
         let block = ContentBlock::resource_link("file:///link", None, None);
         let json = serde_json::to_string(&block).unwrap();
         assert!(!json.contains("name"), "None name should be skipped");
-        assert!(!json.contains("mimeType"), "None mimeType should be skipped");
+        assert!(
+            !json.contains("mimeType"),
+            "None mimeType should be skipped"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1283,7 +1302,12 @@ mod tests {
         let json = r#"{"type": "text", "text": "hello"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
         assert!(block.is_text());
-        assert_eq!(block, ContentBlock::Text { text: "hello".into() });
+        assert_eq!(
+            block,
+            ContentBlock::Text {
+                text: "hello".into()
+            }
+        );
     }
 
     #[test]
@@ -1319,9 +1343,8 @@ mod tests {
         let json = r#"{"type": "resource", "uri": "file:///test", "text": "content"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
         assert!(block.is_resource());
-        let expected = ContentBlock::Resource(
-            ResourceContent::new("file:///test").with_text("content"),
-        );
+        let expected =
+            ContentBlock::Resource(ResourceContent::new("file:///test").with_text("content"));
         assert_eq!(block, expected);
     }
 
@@ -1367,49 +1390,70 @@ mod tests {
     fn test_deser_image_missing_mime_type_fails() {
         let json = r#"{"type": "image", "data": "x"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "image without mimeType should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "image without mimeType should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_image_missing_data_fails() {
         let json = r#"{"type": "image", "mimeType": "image/png"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "image without data should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "image without data should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_audio_missing_mime_type_fails() {
         let json = r#"{"type": "audio", "data": "x"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "audio without mimeType should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "audio without mimeType should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_audio_missing_data_fails() {
         let json = r#"{"type": "audio", "mimeType": "audio/wav"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "audio without data should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "audio without data should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_text_missing_text_field_fails() {
         let json = r#"{"type": "text"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "text without text field should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "text without text field should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_resource_missing_uri_fails() {
         let json = r#"{"type": "resource", "text": "content"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "resource without uri should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "resource without uri should fail to deserialize"
+        );
     }
 
     #[test]
     fn test_deser_resource_link_missing_uri_fails() {
         let json = r#"{"type": "resource_link", "name": "test.txt"}"#;
         let result = serde_json::from_str::<ContentBlock>(json);
-        assert!(result.is_err(), "resource_link without uri should fail to deserialize");
+        assert!(
+            result.is_err(),
+            "resource_link without uri should fail to deserialize"
+        );
     }
 
     #[test]
@@ -1473,7 +1517,10 @@ mod tests {
         assert_eq!(json["uri"], "file:///test");
         assert_eq!(json["text"], "hello");
         assert_eq!(json["mimeType"], "text/plain");
-        assert!(json.get("resource").is_none(), "should NOT have nested 'resource' key");
+        assert!(
+            json.get("resource").is_none(),
+            "should NOT have nested 'resource' key"
+        );
     }
 
     #[test]
@@ -1482,7 +1529,10 @@ mod tests {
         let json = serde_json::to_value(&rc).unwrap();
 
         assert_eq!(json["uri"], "file:///bare");
-        assert!(json.get("mimeType").is_none(), "None mimeType should be omitted");
+        assert!(
+            json.get("mimeType").is_none(),
+            "None mimeType should be omitted"
+        );
         assert!(json.get("text").is_none(), "None text should be omitted");
         assert!(json.get("blob").is_none(), "None blob should be omitted");
     }
@@ -1507,8 +1557,14 @@ mod tests {
         let block = ContentBlock::resource(ResourceContent::new("file:///bare"));
         let json_str = serde_json::to_string(&block).unwrap();
 
-        assert!(!json_str.contains("mimeType"), "None mimeType should be omitted");
-        assert!(!json_str.contains("\"text\""), "None text should be omitted");
+        assert!(
+            !json_str.contains("mimeType"),
+            "None mimeType should be omitted"
+        );
+        assert!(
+            !json_str.contains("\"text\""),
+            "None text should be omitted"
+        );
         assert!(!json_str.contains("blob"), "None blob should be omitted");
         assert!(json_str.contains("\"type\""));
         assert!(json_str.contains("\"uri\""));
@@ -1611,9 +1667,7 @@ mod tests {
             ContentBlock::text("output"),
             ContentBlock::image("aW1n", "image/webp"),
             ContentBlock::audio("YXVk", "audio/mp3"),
-            ContentBlock::resource(
-                ResourceContent::new("file:///r").with_text("resource text"),
-            ),
+            ContentBlock::resource(ResourceContent::new("file:///r").with_text("resource text")),
             ContentBlock::resource_link("file:///rl", Some("name".into()), None),
         ]);
 
@@ -1663,10 +1717,7 @@ mod tests {
         // Text containing quotes, backslashes, tabs
         let json = r#"{"type": "text", "text": "quote: \" backslash: \\ tab: \t"}"#;
         let block: ContentBlock = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            block,
-            ContentBlock::text("quote: \" backslash: \\ tab: \t")
-        );
+        assert_eq!(block, ContentBlock::text("quote: \" backslash: \\ tab: \t"));
     }
 
     #[test]
@@ -1731,8 +1782,14 @@ mod tests {
         let json = serde_json::to_value(&block).unwrap();
 
         // Must be "mimeType" (camelCase), NOT "mime_type" (snake_case)
-        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
-        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+        assert!(
+            json.get("mimeType").is_some(),
+            "should serialize as mimeType"
+        );
+        assert!(
+            json.get("mime_type").is_none(),
+            "should NOT serialize as mime_type"
+        );
     }
 
     #[test]
@@ -1740,21 +1797,29 @@ mod tests {
         let block = ContentBlock::audio("data", "audio/ogg");
         let json = serde_json::to_value(&block).unwrap();
 
-        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
-        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+        assert!(
+            json.get("mimeType").is_some(),
+            "should serialize as mimeType"
+        );
+        assert!(
+            json.get("mime_type").is_none(),
+            "should NOT serialize as mime_type"
+        );
     }
 
     #[test]
     fn test_resource_link_serialization_uses_camel_case_mime_type() {
-        let block = ContentBlock::resource_link(
-            "file:///x",
-            None,
-            Some("text/html".into()),
-        );
+        let block = ContentBlock::resource_link("file:///x", None, Some("text/html".into()));
         let json = serde_json::to_value(&block).unwrap();
 
-        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
-        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+        assert!(
+            json.get("mimeType").is_some(),
+            "should serialize as mimeType"
+        );
+        assert!(
+            json.get("mime_type").is_none(),
+            "should NOT serialize as mime_type"
+        );
     }
 
     #[test]
@@ -1762,8 +1827,14 @@ mod tests {
         let rc = ResourceContent::new("file:///x").with_mime_type("text/plain");
         let json = serde_json::to_value(&rc).unwrap();
 
-        assert!(json.get("mimeType").is_some(), "should serialize as mimeType");
-        assert!(json.get("mime_type").is_none(), "should NOT serialize as mime_type");
+        assert!(
+            json.get("mimeType").is_some(),
+            "should serialize as mimeType"
+        );
+        assert!(
+            json.get("mime_type").is_none(),
+            "should NOT serialize as mime_type"
+        );
     }
 
     #[test]

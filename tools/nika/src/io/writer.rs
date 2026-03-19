@@ -307,21 +307,19 @@ impl ArtifactWriter {
 
                 let src = src.clone();
                 let tmp = temp_path.clone();
-                tokio::task::spawn_blocking(move || {
-                    reflink_copy::reflink_or_copy(&src, &tmp)
-                })
-                .await
-                .map_err(|e| NikaError::ArtifactWriteError {
-                    path: final_path.display().to_string(),
-                    reason: format!("Task join error: {}", e),
-                })?
-                .map_err(|e| {
-                    let _ = std::fs::remove_file(&temp_path);
-                    NikaError::ArtifactWriteError {
+                tokio::task::spawn_blocking(move || reflink_copy::reflink_or_copy(&src, &tmp))
+                    .await
+                    .map_err(|e| NikaError::ArtifactWriteError {
                         path: final_path.display().to_string(),
-                        reason: format!("Binary copy failed: {}", e),
-                    }
-                })?;
+                        reason: format!("Task join error: {}", e),
+                    })?
+                    .map_err(|e| {
+                        let _ = std::fs::remove_file(&temp_path);
+                        NikaError::ArtifactWriteError {
+                            path: final_path.display().to_string(),
+                            reason: format!("Binary copy failed: {}", e),
+                        }
+                    })?;
 
                 let size = fs::metadata(&temp_path)
                     .await
@@ -594,7 +592,10 @@ mod tests {
 
         // write_binary always overwrites — append is not supported for binary
         let result = writer.write_binary(request).await;
-        assert!(result.is_ok(), "Binary write should succeed (overwrite mode)");
+        assert!(
+            result.is_ok(),
+            "Binary write should succeed (overwrite mode)"
+        );
     }
 
     #[tokio::test]
@@ -701,7 +702,11 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await.unwrap();
-        assert_eq!(result.format, OutputFormat::Binary, "Binary write should report Binary format");
+        assert_eq!(
+            result.format,
+            OutputFormat::Binary,
+            "Binary write should report Binary format"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -729,7 +734,10 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await;
-        assert!(result.is_err(), "Path traversal in binary output must be blocked");
+        assert!(
+            result.is_err(),
+            "Path traversal in binary output must be blocked"
+        );
         let err = result.unwrap_err();
         assert!(
             matches!(err, NikaError::ArtifactPathError { .. }),
@@ -757,7 +765,10 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await;
-        assert!(result.is_err(), "Absolute output path in binary write must be blocked");
+        assert!(
+            result.is_err(),
+            "Absolute output path in binary write must be blocked"
+        );
     }
 
     #[tokio::test]
@@ -779,7 +790,10 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await;
-        assert!(result.is_err(), "Hidden traversal in binary output path must be blocked");
+        assert!(
+            result.is_err(),
+            "Hidden traversal in binary output path must be blocked"
+        );
     }
 
     #[tokio::test]
@@ -801,7 +815,10 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await;
-        assert!(result.is_err(), "Null bytes in binary output path must be blocked");
+        assert!(
+            result.is_err(),
+            "Null bytes in binary output path must be blocked"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -824,7 +841,10 @@ mod tests {
         };
 
         let result = writer.write_binary(request).await;
-        assert!(result.is_err(), "Missing CAS source file must produce an error");
+        assert!(
+            result.is_err(),
+            "Missing CAS source file must produce an error"
+        );
     }
 
     #[cfg(unix)]
@@ -854,8 +874,10 @@ mod tests {
 
         let result = writer.write_binary(request).await.unwrap();
         let written = std::fs::read(&result.path).unwrap();
-        assert_eq!(written, b"real content",
-            "Symlink source is followed by reflink_or_copy (documented behavior)");
+        assert_eq!(
+            written, b"real content",
+            "Symlink source is followed by reflink_or_copy (documented behavior)"
+        );
     }
 
     #[cfg(unix)]
@@ -893,12 +915,16 @@ mod tests {
         // Documented as a known limitation -- defense relies on the artifact_dir
         // being created by nika itself (not user-controlled).
         let result = writer.write_binary(request).await;
-        assert!(result.is_ok(),
-            "Symlink-in-parent currently passes logical validation (known limitation)");
+        assert!(
+            result.is_ok(),
+            "Symlink-in-parent currently passes logical validation (known limitation)"
+        );
 
         let escaped_file = escape_target.join("file.bin");
-        assert!(escaped_file.exists(),
-            "File was written through symlink to escape target (known limitation)");
+        assert!(
+            escaped_file.exists(),
+            "File was written through symlink to escape target (known limitation)"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -961,7 +987,10 @@ mod tests {
 
         let result = writer.write_binary(request).await.unwrap();
         let content = std::fs::read(&result.path).unwrap();
-        assert_eq!(content, b"symlink target data", "Should copy the symlink target content");
+        assert_eq!(
+            content, b"symlink target data",
+            "Should copy the symlink target content"
+        );
         assert_eq!(result.size, 19);
     }
 
@@ -1031,8 +1060,8 @@ mod tests {
         assert_eq!(content, b"read-only content");
 
         // Restore permissions for cleanup
-        let mut perms = std::fs::metadata(&cas_file).unwrap().permissions();
-        perms.set_readonly(false);
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o644);
         std::fs::set_permissions(&cas_file, perms).unwrap();
     }
 
@@ -1127,7 +1156,8 @@ mod tests {
         // ALL writes must succeed — no TOCTOU errors
         assert_eq!(
             errors, 0,
-            "All concurrent binary writes should succeed, but {} failed", errors
+            "All concurrent binary writes should succeed, but {} failed",
+            errors
         );
         assert_eq!(successes, 10, "All 10 writes should succeed");
 

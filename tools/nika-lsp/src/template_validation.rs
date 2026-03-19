@@ -1,7 +1,7 @@
 //! Template validation for Nika LSP.
 //!
-//! Validates that `{{use.alias}}` template references in task prompts
-//! are defined in the task's `use:` block.
+//! Validates that `{{with.alias}}` template references in task prompts
+//! are defined in the task's `with:` block.
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 use nika::ast::analyzed::AnalyzedWorkflow;
@@ -11,10 +11,11 @@ use std::sync::LazyLock;
 
 use crate::document::DocumentState;
 
-/// Regex to find `{{use.alias}}` patterns with their positions.
+/// Regex to find `{{with.alias}}` patterns with their positions.
 /// Captures the full match and the path (e.g., "alias.field").
+/// Also matches legacy `{{use.alias}}` for backwards compatibility.
 static USE_TEMPLATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{\{\s*use\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap());
+    LazyLock::new(|| Regex::new(r"\{\{\s*(?:with|use)\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap());
 
 /// Extracted template reference with position information.
 #[derive(Debug)]
@@ -64,7 +65,7 @@ pub fn validate_templates(
         std::collections::HashMap::new();
 
     for task in &analyzed.tasks {
-        let aliases: Vec<String> = task.use_refs.keys().cloned().collect();
+        let aliases: Vec<String> = task.with_spec.keys().cloned().collect();
         task_aliases.insert(task.name.clone(), aliases);
     }
 
@@ -147,8 +148,8 @@ fn extract_prompts_from_action(action: &Option<RawTaskAction>) -> Vec<(String, u
             }
         }
         Some(RawTaskAction::Agent(agent)) => {
-            // Agent goal
-            prompts.push((agent.goal.value.clone(), agent.goal.span.start.as_usize()));
+            // Agent prompt
+            prompts.push((agent.prompt.value.clone(), agent.prompt.span.start.as_usize()));
         }
         Some(RawTaskAction::Exec(exec)) => {
             // Exec command may have templates
@@ -202,15 +203,15 @@ mod tests {
     #[test]
     fn test_valid_template_reference() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
     infer: "Generate something"
   - id: step2
-    use:
-      data: step1
-    infer: "Process {{use.data}}"
+    with:
+      data: $step1
+    infer: "Process {{with.data}}"
 "#;
         let diagnostics = validate_yaml(content);
         assert!(
@@ -223,15 +224,15 @@ tasks:
     #[test]
     fn test_undefined_template_reference() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
     infer: "Generate something"
   - id: step2
-    use:
-      data: step1
-    infer: "Process {{use.unknown}}"
+    with:
+      data: $step1
+    infer: "Process {{with.unknown}}"
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 1);
@@ -243,13 +244,13 @@ tasks:
     }
 
     #[test]
-    fn test_no_use_block() {
+    fn test_no_with_block() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
-    infer: "Process {{use.missing}}"
+    infer: "Process {{with.missing}}"
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 1);
@@ -262,15 +263,15 @@ tasks:
     #[test]
     fn test_multiple_undefined_references() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: producer
     infer: "Generate data"
   - id: step1
-    use:
-      valid: producer
-    infer: "{{use.bad1}} and {{use.bad2}} but {{use.valid}} is ok"
+    with:
+      valid: $producer
+    infer: "{{with.bad1}} and {{with.bad2}} but {{with.valid}} is ok"
 "#;
         let diagnostics = validate_yaml(content);
         assert_eq!(diagnostics.len(), 2);
@@ -281,15 +282,15 @@ tasks:
     #[test]
     fn test_nested_path_validation() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
     infer: "Generate something"
   - id: step2
-    use:
-      data: step1
-    infer: "Process {{use.data.field.nested}}"
+    with:
+      data: $step1
+    infer: "Process {{with.data.field.nested}}"
 "#;
         let diagnostics = validate_yaml(content);
         // Should be valid - the alias 'data' is declared
@@ -303,16 +304,16 @@ tasks:
     #[test]
     fn test_agent_prompt_validation() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1
     infer: "Generate data"
   - id: step2
-    use:
-      context: step1
+    with:
+      context: $step1
     agent:
-      prompt: "Research {{use.undefined_context}}"
+      prompt: "Research {{with.undefined_context}}"
       max_turns: 5
 "#;
         let diagnostics = validate_yaml(content);
@@ -323,7 +324,7 @@ tasks:
     #[test]
     fn test_exec_command_validation() {
         let content = r#"
-schema: "nika/workflow@0.10"
+schema: "nika/workflow@0.12"
 workflow: test
 tasks:
   - id: step1

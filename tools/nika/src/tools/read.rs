@@ -363,7 +363,9 @@ mod tests {
 
         // Create a file at a relative path within the working dir
         let file_path = temp_dir.path().join("relative.txt");
-        tokio::fs::write(&file_path, "relative content").await.unwrap();
+        tokio::fs::write(&file_path, "relative content")
+            .await
+            .unwrap();
 
         let tool = ReadTool::new(ctx);
         let result = tool
@@ -374,7 +376,11 @@ mod tests {
             })
             .await;
 
-        assert!(result.is_ok(), "relative path should resolve: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "relative path should resolve: {:?}",
+            result.err()
+        );
         assert!(result.unwrap().content.contains("relative content"));
     }
 

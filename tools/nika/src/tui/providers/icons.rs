@@ -66,7 +66,7 @@ pub fn provider_color(provider: &str) -> Color {
         "groq" => compat::YELLOW_500,     // Yellow for Groq (fast)
         "deepseek" => compat::BLUE_500,   // Blue for DeepSeek
         "gemini" => compat::VIOLET_500,   // Violet for Gemini
-        "xai" => compat::SLATE_400,        // Slate for xAI/Grok
+        "xai" => compat::SLATE_400,       // Slate for xAI/Grok
         // Local providers (1)
         "native" => compat::LIME_500, // Lime for native (local)
         // MCP providers - muted colors

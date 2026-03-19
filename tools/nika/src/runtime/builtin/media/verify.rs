@@ -15,10 +15,10 @@ use std::future::Future;
 use std::io::Cursor;
 use std::pin::Pin;
 
-use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::{MediaOp, MediaOpResult};
+use crate::error::NikaError;
 
 pub struct VerifyOp;
 
@@ -60,134 +60,148 @@ impl MediaOp for VerifyOp {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
-            let hash = args.get("hash").and_then(|v| v.as_str())
+            let hash = args
+                .get("hash")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| invalid_args("verify", "missing 'hash'"))?;
 
             let data = ctx.read_media(hash).await?;
 
             // Verify on compute pool (CPU-bound crypto verification)
-            let result = ctx.compute.compute(move || -> Result<serde_json::Value, NikaError> {
-                // Detect format from magic bytes
-                let mime_type = detect_mime(&data)?;
+            let result = ctx
+                .compute
+                .compute(move || -> Result<serde_json::Value, NikaError> {
+                    // Detect format from magic bytes
+                    let mime_type = detect_mime(&data)?;
 
-                // Parse C2PA manifest
-                let mut cursor = Cursor::new(&data);
-                let reader = match c2pa::Reader::from_stream(&mime_type, &mut cursor) {
-                    Ok(r) => r,
-                    Err(_) => {
-                        // No C2PA manifest found
-                        return Ok(serde_json::json!({
-                            "has_manifest": false,
-                            "title": null,
-                            "claim_generator": null,
-                            "assertions": [],
-                            "digital_source_type": null,
-                            "validation_status": "none",
-                            "eu_ai_act_compliant": false,
-                        }));
-                    }
-                };
+                    // Parse C2PA manifest
+                    let mut cursor = Cursor::new(&data);
+                    let reader = match c2pa::Reader::from_stream(&mime_type, &mut cursor) {
+                        Ok(r) => r,
+                        Err(_) => {
+                            // No C2PA manifest found
+                            return Ok(serde_json::json!({
+                                "has_manifest": false,
+                                "title": null,
+                                "claim_generator": null,
+                                "assertions": [],
+                                "digital_source_type": null,
+                                "validation_status": "none",
+                                "eu_ai_act_compliant": false,
+                            }));
+                        }
+                    };
 
-                let manifest = match reader.active_manifest() {
-                    Some(m) => m,
-                    None => {
-                        return Ok(serde_json::json!({
-                            "has_manifest": false,
-                            "title": null,
-                            "claim_generator": null,
-                            "assertions": [],
-                            "digital_source_type": null,
-                            "validation_status": "unknown",
-                            "eu_ai_act_compliant": false,
-                        }));
-                    }
-                };
+                    let manifest = match reader.active_manifest() {
+                        Some(m) => m,
+                        None => {
+                            return Ok(serde_json::json!({
+                                "has_manifest": false,
+                                "title": null,
+                                "claim_generator": null,
+                                "assertions": [],
+                                "digital_source_type": null,
+                                "validation_status": "unknown",
+                                "eu_ai_act_compliant": false,
+                            }));
+                        }
+                    };
 
-                // Extract title
-                let title = manifest.title().map(|s| s.to_string());
+                    // Extract title
+                    let title = manifest.title().map(|s| s.to_string());
 
-                // Extract claim generator
-                let claim_generator = manifest.claim_generator_info.as_ref()
-                    .and_then(|info| info.first())
-                    .map(|g| format!("{} v{}", g.name, g.version.as_deref().unwrap_or("unknown")));
+                    // Extract claim generator
+                    let claim_generator = manifest
+                        .claim_generator_info
+                        .as_ref()
+                        .and_then(|info| info.first())
+                        .map(|g| {
+                            format!("{} v{}", g.name, g.version.as_deref().unwrap_or("unknown"))
+                        });
 
-                // Extract assertions
-                let mut assertions_json = Vec::new();
-                let mut digital_source_type: Option<String> = None;
+                    // Extract assertions
+                    let mut assertions_json = Vec::new();
+                    let mut digital_source_type: Option<String> = None;
 
-                for assertion in manifest.assertions().iter() {
-                    let label = assertion.label().to_string();
+                    for assertion in manifest.assertions().iter() {
+                        let label = assertion.label().to_string();
 
-                    match assertion.value() {
-                        Ok(value) => {
-                            // Extract digitalSourceType from c2pa.actions
-                            if label.starts_with("c2pa.actions") {
-                                if let Some(actions) = value.get("actions").and_then(serde_json::Value::as_array) {
-                                    for action in actions {
-                                        if let Some(dst) = action.get("digitalSourceType").and_then(serde_json::Value::as_str) {
-                                            digital_source_type = Some(dst.to_string());
+                        match assertion.value() {
+                            Ok(value) => {
+                                // Extract digitalSourceType from c2pa.actions
+                                if label.starts_with("c2pa.actions") {
+                                    if let Some(actions) =
+                                        value.get("actions").and_then(serde_json::Value::as_array)
+                                    {
+                                        for action in actions {
+                                            if let Some(dst) = action
+                                                .get("digitalSourceType")
+                                                .and_then(serde_json::Value::as_str)
+                                            {
+                                                digital_source_type = Some(dst.to_string());
+                                            }
                                         }
                                     }
                                 }
+
+                                assertions_json.push(serde_json::json!({
+                                    "label": label,
+                                    "data": value,
+                                }));
                             }
-
-                            assertions_json.push(serde_json::json!({
-                                "label": label,
-                                "data": value,
-                            }));
-                        }
-                        Err(_) => {
-                            assertions_json.push(serde_json::json!({
-                                "label": label,
-                            }));
+                            Err(_) => {
+                                assertions_json.push(serde_json::json!({
+                                    "label": label,
+                                }));
+                            }
                         }
                     }
-                }
 
-                // Validation status:
-                // None = validation not performed → "valid" (no issues detected)
-                // Some([]) = no issues found → "valid"
-                // Some([...]) = check for critical failures vs informational
-                //   - signingCredential.untrusted = expected for self-signed → "self_signed"
-                //   - other failures → "invalid"
-                let validation_status = match reader.validation_status() {
-                    None | Some(&[]) => "valid".to_string(),
-                    Some(statuses) => {
-                        let has_critical = statuses.iter().any(|s| {
-                            let code = s.code();
-                            // These are genuine integrity failures
-                            code.contains("mismatch")
-                                || code.contains("revoked")
-                                || code.contains("expired")
-                                || code.contains("corrupt")
-                        });
-                        if has_critical {
-                            "invalid".to_string()
-                        } else if statuses.iter().any(|s| s.code().contains("untrusted")) {
-                            "self_signed".to_string()
-                        } else {
-                            "valid".to_string()
+                    // Validation status:
+                    // None = validation not performed → "valid" (no issues detected)
+                    // Some([]) = no issues found → "valid"
+                    // Some([...]) = check for critical failures vs informational
+                    //   - signingCredential.untrusted = expected for self-signed → "self_signed"
+                    //   - other failures → "invalid"
+                    let validation_status = match reader.validation_status() {
+                        None | Some(&[]) => "valid".to_string(),
+                        Some(statuses) => {
+                            let has_critical = statuses.iter().any(|s| {
+                                let code = s.code();
+                                // These are genuine integrity failures
+                                code.contains("mismatch")
+                                    || code.contains("revoked")
+                                    || code.contains("expired")
+                                    || code.contains("corrupt")
+                            });
+                            if has_critical {
+                                "invalid".to_string()
+                            } else if statuses.iter().any(|s| s.code().contains("untrusted")) {
+                                "self_signed".to_string()
+                            } else {
+                                "valid".to_string()
+                            }
                         }
-                    }
-                };
+                    };
 
-                // EU AI Act compliance check
-                let has_manifest = true;
-                let has_ai_source = digital_source_type.as_ref().is_some_and(|dst| {
-                    AI_SOURCE_TYPES.iter().any(|ai| dst.contains(ai))
-                });
-                let eu_ai_act_compliant = has_manifest && has_ai_source;
+                    // EU AI Act compliance check
+                    let has_manifest = true;
+                    let has_ai_source = digital_source_type
+                        .as_ref()
+                        .is_some_and(|dst| AI_SOURCE_TYPES.iter().any(|ai| dst.contains(ai)));
+                    let eu_ai_act_compliant = has_manifest && has_ai_source;
 
-                Ok(serde_json::json!({
-                    "has_manifest": has_manifest,
-                    "title": title,
-                    "claim_generator": claim_generator,
-                    "assertions": assertions_json,
-                    "digital_source_type": digital_source_type,
-                    "validation_status": validation_status,
-                    "eu_ai_act_compliant": eu_ai_act_compliant,
-                }))
-            }).await??;
+                    Ok(serde_json::json!({
+                        "has_manifest": has_manifest,
+                        "title": title,
+                        "claim_generator": claim_generator,
+                        "assertions": assertions_json,
+                        "digital_source_type": digital_source_type,
+                        "validation_status": validation_status,
+                        "eu_ai_act_compliant": eu_ai_act_compliant,
+                    }))
+                })
+                .await??;
 
             Ok(MediaOpResult::Metadata(result))
         })
@@ -204,7 +218,10 @@ fn detect_mime(data: &[u8]) -> Result<String, NikaError> {
     } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
         Ok("image/jpeg".to_string())
     } else {
-        Err(invalid_args("verify", "unsupported format — C2PA verification requires JPEG or PNG"))
+        Err(invalid_args(
+            "verify",
+            "unsupported format — C2PA verification requires JPEG or PNG",
+        ))
     }
 }
 
@@ -233,7 +250,8 @@ mod tests {
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
         let mut buf = Vec::new();
         let enc = image::codecs::png::PngEncoder::new(&mut buf);
-        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8)
+            .unwrap();
         buf
     }
 
@@ -243,11 +261,17 @@ mod tests {
         let sr = ctx.cas.store(&jpeg).await.unwrap();
 
         let provenance_op = super::super::provenance::ProvenanceOp;
-        let result = provenance_op.execute(serde_json::json!({
-            "hash": sr.hash,
-            "assertion": assertion,
-            "title": "Test Asset"
-        }), ctx).await.unwrap();
+        let result = provenance_op
+            .execute(
+                serde_json::json!({
+                    "hash": sr.hash,
+                    "assertion": assertion,
+                    "title": "Test Asset"
+                }),
+                ctx,
+            )
+            .await
+            .unwrap();
 
         match result {
             super::super::MediaOpResult::Binary { data, .. } => {
@@ -264,13 +288,19 @@ mod tests {
         let signed_hash = sign_jpeg(&ctx, "ai.generated").await;
 
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": signed_hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": signed_hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["has_manifest"], true);
             assert_eq!(v["title"], "Test Asset");
             assert!(v["claim_generator"].as_str().unwrap().contains("Nika"));
-            assert!(v["digital_source_type"].as_str().unwrap().contains("trainedAlgorithmicMedia"));
+            assert!(v["digital_source_type"]
+                .as_str()
+                .unwrap()
+                .contains("trainedAlgorithmicMedia"));
             assert_eq!(v["eu_ai_act_compliant"], true);
             // Ephemeral self-signed cert: "valid" or "self_signed" are both acceptable
             let status = v["validation_status"].as_str().unwrap();
@@ -289,11 +319,17 @@ mod tests {
         let signed_hash = sign_jpeg(&ctx, "human.created").await;
 
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": signed_hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": signed_hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["has_manifest"], true);
-            assert!(v["digital_source_type"].as_str().unwrap().contains("humanCreation"));
+            assert!(v["digital_source_type"]
+                .as_str()
+                .unwrap()
+                .contains("humanCreation"));
             // Human-created is NOT AI → not EU AI Act compliant (doesn't need to be)
             assert_eq!(v["eu_ai_act_compliant"], false);
         }
@@ -306,7 +342,10 @@ mod tests {
         let sr = ctx.cas.store(&jpeg).await.unwrap();
 
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["has_manifest"], false);
@@ -322,7 +361,10 @@ mod tests {
         let sr = ctx.cas.store(&png).await.unwrap();
 
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": sr.hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["has_manifest"], false);
@@ -335,12 +377,18 @@ mod tests {
         let signed_hash = sign_jpeg(&ctx, "ai.modified").await;
 
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": signed_hash}), &ctx).await.unwrap();
+        let result = op
+            .execute(serde_json::json!({"hash": signed_hash}), &ctx)
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             assert_eq!(v["has_manifest"], true);
-            assert!(v["digital_source_type"].as_str().unwrap().contains("composite"));
-            assert!(v["assertions"].as_array().unwrap().len() > 0);
+            assert!(v["digital_source_type"]
+                .as_str()
+                .unwrap()
+                .contains("composite"));
+            assert!(!v["assertions"].as_array().unwrap().is_empty());
         }
     }
 
@@ -368,7 +416,9 @@ mod tests {
         let (_dir, ctx) = setup().await;
         ctx.cancel.cancel();
         let op = VerifyOp;
-        let result = op.execute(serde_json::json!({"hash": "blake3:abc"}), &ctx).await;
+        let result = op
+            .execute(serde_json::json!({"hash": "blake3:abc"}), &ctx)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cancelled"));
     }
@@ -382,7 +432,10 @@ mod tests {
             if let Ok(sr) = ctx.cas.store(&data).await {
                 let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
                 if let Err(e) = &result {
-                    assert!(!e.to_string().contains("panicked"), "fuzz input {i} panicked");
+                    assert!(
+                        !e.to_string().contains("panicked"),
+                        "fuzz input {i} panicked"
+                    );
                 }
             }
         }
@@ -392,10 +445,7 @@ mod tests {
     async fn verify_adapter_dispatch() {
         use crate::runtime::builtin::BuiltinTool;
         let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(
-            Arc::new(VerifyOp),
-            ctx,
-        );
+        let adapter = super::super::MediaToolAdapter::new(Arc::new(VerifyOp), ctx);
         assert_eq!(adapter.name(), "verify");
     }
 

@@ -431,7 +431,8 @@ pub static MODEL_CATALOG: &[ModelInfo] = &[
         capabilities: CLAUDE_CAPS,
         lifecycle: LifecycleStatus::Active,
         aliases: &["claude-3-5-haiku-20241022"],
-        description: "Fast and affordable. Great for classification, extraction, and simple generation.",
+        description:
+            "Fast and affordable. Great for classification, extraction, and simple generation.",
     },
     ModelInfo {
         id: "claude-3-opus-latest",
@@ -578,7 +579,9 @@ pub static MODEL_CATALOG: &[ModelInfo] = &[
         tier: ModelTier::Standard,
         context_window: 2_000_000,
         max_output_tokens: 8_192,
-        capabilities: STANDARD_CAPS.union(CapabilityFlags::VISION).union(CapabilityFlags::DOCUMENT_INPUT),
+        capabilities: STANDARD_CAPS
+            .union(CapabilityFlags::VISION)
+            .union(CapabilityFlags::DOCUMENT_INPUT),
         lifecycle: LifecycleStatus::Active,
         aliases: &["gemini-1.5-pro-latest"],
         description: "Google's most capable model. 2M context for massive documents.",
@@ -764,8 +767,7 @@ impl ModelCatalog {
         let mut alternatives: Vec<ModelAlternative> = MODEL_CATALOG
             .iter()
             .filter(|m| {
-                m.id != current.id
-                    && !matches!(m.lifecycle, LifecycleStatus::Deprecated { .. })
+                m.id != current.id && !matches!(m.lifecycle, LifecycleStatus::Deprecated { .. })
             })
             .map(|m| {
                 let alt_pricing = m.pricing();
@@ -780,9 +782,7 @@ impl ModelCatalog {
                 let capability_warning = if m.is_compatible_replacement_for(current) {
                     None
                 } else {
-                    let missing = current
-                        .capabilities
-                        .difference(m.capabilities);
+                    let missing = current.capabilities.difference(m.capabilities);
                     let labels = capability_labels_for(missing);
                     if labels.is_empty() {
                         None
@@ -812,9 +812,11 @@ impl ModelCatalog {
         alternatives.sort_by(|a, b| {
             let same_provider_a = a.model.provider == current.provider;
             let same_provider_b = b.model.provider == current.provider;
-            same_provider_b
-                .cmp(&same_provider_a)
-                .then(a.cost_delta_pct.partial_cmp(&b.cost_delta_pct).unwrap_or(std::cmp::Ordering::Equal))
+            same_provider_b.cmp(&same_provider_a).then(
+                a.cost_delta_pct
+                    .partial_cmp(&b.cost_delta_pct)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
 
         alternatives
@@ -932,7 +934,11 @@ pub fn check_compatibility(config: &TaskModelConfig) -> Vec<CompatibilityIssue> 
     };
 
     // NIKA-032: Extended thinking with non-Claude model
-    if config.extended_thinking && !model.capabilities.contains(CapabilityFlags::EXTENDED_THINKING) {
+    if config.extended_thinking
+        && !model
+            .capabilities
+            .contains(CapabilityFlags::EXTENDED_THINKING)
+    {
         issues.push(CompatibilityIssue {
             code: "NIKA-032",
             severity: IssueSeverity::Error,
@@ -1011,9 +1017,7 @@ pub struct CostOptimization {
 /// Analyze a workflow's model usage and suggest cost optimizations.
 ///
 /// Takes a list of (task_id, model_id) pairs and returns suggestions.
-pub fn optimize_workflow_costs(
-    tasks: &[(&str, &str)],
-) -> Vec<CostOptimization> {
+pub fn optimize_workflow_costs(tasks: &[(&str, &str)]) -> Vec<CostOptimization> {
     let mut suggestions = Vec::new();
 
     for (task_id, model_id) in tasks {
@@ -1108,11 +1112,7 @@ mod tests {
     fn all_catalog_ids_are_unique() {
         let mut seen = std::collections::HashSet::new();
         for model in MODEL_CATALOG {
-            assert!(
-                seen.insert(model.id),
-                "Duplicate catalog ID: {}",
-                model.id
-            );
+            assert!(seen.insert(model.id), "Duplicate catalog ID: {}", model.id);
         }
     }
 
@@ -1180,8 +1180,7 @@ mod tests {
     fn alternatives_for_opus_includes_sonnet() {
         let alts = ModelCatalog::alternatives_for("claude-opus-4");
         assert!(
-            alts.iter()
-                .any(|a| a.model.id == "claude-sonnet-4-6"),
+            alts.iter().any(|a| a.model.id == "claude-sonnet-4-6"),
             "Should suggest Sonnet as alternative to Opus"
         );
     }
@@ -1190,7 +1189,8 @@ mod tests {
     fn alternatives_exclude_deprecated() {
         let alts = ModelCatalog::alternatives_for("claude-sonnet-4-6");
         assert!(
-            !alts.iter()
+            !alts
+                .iter()
                 .any(|a| matches!(a.model.lifecycle, LifecycleStatus::Deprecated { .. })),
             "Should not suggest deprecated models"
         );
@@ -1230,7 +1230,9 @@ mod tests {
         };
         let issues = check_compatibility(&config);
         assert!(
-            issues.iter().any(|i| i.code == "NIKA-032" && i.severity == IssueSeverity::Error),
+            issues
+                .iter()
+                .any(|i| i.code == "NIKA-032" && i.severity == IssueSeverity::Error),
             "Should flag extended_thinking with non-Claude model"
         );
     }
@@ -1244,7 +1246,9 @@ mod tests {
         };
         let issues = check_compatibility(&config);
         assert!(
-            !issues.iter().any(|i| i.code == "NIKA-032" && i.severity == IssueSeverity::Error),
+            !issues
+                .iter()
+                .any(|i| i.code == "NIKA-032" && i.severity == IssueSeverity::Error),
             "Should NOT flag extended_thinking with Claude"
         );
     }
@@ -1290,10 +1294,7 @@ mod tests {
     fn optimizer_suggests_downgrade_for_premium() {
         let tasks = vec![("research", "claude-opus-4")];
         let suggestions = optimize_workflow_costs(&tasks);
-        assert!(
-            !suggestions.is_empty(),
-            "Should suggest downgrade for Opus"
-        );
+        assert!(!suggestions.is_empty(), "Should suggest downgrade for Opus");
         assert!(
             suggestions[0].savings_pct > 50.0,
             "Savings should be significant"
@@ -1317,13 +1318,17 @@ mod tests {
     #[test]
     fn claude_has_extended_thinking() {
         let info = ModelCatalog::lookup("claude-sonnet-4-6").unwrap();
-        assert!(info.capabilities.contains(CapabilityFlags::EXTENDED_THINKING));
+        assert!(info
+            .capabilities
+            .contains(CapabilityFlags::EXTENDED_THINKING));
     }
 
     #[test]
     fn gpt4o_does_not_have_extended_thinking() {
         let info = ModelCatalog::lookup("gpt-4o").unwrap();
-        assert!(!info.capabilities.contains(CapabilityFlags::EXTENDED_THINKING));
+        assert!(!info
+            .capabilities
+            .contains(CapabilityFlags::EXTENDED_THINKING));
     }
 
     #[test]

@@ -167,8 +167,7 @@ fn prune_traces_in_dir(trace_dir: &Path, max_traces: u32, retention_days: u32) {
 
     // Pass 1: retention_days -- mark entries older than cutoff for deletion
     let cutoff = if retention_days > 0 {
-        SystemTime::now()
-            .checked_sub(Duration::from_secs(u64::from(retention_days) * 86400))
+        SystemTime::now().checked_sub(Duration::from_secs(u64::from(retention_days) * 86400))
     } else {
         None
     };

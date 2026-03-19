@@ -14,12 +14,12 @@ mod tests {
     use base64::Engine;
     use std::sync::Arc;
 
+    use crate::mcp::types::{ContentBlock, ResourceContent, ToolCallResult};
     use crate::media::detect::detect_mime;
     use crate::media::error::MediaError;
     use crate::media::processor::MediaProcessor;
     use crate::media::store::CasStore;
     use crate::media::types::{MediaBudget, MediaRef, MediaType};
-    use crate::mcp::types::{ContentBlock, ResourceContent, ToolCallResult};
     use crate::store::RunContext;
 
     // ═══════════════════════════════════════════════════════════════
@@ -34,8 +34,8 @@ mod tests {
             0x49, 0x48, 0x44, 0x52, // IHDR
             0x00, 0x00, 0x00, 0x01, // width=1
             0x00, 0x00, 0x00, 0x01, // height=1
-            0x08, 0x06,             // 8-bit RGBA
-            0x00, 0x00, 0x00,       // compression, filter, interlace
+            0x08, 0x06, // 8-bit RGBA
+            0x00, 0x00, 0x00, // compression, filter, interlace
             0x1F, 0x15, 0xC4, 0x89, // IHDR CRC
             0x00, 0x00, 0x00, 0x0A, // IDAT chunk length
             0x49, 0x44, 0x41, 0x54, // IDAT
@@ -51,13 +51,13 @@ mod tests {
     fn real_jpeg_bytes() -> Vec<u8> {
         vec![
             0xFF, 0xD8, 0xFF, 0xE0, // SOI + APP0 marker
-            0x00, 0x10,             // APP0 length
+            0x00, 0x10, // APP0 length
             0x4A, 0x46, 0x49, 0x46, 0x00, // JFIF\0
-            0x01, 0x01,             // version
-            0x00,                   // units
+            0x01, 0x01, // version
+            0x00, // units
             0x00, 0x01, 0x00, 0x01, // density
-            0x00, 0x00,             // thumbnail
-            0xFF, 0xD9,             // EOI
+            0x00, 0x00, // thumbnail
+            0xFF, 0xD9, // EOI
         ]
     }
 
@@ -65,8 +65,8 @@ mod tests {
     fn real_mp3_bytes() -> Vec<u8> {
         let mut data = vec![
             0x49, 0x44, 0x33, // ID3
-            0x04, 0x00,       // version
-            0x00,             // flags
+            0x04, 0x00, // version
+            0x00, // flags
             0x00, 0x00, 0x00, 0x00, // size
         ];
         // Pad to make it recognizable
@@ -99,20 +99,31 @@ mod tests {
 
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
-        let b64_with_newlines = b64.chars()
+        let b64_with_newlines = b64
+            .chars()
             .enumerate()
-            .map(|(i, c)| if i > 0 && i % 76 == 0 { format!("\n{c}") } else { c.to_string() })
+            .map(|(i, c)| {
+                if i > 0 && i % 76 == 0 {
+                    format!("\n{c}")
+                } else {
+                    c.to_string()
+                }
+            })
             .collect::<String>();
 
         let block = ContentBlock::image(b64_with_newlines, "image/png");
-        let result = processor.process(&block, "t_newline").await
+        let result = processor
+            .process(&block, "t_newline")
+            .await
             .expect("base64 with newlines should succeed after whitespace stripping")
             .expect("image should produce Some");
 
         let (media_ref, _) = result;
         let expected_hash = format!("blake3:{}", blake3::hash(&png).to_hex());
-        assert_eq!(media_ref.hash, expected_hash,
-            "Decoded data should match original after newline stripping");
+        assert_eq!(
+            media_ref.hash, expected_hash,
+            "Decoded data should match original after newline stripping"
+        );
         assert_eq!(media_ref.mime_type, "image/png");
     }
 
@@ -137,8 +148,11 @@ mod tests {
         match result {
             Err(e) => {
                 // Expected: URL-safe chars are invalid in STANDARD base64
-                assert!(e.code() == "NIKA-256" || e.code() == "NIKA-251",
-                    "Unexpected error: {}", e);
+                assert!(
+                    e.code() == "NIKA-256" || e.code() == "NIKA-251",
+                    "Unexpected error: {}",
+                    e
+                );
             }
             Ok(Some((media_ref, _))) => {
                 // If it decoded, verify correctness
@@ -192,7 +206,10 @@ mod tests {
         let block = ContentBlock::image(encode_b64(&real_png_bytes()), "audio/wav");
         let result = processor.process(&block, "t_mismatch").await;
 
-        assert!(result.is_err(), "Cross-category MIME mismatch should be rejected");
+        assert!(
+            result.is_err(),
+            "Cross-category MIME mismatch should be rejected"
+        );
         assert_eq!(result.unwrap_err().code(), "NIKA-251");
     }
 
@@ -208,8 +225,10 @@ mod tests {
 
         match result {
             Ok(Some((media_ref, _))) => {
-                assert_eq!(media_ref.mime_type, "image/png",
-                    "Magic bytes should win for same-category mismatch");
+                assert_eq!(
+                    media_ref.mime_type, "image/png",
+                    "Magic bytes should win for same-category mismatch"
+                );
                 assert_eq!(media_ref.extension, "png");
             }
             Ok(None) => panic!("image data returned None"),
@@ -227,16 +246,17 @@ mod tests {
         let store = CasStore::new(dir.path());
         let processor = MediaProcessor::new(store);
 
-        let rc = ResourceContent::new("file:///image.png")
-            .with_blob(encode_b64(&real_png_bytes()));
+        let rc = ResourceContent::new("file:///image.png").with_blob(encode_b64(&real_png_bytes()));
         // No mime_type set — processor must detect from magic bytes
         let block = ContentBlock::Resource(rc);
         let result = processor.process(&block, "t_nomime").await;
 
         match result {
             Ok(Some((media_ref, _))) => {
-                assert_eq!(media_ref.mime_type, "image/png",
-                    "SILENT BUG: MIME not detected from magic bytes when server hint missing");
+                assert_eq!(
+                    media_ref.mime_type, "image/png",
+                    "SILENT BUG: MIME not detected from magic bytes when server hint missing"
+                );
             }
             Ok(None) => panic!("SILENT BUG: resource with blob returned None"),
             Err(e) => panic!("SILENT BUG: valid PNG blob failed: {}", e),
@@ -253,11 +273,13 @@ mod tests {
         let store = CasStore::new(dir.path());
         let processor = MediaProcessor::new(store);
 
-        let rc = ResourceContent::new("file:///readme.md")
-            .with_text("# Hello World");
+        let rc = ResourceContent::new("file:///readme.md").with_text("# Hello World");
         let block = ContentBlock::Resource(rc);
         let result = processor.process(&block, "t_textonly").await.unwrap();
-        assert!(result.is_none(), "Text-only resource should return None, not store in CAS");
+        assert!(
+            result.is_none(),
+            "Text-only resource should return None, not store in CAS"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -297,12 +319,35 @@ mod tests {
         let r = store.store(&real_png_bytes()).await.unwrap();
         let filename = r.path.file_name().unwrap().to_string_lossy();
 
-        assert!(!filename.ends_with(".png"), "SILENT BUG: CAS filename has .png extension: {}", filename);
-        assert!(!filename.ends_with(".jpg"), "SILENT BUG: CAS filename has .jpg extension: {}", filename);
-        assert!(!filename.contains('.'), "SILENT BUG: CAS filename contains dot: {}", filename);
+        assert!(
+            !filename.ends_with(".png"),
+            "SILENT BUG: CAS filename has .png extension: {}",
+            filename
+        );
+        assert!(
+            !filename.ends_with(".jpg"),
+            "SILENT BUG: CAS filename has .jpg extension: {}",
+            filename
+        );
+        assert!(
+            !filename.contains('.'),
+            "SILENT BUG: CAS filename contains dot: {}",
+            filename
+        );
         // Also verify the parent is a 2-char shard directory
-        let shard = r.path.parent().unwrap().file_name().unwrap().to_string_lossy();
-        assert_eq!(shard.len(), 2, "Shard directory should be 2 chars: {}", shard);
+        let shard = r
+            .path
+            .parent()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_string_lossy();
+        assert_eq!(
+            shard.len(),
+            2,
+            "Shard directory should be 2 chars: {}",
+            shard
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -334,7 +379,10 @@ mod tests {
 
         // Second take should return empty (drained)
         let taken_again = ctx.take_media(&task_id);
-        assert!(taken_again.is_empty(), "SILENT BUG: take_media didn't drain staging");
+        assert!(
+            taken_again.is_empty(),
+            "SILENT BUG: take_media didn't drain staging"
+        );
     }
 
     #[test]
@@ -346,7 +394,10 @@ mod tests {
         ctx.set_media(&task_id, vec![]);
 
         let taken = ctx.take_media(&task_id);
-        assert!(taken.is_empty(), "Empty vec should not be stored in staging");
+        assert!(
+            taken.is_empty(),
+            "Empty vec should not be stored in staging"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -355,11 +406,14 @@ mod tests {
 
     #[test]
     fn e2e_task_result_with_media_attaches() {
-        use std::time::Duration;
         use crate::store::TaskResult;
+        use std::time::Duration;
 
         let tr = TaskResult::success(serde_json::json!("ok"), Duration::from_millis(100));
-        assert!(tr.media.is_empty(), "New TaskResult should have empty media");
+        assert!(
+            tr.media.is_empty(),
+            "New TaskResult should have empty media"
+        );
 
         let refs = vec![MediaRef {
             hash: "blake3:deadbeef".into(),
@@ -394,8 +448,11 @@ mod tests {
         ]);
 
         // text() must only join Text blocks
-        assert_eq!(result.text(), "visible text\nmore text",
-            "SILENT BUG: text() includes non-text content!");
+        assert_eq!(
+            result.text(),
+            "visible text\nmore text",
+            "SILENT BUG: text() includes non-text content!"
+        );
         assert_eq!(result.first_text(), Some("visible text"));
 
         // media helpers must exclude Text
@@ -416,8 +473,11 @@ mod tests {
 
         // Test uppercase server MIME
         let result = detect_mime(&png, Some("IMAGE/PNG")).unwrap();
-        assert_eq!(result.mime_type, "image/png",
-            "SILENT BUG: uppercase MIME not normalized: {}", result.mime_type);
+        assert_eq!(
+            result.mime_type, "image/png",
+            "SILENT BUG: uppercase MIME not normalized: {}",
+            result.mime_type
+        );
 
         // Test mixed case
         let result = detect_mime(&png, Some("Image/Png")).unwrap();
@@ -433,8 +493,11 @@ mod tests {
     fn e2e_pdf_detection() {
         let pdf = real_pdf_bytes();
         let result = detect_mime(&pdf, None).unwrap();
-        assert_eq!(result.mime_type, "application/pdf",
-            "SILENT BUG: PDF not detected: {}", result.mime_type);
+        assert_eq!(
+            result.mime_type, "application/pdf",
+            "SILENT BUG: PDF not detected: {}",
+            result.mime_type
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -449,9 +512,7 @@ mod tests {
         let handles: Vec<_> = (0..20)
             .map(|i| {
                 let budget = Arc::clone(&budget);
-                tokio::spawn(async move {
-                    budget.check_and_add(100, &format!("t{i}"))
-                })
+                tokio::spawn(async move { budget.check_and_add(100, &format!("t{i}")) })
             })
             .collect();
 
@@ -465,14 +526,24 @@ mod tests {
         let failures = results.iter().filter(|r| r.is_err()).count();
 
         // Budget is 1000, each request is 100 → exactly 10 should succeed
-        assert_eq!(successes, 10,
-            "SILENT BUG: budget allowed {} of 20 (expected 10)", successes);
-        assert_eq!(failures, 10,
-            "SILENT BUG: budget rejected {} of 20 (expected 10)", failures);
+        assert_eq!(
+            successes, 10,
+            "SILENT BUG: budget allowed {} of 20 (expected 10)",
+            successes
+        );
+        assert_eq!(
+            failures, 10,
+            "SILENT BUG: budget rejected {} of 20 (expected 10)",
+            failures
+        );
 
         // Final bytes should be exactly 1000
-        assert_eq!(budget.current_bytes(), 1000,
-            "SILENT BUG: budget tracking off: {}", budget.current_bytes());
+        assert_eq!(
+            budget.current_bytes(),
+            1000,
+            "SILENT BUG: budget tracking off: {}",
+            budget.current_bytes()
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -488,7 +559,9 @@ mod tests {
                 mime_type: "video/mp4".into(),
                 reason: "not supported".into(),
             },
-            MediaError::MediaNotFound { hash: "blake3:xxx".into() },
+            MediaError::MediaNotFound {
+                hash: "blake3:xxx".into(),
+            },
             MediaError::HashMismatch {
                 expected: "blake3:aaa".into(),
                 actual: "blake3:bbb".into(),
@@ -501,25 +574,39 @@ mod tests {
                 source_desc: "test".into(),
                 reason: "bad".into(),
             },
-            MediaError::Base64InputTooLarge { size: 200, max: 100 },
-            MediaError::EmptyMediaContent { task_id: "t1".into() },
-            MediaError::RunBudgetExceeded { current: 600, max: 500 },
+            MediaError::Base64InputTooLarge {
+                size: 200,
+                max: 100,
+            },
+            MediaError::EmptyMediaContent {
+                task_id: "t1".into(),
+            },
+            MediaError::RunBudgetExceeded {
+                current: 600,
+                max: 500,
+            },
         ];
 
         let expected_codes = [
-            "NIKA-251", "NIKA-252", "NIKA-253", "NIKA-254",
-            "NIKA-255", "NIKA-256", "NIKA-257", "NIKA-258", "NIKA-259",
+            "NIKA-251", "NIKA-252", "NIKA-253", "NIKA-254", "NIKA-255", "NIKA-256", "NIKA-257",
+            "NIKA-258", "NIKA-259",
         ];
 
         for (i, (err, expected_code)) in errors.iter().zip(expected_codes.iter()).enumerate() {
-            assert_eq!(err.code(), *expected_code,
-                "Error {i} code mismatch: expected {expected_code}, got {}", err.code());
+            assert_eq!(
+                err.code(),
+                *expected_code,
+                "Error {i} code mismatch: expected {expected_code}, got {}",
+                err.code()
+            );
             // Verify Display impl doesn't panic
             let display = format!("{}", err);
             assert!(!display.is_empty(), "Error {i} Display is empty");
             // Verify it contains the NIKA code
-            assert!(display.contains(expected_code),
-                "Error {i} Display missing code: {display}");
+            assert!(
+                display.contains(expected_code),
+                "Error {i} Display missing code: {display}"
+            );
         }
     }
 
@@ -537,7 +624,9 @@ mod tests {
         let b64 = encode_b64(&png);
         let block = ContentBlock::image(b64, "image/png");
 
-        let result = processor.process(&block, "gen_img").await
+        let result = processor
+            .process(&block, "gen_img")
+            .await
             .expect("process should succeed")
             .expect("image block should produce Some");
 
@@ -549,17 +638,28 @@ mod tests {
         assert_eq!(media_ref.extension, "png");
         assert_eq!(media_ref.size_bytes, png.len() as u64);
         assert_eq!(media_ref.created_by, "gen_img");
-        assert!(media_ref.path.exists(), "CAS file should exist at {:?}", media_ref.path);
+        assert!(
+            media_ref.path.exists(),
+            "CAS file should exist at {:?}",
+            media_ref.path
+        );
 
         // Verify StoreResult
         assert!(!store_result.deduplicated);
         // Small files: verified=false (read-back skipped, fsync sufficient)
         assert!(!store_result.verified);
-        assert!(store_result.pipeline_ms < 1000, "pipeline took too long: {}ms", store_result.pipeline_ms);
+        assert!(
+            store_result.pipeline_ms < 1000,
+            "pipeline took too long: {}ms",
+            store_result.pipeline_ms
+        );
 
         // Verify CAS file content matches original
         let stored_data = tokio::fs::read(&media_ref.path).await.unwrap();
-        assert_eq!(stored_data, png, "SILENT BUG: stored data doesn't match original!");
+        assert_eq!(
+            stored_data, png,
+            "SILENT BUG: stored data doesn't match original!"
+        );
 
         // Verify MediaRef serializes correctly
         let json = serde_json::to_value(&media_ref).unwrap();
@@ -587,14 +687,19 @@ mod tests {
         let jpeg = real_jpeg_bytes();
         let block = ContentBlock::image(encode_b64(&jpeg), "image/jpeg");
 
-        let result = processor.process(&block, "gen_jpg").await
+        let result = processor
+            .process(&block, "gen_jpg")
+            .await
             .expect("process should succeed")
             .expect("should produce Some");
 
         let (media_ref, _) = result;
         assert_eq!(media_ref.mime_type, "image/jpeg");
-        assert!(media_ref.extension == "jpg" || media_ref.extension == "jpe",
-            "JPEG extension should be jpg or jpe, got: {}", media_ref.extension);
+        assert!(
+            media_ref.extension == "jpg" || media_ref.extension == "jpe",
+            "JPEG extension should be jpg or jpe, got: {}",
+            media_ref.extension
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -609,16 +714,20 @@ mod tests {
         let processor = MediaProcessor::new(store);
 
         let blocks = vec![
-            ContentBlock::text("header"),                              // index 0: skipped
+            ContentBlock::text("header"), // index 0: skipped
             ContentBlock::image(encode_b64(&real_png_bytes()), "image/png"), // index 1: success
-            ContentBlock::image("INVALID_BASE64!!!", "image/png"),     // index 2: failure
-            ContentBlock::text("footer"),                              // index 3: skipped
+            ContentBlock::image("INVALID_BASE64!!!", "image/png"), // index 2: failure
+            ContentBlock::text("footer"), // index 3: skipped
         ];
 
         let results = processor.process_all(&blocks, "multi").await;
 
         // Should have 2 results (text blocks are skipped)
-        assert_eq!(results.len(), 2, "Expected 2 results (1 success + 1 failure)");
+        assert_eq!(
+            results.len(),
+            2,
+            "Expected 2 results (1 success + 1 failure)"
+        );
 
         // First should be success (PNG at index 1)
         assert!(results[0].is_ok(), "PNG at index 1 should succeed");
@@ -650,8 +759,11 @@ mod tests {
         let json = serde_json::to_string(&block).unwrap();
 
         // Must contain the type tag
-        assert!(json.contains(r#""type":"resource""#),
-            "SILENT BUG: Resource variant missing type tag in JSON: {}", json);
+        assert!(
+            json.contains(r#""type":"resource""#),
+            "SILENT BUG: Resource variant missing type tag in JSON: {}",
+            json
+        );
 
         // Must roundtrip
         let back: ContentBlock = serde_json::from_str(&json).unwrap();
@@ -674,15 +786,24 @@ mod tests {
     fn e2e_media_error_to_nika_error() {
         use crate::error::NikaError;
 
-        let media_err = MediaError::MediaNotFound { hash: "blake3:test".into() };
+        let media_err = MediaError::MediaNotFound {
+            hash: "blake3:test".into(),
+        };
         let nika_err: NikaError = media_err.into();
 
-        assert_eq!(nika_err.code(), "NIKA-253",
-            "SILENT BUG: MediaError code lost in NikaError conversion");
+        assert_eq!(
+            nika_err.code(),
+            "NIKA-253",
+            "SILENT BUG: MediaError code lost in NikaError conversion"
+        );
 
         // Display must contain the code
         let display = format!("{}", nika_err);
-        assert!(display.contains("NIKA-253"), "Display missing code: {}", display);
+        assert!(
+            display.contains("NIKA-253"),
+            "Display missing code: {}",
+            display
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -695,18 +816,22 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = Arc::new(CasStore::new(dir.path()));
 
-        let datasets: Vec<Vec<u8>> = (0..5).map(|i| {
-            let mut data = real_png_bytes();
-            data.push(i as u8); // Make each unique
-            data
-        }).collect();
+        let datasets: Vec<Vec<u8>> = (0..5)
+            .map(|i| {
+                let mut data = real_png_bytes();
+                data.push(i as u8); // Make each unique
+                data
+            })
+            .collect();
 
         // 50 concurrent writes (10 per unique dataset)
-        let handles: Vec<_> = (0..50).map(|i| {
-            let store = Arc::clone(&store);
-            let data = datasets[i % 5].clone();
-            tokio::spawn(async move { store.store(&data).await })
-        }).collect();
+        let handles: Vec<_> = (0..50)
+            .map(|i| {
+                let store = Arc::clone(&store);
+                let data = datasets[i % 5].clone();
+                tokio::spawn(async move { store.store(&data).await })
+            })
+            .collect();
 
         let results: Vec<_> = futures::future::join_all(handles)
             .await
@@ -718,16 +843,22 @@ mod tests {
         let mut unique_hashes: Vec<_> = results.iter().map(|r| r.hash.clone()).collect();
         unique_hashes.sort();
         unique_hashes.dedup();
-        assert_eq!(unique_hashes.len(), 5,
-            "SILENT BUG: expected 5 unique hashes, got {}", unique_hashes.len());
+        assert_eq!(
+            unique_hashes.len(),
+            5,
+            "SILENT BUG: expected 5 unique hashes, got {}",
+            unique_hashes.len()
+        );
 
         // Verify each dataset can be read back correctly
         // We can't rely on result ordering (concurrent tasks), so compute expected hash
         for (i, data) in datasets.iter().enumerate() {
             let expected_hash = format!("blake3:{}", blake3::hash(data).to_hex());
             let read_back = store.read(&expected_hash).await.unwrap();
-            assert_eq!(&read_back, data,
-                "SILENT BUG: dataset {i} read-back mismatch");
+            assert_eq!(
+                &read_back, data,
+                "SILENT BUG: dataset {i} read-back mismatch"
+            );
         }
     }
 
@@ -745,8 +876,12 @@ mod tests {
         // Edge cases
         assert_eq!(MediaType::from_mime("image/svg+xml"), MediaType::Image);
         assert_eq!(MediaType::from_mime("audio/x-wav"), MediaType::Audio);
-        assert_eq!(MediaType::from_mime("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-            MediaType::Document);
+        assert_eq!(
+            MediaType::from_mime(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ),
+            MediaType::Document
+        );
 
         // Unknown types
         assert_eq!(MediaType::from_mime("video/mp4"), MediaType::Unknown);
@@ -767,12 +902,21 @@ mod tests {
         let (processor, _dir) = make_processor_e2e();
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
-        let with_spaces = b64.chars()
+        let with_spaces = b64
+            .chars()
             .enumerate()
-            .map(|(i, c)| if i > 0 && i % 20 == 0 { format!(" {c}") } else { c.to_string() })
+            .map(|(i, c)| {
+                if i > 0 && i % 20 == 0 {
+                    format!(" {c}")
+                } else {
+                    c.to_string()
+                }
+            })
             .collect::<String>();
         let block = ContentBlock::image(with_spaces, "image/png");
-        let result = processor.process(&block, "t_spaces").await
+        let result = processor
+            .process(&block, "t_spaces")
+            .await
             .expect("base64 with spaces should succeed after whitespace stripping")
             .expect("image should produce Some");
         let expected_hash = format!("blake3:{}", blake3::hash(&png).to_hex());
@@ -805,7 +949,10 @@ mod tests {
         let block = ContentBlock::image(b64, "application/octet-stream");
         let result = processor.process(&block, "t_1byte").await;
         // 1 byte → infer::get() returns None → server hint "application/octet-stream" → error
-        assert!(result.is_err(), "Single byte with octet-stream should fail MIME detection");
+        assert!(
+            result.is_err(),
+            "Single byte with octet-stream should fail MIME detection"
+        );
         assert_eq!(result.unwrap_err().code(), "NIKA-251");
     }
 
@@ -830,13 +977,13 @@ mod tests {
         let almost_png = &[0x89, 0x50, 0x4E];
         let result = detect_mime(almost_png, None);
         // Should NOT detect as PNG — incomplete signature
-        match result {
-            Ok(detected) => {
-                assert_ne!(detected.mime_type, "image/png",
-                    "SILENT BUG: incomplete PNG signature detected as PNG!");
-            }
-            Err(_) => {} // Expected: detection fails
+        if let Ok(detected) = result {
+            assert_ne!(
+                detected.mime_type, "image/png",
+                "SILENT BUG: incomplete PNG signature detected as PNG!"
+            );
         }
+        // Err(_) is also expected: detection fails
     }
 
     #[test]
@@ -855,8 +1002,11 @@ mod tests {
     fn e2e_detect_mp3_id3_header() {
         let mp3 = real_mp3_bytes();
         let result = detect_mime(&mp3, None).unwrap();
-        assert!(result.mime_type.contains("mp3") || result.mime_type.contains("mpeg"),
-            "MP3 not detected: {}", result.mime_type);
+        assert!(
+            result.mime_type.contains("mp3") || result.mime_type.contains("mpeg"),
+            "MP3 not detected: {}",
+            result.mime_type
+        );
     }
 
     #[test]
@@ -864,18 +1014,19 @@ mod tests {
         // XML that is NOT SVG — should NOT be detected as image/svg+xml
         let xml = b"<?xml version=\"1.0\"?><root><data>hello</data></root>";
         let result = detect_mime(xml, None);
-        match result {
-            Ok(detected) => {
-                assert_ne!(detected.mime_type, "image/svg+xml",
-                    "SILENT BUG: non-SVG XML detected as SVG!");
-            }
-            Err(_) => {} // Expected: not detected
+        if let Ok(detected) = result {
+            assert_ne!(
+                detected.mime_type, "image/svg+xml",
+                "SILENT BUG: non-SVG XML detected as SVG!"
+            );
         }
+        // Err(_) is also expected: not detected
     }
 
     #[test]
     fn e2e_detect_svg_with_xml_declaration() {
-        let svg = b"<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"><circle/></svg>";
+        let svg =
+            b"<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"><circle/></svg>";
         let result = detect_mime(svg, None).unwrap();
         assert_eq!(result.mime_type, "image/svg+xml");
     }
@@ -886,8 +1037,11 @@ mod tests {
         let mp3 = real_mp3_bytes();
         let result = detect_mime(&mp3, Some("audio/mp3")).unwrap();
         // Magic bytes should detect correctly regardless of non-standard server hint
-        assert!(result.mime_type.contains("mpeg") || result.mime_type.contains("mp3"),
-            "MP3 detection failed with non-standard server hint: {}", result.mime_type);
+        assert!(
+            result.mime_type.contains("mpeg") || result.mime_type.contains("mp3"),
+            "MP3 detection failed with non-standard server hint: {}",
+            result.mime_type
+        );
     }
 
     // --- CAS store edge cases ---
@@ -959,12 +1113,17 @@ mod tests {
         let (processor, _dir) = make_processor_e2e();
         let mp3 = real_mp3_bytes();
         let block = ContentBlock::audio(encode_b64(&mp3), "audio/mpeg");
-        let result = processor.process(&block, "gen_audio").await
+        let result = processor
+            .process(&block, "gen_audio")
+            .await
             .expect("process should succeed")
             .expect("audio should return Some");
         let (media_ref, _) = result;
-        assert!(media_ref.mime_type.contains("mpeg") || media_ref.mime_type.contains("mp3"),
-            "Audio MIME type wrong: {}", media_ref.mime_type);
+        assert!(
+            media_ref.mime_type.contains("mpeg") || media_ref.mime_type.contains("mp3"),
+            "Audio MIME type wrong: {}",
+            media_ref.mime_type
+        );
         assert_eq!(media_ref.created_by, "gen_audio");
     }
 
@@ -976,7 +1135,9 @@ mod tests {
             .with_blob(encode_b64(&pdf))
             .with_mime_type("application/pdf");
         let block = ContentBlock::Resource(rc);
-        let result = processor.process(&block, "gen_pdf").await
+        let result = processor
+            .process(&block, "gen_pdf")
+            .await
             .expect("process should succeed")
             .expect("blob resource should return Some");
         let (media_ref, _) = result;
@@ -992,26 +1153,28 @@ mod tests {
         ];
         let results = processor.process_all(&blocks, "fail_all").await;
         assert_eq!(results.len(), 2);
-        assert!(results.iter().all(|r| r.is_err()),
-            "All blocks should fail");
+        assert!(results.iter().all(|r| r.is_err()), "All blocks should fail");
     }
 
     #[tokio::test]
     async fn e2e_process_all_empty_vec() {
         let (processor, _dir) = make_processor_e2e();
         let results = processor.process_all(&[], "empty").await;
-        assert!(results.is_empty(), "Empty input should produce empty output");
+        assert!(
+            results.is_empty(),
+            "Empty input should produce empty output"
+        );
     }
 
     #[tokio::test]
     async fn e2e_process_all_text_only() {
         let (processor, _dir) = make_processor_e2e();
-        let blocks = vec![
-            ContentBlock::text("hello"),
-            ContentBlock::text("world"),
-        ];
+        let blocks = vec![ContentBlock::text("hello"), ContentBlock::text("world")];
         let results = processor.process_all(&blocks, "text_only").await;
-        assert!(results.is_empty(), "Text-only blocks should produce empty output");
+        assert!(
+            results.is_empty(),
+            "Text-only blocks should produce empty output"
+        );
     }
 
     // --- Shared budget e2e ---
@@ -1022,24 +1185,30 @@ mod tests {
 
         let dir1 = tempfile::tempdir().unwrap();
         let dir2 = tempfile::tempdir().unwrap();
-        let p1 = MediaProcessor::with_shared_budget(
-            CasStore::new(dir1.path()), Arc::clone(&budget));
-        let p2 = MediaProcessor::with_shared_budget(
-            CasStore::new(dir2.path()), Arc::clone(&budget));
+        let p1 =
+            MediaProcessor::with_shared_budget(CasStore::new(dir1.path()), Arc::clone(&budget));
+        let p2 =
+            MediaProcessor::with_shared_budget(CasStore::new(dir2.path()), Arc::clone(&budget));
 
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
 
         // First processor succeeds
-        let r1 = p1.process(&ContentBlock::image(b64.clone(), "image/png"), "t1").await;
+        let r1 = p1
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "t1")
+            .await;
         assert!(r1.is_ok(), "First process should succeed: {:?}", r1.err());
 
         // Second processor succeeds (still under budget)
-        let r2 = p2.process(&ContentBlock::image(b64.clone(), "image/png"), "t2").await;
+        let r2 = p2
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "t2")
+            .await;
         assert!(r2.is_ok(), "Second process should succeed: {:?}", r2.err());
 
         // Third processor should fail (budget exceeded: ~70 bytes x 3 > 200)
-        let r3 = p1.process(&ContentBlock::image(b64.clone(), "image/png"), "t3").await;
+        let r3 = p1
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "t3")
+            .await;
         assert!(r3.is_err(), "Third process should exceed budget");
         assert_eq!(r3.unwrap_err().code(), "NIKA-259");
     }
@@ -1050,23 +1219,67 @@ mod tests {
     fn e2e_all_error_variants_have_display() {
         // Every error variant must have a non-empty Display and contain its NIKA code
         let cases: Vec<(MediaError, &str)> = vec![
-            (MediaError::mime_detection_failed(100, Some("image/png".into())), "NIKA-251"),
-            (MediaError::UnsupportedMediaType { mime_type: "x".into(), reason: "y".into() }, "NIKA-252"),
+            (
+                MediaError::mime_detection_failed(100, Some("image/png".into())),
+                "NIKA-251",
+            ),
+            (
+                MediaError::UnsupportedMediaType {
+                    mime_type: "x".into(),
+                    reason: "y".into(),
+                },
+                "NIKA-252",
+            ),
             (MediaError::MediaNotFound { hash: "h".into() }, "NIKA-253"),
-            (MediaError::HashMismatch { expected: "a".into(), actual: "b".into() }, "NIKA-254"),
-            (MediaError::MediaStoreIo {
-                path: "/x".into(),
-                source: std::io::Error::new(std::io::ErrorKind::Other, "test"),
-            }, "NIKA-255"),
-            (MediaError::Base64DecodeFailed { source_desc: "x".into(), reason: "y".into() }, "NIKA-256"),
-            (MediaError::Base64InputTooLarge { size: 200, max: 100 }, "NIKA-257"),
-            (MediaError::EmptyMediaContent { task_id: "t".into() }, "NIKA-258"),
-            (MediaError::RunBudgetExceeded { current: 600, max: 500 }, "NIKA-259"),
+            (
+                MediaError::HashMismatch {
+                    expected: "a".into(),
+                    actual: "b".into(),
+                },
+                "NIKA-254",
+            ),
+            (
+                MediaError::MediaStoreIo {
+                    path: "/x".into(),
+                    source: std::io::Error::other("test"),
+                },
+                "NIKA-255",
+            ),
+            (
+                MediaError::Base64DecodeFailed {
+                    source_desc: "x".into(),
+                    reason: "y".into(),
+                },
+                "NIKA-256",
+            ),
+            (
+                MediaError::Base64InputTooLarge {
+                    size: 200,
+                    max: 100,
+                },
+                "NIKA-257",
+            ),
+            (
+                MediaError::EmptyMediaContent {
+                    task_id: "t".into(),
+                },
+                "NIKA-258",
+            ),
+            (
+                MediaError::RunBudgetExceeded {
+                    current: 600,
+                    max: 500,
+                },
+                "NIKA-259",
+            ),
         ];
         for (err, code) in &cases {
             let display = format!("{err}");
             assert!(!display.is_empty(), "{code} has empty display");
-            assert!(display.contains(code), "{code} display missing code: {display}");
+            assert!(
+                display.contains(code),
+                "{code} display missing code: {display}"
+            );
             assert_eq!(err.code(), *code);
         }
     }
@@ -1076,11 +1289,16 @@ mod tests {
         // Only MediaStoreIo (I/O errors) should be recoverable
         assert!(MediaError::MediaStoreIo {
             path: "/x".into(),
-            source: std::io::Error::new(std::io::ErrorKind::Other, ""),
-        }.is_recoverable());
+            source: std::io::Error::other(""),
+        }
+        .is_recoverable());
 
         assert!(!MediaError::mime_detection_failed(0, None).is_recoverable());
-        assert!(!MediaError::Base64DecodeFailed { source_desc: "".into(), reason: "".into() }.is_recoverable());
+        assert!(!MediaError::Base64DecodeFailed {
+            source_desc: "".into(),
+            reason: "".into()
+        }
+        .is_recoverable());
         assert!(!MediaError::RunBudgetExceeded { current: 0, max: 0 }.is_recoverable());
     }
 
@@ -1116,14 +1334,20 @@ mod tests {
         // Unknown type should fail deserialization
         let json = r#"{"type": "video", "data": "abc"}"#;
         let result: Result<ContentBlock, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "Unknown content type 'video' should fail deserialization");
+        assert!(
+            result.is_err(),
+            "Unknown content type 'video' should fail deserialization"
+        );
     }
 
     #[test]
     fn e2e_content_block_missing_type_fails() {
         let json = r#"{"text": "hello"}"#;
         let result: Result<ContentBlock, _> = serde_json::from_str(json);
-        assert!(result.is_err(), "Missing 'type' field should fail deserialization");
+        assert!(
+            result.is_err(),
+            "Missing 'type' field should fail deserialization"
+        );
     }
 
     // --- Helper ---
@@ -1162,7 +1386,9 @@ mod tests {
         assert_eq!(tool_result.media_blocks().len(), 2);
 
         // Process all blocks
-        let results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
+        let results = processor
+            .process_all(&tool_result.content, task_id.as_ref())
+            .await;
 
         // Collect successful media refs
         let mut media_refs = Vec::new();
@@ -1173,8 +1399,11 @@ mod tests {
                     assert!(media_ref.size_bytes > 0);
                     assert_eq!(media_ref.created_by, "invoke_sim");
                     let cas_filename = store_result.path.file_name().unwrap().to_string_lossy();
-                    assert!(!cas_filename.contains('.'),
-                        "CAS filename should not contain dot: {}", cas_filename);
+                    assert!(
+                        !cas_filename.contains('.'),
+                        "CAS filename should not contain dot: {}",
+                        cas_filename
+                    );
                     media_refs.push(media_ref);
                 }
                 Err((idx, e)) => {
@@ -1183,7 +1412,11 @@ mod tests {
             }
         }
 
-        assert_eq!(media_refs.len(), 2, "Should have 2 media refs (image + audio)");
+        assert_eq!(
+            media_refs.len(),
+            2,
+            "Should have 2 media refs (image + audio)"
+        );
 
         // Stage in RunContext
         ctx.set_media(&task_id, media_refs.clone());
@@ -1196,8 +1429,8 @@ mod tests {
         use crate::store::TaskResult;
         let text = tool_result.text();
         let output = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
-        let tr = TaskResult::success(output, std::time::Duration::from_millis(42))
-            .with_media(taken);
+        let tr =
+            TaskResult::success(output, std::time::Duration::from_millis(42)).with_media(taken);
 
         assert_eq!(tr.media.len(), 2);
         assert_eq!(tr.media[0].mime_type, "image/png");
@@ -1210,7 +1443,10 @@ mod tests {
         );
 
         // Verify budget tracked
-        assert!(budget.current_bytes() > 0, "Budget should have tracked bytes");
+        assert!(
+            budget.current_bytes() > 0,
+            "Budget should have tracked bytes"
+        );
     }
 
     #[tokio::test]
@@ -1219,9 +1455,7 @@ mod tests {
         let ctx = RunContext::new();
         let task_id: Arc<str> = "text_invoke".into();
 
-        let tool_result = ToolCallResult::success(vec![
-            ContentBlock::text("Just text, no media"),
-        ]);
+        let tool_result = ToolCallResult::success(vec![ContentBlock::text("Just text, no media")]);
 
         assert!(!tool_result.has_media());
 
@@ -1233,7 +1467,8 @@ mod tests {
         let tr = TaskResult::success(
             serde_json::Value::String(tool_result.text()),
             std::time::Duration::from_millis(10),
-        ).with_media(taken);
+        )
+        .with_media(taken);
 
         assert!(tr.media.is_empty());
         assert!(tr.is_success());
@@ -1289,13 +1524,13 @@ mod tests {
         let results = processor.process_all(&tool_result.content, "dedup").await;
         assert_eq!(results.len(), 2);
 
-        let refs: Vec<_> = results.into_iter()
-            .map(|r| r.unwrap())
-            .collect();
+        let refs: Vec<_> = results.into_iter().map(|r| r.unwrap()).collect();
 
         // Both should have the same hash
-        assert_eq!(refs[0].0.hash, refs[1].0.hash,
-            "Same image should have same hash");
+        assert_eq!(
+            refs[0].0.hash, refs[1].0.hash,
+            "Same image should have same hash"
+        );
 
         // One should be dedup
         let dedup_count = refs.iter().filter(|(_, sr)| sr.deduplicated).count();
@@ -1348,7 +1583,8 @@ mod tests {
         let tr = crate::store::TaskResult::success(
             serde_json::json!("image generated"),
             std::time::Duration::from_millis(100),
-        ).with_media(vec![
+        )
+        .with_media(vec![
             MediaRef {
                 hash: "blake3:aabbccdd11223344".into(),
                 mime_type: "image/png".into(),
@@ -1376,7 +1612,10 @@ mod tests {
     fn e2e_resolve_path_media_full_array() {
         let (ctx, _) = setup_ctx_with_media();
         let result = ctx.resolve_path("gen_img.media");
-        assert!(result.is_some(), "resolve_path('gen_img.media') should return Some");
+        assert!(
+            result.is_some(),
+            "resolve_path('gen_img.media') should return Some"
+        );
         let arr = result.unwrap();
         assert!(arr.is_array(), "media should be an array");
         assert_eq!(arr.as_array().unwrap().len(), 2, "should have 2 media refs");
@@ -1386,7 +1625,10 @@ mod tests {
     fn e2e_resolve_path_media_first_hash() {
         let (ctx, _) = setup_ctx_with_media();
         let result = ctx.resolve_path("gen_img.media[0].hash");
-        assert!(result.is_some(), "resolve_path('gen_img.media[0].hash') should return Some");
+        assert!(
+            result.is_some(),
+            "resolve_path('gen_img.media[0].hash') should return Some"
+        );
         assert_eq!(result.unwrap(), "blake3:aabbccdd11223344");
     }
 
@@ -1394,7 +1636,10 @@ mod tests {
     fn e2e_resolve_path_media_first_mime_type() {
         let (ctx, _) = setup_ctx_with_media();
         let result = ctx.resolve_path("gen_img.media[0].mime_type");
-        assert!(result.is_some(), "resolve_path('gen_img.media[0].mime_type') should return Some");
+        assert!(
+            result.is_some(),
+            "resolve_path('gen_img.media[0].mime_type') should return Some"
+        );
         assert_eq!(result.unwrap(), "image/png");
     }
 
@@ -1420,8 +1665,14 @@ mod tests {
         let result = ctx.resolve_path("gen_img.media[0].path");
         assert!(result.is_some());
         let path_val = result.unwrap();
-        assert!(path_val.as_str().unwrap().contains("store/aa/bbccdd11223344"),
-            "path should contain CAS location: {}", path_val);
+        assert!(
+            path_val
+                .as_str()
+                .unwrap()
+                .contains("store/aa/bbccdd11223344"),
+            "path should contain CAS location: {}",
+            path_val
+        );
     }
 
     #[test]
@@ -1454,7 +1705,10 @@ mod tests {
         assert!(result.is_some());
         let arr = result.unwrap();
         assert!(arr.is_array());
-        assert!(arr.as_array().unwrap().is_empty(), "empty media should return []");
+        assert!(
+            arr.as_array().unwrap().is_empty(),
+            "empty media should return []"
+        );
     }
 
     #[test]
@@ -1502,7 +1756,10 @@ mod tests {
         assert_eq!(data.len(), 2 * 1024 * 1024);
 
         let result = store.store(&data).await.unwrap();
-        assert!(result.verified, "2MB file must trigger read-back verification");
+        assert!(
+            result.verified,
+            "2MB file must trigger read-back verification"
+        );
         assert!(!result.deduplicated);
         assert_eq!(result.size, 2 * 1024 * 1024);
 
@@ -1524,7 +1781,10 @@ mod tests {
         assert!(r1.verified);
 
         let r2 = store.store(&data).await.unwrap();
-        assert!(r2.deduplicated, "second store of identical 2MB file must dedup");
+        assert!(
+            r2.deduplicated,
+            "second store of identical 2MB file must dedup"
+        );
         assert_eq!(r1.hash, r2.hash);
         assert_eq!(r1.path, r2.path);
     }
@@ -1547,7 +1807,10 @@ mod tests {
 
         let result = store.store(&data).await.unwrap();
         let read_back = store.read(&result.hash).await.unwrap();
-        assert_eq!(read_back, data, "all-bytes roundtrip must not corrupt any value");
+        assert_eq!(
+            read_back, data,
+            "all-bytes roundtrip must not corrupt any value"
+        );
 
         // Every byte value must be present in the read-back
         for byte in 0x00..=0xFF_u8 {
@@ -1574,7 +1837,10 @@ mod tests {
         // Also verify against direct blake3 computation
         let expected_raw = blake3::hash(&data).to_hex().to_string();
         let expected = format!("blake3:{expected_raw}");
-        assert_eq!(r1.hash, expected, "hash must match direct blake3 computation");
+        assert_eq!(
+            r1.hash, expected,
+            "hash must match direct blake3 computation"
+        );
     }
 
     // --- 3. CAS cleanup edge cases ---
@@ -1660,7 +1926,10 @@ mod tests {
 
         let clean = store.clean_all();
         assert_eq!(clean.removed, 2);
-        assert_eq!(clean.bytes_freed, 3000, "bytes_freed must equal sum of file sizes");
+        assert_eq!(
+            clean.bytes_freed, 3000,
+            "bytes_freed must equal sum of file sizes"
+        );
     }
 
     // --- 4. Hash format validation ---
@@ -1677,7 +1946,12 @@ mod tests {
 
         let raw = result.hash.strip_prefix("blake3:").unwrap();
         // Must be exactly 64 hex characters
-        assert_eq!(raw.len(), 64, "raw hash must be 64 hex chars, got {}", raw.len());
+        assert_eq!(
+            raw.len(),
+            64,
+            "raw hash must be 64 hex chars, got {}",
+            raw.len()
+        );
         assert!(
             raw.chars().all(|c| c.is_ascii_hexdigit()),
             "hash contains non-hex characters: {raw}"
@@ -1696,7 +1970,10 @@ mod tests {
         let r1 = store1.store(data).await.unwrap();
         let r2 = store2.store(data).await.unwrap();
 
-        assert_eq!(r1.hash, r2.hash, "same data must produce same hash in different stores");
+        assert_eq!(
+            r1.hash, r2.hash,
+            "same data must produce same hash in different stores"
+        );
     }
 
     #[tokio::test]
@@ -1769,9 +2046,11 @@ mod tests {
             let relative = result.path.strip_prefix(dir.path()).unwrap();
             let components: Vec<_> = relative.components().collect();
             assert_eq!(
-                components.len(), 2,
+                components.len(),
+                2,
                 "CAS path must have exactly 2 components (shard/file), got {}: {:?}",
-                components.len(), relative
+                components.len(),
+                relative
             );
 
             let shard = components[0].as_os_str().to_string_lossy();
@@ -1792,10 +2071,10 @@ mod tests {
         let png = real_png_bytes();
         let jpeg = real_jpeg_bytes();
         let test_data: Vec<&[u8]> = vec![
-            b"hello.png",       // text that looks like a filename
-            b"data.tar.gz",     // double extension
-            &png,               // actual PNG binary
-            &jpeg,              // actual JPEG binary
+            b"hello.png",   // text that looks like a filename
+            b"data.tar.gz", // double extension
+            &png,           // actual PNG binary
+            &jpeg,          // actual JPEG binary
         ];
 
         for data in &test_data {
@@ -1865,9 +2144,11 @@ mod tests {
             handles.push(tokio::spawn(async move {
                 let read_back = s.read(&h).await.unwrap();
                 assert_eq!(
-                    read_back.len(), expected_len,
+                    read_back.len(),
+                    expected_len,
                     "partial read detected: got {} bytes, expected {}",
-                    read_back.len(), expected_len
+                    read_back.len(),
+                    expected_len
                 );
             }));
         }
@@ -1906,7 +2187,8 @@ mod tests {
         hashes.sort();
         hashes.dedup();
         assert_eq!(
-            hashes.len(), 20,
+            hashes.len(),
+            20,
             "20 different inputs must produce 20 distinct hashes"
         );
 
@@ -2068,14 +2350,8 @@ mod tests {
             map.get("mime_type").and_then(|v| v.as_str()),
             Some("image/png")
         );
-        assert_eq!(
-            map.get("size_bytes").and_then(|v| v.as_u64()),
-            Some(4096)
-        );
-        assert_eq!(
-            map.get("extension").and_then(|v| v.as_str()),
-            Some("png")
-        );
+        assert_eq!(map.get("size_bytes").and_then(|v| v.as_u64()), Some(4096));
+        assert_eq!(map.get("extension").and_then(|v| v.as_str()), Some("png"));
         assert_eq!(
             map.get("created_by").and_then(|v| v.as_str()),
             Some("gen_img")
@@ -2112,10 +2388,7 @@ mod tests {
         // "task.media[999].hash" -- index beyond array length
         let (ctx, _) = setup_ctx_with_media();
         let result = ctx.resolve_path("gen_img.media[999].hash");
-        assert!(
-            result.is_none(),
-            "out-of-bounds index should return None"
-        );
+        assert!(result.is_none(), "out-of-bounds index should return None");
     }
 
     #[test]
@@ -2186,10 +2459,7 @@ mod tests {
         // "task.media[0].hash.something" -- trying to navigate into a string field
         let (ctx, _) = setup_ctx_with_media();
         let result = ctx.resolve_path("gen_img.media[0].hash.something");
-        assert!(
-            result.is_none(),
-            "cannot navigate into a string field"
-        );
+        assert!(result.is_none(), "cannot navigate into a string field");
     }
 
     // -----------------------------------------------------------------
@@ -2379,14 +2649,8 @@ mod tests {
             ctx.resolve_path("gen.media[0].mime_type").unwrap(),
             "image/png"
         );
-        assert_eq!(
-            ctx.resolve_path("gen.media[0].size_bytes").unwrap(),
-            1024
-        );
-        assert_eq!(
-            ctx.resolve_path("gen.media[0].extension").unwrap(),
-            "png"
-        );
+        assert_eq!(ctx.resolve_path("gen.media[0].size_bytes").unwrap(), 1024);
+        assert_eq!(ctx.resolve_path("gen.media[0].extension").unwrap(), "png");
 
         // Full media array
         let arr = ctx.resolve_path("gen.media").unwrap();
@@ -2504,14 +2768,8 @@ mod tests {
         assert!(obj["mime_type"].is_string(), "mime_type should be string");
         assert!(obj["size_bytes"].is_u64(), "size_bytes should be u64");
         assert!(obj["path"].is_string(), "path should serialize as string");
-        assert!(
-            obj["extension"].is_string(),
-            "extension should be string"
-        );
-        assert!(
-            obj["created_by"].is_string(),
-            "created_by should be string"
-        );
+        assert!(obj["extension"].is_string(), "extension should be string");
+        assert!(obj["created_by"].is_string(), "created_by should be string");
     }
 
     #[test]
@@ -2628,10 +2886,7 @@ mod tests {
             99999
         );
         let path_val = ctx.resolve_path("roundtrip.media[0].path").unwrap();
-        assert_eq!(
-            path_val.as_str().unwrap(),
-            "/data/cas/a1/b2c3d4e5f60000"
-        );
+        assert_eq!(path_val.as_str().unwrap(), "/data/cas/a1/b2c3d4e5f60000");
         assert_eq!(
             ctx.resolve_path("roundtrip.media[0].extension").unwrap(),
             "gif"
@@ -2660,7 +2915,10 @@ mod tests {
         let result = detect_mime(&png, None).unwrap();
         assert_eq!(result.mime_type, "image/png");
         assert_eq!(result.extension, "png");
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     #[test]
@@ -2668,7 +2926,10 @@ mod tests {
         let jpeg = real_jpeg_bytes();
         let result = detect_mime(&jpeg, None).unwrap();
         assert_eq!(result.mime_type, "image/jpeg");
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     #[test]
@@ -2682,7 +2943,10 @@ mod tests {
         ];
         let result = detect_mime(&webp, None).unwrap();
         assert_eq!(result.mime_type, "image/webp");
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     #[test]
@@ -2691,9 +2955,13 @@ mod tests {
         let result = detect_mime(&mp3, None).unwrap();
         assert!(
             result.mime_type == "audio/mpeg" || result.mime_type == "audio/mp3",
-            "Expected audio/mpeg or audio/mp3, got: {}", result.mime_type
+            "Expected audio/mpeg or audio/mp3, got: {}",
+            result.mime_type
         );
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     #[test]
@@ -2706,14 +2974,18 @@ mod tests {
             Ok(d) => {
                 assert!(
                     d.mime_type.contains("mpeg") || d.mime_type.contains("mp3"),
-                    "FF FB sync should detect as MP3, got: {}", d.mime_type
+                    "FF FB sync should detect as MP3, got: {}",
+                    d.mime_type
                 );
             }
             Err(_) => {
                 // Server hint rescue
                 let rescued = detect_mime(&frame, Some("audio/mpeg")).unwrap();
                 assert_eq!(rescued.mime_type, "audio/mpeg");
-                assert_eq!(rescued.source, crate::media::detect::DetectionSource::ServerHint);
+                assert_eq!(
+                    rescued.source,
+                    crate::media::detect::DetectionSource::ServerHint
+                );
             }
         }
     }
@@ -2721,16 +2993,20 @@ mod tests {
     #[test]
     fn g_detect_wav_riff_wave_with_fmt() {
         let wav = vec![
-            0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00,
-            0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20,
-            0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
-            0x44, 0xAC, 0x00, 0x00, 0x88, 0x58, 0x01, 0x00,
-            0x02, 0x00, 0x10, 0x00,
+            0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D,
+            0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x44, 0xAC, 0x00, 0x00,
+            0x88, 0x58, 0x01, 0x00, 0x02, 0x00, 0x10, 0x00,
         ];
         let result = detect_mime(&wav, None).unwrap();
-        assert!(result.mime_type.contains("wav"),
-            "WAV MIME expected, got: {}", result.mime_type);
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert!(
+            result.mime_type.contains("wav"),
+            "WAV MIME expected, got: {}",
+            result.mime_type
+        );
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     #[test]
@@ -2739,7 +3015,10 @@ mod tests {
         let result = detect_mime(&pdf, None).unwrap();
         assert_eq!(result.mime_type, "application/pdf");
         assert_eq!(result.extension, "pdf");
-        assert_eq!(result.source, crate::media::detect::DetectionSource::MagicBytes);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::MagicBytes
+        );
     }
 
     // ---------------------------------------------------------------
@@ -2751,19 +3030,24 @@ mod tests {
         // 4 bytes: 89 50 4E 47 — missing 0D 0A 1A 0A
         let short = vec![0x89, 0x50, 0x4E, 0x47];
         let result = detect_mime(&short, None);
-        match result {
-            Ok(d) => assert!(d.mime_type == "image/png",
-                "If detected with only 4 bytes, must still be PNG, got: {}", d.mime_type),
-            Err(_) => {} // expected
+        if let Ok(d) = result {
+            assert!(
+                d.mime_type == "image/png",
+                "If detected with only 4 bytes, must still be PNG, got: {}",
+                d.mime_type
+            );
         }
+        // Err(_) is also expected
     }
 
     #[test]
     fn g_null_bytes_common_in_binary_formats() {
         let null_data = vec![0x00; 128];
         let result = detect_mime(&null_data, None);
-        assert!(result.is_err(),
-            "128 null bytes should not match any known MIME type");
+        assert!(
+            result.is_err(),
+            "128 null bytes should not match any known MIME type"
+        );
     }
 
     #[test]
@@ -2771,7 +3055,10 @@ mod tests {
         let null_data = vec![0x00; 128];
         let result = detect_mime(&null_data, Some("audio/flac")).unwrap();
         assert_eq!(result.mime_type, "audio/flac");
-        assert_eq!(result.source, crate::media::detect::DetectionSource::ServerHint);
+        assert_eq!(
+            result.source,
+            crate::media::detect::DetectionSource::ServerHint
+        );
     }
 
     #[test]
@@ -2788,8 +3075,10 @@ mod tests {
         let mut data = vec![0x00; 8192];
         data.extend_from_slice(&real_png_bytes());
         let result = detect_mime(&data, None);
-        assert!(result.is_err(),
-            "PNG magic at offset 8192 should be beyond inspection window");
+        assert!(
+            result.is_err(),
+            "PNG magic at offset 8192 should be beyond inspection window"
+        );
     }
 
     #[test]
@@ -2849,16 +3138,22 @@ mod tests {
 
         let (img, aud) = results.iter().fold((0usize, 0usize), |(i, a), r| {
             let mr = &r.as_ref().unwrap().0;
-            if mr.mime_type.starts_with("image/") { (i + 1, a) }
-            else if mr.mime_type.starts_with("audio/") { (i, a + 1) }
-            else { (i, a) }
+            if mr.mime_type.starts_with("image/") {
+                (i + 1, a)
+            } else if mr.mime_type.starts_with("audio/") {
+                (i, a + 1)
+            } else {
+                (i, a)
+            }
         });
         assert_eq!(img, 5);
         assert_eq!(aud, 2);
 
         // All hashes unique
-        let mut hashes: Vec<_> = results.iter()
-            .map(|r| r.as_ref().unwrap().0.hash.clone()).collect();
+        let mut hashes: Vec<_> = results
+            .iter()
+            .map(|r| r.as_ref().unwrap().0.hash.clone())
+            .collect();
         hashes.sort();
         hashes.dedup();
         assert_eq!(hashes.len(), 7);
@@ -2868,17 +3163,16 @@ mod tests {
     async fn g_process_all_all_failures_correct_indices() {
         let (processor, _dir) = make_processor_e2e();
         let blocks = vec![
-            ContentBlock::text("skip"),                           // 0
-            ContentBlock::image("BAD1!!!", "image/png"),          // 1
-            ContentBlock::text("skip"),                           // 2
-            ContentBlock::audio("BAD2!!!", "audio/wav"),          // 3
-            ContentBlock::image("BAD3!!!", "image/jpeg"),         // 4
+            ContentBlock::text("skip"),                   // 0
+            ContentBlock::image("BAD1!!!", "image/png"),  // 1
+            ContentBlock::text("skip"),                   // 2
+            ContentBlock::audio("BAD2!!!", "audio/wav"),  // 3
+            ContentBlock::image("BAD3!!!", "image/jpeg"), // 4
         ];
         let results = processor.process_all(&blocks, "g_allfail").await;
         assert_eq!(results.len(), 3);
         assert!(results.iter().all(|r| r.is_err()));
-        let indices: Vec<usize> = results.iter()
-            .map(|r| r.as_ref().unwrap_err().0).collect();
+        let indices: Vec<usize> = results.iter().map(|r| r.as_ref().unwrap_err().0).collect();
         assert_eq!(indices, vec![1, 3, 4]);
         for r in &results {
             assert_eq!(r.as_ref().unwrap_err().1.code(), "NIKA-256");
@@ -2894,14 +3188,17 @@ mod tests {
         let (processor, _dir) = make_processor_e2e();
         // Bytes that don't match any known magic signature
         let random = vec![
-            0x07, 0x13, 0x29, 0x37, 0x41, 0x53, 0x67, 0x71,
-            0x83, 0x97, 0xA1, 0xB3, 0xC7, 0xD1, 0xE3, 0xF7,
+            0x07, 0x13, 0x29, 0x37, 0x41, 0x53, 0x67, 0x71, 0x83, 0x97, 0xA1, 0xB3, 0xC7, 0xD1,
+            0xE3, 0xF7,
         ];
         let block = ContentBlock::image(encode_b64(&random), "application/octet-stream");
         let result = processor.process(&block, "g_unknown").await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().code(), "NIKA-251",
-            "Valid base64 decoding to unidentifiable bytes + octet-stream -> NIKA-251");
+        assert_eq!(
+            result.unwrap_err().code(),
+            "NIKA-251",
+            "Valid base64 decoding to unidentifiable bytes + octet-stream -> NIKA-251"
+        );
     }
 
     #[tokio::test]
@@ -2909,15 +3206,25 @@ mod tests {
         let (processor, _dir) = make_processor_e2e();
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
-        let with_crlf: String = b64.chars()
+        let with_crlf: String = b64
+            .chars()
             .enumerate()
-            .map(|(i, c)| if i > 0 && i % 76 == 0 { format!("\r\n{c}") } else { c.to_string() })
+            .map(|(i, c)| {
+                if i > 0 && i % 76 == 0 {
+                    format!("\r\n{c}")
+                } else {
+                    c.to_string()
+                }
+            })
             .collect();
         assert!(with_crlf.contains("\r\n"));
 
         let block = ContentBlock::image(with_crlf, "image/png");
-        let (mr, _) = processor.process(&block, "g_crlf").await
-            .expect("CRLF base64 should succeed").expect("Some");
+        let (mr, _) = processor
+            .process(&block, "g_crlf")
+            .await
+            .expect("CRLF base64 should succeed")
+            .expect("Some");
         assert_eq!(mr.hash, format!("blake3:{}", blake3::hash(&png).to_hex()));
         assert_eq!(mr.mime_type, "image/png");
     }
@@ -2927,15 +3234,25 @@ mod tests {
         let (processor, _dir) = make_processor_e2e();
         let png = real_png_bytes();
         let b64 = encode_b64(&png);
-        let with_tabs: String = b64.chars()
+        let with_tabs: String = b64
+            .chars()
             .enumerate()
-            .map(|(i, c)| if i > 0 && i % 25 == 0 { format!("\t{c}") } else { c.to_string() })
+            .map(|(i, c)| {
+                if i > 0 && i % 25 == 0 {
+                    format!("\t{c}")
+                } else {
+                    c.to_string()
+                }
+            })
             .collect();
         assert!(with_tabs.contains('\t'));
 
         let block = ContentBlock::image(with_tabs, "image/png");
-        let (mr, _) = processor.process(&block, "g_tabs").await
-            .expect("tab base64 should succeed").expect("Some");
+        let (mr, _) = processor
+            .process(&block, "g_tabs")
+            .await
+            .expect("tab base64 should succeed")
+            .expect("Some");
         assert_eq!(mr.hash, format!("blake3:{}", blake3::hash(&png).to_hex()));
     }
 
@@ -2983,15 +3300,26 @@ mod tests {
     async fn g_shared_budget_3_processors_total_enforced() {
         let budget = Arc::new(MediaBudget::with_max_per_run(150));
         let dirs: Vec<_> = (0..3).map(|_| tempfile::tempdir().unwrap()).collect();
-        let procs: Vec<_> = dirs.iter().map(|d|
-            MediaProcessor::with_shared_budget(CasStore::new(d.path()), Arc::clone(&budget))
-        ).collect();
+        let procs: Vec<_> = dirs
+            .iter()
+            .map(|d| {
+                MediaProcessor::with_shared_budget(CasStore::new(d.path()), Arc::clone(&budget))
+            })
+            .collect();
 
         let b64 = encode_b64(&real_png_bytes());
 
-        assert!(procs[0].process(&ContentBlock::image(b64.clone(), "image/png"), "p0").await.is_ok());
-        assert!(procs[1].process(&ContentBlock::image(b64.clone(), "image/png"), "p1").await.is_ok());
-        let r3 = procs[2].process(&ContentBlock::image(b64.clone(), "image/png"), "p2").await;
+        assert!(procs[0]
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "p0")
+            .await
+            .is_ok());
+        assert!(procs[1]
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "p1")
+            .await
+            .is_ok());
+        let r3 = procs[2]
+            .process(&ContentBlock::image(b64.clone(), "image/png"), "p2")
+            .await;
         assert!(r3.is_err());
         assert_eq!(r3.unwrap_err().code(), "NIKA-259");
 
@@ -3007,7 +3335,11 @@ mod tests {
     async fn g_created_by_matches_exact_task_id() {
         let (processor, _dir) = make_processor_e2e();
         let block = ContentBlock::image(encode_b64(&real_png_bytes()), "image/png");
-        let (mr, _) = processor.process(&block, "precise_task_42").await.unwrap().unwrap();
+        let (mr, _) = processor
+            .process(&block, "precise_task_42")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(mr.created_by, "precise_task_42");
     }
 
@@ -3074,11 +3406,17 @@ mod tests {
 
         // Verify CAS file content is correct (not corrupted)
         let on_disk = tokio::fs::read(&media_ref.path).await.unwrap();
-        assert_eq!(on_disk, png_data, "CAS stored data must match original PNG bytes");
+        assert_eq!(
+            on_disk, png_data,
+            "CAS stored data must match original PNG bytes"
+        );
 
         // Verify the hash is correct
         let expected_hash = format!("blake3:{}", blake3::hash(&png_data).to_hex());
-        assert_eq!(media_ref.hash, expected_hash, "hash must match direct blake3 computation");
+        assert_eq!(
+            media_ref.hash, expected_hash,
+            "hash must match direct blake3 computation"
+        );
 
         // Verify StoreResult fields
         assert!(!store_result.deduplicated);
@@ -3097,7 +3435,8 @@ mod tests {
         let tr = TaskResult::success(
             serde_json::json!({"prompt": "generate a logo"}),
             std::time::Duration::from_millis(42),
-        ).with_media(taken);
+        )
+        .with_media(taken);
         assert_eq!(tr.media.len(), 1);
 
         // Step 7: Insert into RunContext results (simulates runner storing the result)
@@ -3106,53 +3445,72 @@ mod tests {
         // Step 8: resolve_path — test every media field through template bindings
 
         // {{with.pipeline_test.media}} -> full array
-        let media_arr = ctx.resolve_path("pipeline_test.media")
+        let media_arr = ctx
+            .resolve_path("pipeline_test.media")
             .expect("resolve_path('pipeline_test.media') should return Some");
         assert!(media_arr.is_array());
         assert_eq!(media_arr.as_array().unwrap().len(), 1);
 
         // {{with.pipeline_test.media[0].hash}} -> actual blake3 hash
-        let resolved_hash = ctx.resolve_path("pipeline_test.media[0].hash")
+        let resolved_hash = ctx
+            .resolve_path("pipeline_test.media[0].hash")
             .expect("resolve_path('...media[0].hash') should return Some");
-        assert_eq!(resolved_hash, expected_hash,
-            "resolved hash must match the actual blake3 hash of PNG data");
+        assert_eq!(
+            resolved_hash, expected_hash,
+            "resolved hash must match the actual blake3 hash of PNG data"
+        );
 
         // {{with.pipeline_test.media[0].mime_type}} -> "image/png"
-        let resolved_mime = ctx.resolve_path("pipeline_test.media[0].mime_type")
+        let resolved_mime = ctx
+            .resolve_path("pipeline_test.media[0].mime_type")
             .expect("resolve_path('...media[0].mime_type') should return Some");
         assert_eq!(resolved_mime, "image/png");
 
         // {{with.pipeline_test.media[0].extension}} -> "png"
-        let resolved_ext = ctx.resolve_path("pipeline_test.media[0].extension")
+        let resolved_ext = ctx
+            .resolve_path("pipeline_test.media[0].extension")
             .expect("resolve_path('...media[0].extension') should return Some");
         assert_eq!(resolved_ext, "png");
 
         // {{with.pipeline_test.media[0].size_bytes}} -> exact decoded size
-        let resolved_size = ctx.resolve_path("pipeline_test.media[0].size_bytes")
+        let resolved_size = ctx
+            .resolve_path("pipeline_test.media[0].size_bytes")
             .expect("resolve_path('...media[0].size_bytes') should return Some");
-        assert_eq!(resolved_size, png_data.len() as u64,
-            "size_bytes must match decoded PNG size, not base64 size");
+        assert_eq!(
+            resolved_size,
+            png_data.len() as u64,
+            "size_bytes must match decoded PNG size, not base64 size"
+        );
 
         // {{with.pipeline_test.media[0].path}} -> CAS path on disk
-        let resolved_path = ctx.resolve_path("pipeline_test.media[0].path")
+        let resolved_path = ctx
+            .resolve_path("pipeline_test.media[0].path")
             .expect("resolve_path('...media[0].path') should return Some");
         let path_str = resolved_path.as_str().expect("path should be a string");
-        assert!(path_str.contains(dir.path().to_str().unwrap()),
-            "resolved path should contain CAS root: {}", path_str);
+        assert!(
+            path_str.contains(dir.path().to_str().unwrap()),
+            "resolved path should contain CAS root: {}",
+            path_str
+        );
 
         // {{with.pipeline_test.media[0].created_by}} -> task_id
-        let resolved_creator = ctx.resolve_path("pipeline_test.media[0].created_by")
+        let resolved_creator = ctx
+            .resolve_path("pipeline_test.media[0].created_by")
             .expect("resolve_path('...media[0].created_by') should return Some");
         assert_eq!(resolved_creator, "pipeline_test");
 
         // Normal output fields still resolve correctly
-        let prompt = ctx.resolve_path("pipeline_test.prompt")
+        let prompt = ctx
+            .resolve_path("pipeline_test.prompt")
             .expect("normal output should still resolve");
         assert_eq!(prompt, "generate a logo");
 
         // Budget was consumed
-        assert_eq!(budget.current_bytes(), png_data.len() as u64,
-            "budget should track the decoded PNG size");
+        assert_eq!(
+            budget.current_bytes(),
+            png_data.len() as u64,
+            "budget should track the decoded PNG size"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -3171,8 +3529,10 @@ mod tests {
             source: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"),
         };
         let nika_err: NikaError = io_err.into();
-        assert!(nika_err.is_recoverable(),
-            "MediaStoreIo should be recoverable through NikaError");
+        assert!(
+            nika_err.is_recoverable(),
+            "MediaStoreIo should be recoverable through NikaError"
+        );
         assert_eq!(nika_err.code(), "NIKA-255");
     }
 
@@ -3184,8 +3544,10 @@ mod tests {
             reason: "magic bytes unrecognized".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "MimeDetectionFailed should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "MimeDetectionFailed should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-251");
     }
 
@@ -3198,8 +3560,10 @@ mod tests {
             reason: "not in allowlist".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "UnsupportedMediaType should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "UnsupportedMediaType should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-252");
     }
 
@@ -3211,8 +3575,10 @@ mod tests {
             hash: "blake3:deadbeef".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "MediaNotFound should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "MediaNotFound should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-253");
     }
 
@@ -3225,8 +3591,10 @@ mod tests {
             actual: "blake3:bbb".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "HashMismatch should NOT be recoverable (data corruption)");
+        assert!(
+            !nika_err.is_recoverable(),
+            "HashMismatch should NOT be recoverable (data corruption)"
+        );
         assert_eq!(nika_err.code(), "NIKA-254");
     }
 
@@ -3239,8 +3607,10 @@ mod tests {
             reason: "invalid byte at position 4".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "Base64DecodeFailed should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "Base64DecodeFailed should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-256");
     }
 
@@ -3253,8 +3623,10 @@ mod tests {
             max: 100_000_000,
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "Base64InputTooLarge should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "Base64InputTooLarge should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-257");
     }
 
@@ -3266,8 +3638,10 @@ mod tests {
             task_id: "empty_task".into(),
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "EmptyMediaContent should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "EmptyMediaContent should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-258");
     }
 
@@ -3280,8 +3654,10 @@ mod tests {
             max: 500_000_000,
         };
         let nika_err: NikaError = err.into();
-        assert!(!nika_err.is_recoverable(),
-            "RunBudgetExceeded should NOT be recoverable");
+        assert!(
+            !nika_err.is_recoverable(),
+            "RunBudgetExceeded should NOT be recoverable"
+        );
         assert_eq!(nika_err.code(), "NIKA-259");
     }
 
@@ -3330,31 +3706,49 @@ mod tests {
         let results = processor.process_all(&blocks, "monster_task").await;
 
         // Text block is filtered -> only 2 results
-        assert_eq!(results.len(), 2,
-            "process_all should return 2 results (text filtered), got {}", results.len());
+        assert_eq!(
+            results.len(),
+            2,
+            "process_all should return 2 results (text filtered), got {}",
+            results.len()
+        );
 
         let mut media_refs: Vec<MediaRef> = Vec::new();
         for (i, result) in results.into_iter().enumerate() {
-            let (media_ref, store_result) = result
-                .unwrap_or_else(|(_idx, e)| panic!("Block {i} failed: {e}"));
-            assert!(media_ref.hash.starts_with("blake3:"),
-                "media_ref[{i}] hash should start with blake3:");
-            assert_eq!(media_ref.mime_type, "image/png",
-                "media_ref[{i}] mime_type should be image/png");
-            assert_eq!(media_ref.extension, "png",
-                "media_ref[{i}] extension should be png");
-            assert!(media_ref.size_bytes > 0,
-                "media_ref[{i}] size_bytes should be > 0");
-            assert_eq!(media_ref.created_by, "monster_task",
-                "media_ref[{i}] created_by should be monster_task");
-            assert!(store_result.path.exists(),
-                "CAS file should exist for media_ref[{i}]");
+            let (media_ref, store_result) =
+                result.unwrap_or_else(|(_idx, e)| panic!("Block {i} failed: {e}"));
+            assert!(
+                media_ref.hash.starts_with("blake3:"),
+                "media_ref[{i}] hash should start with blake3:"
+            );
+            assert_eq!(
+                media_ref.mime_type, "image/png",
+                "media_ref[{i}] mime_type should be image/png"
+            );
+            assert_eq!(
+                media_ref.extension, "png",
+                "media_ref[{i}] extension should be png"
+            );
+            assert!(
+                media_ref.size_bytes > 0,
+                "media_ref[{i}] size_bytes should be > 0"
+            );
+            assert_eq!(
+                media_ref.created_by, "monster_task",
+                "media_ref[{i}] created_by should be monster_task"
+            );
+            assert!(
+                store_result.path.exists(),
+                "CAS file should exist for media_ref[{i}]"
+            );
             media_refs.push(media_ref);
         }
 
         // Two different PNGs must produce different hashes
-        assert_ne!(media_refs[0].hash, media_refs[1].hash,
-            "Two different PNG byte sequences must produce different blake3 hashes");
+        assert_ne!(
+            media_refs[0].hash, media_refs[1].hash,
+            "Two different PNG byte sequences must produce different blake3 hashes"
+        );
 
         // Verify hashes are correct blake3 computations
         let expected_hash_0 = format!("blake3:{}", blake3::hash(&png1_bytes).to_hex());
@@ -3363,7 +3757,10 @@ mod tests {
         assert_eq!(media_refs[1].hash, expected_hash_1);
 
         // Budget should have tracked both images
-        assert!(budget.current_bytes() > 0, "Budget should have tracked bytes");
+        assert!(
+            budget.current_bytes() > 0,
+            "Budget should have tracked bytes"
+        );
         assert_eq!(
             budget.current_bytes(),
             (png1_bytes.len() + png2_bytes.len()) as u64,
@@ -3384,13 +3781,19 @@ mod tests {
         // ───────────────────────────────────────────────────
 
         let taken = ctx.take_media(&task_id);
-        assert_eq!(taken.len(), 2,
-            "take_media should return 2 staged refs, got {}", taken.len());
+        assert_eq!(
+            taken.len(),
+            2,
+            "take_media should return 2 staged refs, got {}",
+            taken.len()
+        );
 
         // Verify take_media drains the staging area
         let taken_again = ctx.take_media(&task_id);
-        assert!(taken_again.is_empty(),
-            "Second take_media must return empty (staging drained)");
+        assert!(
+            taken_again.is_empty(),
+            "Second take_media must return empty (staging drained)"
+        );
 
         // ───────────────────────────────────────────────────
         // Step 5: Build TaskResult with with_media
@@ -3399,7 +3802,8 @@ mod tests {
         let tr = TaskResult::success(
             serde_json::json!({"description": "Monster generated", "quality": 99}),
             Duration::from_millis(42),
-        ).with_media(taken);
+        )
+        .with_media(taken);
 
         assert_eq!(tr.media.len(), 2, "TaskResult should carry 2 media refs");
         assert!(tr.is_success(), "with_media should preserve success status");
@@ -3423,82 +3827,121 @@ mod tests {
         // ───────────────────────────────────────────────────
 
         // 7a: task.media -> full array (2 items, not 3 — text was filtered)
-        let media_val = ctx.resolve_path("monster_task.media")
+        let media_val = ctx
+            .resolve_path("monster_task.media")
             .expect("resolve_path('monster_task.media') should return Some");
-        let media_arr = media_val.as_array()
-            .expect("media should be a JSON array");
-        assert_eq!(media_arr.len(), 2,
-            "media array should have 2 items (text block was filtered)");
+        let media_arr = media_val.as_array().expect("media should be a JSON array");
+        assert_eq!(
+            media_arr.len(),
+            2,
+            "media array should have 2 items (text block was filtered)"
+        );
 
         // 7b: task.media[0].hash -> starts with "blake3:"
-        let hash_0 = ctx.resolve_path("monster_task.media[0].hash")
+        let hash_0 = ctx
+            .resolve_path("monster_task.media[0].hash")
             .expect("media[0].hash should exist");
         let hash_0_str = hash_0.as_str().expect("hash should be a string");
-        assert!(hash_0_str.starts_with("blake3:"),
-            "hash should start with blake3:, got: {}", hash_0_str);
-        assert_eq!(hash_0_str, expected_hash_0,
-            "hash[0] should match blake3 of png1");
+        assert!(
+            hash_0_str.starts_with("blake3:"),
+            "hash should start with blake3:, got: {}",
+            hash_0_str
+        );
+        assert_eq!(
+            hash_0_str, expected_hash_0,
+            "hash[0] should match blake3 of png1"
+        );
 
         // 7c: task.media[0].mime_type -> "image/png"
-        let mime_0 = ctx.resolve_path("monster_task.media[0].mime_type")
+        let mime_0 = ctx
+            .resolve_path("monster_task.media[0].mime_type")
             .expect("media[0].mime_type should exist");
         assert_eq!(mime_0, "image/png");
 
         // 7d: task.media[0].extension -> "png"
-        let ext_0 = ctx.resolve_path("monster_task.media[0].extension")
+        let ext_0 = ctx
+            .resolve_path("monster_task.media[0].extension")
             .expect("media[0].extension should exist");
         assert_eq!(ext_0, "png");
 
         // 7e: task.media[0].size_bytes -> > 0
-        let size_0 = ctx.resolve_path("monster_task.media[0].size_bytes")
+        let size_0 = ctx
+            .resolve_path("monster_task.media[0].size_bytes")
             .expect("media[0].size_bytes should exist");
-        assert!(size_0.as_u64().unwrap() > 0,
-            "size_bytes should be > 0, got {}", size_0);
-        assert_eq!(size_0.as_u64().unwrap(), png1_bytes.len() as u64,
-            "size_bytes should match actual PNG byte count");
+        assert!(
+            size_0.as_u64().unwrap() > 0,
+            "size_bytes should be > 0, got {}",
+            size_0
+        );
+        assert_eq!(
+            size_0.as_u64().unwrap(),
+            png1_bytes.len() as u64,
+            "size_bytes should match actual PNG byte count"
+        );
 
         // 7f: task.media[0].path -> contains the CAS shard directory
-        let path_0 = ctx.resolve_path("monster_task.media[0].path")
+        let path_0 = ctx
+            .resolve_path("monster_task.media[0].path")
             .expect("media[0].path should exist");
         let path_0_str = path_0.as_str().expect("path should be a string");
         // CAS uses 2-char shard directories; the hash hex starts after "blake3:"
         let hash_hex_0 = &expected_hash_0["blake3:".len()..];
         let shard_0 = &hash_hex_0[..2];
-        assert!(path_0_str.contains(shard_0),
-            "path should contain 2-char shard dir '{}': {}", shard_0, path_0_str);
+        assert!(
+            path_0_str.contains(shard_0),
+            "path should contain 2-char shard dir '{}': {}",
+            shard_0,
+            path_0_str
+        );
 
         // 7g: task.media[0].created_by -> "monster_task"
-        let created_0 = ctx.resolve_path("monster_task.media[0].created_by")
+        let created_0 = ctx
+            .resolve_path("monster_task.media[0].created_by")
             .expect("media[0].created_by should exist");
         assert_eq!(created_0, "monster_task");
 
         // 7h: task.media[1].hash -> different from [0]
-        let hash_1 = ctx.resolve_path("monster_task.media[1].hash")
+        let hash_1 = ctx
+            .resolve_path("monster_task.media[1].hash")
             .expect("media[1].hash should exist");
         let hash_1_str = hash_1.as_str().expect("hash[1] should be a string");
-        assert_ne!(hash_0_str, hash_1_str,
-            "media[0].hash and media[1].hash must differ (different PNG data)");
+        assert_ne!(
+            hash_0_str, hash_1_str,
+            "media[0].hash and media[1].hash must differ (different PNG data)"
+        );
         assert_eq!(hash_1_str, expected_hash_1);
 
         // 7i: task.media[99].hash -> None (out of bounds)
         let oob = ctx.resolve_path("monster_task.media[99].hash");
-        assert!(oob.is_none(),
-            "Out-of-bounds media[99].hash should return None, got {:?}", oob);
+        assert!(
+            oob.is_none(),
+            "Out-of-bounds media[99].hash should return None, got {:?}",
+            oob
+        );
 
         // 7j: task.media when task has no media -> empty array
-        let empty_media = ctx.resolve_path("no_media_task.media")
+        let empty_media = ctx
+            .resolve_path("no_media_task.media")
             .expect("resolve_path for task with no media should return Some");
-        let empty_arr = empty_media.as_array()
+        let empty_arr = empty_media
+            .as_array()
             .expect("empty media should be an array");
-        assert!(empty_arr.is_empty(),
-            "task with no media should return empty array, got {:?}", empty_arr);
+        assert!(
+            empty_arr.is_empty(),
+            "task with no media should return empty array, got {:?}",
+            empty_arr
+        );
 
         // 7k: task.output_field -> still works (not shadowed by media interception)
-        let desc = ctx.resolve_path("monster_task.description")
+        let desc = ctx
+            .resolve_path("monster_task.description")
             .expect("non-media output field should still resolve");
-        assert_eq!(desc, "Monster generated",
-            "output field should not be shadowed by media");
-        let quality = ctx.resolve_path("monster_task.quality")
+        assert_eq!(
+            desc, "Monster generated",
+            "output field should not be shadowed by media"
+        );
+        let quality = ctx
+            .resolve_path("monster_task.quality")
             .expect("numeric output field should still resolve");
         assert_eq!(quality, 99);
 
@@ -3511,10 +3954,7 @@ mod tests {
         let mut spec: BindingSpec = BindingSpec::default();
 
         // Binding that reads the full media array
-        spec.insert(
-            "all_media".into(),
-            BindingEntry::new("monster_task.media"),
-        );
+        spec.insert("all_media".into(), BindingEntry::new("monster_task.media"));
         // Binding that reads a specific media field
         spec.insert(
             "first_hash".into(),
@@ -3526,15 +3966,9 @@ mod tests {
             BindingEntry::new("monster_task.media[1].mime_type"),
         );
         // Binding that reads a regular (non-media) output field
-        spec.insert(
-            "desc".into(),
-            BindingEntry::new("monster_task.description"),
-        );
+        spec.insert("desc".into(), BindingEntry::new("monster_task.description"));
         // Binding that reads media from a task with no media
-        spec.insert(
-            "empty".into(),
-            BindingEntry::new("no_media_task.media"),
-        );
+        spec.insert("empty".into(), BindingEntry::new("no_media_task.media"));
         // Binding that reads out-of-bounds with a default
         spec.insert(
             "oob_safe".into(),
@@ -3568,73 +4002,97 @@ mod tests {
             .expect("from_binding_spec should succeed for all media bindings");
 
         // Verify all_media binding
-        let all_media = resolved.get("all_media")
+        let all_media = resolved
+            .get("all_media")
             .expect("all_media binding should be resolved");
         assert!(all_media.is_array());
         assert_eq!(all_media.as_array().unwrap().len(), 2);
 
         // Verify first_hash binding
-        let first_hash = resolved.get("first_hash")
+        let first_hash = resolved
+            .get("first_hash")
             .expect("first_hash binding should be resolved");
-        assert_eq!(first_hash.as_str().unwrap(), expected_hash_0,
-            "first_hash binding should match direct resolve_path result");
+        assert_eq!(
+            first_hash.as_str().unwrap(),
+            expected_hash_0,
+            "first_hash binding should match direct resolve_path result"
+        );
 
         // Verify second_mime binding
-        let second_mime = resolved.get("second_mime")
+        let second_mime = resolved
+            .get("second_mime")
             .expect("second_mime binding should be resolved");
         assert_eq!(second_mime, "image/png");
 
         // Verify desc binding (non-media, must not be affected)
-        let desc_binding = resolved.get("desc")
+        let desc_binding = resolved
+            .get("desc")
             .expect("desc binding (non-media) should be resolved");
         assert_eq!(desc_binding, "Monster generated");
 
         // Verify empty binding (task with no media -> empty array)
-        let empty_binding = resolved.get("empty")
+        let empty_binding = resolved
+            .get("empty")
             .expect("empty binding should be resolved");
         assert!(empty_binding.is_array());
         assert!(empty_binding.as_array().unwrap().is_empty());
 
         // Verify oob_safe binding (out-of-bounds with default)
-        let oob_binding = resolved.get("oob_safe")
+        let oob_binding = resolved
+            .get("oob_safe")
             .expect("oob_safe binding should be resolved");
-        assert_eq!(oob_binding, "no_such_media",
-            "Out-of-bounds media path should fall back to default");
+        assert_eq!(
+            oob_binding, "no_such_media",
+            "Out-of-bounds media path should fall back to default"
+        );
 
         // Verify img_size binding
-        let img_size = resolved.get("img_size")
+        let img_size = resolved
+            .get("img_size")
             .expect("img_size binding should be resolved");
         assert_eq!(img_size.as_u64().unwrap(), png1_bytes.len() as u64);
 
         // Verify img_ext binding
-        let img_ext = resolved.get("img_ext")
+        let img_ext = resolved
+            .get("img_ext")
             .expect("img_ext binding should be resolved");
         assert_eq!(img_ext, "png");
 
         // Verify img_author binding
-        let img_author = resolved.get("img_author")
+        let img_author = resolved
+            .get("img_author")
             .expect("img_author binding should be resolved");
         assert_eq!(img_author, "monster_task");
 
         // Verify img_path binding
-        let img_path = resolved.get("img_path")
+        let img_path = resolved
+            .get("img_path")
             .expect("img_path binding should be resolved");
         let img_path_str = img_path.as_str().expect("path should be a string");
-        assert!(img_path_str.contains(shard_0),
-            "binding img_path should contain CAS shard dir: {}", img_path_str);
+        assert!(
+            img_path_str.contains(shard_0),
+            "binding img_path should contain CAS shard dir: {}",
+            img_path_str
+        );
 
         // ───────────────────────────────────────────────────
         // Final sanity: verify CAS files on disk are intact
         // ───────────────────────────────────────────────────
-        let stored_data_0 = tokio::fs::read(&media_refs[0].path).await
+        let stored_data_0 = tokio::fs::read(&media_refs[0].path)
+            .await
             .expect("CAS file for media_ref[0] should be readable");
-        assert_eq!(stored_data_0, png1_bytes,
-            "CAS stored data for png1 must match original bytes");
+        assert_eq!(
+            stored_data_0, png1_bytes,
+            "CAS stored data for png1 must match original bytes"
+        );
 
-        let stored_data_1 = tokio::fs::read(&media_refs[1].path).await
+        let stored_data_1 = tokio::fs::read(&media_refs[1].path)
+            .await
             .expect("CAS file for media_ref[1] should be readable");
-        assert_eq!(stored_data_1, png2_bytes,
-            "CAS stored data for png2 must match original bytes");
+        assert_eq!(
+            stored_data_1, png2_bytes,
+            "CAS stored data for png2 must match original bytes"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -3687,7 +4145,10 @@ mod tests {
 
         // Verify artifact content matches original
         let artifact_data = tokio::fs::read(&result.path).await.unwrap();
-        assert_eq!(artifact_data, binary_data, "Artifact data should match original binary");
+        assert_eq!(
+            artifact_data, binary_data,
+            "Artifact data should match original binary"
+        );
     }
 
     #[tokio::test]
@@ -3727,8 +4188,8 @@ mod tests {
         tokio::fs::create_dir_all(&artifact_dir).await.unwrap();
         let canonical = artifact_dir.canonicalize().unwrap();
         // Writer with 512-byte limit
-        let writer = crate::io::writer::ArtifactWriter::new(canonical, "test-workflow")
-            .with_max_size(512);
+        let writer =
+            crate::io::writer::ArtifactWriter::new(canonical, "test-workflow").with_max_size(512);
 
         let request = crate::io::writer::BinaryWriteRequest {
             task_id: "task1".to_string(),
@@ -3738,9 +4199,15 @@ mod tests {
         };
 
         let write_result = writer.write_binary(request).await;
-        assert!(write_result.is_err(), "Should reject binary exceeding size limit");
+        assert!(
+            write_result.is_err(),
+            "Should reject binary exceeding size limit"
+        );
         let err = write_result.unwrap_err();
-        assert!(matches!(err, crate::error::NikaError::ArtifactSizeExceeded { .. }));
+        assert!(matches!(
+            err,
+            crate::error::NikaError::ArtifactSizeExceeded { .. }
+        ));
     }
 
     #[tokio::test]
@@ -3823,16 +4290,16 @@ mod tests {
 
         // Create 10 different binary blobs with varied sizes
         let blobs: Vec<Vec<u8>> = vec![
-            vec![0x42],                                         // 1 byte
-            vec![0xAA; 100],                                    // 100 bytes
-            vec![0xBB; 512],                                    // 512 bytes
-            (0..=255).collect(),                                // 256 bytes (all byte values)
-            vec![0xCC; 1024],                                   // 1 KB
-            vec![0xDD; 4096],                                   // 4 KB
-            vec![0xEE; 10_000],                                 // 10 KB
-            vec![0xFF; 65_536],                                 // 64 KB
-            vec![0x11; 100_000],                                // 100 KB
-            vec![0x22; 1024 * 1024],                            // 1 MB
+            vec![0x42],              // 1 byte
+            vec![0xAA; 100],         // 100 bytes
+            vec![0xBB; 512],         // 512 bytes
+            (0..=255).collect(),     // 256 bytes (all byte values)
+            vec![0xCC; 1024],        // 1 KB
+            vec![0xDD; 4096],        // 4 KB
+            vec![0xEE; 10_000],      // 10 KB
+            vec![0xFF; 65_536],      // 64 KB
+            vec![0x11; 100_000],     // 100 KB
+            vec![0x22; 1024 * 1024], // 1 MB
         ];
 
         // Store all 10 in CAS
@@ -3867,10 +4334,8 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(i, mr)| {
-                let writer = crate::io::writer::ArtifactWriter::new(
-                    canonical.clone(),
-                    "stress-test",
-                );
+                let writer =
+                    crate::io::writer::ArtifactWriter::new(canonical.clone(), "stress-test");
                 let request = crate::io::writer::BinaryWriteRequest {
                     task_id: format!("task_{i}"),
                     output_path: format!("out_{i}.bin"),
@@ -3958,12 +4423,16 @@ mod tests {
             "output file size must match original PNG data exactly"
         );
         assert_eq!(
-            result.size, png_data.len() as u64,
+            result.size,
+            png_data.len() as u64,
             "WriteResult size must match original"
         );
 
         // Verify byte-for-byte identity
-        assert_eq!(written, png_data, "output file must be identical to original PNG");
+        assert_eq!(
+            written, png_data,
+            "output file must be identical to original PNG"
+        );
     }
 
     #[tokio::test]
@@ -3977,7 +4446,10 @@ mod tests {
         let sr = store.store(&data).await.unwrap();
 
         // 5MB is above the 1MB verify threshold, so verified should be true
-        assert!(sr.verified, "5MB file should trigger read-back verification");
+        assert!(
+            sr.verified,
+            "5MB file should trigger read-back verification"
+        );
         assert_eq!(sr.size, 5 * 1024 * 1024);
 
         let media_ref = MediaRef {
@@ -4012,7 +4484,11 @@ mod tests {
             output_hash, media_ref.hash,
             "blake3 hash of artifact output must match MediaRef.hash"
         );
-        assert_eq!(written.len(), 5 * 1024 * 1024, "artifact must be exactly 5MB");
+        assert_eq!(
+            written.len(),
+            5 * 1024 * 1024,
+            "artifact must be exactly 5MB"
+        );
     }
 
     #[tokio::test]
@@ -4070,7 +4546,10 @@ mod tests {
 
         // CAS read should also fail
         let read_result = store.read(&media_ref.hash).await;
-        assert!(read_result.is_err(), "read should fail for deleted CAS file");
+        assert!(
+            read_result.is_err(),
+            "read should fail for deleted CAS file"
+        );
         assert_eq!(read_result.unwrap_err().code(), "NIKA-253");
     }
 
@@ -4104,16 +4583,10 @@ mod tests {
 
         // File 1 should be deleted
         assert_eq!(clean.removed, 1, "only the old file should be removed");
-        assert!(
-            !r_old.path.exists(),
-            "old file should be deleted by GC"
-        );
+        assert!(!r_old.path.exists(), "old file should be deleted by GC");
 
         // File 2 should be preserved
-        assert!(
-            r_new.path.exists(),
-            "recent file should be preserved by GC"
-        );
+        assert!(r_new.path.exists(), "recent file should be preserved by GC");
 
         // Correct bytes_freed count
         assert_eq!(
@@ -4254,13 +4727,13 @@ mod tests {
         let writer = crate::io::writer::ArtifactWriter::new(canonical, "multi-test");
 
         // Write all 3 binary artifacts
-        let output_specs = vec![
+        let output_specs = [
             ("output/image.png", &media_refs[0]),
             ("output/audio.mp3", &media_refs[1]),
             ("output/doc.pdf", &media_refs[2]),
         ];
 
-        let expected_data = vec![&image_data, &audio_data, &document_data];
+        let expected_data = [&image_data, &audio_data, &document_data];
 
         for (i, (path, mr)) in output_specs.iter().enumerate() {
             let request = crate::io::writer::BinaryWriteRequest {
