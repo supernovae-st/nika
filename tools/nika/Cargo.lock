@@ -5122,6 +5122,7 @@ dependencies = [
  "mime",
  "mime_guess",
  "mistralrs",
+ "nika-core",
  "nix 0.29.0",
  "nom-exif",
  "nucleo",
@@ -5184,6 +5185,25 @@ dependencies = [
  "xxhash-rust",
  "zeroize",
  "zstd",
+]
+
+[[package]]
+name = "nika-core"
+version = "0.34.0"
+dependencies = [
+ "indexmap 2.13.0",
+ "jsonschema",
+ "marked-yaml",
+ "miette",
+ "rustc-hash 2.1.1",
+ "semver",
+ "serde",
+ "serde-saphyr 0.0.20",
+ "serde_json",
+ "smallvec 1.15.1",
+ "strsim 0.11.1",
+ "thiserror 1.0.69",
+ "tracing",
 ]
 
 [[package]]

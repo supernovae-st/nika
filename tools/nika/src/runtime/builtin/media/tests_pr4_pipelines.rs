@@ -15,18 +15,21 @@ mod tests {
 
     use crate::media::CasStore;
     use crate::runtime::builtin::media::context::MediaToolContext;
+    #[allow(unused_imports)]
     use crate::runtime::builtin::media::{MediaOp, MediaOpResult};
 
     // ═══════════════════════════════════════════════════════════════
     // SETUP + FIXTURES
     // ═══════════════════════════════════════════════════════════════
 
+    #[allow(dead_code)]
     async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
         (dir, ctx)
     }
 
+    #[allow(dead_code)]
     fn fixture_jpeg(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
@@ -35,6 +38,7 @@ mod tests {
         buf.into_inner()
     }
 
+    #[allow(dead_code)]
     fn fixture_png(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
         use image::{ImageBuffer, Rgb};
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
