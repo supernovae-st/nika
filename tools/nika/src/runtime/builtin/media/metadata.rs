@@ -93,8 +93,14 @@ fn extract_exif(data: &[u8], map: &mut serde_json::Map<String, serde_json::Value
   use std::io::Cursor;
 
   let mut parser = MediaParser::new();
-  let Ok(ms) = MediaSource::seekable(Cursor::new(data)) else { return };
-  let Ok(exif_iter): Result<ExifIter, _> = parser.parse(ms) else { return };
+  let Ok(ms) = MediaSource::seekable(Cursor::new(data)) else {
+    tracing::trace!("metadata: EXIF source creation failed (not seekable or too small)");
+    return;
+  };
+  let Ok(exif_iter): Result<ExifIter, _> = parser.parse(ms) else {
+    tracing::trace!("metadata: EXIF parsing failed (no EXIF data or unsupported format)");
+    return;
+  };
 
   let mut exif_map = serde_json::Map::new();
   for entry in exif_iter {
@@ -114,12 +120,18 @@ fn extract_audio_metadata(data: &[u8], map: &mut serde_json::Map<String, serde_j
 
   let probe = match lofty::probe::Probe::new(Cursor::new(data)).guess_file_type() {
     Ok(p) => p,
-    Err(_) => return,
+    Err(e) => {
+      tracing::trace!("metadata: audio probe failed: {e}");
+      return;
+    }
   };
 
   let tagged = match probe.read() {
     Ok(t) => t,
-    Err(_) => return,
+    Err(e) => {
+      tracing::trace!("metadata: audio tag read failed: {e}");
+      return;
+    }
   };
 
   if let Some(tag) = tagged.primary_tag() {
