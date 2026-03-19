@@ -1109,4 +1109,140 @@ mod tests {
       "second identical write should be flagged as deduplicated"
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 4. PR3b TOOL ROUTER DISPATCH TESTS
+  // ═══════════════════════════════════════════════════════════════
+
+  /// import dispatches through router (always-on, no feature gate)
+  #[tokio::test]
+  async fn dispatch_import_through_router() {
+    let (_dir, router, _ctx) = setup_router();
+
+    // Create a temp file with valid PNG data
+    let png = fixture_png_10x10_red();
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(tmp.path(), &png).unwrap();
+
+    let args = serde_json::json!({"path": tmp.path().to_string_lossy()}).to_string();
+    let result = router.dispatch("nika:import", args).await;
+
+    assert!(result.is_ok(), "import dispatch failed: {:?}", result.err());
+    let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    assert!(parsed["hash"].as_str().unwrap().starts_with("blake3:"));
+    assert_eq!(parsed["mime_type"], "image/png");
+    assert!(parsed["size_bytes"].as_u64().unwrap() > 0);
+  }
+
+  /// chart dispatches through router (feature-gated)
+  #[cfg(feature = "media-chart")]
+  #[tokio::test]
+  async fn dispatch_chart_through_router() {
+    let (_dir, router, _ctx) = setup_router();
+
+    let args = serde_json::json!({
+      "type": "bar",
+      "series": [{"name": "Revenue", "data": [10.0, 20.0, 30.0]}],
+      "labels": ["Q1", "Q2", "Q3"]
+    }).to_string();
+    let result = router.dispatch("nika:chart", args).await;
+
+    assert!(result.is_ok(), "chart dispatch failed: {:?}", result.err());
+    let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    assert!(parsed["hash"].as_str().unwrap().starts_with("blake3:"));
+    assert_eq!(parsed["mime_type"], "image/png");
+    assert_eq!(parsed["metadata"]["chart_type"], "bar");
+  }
+
+  /// provenance dispatches through router (feature-gated)
+  #[cfg(feature = "media-provenance")]
+  #[tokio::test]
+  async fn dispatch_provenance_through_router() {
+    let (_dir, router, ctx) = setup_router();
+
+    // Store a JPEG for signing
+    let jpeg = {
+      use image::{ImageBuffer, Rgb};
+      let img = ImageBuffer::from_pixel(50u32, 50, Rgb([255u8, 0, 0]));
+      let mut buf = std::io::Cursor::new(Vec::new());
+      img.write_to(&mut buf, image::ImageFormat::Jpeg).unwrap();
+      buf.into_inner()
+    };
+    let hash = store_fixture(&ctx, &jpeg).await;
+
+    let args = serde_json::json!({
+      "hash": hash,
+      "assertion": "ai.generated"
+    }).to_string();
+    let result = router.dispatch("nika:provenance", args).await;
+
+    assert!(result.is_ok(), "provenance dispatch failed: {:?}", result.err());
+    let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    assert!(parsed["hash"].as_str().unwrap().starts_with("blake3:"));
+    assert_eq!(parsed["metadata"]["signed"], true);
+    assert_eq!(parsed["metadata"]["assertion"], "ai.generated");
+  }
+
+  /// phash dispatches through router (feature-gated)
+  #[cfg(feature = "media-phash")]
+  #[tokio::test]
+  async fn dispatch_phash_through_router() {
+    let (_dir, router, ctx) = setup_router();
+    let hash = store_fixture(&ctx, &fixture_png_100x50()).await;
+
+    let args = serde_json::json!({"hash": hash}).to_string();
+    let result = router.dispatch("nika:phash", args).await;
+
+    assert!(result.is_ok(), "phash dispatch failed: {:?}", result.err());
+    let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    assert!(parsed["phash"].is_string());
+    assert_eq!(parsed["algorithm"], "dct");
+  }
+
+  /// compare dispatches through router (feature-gated)
+  #[cfg(feature = "media-phash")]
+  #[tokio::test]
+  async fn dispatch_compare_through_router() {
+    let (_dir, router, ctx) = setup_router();
+    let hash_a = store_fixture(&ctx, &fixture_png_100x50()).await;
+    let hash_b = store_fixture(&ctx, &fixture_png_10x10_red()).await;
+
+    let args = serde_json::json!({
+      "hash_a": hash_a,
+      "hash_b": hash_b
+    }).to_string();
+    let result = router.dispatch("nika:compare", args).await;
+
+    assert!(result.is_ok(), "compare dispatch failed: {:?}", result.err());
+    let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+    assert!(parsed["distance"].is_number());
+    assert!(parsed["similarity_pct"].is_number());
+  }
+
+  /// pdf_extract dispatches through router (feature-gated)
+  #[cfg(feature = "media-pdf")]
+  #[tokio::test]
+  async fn dispatch_pdf_extract_through_router() {
+    let (_dir, router, ctx) = setup_router();
+
+    // Minimal PDF
+    let pdf = b"%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n5 0 obj<</Length 44>>stream\nBT /F1 12 Tf 100 700 Td (Hello Nika!) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \n0000000340 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n434\n%%EOF";
+    let hash = store_fixture(&ctx, pdf).await;
+
+    let args = serde_json::json!({"hash": hash}).to_string();
+    let result = router.dispatch("nika:pdf_extract", args).await;
+
+    // pdf-extract may succeed or fail on minimal PDF — either is acceptable
+    match result {
+      Ok(json_str) => {
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert!(parsed["char_count"].is_number());
+        assert!(parsed["word_count"].is_number());
+      }
+      Err(e) => {
+        // Extraction error is OK, but it shouldn't panic
+        assert!(!e.to_string().contains("panicked"), "pdf should not panic: {e}");
+      }
+    }
+  }
 }

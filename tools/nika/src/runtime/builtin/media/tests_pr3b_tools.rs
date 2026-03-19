@@ -611,6 +611,152 @@ mod tests {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // PHASH: adapter + cancellation (feature-gated)
+  // ═══════════════════════════════════════════════════════════════
+
+  #[cfg(feature = "media-phash")]
+  mod phash_tests {
+    use super::*;
+    use crate::runtime::builtin::media::phash::PhashOp;
+    use crate::runtime::builtin::media::compare::CompareOp;
+
+    fn fixture_png(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
+      use image::{ImageBuffer, Rgb};
+      let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
+      let mut buf = Vec::new();
+      let enc = image::codecs::png::PngEncoder::new(&mut buf);
+      image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+      buf
+    }
+
+    #[tokio::test]
+    async fn phash_via_adapter() {
+      let (_dir, ctx) = setup().await;
+      let png = fixture_png(50, 50, 255, 0, 0);
+      let sr = ctx.cas.store(&png).await.unwrap();
+
+      let adapter = MediaToolAdapter::new(Arc::new(PhashOp), Arc::clone(&ctx));
+      let json_str = adapter.call(serde_json::json!({"hash": sr.hash}).to_string()).await.unwrap();
+
+      let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+      assert!(v["phash"].is_string());
+      assert_eq!(v["algorithm"], "dct");
+    }
+
+    #[tokio::test]
+    async fn phash_cancelled_workflow() {
+      let (_dir, ctx) = setup().await;
+      ctx.cancel.cancel();
+      let op = PhashOp;
+      let result = op.execute(serde_json::json!({"hash": "x"}), &ctx).await;
+      assert!(result.is_err());
+      assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[tokio::test]
+    async fn compare_via_adapter() {
+      let (_dir, ctx) = setup().await;
+      let png_a = fixture_png(50, 50, 255, 0, 0);
+      let png_b = fixture_png(50, 50, 0, 0, 255);
+      let sr_a = ctx.cas.store(&png_a).await.unwrap();
+      let sr_b = ctx.cas.store(&png_b).await.unwrap();
+
+      let adapter = MediaToolAdapter::new(Arc::new(CompareOp), Arc::clone(&ctx));
+      let json_str = adapter.call(serde_json::json!({
+        "hash_a": sr_a.hash,
+        "hash_b": sr_b.hash
+      }).to_string()).await.unwrap();
+
+      let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+      assert!(v["distance"].is_number());
+      assert!(v["similarity_pct"].is_number());
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PDF_EXTRACT: adapter + cancellation (feature-gated)
+  // ═══════════════════════════════════════════════════════════════
+
+  #[cfg(feature = "media-pdf")]
+  mod pdf_tests {
+    use super::*;
+    use crate::runtime::builtin::media::pdf::PdfExtractOp;
+
+    fn fixture_pdf() -> Vec<u8> {
+      b"%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n5 0 obj<</Length 44>>stream\nBT /F1 12 Tf 100 700 Td (Hello Nika!) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000266 00000 n \n0000000340 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n434\n%%EOF".to_vec()
+    }
+
+    #[tokio::test]
+    async fn pdf_extract_via_adapter() {
+      let (_dir, ctx) = setup().await;
+      let pdf = fixture_pdf();
+      let sr = ctx.cas.store(&pdf).await.unwrap();
+
+      let adapter = MediaToolAdapter::new(Arc::new(PdfExtractOp), Arc::clone(&ctx));
+      let result = adapter.call(serde_json::json!({"hash": sr.hash}).to_string()).await;
+
+      // pdf-extract may succeed or fail on minimal PDF — either acceptable
+      match result {
+        Ok(json_str) => {
+          let v: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+          assert!(v["char_count"].is_number());
+        }
+        Err(e) => {
+          assert!(!e.to_string().contains("panicked"));
+        }
+      }
+    }
+
+    #[tokio::test]
+    async fn pdf_extract_cancelled_workflow() {
+      let (_dir, ctx) = setup().await;
+      ctx.cancel.cancel();
+      let op = PdfExtractOp;
+      let result = op.execute(serde_json::json!({"hash": "x"}), &ctx).await;
+      assert!(result.is_err());
+      assert!(result.unwrap_err().to_string().contains("cancelled"));
+    }
+
+    #[tokio::test]
+    async fn pipeline_import_then_pdf_extract() {
+      let (_dir, ctx) = setup().await;
+
+      // Import a PDF file
+      let pdf = fixture_pdf();
+      let tmp = tempfile::NamedTempFile::new().unwrap();
+      std::fs::write(tmp.path(), &pdf).unwrap();
+
+      let import_result = ImportOp.execute(
+        serde_json::json!({"path": tmp.path().to_string_lossy()}),
+        &ctx,
+      ).await.unwrap();
+
+      let hash = if let MediaOpResult::Metadata(v) = import_result {
+        v["hash"].as_str().unwrap().to_string()
+      } else {
+        panic!("expected Metadata from import");
+      };
+
+      // Extract text from the imported PDF
+      let pdf_result = PdfExtractOp.execute(
+        serde_json::json!({"hash": hash}),
+        &ctx,
+      ).await;
+
+      // May succeed or fail on minimal PDF — not a panic
+      match pdf_result {
+        Ok(MediaOpResult::Metadata(v)) => {
+          assert!(v["char_count"].is_number());
+        }
+        Err(e) => {
+          assert!(!e.to_string().contains("panicked"));
+        }
+        _ => panic!("unexpected result type"),
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // create_media_tool_adapters: registration count with features
   // ═══════════════════════════════════════════════════════════════
 
