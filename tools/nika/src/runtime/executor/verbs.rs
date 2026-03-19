@@ -1019,56 +1019,7 @@ impl TaskExecutor {
                         continue;
                     }
 
-                    // Success or non-retryable error status
-
-                    // Check response mode BEFORE consuming the body
-                    if fetch.response.as_deref() == Some("full") {
-                        let status = response.status().as_u16();
-                        let headers: serde_json::Map<String, serde_json::Value> = response
-                            .headers()
-                            .iter()
-                            .map(|(k, v)| {
-                                (
-                                    k.to_string(),
-                                    serde_json::Value::String(v.to_str().unwrap_or("").to_string()),
-                                )
-                            })
-                            .collect();
-                        let final_url = response.url().to_string();
-                        let body = response.text().await.map_err(|e| {
-                            NikaError::Execution(format!("Failed to read response: {}", e))
-                        })?;
-                        return Ok(serde_json::json!({
-                            "status": status,
-                            "headers": headers,
-                            "body": body,
-                            "url": final_url,
-                        })
-                        .to_string());
-                    }
-
-                    if fetch.response.as_deref() == Some("binary") {
-                        let content_type = response
-                            .headers()
-                            .get("content-type")
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("application/octet-stream")
-                            .to_string();
-                        let bytes = response.bytes().await.map_err(|e| {
-                            NikaError::Execution(format!("Failed to read binary response: {}", e))
-                        })?;
-                        let store_result = self.cas.store(&bytes).await.map_err(|e| {
-                            NikaError::Execution(format!("CAS store failed: {}", e))
-                        })?;
-                        return Ok(serde_json::json!({
-                            "hash": store_result.hash,
-                            "mime_type": content_type,
-                            "size_bytes": bytes.len(),
-                            "deduplicated": store_result.deduplicated,
-                        })
-                        .to_string());
-                    }
-
+                    // Defense-in-depth: reject responses > 50MB to prevent OOM
                     const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                     if let Some(len) = response.content_length() {
                         if len > MAX_RESPONSE_SIZE {
@@ -1078,9 +1029,11 @@ impl TaskExecutor {
                             )));
                         }
                     }
+
                     let raw_body = response.text().await.map_err(|e| {
                         NikaError::Execution(format!("Failed to read response: {}", e))
                     })?;
+
                     if raw_body.len() as u64 > MAX_RESPONSE_SIZE {
                         return Err(NikaError::Execution(format!(
                             "Response body too large ({} bytes, max {} bytes)",
@@ -1088,6 +1041,7 @@ impl TaskExecutor {
                             MAX_RESPONSE_SIZE
                         )));
                     }
+
                     return Ok(raw_body);
                 }
                 Err(e) => {

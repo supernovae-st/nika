@@ -27,6 +27,8 @@ impl RecoveryParser {
         parser
             .set_language(&tree_sitter_yaml::LANGUAGE.into())
             .expect("tree-sitter-yaml language should load");
+        // 5 second timeout to prevent DoS from pathological YAML inputs
+        parser.set_timeout_micros(5_000_000);
         Self {
             parser,
             old_tree: None,

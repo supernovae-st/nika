@@ -156,7 +156,11 @@ impl PositionIndex {
         entries.sort_unstable_by(|a, b| {
             a.start
                 .cmp(&b.start)
-                .then_with(|| (a.end - a.start).cmp(&(b.end - b.start)))
+                .then_with(|| {
+                    a.end
+                        .saturating_sub(a.start)
+                        .cmp(&b.end.saturating_sub(b.start))
+                })
         });
         Self { entries }
     }
