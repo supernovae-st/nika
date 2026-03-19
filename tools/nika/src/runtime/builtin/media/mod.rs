@@ -46,6 +46,8 @@ mod phash;
 mod compare;
 #[cfg(feature = "media-pdf")]
 mod pdf;
+#[cfg(feature = "media-provenance")]
+mod provenance;
 mod pipeline;
 #[cfg(test)]
 mod tests_integration;
@@ -278,6 +280,14 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
   {
     tools.push(Box::new(MediaToolAdapter::new(
       Arc::new(pdf::PdfExtractOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-provenance")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(provenance::ProvenanceOp),
       Arc::clone(&ctx),
     )));
   }

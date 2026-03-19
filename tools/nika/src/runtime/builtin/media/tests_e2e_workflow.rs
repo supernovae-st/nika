@@ -286,6 +286,7 @@ mod tests {
     // + 2 media-phash (phash, compare)
     // + 1 media-pdf (pdf_extract)
     // + 1 media-chart (chart)
+    // + 1 media-provenance (provenance)
     let mut expected = 12 + 1 + 3 + 1; // baseline + import + always-on media + pipeline
 
     #[cfg(feature = "media-thumbnail")]
@@ -313,6 +314,10 @@ mod tests {
       expected += 1;
     }
     #[cfg(feature = "media-chart")]
+    {
+      expected += 1;
+    }
+    #[cfg(feature = "media-provenance")]
     {
       expected += 1;
     }

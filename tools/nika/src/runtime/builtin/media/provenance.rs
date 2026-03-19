@@ -1,0 +1,378 @@
+//! nika:provenance — Add C2PA content credentials to media files.
+//!
+//! Uses the c2pa crate with rust_native_crypto (Ed25519, no OpenSSL).
+//! Signs images with an ephemeral self-signed certificate and embeds
+//! C2PA manifests with provenance assertions (e.g., "ai.generated").
+//!
+//! SECURITY: Never log private keys.
+
+use std::future::Future;
+use std::io::Cursor;
+use std::pin::Pin;
+
+use crate::error::NikaError;
+use super::context::MediaToolContext;
+use super::error::{invalid_args, tool_error};
+use super::{MediaOp, MediaOpResult};
+
+pub struct ProvenanceOp;
+
+/// Supported assertion presets.
+const KNOWN_ASSERTIONS: &[&str] = &[
+  "ai.generated",
+  "ai.modified",
+  "human.created",
+];
+
+impl MediaOp for ProvenanceOp {
+  fn name(&self) -> &'static str {
+    "provenance"
+  }
+
+  fn description(&self) -> &'static str {
+    "Add C2PA content credentials (provenance) to an image"
+  }
+
+  fn parameters_schema(&self) -> serde_json::Value {
+    serde_json::json!({
+      "type": "object",
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "CAS hash of the source image (JPEG or PNG)"
+        },
+        "assertion": {
+          "type": "string",
+          "description": "Provenance assertion: ai.generated, ai.modified, or human.created",
+          "enum": ["ai.generated", "ai.modified", "human.created"]
+        },
+        "title": {
+          "type": "string",
+          "description": "Asset title (optional, defaults to 'nika-output')"
+        }
+      },
+      "required": ["hash", "assertion"],
+      "additionalProperties": false
+    })
+  }
+
+  fn execute<'a>(
+    &'a self,
+    args: serde_json::Value,
+    ctx: &'a MediaToolContext,
+  ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+    Box::pin(async move {
+      ctx.check_cancelled()?;
+
+      let hash = args.get("hash").and_then(|v| v.as_str())
+        .ok_or_else(|| invalid_args("provenance", "missing 'hash'"))?;
+
+      let assertion = args.get("assertion").and_then(|v| v.as_str())
+        .ok_or_else(|| invalid_args("provenance", "missing 'assertion'"))?;
+
+      if !KNOWN_ASSERTIONS.contains(&assertion) {
+        return Err(invalid_args("provenance", format!(
+          "unknown assertion '{assertion}', use one of: {}",
+          KNOWN_ASSERTIONS.join(", ")
+        )));
+      }
+
+      let title = args.get("title").and_then(|v| v.as_str())
+        .unwrap_or("nika-output")
+        .to_string();
+
+      // Read source image from CAS
+      let data = ctx.read_media(hash).await?;
+
+      // Detect format from magic bytes
+      let (mime_type, extension) = detect_image_format(&data)?;
+
+      let assertion_owned = assertion.to_string();
+      let title_for_metadata = title.clone();
+      let assertion_for_metadata = assertion_owned.clone();
+      let extension_for_metadata = extension.clone();
+
+      // Sign on compute pool (CPU-bound crypto)
+      let signed_data = ctx.compute.compute(move || -> Result<Vec<u8>, NikaError> {
+        sign_with_c2pa(&data, &mime_type, &title, &assertion_owned)
+      }).await??;
+
+      Ok(MediaOpResult::Binary {
+        data: signed_data,
+        mime_type: extension_to_mime(&extension_for_metadata),
+        extension: extension_for_metadata.clone(),
+        metadata: serde_json::json!({
+          "assertion": assertion_for_metadata,
+          "title": title_for_metadata,
+          "format": extension_for_metadata,
+          "signed": true,
+        }),
+      })
+    })
+  }
+}
+
+/// Detect image format from magic bytes.
+fn detect_image_format(data: &[u8]) -> Result<(String, String), NikaError> {
+  if data.len() < 4 {
+    return Err(invalid_args("provenance", "file too small to detect format"));
+  }
+
+  // PNG: 89 50 4E 47
+  if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+    return Ok(("image/png".to_string(), "png".to_string()));
+  }
+
+  // JPEG: FF D8 FF
+  if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+    return Ok(("image/jpeg".to_string(), "jpg".to_string()));
+  }
+
+  Err(invalid_args("provenance", "unsupported format — C2PA requires JPEG or PNG"))
+}
+
+fn extension_to_mime(ext: &str) -> String {
+  match ext {
+    "png" => "image/png".to_string(),
+    "jpg" => "image/jpeg".to_string(),
+    _ => "application/octet-stream".to_string(),
+  }
+}
+
+/// Build the C2PA digital source type for an assertion preset.
+fn digital_source_type(assertion: &str) -> &'static str {
+  match assertion {
+    "ai.generated" => "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
+    "ai.modified" => "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia",
+    "human.created" => "http://cv.iptc.org/newscodes/digitalsourcetype/humanCreation",
+    _ => "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
+  }
+}
+
+/// Sign data with C2PA using an ephemeral Ed25519 certificate.
+fn sign_with_c2pa(
+  data: &[u8],
+  mime_type: &str,
+  title: &str,
+  assertion: &str,
+) -> Result<Vec<u8>, NikaError> {
+  use c2pa::{Builder, EphemeralSigner};
+
+  // Create ephemeral signer (self-signed Ed25519, no OpenSSL)
+  let signer = EphemeralSigner::new("nika-provenance")
+    .map_err(|e| tool_error("provenance", format!("signer creation failed: {e}")))?;
+
+  // Build manifest definition
+  let definition = serde_json::json!({
+    "title": title,
+    "claim_generator_info": [{
+      "name": "Nika",
+      "version": env!("CARGO_PKG_VERSION"),
+    }],
+    "assertions": [
+      {
+        "label": "c2pa.actions",
+        "data": {
+          "actions": [
+            {
+              "action": "c2pa.created",
+              "digitalSourceType": digital_source_type(assertion),
+              "softwareAgent": {
+                "name": "Nika Workflow Engine",
+                "version": env!("CARGO_PKG_VERSION"),
+              }
+            }
+          ]
+        }
+      }
+    ]
+  });
+
+  let mut builder = Builder::from_json(&definition.to_string())
+    .map_err(|e| tool_error("provenance", format!("builder creation failed: {e}")))?;
+
+  let mut source = Cursor::new(data);
+  let mut dest = Cursor::new(Vec::new());
+
+  builder.sign(&signer, mime_type, &mut source, &mut dest)
+    .map_err(|e| tool_error("provenance", format!("signing failed: {e}")))?;
+
+  Ok(dest.into_inner())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::media::CasStore;
+  use std::sync::Arc;
+
+  async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+    (dir, ctx)
+  }
+
+  fn fixture_jpeg(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
+    use image::{ImageBuffer, Rgb};
+    let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
+    let mut buf = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut buf, image::ImageFormat::Jpeg).unwrap();
+    buf.into_inner()
+  }
+
+  fn fixture_png(w: u32, h: u32, r: u8, g: u8, b: u8) -> Vec<u8> {
+    use image::{ImageBuffer, Rgb};
+    let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
+    let mut buf = Vec::new();
+    let enc = image::codecs::png::PngEncoder::new(&mut buf);
+    image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+    buf
+  }
+
+  #[tokio::test]
+  async fn provenance_sign_jpeg_ai_generated() {
+    let (_dir, ctx) = setup().await;
+    let jpeg = fixture_jpeg(100, 100, 255, 0, 0);
+    let sr = ctx.cas.store(&jpeg).await.unwrap();
+
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash,
+      "assertion": "ai.generated"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, mime_type, metadata, .. } = result {
+      assert_eq!(mime_type, "image/jpeg");
+      // Signed JPEG should be larger than original (embedded manifest)
+      assert!(data.len() > jpeg.len(), "signed file should be larger");
+      // Still a valid JPEG (starts with FF D8 FF)
+      assert_eq!(&data[..3], &[0xFF, 0xD8, 0xFF], "should still be valid JPEG");
+      assert_eq!(metadata["signed"], true);
+      assert_eq!(metadata["assertion"], "ai.generated");
+    } else {
+      panic!("expected Binary result");
+    }
+  }
+
+  #[tokio::test]
+  async fn provenance_sign_png_human_created() {
+    let (_dir, ctx) = setup().await;
+    let png = fixture_png(50, 50, 0, 255, 0);
+    let sr = ctx.cas.store(&png).await.unwrap();
+
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash,
+      "assertion": "human.created",
+      "title": "My Artwork"
+    }), &ctx).await.unwrap();
+
+    if let MediaOpResult::Binary { data, mime_type, metadata, .. } = result {
+      assert_eq!(mime_type, "image/png");
+      // Signed PNG should start with PNG magic
+      assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47]);
+      assert_eq!(metadata["title"], "My Artwork");
+    } else {
+      panic!("expected Binary result");
+    }
+  }
+
+  #[tokio::test]
+  async fn provenance_missing_hash() {
+    let (_dir, ctx) = setup().await;
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "assertion": "ai.generated"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+  }
+
+  #[tokio::test]
+  async fn provenance_missing_assertion() {
+    let (_dir, ctx) = setup().await;
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+  }
+
+  #[tokio::test]
+  async fn provenance_unknown_assertion() {
+    let (_dir, ctx) = setup().await;
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+      "assertion": "unknown.type"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("unknown assertion"));
+  }
+
+  #[tokio::test]
+  async fn provenance_unsupported_format() {
+    let (_dir, ctx) = setup().await;
+    // Store a text file — not a valid image
+    let sr = ctx.cas.store(b"this is not an image at all").await.unwrap();
+
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": sr.hash,
+      "assertion": "ai.generated"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("unsupported format"));
+  }
+
+  #[tokio::test]
+  async fn provenance_cancelled_workflow() {
+    let (_dir, ctx) = setup().await;
+    ctx.cancel.cancel();
+    let op = ProvenanceOp;
+    let result = op.execute(serde_json::json!({
+      "hash": "blake3:abcd",
+      "assertion": "ai.generated"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("cancelled"));
+  }
+
+  #[test]
+  fn detect_format_png() {
+    let data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+    let (mime, ext) = detect_image_format(&data).unwrap();
+    assert_eq!(mime, "image/png");
+    assert_eq!(ext, "png");
+  }
+
+  #[test]
+  fn detect_format_jpeg() {
+    let data = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+    let (mime, ext) = detect_image_format(&data).unwrap();
+    assert_eq!(mime, "image/jpeg");
+    assert_eq!(ext, "jpg");
+  }
+
+  #[test]
+  fn detect_format_unknown() {
+    let data = [0x00, 0x01, 0x02, 0x03];
+    let result = detect_image_format(&data);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn detect_format_too_small() {
+    let data = [0x89, 0x50];
+    let result = detect_image_format(&data);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn digital_source_type_mappings() {
+    assert!(digital_source_type("ai.generated").contains("trainedAlgorithmicMedia"));
+    assert!(digital_source_type("ai.modified").contains("composite"));
+    assert!(digital_source_type("human.created").contains("humanCreation"));
+  }
+}

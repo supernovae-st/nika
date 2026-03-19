@@ -679,6 +679,7 @@ fn handle_tools() {
         ("nika:compare", "media-phash", "Visual comparison between two images", cfg!(feature = "media-phash")),
         ("nika:pdf_extract", "media-pdf", "PDF text extraction", cfg!(feature = "media-pdf")),
         ("nika:chart", "media-chart", "Generate charts (bar/line/pie) from JSON data", cfg!(feature = "media-chart")),
+        ("nika:provenance", "media-provenance", "Add C2PA content credentials (provenance)", cfg!(feature = "media-provenance")),
     ];
 
     for (name, feature, desc, enabled) in &tools_tier3 {
