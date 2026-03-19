@@ -473,19 +473,36 @@ impl RigAgentLoop {
                 preamble.push_str("\n\n## Available Tools\n");
                 for name in &tool_names {
                     match name.as_str() {
-                        "nika_read" => preamble.push_str("- nika_read: Read file contents from disk\n"),
-                        "nika_write" => preamble.push_str("- nika_write: Create a NEW file (fails if exists)\n"),
-                        "nika_edit" => preamble.push_str("- nika_edit: Edit an EXISTING file by replacing text\n"),
-                        "nika_glob" => preamble.push_str("- nika_glob: Find files matching a pattern\n"),
-                        "nika_grep" => preamble.push_str("- nika_grep: Search file contents with regex\n"),
-                        "nika_complete" => preamble.push_str("- nika_complete: Signal task completion with structured result\n"),
-                        "nika_log" => preamble.push_str("- nika_log: Emit a log message (for observability only, not output)\n"),
-                        "nika_emit" => preamble.push_str("- nika_emit: Emit a named event with payload\n"),
+                        "nika_read" => {
+                            preamble.push_str("- nika_read: Read file contents from disk\n")
+                        }
+                        "nika_write" => {
+                            preamble.push_str("- nika_write: Create a NEW file (fails if exists)\n")
+                        }
+                        "nika_edit" => preamble
+                            .push_str("- nika_edit: Edit an EXISTING file by replacing text\n"),
+                        "nika_glob" => {
+                            preamble.push_str("- nika_glob: Find files matching a pattern\n")
+                        }
+                        "nika_grep" => {
+                            preamble.push_str("- nika_grep: Search file contents with regex\n")
+                        }
+                        "nika_complete" => preamble.push_str(
+                            "- nika_complete: Signal task completion with structured result\n",
+                        ),
+                        "nika_log" => preamble.push_str(
+                            "- nika_log: Emit a log message (for observability only, not output)\n",
+                        ),
+                        "nika_emit" => {
+                            preamble.push_str("- nika_emit: Emit a named event with payload\n")
+                        }
                         "nika_run" => preamble.push_str("- nika_run: Execute a sub-workflow\n"),
                         _ => {}
                     }
                 }
-                preamble.push_str("\nUse the MOST SPECIFIC tool for each action. Call nika_complete when done.\n");
+                preamble.push_str(
+                    "\nUse the MOST SPECIFIC tool for each action. Call nika_complete when done.\n",
+                );
             }
         }
 

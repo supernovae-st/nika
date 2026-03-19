@@ -211,10 +211,7 @@ impl CasStore {
     /// 4. Write via `io::atomic::write_fail()` (O_EXCL atomic check+create)
     /// 5. If AlreadyExists, return deduplicated=true
     /// 6. Read-back verify only for files >= VERIFY_THRESHOLD
-    pub async fn store(
-        &self,
-        data: &[u8],
-    ) -> Result<StoreResult, MediaError> {
+    pub async fn store(&self, data: &[u8]) -> Result<StoreResult, MediaError> {
         // Defense-in-depth: reject empty data at the CAS layer (D28)
         if data.is_empty() {
             return Err(MediaError::EmptyMediaContent {
@@ -255,10 +252,12 @@ impl CasStore {
         let write_data: &[u8] = data;
 
         // Create parent directories (async)
-        tokio::fs::create_dir_all(&dir).await.map_err(|e| MediaError::MediaStoreIo {
-            path: dir.clone(),
-            source: e,
-        })?;
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| MediaError::MediaStoreIo {
+                path: dir.clone(),
+                source: e,
+            })?;
 
         // Atomic write via O_EXCL (create_new). On success: new file.
         // On AlreadyExists: dedup hit. On other error: clean up partial file.
@@ -291,12 +290,13 @@ impl CasStore {
         // Read-back verification only for files >= 1MB (original size)
         // Small files: fsync guarantees integrity, verified=false to indicate skipped
         let verified = if size >= VERIFY_THRESHOLD {
-            let stored = tokio::fs::read(&final_path).await.map_err(|e| {
-                MediaError::MediaStoreIo {
-                    path: final_path.clone(),
-                    source: e,
-                }
-            })?;
+            let stored =
+                tokio::fs::read(&final_path)
+                    .await
+                    .map_err(|e| MediaError::MediaStoreIo {
+                        path: final_path.clone(),
+                        source: e,
+                    })?;
             // Decompress if needed before verifying hash (hash is of original data)
             #[cfg(feature = "media-compression")]
             let stored = transparent_decompress(stored)?;
@@ -353,10 +353,7 @@ impl CasStore {
                     hash: hash.to_string(),
                 }
             } else {
-                MediaError::MediaStoreIo {
-                    path,
-                    source: e,
-                }
+                MediaError::MediaStoreIo { path, source: e }
             }
         })?;
 
@@ -516,7 +513,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = CasStore::new(dir.path());
 
-        let result = store.read("blake3:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890").await;
+        let result = store
+            .read("blake3:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
+            .await;
         assert!(result.is_err());
     }
 
@@ -529,8 +528,11 @@ mod tests {
         let result = store.store(data).await.unwrap();
 
         // Path should have NO extension
-        assert!(result.path.extension().is_none(),
-            "CAS path should have no extension: {:?}", result.path);
+        assert!(
+            result.path.extension().is_none(),
+            "CAS path should have no extension: {:?}",
+            result.path
+        );
     }
 
     #[tokio::test]
@@ -539,8 +541,11 @@ mod tests {
         let store = CasStore::new(dir.path());
 
         let result = store.store(b"prefix test").await.unwrap();
-        assert!(result.hash.starts_with("blake3:"),
-            "hash should have blake3: prefix, got: {}", result.hash);
+        assert!(
+            result.hash.starts_with("blake3:"),
+            "hash should have blake3: prefix, got: {}",
+            result.hash
+        );
     }
 
     #[tokio::test]
@@ -606,18 +611,27 @@ mod tests {
 
         let data = vec![0xAB_u8; MAX_STORE_SIZE];
         let result = store.store(&data).await;
-        assert!(result.is_ok(), "exactly MAX_STORE_SIZE should be accepted, got: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "exactly MAX_STORE_SIZE should be accepted, got: {:?}",
+            result.err()
+        );
         let sr = result.unwrap();
         assert_eq!(sr.size, MAX_STORE_SIZE as u64);
         assert!(!sr.deduplicated);
         // 100MB is above verify threshold (1MB), so it should be verified
-        assert!(sr.verified, "100MB file should trigger read-back verification");
+        assert!(
+            sr.verified,
+            "100MB file should trigger read-back verification"
+        );
 
         // Verify read-back matches
         let read_back = store.read(&sr.hash).await.unwrap();
         assert_eq!(read_back.len(), MAX_STORE_SIZE);
-        assert!(read_back.iter().all(|&b| b == 0xAB),
-            "data corruption: not all bytes are 0xAB");
+        assert!(
+            read_back.iter().all(|&b| b == 0xAB),
+            "data corruption: not all bytes are 0xAB"
+        );
     }
 
     #[tokio::test]
@@ -876,7 +890,10 @@ mod tests {
             let json = br#"{"name":"test","items":[1,2,3,4,5],"nested":{"a":"b"}}"#;
             let result = store.store(json).await.unwrap();
             let read_back = store.read(&result.hash).await.unwrap();
-            assert_eq!(read_back, json, "JSON round-trip must preserve data exactly");
+            assert_eq!(
+                read_back, json,
+                "JSON round-trip must preserve data exactly"
+            );
         }
 
         #[tokio::test]
@@ -896,7 +913,10 @@ mod tests {
             let on_disk = tokio::fs::read(&path).await.unwrap();
 
             // PNG should NOT have CAS compression marker
-            assert_ne!(on_disk[0], CAS_ZSTD_MARKER, "PNG should not be CAS-compressed");
+            assert_ne!(
+                on_disk[0], CAS_ZSTD_MARKER,
+                "PNG should not be CAS-compressed"
+            );
 
             // Read-back should still work
             let read_back = store.read(&result.hash).await.unwrap();
@@ -919,7 +939,11 @@ mod tests {
 
             // Should be CAS-compressed (marker + zstd magic)
             assert_eq!(on_disk[0], CAS_ZSTD_MARKER, "should have CAS marker prefix");
-            assert_eq!(&on_disk[1..5], &ZSTD_MAGIC, "text should be zstd-compressed after marker");
+            assert_eq!(
+                &on_disk[1..5],
+                &ZSTD_MAGIC,
+                "text should be zstd-compressed after marker"
+            );
             assert!(on_disk.len() < text.len(), "compressed should be smaller");
 
             // Transparent read should return original
@@ -951,7 +975,10 @@ mod tests {
             let result = store.store(&text).await.unwrap();
 
             // StoreResult.size should reflect ORIGINAL size, not compressed
-            assert_eq!(result.size, original_size, "size should be original data length");
+            assert_eq!(
+                result.size, original_size,
+                "size should be original data length"
+            );
         }
 
         #[tokio::test]
@@ -961,14 +988,15 @@ mod tests {
 
             // Pre-compress some data with zstd (simulating user-stored zstd files)
             let original = b"pre-compressed data content here that is long enough to be over sixty-four bytes for threshold!";
-            let pre_compressed = zstd::encode_all(
-                std::io::Cursor::new(original.as_slice()),
-                ZSTD_LEVEL,
-            ).unwrap();
+            let pre_compressed =
+                zstd::encode_all(std::io::Cursor::new(original.as_slice()), ZSTD_LEVEL).unwrap();
             assert!(pre_compressed.len() >= 4 && pre_compressed[..4] == ZSTD_MAGIC);
 
             // should_compress should detect zstd magic and skip
-            assert!(!should_compress(&pre_compressed), "zstd data should not be re-compressed");
+            assert!(
+                !should_compress(&pre_compressed),
+                "zstd data should not be re-compressed"
+            );
 
             // Store and read back — with CAS marker framing, user-stored zstd
             // is stored raw (no CAS marker prefix) and returned as-is on read.
@@ -978,8 +1006,10 @@ mod tests {
             // With CAS marker framing, raw zstd data round-trips correctly!
             // On-disk: raw zstd bytes (no marker prefix)
             // On read: no CAS marker → returned as-is
-            assert_eq!(read_back, pre_compressed,
-                "user-stored zstd data should round-trip exactly");
+            assert_eq!(
+                read_back, pre_compressed,
+                "user-stored zstd data should round-trip exactly"
+            );
         }
 
         #[tokio::test]
@@ -1021,7 +1051,8 @@ mod tests {
 
         #[test]
         fn should_compress_json_yes() {
-            let json = br#"{"key":"value","list":[1,2,3],"nested":{"a":"b","c":"d","e":"f","g":"h"}}"#;
+            let json =
+                br#"{"key":"value","list":[1,2,3],"nested":{"a":"b","c":"d","e":"f","g":"h"}}"#;
             assert!(json.len() >= 64, "fixture must be >= 64 bytes");
             assert!(should_compress(json));
         }
@@ -1042,7 +1073,10 @@ mod tests {
 
         #[test]
         fn should_compress_small_data_no() {
-            assert!(!should_compress(b"tiny"), "data < 64 bytes should skip compression");
+            assert!(
+                !should_compress(b"tiny"),
+                "data < 64 bytes should skip compression"
+            );
         }
 
         #[test]

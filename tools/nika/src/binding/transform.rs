@@ -1040,8 +1040,8 @@ mod tests {
 
     #[test]
     fn apply_to_number_float() {
-        let result = TransformOp::ToNumber.apply(&json!("3.14")).unwrap();
-        assert_eq!(result, json!(3.14));
+        let result = TransformOp::ToNumber.apply(&json!("3.12")).unwrap();
+        assert_eq!(result, json!(3.12));
     }
 
     #[test]
@@ -1080,8 +1080,8 @@ mod tests {
 
     #[test]
     fn apply_round() {
-        let result = TransformOp::Round(Some(2)).apply(&json!(3.14159)).unwrap();
-        assert_eq!(result, json!(3.14));
+        let result = TransformOp::Round(Some(2)).apply(&json!(4.56789)).unwrap();
+        assert_eq!(result, json!(4.57));
     }
 
     #[test]
@@ -1098,8 +1098,8 @@ mod tests {
 
     #[test]
     fn apply_abs_float() {
-        let result = TransformOp::Abs.apply(&json!(-3.14)).unwrap();
-        assert_eq!(result, json!(3.14));
+        let result = TransformOp::Abs.apply(&json!(-3.12)).unwrap();
+        assert_eq!(result, json!(3.12));
     }
 
     #[test]

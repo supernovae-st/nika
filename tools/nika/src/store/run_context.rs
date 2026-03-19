@@ -203,8 +203,7 @@ pub struct RunContext {
 
 impl Default for RunContext {
     fn default() -> Self {
-        let workspace_root = std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."));
+        let workspace_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         Self {
             results: Arc::new(DashMap::with_hasher(FxBuildHasher)),
             context: Arc::default(),
@@ -1214,8 +1213,7 @@ mod tests {
                 metadata: serde_json::Map::new(),
             },
         ];
-        TaskResult::success(json!({"prompt": "a cat"}), Duration::from_secs(1))
-            .with_media(media)
+        TaskResult::success(json!({"prompt": "a cat"}), Duration::from_secs(1)).with_media(media)
     }
 
     #[test]
@@ -1345,7 +1343,10 @@ mod tests {
         store.insert(Arc::from("gen_img"), task_with_media());
 
         let results = store.iter_results();
-        let (_, result) = results.iter().find(|(id, _)| id.as_ref() == "gen_img").unwrap();
+        let (_, result) = results
+            .iter()
+            .find(|(id, _)| id.as_ref() == "gen_img")
+            .unwrap();
         assert_eq!(result.media.len(), 2);
         assert_eq!(result.media[0].hash, "blake3:af1349b9");
     }
@@ -1371,10 +1372,16 @@ mod tests {
 
         // These must resolve correctly via auto-parse of JSON strings
         let hash = store.resolve_path("thumb.hash").unwrap();
-        assert_eq!(hash, "blake3:abc123", "{{{{with.thumb.hash}}}} must resolve");
+        assert_eq!(
+            hash, "blake3:abc123",
+            "{{{{with.thumb.hash}}}} must resolve"
+        );
 
         let mime = store.resolve_path("thumb.mime_type").unwrap();
-        assert_eq!(mime, "image/png", "{{{{with.thumb.mime_type}}}} must resolve");
+        assert_eq!(
+            mime, "image/png",
+            "{{{{with.thumb.mime_type}}}} must resolve"
+        );
 
         let size = store.resolve_path("thumb.size_bytes").unwrap();
         assert_eq!(size, 1234, "{{{{with.thumb.size_bytes}}}} must resolve");
@@ -1384,7 +1391,10 @@ mod tests {
         assert_eq!(width, 256, "{{{{with.thumb.metadata.width}}}} must resolve");
 
         let height = store.resolve_path("thumb.metadata.height").unwrap();
-        assert_eq!(height, 192, "{{{{with.thumb.metadata.height}}}} must resolve");
+        assert_eq!(
+            height, 192,
+            "{{{{with.thumb.metadata.height}}}} must resolve"
+        );
     }
 
     #[test]
@@ -1443,8 +1453,7 @@ mod tests {
 
         store.insert(
             Arc::from("gen"),
-            TaskResult::success(json!("image generated"), Duration::from_secs(1))
-                .with_media(media),
+            TaskResult::success(json!("image generated"), Duration::from_secs(1)).with_media(media),
         );
 
         // Media ref fields
@@ -1462,7 +1471,9 @@ mod tests {
             384
         );
         assert_eq!(
-            store.resolve_path("gen.media[0].metadata.thumbhash").unwrap(),
+            store
+                .resolve_path("gen.media[0].metadata.thumbhash")
+                .unwrap(),
             "dGVzdA=="
         );
     }
@@ -1506,8 +1517,14 @@ mod tests {
         );
 
         // Verify full chain is accessible
-        assert_eq!(store.resolve_path("gen.media[0].hash").unwrap(), "blake3:source_hash");
-        assert_eq!(store.resolve_path("thumb.hash").unwrap(), "blake3:thumb_hash");
+        assert_eq!(
+            store.resolve_path("gen.media[0].hash").unwrap(),
+            "blake3:source_hash"
+        );
+        assert_eq!(
+            store.resolve_path("thumb.hash").unwrap(),
+            "blake3:thumb_hash"
+        );
         assert_eq!(store.resolve_path("thumb.metadata.width").unwrap(), 256);
         assert_eq!(store.resolve_path("dim.width").unwrap(), 256);
         assert_eq!(store.resolve_path("dim.orientation").unwrap(), "landscape");

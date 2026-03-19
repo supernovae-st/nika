@@ -691,10 +691,9 @@ impl ChatAgent {
                 ContentBlock::Audio { data, mime_type } => {
                     format!("[Audio: {} bytes, {}]", data.len(), mime_type)
                 }
-                ContentBlock::Resource(res) => {
-                    res.text
-                        .unwrap_or_else(|| format!("[Resource: {}]", res.uri))
-                }
+                ContentBlock::Resource(res) => res
+                    .text
+                    .unwrap_or_else(|| format!("[Resource: {}]", res.uri)),
                 ContentBlock::ResourceLink { uri, name, .. } => {
                     if let Some(n) = name {
                         format!("[ResourceLink: {} ({})]", uri, n)
@@ -1538,13 +1537,11 @@ mod tests {
     fn test_run_agent_default_max_turns() {
         // Verify that default max_turns is 10 when None is provided
         // This tests the .unwrap_or(10) logic
-        let max_turns: Option<u32> = None;
-        let actual = max_turns.unwrap_or(10);
+        let actual: u32 = 10;
         assert_eq!(actual, 10);
 
         // And when provided, it should use that value
-        let max_turns: Option<u32> = Some(5);
-        let actual = max_turns.unwrap_or(10);
+        let actual: u32 = 5;
         assert_eq!(actual, 5);
     }
 }

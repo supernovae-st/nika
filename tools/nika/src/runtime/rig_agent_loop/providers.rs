@@ -103,7 +103,11 @@ impl RigAgentLoop {
         let client = anthropic::Client::from_env();
 
         // Get model name (default to claude-sonnet-4-6) — owned for cost calculation after &mut self borrow
-        let model_name = self.params.model.clone().unwrap_or_else(|| "claude-sonnet-4-6".to_string());
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -185,7 +189,11 @@ impl RigAgentLoop {
         let client = openai::Client::from_env();
 
         // Get model name (default to gpt-4o) — owned for cost calculation after &mut self borrow
-        let model_name = self.params.model.clone().unwrap_or_else(|| "gpt-4o".to_string());
+        let model_name = self
+            .params
+            .model
+            .clone()
+            .unwrap_or_else(|| "gpt-4o".to_string());
         let model = client.completion_model(&model_name);
 
         // Take ownership of tools (they'll be consumed by the builder)
@@ -328,7 +336,12 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| rig::providers::mistral::MISTRAL_LARGE.to_string());
         let client = rig::providers::mistral::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, Some(crate::provider::cost::ProviderKind::Mistral)).await
+        self.run_generic_provider_impl(
+            client,
+            &model_name,
+            Some(crate::provider::cost::ProviderKind::Mistral),
+        )
+        .await
     }
 
     /// Run with Groq provider (requires GROQ_API_KEY)
@@ -339,7 +352,12 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "llama-3.3-70b-versatile".to_string());
         let client = rig::providers::groq::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, Some(crate::provider::cost::ProviderKind::Groq)).await
+        self.run_generic_provider_impl(
+            client,
+            &model_name,
+            Some(crate::provider::cost::ProviderKind::Groq),
+        )
+        .await
     }
 
     /// Run with DeepSeek provider (requires DEEPSEEK_API_KEY)
@@ -350,7 +368,12 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "deepseek-chat".to_string());
         let client = rig::providers::deepseek::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, Some(crate::provider::cost::ProviderKind::DeepSeek)).await
+        self.run_generic_provider_impl(
+            client,
+            &model_name,
+            Some(crate::provider::cost::ProviderKind::DeepSeek),
+        )
+        .await
     }
 
     /// Run with Gemini provider (requires GEMINI_API_KEY)
@@ -361,7 +384,12 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "gemini-2.0-flash".to_string());
         let client = rig::providers::gemini::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, Some(crate::provider::cost::ProviderKind::Gemini)).await
+        self.run_generic_provider_impl(
+            client,
+            &model_name,
+            Some(crate::provider::cost::ProviderKind::Gemini),
+        )
+        .await
     }
 
     /// Run with xAI provider (requires XAI_API_KEY)
@@ -372,7 +400,8 @@ impl RigAgentLoop {
             .clone()
             .unwrap_or_else(|| "grok-3-fast".to_string());
         let client = rig::providers::xai::Client::from_env();
-        self.run_generic_provider_impl(client, &model_name, None).await
+        self.run_generic_provider_impl(client, &model_name, None)
+            .await
     }
 
     /// Generic provider runner implementation

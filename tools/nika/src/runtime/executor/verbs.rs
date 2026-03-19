@@ -379,9 +379,10 @@ impl TaskExecutor {
             let resolve_start = Instant::now();
             let content = infer.content.as_ref().unwrap();
 
-            let image_part_count = content.iter().filter(|p| {
-                matches!(p, crate::ast::content::ContentPart::Image { .. })
-            }).count();
+            let image_part_count = content
+                .iter()
+                .filter(|p| matches!(p, crate::ast::content::ContentPart::Image { .. }))
+                .count();
             if image_part_count > MAX_VISION_IMAGE_PARTS {
                 return Err(NikaError::ValidationError {
                     reason: format!(
@@ -409,7 +410,8 @@ impl TaskExecutor {
                     }
                     crate::ast::content::ContentPart::Image { source, detail } => {
                         // Resolve template in source (e.g., {{with.photo.media[0].hash}})
-                        let resolved_source = template_resolve(source, bindings, datastore)?.into_owned();
+                        let resolved_source =
+                            template_resolve(source, bindings, datastore)?.into_owned();
 
                         // Read image data from CAS (with cancellation)
                         let cas_read = self.cas.read(&resolved_source);
@@ -463,9 +465,7 @@ impl TaskExecutor {
                         };
 
                         user_content.push(rig::completion::message::UserContent::image_base64(
-                            b64,
-                            media_type,
-                            rig_detail,
+                            b64, media_type, rig_detail,
                         ));
                     }
                     crate::ast::content::ContentPart::ImageUrl { url, detail } => {
@@ -473,7 +473,9 @@ impl TaskExecutor {
                         let resolved_url = template_resolve(url, bindings, datastore)?.into_owned();
 
                         // SECURITY: validate URL scheme to prevent SSRF
-                        if !resolved_url.starts_with("https://") && !resolved_url.starts_with("http://") {
+                        if !resolved_url.starts_with("https://")
+                            && !resolved_url.starts_with("http://")
+                        {
                             return Err(NikaError::ValidationError {
                                 reason: format!(
                                     "Vision image_url must use http:// or https:// scheme, got: {}",
@@ -1195,7 +1197,9 @@ impl TaskExecutor {
                         std::sync::Arc::clone(datastore.media_budget()),
                     );
 
-                    let process_results = processor.process_all(&tool_result.content, task_id.as_ref()).await;
+                    let process_results = processor
+                        .process_all(&tool_result.content, task_id.as_ref())
+                        .await;
 
                     // Process all results: emit events for EVERY block first,
                     // then fail on non-recoverable errors. This ensures the trace
@@ -1260,11 +1264,14 @@ impl TaskExecutor {
                     use crate::mcp::types::ContentBlock;
                     use crate::media::{CasStore, MediaProcessor};
 
-                    let mime = content.mime_type.clone().unwrap_or_else(|| "application/octet-stream".to_string());
+                    let mime = content
+                        .mime_type
+                        .clone()
+                        .unwrap_or_else(|| "application/octet-stream".to_string());
                     let block = ContentBlock::Resource(
                         crate::mcp::types::ResourceContent::new(resource.clone())
                             .with_blob(blob.clone())
-                            .with_optional_mime(content.mime_type.clone())
+                            .with_optional_mime(content.mime_type.clone()),
                     );
 
                     tracing::debug!(
@@ -1529,7 +1536,10 @@ impl TaskExecutor {
             // based on the provider field we just set.
             // Wrap in catch_unwind to convert rig-core panics to NikaErrors.
             let run_future = agent_loop.run_auto();
-            match std::panic::AssertUnwindSafe(run_future).catch_unwind().await {
+            match std::panic::AssertUnwindSafe(run_future)
+                .catch_unwind()
+                .await
+            {
                 Ok(result) => result?,
                 Err(panic_info) => {
                     let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
@@ -1589,13 +1599,18 @@ impl TaskExecutor {
             self.event_log.emit(EventKind::MediaExtracted {
                 task_id: Arc::clone(task_id),
                 block_count: staged_media.len() as u32,
-                content_types: staged_media.iter().map(|b| match b {
-                    crate::mcp::types::ContentBlock::Image { .. } => "image".to_string(),
-                    crate::mcp::types::ContentBlock::Audio { .. } => "audio".to_string(),
-                    crate::mcp::types::ContentBlock::Resource(_) => "resource".to_string(),
-                    crate::mcp::types::ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
-                    crate::mcp::types::ContentBlock::Text { .. } => "text".to_string(),
-                }).collect(),
+                content_types: staged_media
+                    .iter()
+                    .map(|b| match b {
+                        crate::mcp::types::ContentBlock::Image { .. } => "image".to_string(),
+                        crate::mcp::types::ContentBlock::Audio { .. } => "audio".to_string(),
+                        crate::mcp::types::ContentBlock::Resource(_) => "resource".to_string(),
+                        crate::mcp::types::ContentBlock::ResourceLink { .. } => {
+                            "resource_link".to_string()
+                        }
+                        crate::mcp::types::ContentBlock::Text { .. } => "text".to_string(),
+                    })
+                    .collect(),
             });
 
             let workspace_root = datastore.workspace_root();

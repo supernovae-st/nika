@@ -806,17 +806,19 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
 
         // Show DAG visualization for multi-task workflows
         if workflow.tasks.len() > 1 {
-            use nika::display::{DagTask, DagTaskStatus, render_dag};
+            use nika::display::{render_dag, DagTask, DagTaskStatus};
             use std::collections::HashMap;
 
-            let dag_tasks: Vec<DagTask> = workflow.tasks.iter().map(|t| {
-                DagTask {
+            let dag_tasks: Vec<DagTask> = workflow
+                .tasks
+                .iter()
+                .map(|t| DagTask {
                     id: t.id.clone(),
                     verb: t.action.verb_name().to_string(),
                     status: DagTaskStatus::Pending,
                     meta: None,
-                }
-            }).collect();
+                })
+                .collect();
 
             let mut deps_map: HashMap<String, Vec<String>> = HashMap::new();
             for task in &workflow.tasks {

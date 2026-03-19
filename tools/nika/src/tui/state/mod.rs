@@ -1034,28 +1034,40 @@ impl TuiState {
             // ═══════════════════════════════════════════
             // MEDIA EVENTS (no TUI action needed yet)
             // ═══════════════════════════════════════════
-            EventKind::MediaExtracted { task_id, block_count, .. } => {
+            EventKind::MediaExtracted {
+                task_id,
+                block_count,
+                ..
+            } => {
                 self.add_notification(Notification::info(
                     format!("[{}] Extracted {} media block(s)", task_id, block_count),
                     timestamp_ms,
                 ));
                 self.dirty.notifications = true;
             }
-            EventKind::MediaProcessed { .. }
-            | EventKind::MediaStored { .. } => {
+            EventKind::MediaProcessed { .. } | EventKind::MediaStored { .. } => {
                 // Tracked via events, no TUI notification for individual blocks
             }
-            EventKind::MediaStoreFailed { task_id, reason, .. } => {
+            EventKind::MediaStoreFailed {
+                task_id, reason, ..
+            } => {
                 self.add_notification(Notification::error(
                     format!("[{}] Media store failed: {}", task_id, reason),
                     timestamp_ms,
                 ));
                 self.dirty.notifications = true;
             }
-            EventKind::MediaCleanup { removed, bytes_freed, dry_run } => {
+            EventKind::MediaCleanup {
+                removed,
+                bytes_freed,
+                dry_run,
+            } => {
                 if !dry_run {
                     self.add_notification(Notification::info(
-                        format!("Media cleanup: removed {} files, freed {} bytes", removed, bytes_freed),
+                        format!(
+                            "Media cleanup: removed {} files, freed {} bytes",
+                            removed, bytes_freed
+                        ),
                         timestamp_ms,
                     ));
                     self.dirty.notifications = true;
@@ -1064,14 +1076,22 @@ impl TuiState {
             EventKind::MediaIntegrityCheck { checked, warnings } => {
                 if *warnings > 0 {
                     self.add_notification(Notification::warning(
-                        format!("Media integrity: {}/{} refs had warnings", warnings, checked),
+                        format!(
+                            "Media integrity: {}/{} refs had warnings",
+                            warnings, checked
+                        ),
                         timestamp_ms,
                     ));
                     self.dirty.notifications = true;
                 }
             }
 
-            EventKind::VisionContentResolved { task_id, image_count, total_bytes, resolve_ms } => {
+            EventKind::VisionContentResolved {
+                task_id,
+                image_count,
+                total_bytes,
+                resolve_ms,
+            } => {
                 self.add_notification(Notification::info(
                     format!(
                         "Vision: {} image(s) resolved ({} bytes, {}ms) for task {}",

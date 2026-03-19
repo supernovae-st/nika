@@ -6,256 +6,353 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
 #[cfg(feature = "media-thumbnail")]
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
+use crate::error::NikaError;
 
 pub struct PipelineOp;
 
 impl MediaOp for PipelineOp {
-  fn name(&self) -> &'static str {
-    "pipeline"
-  }
+    fn name(&self) -> &'static str {
+        "pipeline"
+    }
 
-  fn description(&self) -> &'static str {
-    "Chain multiple image operations in-memory (1 read → N transforms → 1 write)"
-  }
+    fn description(&self) -> &'static str {
+        "Chain multiple image operations in-memory (1 read → N transforms → 1 write)"
+    }
 
-  fn parameters_schema(&self) -> serde_json::Value {
-    serde_json::json!({
-      "type": "object",
-      "properties": {
-        "hash": { "type": "string", "description": "CAS hash of the source image" },
-        "steps": {
-          "type": "array",
-          "description": "Array of operations to apply in order",
-          "items": {
-            "type": "object",
-            "properties": {
-              "op": { "type": "string", "enum": ["thumbnail", "optimize", "convert", "strip"] },
-              "width": { "type": "integer" },
-              "height": { "type": "integer" },
-              "format": { "type": "string" },
-              "level": { "type": "integer" },
-              "strip": { "type": "boolean" },
-              "quality": { "type": "integer" }
-            },
-            "required": ["op"]
-          }
-        }
-      },
-      "required": ["hash", "steps"],
-      "additionalProperties": false
-    })
-  }
-
-  fn execute<'a>(
-    &'a self,
-    args: serde_json::Value,
-    ctx: &'a MediaToolContext,
-  ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
-    Box::pin(async move {
-      ctx.check_cancelled()?;
-      let hash = args.get("hash").and_then(|v| v.as_str())
-        .ok_or_else(|| invalid_args("pipeline", "missing 'hash'"))?;
-      let steps = args.get("steps").and_then(|v| v.as_array())
-        .ok_or_else(|| invalid_args("pipeline", "missing 'steps' array"))?;
-
-      if steps.is_empty() {
-        return Err(pipeline_empty());
-      }
-
-      let data = ctx.read_media(hash).await?;
-      let steps_owned: Vec<serde_json::Value> = steps.clone();
-
-      let output = ctx.compute.compute(move || -> Result<(Vec<u8>, String, String), NikaError> {
-        let mut current_data = data;
-        let mut current_mime = "image/png".to_string();
-        let mut current_ext = "png".to_string();
-
-        for (i, step) in steps_owned.iter().enumerate() {
-          let op = step.get("op").and_then(|v| v.as_str())
-            .ok_or_else(|| pipeline_step_failed(i, "missing 'op' field"))?;
-
-          match op {
-            #[cfg(feature = "media-thumbnail")]
-            "thumbnail" => {
-              let width = step.get("width").and_then(|v| v.as_u64()).unwrap_or(256).clamp(1, 10_000) as u32;
-              let img = decode_image_safe(&current_data)?;
-              let resized = img.resize(width, width, image::imageops::FilterType::Lanczos3);
-              let mut buf = Vec::new();
-              let rgba = resized.to_rgba8();
-              let (w, h) = (rgba.width(), rgba.height());
-              let enc = image::codecs::png::PngEncoder::new(&mut buf);
-              image::ImageEncoder::write_image(enc, rgba.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                .map_err(|e| pipeline_step_failed(i, format!("encode: {e}")))?;
-              current_data = buf;
-              current_mime = "image/png".to_string();
-              current_ext = "png".to_string();
-            }
-            #[cfg(feature = "media-optimize")]
-            "optimize" => {
-              let level = step.get("level").and_then(|v| v.as_u64()).unwrap_or(2).clamp(1, 6) as u8;
-              let mut opts = oxipng::Options::from_preset(level);
-              if step.get("strip").and_then(|v| v.as_bool()).unwrap_or(true) {
-                opts.strip = oxipng::StripChunks::Safe;
+    fn parameters_schema(&self) -> serde_json::Value {
+        serde_json::json!({
+          "type": "object",
+          "properties": {
+            "hash": { "type": "string", "description": "CAS hash of the source image" },
+            "steps": {
+              "type": "array",
+              "description": "Array of operations to apply in order",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "op": { "type": "string", "enum": ["thumbnail", "optimize", "convert", "strip"] },
+                  "width": { "type": "integer" },
+                  "height": { "type": "integer" },
+                  "format": { "type": "string" },
+                  "level": { "type": "integer" },
+                  "strip": { "type": "boolean" },
+                  "quality": { "type": "integer" }
+                },
+                "required": ["op"]
               }
-              current_data = oxipng::optimize_from_memory(&current_data, &opts)
-                .map_err(|e| pipeline_step_failed(i, format!("optimize: {e}")))?;
             }
-            #[cfg(feature = "media-thumbnail")]
-            "convert" => {
-              let format = step.get("format").and_then(|v| v.as_str()).unwrap_or("png");
-              let img = decode_image_safe(&current_data)?;
-              let (w, h) = (img.width(), img.height());
-              let mut buf = Vec::new();
-              match format {
-                "jpeg" | "jpg" => {
-                  let quality = step.get("quality").and_then(|v| v.as_u64()).unwrap_or(85).clamp(1, 100) as u8;
-                  let rgb = super::safety::composite_on_white(&img);
-                  let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
-                  image::ImageEncoder::write_image(enc, rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8)
-                    .map_err(|e| pipeline_step_failed(i, format!("jpeg encode: {e}")))?;
-                  current_mime = "image/jpeg".to_string();
-                  current_ext = "jpg".to_string();
-                }
-                "webp" => {
-                  img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::WebP)
-                    .map_err(|e| pipeline_step_failed(i, format!("webp encode: {e}")))?;
-                  current_mime = "image/webp".to_string();
-                  current_ext = "webp".to_string();
-                }
-                _ => {
-                  let rgba = img.to_rgba8();
-                  let enc = image::codecs::png::PngEncoder::new(&mut buf);
-                  image::ImageEncoder::write_image(enc, rgba.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                    .map_err(|e| pipeline_step_failed(i, format!("png encode: {e}")))?;
-                  current_mime = "image/png".to_string();
-                  current_ext = "png".to_string();
-                }
-              }
-              current_data = buf;
-            }
-            #[cfg(feature = "media-thumbnail")]
-            "strip" => {
-              let img = decode_image_safe(&current_data)?;
-              let (w, h) = (img.width(), img.height());
-              let mut buf = Vec::new();
-              let rgba = img.to_rgba8();
-              let enc = image::codecs::png::PngEncoder::new(&mut buf);
-              image::ImageEncoder::write_image(enc, rgba.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-                .map_err(|e| pipeline_step_failed(i, format!("strip encode: {e}")))?;
-              current_data = buf;
-            }
-            other => {
-              return Err(pipeline_step_failed(i, format!("unknown operation: {other}")));
-            }
-          }
-        }
+          },
+          "required": ["hash", "steps"],
+          "additionalProperties": false
+        })
+    }
 
-        Ok((current_data, current_mime, current_ext))
-      }).await??;
+    fn execute<'a>(
+        &'a self,
+        args: serde_json::Value,
+        ctx: &'a MediaToolContext,
+    ) -> Pin<Box<dyn Future<Output = Result<MediaOpResult, NikaError>> + Send + 'a>> {
+        Box::pin(async move {
+            ctx.check_cancelled()?;
+            let hash = args
+                .get("hash")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| invalid_args("pipeline", "missing 'hash'"))?;
+            let steps = args
+                .get("steps")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| invalid_args("pipeline", "missing 'steps' array"))?;
 
-      let (data, mime_type, extension) = output;
+            if steps.is_empty() {
+                return Err(pipeline_empty());
+            }
 
-      Ok(MediaOpResult::Binary {
-        data,
-        mime_type,
-        extension,
-        metadata: serde_json::json!({
-          "steps_completed": steps.len(),
-        }),
-      })
-    })
-  }
+            let data = ctx.read_media(hash).await?;
+            let steps_owned: Vec<serde_json::Value> = steps.clone();
+
+            let output = ctx
+                .compute
+                .compute(move || -> Result<(Vec<u8>, String, String), NikaError> {
+                    let mut current_data = data;
+                    let mut current_mime = "image/png".to_string();
+                    let mut current_ext = "png".to_string();
+
+                    for (i, step) in steps_owned.iter().enumerate() {
+                        let op = step
+                            .get("op")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| pipeline_step_failed(i, "missing 'op' field"))?;
+
+                        match op {
+                            #[cfg(feature = "media-thumbnail")]
+                            "thumbnail" => {
+                                let width = step
+                                    .get("width")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(256)
+                                    .clamp(1, 10_000)
+                                    as u32;
+                                let img = decode_image_safe(&current_data)?;
+                                let resized =
+                                    img.resize(width, width, image::imageops::FilterType::Lanczos3);
+                                let mut buf = Vec::new();
+                                let rgba = resized.to_rgba8();
+                                let (w, h) = (rgba.width(), rgba.height());
+                                let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                image::ImageEncoder::write_image(
+                                    enc,
+                                    rgba.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgba8,
+                                )
+                                .map_err(|e| pipeline_step_failed(i, format!("encode: {e}")))?;
+                                current_data = buf;
+                                current_mime = "image/png".to_string();
+                                current_ext = "png".to_string();
+                            }
+                            #[cfg(feature = "media-optimize")]
+                            "optimize" => {
+                                let level = step
+                                    .get("level")
+                                    .and_then(|v| v.as_u64())
+                                    .unwrap_or(2)
+                                    .clamp(1, 6) as u8;
+                                let mut opts = oxipng::Options::from_preset(level);
+                                if step.get("strip").and_then(|v| v.as_bool()).unwrap_or(true) {
+                                    opts.strip = oxipng::StripChunks::Safe;
+                                }
+                                current_data = oxipng::optimize_from_memory(&current_data, &opts)
+                                    .map_err(|e| {
+                                    pipeline_step_failed(i, format!("optimize: {e}"))
+                                })?;
+                            }
+                            #[cfg(feature = "media-thumbnail")]
+                            "convert" => {
+                                let format =
+                                    step.get("format").and_then(|v| v.as_str()).unwrap_or("png");
+                                let img = decode_image_safe(&current_data)?;
+                                let (w, h) = (img.width(), img.height());
+                                let mut buf = Vec::new();
+                                match format {
+                                    "jpeg" | "jpg" => {
+                                        let quality = step
+                                            .get("quality")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(85)
+                                            .clamp(1, 100)
+                                            as u8;
+                                        let rgb = super::safety::composite_on_white(&img);
+                                        let enc =
+                                            image::codecs::jpeg::JpegEncoder::new_with_quality(
+                                                &mut buf, quality,
+                                            );
+                                        image::ImageEncoder::write_image(
+                                            enc,
+                                            rgb.as_raw(),
+                                            w,
+                                            h,
+                                            image::ExtendedColorType::Rgb8,
+                                        )
+                                        .map_err(|e| {
+                                            pipeline_step_failed(i, format!("jpeg encode: {e}"))
+                                        })?;
+                                        current_mime = "image/jpeg".to_string();
+                                        current_ext = "jpg".to_string();
+                                    }
+                                    "webp" => {
+                                        img.write_to(
+                                            &mut std::io::Cursor::new(&mut buf),
+                                            image::ImageFormat::WebP,
+                                        )
+                                        .map_err(|e| {
+                                            pipeline_step_failed(i, format!("webp encode: {e}"))
+                                        })?;
+                                        current_mime = "image/webp".to_string();
+                                        current_ext = "webp".to_string();
+                                    }
+                                    _ => {
+                                        let rgba = img.to_rgba8();
+                                        let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                        image::ImageEncoder::write_image(
+                                            enc,
+                                            rgba.as_raw(),
+                                            w,
+                                            h,
+                                            image::ExtendedColorType::Rgba8,
+                                        )
+                                        .map_err(|e| {
+                                            pipeline_step_failed(i, format!("png encode: {e}"))
+                                        })?;
+                                        current_mime = "image/png".to_string();
+                                        current_ext = "png".to_string();
+                                    }
+                                }
+                                current_data = buf;
+                            }
+                            #[cfg(feature = "media-thumbnail")]
+                            "strip" => {
+                                let img = decode_image_safe(&current_data)?;
+                                let (w, h) = (img.width(), img.height());
+                                let mut buf = Vec::new();
+                                let rgba = img.to_rgba8();
+                                let enc = image::codecs::png::PngEncoder::new(&mut buf);
+                                image::ImageEncoder::write_image(
+                                    enc,
+                                    rgba.as_raw(),
+                                    w,
+                                    h,
+                                    image::ExtendedColorType::Rgba8,
+                                )
+                                .map_err(|e| {
+                                    pipeline_step_failed(i, format!("strip encode: {e}"))
+                                })?;
+                                current_data = buf;
+                            }
+                            other => {
+                                return Err(pipeline_step_failed(
+                                    i,
+                                    format!("unknown operation: {other}"),
+                                ));
+                            }
+                        }
+                    }
+
+                    Ok((current_data, current_mime, current_ext))
+                })
+                .await??;
+
+            let (data, mime_type, extension) = output;
+
+            Ok(MediaOpResult::Binary {
+                data,
+                mime_type,
+                extension,
+                metadata: serde_json::json!({
+                  "steps_completed": steps.len(),
+                }),
+            })
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use crate::media::CasStore;
-  use std::sync::Arc;
+    use super::*;
+    use crate::media::CasStore;
+    use std::sync::Arc;
 
-  async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
-    let dir = tempfile::tempdir().unwrap();
-    let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
-    (dir, ctx)
-  }
-
-  #[cfg(feature = "media-thumbnail")]
-  fn fixture_png() -> Vec<u8> {
-    use image::{ImageBuffer, Rgba};
-    let img = ImageBuffer::from_fn(100, 50, |x, y| {
-      Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255])
-    });
-    let mut buf = Vec::new();
-    let enc = image::codecs::png::PngEncoder::new(&mut buf);
-    image::ImageEncoder::write_image(enc, img.as_raw(), 100, 50, image::ExtendedColorType::Rgba8).unwrap();
-    buf
-  }
-
-  #[cfg(feature = "media-thumbnail")]
-  #[tokio::test]
-  async fn pipeline_thumbnail_then_convert() {
-    let (_dir, ctx) = setup().await;
-    let png = fixture_png();
-    let sr = ctx.cas.store(&png).await.unwrap();
-
-    let op = PipelineOp;
-    let result = op.execute(serde_json::json!({
-      "hash": sr.hash,
-      "steps": [
-        { "op": "thumbnail", "width": 50 },
-        { "op": "convert", "format": "jpeg" }
-      ]
-    }), &ctx).await.unwrap();
-
-    if let MediaOpResult::Binary { data, mime_type, metadata, .. } = result {
-      assert_eq!(mime_type, "image/jpeg");
-      assert_eq!(&data[..2], &[0xFF, 0xD8]); // JPEG magic
-      assert_eq!(metadata["steps_completed"], 2);
+    async fn setup() -> (tempfile::TempDir, Arc<MediaToolContext>) {
+        let dir = tempfile::tempdir().unwrap();
+        let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
+        (dir, ctx)
     }
-  }
 
-  #[tokio::test]
-  async fn pipeline_empty_steps_error() {
-    let (_dir, ctx) = setup().await;
-    let data = b"some data for CAS";
-    let sr = ctx.cas.store(data).await.unwrap();
+    #[cfg(feature = "media-thumbnail")]
+    fn fixture_png() -> Vec<u8> {
+        use image::{ImageBuffer, Rgba};
+        let img = ImageBuffer::from_fn(100, 50, |x, y| {
+            Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255])
+        });
+        let mut buf = Vec::new();
+        let enc = image::codecs::png::PngEncoder::new(&mut buf);
+        image::ImageEncoder::write_image(
+            enc,
+            img.as_raw(),
+            100,
+            50,
+            image::ExtendedColorType::Rgba8,
+        )
+        .unwrap();
+        buf
+    }
 
-    let op = PipelineOp;
-    let result = op.execute(serde_json::json!({
-      "hash": sr.hash,
-      "steps": []
-    }), &ctx).await;
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("NIKA-296"));
-  }
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn pipeline_thumbnail_then_convert() {
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png();
+        let sr = ctx.cas.store(&png).await.unwrap();
 
-  #[tokio::test]
-  async fn pipeline_unknown_op_error() {
-    let (_dir, ctx) = setup().await;
-    let data = b"some data";
-    let sr = ctx.cas.store(data).await.unwrap();
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 50 },
+                    { "op": "convert", "format": "jpeg" }
+                  ]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
 
-    let op = PipelineOp;
-    let result = op.execute(serde_json::json!({
-      "hash": sr.hash,
-      "steps": [{ "op": "nonexistent" }]
-    }), &ctx).await;
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("NIKA-295"));
-  }
+        if let MediaOpResult::Binary {
+            data,
+            mime_type,
+            metadata,
+            ..
+        } = result
+        {
+            assert_eq!(mime_type, "image/jpeg");
+            assert_eq!(&data[..2], &[0xFF, 0xD8]); // JPEG magic
+            assert_eq!(metadata["steps_completed"], 2);
+        }
+    }
 
-  #[tokio::test]
-  async fn pipeline_missing_params() {
-    let (_dir, ctx) = setup().await;
-    let op = PipelineOp;
-    let result = op.execute(serde_json::json!({}), &ctx).await;
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
-  }
+    #[tokio::test]
+    async fn pipeline_empty_steps_error() {
+        let (_dir, ctx) = setup().await;
+        let data = b"some data for CAS";
+        let sr = ctx.cas.store(data).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": []
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-296"));
+    }
+
+    #[tokio::test]
+    async fn pipeline_unknown_op_error() {
+        let (_dir, ctx) = setup().await;
+        let data = b"some data";
+        let sr = ctx.cas.store(data).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [{ "op": "nonexistent" }]
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-295"));
+    }
+
+    #[tokio::test]
+    async fn pipeline_missing_params() {
+        let (_dir, ctx) = setup().await;
+        let op = PipelineOp;
+        let result = op.execute(serde_json::json!({}), &ctx).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+    }
 }

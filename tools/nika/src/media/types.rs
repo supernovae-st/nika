@@ -101,23 +101,17 @@ impl MediaBudget {
     ///
     /// Uses `fetch_update` (CAS loop) so the increment and comparison
     /// are one atomic unit — prevents concurrent overruns.
-    pub fn check_and_add(
-        &self,
-        size: u64,
-        _task_id: &str,
-    ) -> Result<(), super::error::MediaError> {
-        let result = self.run_bytes.fetch_update(
-            Ordering::AcqRel,
-            Ordering::Acquire,
-            |current| {
+    pub fn check_and_add(&self, size: u64, _task_id: &str) -> Result<(), super::error::MediaError> {
+        let result = self
+            .run_bytes
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
                 let new_total = current + size;
                 if new_total > self.max_per_run {
                     None // reject: over budget
                 } else {
                     Some(new_total) // accept: update counter
                 }
-            },
-        );
+            });
         match result {
             Ok(_) => Ok(()),
             Err(current) => Err(super::error::MediaError::RunBudgetExceeded {
@@ -133,11 +127,11 @@ impl MediaBudget {
     /// Without this, a rollback larger than the current value would wrap to `u64::MAX`,
     /// effectively disabling budget enforcement for the rest of the run.
     pub fn rollback(&self, size: u64) {
-        let _ = self.run_bytes.fetch_update(
-            Ordering::AcqRel,
-            Ordering::Acquire,
-            |current| Some(current.saturating_sub(size)),
-        );
+        let _ = self
+            .run_bytes
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                Some(current.saturating_sub(size))
+            });
     }
 
     /// Get current accumulated bytes.
@@ -226,8 +220,11 @@ mod tests {
 
         // Roll back 600 bytes (simulates failure after budget charge)
         budget.rollback(600);
-        assert_eq!(budget.current_bytes(), 0,
-            "rollback should restore budget to 0");
+        assert_eq!(
+            budget.current_bytes(),
+            0,
+            "rollback should restore budget to 0"
+        );
 
         // After rollback, the full budget should be available again
         budget.check_and_add(900, "t2").unwrap();
@@ -244,8 +241,11 @@ mod tests {
 
         // Roll back only t2's allocation
         budget.rollback(400);
-        assert_eq!(budget.current_bytes(), 300,
-            "partial rollback should leave t1's allocation intact");
+        assert_eq!(
+            budget.current_bytes(),
+            300,
+            "partial rollback should leave t1's allocation intact"
+        );
 
         // Now we have 700 bytes of capacity remaining
         budget.check_and_add(700, "t3").unwrap();
@@ -258,7 +258,10 @@ mod tests {
 
         // Fill to capacity
         budget.check_and_add(100, "t1").unwrap();
-        assert!(budget.check_and_add(1, "t2").is_err(), "should be at capacity");
+        assert!(
+            budget.check_and_add(1, "t2").is_err(),
+            "should be at capacity"
+        );
 
         // Roll back and verify capacity is restored
         budget.rollback(100);

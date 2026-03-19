@@ -342,12 +342,19 @@ mod tests {
         }
     }
 
+    /// Descriptor for building workflows with bindings in tests:
+    /// (name, depends_on, implicit_deps, with_bindings)
+    type BindingDescriptor<'a> = (
+        &'a str,
+        &'a [&'a str],
+        &'a [&'a str],
+        &'a [(&'a str, &'a str)],
+    );
+
     /// Build an AnalyzedWorkflow where tasks have with: bindings.
     /// descriptors: (name, depends_on, implicit_deps, with_bindings)
     /// where with_bindings is &[(alias, source_task)]
-    fn build_workflow_with_bindings(
-        descriptors: &[(&str, &[&str], &[&str], &[(&str, &str)])],
-    ) -> AnalyzedWorkflow {
+    fn build_workflow_with_bindings(descriptors: &[BindingDescriptor<'_>]) -> AnalyzedWorkflow {
         let mut task_table = TaskTable::new();
         let mut tasks = Vec::new();
 

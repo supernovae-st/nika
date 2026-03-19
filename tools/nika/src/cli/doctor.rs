@@ -238,7 +238,10 @@ fn check_api_keys() -> Vec<DiagnosticCheck> {
             } else if !is_valid {
                 checks.push(DiagnosticCheck::warn(
                     "API Key",
-                    format!("{} key format looks invalid ({}, {} chars)", provider, env_var, len),
+                    format!(
+                        "{} key format looks invalid ({}, {} chars)",
+                        provider, env_var, len
+                    ),
                     format!("Verify your {} API key is correct", provider),
                 ));
                 any_found = true;
@@ -387,10 +390,7 @@ fn check_workflow_files() -> DiagnosticCheck {
             "Run 'nika init' or 'nika new my-workflow --template simple-infer'",
         )
     } else {
-        DiagnosticCheck::pass(
-            "Workflows",
-            format!("{} workflow files found", total),
-        )
+        DiagnosticCheck::pass("Workflows", format!("{} workflow files found", total))
     }
 }
 
@@ -440,10 +440,7 @@ fn check_rust_version() -> DiagnosticCheck {
 }
 
 fn check_npx() -> DiagnosticCheck {
-    match std::process::Command::new("npx")
-        .arg("--version")
-        .output()
-    {
+    match std::process::Command::new("npx").arg("--version").output() {
         Ok(output) if output.status.success() => {
             let version = String::from_utf8_lossy(&output.stdout);
             DiagnosticCheck::pass("npx", format!("npx {} available", version.trim()))

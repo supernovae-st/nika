@@ -1813,7 +1813,11 @@ mod tests {
             "context should be preserved in lowered Workflow"
         );
         let ctx = lowered.context.as_ref().unwrap();
-        assert_eq!(ctx.files.len(), 1, "only aliased files survive the round-trip");
+        assert_eq!(
+            ctx.files.len(),
+            1,
+            "only aliased files survive the round-trip"
+        );
         assert_eq!(ctx.files.get("schema"), Some(&"schema.json".to_string()));
 
         let unlowered = unlower(lowered).unwrap();

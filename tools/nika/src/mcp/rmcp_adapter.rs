@@ -377,10 +377,9 @@ impl RmcpClientAdapter {
                 use rmcp::model::RawContent;
                 match &**c {
                     RawContent::Text(t) => ContentBlock::text(t.text.clone()),
-                    RawContent::Image(i) => ContentBlock::image(
-                        i.data.clone(),
-                        i.mime_type.clone(),
-                    ),
+                    RawContent::Image(i) => {
+                        ContentBlock::image(i.data.clone(), i.mime_type.clone())
+                    }
                     RawContent::Audio(a) => ContentBlock::Audio {
                         data: a.data.clone(),
                         mime_type: a.mime_type.clone(),
@@ -389,7 +388,10 @@ impl RmcpClientAdapter {
                         use rmcp::model::ResourceContents;
                         match &r.resource {
                             ResourceContents::TextResourceContents {
-                                text, uri, mime_type, ..
+                                text,
+                                uri,
+                                mime_type,
+                                ..
                             } => {
                                 let mut rc = ResourceContent::new(uri.clone());
                                 if let Some(mime) = mime_type {
@@ -399,7 +401,10 @@ impl RmcpClientAdapter {
                                 ContentBlock::resource(rc)
                             }
                             ResourceContents::BlobResourceContents {
-                                blob, uri, mime_type, ..
+                                blob,
+                                uri,
+                                mime_type,
+                                ..
                             } => {
                                 let mut rc = ResourceContent::new(uri.clone());
                                 if let Some(mime) = mime_type {
@@ -414,7 +419,11 @@ impl RmcpClientAdapter {
                     // Convert empty string to None so skip_serializing_if works correctly
                     RawContent::ResourceLink(l) => ContentBlock::ResourceLink {
                         uri: l.uri.clone(),
-                        name: if l.name.is_empty() { None } else { Some(l.name.clone()) },
+                        name: if l.name.is_empty() {
+                            None
+                        } else {
+                            Some(l.name.clone())
+                        },
                         mime_type: l.mime_type.clone(),
                     },
                 }

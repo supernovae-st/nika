@@ -378,7 +378,9 @@ mod tests {
     fn test_all_properties_have_type_field() {
         let tool = CompleteTool;
         let schema = tool.parameters_schema();
-        let props = schema["properties"].as_object().expect("properties must be an object");
+        let props = schema["properties"]
+            .as_object()
+            .expect("properties must be an object");
         for (name, prop_schema) in props {
             assert!(
                 prop_schema.get("type").is_some(),

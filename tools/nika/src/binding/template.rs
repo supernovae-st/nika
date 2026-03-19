@@ -2539,7 +2539,7 @@ mod v028_template_tests {
     #[test]
     fn display_number() {
         assert_eq!(value_to_display(&json!(42)), "42");
-        assert_eq!(value_to_display(&json!(3.14)), "3.14");
+        assert_eq!(value_to_display(&json!(3.12)), "3.12");
     }
 
     #[test]
@@ -3268,10 +3268,7 @@ mod v028_template_tests {
         );
         // Invoke output bindings (resolved eagerly via JSON-string auto-parse)
         spec.insert("thumb".to_string(), BindingEntry::new("thumb"));
-        spec.insert(
-            "thumb_hash".to_string(),
-            BindingEntry::new("thumb.hash"),
-        );
+        spec.insert("thumb_hash".to_string(), BindingEntry::new("thumb.hash"));
         spec.insert(
             "thumb_width".to_string(),
             BindingEntry::new("thumb.metadata.width"),
@@ -3285,12 +3282,7 @@ mod v028_template_tests {
     fn media_template_resolve_source_hash() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "Source image hash: {{with.source_hash}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("Source image hash: {{with.source_hash}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "Source image hash: blake3:abc123");
     }
@@ -3299,12 +3291,7 @@ mod v028_template_tests {
     fn media_template_resolve_source_width() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "Original width: {{with.source_width}}px",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("Original width: {{with.source_width}}px", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "Original width: 1024px");
     }
@@ -3313,12 +3300,7 @@ mod v028_template_tests {
     fn media_template_resolve_thumb_hash() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "Thumbnail hash: {{with.thumb_hash}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("Thumbnail hash: {{with.thumb_hash}}", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "Thumbnail hash: blake3:def456");
     }
@@ -3327,12 +3309,7 @@ mod v028_template_tests {
     fn media_template_resolve_thumb_nested_width() {
         let (store, bindings) = media_template_fixtures();
 
-        let result = resolve(
-            "Thumb is {{with.thumb_width}}px wide",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("Thumb is {{with.thumb_width}}px wide", &bindings, &store).unwrap();
 
         assert_eq!(result.as_ref(), "Thumb is 256px wide");
     }
@@ -3357,11 +3334,7 @@ mod v028_template_tests {
         assert_eq!(result.as_ref(), "Hash via binding spec: blake3:def456");
 
         // Template-level traversal on a JSON-string value errors correctly
-        let err = resolve(
-            "Broken: {{with.thumb.hash}}",
-            &bindings,
-            &store,
-        );
+        let err = resolve("Broken: {{with.thumb.hash}}", &bindings, &store);
         assert!(
             err.is_err(),
             "Traversing .hash on a JSON-string Value::String should error"
@@ -3373,12 +3346,7 @@ mod v028_template_tests {
         let (store, bindings) = media_template_fixtures();
 
         // Deep path thumb.metadata.width works via binding spec (thumb_width)
-        let result = resolve(
-            "Width: {{with.thumb_width}}",
-            &bindings,
-            &store,
-        )
-        .unwrap();
+        let result = resolve("Width: {{with.thumb_width}}", &bindings, &store).unwrap();
         assert_eq!(result.as_ref(), "Width: 256");
     }
 
@@ -3400,7 +3368,10 @@ mod v028_template_tests {
         );
 
         let mut bindings = ResolvedBindings::new();
-        bindings.set("thumb2", json!({"hash": "blake3:parsed_obj", "metadata": {"width": 128}}));
+        bindings.set(
+            "thumb2",
+            json!({"hash": "blake3:parsed_obj", "metadata": {"width": 128}}),
+        );
 
         let result = resolve(
             "Hash: {{with.thumb2.hash}}, Width: {{with.thumb2.metadata.width}}",
@@ -3409,10 +3380,7 @@ mod v028_template_tests {
         )
         .unwrap();
 
-        assert_eq!(
-            result.as_ref(),
-            "Hash: blake3:parsed_obj, Width: 128"
-        );
+        assert_eq!(result.as_ref(), "Hash: blake3:parsed_obj, Width: 128");
     }
 
     #[test]

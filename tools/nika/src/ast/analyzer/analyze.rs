@@ -255,7 +255,9 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
             let mut agents = indexmap::IndexMap::new();
             for (name, def_value) in map {
                 match serde_json::from_value(def_value.clone()) {
-                    Ok(def) => { agents.insert(name.clone(), def); }
+                    Ok(def) => {
+                        agents.insert(name.clone(), def);
+                    }
                     Err(e) => tracing::warn!(
                         agent = %name,
                         error = %e,
@@ -542,8 +544,10 @@ fn analyze_task(
                 }
             }
         }),
-        log: raw.log.as_ref().and_then(|s| {
-            match serde_json::from_value(s.value.clone()) {
+        log: raw
+            .log
+            .as_ref()
+            .and_then(|s| match serde_json::from_value(s.value.clone()) {
                 Ok(config) => Some(config),
                 Err(e) => {
                     tracing::warn!(
@@ -553,8 +557,7 @@ fn analyze_task(
                     );
                     None
                 }
-            }
-        }),
+            }),
         structured: raw.structured.clone(),
         span: raw.span,
     };
@@ -677,9 +680,10 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         thinking: raw.thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
-        content: raw.content.as_ref().map(|spanned| {
-            spanned.value.iter().map(analyze_content_part).collect()
-        }),
+        content: raw
+            .content
+            .as_ref()
+            .map(|spanned| spanned.value.iter().map(analyze_content_part).collect()),
         span: raw.prompt.span,
     }
 }
@@ -2248,8 +2252,10 @@ mod tests {
 
         // A server with an empty command string should also fail
         let mut mcp_config = RawMcpConfig::new();
-        let mut server = RawMcpServer::default();
-        server.command = Some(Spanned::new(String::new(), make_span(25, 25)));
+        let server = RawMcpServer {
+            command: Some(Spanned::new(String::new(), make_span(25, 25))),
+            ..Default::default()
+        };
         mcp_config.servers.insert(
             Spanned::new("empty_cmd".to_string(), make_span(10, 19)),
             Spanned::new(server, make_span(20, 30)),
@@ -2562,9 +2568,7 @@ mod tests {
             Spanned::new("./context/persona.json".to_string(), make_span(0, 22)),
         );
         raw.context = Some(Spanned::new(
-            RawContextConfig {
-                files: Some(files),
-            },
+            RawContextConfig { files: Some(files) },
             make_span(0, 50),
         ));
 
@@ -2588,7 +2592,11 @@ mod tests {
         assert!(aliases.contains(&"brand"), "missing 'brand' alias");
         assert!(aliases.contains(&"persona"), "missing 'persona' alias");
 
-        let paths: Vec<&str> = workflow.context_files.iter().map(|cf| cf.path.as_str()).collect();
+        let paths: Vec<&str> = workflow
+            .context_files
+            .iter()
+            .map(|cf| cf.path.as_str())
+            .collect();
         assert!(paths.contains(&"./context/brand.md"));
         assert!(paths.contains(&"./context/persona.json"));
     }

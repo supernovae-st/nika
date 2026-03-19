@@ -13,11 +13,11 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::error::NikaError;
 use super::context::MediaToolContext;
 use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
+use crate::error::NikaError;
 
 pub struct QualityOp;
 
@@ -69,75 +69,78 @@ impl MediaOp for QualityOp {
         Box::pin(async move {
             ctx.check_cancelled()?;
 
-            let hash_a = args.get("hash_a").and_then(|v| v.as_str())
+            let hash_a = args
+                .get("hash_a")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| invalid_args("quality", "missing 'hash_a'"))?;
-            let hash_b = args.get("hash_b").and_then(|v| v.as_str())
+            let hash_b = args
+                .get("hash_b")
+                .and_then(|v| v.as_str())
                 .ok_or_else(|| invalid_args("quality", "missing 'hash_b'"))?;
 
             let data_a = ctx.read_media(hash_a).await?;
             let data_b = ctx.read_media(hash_b).await?;
 
             // DSSIM comparison on compute pool (CPU-bound)
-            let result = ctx.compute.compute(move || -> Result<serde_json::Value, NikaError> {
-                let img_a = decode_image_safe(&data_a)?;
-                let img_b = decode_image_safe(&data_b)?;
+            let result = ctx
+                .compute
+                .compute(move || -> Result<serde_json::Value, NikaError> {
+                    let img_a = decode_image_safe(&data_a)?;
+                    let img_b = decode_image_safe(&data_b)?;
 
-                let rgba_a = img_a.to_rgba8();
-                let rgba_b = img_b.to_rgba8();
+                    let rgba_a = img_a.to_rgba8();
+                    let rgba_b = img_b.to_rgba8();
 
-                let (w_a, h_a) = (rgba_a.width() as usize, rgba_a.height() as usize);
-                let (w_b, h_b) = (rgba_b.width() as usize, rgba_b.height() as usize);
+                    let (w_a, h_a) = (rgba_a.width() as usize, rgba_a.height() as usize);
+                    let (w_b, h_b) = (rgba_b.width() as usize, rgba_b.height() as usize);
 
-                if w_a != w_b || h_a != h_b {
-                    return Err(NikaError::ValidationError {
-                        reason: format!(
-                            "Image dimensions must match: {}x{} vs {}x{}",
-                            w_a, h_a, w_b, h_b
-                        ),
-                    });
-                }
+                    if w_a != w_b || h_a != h_b {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "Image dimensions must match: {}x{} vs {}x{}",
+                                w_a, h_a, w_b, h_b
+                            ),
+                        });
+                    }
 
-                // Build DSSIM attribute images
-                // SAFETY: RGBA<u8> is #[repr(C)] with 4 bytes, same layout as [u8; 4]
-                let attr = dssim_core::Dssim::new();
+                    // Build DSSIM attribute images
+                    // SAFETY: RGBA<u8> is #[repr(C)] with 4 bytes, same layout as [u8; 4]
+                    let attr = dssim_core::Dssim::new();
 
-                let raw_a: &[u8] = rgba_a.as_raw();
-                let raw_b: &[u8] = rgba_b.as_raw();
-                let rgba_slice_a: &[rgb::RGBA<u8>] = rgb::AsPixels::as_pixels(raw_a);
-                let rgba_slice_b: &[rgb::RGBA<u8>] = rgb::AsPixels::as_pixels(raw_b);
+                    let raw_a: &[u8] = rgba_a.as_raw();
+                    let raw_b: &[u8] = rgba_b.as_raw();
+                    let rgba_slice_a: &[rgb::RGBA<u8>] = rgb::AsPixels::as_pixels(raw_a);
+                    let rgba_slice_b: &[rgb::RGBA<u8>] = rgb::AsPixels::as_pixels(raw_b);
 
-                let img_a_dssim = attr.create_image_rgba(
-                    rgba_slice_a,
-                    w_a,
-                    h_a,
-                ).ok_or_else(|| NikaError::ValidationError {
-                    reason: "Failed to create DSSIM image A".to_string(),
-                })?;
+                    let img_a_dssim =
+                        attr.create_image_rgba(rgba_slice_a, w_a, h_a)
+                            .ok_or_else(|| NikaError::ValidationError {
+                                reason: "Failed to create DSSIM image A".to_string(),
+                            })?;
 
-                let img_b_dssim = attr.create_image_rgba(
-                    rgba_slice_b,
-                    w_b,
-                    h_b,
-                ).ok_or_else(|| NikaError::ValidationError {
-                    reason: "Failed to create DSSIM image B".to_string(),
-                })?;
+                    let img_b_dssim =
+                        attr.create_image_rgba(rgba_slice_b, w_b, h_b)
+                            .ok_or_else(|| NikaError::ValidationError {
+                                reason: "Failed to create DSSIM image B".to_string(),
+                            })?;
 
-                let (dssim_val, _ssim_maps) = attr.compare(&img_a_dssim, img_b_dssim);
-                let dssim_f64: f64 = dssim_val.into();
-                let ssim = 1.0 / (1.0 + dssim_f64); // Approximate SSIM from DSSIM
+                    let (dssim_val, _ssim_maps) = attr.compare(&img_a_dssim, img_b_dssim);
+                    let dssim_f64: f64 = dssim_val.into();
+                    let ssim = 1.0 / (1.0 + dssim_f64); // Approximate SSIM from DSSIM
 
-                let grade = quality_grade(dssim_f64);
+                    let grade = quality_grade(dssim_f64);
 
-                Ok(serde_json::json!({
-                    "dssim": dssim_f64,
-                    "ssim": ssim,
-                    "quality_grade": grade,
-                    "dimensions": {
-                        "width": w_a,
-                        "height": h_a,
-                    },
-                }))
-            }).await??;
+                    Ok(serde_json::json!({
+                        "dssim": dssim_f64,
+                        "ssim": ssim,
+                        "quality_grade": grade,
+                        "dimensions": {
+                            "width": w_a,
+                            "height": h_a,
+                        },
+                    }))
+                })
+                .await??;
 
             Ok(MediaOpResult::Metadata(result))
         })
@@ -161,7 +164,8 @@ mod tests {
         let img = ImageBuffer::from_pixel(w, h, Rgb([r, g, b]));
         let mut buf = Vec::new();
         let enc = image::codecs::png::PngEncoder::new(&mut buf);
-        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+        image::ImageEncoder::write_image(enc, img.as_raw(), w, h, image::ExtendedColorType::Rgb8)
+            .unwrap();
         buf
     }
 
@@ -172,17 +176,29 @@ mod tests {
         let sr = ctx.cas.store(&png).await.unwrap();
 
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({
-            "hash_a": sr.hash,
-            "hash_b": sr.hash,
-        }), &ctx).await.unwrap();
+        let result = op
+            .execute(
+                serde_json::json!({
+                    "hash_a": sr.hash,
+                    "hash_b": sr.hash,
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             let dssim = v["dssim"].as_f64().unwrap();
-            assert!(dssim < 0.001, "identical images should have DSSIM ~0, got {dssim}");
+            assert!(
+                dssim < 0.001,
+                "identical images should have DSSIM ~0, got {dssim}"
+            );
             assert_eq!(v["quality_grade"], "excellent");
             let ssim = v["ssim"].as_f64().unwrap();
-            assert!(ssim > 0.99, "identical images should have SSIM ~1.0, got {ssim}");
+            assert!(
+                ssim > 0.99,
+                "identical images should have SSIM ~1.0, got {ssim}"
+            );
         }
     }
 
@@ -195,14 +211,23 @@ mod tests {
         let sr_b = ctx.cas.store(&blue).await.unwrap();
 
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({
-            "hash_a": sr_a.hash,
-            "hash_b": sr_b.hash,
-        }), &ctx).await.unwrap();
+        let result = op
+            .execute(
+                serde_json::json!({
+                    "hash_a": sr_a.hash,
+                    "hash_b": sr_b.hash,
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             let dssim = v["dssim"].as_f64().unwrap();
-            assert!(dssim > 0.01, "different images should have high DSSIM, got {dssim}");
+            assert!(
+                dssim > 0.01,
+                "different images should have high DSSIM, got {dssim}"
+            );
         }
     }
 
@@ -216,16 +241,28 @@ mod tests {
         let sr_b = ctx.cas.store(&b).await.unwrap();
 
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({
-            "hash_a": sr_a.hash,
-            "hash_b": sr_b.hash,
-        }), &ctx).await.unwrap();
+        let result = op
+            .execute(
+                serde_json::json!({
+                    "hash_a": sr_a.hash,
+                    "hash_b": sr_b.hash,
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
 
         if let MediaOpResult::Metadata(v) = result {
             let dssim = v["dssim"].as_f64().unwrap();
             // Slight difference: DSSIM should be small but non-zero
-            assert!(dssim > 0.0, "slight difference should produce non-zero DSSIM");
-            assert!(dssim < 0.1, "slight difference should be small DSSIM, got {dssim}");
+            assert!(
+                dssim > 0.0,
+                "slight difference should produce non-zero DSSIM"
+            );
+            assert!(
+                dssim < 0.1,
+                "slight difference should be small DSSIM, got {dssim}"
+            );
         }
     }
 
@@ -239,10 +276,15 @@ mod tests {
         let sr_b = ctx.cas.store(&big).await.unwrap();
 
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({
-            "hash_a": sr_a.hash,
-            "hash_b": sr_b.hash,
-        }), &ctx).await;
+        let result = op
+            .execute(
+                serde_json::json!({
+                    "hash_a": sr_a.hash,
+                    "hash_b": sr_b.hash,
+                }),
+                &ctx,
+            )
+            .await;
 
         assert!(result.is_err(), "dimension mismatch should error");
         assert!(result.unwrap_err().to_string().contains("dimensions"));
@@ -252,7 +294,9 @@ mod tests {
     async fn quality_missing_hash_a() {
         let (_dir, ctx) = setup().await;
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({"hash_b": "blake3:abc"}), &ctx).await;
+        let result = op
+            .execute(serde_json::json!({"hash_b": "blake3:abc"}), &ctx)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-294"));
     }
@@ -262,7 +306,9 @@ mod tests {
         let (_dir, ctx) = setup().await;
         ctx.cancel.cancel();
         let op = QualityOp;
-        let result = op.execute(serde_json::json!({"hash_a": "a", "hash_b": "b"}), &ctx).await;
+        let result = op
+            .execute(serde_json::json!({"hash_a": "a", "hash_b": "b"}), &ctx)
+            .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("cancelled"));
     }
@@ -271,10 +317,7 @@ mod tests {
     async fn quality_adapter_dispatch() {
         use crate::runtime::builtin::BuiltinTool;
         let (_dir, ctx) = setup().await;
-        let adapter = super::super::MediaToolAdapter::new(
-            Arc::new(QualityOp),
-            ctx,
-        );
+        let adapter = super::super::MediaToolAdapter::new(Arc::new(QualityOp), ctx);
         assert_eq!(adapter.name(), "quality");
     }
 

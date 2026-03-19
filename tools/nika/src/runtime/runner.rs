@@ -438,7 +438,10 @@ impl Runner {
         };
 
         // Enforce retention: prune traces beyond max_traces / retention_days
-        prune_traces(self.trace_config.max_traces, self.trace_config.retention_days);
+        prune_traces(
+            self.trace_config.max_traces,
+            self.trace_config.retention_days,
+        );
         trace_path
     }
 
@@ -1064,9 +1067,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             println!();
 
             // IMP-5: Warn if no task has output or artifact config
-            let has_observable_output = self.workflow.tasks.iter().any(|t| {
-                t.output.is_some() || t.artifact.is_some()
-            });
+            let has_observable_output = self
+                .workflow
+                .tasks
+                .iter()
+                .any(|t| t.output.is_some() || t.artifact.is_some());
             if !has_observable_output && total_tasks > 1 {
                 println!(
                     "  {} {}\n",
@@ -1081,19 +1086,24 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let mut live_dag = if !self.quiet && total_tasks > 1 {
             use crate::display::{DagTask, DagTaskStatus, LiveDag};
 
-            let dag_tasks: Vec<DagTask> = self.workflow.tasks.iter().map(|t| {
-                DagTask {
+            let dag_tasks: Vec<DagTask> = self
+                .workflow
+                .tasks
+                .iter()
+                .map(|t| DagTask {
                     id: t.name.clone(),
                     verb: t.action.verb_name().to_string(),
                     status: DagTaskStatus::Pending,
                     meta: None,
-                }
-            }).collect();
+                })
+                .collect();
 
             let mut deps_map = std::collections::HashMap::new();
             for task in &self.workflow.tasks {
                 if !task.depends_on.is_empty() {
-                    let dep_names: Vec<String> = task.depends_on.iter()
+                    let dep_names: Vec<String> = task
+                        .depends_on
+                        .iter()
                         .filter_map(|id| self.workflow.task_table.get_name(*id))
                         .map(|s| s.to_string())
                         .collect();
@@ -1373,13 +1383,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     Ok(base_value) => {
                                         // Auto-parse JSON strings before traversal
                                         let parsed_value;
-                                        let working_value: &Value =
-                                            if let Some(v) = crate::binding::jsonpath::try_parse_json_str(&base_value) {
-                                                parsed_value = v;
-                                                &parsed_value
-                                            } else {
-                                                &base_value
-                                            };
+                                        let working_value: &Value = if let Some(v) =
+                                            crate::binding::jsonpath::try_parse_json_str(
+                                                &base_value,
+                                            ) {
+                                            parsed_value = v;
+                                            &parsed_value
+                                        } else {
+                                            &base_value
+                                        };
 
                                         // Traverse nested path segments if present
                                         let mut value_ref: &Value = working_value;
@@ -1492,13 +1504,15 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                         Ok(base_value) => {
                                             // Auto-parse JSON strings
                                             let parsed_value;
-                                            let working_value: &Value =
-                                                if let Some(v) = crate::binding::jsonpath::try_parse_json_str(&base_value) {
-                                                    parsed_value = v;
-                                                    &parsed_value
-                                                } else {
-                                                    &base_value
-                                                };
+                                            let working_value: &Value = if let Some(v) =
+                                                crate::binding::jsonpath::try_parse_json_str(
+                                                    &base_value,
+                                                ) {
+                                                parsed_value = v;
+                                                &parsed_value
+                                            } else {
+                                                &base_value
+                                            };
 
                                             let mut value_ref: &Value = working_value;
                                             let mut traversal_failed = false;
@@ -1991,8 +2005,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         .iter()
                         .filter_map(|(idx, r)| r.error().map(|e| format!("[{}]: {}", idx, e)))
                         .collect();
-                    TaskResult::failed(errors.join("; "), total_duration)
-                        .with_media(merged_media)
+                    TaskResult::failed(errors.join("; "), total_duration).with_media(merged_media)
                 };
 
                 // Store aggregated result under parent ID
@@ -2028,20 +2041,31 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         if !self.quiet {
             let elapsed = workflow_start.elapsed();
             let elapsed_str = if elapsed.as_secs() >= 60 {
-                format!("{}m {:.1}s", elapsed.as_secs() / 60, elapsed.as_secs_f64() % 60.0)
+                format!(
+                    "{}m {:.1}s",
+                    elapsed.as_secs() / 60,
+                    elapsed.as_secs_f64() % 60.0
+                )
             } else {
                 format!("{:.1}s", elapsed.as_secs_f64())
             };
 
             // Compute total tokens and cost from events
             let events = self.event_log.events();
-            let (total_tokens, total_cost) = events.iter().fold((0u64, 0.0f64), |(tokens, cost), e| {
-                if let EventKind::ProviderResponded { input_tokens, output_tokens, cost_usd, .. } = &e.kind {
-                    (tokens + input_tokens + output_tokens, cost + cost_usd)
-                } else {
-                    (tokens, cost)
-                }
-            });
+            let (total_tokens, total_cost) =
+                events.iter().fold((0u64, 0.0f64), |(tokens, cost), e| {
+                    if let EventKind::ProviderResponded {
+                        input_tokens,
+                        output_tokens,
+                        cost_usd,
+                        ..
+                    } = &e.kind
+                    {
+                        (tokens + input_tokens + output_tokens, cost + cost_usd)
+                    } else {
+                        (tokens, cost)
+                    }
+                });
 
             crate::display::print_done_summary(
                 &elapsed_str,
@@ -5007,7 +5031,10 @@ mod tests {
 
         {
             let _guard = LockfileGuard::create(lock_path.clone());
-            assert!(lock_path.exists(), "Lockfile should exist while guard is alive");
+            assert!(
+                lock_path.exists(),
+                "Lockfile should exist while guard is alive"
+            );
 
             let content = std::fs::read_to_string(&lock_path).unwrap();
             assert!(

@@ -43,13 +43,9 @@ pub enum DetectionSource {
 /// 1. Magic byte inspection via `infer` crate (first 8192 bytes)
 /// 2. If server_mime provided and magic bytes fail, accept server hint
 /// 3. If both fail, return `Err(MimeDetectionFailed)`
-pub fn detect_mime(
-    data: &[u8],
-    server_mime: Option<&str>,
-) -> Result<DetectedMime, MediaError> {
+pub fn detect_mime(data: &[u8], server_mime: Option<&str>) -> Result<DetectedMime, MediaError> {
     // Normalize server MIME to lowercase for case-insensitive comparison
-    let server_mime_normalized: Option<String> =
-        server_mime.map(|m| m.to_ascii_lowercase());
+    let server_mime_normalized: Option<String> = server_mime.map(|m| m.to_ascii_lowercase());
     let server_mime_ref = server_mime_normalized.as_deref();
 
     let inspect_len = data.len().min(8192);
@@ -67,11 +63,11 @@ pub fn detect_mime(
             let has_svg_ns = trimmed.contains("xmlns=\"http://www.w3.org/2000/svg\"")
                 || trimmed.contains("xmlns='http://www.w3.org/2000/svg'");
             if has_svg_tag || (has_xml_prefix && has_svg_ns) {
-                    return Ok(DetectedMime {
-                        mime_type: "image/svg+xml".to_string(),
-                        extension: "svg".to_string(),
-                        source: DetectionSource::MagicBytes,
-                    });
+                return Ok(DetectedMime {
+                    mime_type: "image/svg+xml".to_string(),
+                    extension: "svg".to_string(),
+                    source: DetectionSource::MagicBytes,
+                });
             }
         }
     }
@@ -268,7 +264,11 @@ mod tests {
     #[test]
     fn detect_wav_magic_bytes() {
         let result = detect_mime(WAV_HEADER, None).unwrap();
-        assert!(result.mime_type.contains("wav"), "expected wav, got {}", result.mime_type);
+        assert!(
+            result.mime_type.contains("wav"),
+            "expected wav, got {}",
+            result.mime_type
+        );
         assert_eq!(result.source, DetectionSource::MagicBytes);
     }
 
@@ -363,7 +363,10 @@ mod tests {
     fn cross_category_mismatch_is_rejected() {
         // PNG bytes + server declares audio/wav → should fail with NIKA-251
         let result = detect_mime(PNG_HEADER, Some("audio/wav"));
-        assert!(result.is_err(), "Cross-category mismatch should be rejected");
+        assert!(
+            result.is_err(),
+            "Cross-category mismatch should be rejected"
+        );
         assert_eq!(result.unwrap_err().code(), "NIKA-251");
     }
 
@@ -441,36 +444,50 @@ mod tests {
     #[test]
     fn is_mime_alias_aiff_reverse_order() {
         // Test that (audio/x-aiff, audio/aiff) matches — reverse of table order
-        assert!(is_mime_alias("audio/x-aiff", "audio/aiff"),
-            "reverse order must match: audio/x-aiff -> audio/aiff");
+        assert!(
+            is_mime_alias("audio/x-aiff", "audio/aiff"),
+            "reverse order must match: audio/x-aiff -> audio/aiff"
+        );
         // Confirm canonical order also works
-        assert!(is_mime_alias("audio/aiff", "audio/x-aiff"),
-            "canonical order must match: audio/aiff -> audio/x-aiff");
+        assert!(
+            is_mime_alias("audio/aiff", "audio/x-aiff"),
+            "canonical order must match: audio/aiff -> audio/x-aiff"
+        );
     }
 
     #[test]
     fn is_mime_alias_icon_reverse_order() {
         // Test that (image/x-icon, image/vnd.microsoft.icon) matches
-        assert!(is_mime_alias("image/x-icon", "image/vnd.microsoft.icon"),
-            "reverse order must match: image/x-icon -> image/vnd.microsoft.icon");
+        assert!(
+            is_mime_alias("image/x-icon", "image/vnd.microsoft.icon"),
+            "reverse order must match: image/x-icon -> image/vnd.microsoft.icon"
+        );
         // Confirm canonical order
-        assert!(is_mime_alias("image/vnd.microsoft.icon", "image/x-icon"),
-            "canonical order must match: image/vnd.microsoft.icon -> image/x-icon");
+        assert!(
+            is_mime_alias("image/vnd.microsoft.icon", "image/x-icon"),
+            "canonical order must match: image/vnd.microsoft.icon -> image/x-icon"
+        );
     }
 
     #[test]
     fn is_mime_alias_mp4_cross_category_reverse() {
         // Test both orderings of the cross-category mp4 alias
-        assert!(is_mime_alias("video/mp4", "audio/mp4"),
-            "reverse order must match: video/mp4 -> audio/mp4");
-        assert!(is_mime_alias("audio/mp4", "video/mp4"),
-            "canonical order must match: audio/mp4 -> video/mp4");
+        assert!(
+            is_mime_alias("video/mp4", "audio/mp4"),
+            "reverse order must match: video/mp4 -> audio/mp4"
+        );
+        assert!(
+            is_mime_alias("audio/mp4", "video/mp4"),
+            "canonical order must match: audio/mp4 -> video/mp4"
+        );
     }
 
     #[test]
     fn is_mime_alias_flac_reverse_order() {
-        assert!(is_mime_alias("audio/x-flac", "audio/flac"),
-            "reverse order must match: audio/x-flac -> audio/flac");
+        assert!(
+            is_mime_alias("audio/x-flac", "audio/flac"),
+            "reverse order must match: audio/x-flac -> audio/flac"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -497,13 +514,17 @@ mod tests {
         // Without the alias, this would be a cross-category mismatch (video != audio)
         // With the alias, it should be accepted
         let result = detect_mime(&mp4_header, Some("audio/mp4"));
-        assert!(result.is_ok(),
+        assert!(
+            result.is_ok(),
             "audio/mp4 <> video/mp4 alias should prevent cross-category rejection, got: {:?}",
-            result.err());
+            result.err()
+        );
 
         let detected = result.unwrap();
-        assert_eq!(detected.mime_type, "video/mp4",
-            "magic bytes should win (video/mp4), not server hint");
+        assert_eq!(
+            detected.mime_type, "video/mp4",
+            "magic bytes should win (video/mp4), not server hint"
+        );
         assert_eq!(detected.source, DetectionSource::MagicBytes);
     }
 
@@ -511,13 +532,8 @@ mod tests {
     fn detect_mime_mp4_container_with_video_mp4_server_matches() {
         // MP4 container header: same as above
         let mp4_header: Vec<u8> = vec![
-            0x00, 0x00, 0x00, 0x20,
-            0x66, 0x74, 0x79, 0x70,
-            0x69, 0x73, 0x6F, 0x6D,
-            0x00, 0x00, 0x02, 0x00,
-            0x69, 0x73, 0x6F, 0x6D,
-            0x69, 0x73, 0x6F, 0x32,
-            0x61, 0x76, 0x63, 0x31,
+            0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00,
+            0x02, 0x00, 0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32, 0x61, 0x76, 0x63, 0x31,
             0x6D, 0x70, 0x34, 0x31,
         ];
 
@@ -545,7 +561,10 @@ mod tests {
         // `<svg-report>` has `-` after `<svg`, which is NOT a word boundary → rejected.
         let data = b"<svg-report><item>data</item></svg-report>";
         let result = detect_mime(data, None);
-        assert!(result.is_err(), "<svg-report> should NOT be detected as SVG");
+        assert!(
+            result.is_err(),
+            "<svg-report> should NOT be detected as SVG"
+        );
     }
 
     #[test]
@@ -575,7 +594,10 @@ mod tests {
         // the heuristic cannot distinguish commented-out SVG from real SVG.
         let data = b"<?xml version=\"1.0\"?><!-- comment with <svg> in it --><root/>";
         let result = detect_mime(data, None);
-        assert!(result.is_ok(), "heuristic fires on <svg> inside XML comment (known false positive)");
+        assert!(
+            result.is_ok(),
+            "heuristic fires on <svg> inside XML comment (known false positive)"
+        );
         let detected = result.unwrap();
         assert_eq!(detected.mime_type, "image/svg+xml");
     }
@@ -589,13 +611,16 @@ mod tests {
         // Use valid XML-like padding that is NOT whitespace (trim_start won't remove it)
         data.extend_from_slice(b"<data>");
         // 610 bytes of 'x' filler (total prefix = 6 + 610 = 616 bytes)
-        data.extend(std::iter::repeat(b'x').take(610));
+        data.extend(std::iter::repeat_n(b'x', 610));
         data.extend_from_slice(b"</data><svg xmlns=\"http://www.w3.org/2000/svg\"></svg>");
 
         let result = detect_mime(&data, None);
         // The first 512 bytes are `<data>xxxx...` which starts_with neither
         // `<svg` nor `<?xml`, so the heuristic does not fire.
-        assert!(result.is_err(), "SVG beyond 512-byte window should not be detected (false negative)");
+        assert!(
+            result.is_err(),
+            "SVG beyond 512-byte window should not be detected (false negative)"
+        );
     }
 
     #[test]
@@ -620,7 +645,10 @@ mod tests {
         // also won't detect it, then to server hint, then to error.
         let data = b"<SVG xmlns=\"http://www.w3.org/2000/svg\"></SVG>";
         let result = detect_mime(data, None);
-        assert!(result.is_err(), "uppercase <SVG> not detected by case-sensitive heuristic");
+        assert!(
+            result.is_err(),
+            "uppercase <SVG> not detected by case-sensitive heuristic"
+        );
     }
 
     #[test]
@@ -641,11 +669,14 @@ mod tests {
         let mut data = Vec::new();
         data.extend_from_slice(b"<svg");
         data.push(0xFF); // invalid UTF-8
-        data.extend(std::iter::repeat(0x00u8).take(20));
+        data.extend(std::iter::repeat_n(0x00u8, 20));
         let result = detect_mime(&data, None);
         // from_utf8 fails on the 512-byte window → SVG heuristic skipped.
         // infer crate won't recognize it → error (no server hint).
-        assert!(result.is_err(), "binary data with <svg prefix but invalid UTF-8 should not be detected as SVG");
+        assert!(
+            result.is_err(),
+            "binary data with <svg prefix but invalid UTF-8 should not be detected as SVG"
+        );
     }
 
     #[test]

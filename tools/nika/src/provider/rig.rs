@@ -433,10 +433,9 @@ impl RigProvider {
         let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
 
         let message = Message::User {
-            content: OneOrMany::many(user_content)
-                .map_err(|_| RigInferError::VisionNotSupported(
-                    "content parts list is empty".to_string(),
-                ))?,
+            content: OneOrMany::many(user_content).map_err(|_| {
+                RigInferError::VisionNotSupported("content parts list is empty".to_string())
+            })?,
         };
 
         macro_rules! vision_prompt {
@@ -488,10 +487,9 @@ impl RigProvider {
         let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
 
         let message = Message::User {
-            content: OneOrMany::many(user_content)
-                .map_err(|_| RigInferError::VisionNotSupported(
-                    "content parts list is empty".to_string(),
-                ))?,
+            content: OneOrMany::many(user_content).map_err(|_| {
+                RigInferError::VisionNotSupported("content parts list is empty".to_string())
+            })?,
         };
 
         let mut response_parts: Vec<String> = Vec::new();
@@ -509,8 +507,14 @@ impl RigProvider {
                     .stream(request)
                     .await
                     .map_err(|e| RigInferError::PromptError(e.to_string()))?;
-                consume_rig_stream(&mut stream, &tx, &mut response_parts, &mut result, $is_anthropic)
-                    .await?;
+                consume_rig_stream(
+                    &mut stream,
+                    &tx,
+                    &mut response_parts,
+                    &mut result,
+                    $is_anthropic,
+                )
+                .await?;
             }};
         }
 
@@ -1572,10 +1576,7 @@ impl ToolDyn for NikaMcpTool {
             // Stage binary content blocks via side-channel (if media staging is enabled)
             if result.has_media() {
                 if let Some(ref staging) = self.media_staging {
-                    let media_blocks: Vec<_> = result.media_blocks()
-                        .into_iter()
-                        .cloned()
-                        .collect();
+                    let media_blocks: Vec<_> = result.media_blocks().into_iter().cloned().collect();
                     if !media_blocks.is_empty() {
                         tracing::debug!(
                             tool = %tool_name,
@@ -2694,7 +2695,10 @@ mod tests {
         let content = vec![rig::completion::message::UserContent::text("hello")];
         let result = provider.infer_vision(content, None, None, None).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RigInferError::VisionNotSupported(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            RigInferError::VisionNotSupported(_)
+        ));
     }
 
     #[test]
@@ -2708,14 +2712,14 @@ mod tests {
 
     #[test]
     fn build_vision_user_content_text_only() {
-        let content = vec![rig::completion::message::UserContent::text("Describe this")];
+        let content = [rig::completion::message::UserContent::text("Describe this")];
         assert_eq!(content.len(), 1);
     }
 
     #[test]
     fn build_vision_user_content_with_image() {
         use rig::completion::message::{ImageMediaType, UserContent};
-        let content = vec![
+        let content = [
             UserContent::text("What is in this image?"),
             UserContent::image_base64(
                 "iVBORw0KGgo=", // fake base64
@@ -2733,11 +2737,7 @@ mod tests {
 
         let parts = vec![
             UserContent::text("Describe this image"),
-            UserContent::image_base64(
-                "iVBORw0KGgo=",
-                Some(ImageMediaType::PNG),
-                None,
-            ),
+            UserContent::image_base64("iVBORw0KGgo=", Some(ImageMediaType::PNG), None),
         ];
         let msg = Message::User {
             content: OneOrMany::many(parts).unwrap(),

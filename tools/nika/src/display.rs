@@ -6,12 +6,12 @@
 use colored::Colorize;
 
 // Unicode box characters for lightweight framing.
-const TOP_LEFT: &str = "\u{250c}";     // ┌
-const TOP_RIGHT: &str = "\u{2510}";    // ┐
-const BOTTOM_LEFT: &str = "\u{2514}";  // └
+const TOP_LEFT: &str = "\u{250c}"; // ┌
+const TOP_RIGHT: &str = "\u{2510}"; // ┐
+const BOTTOM_LEFT: &str = "\u{2514}"; // └
 const BOTTOM_RIGHT: &str = "\u{2518}"; // ┘
-const HORIZONTAL: &str = "\u{2500}";   // ─
-const VERTICAL: &str = "\u{2502}";     // │
+const HORIZONTAL: &str = "\u{2500}"; // ─
+const VERTICAL: &str = "\u{2502}"; // │
 
 /// Return a colored icon for each Nika verb.
 ///
@@ -51,12 +51,7 @@ pub fn verb_emoji(verb: &str) -> &'static str {
 /// │ Provider: openai | Model: gpt-4.1-mini | Tasks: 3 │
 /// └────────────────────────────────────────────────┘
 /// ```
-pub fn print_workflow_header(
-    name: Option<&str>,
-    provider: &str,
-    model: &str,
-    task_count: usize,
-) {
+pub fn print_workflow_header(name: Option<&str>, provider: &str, model: &str, task_count: usize) {
     let display_name = name.unwrap_or("workflow");
     let noun = if task_count == 1 { "task" } else { "tasks" };
     let inner = format!(
@@ -136,8 +131,11 @@ pub fn print_done_summary(
             "·".dimmed(),
             format!("{} tokens", total_tokens).dimmed(),
             "·".dimmed(),
-            format!("${}", crate::provider::cost::format_cost(total_cost)
-                .trim_start_matches('$')).dimmed()
+            format!(
+                "${}",
+                crate::provider::cost::format_cost(total_cost).trim_start_matches('$')
+            )
+            .dimmed()
         );
     } else {
         println!(
@@ -268,12 +266,7 @@ pub fn format_duration(secs: f32) -> colored::ColoredString {
 }
 
 /// Print a workflow summary line with task counts by verb.
-pub fn print_task_summary(
-    total: usize,
-    succeeded: usize,
-    failed: usize,
-    skipped: usize,
-) {
+pub fn print_task_summary(total: usize, succeeded: usize, failed: usize, skipped: usize) {
     if failed > 0 {
         println!(
             "  {} {} succeeded, {} failed, {} skipped",
@@ -328,10 +321,7 @@ pub struct LiveDag {
 }
 
 impl LiveDag {
-    pub fn new(
-        tasks: Vec<DagTask>,
-        deps: std::collections::HashMap<String, Vec<String>>,
-    ) -> Self {
+    pub fn new(tasks: Vec<DagTask>, deps: std::collections::HashMap<String, Vec<String>>) -> Self {
         Self {
             tasks,
             deps,
@@ -398,10 +388,7 @@ impl LiveDag {
 }
 
 /// Render a DAG visualization with double-line borders, arrows, and status badges.
-pub fn render_dag(
-    tasks: &[DagTask],
-    deps: &std::collections::HashMap<String, Vec<String>>,
-) {
+pub fn render_dag(tasks: &[DagTask], deps: &std::collections::HashMap<String, Vec<String>>) {
     if tasks.is_empty() {
         return;
     }
@@ -519,7 +506,9 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     // Top border: ╔═✓═══════════╗ (or ╔══════════════╗ for pending)
     let mut top = String::from("    ");
     for (i, (task, _, dw)) in boxes.iter().enumerate() {
-        if i > 0 { top.push_str("  "); }
+        if i > 0 {
+            top.push_str("  ");
+        }
         let w = dw + BOX_PAD * 2;
         let border = if task.status == DagTaskStatus::Pending {
             format!("╔{}╗", "═".repeat(w))
@@ -535,7 +524,9 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     // Content: ║  ⚡ task_name  ║
     let mut mid = String::from("    ");
     for (i, (task, label, dw)) in boxes.iter().enumerate() {
-        if i > 0 { mid.push_str("  "); }
+        if i > 0 {
+            mid.push_str("  ");
+        }
         let w = dw + BOX_PAD * 2;
         let pad_l = " ".repeat(BOX_PAD);
         let pad_r = " ".repeat(w.saturating_sub(dw + BOX_PAD));
@@ -549,7 +540,9 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     if has_meta {
         let mut meta_line = String::from("    ");
         for (i, (task, _, dw)) in boxes.iter().enumerate() {
-            if i > 0 { meta_line.push_str("  "); }
+            if i > 0 {
+                meta_line.push_str("  ");
+            }
             let w = dw + BOX_PAD * 2;
             let meta_text = task.meta.as_deref().unwrap_or("");
             let meta_display = if meta_text.is_empty() {
@@ -568,7 +561,9 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
     // Bottom border: ╚════════╤═════╝ (with ╤ at center for edge drop)
     let mut bottom = String::from("    ");
     for (i, (task, _, dw)) in boxes.iter().enumerate() {
-        if i > 0 { bottom.push_str("  "); }
+        if i > 0 {
+            bottom.push_str("  ");
+        }
         let w = dw + BOX_PAD * 2;
         let border = format!("╚{}╝", "═".repeat(w));
         bottom.push_str(&colorize(&border, task.status));
@@ -628,14 +623,18 @@ fn render_v3_edges(
 
         let mut line = vec![' '; width];
         for &col in &pipe_cols {
-            if col < line.len() { line[col] = '│'; }
+            if col < line.len() {
+                line[col] = '│';
+            }
         }
         let s: String = line.iter().collect();
         println!("    {}", s.dimmed());
 
         let mut arrow_line = vec![' '; width];
         for &col in &pipe_cols {
-            if col < arrow_line.len() { arrow_line[col] = '▼'; }
+            if col < arrow_line.len() {
+                arrow_line[col] = '▼';
+            }
         }
         let s2: String = arrow_line.iter().collect();
         println!("    {}", s2.dimmed());
@@ -645,7 +644,9 @@ fn render_v3_edges(
     // Line 1: vertical drops with downward arrows
     let mut drop_line = vec![' '; width];
     for &(from, _) in &edges {
-        if from < drop_line.len() { drop_line[from] = '│'; }
+        if from < drop_line.len() {
+            drop_line[from] = '│';
+        }
     }
     let s1: String = drop_line.iter().collect();
     println!("    {}", s1.dimmed());
@@ -658,7 +659,10 @@ fn render_v3_edges(
     let mut conn_line = vec![' '; width];
 
     // Collect all edge segments
-    struct EdgeSeg { src: usize, tgt: usize }
+    struct EdgeSeg {
+        src: usize,
+        tgt: usize,
+    }
     let mut segs: Vec<EdgeSeg> = Vec::new();
 
     for (ni, next_id) in next_layer.iter().enumerate() {
@@ -666,7 +670,10 @@ fn render_v3_edges(
         if let Some(task_deps) = deps.get(next_id) {
             for dep in task_deps {
                 if let Some(pi) = prev_layer.iter().position(|p| p == dep) {
-                    segs.push(EdgeSeg { src: prev_centers[pi].1, tgt: target_col });
+                    segs.push(EdgeSeg {
+                        src: prev_centers[pi].1,
+                        tgt: target_col,
+                    });
                 }
             }
         }
@@ -675,7 +682,11 @@ fn render_v3_edges(
     // Pass 1: horizontal fills
     for seg in &segs {
         if seg.src != seg.tgt {
-            let (lo, hi) = if seg.src < seg.tgt { (seg.src, seg.tgt) } else { (seg.tgt, seg.src) };
+            let (lo, hi) = if seg.src < seg.tgt {
+                (seg.src, seg.tgt)
+            } else {
+                (seg.tgt, seg.src)
+            };
             for col in lo..=hi {
                 if col < conn_line.len() && conn_line[col] == ' ' {
                     conn_line[col] = '─';
