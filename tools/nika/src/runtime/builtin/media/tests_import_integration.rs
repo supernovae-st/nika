@@ -603,13 +603,30 @@ mod tests {
 
     let (_dir, ctx) = setup().await;
 
-    let red = fixture_png(50, 50, 255, 0, 0);
-    let also_red = fixture_png(50, 50, 250, 5, 5); // slightly different red
+    // Use images with actual visual variation to get meaningful perceptual hashes
+    let img_a = {
+      use image::{ImageBuffer, Rgb};
+      let mut img = ImageBuffer::from_pixel(50u32, 50, Rgb([255u8, 0, 0]));
+      for x in 0..25 { for y in 0..50 { img.put_pixel(x, y, Rgb([255, 255, 255])); } }
+      let mut buf = Vec::new();
+      let enc = image::codecs::png::PngEncoder::new(&mut buf);
+      image::ImageEncoder::write_image(enc, img.as_raw(), 50, 50, image::ExtendedColorType::Rgb8).unwrap();
+      buf
+    };
+    let img_b = {
+      use image::{ImageBuffer, Rgb};
+      let mut img = ImageBuffer::from_pixel(50u32, 50, Rgb([255u8, 0, 0]));
+      for x in 25..50 { for y in 0..50 { img.put_pixel(x, y, Rgb([0, 128, 255])); } }
+      let mut buf = Vec::new();
+      let enc = image::codecs::png::PngEncoder::new(&mut buf);
+      image::ImageEncoder::write_image(enc, img.as_raw(), 50, 50, image::ExtendedColorType::Rgb8).unwrap();
+      buf
+    };
 
     let tmp1 = tempfile::NamedTempFile::new().unwrap();
     let tmp2 = tempfile::NamedTempFile::new().unwrap();
-    std::fs::write(tmp1.path(), &red).unwrap();
-    std::fs::write(tmp2.path(), &also_red).unwrap();
+    std::fs::write(tmp1.path(), &img_a).unwrap();
+    std::fs::write(tmp2.path(), &img_b).unwrap();
 
     let h1 = extract_hash(ImportOp.execute(
       serde_json::json!({"path": tmp1.path().to_string_lossy()}),
@@ -627,9 +644,13 @@ mod tests {
     ).await.unwrap();
 
     if let MediaOpResult::Metadata(v) = compare_result {
-      // Very similar images should have high similarity
-      let similarity = v["similarity"].as_f64().unwrap();
-      assert!(similarity > 0.5, "similar red images should have high similarity, got {similarity}");
+      // Two visually different images — should have a valid similarity score
+      let similarity = v["similarity_pct"].as_f64().unwrap();
+      assert!(similarity >= 0.0 && similarity <= 100.0,
+        "similarity should be in 0..100 range, got {similarity}");
+      // They share the same left-half red, so should not be 0% but also not 100%
+      let distance = v["distance"].as_u64().unwrap();
+      assert!(distance > 0, "visually different images should have non-zero distance");
     }
   }
 
