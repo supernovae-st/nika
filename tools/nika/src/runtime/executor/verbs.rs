@@ -1047,6 +1047,28 @@ impl TaskExecutor {
                         .to_string());
                     }
 
+                    if fetch.response.as_deref() == Some("binary") {
+                        let content_type = response
+                            .headers()
+                            .get("content-type")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("application/octet-stream")
+                            .to_string();
+                        let bytes = response.bytes().await.map_err(|e| {
+                            NikaError::Execution(format!("Failed to read binary response: {}", e))
+                        })?;
+                        let store_result = self.cas.store(&bytes).await.map_err(|e| {
+                            NikaError::Execution(format!("CAS store failed: {}", e))
+                        })?;
+                        return Ok(serde_json::json!({
+                            "hash": store_result.hash,
+                            "mime_type": content_type,
+                            "size_bytes": bytes.len(),
+                            "deduplicated": store_result.deduplicated,
+                        })
+                        .to_string());
+                    }
+
                     const MAX_RESPONSE_SIZE: u64 = 50 * 1024 * 1024;
                     if let Some(len) = response.content_length() {
                         if len > MAX_RESPONSE_SIZE {
