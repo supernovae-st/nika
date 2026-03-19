@@ -325,6 +325,10 @@ mod tests {
     {
       expected += 1; // qr_validate
     }
+    #[cfg(feature = "media-iqa")]
+    {
+      expected += 1; // quality
+    }
 
     assert_eq!(
       total, expected,
