@@ -86,7 +86,7 @@ pub mod storage;
 // Re-export main types for convenient access
 pub use backend::{
     BackendError, ChatMessage, ChatOptions, ChatResponse, ChatRole, DownloadRequest,
-    DownloadResult, LoadConfig, ModelInfo, PullProgress,
+    DownloadResult, LoadConfig, ModelInfo, NativeModelKind, PullProgress, VisionImage,
 };
 pub use mcp_aliases::{
     aliases_by_category, list_aliases, resolve_alias, resolve_name, MCP_ALIASES,

@@ -418,7 +418,8 @@ impl RigProvider {
     /// * `max_tokens` - Optional max tokens
     ///
     /// # Errors
-    /// Returns `RigInferError::VisionNotSupported` for DeepSeek and Native providers.
+    /// Returns `RigInferError::VisionNotSupported` for DeepSeek provider.
+    /// Native vision requires a VisionHf model to be loaded.
     pub async fn infer_vision(
         &self,
         user_content: Vec<rig::completion::message::UserContent>,
@@ -428,6 +429,37 @@ impl RigProvider {
     ) -> Result<String, RigInferError> {
         use rig::completion::message::Message;
         use rig::OneOrMany;
+
+        // Early return: DeepSeek does not support vision at all
+        if matches!(self, RigProvider::DeepSeek(_)) {
+            return Err(RigInferError::VisionNotSupported(
+                "DeepSeek does not support vision/multimodal content".to_string(),
+            ));
+        }
+
+        // Early return: Native vision uses NativeRuntime directly (not rig-core)
+        #[cfg(feature = "native-inference")]
+        if let RigProvider::Native(runtime) = self {
+            if !runtime.supports_vision() {
+                return Err(RigInferError::VisionNotSupported(
+                    "Native model does not support vision. Load a vision model via \
+                     NativeModelKind::VisionHf (e.g., `nika model vision <model_id> --isq Q4K`)"
+                        .to_string(),
+                ));
+            }
+            let (prompt_text, vision_images) = extract_native_vision_parts(&user_content)?;
+            let options = super::native::ChatOptions {
+                max_tokens,
+                ..Default::default()
+            };
+            let response = runtime
+                .infer_vision(&prompt_text, vision_images, options)
+                .await
+                .map_err(|e: super::native::NativeError| {
+                    RigInferError::PromptError(e.to_string())
+                })?;
+            return Ok(response.message.content);
+        }
 
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
@@ -459,19 +491,17 @@ impl RigProvider {
             RigProvider::Groq(client) => vision_prompt!(client),
             RigProvider::Gemini(client) => vision_prompt!(client),
             RigProvider::XAi(client) => vision_prompt!(client),
-            RigProvider::DeepSeek(_) => Err(RigInferError::VisionNotSupported(
-                "DeepSeek does not support vision/multimodal content".to_string(),
-            )),
+            // DeepSeek and Native handled above via early returns
+            RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => Err(RigInferError::VisionNotSupported(
-                "Native GGUF inference does not support vision".to_string(),
-            )),
+            RigProvider::Native(_) => unreachable!("Native handled above"),
         }
     }
 
     /// Vision inference with streaming output.
     ///
     /// Same as `infer_vision` but streams response tokens via an mpsc channel.
+    /// Native vision uses a non-streaming fallback (sends full response as Done chunk).
     pub async fn infer_vision_stream(
         &self,
         user_content: Vec<rig::completion::message::UserContent>,
@@ -482,6 +512,45 @@ impl RigProvider {
     ) -> Result<StreamResult, RigInferError> {
         use rig::completion::message::Message;
         use rig::OneOrMany;
+
+        // Early return: DeepSeek does not support vision at all
+        if matches!(self, RigProvider::DeepSeek(_)) {
+            return Err(RigInferError::VisionNotSupported(
+                "DeepSeek does not support vision/multimodal content".to_string(),
+            ));
+        }
+
+        // Early return: Native vision — non-streaming fallback via NativeRuntime
+        // NativeRuntime.infer_vision_stream() exists but rig's StreamChunk protocol
+        // differs from the native mpsc stream, so we use non-streaming + Done chunk.
+        #[cfg(feature = "native-inference")]
+        if let RigProvider::Native(runtime) = self {
+            if !runtime.supports_vision() {
+                return Err(RigInferError::VisionNotSupported(
+                    "Native model does not support vision. Load a vision model via \
+                     NativeModelKind::VisionHf (e.g., `nika model vision <model_id> --isq Q4K`)"
+                        .to_string(),
+                ));
+            }
+            let (prompt_text, vision_images) = extract_native_vision_parts(&user_content)?;
+            let options = super::native::ChatOptions {
+                max_tokens,
+                ..Default::default()
+            };
+            let response = runtime
+                .infer_vision(&prompt_text, vision_images, options)
+                .await
+                .map_err(|e: super::native::NativeError| {
+                    RigInferError::PromptError(e.to_string())
+                })?;
+            // Send full response as a single Done chunk (non-streaming fallback)
+            let text = response.message.content;
+            let _ = tx.send(StreamChunk::Done(text.clone())).await;
+            return Ok(StreamResult {
+                text,
+                ..Default::default()
+            });
+        }
 
         let model_id = model.unwrap_or_else(|| self.default_model());
         let max_tok = max_tokens.map(u64::from).unwrap_or(8192);
@@ -525,17 +594,10 @@ impl RigProvider {
             RigProvider::Groq(client) => vision_stream!(client, false),
             RigProvider::Gemini(client) => vision_stream!(client, false),
             RigProvider::XAi(client) => vision_stream!(client, false),
-            RigProvider::DeepSeek(_) => {
-                return Err(RigInferError::VisionNotSupported(
-                    "DeepSeek does not support vision/multimodal content".to_string(),
-                ));
-            }
+            // DeepSeek and Native handled above via early returns
+            RigProvider::DeepSeek(_) => unreachable!("DeepSeek handled above"),
             #[cfg(feature = "native-inference")]
-            RigProvider::Native(_) => {
-                return Err(RigInferError::VisionNotSupported(
-                    "Native GGUF inference does not support vision".to_string(),
-                ));
-            }
+            RigProvider::Native(_) => unreachable!("Native handled above"),
         }
 
         result.text = response_parts.join("");
@@ -1616,6 +1678,81 @@ impl ToolDyn for NikaMcpTool {
             }
         })
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NATIVE VISION HELPER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Extract text prompt and `VisionImage` instances from rig `UserContent` parts.
+///
+/// The executor builds `Vec<UserContent>` with base64-encoded images for cloud providers.
+/// For native inference, we need to decode the base64 back into raw bytes and produce
+/// `VisionImage` instances that `NativeRuntime::infer_vision()` can consume.
+///
+/// # Returns
+/// `(prompt_text, vision_images)` where prompt_text is all text parts joined by newlines.
+#[cfg(feature = "native-inference")]
+fn extract_native_vision_parts(
+    user_content: &[rig::completion::message::UserContent],
+) -> Result<(String, Vec<crate::core::backend::VisionImage>), RigInferError> {
+    use base64::Engine as _;
+    use rig::completion::message::{DocumentSourceKind, Image, UserContent};
+
+    let mut text_parts: Vec<String> = Vec::new();
+    let mut images: Vec<crate::core::backend::VisionImage> = Vec::new();
+
+    for part in user_content {
+        match part {
+            UserContent::Text(text) => {
+                text_parts.push(text.text.clone());
+            }
+            UserContent::Image(Image {
+                data, media_type, ..
+            }) => {
+                let bytes = match data {
+                    DocumentSourceKind::Base64(b64) => base64::engine::general_purpose::STANDARD
+                        .decode(b64)
+                        .map_err(|e| {
+                            RigInferError::PromptError(format!(
+                                "Failed to decode base64 image for native vision: {}",
+                                e
+                            ))
+                        })?,
+                    DocumentSourceKind::Raw(raw) => raw.clone(),
+                    DocumentSourceKind::Url(url) => {
+                        return Err(RigInferError::VisionNotSupported(format!(
+                            "Native vision does not support URL images. Pre-fetch the image: {}",
+                            url
+                        )));
+                    }
+                    _ => {
+                        return Err(RigInferError::PromptError(
+                            "Unsupported image source kind for native vision".to_string(),
+                        ));
+                    }
+                };
+
+                // Map rig's ImageMediaType to MIME string
+                let mime = media_type
+                    .as_ref()
+                    .map(|mt| match mt {
+                        rig::completion::message::ImageMediaType::JPEG => "image/jpeg",
+                        rig::completion::message::ImageMediaType::PNG => "image/png",
+                        rig::completion::message::ImageMediaType::GIF => "image/gif",
+                        rig::completion::message::ImageMediaType::WEBP => "image/webp",
+                        _ => "image/png", // Default fallback
+                    })
+                    .unwrap_or("image/png");
+
+                images.push(crate::core::backend::VisionImage::new(bytes, mime));
+            }
+            // Skip non-image/text content (tool results, audio, etc.)
+            _ => {}
+        }
+    }
+
+    Ok((text_parts.join("\n"), images))
 }
 
 #[cfg(test)]

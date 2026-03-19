@@ -3,7 +3,7 @@
 //! Defines the interface for local model inference backends.
 //!
 
-use crate::core::backend::{ChatOptions, ChatResponse, LoadConfig, ModelInfo};
+use crate::core::backend::{ChatOptions, ChatResponse, LoadConfig, ModelInfo, VisionImage};
 use crate::provider::native::NativeError;
 use futures::Stream;
 use std::future::Future;
@@ -72,6 +72,48 @@ pub trait InferenceBackend: Send + Sync {
     ) -> impl Future<
         Output = Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError>,
     > + Send;
+
+    /// Check if the loaded model supports vision (multimodal image input).
+    ///
+    /// Returns `false` if no model is loaded or the model is text-only.
+    #[must_use]
+    fn supports_vision(&self) -> bool;
+
+    /// Generate a vision response (non-streaming).
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to accompany the images
+    /// * `images` - Images to send to the vision model
+    /// * `options` - Generation options (temperature, max_tokens, etc.)
+    ///
+    /// # Errors
+    /// Returns `NativeError::InvalidConfig` if the model does not support vision.
+    fn infer_vision(
+        &self,
+        prompt: &str,
+        images: Vec<VisionImage>,
+        options: ChatOptions,
+    ) -> impl Future<Output = Result<ChatResponse, NativeError>> + Send;
+
+    /// Generate a vision response (streaming).
+    ///
+    /// Returns a stream of token strings as they are generated.
+    ///
+    /// # Arguments
+    /// * `prompt` - The text prompt to accompany the images
+    /// * `images` - Images to send to the vision model
+    /// * `options` - Generation options (temperature, max_tokens, etc.)
+    ///
+    /// # Errors
+    /// Returns `NativeError::InvalidConfig` if the model does not support vision.
+    fn infer_vision_stream(
+        &self,
+        prompt: &str,
+        images: Vec<VisionImage>,
+        options: ChatOptions,
+    ) -> impl Future<
+        Output = Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError>,
+    > + Send;
 }
 
 /// Object-safe version of InferenceBackend for dynamic dispatch.
@@ -115,6 +157,20 @@ pub trait DynInferenceBackend: Send + Sync {
     fn infer_dyn(
         &self,
         prompt: String,
+        options: ChatOptions,
+    ) -> Pin<Box<dyn Future<Output = Result<ChatResponse, NativeError>> + Send + '_>>;
+
+    /// Check if the loaded model supports vision.
+    #[must_use]
+    fn supports_vision_dyn(&self) -> bool;
+
+    /// Generate a vision response (boxed future for object safety).
+    ///
+    /// Takes owned `String` instead of `&str` for object safety.
+    fn infer_vision_dyn(
+        &self,
+        prompt: String,
+        images: Vec<VisionImage>,
         options: ChatOptions,
     ) -> Pin<Box<dyn Future<Output = Result<ChatResponse, NativeError>> + Send + '_>>;
 
@@ -191,6 +247,19 @@ impl<T: InferenceBackend + 'static> DynInferenceBackend for T {
         options: ChatOptions,
     ) -> Pin<Box<dyn Future<Output = Result<ChatResponse, NativeError>> + Send + '_>> {
         Box::pin(async move { self.infer(&prompt, options).await })
+    }
+
+    fn supports_vision_dyn(&self) -> bool {
+        InferenceBackend::supports_vision(self)
+    }
+
+    fn infer_vision_dyn(
+        &self,
+        prompt: String,
+        images: Vec<VisionImage>,
+        options: ChatOptions,
+    ) -> Pin<Box<dyn Future<Output = Result<ChatResponse, NativeError>> + Send + '_>> {
+        Box::pin(async move { self.infer_vision(&prompt, images, options).await })
     }
 
     fn infer_stream_dyn(
@@ -294,6 +363,32 @@ mod tests {
             _options: ChatOptions,
         ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
             Ok(futures::stream::once(async { Ok("token".to_string()) }))
+        }
+
+        fn supports_vision(&self) -> bool {
+            false
+        }
+
+        async fn infer_vision(
+            &self,
+            _prompt: &str,
+            _images: Vec<VisionImage>,
+            _options: ChatOptions,
+        ) -> Result<ChatResponse, NativeError> {
+            Err(NativeError::InvalidConfig(
+                "MockBackend does not support vision".to_string(),
+            ))
+        }
+
+        async fn infer_vision_stream(
+            &self,
+            _prompt: &str,
+            _images: Vec<VisionImage>,
+            _options: ChatOptions,
+        ) -> Result<impl Stream<Item = Result<String, NativeError>> + Send, NativeError> {
+            Err::<futures::stream::Empty<Result<String, NativeError>>, _>(
+                NativeError::InvalidConfig("MockBackend does not support vision".to_string()),
+            )
         }
     }
 
