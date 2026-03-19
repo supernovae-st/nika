@@ -188,10 +188,16 @@ mod tests {
     if let MediaOpResult::Metadata(v) = result {
       let encoded = v["thumbhash"].as_str().unwrap();
       // Verify it's valid base64
+      let decoded = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
+        .expect("thumbhash should be valid base64");
+      // ThumbHash spec: output is 3-28 bytes
       assert!(
-        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded).is_ok(),
-        "thumbhash should be valid base64"
+        (3..=28).contains(&decoded.len()),
+        "thumbhash should be 3-28 bytes per spec, got {} bytes",
+        decoded.len()
       );
+      // Verify size_bytes matches
+      assert_eq!(v["size_bytes"].as_u64().unwrap(), decoded.len() as u64);
     } else {
       panic!("expected Metadata result");
     }

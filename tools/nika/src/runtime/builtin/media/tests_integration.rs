@@ -352,7 +352,11 @@ mod tests {
     for i in 1..100u8 {
       let data: Vec<u8> = (0..=i).collect();
       if let Ok(sr) = ctx.cas.store(&data).await {
-        let _ = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
+        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
+        // Errors are fine, but panics (caught by rayon) are not
+        if let Err(e) = &result {
+          assert!(!e.to_string().contains("panicked"), "tool panicked on input {i}");
+        }
       }
     }
   }
@@ -364,7 +368,10 @@ mod tests {
     for i in 1..50u8 {
       let data: Vec<u8> = (0..=i).collect();
       if let Ok(sr) = ctx.cas.store(&data).await {
-        let _ = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
+        let result = op.execute(serde_json::json!({"hash": sr.hash}), &ctx).await;
+        if let Err(e) = &result {
+          assert!(!e.to_string().contains("panicked"), "tool panicked on input {i}");
+        }
       }
     }
   }
@@ -377,7 +384,10 @@ mod tests {
     for i in 1..100u8 {
       let data: Vec<u8> = (0..=i).collect();
       if let Ok(sr) = ctx.cas.store(&data).await {
-        let _ = op.execute(serde_json::json!({"hash": sr.hash, "width": 50}), &ctx).await;
+        let result = op.execute(serde_json::json!({"hash": sr.hash, "width": 50}), &ctx).await;
+        if let Err(e) = &result {
+          assert!(!e.to_string().contains("panicked"), "tool panicked on input {i}");
+        }
       }
     }
   }

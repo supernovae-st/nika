@@ -41,7 +41,7 @@ pub fn decode_image_safe(data: &[u8]) -> Result<image::DynamicImage, NikaError> 
 
   reader
     .decode()
-    .map_err(|e| tool_error("decode", format!("[NIKA-290] decode failed: {e}")))
+    .map_err(|e| tool_error("decode", format!("decode failed: {e}")))
 }
 
 /// Sanitize SVG content by rejecting dangerous elements.

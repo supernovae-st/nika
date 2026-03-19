@@ -64,7 +64,8 @@ impl MediaOp for StripOp {
         let (mime, ext) = match format {
           "jpeg" | "jpg" => {
             let rgb = img.to_rgb8();
-            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 95);
+            // Quality 100 minimizes re-encoding loss — strip should not degrade image data
+            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 100);
             image::ImageEncoder::write_image(
               encoder, rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8,
             ).map_err(|e| tool_error("strip", format!("encode: {e}")))?;
