@@ -85,7 +85,7 @@ thiserror = "1.0"
 miette = { version = "7.6", features = ["fancy"] }
 
 # HTTP
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate"] }
 url = "2"  # URL parsing and validation
 
 # Cryptographic hashing (v0.27 - HuggingFace checksum verification)
