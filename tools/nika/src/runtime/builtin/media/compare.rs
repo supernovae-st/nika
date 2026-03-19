@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use crate::error::NikaError;
 use super::context::MediaToolContext;
-use super::error::{invalid_args, tool_error};
+use super::error::invalid_args;
 use super::safety::decode_image_safe;
 use super::{MediaOp, MediaOpResult};
 
@@ -115,6 +115,8 @@ mod tests {
       assert_eq!(v["distance"], 0);
       assert_eq!(v["identical"], true);
       assert_eq!(v["similarity_pct"], 100.0);
+    } else {
+      panic!("expected Metadata result");
     }
   }
 
@@ -163,7 +165,50 @@ mod tests {
       assert_eq!(v["identical"], false);
       let sim = v["similarity_pct"].as_f64().unwrap();
       assert!(sim < 100.0, "visually different images should not be 100% similar");
+    } else {
+      panic!("expected Metadata result");
     }
+  }
+
+  #[tokio::test]
+  async fn compare_cancelled_workflow() {
+    let (_dir, ctx) = setup().await;
+    ctx.cancel.cancel();
+    let op = CompareOp;
+    let result = op.execute(serde_json::json!({
+      "hash_a": "x", "hash_b": "y"
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("cancelled"));
+  }
+
+  #[tokio::test]
+  async fn compare_fuzz_no_panic() {
+    let (_dir, ctx) = setup().await;
+    let op = CompareOp;
+    let bad_inputs = vec![
+      serde_json::json!(null),
+      serde_json::json!(42),
+      serde_json::json!({"hash_a": 123, "hash_b": 456}),
+      serde_json::json!({"hash_a": "x"}),
+      serde_json::json!({"hash_b": "y"}),
+      serde_json::json!({}),
+    ];
+    for input in bad_inputs {
+      let result = op.execute(input.clone(), &ctx).await;
+      assert!(result.is_err(), "bad input should error: {input}");
+    }
+  }
+
+  #[tokio::test]
+  async fn compare_nonexistent_hash() {
+    let (_dir, ctx) = setup().await;
+    let op = CompareOp;
+    let result = op.execute(serde_json::json!({
+      "hash_a": "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+      "hash_b": "blake3:0000000000000000000000000000000000000000000000000000000000000000"
+    }), &ctx).await;
+    assert!(result.is_err());
   }
 
   #[tokio::test]

@@ -78,27 +78,98 @@ pub async fn handle_media_command(action: MediaAction, quiet: bool) -> Result<()
     }
 }
 
+/// Maximum CLI import file size: 500 MB (matches CAS budget).
+const MAX_CLI_IMPORT_SIZE: u64 = 500 * 1024 * 1024;
+
+/// Sensitive system directories that import must never read from.
+const CLI_SENSITIVE_PREFIXES: &[&str] = &[
+    "/etc/", "/proc/", "/sys/", "/dev/",
+    "/var/run/", "/var/log/",
+    "/private/etc/", "/private/var/run/", "/private/var/log/",
+];
+
+/// Validate import path: reject path traversal and sensitive directories.
+fn validate_cli_import_path(path: &std::path::Path) -> Result<(), NikaError> {
+    let path_str = path.to_string_lossy();
+
+    // Reject paths containing ".."
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(NikaError::BuiltinToolError {
+                tool: "nika:import".to_string(),
+                reason: format!("[NIKA-297] security violation: path traversal not allowed: {path_str}"),
+            });
+        }
+    }
+
+    // Check raw path against sensitive prefixes
+    for prefix in CLI_SENSITIVE_PREFIXES {
+        if path_str.starts_with(prefix) {
+            return Err(NikaError::BuiltinToolError {
+                tool: "nika:import".to_string(),
+                reason: format!("[NIKA-297] security violation: reading from {prefix} is not allowed"),
+            });
+        }
+    }
+
+    // Also check canonical path (resolves symlinks)
+    if let Ok(canonical) = path.canonicalize() {
+        let canonical_str = canonical.to_string_lossy();
+        for prefix in CLI_SENSITIVE_PREFIXES {
+            if canonical_str.starts_with(prefix) {
+                return Err(NikaError::BuiltinToolError {
+                    tool: "nika:import".to_string(),
+                    reason: format!("[NIKA-297] security violation: reading from {prefix} is not allowed"),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) -> Result<(), NikaError> {
-    // Validate file exists and is a regular file
-    if !file.exists() {
-        return Err(NikaError::ConfigError {
-            reason: format!("file not found: {}", file.display()),
-        });
-    }
-    if !file.is_file() {
-        return Err(NikaError::ConfigError {
-            reason: format!("not a regular file: {}", file.display()),
+    // Security: reject path traversal and sensitive directories
+    validate_cli_import_path(file)?;
+
+    // Async metadata check (no blocking I/O)
+    let metadata = tokio::fs::metadata(file).await.map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => NikaError::BuiltinInvalidParams {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-294] file not found: {}", file.display()),
+        },
+        _ => NikaError::BuiltinToolError {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-290] cannot stat file: {e}"),
+        },
+    })?;
+
+    if !metadata.is_file() {
+        return Err(NikaError::BuiltinInvalidParams {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-294] not a regular file: {}", file.display()),
         });
     }
 
-    // Read the file
-    let data = tokio::fs::read(file).await.map_err(NikaError::from)?;
-
-    if data.is_empty() {
-        return Err(NikaError::ConfigError {
-            reason: format!("file is empty: {}", file.display()),
+    if metadata.len() == 0 {
+        return Err(NikaError::BuiltinInvalidParams {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-294] file is empty: {}", file.display()),
         });
     }
+
+    if metadata.len() > MAX_CLI_IMPORT_SIZE {
+        return Err(NikaError::BuiltinInvalidParams {
+            tool: "nika:import".to_string(),
+            reason: format!("[NIKA-294] file too large ({} bytes, max {} bytes)", metadata.len(), MAX_CLI_IMPORT_SIZE),
+        });
+    }
+
+    // Read the file (size already validated)
+    let data = tokio::fs::read(file).await.map_err(|e| NikaError::BuiltinToolError {
+        tool: "nika:import".to_string(),
+        reason: format!("[NIKA-290] read failed: {e}"),
+    })?;
 
     // Detect MIME type via magic bytes
     let mime_type = infer::get(&data)
@@ -108,8 +179,9 @@ async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) ->
     let size = data.len() as u64;
 
     // Store in CAS
-    let result = store.store(&data).await.map_err(|e| NikaError::ConfigError {
-        reason: format!("CAS store failed: {e}"),
+    let result = store.store(&data).await.map_err(|e| NikaError::BuiltinToolError {
+        tool: "nika:import".to_string(),
+        reason: format!("[NIKA-290] CAS store failed: {e}"),
     })?;
 
     if quiet {
@@ -634,6 +706,27 @@ mod tests {
 
         // CAS should still have only 1 entry (deduplicated)
         assert_eq!(store.list().len(), 1);
+    }
+
+    #[test]
+    fn test_cli_import_rejects_path_traversal() {
+        let path = std::path::Path::new("../../etc/passwd");
+        assert!(validate_cli_import_path(path).is_err());
+    }
+
+    #[test]
+    fn test_cli_import_rejects_sensitive_paths() {
+        for path_str in ["/etc/passwd", "/dev/null", "/var/log/system.log"] {
+            let path = std::path::Path::new(path_str);
+            let result = validate_cli_import_path(path);
+            assert!(result.is_err(), "should reject {path_str}");
+        }
+    }
+
+    #[test]
+    fn test_cli_import_allows_normal_paths() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        assert!(validate_cli_import_path(tmp.path()).is_ok());
     }
 }
 

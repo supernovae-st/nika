@@ -85,28 +85,31 @@ impl MediaOp for ProvenanceOp {
       let data = ctx.read_media(hash).await?;
 
       // Detect format from magic bytes
-      let (mime_type, extension) = detect_image_format(&data)?;
+      let (source_mime, extension) = detect_image_format(&data)?;
 
       let assertion_owned = assertion.to_string();
       let title_for_metadata = title.clone();
       let assertion_for_metadata = assertion_owned.clone();
-      let extension_for_metadata = extension.clone();
 
       // Sign on compute pool (CPU-bound crypto)
       let signed_data = ctx.compute.compute(move || -> Result<Vec<u8>, NikaError> {
-        sign_with_c2pa(&data, &mime_type, &title, &assertion_owned)
+        sign_with_c2pa(&data, &source_mime, &title, &assertion_owned)
       }).await??;
+
+      // Build metadata before moving extension (borrow via as_str)
+      let result_mime = extension_to_mime(&extension);
+      let meta = serde_json::json!({
+        "assertion": assertion_for_metadata,
+        "title": title_for_metadata,
+        "format": extension.as_str(),
+        "signed": true,
+      });
 
       Ok(MediaOpResult::Binary {
         data: signed_data,
-        mime_type: extension_to_mime(&extension_for_metadata),
-        extension: extension_for_metadata.clone(),
-        metadata: serde_json::json!({
-          "assertion": assertion_for_metadata,
-          "title": title_for_metadata,
-          "format": extension_for_metadata,
-          "signed": true,
-        }),
+        mime_type: result_mime,
+        extension,
+        metadata: meta,
       })
     })
   }
@@ -145,7 +148,7 @@ fn digital_source_type(assertion: &str) -> &'static str {
     "ai.generated" => "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
     "ai.modified" => "http://cv.iptc.org/newscodes/digitalsourcetype/compositeWithTrainedAlgorithmicMedia",
     "human.created" => "http://cv.iptc.org/newscodes/digitalsourcetype/humanCreation",
-    _ => "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia",
+    _ => unreachable!("assertion validated against KNOWN_ASSERTIONS before calling digital_source_type"),
   }
 }
 

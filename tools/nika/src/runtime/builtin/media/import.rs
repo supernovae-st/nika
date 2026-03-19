@@ -10,8 +10,57 @@ use std::pin::Pin;
 
 use crate::error::NikaError;
 use super::context::MediaToolContext;
-use super::error::{invalid_args, tool_error};
+use super::error::{invalid_args, security_violation, tool_error};
 use super::{MediaOp, MediaOpResult};
+
+/// Maximum import file size: 500 MB (matches CAS budget default).
+const MAX_IMPORT_FILE_SIZE: u64 = 500 * 1024 * 1024;
+
+/// Sensitive system directories that import must never read from.
+/// Includes macOS `/private/etc` symlink targets.
+const SENSITIVE_PREFIXES: &[&str] = &[
+  "/etc/", "/proc/", "/sys/", "/dev/",
+  "/var/run/", "/var/log/",
+  // macOS: /etc → /private/etc, /var → /private/var
+  "/private/etc/", "/private/var/run/", "/private/var/log/",
+];
+
+/// Validate import path: reject path traversal and known sensitive directories.
+fn validate_import_path(path: &std::path::Path) -> Result<(), NikaError> {
+  let path_str = path.to_string_lossy();
+
+  // Reject paths containing ".."
+  for component in path.components() {
+    if matches!(component, std::path::Component::ParentDir) {
+      return Err(security_violation("import", format!(
+        "path traversal not allowed: {path_str}"
+      )));
+    }
+  }
+
+  // Reject reads from sensitive system directories (check both raw and canonical paths)
+  let path_str = path.to_string_lossy();
+  for prefix in SENSITIVE_PREFIXES {
+    if path_str.starts_with(prefix) {
+      return Err(security_violation("import", format!(
+        "reading from {prefix} is not allowed"
+      )));
+    }
+  }
+
+  if let Ok(canonical) = path.canonicalize() {
+    let canonical_str = canonical.to_string_lossy();
+    for prefix in SENSITIVE_PREFIXES {
+      if canonical_str.starts_with(prefix) {
+        return Err(security_violation("import", format!(
+          "reading from {prefix} is not allowed"
+        )));
+      }
+    }
+  }
+
+  Ok(())
+}
 
 pub struct ImportOp;
 
@@ -51,21 +100,36 @@ impl MediaOp for ImportOp {
 
       let path = PathBuf::from(path_str);
 
-      // Validate: exists and is a regular file
-      if !path.exists() {
-        return Err(invalid_args("import", format!("file not found: {path_str}")));
-      }
-      if !path.is_file() {
+      // Security: reject path traversal and sensitive paths
+      validate_import_path(&path)?;
+
+      // Async metadata check (no blocking I/O, no TOCTOU)
+      let metadata = tokio::fs::metadata(&path).await
+        .map_err(|e| match e.kind() {
+          std::io::ErrorKind::NotFound =>
+            invalid_args("import", format!("file not found: {path_str}")),
+          std::io::ErrorKind::PermissionDenied =>
+            tool_error("import", format!("permission denied: {path_str}")),
+          _ => tool_error("import", format!("cannot stat file: {e}")),
+        })?;
+
+      if !metadata.is_file() {
         return Err(invalid_args("import", format!("not a regular file: {path_str}")));
       }
 
-      // Read the file
-      let data = tokio::fs::read(&path).await
-        .map_err(|e| tool_error("import", format!("read failed: {e}")))?;
-
-      if data.is_empty() {
+      // Pre-read size check — prevents OOM from multi-GB files
+      if metadata.len() == 0 {
         return Err(invalid_args("import", "file is empty"));
       }
+      if metadata.len() > MAX_IMPORT_FILE_SIZE {
+        return Err(invalid_args("import", format!(
+          "file too large ({} bytes, max {} bytes)", metadata.len(), MAX_IMPORT_FILE_SIZE
+        )));
+      }
+
+      // Read the file (size already validated)
+      let data = tokio::fs::read(&path).await
+        .map_err(|e| tool_error("import", format!("read failed: {e}")))?;
 
       // Detect MIME type via magic bytes
       let mime_type = infer::get(&data)
@@ -311,5 +375,46 @@ mod tests {
       let result = op.execute(input.clone(), &ctx).await;
       assert!(result.is_err(), "bad input should error, not panic: {input}");
     }
+  }
+
+  #[tokio::test]
+  async fn import_rejects_path_traversal() {
+    let (_dir, ctx) = setup().await;
+    let op = ImportOp;
+    let result = op.execute(
+      serde_json::json!({"path": "/tmp/../etc/hosts"}),
+      &ctx,
+    ).await;
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("NIKA-297"), "path traversal should be security violation, got: {err}");
+  }
+
+  #[tokio::test]
+  async fn import_rejects_sensitive_paths() {
+    let (_dir, ctx) = setup().await;
+    let op = ImportOp;
+    // These are checked by raw path prefix, so they work even if the file doesn't exist
+    for path in ["/etc/passwd", "/etc/hosts", "/dev/null", "/var/log/system.log"] {
+      let result = op.execute(
+        serde_json::json!({"path": path}),
+        &ctx,
+      ).await;
+      assert!(result.is_err(), "sensitive path {path} should be rejected");
+      let err = result.unwrap_err().to_string();
+      assert!(err.contains("NIKA-297"), "should be security violation for {path}, got: {err}");
+    }
+  }
+
+  #[test]
+  fn validate_path_rejects_dotdot() {
+    let path = std::path::Path::new("../../etc/passwd");
+    assert!(validate_import_path(path).is_err());
+  }
+
+  #[test]
+  fn validate_path_allows_normal() {
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    assert!(validate_import_path(tmp.path()).is_ok());
   }
 }

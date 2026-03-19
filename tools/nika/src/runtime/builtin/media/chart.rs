@@ -94,11 +94,17 @@ impl MediaOp for ChartOp {
       // Parse series
       let series_list = parse_series(series_arr)?;
 
-      // Parse labels
-      let labels: Vec<String> = args.get("labels")
-        .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
-        .unwrap_or_default();
+      // Parse labels (reject non-string values instead of silently filtering)
+      let labels: Vec<String> = match args.get("labels").and_then(|v| v.as_array()) {
+        Some(arr) => {
+          arr.iter().enumerate().map(|(i, v)| {
+            v.as_str()
+              .map(|s| s.to_string())
+              .ok_or_else(|| invalid_args("chart", format!("labels[{i}] must be a string")))
+          }).collect::<Result<_, _>>()?
+        }
+        None => Vec::new(),
+      };
 
       let chart_type_owned = chart_type.to_string();
 
@@ -134,9 +140,13 @@ fn parse_series(arr: &[serde_json::Value]) -> Result<Vec<charts_rs::Series>, Nik
       .ok_or_else(|| invalid_args("chart", format!("series[{i}] missing 'data' array")))?;
 
     let values: Vec<f32> = data.iter().enumerate().map(|(j, v)| {
-      v.as_f64()
-        .map(|n| n as f32)
-        .ok_or_else(|| invalid_args("chart", format!("series[{i}].data[{j}] is not a number")))
+      let n = v.as_f64()
+        .ok_or_else(|| invalid_args("chart", format!("series[{i}].data[{j}] is not a number")))?;
+      let f = n as f32;
+      if !f.is_finite() {
+        return Err(invalid_args("chart", format!("series[{i}].data[{j}] is not a finite number")));
+      }
+      Ok(f)
     }).collect::<Result<_, _>>()?;
 
     if values.is_empty() {
@@ -221,8 +231,8 @@ mod tests {
     if let MediaOpResult::Binary { data, mime_type, metadata, .. } = result {
       assert_eq!(mime_type, "image/png");
       assert!(!data.is_empty(), "PNG data should not be empty");
-      // PNG magic bytes
       assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47], "should start with PNG magic");
+      image::load_from_memory(&data).expect("bar chart PNG must be decodable");
       assert_eq!(metadata["chart_type"], "bar");
     } else {
       panic!("expected Binary result");
@@ -242,6 +252,7 @@ mod tests {
     if let MediaOpResult::Binary { data, mime_type, .. } = result {
       assert_eq!(mime_type, "image/png");
       assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47]);
+      image::load_from_memory(&data).expect("line chart PNG must be decodable");
     } else {
       panic!("expected Binary result");
     }
@@ -265,6 +276,7 @@ mod tests {
     if let MediaOpResult::Binary { data, mime_type, metadata, .. } = result {
       assert_eq!(mime_type, "image/png");
       assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47]);
+      image::load_from_memory(&data).expect("pie chart PNG must be decodable");
       assert_eq!(metadata["chart_type"], "pie");
     } else {
       panic!("expected Binary result");
@@ -388,6 +400,57 @@ mod tests {
     }), &ctx).await;
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("cancelled"));
+  }
+
+  #[tokio::test]
+  async fn chart_rejects_non_finite_values() {
+    let (_dir, ctx) = setup().await;
+    let op = ChartOp;
+    // f64::INFINITY serializes to null in JSON → triggers "not a number"
+    let mut args = serde_json::json!({
+      "type": "bar",
+      "series": [{"name": "X", "data": [0.0]}],
+      "labels": ["A"]
+    });
+    args["series"][0]["data"][0] = serde_json::Value::from(f64::INFINITY);
+    let result = op.execute(args, &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("not a number"));
+
+    // Very large f64 that becomes f32::INFINITY → triggers "not a finite number"
+    let result2 = op.execute(serde_json::json!({
+      "type": "bar",
+      "series": [{"name": "X", "data": [3.5e38]}],
+      "labels": ["A"]
+    }), &ctx).await;
+    assert!(result2.is_err());
+    assert!(result2.unwrap_err().to_string().contains("finite"));
+  }
+
+  #[tokio::test]
+  async fn chart_rejects_non_string_labels() {
+    let (_dir, ctx) = setup().await;
+    let op = ChartOp;
+    let result = op.execute(serde_json::json!({
+      "type": "bar",
+      "series": [{"name": "X", "data": [1.0, 2.0]}],
+      "labels": [1, 2]
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+  }
+
+  #[tokio::test]
+  async fn chart_rejects_empty_series_data() {
+    let (_dir, ctx) = setup().await;
+    let op = ChartOp;
+    let result = op.execute(serde_json::json!({
+      "type": "bar",
+      "series": [{"name": "X", "data": []}],
+      "labels": ["A"]
+    }), &ctx).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("empty"));
   }
 
   #[tokio::test]

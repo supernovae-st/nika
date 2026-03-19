@@ -115,6 +115,18 @@ mod tests {
 
     if let MediaOpResult::Metadata(v) = result {
       assert_eq!(v["size_bytes"], 4);
+      // Hash must be valid blake3 format
+      let hash = v["hash"].as_str().unwrap();
+      assert!(hash.starts_with("blake3:"), "hash must be blake3-prefixed");
+      assert_eq!(hash.len(), 71, "blake3:xxxx = 6 prefix + 64 hex + 1 colon = 71 chars");
+      // MIME should be detected (or fallback)
+      let mime = v["mime_type"].as_str().unwrap();
+      assert!(!mime.is_empty(), "mime_type should not be empty");
+      // Must be readable from CAS
+      let read_back = ctx.read_media(hash).await.unwrap();
+      assert_eq!(read_back, &[0x89, 0x50, 0x4E, 0x47]);
+    } else {
+      panic!("expected Metadata result");
     }
   }
 
@@ -277,6 +289,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47]);
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -295,6 +309,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -309,6 +325,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert_eq!(&data[..4], &[0x89, 0x50, 0x4E, 0x47]);
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -325,6 +343,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -339,6 +359,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -353,6 +375,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -403,6 +427,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
 
@@ -418,6 +444,8 @@ mod tests {
 
       if let MediaOpResult::Binary { data, .. } = result {
         assert!(!data.is_empty());
+      } else {
+        panic!("expected Binary result");
       }
     }
   }
