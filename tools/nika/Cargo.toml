@@ -205,7 +205,7 @@ fontdb = { version = "0.23", optional = true }
 # Media tools — Tier 3 (PR3b, opt-in)
 image_hasher = { version = "3.1", optional = true }
 pdf-extract = { version = "0.10", optional = true }
-charts-rs = { version = "0.3", optional = true }
+charts-rs = { version = "0.3", optional = true, features = ["image-encoder"] }
 c2pa = { version = "0.78", optional = true, features = ["rust_native_crypto"] }
 
 # Logging

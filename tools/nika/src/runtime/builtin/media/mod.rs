@@ -38,6 +38,8 @@ mod convert;
 mod strip;
 mod import;
 // PR3b tools
+#[cfg(feature = "media-chart")]
+mod chart;
 #[cfg(feature = "media-phash")]
 mod phash;
 #[cfg(feature = "media-phash")]
@@ -252,6 +254,14 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
   }
 
   // Tier 3 — PR3b tools
+  #[cfg(feature = "media-chart")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(chart::ChartOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
   #[cfg(feature = "media-phash")]
   {
     tools.push(Box::new(MediaToolAdapter::new(

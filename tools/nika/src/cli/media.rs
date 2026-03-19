@@ -678,6 +678,7 @@ fn handle_tools() {
         ("nika:phash", "media-phash", "Perceptual image hashing (near-duplicate detection)", cfg!(feature = "media-phash")),
         ("nika:compare", "media-phash", "Visual comparison between two images", cfg!(feature = "media-phash")),
         ("nika:pdf_extract", "media-pdf", "PDF text extraction", cfg!(feature = "media-pdf")),
+        ("nika:chart", "media-chart", "Generate charts (bar/line/pie) from JSON data", cfg!(feature = "media-chart")),
     ];
 
     for (name, feature, desc, enabled) in &tools_tier3 {
