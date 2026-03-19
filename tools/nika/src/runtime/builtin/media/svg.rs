@@ -20,6 +20,12 @@ fn get_fontdb() -> Arc<fontdb::Database> {
   FONTDB.get_or_init(|| {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
+    if db.is_empty() {
+      tracing::warn!(
+        "svg_render: no system fonts found — text in SVGs will not render. \
+         Install fonts or use a container with font packages."
+      );
+    }
     Arc::new(db)
   }).clone()
 }
@@ -85,13 +91,13 @@ impl MediaOp for SvgRenderOp {
           (Some(w), Some(h)) => (w, h),
           (Some(w), None) => {
             let ratio = svg_size.height() / svg_size.width();
-            (w, (w as f32 * ratio) as u32)
+            (w, (w as f32 * ratio).round() as u32)
           }
           (None, Some(h)) => {
             let ratio = svg_size.width() / svg_size.height();
-            ((h as f32 * ratio) as u32, h)
+            ((h as f32 * ratio).round() as u32, h)
           }
-          (None, None) => (svg_size.width() as u32, svg_size.height() as u32),
+          (None, None) => (svg_size.width().round() as u32, svg_size.height().round() as u32),
         };
 
         let w = w.clamp(1, 10_000);
