@@ -1,0 +1,10 @@
+schema: '@0.12'
+workflow: test-broken-content
+tasks:
+  - id: gen
+    infer:
+      prompt: test
+    content
+  - id: run
+    exec:
+      command: echo done

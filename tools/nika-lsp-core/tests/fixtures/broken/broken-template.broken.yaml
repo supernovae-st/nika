@@ -1,0 +1,13 @@
+schema: '@0.12'
+workflow: test-broken-template
+tasks:
+  - id: gen
+    infer:
+      prompt: "Use {{with."
+    with:
+      doc: readme.md
+  - id: run
+    exec:
+      command: echo "{{with.result"
+    with:
+      result: output.txt

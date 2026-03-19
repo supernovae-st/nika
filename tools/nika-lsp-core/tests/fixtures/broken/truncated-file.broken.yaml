@@ -1,0 +1,6 @@
+schema: '@0.12'
+workflow: test-truncated
+tasks:
+  - id: trunc
+    infer:
+      prompt: this file is trun

@@ -1,0 +1,10 @@
+schema: '@0.12'
+workflow: test-missing-colon
+tasks:
+  - id: gen
+    infer
+      model: gpt-4
+      prompt: Generate something
+  - id: run
+    exec:
+      command: echo done

@@ -1,0 +1,7 @@
+schema: '@0.12'
+workflow: test-mixed-indent
+tasks:
+  - id: mixed
+	  infer:
+      prompt: hello
+    content: true

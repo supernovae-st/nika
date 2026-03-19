@@ -1,0 +1,8 @@
+schema: '@0.12'
+workflow: test-incomplete
+tasks:
+  - id: started
+    infer:
+  - id: complete
+    exec:
+      command: echo hi

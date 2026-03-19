@@ -1,0 +1,19 @@
+workflow: test-no-schema
+tasks:
+  - id: gen
+    infer:
+      model: gpt-4
+      prompt: hello world
+    content: true
+    with:
+      doc: readme.md
+    depends_on: [setup]
+  - id: setup
+    exec:
+      command: echo ready
+mcp:
+  novanet:
+    command: novanet serve
+context:
+  files:
+    readme: ./README.md

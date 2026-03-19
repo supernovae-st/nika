@@ -1,0 +1,8 @@
+schema: '@0.12'
+workflow: test-dupe-verb
+tasks:
+  - id: confused
+    infer:
+      prompt: hello
+    exec:
+      command: echo world
