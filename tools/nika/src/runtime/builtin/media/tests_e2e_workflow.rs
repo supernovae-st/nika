@@ -321,6 +321,10 @@ mod tests {
     {
       expected += 1;
     }
+    #[cfg(feature = "media-qr")]
+    {
+      expected += 1; // qr_validate
+    }
 
     assert_eq!(
       total, expected,
