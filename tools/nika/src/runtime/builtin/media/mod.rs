@@ -52,6 +52,10 @@ mod pipeline;
 #[cfg(test)]
 mod tests_integration;
 #[cfg(test)]
+mod tests_import_integration;
+#[cfg(test)]
+mod tests_pr3b_tools;
+#[cfg(test)]
 mod tests_paranoid;
 #[cfg(test)]
 mod tests_e2e_workflow;
