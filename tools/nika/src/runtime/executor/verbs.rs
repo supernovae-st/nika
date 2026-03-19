@@ -919,6 +919,8 @@ impl TaskExecutor {
             http_client.patch(url.as_ref())
         } else if fetch.method.eq_ignore_ascii_case("HEAD") {
             http_client.head(url.as_ref())
+        } else if fetch.method.eq_ignore_ascii_case("OPTIONS") {
+            http_client.request(reqwest::Method::OPTIONS, url.as_ref())
         } else {
             http_client.get(url.as_ref()) // Default to GET
         };
