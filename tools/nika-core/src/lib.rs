@@ -14,4 +14,5 @@
 //! - TUI (ratatui)
 //! - LSP server (tower-lsp)
 
+pub mod catalogs;
 pub mod source;

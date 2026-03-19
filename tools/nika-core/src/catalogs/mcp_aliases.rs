@@ -1,4 +1,4 @@
-//! MCP server aliases — short names to npm package mappings.
+//! MCP server aliases -- short names to npm package mappings.
 //!
 //! This module provides 48 aliases for common MCP servers, allowing users
 //! to add servers by short name instead of full npm package path.
@@ -31,9 +31,9 @@
 /// - **Productivity (8)**: Slack, Google Drive, Notion, etc.
 /// - **AI & Specialized (8)**: Langchain, E2B, Sequential Thinking, etc.
 pub static MCP_ALIASES: &[(&str, &str)] = &[
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // ANTHROPIC OFFICIAL (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("filesystem", "@modelcontextprotocol/server-filesystem"),
     ("memory", "@modelcontextprotocol/server-memory"),
     ("puppeteer", "@modelcontextprotocol/server-puppeteer"),
@@ -42,9 +42,9 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("fetch", "@modelcontextprotocol/server-fetch"),
     ("github", "@modelcontextprotocol/server-github"),
     ("gitlab", "@modelcontextprotocol/server-gitlab"),
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // DATABASES (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("neo4j", "@neo4j/mcp-neo4j"),
     ("postgres", "@modelcontextprotocol/server-postgres"),
     ("mysql", "mcp-server-mysql"),
@@ -53,9 +53,9 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("redis", "mcp-redis"),
     ("supabase", "mcp-supabase"),
     ("neon", "@neondatabase/mcp-server-neon"),
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // SEARCH & WEB (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("perplexity", "perplexity-mcp"),
     ("firecrawl", "firecrawl-mcp"),
     ("brave", "@anthropic/mcp-server-brave-search"),
@@ -64,9 +64,9 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("serper", "serper-mcp"),
     ("searchapi", "searchapi-mcp"),
     ("bing", "bing-mcp"),
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // DEVELOPER TOOLS (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("linear", "mcp-linear"),
     ("sentry", "@modelcontextprotocol/server-sentry"),
     ("raygun", "raygun-mcp"),
@@ -75,9 +75,9 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("vercel", "vercel-mcp"),
     ("cloudflare", "cloudflare-mcp"),
     ("aws", "aws-mcp"),
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // PRODUCTIVITY (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("slack", "@anthropic/mcp-server-slack"),
     ("google-drive", "@anthropic/mcp-server-google-drive"),
     ("notion", "notion-mcp"),
@@ -86,9 +86,9 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("asana", "asana-mcp"),
     ("trello", "trello-mcp"),
     ("monday", "monday-mcp"),
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     // AI & SPECIALIZED (8)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // =============================================================================
     ("langchain", "langchain-mcp"),
     ("e2b", "@e2b/mcp-server"),
     (
@@ -107,7 +107,7 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
 /// # Example
 ///
 /// ```
-/// use nika::core::mcp_aliases::resolve_alias;
+/// use nika_core::catalogs::mcp_aliases::resolve_alias;
 ///
 /// assert_eq!(resolve_alias("neo4j"), Some("@neo4j/mcp-neo4j"));
 /// assert_eq!(resolve_alias("unknown"), None);
@@ -124,7 +124,7 @@ pub fn resolve_alias(alias: &str) -> Option<&'static str> {
 /// # Example
 ///
 /// ```
-/// use nika::core::mcp_aliases::is_alias;
+/// use nika_core::catalogs::mcp_aliases::is_alias;
 ///
 /// assert!(is_alias("neo4j"));
 /// assert!(!is_alias("@neo4j/mcp-neo4j"));
@@ -138,7 +138,7 @@ pub fn is_alias(name: &str) -> bool {
 /// # Example
 ///
 /// ```
-/// use nika::core::mcp_aliases::list_aliases;
+/// use nika_core::catalogs::mcp_aliases::list_aliases;
 ///
 /// let aliases = list_aliases();
 /// assert!(aliases.len() >= 48);
@@ -173,9 +173,9 @@ pub fn aliases_by_category(category: &str) -> Vec<(&'static str, &'static str)> 
 /// # Example
 ///
 /// ```
-/// use nika::core::mcp_aliases::resolve_name;
+/// use nika_core::catalogs::mcp_aliases::resolve_name;
 ///
-/// // Alias → package
+/// // Alias -> package
 /// assert_eq!(resolve_name("neo4j"), Some("@neo4j/mcp-neo4j".to_string()));
 ///
 /// // Already a package name

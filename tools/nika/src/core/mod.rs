@@ -69,12 +69,18 @@
 //! assert_eq!(pkg, "@neo4j/mcp-server-neo4j");
 //! ```
 
-pub mod backend;
-pub mod mcp_aliases;
-pub mod mcp_config;
+// ── Catalog modules (from nika-core) ────────────────────────────────────────
+// Pure data: types, statics, lookup functions. Zero runtime dependencies.
+pub use nika_core::catalogs::mcp_aliases;
+pub use nika_core::catalogs::providers;
+
+// Models: catalog types from nika-core + runtime functions in local models.rs
 pub mod models;
+
+// ── Local modules (runtime dependencies) ────────────────────────────────────
+pub mod backend;
+pub mod mcp_config;
 pub mod paths;
-pub mod providers;
 pub mod storage;
 
 // Re-export main types for convenient access
