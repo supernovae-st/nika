@@ -31,6 +31,8 @@ use crate::provider::rig::RigProvider;
 use crate::runtime::boot::PolicyConfig;
 use crate::runtime::policy::PolicyEnforcer;
 use crate::runtime::BuiltinToolRouter;
+use crate::runtime::builtin::media::context::MediaToolContext;
+use crate::media::CasStore;
 use crate::store::RunContext;
 use crate::tools::{PermissionMode, ToolContext};
 use crate::util::{CONNECT_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -105,7 +107,12 @@ impl TaskExecutor {
             tracing::warn!("Failed to get current directory, using /tmp");
             std::path::PathBuf::from("/tmp")
         });
-        let tool_ctx = Arc::new(ToolContext::new(working_dir, PermissionMode::YoloMode));
+        let tool_ctx = Arc::new(ToolContext::new(working_dir.clone(), PermissionMode::YoloMode));
+
+        // Create media tool context with CAS store at workspace default
+        let media_ctx = Arc::new(MediaToolContext::new(
+            CasStore::workspace_default(&working_dir),
+        ));
 
         Self {
             http_client,
@@ -117,7 +124,7 @@ impl TaskExecutor {
             default_provider: provider.into(),
             default_model: model.map(Into::into),
             event_log,
-            builtin_router: Arc::new(BuiltinToolRouter::with_file_tools(tool_ctx)),
+            builtin_router: Arc::new(BuiltinToolRouter::with_all_tools(tool_ctx, media_ctx)),
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
             cancel_token: CancellationToken::new(),
         }

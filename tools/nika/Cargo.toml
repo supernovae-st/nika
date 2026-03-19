@@ -19,13 +19,20 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "nika-daemon", "native-keychain", "native-inference"]
+default = ["tui", "nika-daemon", "native-keychain", "native-inference", "media-core"]
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:unicode-width", "dep:terminal_size", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
 lsp = ["dep:tower-lsp", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.22)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 native-inference = ["dep:mistralrs", "dep:async-stream"]  # Native LLM inference via mistral.rs (local GGUF models)
 integration = []  # Enable integration tests with real MCP servers
+
+# Media tool features (v0.33.0 — PR3)
+media-core = ["media-thumbnail", "media-metadata", "media-optimize", "media-svg"]
+media-thumbnail = ["dep:fast_image_resize", "dep:image"]
+media-metadata = ["dep:nom-exif", "dep:lofty"]
+media-optimize = ["dep:oxipng"]
+media-svg = ["dep:resvg", "dep:usvg", "dep:tiny-skia", "dep:fontdb"]
 
 [dependencies]
 # CLI
@@ -172,6 +179,23 @@ base64 = "0.22"
 mime_guess = "2.0"
 mime = "0.3"
 bytes = "1"
+
+# Media tools — Tier 1 (always on, zero/tiny deps)
+imagesize = "0.14"     # Header-only image dimensions (0 deps)
+thumbhash = "0.1"      # 25-byte compact image placeholder (0 deps)
+color-thief = "0.2"    # Dominant color palette extraction
+rayon = "1.10"         # ComputePool for CPU-bound media ops (isolated from tokio)
+
+# Media tools — Tier 2 (feature-gated, optional)
+fast_image_resize = { version = "6.0", features = ["image"], optional = true }
+image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+nom-exif = { version = "2.7", optional = true }
+lofty = { version = "0.23", optional = true }
+oxipng = { version = "10.1", optional = true, default-features = false, features = ["parallel"] }
+resvg = { version = "0.47", optional = true }
+usvg = { version = "0.47", optional = true }
+tiny-skia = { version = "0.12", optional = true }
+fontdb = { version = "0.23", optional = true }
 
 # Logging
 tracing = "0.1"

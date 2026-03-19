@@ -22,6 +22,7 @@ use super::{
     create_file_tool_adapters, AssertTool, BuiltinTool, CompleteTool, EmitTool, LogTool,
     PromptTool, RunTool, SleepTool,
 };
+use super::media::{context::MediaToolContext, create_media_tool_adapters};
 use crate::error::NikaError;
 use crate::tools::ToolContext;
 use rustc_hash::FxHashMap;
@@ -90,6 +91,20 @@ impl BuiltinToolRouter {
 
         // Register 5 file tools via adapter
         for tool in create_file_tool_adapters(ctx) {
+            router.tools.insert(tool.name(), Arc::from(tool));
+        }
+
+        router
+    }
+
+    /// Create a router with all builtin tools (7 core + 5 file + N media).
+    ///
+    /// Media tools require a `MediaToolContext` for CAS access, budget, and compute pool.
+    pub fn with_all_tools(file_ctx: Arc<ToolContext>, media_ctx: Arc<MediaToolContext>) -> Self {
+        let mut router = Self::with_file_tools(file_ctx);
+
+        // Register media tools via adapter
+        for tool in create_media_tool_adapters(media_ctx) {
             router.tools.insert(tool.name(), Arc::from(tool));
         }
 
