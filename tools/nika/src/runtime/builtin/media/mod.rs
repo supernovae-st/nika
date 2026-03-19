@@ -69,6 +69,8 @@ mod tests_e2e_workflow;
 mod tests_security;
 #[cfg(test)]
 mod tests_comprehensive;
+#[cfg(test)]
+mod tests_pr4_pipelines;
 
 use std::future::Future;
 use std::pin::Pin;
