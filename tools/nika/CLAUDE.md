@@ -21,8 +21,8 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 9 media tools (nika:thumbnail, etc.)
-│   │   └── media/       #   Media tools: thumbnail, metadata, optimize, svg, etc.
+│   ├── builtin/         #   12 core + 18 media tools (nika:thumbnail, etc.)
+│   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── mcp/                 # MCP client (rmcp adapter, pool, retry, validation)
 ├── provider/            # LLM providers (rig-core cloud + mistral.rs native + cost.rs)
@@ -73,7 +73,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (5731+, safe — no keychain)
+cargo test --lib             # Unit tests (6129+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
@@ -94,23 +94,43 @@ cargo clippy -- -D warnings  # Zero warnings policy
 
 ## Media Tools (v0.33.0)
 
-9 builtin media tools accessible via `invoke: nika:*`:
+18 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
+
+### Tier 1 — Always-on (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `nika:import` | Import any file into CAS (content-addressable storage) |
+| `nika:dimensions` | Image dimensions from headers (~0.1ms) |
+| `nika:thumbhash` | 25-byte image placeholder |
+| `nika:dominant_color` | Color palette extraction |
+| `nika:pipeline` | Chain operations in-memory (zero intermediate files) |
+
+### Tier 2 — media-core default (6 tools)
 
 | Tool | Feature | Description |
 |------|---------|-------------|
-| `nika:dimensions` | always-on | Image dimensions from headers (~0.1ms) |
-| `nika:thumbhash` | always-on | 25-byte image placeholder |
-| `nika:dominant_color` | always-on | Color palette extraction |
 | `nika:thumbnail` | media-thumbnail | SIMD-accelerated resize (Lanczos3) |
+| `nika:convert` | media-thumbnail | Format conversion (PNG/JPEG/WebP) |
+| `nika:strip` | media-thumbnail | Remove metadata (decode+re-encode) |
 | `nika:metadata` | media-metadata | Universal EXIF/audio/video metadata |
 | `nika:optimize` | media-optimize | Lossless PNG optimization (oxipng) |
 | `nika:svg_render` | media-svg | SVG to PNG rasterization (resvg) |
-| `nika:convert` | media-thumbnail | Format conversion (PNG↔JPEG↔WebP) |
-| `nika:strip` | media-thumbnail | Remove metadata (decode+re-encode) |
+
+### Tier 3 — Opt-in (5 tools)
+
+| Tool | Feature | Description |
+|------|---------|-------------|
+| `nika:phash` | media-phash | Perceptual image hashing |
+| `nika:compare` | media-phash | Visual comparison via perceptual hash |
+| `nika:pdf_extract` | media-pdf | PDF text extraction |
+| `nika:chart` | media-chart | Bar/line/pie charts from JSON data |
+| `nika:provenance` | media-provenance | C2PA content credentials |
 
 **Security rules:**
 - NEVER use `image::load_from_memory()` directly → use `decode_image_safe()` with Limits
 - SVG: always call `sanitize_svg()` BEFORE parsing
+- Import: validate paths against traversal attacks, pre-read size check (50 MB default limit)
 - Timeout: 30s default on all operations
 - Feature `media-core` (default) enables all Tier 2 tools
 
@@ -128,3 +148,5 @@ cargo clippy -- -D warnings  # Zero warnings policy
 | `timeout: 30` meaning 30ms | `timeout: 30` means 30 seconds now |
 | `image::load_from_memory()` | Use `decode_image_safe()` from media/safety.rs |
 | SVG without sanitize | Always `sanitize_svg()` BEFORE usvg parsing |
+| Import without path validation | Use `validate_import_path()` to block traversal attacks |
+| Skipping pre-read size check | Always check file size before reading into memory |
