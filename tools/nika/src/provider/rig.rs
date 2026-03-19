@@ -1334,20 +1334,18 @@ impl RigProvider {
         let mut response_parts: Vec<String> = Vec::new();
         let mut result = StreamResult::default();
 
-        // Build prompt with system message if provided
-        let full_prompt = if let Some(system) = &options.system {
-            format!("{}\n\n{}", system, prompt)
-        } else {
-            prompt.to_string()
-        };
-
         // Helper: build request with options and start streaming
+        // Uses preamble() for system prompt (not string concatenation) to ensure
+        // providers treat it as a system message, not user text.
         macro_rules! build_request_with_options {
             ($client:expr) => {{
                 let model = $client.completion_model(model_id);
                 let mut rb = model
-                    .completion_request(&full_prompt)
+                    .completion_request(prompt)
                     .max_tokens(max_tokens as u64);
+                if let Some(ref system) = options.system {
+                    rb = rb.preamble(system.clone());
+                }
                 if let Some(temp) = options.temperature {
                     rb = rb.temperature(temp);
                 }
@@ -1400,14 +1398,19 @@ impl RigProvider {
                 use futures::StreamExt;
                 use std::pin::pin;
 
-                // Native inference now supports streaming via mistral.rs
+                // Native doesn't support preamble — concatenate system prompt for native only
+                let native_prompt = if let Some(ref system) = options.system {
+                    format!("{}\n\n{}", system, prompt)
+                } else {
+                    prompt.to_string()
+                };
                 let chat_options = super::native::ChatOptions {
                     temperature: options.temperature.map(|t| t as f32),
                     max_tokens: options.max_tokens,
                     ..Default::default()
                 };
                 let stream = runtime
-                    .infer_stream(&full_prompt, chat_options)
+                    .infer_stream(&native_prompt, chat_options)
                     .await
                     .map_err(|e: super::native::NativeError| {
                         RigInferError::PromptError(e.to_string())

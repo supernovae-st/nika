@@ -2,29 +2,34 @@
 
 > Updated by Claude Code after each session.
 
-## Status: BATCH 0 COMPLETE — Starting Batch 1
+## Status: BATCH 1 IN PROGRESS — nika-core extraction done
 
 | Batch | PR | Status | Tests Before | Tests After | Notes |
 |-------|-----|--------|:------------:|:-----------:|-------|
-| **0** | Pre-flight | **DONE** | 6,093 | 6,093 | Docs committed, clippy fixed, nika-lsp synced to v0.34.0 |
-| **0** | PR:vscode-polish | - | - | - | |
-| **0** | PR:benchmarks | - | - | - | |
-| **0** | PR:context-inputs | - | - | - | |
-| **1** | PR:extract-ast | **IN PROGRESS** | 6,093 | - | CRITICAL PATH |
-| **2** | PR:tower-lsp-upgrade | - | - | - | |
-| **2** | PR:foundation | - | - | - | |
-| **3** | PR:error-recovery | - | - | - | |
-| **4** | PR:wire-completion | - | - | - | |
-| **4** | PR:wire-hover | - | - | - | |
-| **4** | PR:wire-definition | - | - | - | |
-| **4** | PR:wire-code-action | - | - | - | |
-| **4** | PR:wire-semantic-tokens | - | - | - | |
-| **4** | PR:wire-symbols | - | - | - | |
-| **5** | PR:handler-migration-delete | - | - | - | |
-| **5** | PR:error-coverage | - | - | - | |
-| **6** | PR:standard-trivial | - | - | - | |
-| **6** | PR:standard-medium | - | - | - | |
-| **6** | PR:standard-hard | - | - | - | |
+| **0** | Pre-flight | **DONE** | 6,093 | 6,093 | Docs, clippy, nika-lsp v0.34.0 sync |
+| **1** | PR:extract-ast | **DONE** | 6,093 | 6,637 | nika-core: 597 tests, nika: 6,040 |
+| **1** | PR:tower-lsp-upgrade | **NEXT** | - | - | tower-lsp 0.20 → tower-lsp-server 0.23 |
+| **2** | PR:foundation | - | - | - | nika-lsp-core + WorldDatabase |
+| **3** | PR:error-recovery | - | - | - | tree-sitter bridge |
+| **4** | PR:wire-* (6 sub-PRs) | - | - | - | Handler migration |
+| **5** | PR:cleanup + errors | - | - | - | Delete old + error coverage |
+| **6** | PR:standard-features | - | - | - | 14 new handlers |
+
+## nika-core Crate Structure
+
+```
+nika-core v0.34.0 (15 deps, zero heavy deps)
+├── source/        — FileId, Span, Spanned<T>, SourceRegistry (12 tests)
+├── catalogs/      — providers (19), models (15), mcp_aliases (48) (41 tests)
+├── binding/       — types, entry (WithSpec), transform (27 ops) (239 tests)
+├── error.rs       — CoreError (InvalidPath, InvalidDefault, ValidationError)
+└── ast/           — Full 3-phase pipeline (305 tests)
+    ├── raw/       — parser, task, workflow, action, mcp
+    ├── analyzed/  — workflow, task, ids
+    ├── analyzer/  — analyze, errors, suggestions
+    └── schema, content, budget, output, decompose, context,
+        logging, limits, include, structured, agent_def, artifact
+```
 
 ## Blockers
 
@@ -34,4 +39,5 @@ None.
 
 | Date | Session | PR | Commits | Duration | Notes |
 |------|---------|-----|---------|----------|-------|
-| 2026-03-19 | S0.0 | Pre-flight | 3 | ~45min | Docs, cargo fmt + 49 clippy fixes, nika-lsp sync to v0.34.0 |
+| 2026-03-19 | S0.0 | Pre-flight | 4 | ~45min | Docs, cargo fmt + 49 clippy fixes, nika-lsp sync |
+| 2026-03-19 | S1.1 | extract-ast | 5 | ~3h | nika-core skeleton, source/, catalogs/, binding/, AST |
