@@ -52,6 +52,8 @@ mod provenance;
 mod verify;
 #[cfg(feature = "media-qr")]
 mod qr;
+#[cfg(feature = "media-iqa")]
+mod quality;
 mod pipeline;
 #[cfg(test)]
 mod tests_integration;
@@ -308,6 +310,14 @@ pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<
   {
     tools.push(Box::new(MediaToolAdapter::new(
       Arc::new(qr::QrValidateOp),
+      Arc::clone(&ctx),
+    )));
+  }
+
+  #[cfg(feature = "media-iqa")]
+  {
+    tools.push(Box::new(MediaToolAdapter::new(
+      Arc::new(quality::QualityOp),
       Arc::clone(&ctx),
     )));
   }
