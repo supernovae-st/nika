@@ -858,25 +858,42 @@ impl TaskExecutor {
                     .unwrap_or_else(|| "{}".to_string());
 
                 // Dispatch to builtin router
-                let result = self.builtin_router.dispatch(tool, params).await?;
-
-                // Parse result as JSON
-                let result_value: serde_json::Value = serde_json::from_str(&result)
-                    .unwrap_or_else(|_| serde_json::Value::String(result.clone()));
-
-                // EMIT: McpResponse event for builtin tool
+                let dispatch_result = self.builtin_router.dispatch(tool, params).await;
                 let duration_ms = start_time.elapsed().as_millis() as u64;
-                self.event_log.emit(EventKind::McpResponse {
-                    task_id: Arc::clone(task_id),
-                    call_id,
-                    output_len: result.len(),
-                    duration_ms,
-                    cached: false,
-                    is_error: false,
-                    response: Some(result_value.clone()),
-                });
 
-                return Ok(result_value.to_string());
+                match dispatch_result {
+                    Ok(result) => {
+                        let result_value: serde_json::Value = serde_json::from_str(&result)
+                            .unwrap_or_else(|_| serde_json::Value::String(result.clone()));
+
+                        // EMIT: McpResponse event for builtin tool (success)
+                        self.event_log.emit(EventKind::McpResponse {
+                            task_id: Arc::clone(task_id),
+                            call_id,
+                            output_len: result.len(),
+                            duration_ms,
+                            cached: false,
+                            is_error: false,
+                            response: Some(result_value.clone()),
+                        });
+
+                        return Ok(result_value.to_string());
+                    }
+                    Err(e) => {
+                        // EMIT: McpResponse event for builtin tool (error)
+                        self.event_log.emit(EventKind::McpResponse {
+                            task_id: Arc::clone(task_id),
+                            call_id,
+                            output_len: 0,
+                            duration_ms,
+                            cached: false,
+                            is_error: true,
+                            response: Some(serde_json::json!({"error": e.to_string()})),
+                        });
+
+                        return Err(e);
+                    }
+                }
             }
         }
 
