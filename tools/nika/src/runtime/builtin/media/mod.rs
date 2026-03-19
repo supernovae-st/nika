@@ -36,6 +36,7 @@ mod svg;
 mod convert;
 #[cfg(feature = "media-thumbnail")]
 mod strip;
+mod import;
 // PR3b tools
 #[cfg(feature = "media-phash")]
 mod phash;
@@ -187,10 +188,15 @@ impl BuiltinTool for MediaToolAdapter {
 }
 
 /// Create all media tool adapters for registration in the BuiltinToolRouter.
+#[allow(clippy::vec_init_then_push)] // Feature-gated pushes require incremental construction
 pub(crate) fn create_media_tool_adapters(ctx: Arc<MediaToolContext>) -> Vec<Box<dyn BuiltinTool>> {
   let mut tools: Vec<Box<dyn BuiltinTool>> = Vec::new();
 
   // Tier 1 — Always on (zero/tiny deps)
+  tools.push(Box::new(MediaToolAdapter::new(
+    Arc::new(import::ImportOp),
+    Arc::clone(&ctx),
+  )));
   tools.push(Box::new(MediaToolAdapter::new(
     Arc::new(dimensions::DimensionsOp),
     Arc::clone(&ctx),
@@ -407,10 +413,11 @@ mod tests {
     let ctx = Arc::new(MediaToolContext::new(CasStore::new(dir.path())));
     let tools = create_media_tool_adapters(ctx);
 
-    // At minimum: dimensions, thumbhash, dominant_color (always on)
-    assert!(tools.len() >= 3, "expected >= 3 tools, got {}", tools.len());
+    // At minimum: import, dimensions, thumbhash, dominant_color (always on)
+    assert!(tools.len() >= 4, "expected >= 4 tools, got {}", tools.len());
 
     let names: Vec<&str> = tools.iter().map(|t| t.name()).collect();
+    assert!(names.contains(&"import"));
     assert!(names.contains(&"dimensions"));
     assert!(names.contains(&"thumbhash"));
     assert!(names.contains(&"dominant_color"));

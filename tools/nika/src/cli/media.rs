@@ -22,6 +22,13 @@ const LOCKFILE_NAME: &str = ".nika-run.lock";
 
 #[derive(Subcommand, Debug)]
 pub enum MediaAction {
+    /// Import a local file into the CAS media store
+    Import {
+        /// File path to import
+        #[arg(help = "File path to import into CAS")]
+        file: PathBuf,
+    },
+
     /// List all files in the media store
     List,
 
@@ -56,6 +63,7 @@ pub async fn handle_media_command(action: MediaAction, quiet: bool) -> Result<()
     let store_root = store.root().to_path_buf();
 
     match action {
+        MediaAction::Import { file } => handle_import(&store, &file, quiet).await,
         MediaAction::List => handle_list(&store, quiet),
         MediaAction::Stats => handle_stats(&store, quiet),
         MediaAction::Tools => {
@@ -68,6 +76,54 @@ pub async fn handle_media_command(action: MediaAction, quiet: bool) -> Result<()
             force,
         } => handle_clean(&store, &store_root, &older_than, dry_run, force, quiet),
     }
+}
+
+async fn handle_import(store: &CasStore, file: &std::path::Path, quiet: bool) -> Result<(), NikaError> {
+    // Validate file exists and is a regular file
+    if !file.exists() {
+        return Err(NikaError::ConfigError {
+            reason: format!("file not found: {}", file.display()),
+        });
+    }
+    if !file.is_file() {
+        return Err(NikaError::ConfigError {
+            reason: format!("not a regular file: {}", file.display()),
+        });
+    }
+
+    // Read the file
+    let data = tokio::fs::read(file).await.map_err(NikaError::from)?;
+
+    if data.is_empty() {
+        return Err(NikaError::ConfigError {
+            reason: format!("file is empty: {}", file.display()),
+        });
+    }
+
+    // Detect MIME type via magic bytes
+    let mime_type = infer::get(&data)
+        .map(|t| t.mime_type().to_string())
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+
+    let size = data.len() as u64;
+
+    // Store in CAS
+    let result = store.store(&data).await.map_err(|e| NikaError::ConfigError {
+        reason: format!("CAS store failed: {e}"),
+    })?;
+
+    if quiet {
+        println!("{}", result.hash);
+    } else {
+        println!("{} {}", "Hash:".bold(), result.hash);
+        println!("{} {}", "MIME:".bold(), mime_type);
+        println!("{} {}", "Size:".bold(), format_bytes(size));
+        if result.deduplicated {
+            println!("{}", "Deduplicated (file already in store)".yellow());
+        }
+    }
+
+    Ok(())
 }
 
 fn handle_list(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
@@ -503,6 +559,82 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    // ── Import tests ────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_import_png_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        // Create a minimal valid PNG
+        let png_data = {
+            use image::{ImageBuffer, Rgb};
+            let img = ImageBuffer::from_pixel(4u32, 4u32, Rgb([255u8, 0, 0]));
+            let mut buf = Vec::new();
+            let enc = image::codecs::png::PngEncoder::new(&mut buf);
+            image::ImageEncoder::write_image(enc, img.as_raw(), 4, 4, image::ExtendedColorType::Rgb8).unwrap();
+            buf
+        };
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), &png_data).unwrap();
+
+        let result = handle_import(&store, tmp.path(), true).await;
+        assert!(result.is_ok());
+
+        // Verify file is in CAS
+        let entries = store.list();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].size, png_data.len() as u64);
+    }
+
+    #[tokio::test]
+    async fn test_import_nonexistent_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = handle_import(&store, std::path::Path::new("/tmp/no_such_file_99999.xyz"), true).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_import_directory_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let result = handle_import(&store, dir.path(), true).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_import_empty_file_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), b"").unwrap();
+
+        let result = handle_import(&store, tmp.path(), true).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_import_deduplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CasStore::new(dir.path());
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(tmp.path(), b"some binary content here").unwrap();
+
+        // Import twice
+        let r1 = handle_import(&store, tmp.path(), true).await;
+        assert!(r1.is_ok());
+        let r2 = handle_import(&store, tmp.path(), true).await;
+        assert!(r2.is_ok());
+
+        // CAS should still have only 1 entry (deduplicated)
+        assert_eq!(store.list().len(), 1);
+    }
 }
 
 /// Display available media tools and their feature flags.
@@ -513,6 +645,7 @@ fn handle_tools() {
 
     // Always-on tools (Tier 1)
     println!("{}", "Tier 1 — Always On".cyan().bold());
+    println!("  {} — Import any file into CAS (image, audio, video, PDF)", "nika:import".green());
     println!("  {} — Image dimensions from headers (~0.1ms)", "nika:dimensions".green());
     println!("  {} — 25-byte compact image placeholder", "nika:thumbhash".green());
     println!("  {} — Color palette extraction", "nika:dominant_color".green());
@@ -557,7 +690,7 @@ fn handle_tools() {
     // Count
     let enabled_count = tools_tier2.iter().filter(|(_, _, _, e)| *e).count()
         + tools_tier3.iter().filter(|(_, _, _, e)| *e).count()
-        + 4; // always-on
-    let total = 4 + tools_tier2.len() + tools_tier3.len();
+        + 5; // always-on (import, dimensions, thumbhash, dominant_color, pipeline)
+    let total = 5 + tools_tier2.len() + tools_tier3.len();
     println!("{} {} / {} tools enabled", "Total:".bold(), enabled_count, total);
 }

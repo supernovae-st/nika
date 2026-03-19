@@ -276,6 +276,7 @@ mod tests {
     let total = names.len();
 
     // 7 core + 5 file = 12 baseline
+    // + 1 always-on (import)
     // + 3 always-on media (dimensions, thumbhash, dominant_color)
     // + 1 always-on (pipeline)
     // + 3 media-thumbnail (thumbnail, convert, strip)
@@ -284,7 +285,7 @@ mod tests {
     // + 1 media-svg (svg_render)
     // + 2 media-phash (phash, compare)
     // + 1 media-pdf (pdf_extract)
-    let mut expected = 12 + 3 + 1; // baseline + always-on media + pipeline
+    let mut expected = 12 + 1 + 3 + 1; // baseline + import + always-on media + pipeline
 
     #[cfg(feature = "media-thumbnail")]
     {
