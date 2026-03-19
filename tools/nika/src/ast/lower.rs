@@ -206,6 +206,7 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         timeout: fetch.timeout_ms.map(|ms| ms / 1000),
         retry: retry.map(lower_retry),
         follow_redirects: Some(fetch.follow_redirects),
+        response: fetch.response,
     }
 }
 
@@ -627,6 +628,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             // Convert seconds (runtime) back to milliseconds (analyzed)
             timeout_ms: fetch.timeout.map(|s| s * 1000),
             follow_redirects: fetch.follow_redirects.unwrap_or(true),
+            response: fetch.response.clone(),
             span: Span::dummy(),
         }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
@@ -885,6 +887,7 @@ mod tests {
                 json: Some(serde_json::json!({"key": "value"})),
                 timeout_ms: Some(5000),
                 follow_redirects: false,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1381,6 +1384,7 @@ mod tests {
                 json: None,
                 timeout_ms: None,
                 follow_redirects: true,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1415,6 +1419,7 @@ mod tests {
                 json: None,
                 timeout_ms: None,
                 follow_redirects: true,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1450,6 +1455,7 @@ mod tests {
                 json: None,
                 timeout_ms: None,
                 follow_redirects: true,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1489,6 +1495,7 @@ mod tests {
                 json: None,
                 timeout_ms: None,
                 follow_redirects: true,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1529,6 +1536,7 @@ mod tests {
                 json: None,
                 timeout_ms: None,
                 follow_redirects: true,
+                response: None,
                 span: Span::dummy(),
             }),
             retry: Some(AnalyzedRetry {
@@ -1942,6 +1950,7 @@ mod tests {
                     multiplier: f64::NAN,
                 }),
                 follow_redirects: None,
+                response: None,
             },
         };
         let result = unlower_retry(&action);

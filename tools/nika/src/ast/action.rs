@@ -366,6 +366,9 @@ pub struct FetchParams {
     /// Defaults to true if not specified
     #[serde(default)]
     pub follow_redirects: Option<bool>,
+    /// Response mode: "full" (status + headers + body JSON) or "binary" (CAS store)
+    #[serde(default)]
+    pub response: Option<String>,
 }
 
 impl FetchParams {
@@ -398,6 +401,13 @@ impl FetchParams {
             return Err(NikaError::ValidationError {
                 reason: "Fetch timeout must be greater than 0".into(),
             });
+        }
+        if let Some(ref r) = self.response {
+            if r != "full" && r != "binary" {
+                return Err(NikaError::ValidationError {
+                    reason: format!("Invalid response mode '{}', expected 'full' or 'binary'", r),
+                });
+            }
         }
         Ok(())
     }
@@ -1370,6 +1380,7 @@ agent:
                 timeout: None,
                 retry: None,
                 follow_redirects: None,
+                response: None,
             },
         };
         assert_eq!(action.verb_name(), "fetch");
@@ -1577,6 +1588,7 @@ fetch:
                 timeout: None,
                 retry: None,
                 follow_redirects: None,
+                response: None,
             },
         };
 

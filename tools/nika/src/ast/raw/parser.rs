@@ -675,6 +675,7 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
             }
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
+        response: get_string_field(file, m, "response")?,
     })
 }
 
