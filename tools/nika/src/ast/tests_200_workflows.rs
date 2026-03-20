@@ -3026,3 +3026,1445 @@ fn k10_workflow_hash_hex_format() {
     assert_eq!(hash.len(), 16);
     assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// L. FETCH EXTRACT MODES — PR5 (40 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn l01_fetch_extract_markdown() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: markdown",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert!(fetch.selector.is_none());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l02_fetch_extract_article() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://blog.example.com/post\"\n  extract: article",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l03_fetch_extract_text() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: text",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l04_fetch_extract_text_with_selector() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: text\n  selector: \"div.content h2\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.selector.as_deref(), Some("div.content h2"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l05_fetch_extract_selector_mode() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: selector\n  selector: \"article ul li\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.selector.as_deref(), Some("article ul li"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l06_fetch_extract_metadata() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: metadata",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l07_fetch_extract_links() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: links",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("links"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l08_fetch_extract_jsonpath() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/data\"\n  extract: jsonpath\n  selector: \"$.data.items\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.data.items"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l09_fetch_extract_llm_txt() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com/.well-known/llm.txt\"\n  extract: llm_txt",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l10_fetch_extract_feed() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://blog.example.com/feed.xml\"\n  extract: feed",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l11_fetch_extract_invalid_mode_parses_ok() {
+    // Invalid extract modes parse fine through the three-phase pipeline;
+    // validation happens at runtime via FetchParams::validate()
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: invalid_mode",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("invalid_mode"));
+            let result = fetch.validate();
+            assert!(result.is_err());
+            let msg = format!("{}", result.unwrap_err());
+            assert!(msg.contains("extract must be one of"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l12_fetch_selector_without_extract_validates_err() {
+    // selector without extract parses but fails validation
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  selector: \"div.content\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.extract.is_none());
+            assert_eq!(fetch.selector.as_deref(), Some("div.content"));
+            let result = fetch.validate();
+            assert!(result.is_err());
+            let msg = format!("{}", result.unwrap_err());
+            assert!(msg.contains("selector"));
+            assert!(msg.contains("requires"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l13_fetch_extract_markdown_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: markdown",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l14_fetch_extract_article_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: article",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l15_fetch_extract_text_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: text",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l16_fetch_extract_selector_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: selector\n  selector: \"table.data td\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.selector.as_deref(), Some("table.data td"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l17_fetch_extract_metadata_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: metadata",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l18_fetch_extract_links_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  extract: links",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("links"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l19_fetch_extract_jsonpath_with_post_and_body() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/search\"\n  method: POST\n  body: '{\"q\": \"test\"}'\n  extract: jsonpath\n  selector: \"$.results\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.results"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l20_fetch_extract_markdown_with_headers() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: markdown\n  headers:\n    Accept: text/html\n    User-Agent: nika/0.34",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.headers.len(), 2);
+            assert_eq!(fetch.headers.get("Accept").unwrap(), "text/html");
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l21_fetch_extract_article_with_headers() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: article\n  headers:\n    Cookie: session=abc123",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert!(fetch.headers.contains_key("Cookie"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l22_fetch_extract_text_with_headers() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: text\n  headers:\n    Authorization: \"Bearer tok\"",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert!(fetch.headers.contains_key("Authorization"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l23_fetch_extract_markdown_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: markdown\n  timeout: 30",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.timeout, Some(30));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l24_fetch_extract_article_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: article\n  timeout: 60",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert_eq!(fetch.timeout, Some(60));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l25_fetch_extract_text_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: text\n  timeout: 10",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.timeout, Some(10));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l26_fetch_extract_selector_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: selector\n  selector: \"h1\"\n  timeout: 15",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(fetch.timeout, Some(15));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l27_fetch_extract_metadata_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: metadata\n  timeout: 45",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("metadata"));
+            assert_eq!(fetch.timeout, Some(45));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l28_fetch_extract_links_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: links\n  timeout: 20",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert_eq!(fetch.timeout, Some(20));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l29_fetch_extract_jsonpath_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com\"\n  extract: jsonpath\n  selector: \"$.items[*].name\"\n  timeout: 5",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.items[*].name"));
+            assert_eq!(fetch.timeout, Some(5));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l30_fetch_extract_llm_txt_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com/.well-known/llm.txt\"\n  extract: llm_txt\n  timeout: 10",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("llm_txt"));
+            assert_eq!(fetch.timeout, Some(10));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l31_fetch_extract_feed_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://blog.example.com/rss\"\n  extract: feed\n  timeout: 30",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("feed"));
+            assert_eq!(fetch.timeout, Some(30));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l32_fetch_extract_with_response_full() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: markdown\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l33_fetch_no_extract_no_selector_defaults() {
+    let w = ok(&wrap("fetch:\n  url: \"https://example.com\""));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.extract.is_none());
+            assert!(fetch.selector.is_none());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l34_fetch_extract_validates_all_nine_modes() {
+    let modes = [
+        "markdown", "article", "text", "selector", "metadata", "links", "feed", "jsonpath",
+        "llm_txt",
+    ];
+    for mode in &modes {
+        let yaml = wrap(&format!(
+            "fetch:\n  url: \"https://example.com\"\n  extract: {}",
+            mode
+        ));
+        let w = ok(&yaml);
+        match &w.tasks[0].action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.extract.as_deref(), Some(*mode));
+            }
+            _ => panic!("expected Fetch for mode {}", mode),
+        }
+    }
+}
+
+#[test]
+fn l35_fetch_extract_markdown_with_post_headers_timeout() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  headers:\n    Accept: text/html\n  extract: markdown\n  timeout: 30",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+            assert_eq!(fetch.timeout, Some(30));
+            assert!(fetch.headers.contains_key("Accept"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l36_fetch_extract_jsonpath_nested_selector() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/v2/data\"\n  extract: jsonpath\n  selector: \"$.response.data.users[0].profile.name\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(
+                fetch.selector.as_deref(),
+                Some("$.response.data.users[0].profile.name")
+            );
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l37_fetch_extract_selector_complex_css() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: selector\n  selector: \"main > article.post:first-child h2 a\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("selector"));
+            assert_eq!(
+                fetch.selector.as_deref(),
+                Some("main > article.post:first-child h2 a")
+            );
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l38_fetch_extract_text_with_class_selector() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: text\n  selector: \".main-content p\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.selector.as_deref(), Some(".main-content p"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l39_fetch_extract_with_json_body() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://api.example.com/scrape\"\n  method: POST\n  json:\n    url: \"https://target.com\"\n    depth: 2\n  extract: article",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+            assert!(fetch.json.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn l40_fetch_extract_with_follow_redirects() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://short.link/abc\"\n  follow_redirects: true\n  extract: markdown",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.follow_redirects, Some(true));
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// M. FETCH RESPONSE MODES — PR5 (20 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn m01_fetch_response_full() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/data\"\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m02_fetch_response_binary() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com/image.png\"\n  response: binary",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m03_fetch_response_invalid_validates_err() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: stream",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("stream"));
+            let result = fetch.validate();
+            assert!(result.is_err());
+            let msg = format!("{}", result.unwrap_err());
+            assert!(msg.contains("Invalid response mode"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m04_fetch_response_full_follow_redirects_false() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com/redir\"\n  response: full\n  follow_redirects: false",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.follow_redirects, Some(false));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m05_fetch_response_full_with_retry() {
+    let yaml = wrap(
+        "retry:\n  max_attempts: 3\n  delay_ms: 1000\n  backoff: 2.0\nfetch:\n  url: \"https://api.example.com\"\n  response: full",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert!(fetch.retry.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m06_fetch_response_binary_with_timeout() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com/large.zip\"\n  response: binary\n  timeout: 120",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.timeout, Some(120));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m07_fetch_response_default_none() {
+    let w = ok(&wrap("fetch:\n  url: \"https://example.com\""));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.response.is_none());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m08_fetch_response_full_with_headers() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://api.example.com\"\n  response: full\n  headers:\n    Accept: application/json",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert!(fetch.headers.contains_key("Accept"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m09_fetch_response_binary_with_post() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/render\"\n  method: POST\n  response: binary\n  json:\n    format: png",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert!(fetch.json.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m10_fetch_response_full_with_post_body() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com\"\n  method: POST\n  body: '{\"q\": \"test\"}'\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert!(fetch.body.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m11_fetch_response_binary_follow_redirects_true() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://cdn.example.com/file\"\n  response: binary\n  follow_redirects: true",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.follow_redirects, Some(true));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m12_fetch_response_full_with_retry_config() {
+    let yaml = wrap(
+        "retry:\n  max_attempts: 5\n  delay_ms: 500\n  backoff: 1.5\nfetch:\n  url: \"https://unstable.api.com\"\n  response: full",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            let retry = fetch.retry.as_ref().unwrap();
+            assert_eq!(retry.max_attempts, 5);
+            assert_eq!(retry.backoff_ms, 500);
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m13_fetch_response_full_complete() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://api.example.com/data\"\n  method: POST\n  headers:\n    Content-Type: application/json\n    Authorization: \"Bearer tok\"\n  json:\n    query: test\n  response: full\n  timeout: 30\n  follow_redirects: true",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.timeout, Some(30));
+            assert_eq!(fetch.follow_redirects, Some(true));
+            assert_eq!(fetch.headers.len(), 2);
+            assert!(fetch.json.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m14_fetch_response_binary_complete() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://cdn.example.com/photo.jpg\"\n  response: binary\n  timeout: 60\n  follow_redirects: true\n  headers:\n    Accept: image/jpeg",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.timeout, Some(60));
+            assert_eq!(fetch.follow_redirects, Some(true));
+            assert!(fetch.headers.contains_key("Accept"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m15_fetch_response_invalid_raw_parses_ok() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: raw",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("raw"));
+            assert!(fetch.validate().is_err());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m16_fetch_response_full_validates_ok() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.validate().is_ok());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m17_fetch_response_binary_validates_ok() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: binary",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.validate().is_ok());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m18_fetch_response_with_extract_coexist() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: full\n  extract: article",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.extract.as_deref(), Some("article"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m19_fetch_response_binary_head_method() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://cdn.example.com/file.bin\"\n  method: HEAD\n  response: binary",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "HEAD");
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn m20_fetch_response_full_delete_method() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://api.example.com/resource/123\"\n  method: DELETE\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "DELETE");
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// N. FETCH + BINDINGS — PR5 (15 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn n01_fetch_extract_markdown_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: summarize\n    depends_on: [scrape]\n    with:\n      page: $scrape\n    infer: \"Summarize: {{with.page}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("markdown")),
+        _ => panic!("expected Fetch"),
+    }
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => assert!(infer.prompt.contains("{{with.page}}")),
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn n02_fetch_extract_metadata_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_meta\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer: \"Title: {{with.info}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("metadata")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n03_fetch_extract_links_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: categorize\n    depends_on: [get_links]\n    with:\n      links: $get_links\n    infer: \"Categorize: {{with.links}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("links")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n04_fetch_response_full_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: api_call\n    fetch:\n      url: \"https://api.example.com/status\"\n      response: full\n  - id: analyze\n    depends_on: [api_call]\n    with:\n      resp: $api_call\n    infer: \"Analyze: {{with.resp}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("full")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n05_fetch_response_binary_then_invoke_thumbnail() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumb\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 200";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("binary")),
+        _ => panic!("expected Fetch"),
+    }
+    match &w.tasks[1].action {
+        TaskAction::Invoke { invoke } => assert_eq!(invoke.tool.as_deref(), Some("nika:thumbnail")),
+        _ => panic!("expected Invoke"),
+    }
+}
+
+#[test]
+fn n06_fetch_extract_text_selector_then_exec() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: text\n      selector: \"h1\"\n  - id: store\n    depends_on: [scrape]\n    with:\n      title: $scrape\n    exec: \"echo {{with.title}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("text"));
+            assert_eq!(fetch.selector.as_deref(), Some("h1"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n07_fetch_extract_markdown_chain_three_tasks() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: fetch_page\n    fetch:\n      url: \"https://docs.example.com/api\"\n      extract: markdown\n  - id: summarize\n    depends_on: [fetch_page]\n    with:\n      doc: $fetch_page\n    infer: \"Summarize: {{with.doc}}\"\n  - id: format\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    infer: \"Format: {{with.summary}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    let deps1 = w.tasks[1].depends_on.as_ref().unwrap();
+    assert!(deps1.contains(&"fetch_page".to_string()));
+    let deps2 = w.tasks[2].depends_on.as_ref().unwrap();
+    assert!(deps2.contains(&"summarize".to_string()));
+}
+
+#[test]
+fn n08_fetch_extract_jsonpath_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: api\n    fetch:\n      url: \"https://api.example.com/products\"\n      extract: jsonpath\n      selector: \"$.data.products[*].name\"\n  - id: describe\n    depends_on: [api]\n    with:\n      products: $api\n    infer: \"Describe: {{with.products}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.data.products[*].name"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n09_fetch_extract_article_then_agent() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post/123\"\n      extract: article\n  - id: research\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    agent:\n      prompt: \"Analyze: {{with.article}}\"\n      max_turns: 3";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Agent { agent } => assert!(agent.prompt.contains("{{with.article}}")),
+        _ => panic!("expected Agent"),
+    }
+}
+
+#[test]
+fn n10_fetch_extract_feed_then_for_each() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_feed\n    fetch:\n      url: \"https://blog.example.com/rss\"\n      extract: feed\n  - id: process\n    depends_on: [get_feed]\n    for_each: $get_feed\n    as: entry\n    infer: \"Summarize: {{with.entry}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("feed")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n11_fetch_multiple_extracts_parallel() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_md\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: combine\n    depends_on: [get_md, get_links]\n    with:\n      md: $get_md\n      links: $get_links\n    infer: \"Content: {{with.md}} Links: {{with.links}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    assert!(w.tasks[2]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"get_md".to_string()));
+    assert!(w.tasks[2]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"get_links".to_string()));
+}
+
+#[test]
+fn n12_fetch_extract_with_dotted_binding_path() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_og\n    depends_on: [scrape]\n    with:\n      title: $scrape.og.title\n    infer: \"OG Title: {{with.title}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+}
+
+#[test]
+fn n13_fetch_binary_then_invoke_import() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/file.pdf\"\n      response: binary\n  - id: import\n    depends_on: [dl]\n    with:\n      file: $dl\n    invoke:\n      tool: \"nika:import\"\n      params:\n        source: \"{{with.file}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Invoke { invoke } => assert_eq!(invoke.tool.as_deref(), Some("nika:import")),
+        _ => panic!("expected Invoke"),
+    }
+}
+
+#[test]
+fn n14_fetch_extract_llm_txt_then_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: ctx\n    fetch:\n      url: \"https://example.com/.well-known/llm.txt\"\n      extract: llm_txt\n  - id: use_ctx\n    depends_on: [ctx]\n    with:\n      c: $ctx\n    infer:\n      system: \"Context: {{with.c}}\"\n      prompt: \"Answer the question\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("llm_txt")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn n15_fetch_response_full_status_in_binding() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: check\n    fetch:\n      url: \"https://api.example.com/health\"\n      response: full\n  - id: report\n    depends_on: [check]\n    with:\n      status: $check.status\n    infer: \"Status code: {{with.status}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// O. COMBINED WITH PR4 (VISION) — PR5 (15 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn o01_fetch_binary_then_vision_content() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: describe\n    depends_on: [download]\n    with:\n      img: $download\n    infer:\n      content:\n        - type: image\n          source: \"{{with.img}}\"\n          detail: high\n        - type: text\n          text: \"Describe this image\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.response.as_deref(), Some("binary")),
+        _ => panic!("expected Fetch"),
+    }
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => {
+            let parts = infer.content.as_ref().unwrap();
+            assert_eq!(parts.len(), 2);
+            assert!(matches!(&parts[0], ContentPart::Image { .. }));
+            assert!(matches!(&parts[1], ContentPart::Text { .. }));
+        }
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn o02_fetch_markdown_then_vision_infer() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: analyze\n    depends_on: [scrape]\n    with:\n      doc: $scrape\n    infer:\n      prompt: \"Analyze: {{with.doc}}\"\n      content:\n        - type: image_url\n          url: \"https://chart.example.com/preview.png\"\n          detail: auto";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => {
+            assert!(infer.prompt.contains("{{with.doc}}"));
+            assert!(infer.content.is_some());
+        }
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn o03_fetch_extract_and_binary_then_vision_pipeline() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: fetch_html\n    fetch:\n      url: \"https://example.com\"\n      extract: article\n  - id: fetch_image\n    fetch:\n      url: \"https://example.com/hero.jpg\"\n      response: binary\n  - id: analyze\n    depends_on: [fetch_html, fetch_image]\n    with:\n      article: $fetch_html\n      photo: $fetch_image\n    infer:\n      prompt: \"Based on article: {{with.article}}\"\n      content:\n        - type: image\n          source: \"{{with.photo}}\"\n          detail: high";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    assert!(w.tasks[2]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"fetch_html".to_string()));
+    assert!(w.tasks[2]
+        .depends_on
+        .as_ref()
+        .unwrap()
+        .contains(&"fetch_image".to_string()));
+}
+
+#[test]
+fn o04_fetch_binary_two_images_then_vision_compare() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl1\n    fetch:\n      url: \"https://cdn.example.com/before.jpg\"\n      response: binary\n  - id: dl2\n    fetch:\n      url: \"https://cdn.example.com/after.jpg\"\n      response: binary\n  - id: compare\n    depends_on: [dl1, dl2]\n    with:\n      before: $dl1\n      after: $dl2\n    infer:\n      content:\n        - type: image\n          source: \"{{with.before}}\"\n          detail: high\n        - type: image\n          source: \"{{with.after}}\"\n          detail: high\n        - type: text\n          text: \"Compare these two images\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    match &w.tasks[2].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(infer.content.as_ref().unwrap().len(), 3);
+        }
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn o05_fetch_metadata_then_vision() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: vision\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer:\n      prompt: \"Metadata: {{with.info}}\"\n      content:\n        - type: image_url\n          url: \"https://example.com/og.jpg\"\n          detail: low";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => {
+            assert!(infer.prompt.contains("{{with.info}}"));
+            assert!(infer.content.is_some());
+        }
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn o06_fetch_binary_invoke_thumbnail_then_vision() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumbnail\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 256\n  - id: describe\n    depends_on: [thumbnail]\n    with:\n      thumb: $thumbnail\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: auto\n        - type: text\n          text: \"Describe this thumbnail\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+}
+
+#[test]
+fn o07_fetch_links_then_for_each_fetch_extract() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: sitemap\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: scrape_each\n    depends_on: [sitemap]\n    for_each: $sitemap\n    as: link\n    fetch:\n      url: \"{{with.link}}\"\n      extract: markdown";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Fetch { fetch } => assert_eq!(fetch.extract.as_deref(), Some("markdown")),
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn o08_fetch_article_with_vision_system_prompt() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://news.example.com/article\"\n      extract: article\n  - id: vision\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    provider: claude\n    infer:\n      system: \"Article: {{with.article}}\"\n      content:\n        - type: image_url\n          url: \"https://news.example.com/header.jpg\"\n          detail: high\n        - type: text\n          text: \"Does this image match the article?\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Infer { infer } => {
+            assert!(infer.system.as_ref().unwrap().contains("{{with.article}}"));
+        }
+        _ => panic!("expected Infer"),
+    }
+}
+
+#[test]
+fn o09_fetch_binary_to_invoke_phash() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/logo.png\"\n      response: binary\n  - id: hash\n    depends_on: [dl]\n    with:\n      img: $dl\n    invoke:\n      tool: \"nika:phash\"\n      params:\n        hash: \"{{with.img}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+}
+
+#[test]
+fn o10_fetch_article_then_structured_output() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post\"\n      extract: article\n  - id: extract_data\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    structured: ./schemas/article.json\n    infer: \"Extract title, author from: {{with.article}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    assert!(w.tasks[1].structured.is_some());
+}
+
+#[test]
+fn o11_fetch_binary_download_resize_vision_pipeline() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://storage.example.com/img.png\"\n      response: binary\n      timeout: 60\n  - id: resize\n    depends_on: [dl]\n    with:\n      raw: $dl\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.raw}}\"\n        width: 512\n  - id: analyze\n    depends_on: [resize]\n    with:\n      thumb: $resize\n    provider: openai\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: high\n        - type: text\n          text: \"Describe what you see\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("binary"));
+            assert_eq!(fetch.timeout, Some(60));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn o12_fetch_scrape_summarize_publish_workflow() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: markdown\n      timeout: 30\n  - id: get_meta\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: metadata\n  - id: summarize\n    depends_on: [scrape, get_meta]\n    with:\n      content: $scrape\n      meta: $get_meta\n    infer:\n      system: \"You are a technical writer\"\n      prompt: \"Summarize: {{with.content}} Meta: {{with.meta}}\"\n  - id: publish\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    fetch:\n      url: \"https://api.example.com/publish\"\n      method: POST\n      json:\n        content: \"{{with.summary}}\"\n      response: full";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 4);
+    match &w.tasks[3].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn o13_fetch_binary_two_downloads_then_quality_compare() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: original\n    fetch:\n      url: \"https://cdn.example.com/original.jpg\"\n      response: binary\n  - id: optimized\n    fetch:\n      url: \"https://cdn.example.com/optimized.jpg\"\n      response: binary\n  - id: quality\n    depends_on: [original, optimized]\n    with:\n      orig: $original\n      opt: $optimized\n    invoke:\n      tool: \"nika:quality\"\n      params:\n        reference: \"{{with.orig}}\"\n        distorted: \"{{with.opt}}\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 3);
+}
+
+#[test]
+fn o14_fetch_feed_then_for_each_vision() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: rss\n    fetch:\n      url: \"https://photo-blog.example.com/feed\"\n      extract: feed\n  - id: review\n    depends_on: [rss]\n    for_each: $rss\n    as: item\n    infer:\n      content:\n        - type: image_url\n          url: \"{{with.item}}\"\n          detail: low\n        - type: text\n          text: \"Rate this photo 1-10\"";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+}
+
+#[test]
+fn o15_fetch_article_then_agent_with_mcp() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: research\n    fetch:\n      url: \"https://arxiv.org/abs/2401.00001\"\n      extract: article\n  - id: deep_analysis\n    depends_on: [research]\n    with:\n      paper: $research\n    agent:\n      prompt: \"Analyze: {{with.paper}}\"\n      system: \"You are a research assistant\"\n      mcp:\n        - novanet\n      max_turns: 5";
+    let w = ok(yaml);
+    assert_eq!(w.tasks.len(), 2);
+    match &w.tasks[1].action {
+        TaskAction::Agent { agent } => {
+            assert!(agent.prompt.contains("{{with.paper}}"));
+            assert!(agent.mcp.contains(&"novanet".to_string()));
+        }
+        _ => panic!("expected Agent"),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P. FETCH EDGE CASES — PR5 (12 tests)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn p01_fetch_shorthand_string_is_error() {
+    let yaml =
+        "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    fetch: \"https://example.com\"";
+    let e = err(yaml);
+    let msg = format!("{e}");
+    assert!(msg.contains("mapping") || msg.contains("NIKA"));
+}
+
+#[test]
+fn p02_fetch_all_fields_combined() {
+    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    retry:\n      max_attempts: 3\n      delay_ms: 1000\n      backoff: 2.0\n    fetch:\n      url: \"https://api.example.com/data\"\n      method: POST\n      headers:\n        Content-Type: application/json\n        Authorization: \"Bearer token123\"\n      json:\n        key: value\n        nested:\n          deep: true\n      timeout: 60\n      follow_redirects: false\n      response: full\n      extract: jsonpath\n      selector: \"$.data.results\"";
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.url, "https://api.example.com/data");
+            assert_eq!(fetch.method, "POST");
+            assert_eq!(fetch.headers.len(), 2);
+            assert!(fetch.json.is_some());
+            assert_eq!(fetch.timeout, Some(60));
+            assert_eq!(fetch.follow_redirects, Some(false));
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.extract.as_deref(), Some("jsonpath"));
+            assert_eq!(fetch.selector.as_deref(), Some("$.data.results"));
+            assert!(fetch.retry.is_some());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p03_fetch_unicode_in_selector() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.fr\"\n  extract: selector\n  selector: \"div.contenu-francais\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.selector.as_deref(), Some("div.contenu-francais"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p04_fetch_empty_extract_string_validates_err() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: \"\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.extract.as_deref(), Some(""));
+            assert!(fetch.validate().is_err());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p05_fetch_extract_with_body_and_json_coexist() {
+    let yaml = wrap(
+        "fetch:\n  url: \"https://example.com\"\n  method: POST\n  body: 'raw text'\n  json:\n    key: value\n  extract: markdown",
+    );
+    let w = ok(&yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.body.is_some());
+            assert!(fetch.json.is_some());
+            assert_eq!(fetch.extract.as_deref(), Some("markdown"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p06_fetch_response_full_extract_links_no_selector() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  response: full\n  extract: links",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.response.as_deref(), Some("full"));
+            assert_eq!(fetch.extract.as_deref(), Some("links"));
+            assert!(fetch.selector.is_none());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p07_fetch_extract_invalid_modes_validate_err() {
+    let invalid_modes = ["html", "xml", "csv", "pdf", "image", "video"];
+    for mode in &invalid_modes {
+        let yaml = wrap(&format!(
+            "fetch:\n  url: \"https://example.com\"\n  extract: {}",
+            mode
+        ));
+        let w = ok(&yaml);
+        match &w.tasks[0].action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.extract.as_deref(), Some(*mode));
+                assert!(
+                    fetch.validate().is_err(),
+                    "mode '{}' should fail validation",
+                    mode
+                );
+            }
+            _ => panic!("expected Fetch for mode {}", mode),
+        }
+    }
+}
+
+#[test]
+fn p08_fetch_response_invalid_modes_validate_err() {
+    let invalid_modes = ["stream", "chunked", "sse", "raw", "json"];
+    for mode in &invalid_modes {
+        let yaml = wrap(&format!(
+            "fetch:\n  url: \"https://example.com\"\n  response: {}",
+            mode
+        ));
+        let w = ok(&yaml);
+        match &w.tasks[0].action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.response.as_deref(), Some(*mode));
+                assert!(
+                    fetch.validate().is_err(),
+                    "response mode '{}' should fail",
+                    mode
+                );
+            }
+            _ => panic!("expected Fetch for mode {}", mode),
+        }
+    }
+}
+
+#[test]
+fn p09_fetch_selector_special_chars() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: selector\n  selector: \"div[data-id='123'] > span.title::after\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(
+                fetch.selector.as_deref(),
+                Some("div[data-id='123'] > span.title::after")
+            );
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p10_fetch_extract_and_response_both_validate_ok() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: markdown\n  response: full",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.validate().is_ok());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p11_fetch_no_extract_no_response_validates_ok() {
+    let w = ok(&wrap("fetch:\n  url: \"https://example.com\""));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert!(fetch.validate().is_ok());
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn p12_fetch_extract_selector_id_with_hash() {
+    let w = ok(&wrap(
+        "fetch:\n  url: \"https://example.com\"\n  extract: selector\n  selector: \"#main-content > p\"",
+    ));
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.selector.as_deref(), Some("#main-content > p"));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
