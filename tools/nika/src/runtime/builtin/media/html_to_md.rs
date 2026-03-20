@@ -38,6 +38,7 @@ impl MediaOp for HtmlToMdOp {
               "description": "Raw HTML string to convert"
             }
           },
+          "required": ["hash"],
           "additionalProperties": false
         })
     }
