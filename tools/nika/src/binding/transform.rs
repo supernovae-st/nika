@@ -284,9 +284,11 @@ impl TransformOp {
                 Value::Array(arr) => {
                     let mut sorted = arr.clone();
                     sorted.sort_by(|a, b| match (a.as_f64(), b.as_f64()) {
-                        (Some(a_num), Some(b_num)) => a_num
-                            .partial_cmp(&b_num)
-                            .unwrap_or(std::cmp::Ordering::Equal),
+                        (Some(x), Some(y)) => {
+                            x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
                         _ => a.to_string().cmp(&b.to_string()),
                     });
                     Ok(Value::Array(sorted))
