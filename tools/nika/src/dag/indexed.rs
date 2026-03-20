@@ -24,6 +24,7 @@
 //! }
 //! ```
 
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::ast::analyzed::{AnalyzedWorkflow, TaskId, TaskTable};
@@ -106,8 +107,14 @@ impl IndexedDag {
 
         for task in &wf.tasks {
             let idx = task.id.index() as usize;
+            // Deduplicate edges across depends_on and implicit_deps to prevent
+            // inflated in_degree which causes false cycle detection (Bug #23).
+            let mut seen_deps: FxHashSet<TaskId> = FxHashSet::default();
             // Combine explicit depends_on and implicit deps from with: bindings
             for &dep_id in task.depends_on.iter().chain(task.implicit_deps.iter()) {
+                if !seen_deps.insert(dep_id) {
+                    continue; // Skip duplicate edge
+                }
                 let dep_idx = dep_id.index() as usize;
                 // dep → task (dep is predecessor of task)
                 successors[dep_idx].push(task.id);
@@ -730,5 +737,80 @@ mod tests {
         let msg = err.to_string();
         // b and c should be in the cycle, not a
         assert!(msg.contains("b") && msg.contains("c"));
+    }
+
+    // ====================================================================
+    // Bug #23: Duplicate edges from depends_on + implicit_deps must not
+    // inflate in_degree (which causes false cycle detection).
+    // ====================================================================
+
+    #[test]
+    fn duplicate_dep_in_depends_on_and_implicit_deps_no_false_cycle() {
+        // Task "sink" has "src" in BOTH depends_on AND implicit_deps.
+        // Without deduplication, in_degree[sink] becomes 2 instead of 1,
+        // causing Kahn's algorithm to never enqueue "sink" → false cycle.
+        let mut wf = AnalyzedWorkflow::default();
+        wf.task_table.insert("src");
+        wf.task_table.insert("sink");
+
+        let id_src = wf.task_table.get_id("src").unwrap();
+        let id_sink = wf.task_table.get_id("sink").unwrap();
+
+        wf.tasks.push(AnalyzedTask {
+            id: id_src,
+            name: "src".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::default(),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        });
+
+        // sink has src in BOTH depends_on and implicit_deps (duplicate edge)
+        wf.tasks.push(AnalyzedTask {
+            id: id_sink,
+            name: "sink".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::default(),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: vec![id_src],
+            implicit_deps: vec![id_src], // duplicate!
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        });
+
+        // This should succeed — not report a false cycle
+        let dag = IndexedDag::from_analyzed(&wf)
+            .expect("Duplicate dep in depends_on + implicit_deps should NOT cause false cycle");
+
+        // Verify only 1 edge exists (deduplicated)
+        assert_eq!(dag.dependencies(id_sink).len(), 1);
+        assert_eq!(dag.dependencies(id_sink), &[id_src]);
+
+        // Verify depth computation is correct
+        assert_eq!(dag.depth(id_src), 0);
+        assert_eq!(dag.depth(id_sink), 1);
     }
 }

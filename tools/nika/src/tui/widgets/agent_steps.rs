@@ -45,8 +45,8 @@ use ratatui::{
     widgets::Widget,
 };
 
-// Re-export VerbType from dag module (single source of truth)
-pub use super::dag::VerbType;
+// Re-export VerbType from verb_type module (single source of truth)
+pub use super::verb_type::VerbType;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // THEME INTEGRATION
@@ -1227,6 +1227,7 @@ pub struct AgentStepsWidget<'a> {
     compact: bool,
 }
 
+#[allow(dead_code)]
 impl<'a> AgentStepsWidget<'a> {
     pub fn new(group: &'a AgentStepGroup, theme: &'a Theme) -> Self {
         Self {
@@ -1833,7 +1834,7 @@ mod tests {
     use super::*;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // VERB TYPE TESTS (VerbType is defined in dag.rs, re-exported here)
+    // VERB TYPE TESTS (VerbType is defined in verb_type.rs, re-exported here)
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]
@@ -2108,13 +2109,13 @@ mod tests {
 
     #[test]
     fn test_tool_call_metadata_builder() {
-        let meta = ToolCallMetadata::new("novanet_generate")
+        let meta = ToolCallMetadata::new("novanet_context")
             .with_server("novanet")
             .with_params(r#"{"entity": "qr-code"}"#)
             .with_result(r#"{"name": "QR Code"}"#)
             .with_duration(Duration::from_millis(150));
 
-        assert_eq!(meta.tool_name, "novanet_generate");
+        assert_eq!(meta.tool_name, "novanet_context");
         assert_eq!(meta.server_name, Some("novanet".to_string()));
         assert!(meta.params_preview.is_some());
         assert!(meta.result_preview.is_some());

@@ -567,28 +567,23 @@ impl BootSequence {
     }
 
     async fn phase_provider_validation(&self, ctx: &mut BootContext) -> PhaseResult {
+        use crate::core::{ProviderCategory, KNOWN_PROVIDERS};
+
         let start = Instant::now();
         let mut warnings = vec![];
         let mut providers = vec![];
 
-        // Check for API keys
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-            providers.push("claude".to_string());
-        }
-        if std::env::var("OPENAI_API_KEY").is_ok() {
-            providers.push("openai".to_string());
-        }
-        if std::env::var("MISTRAL_API_KEY").is_ok() {
-            providers.push("mistral".to_string());
-        }
-        if std::env::var("GROQ_API_KEY").is_ok() {
-            providers.push("groq".to_string());
-        }
-        if std::env::var("DEEPSEEK_API_KEY").is_ok() {
-            providers.push("deepseek".to_string());
-        }
-        if std::env::var("GEMINI_API_KEY").is_ok() {
-            providers.push("gemini".to_string());
+        // Check for API keys using KNOWN_PROVIDERS as source of truth
+        for p in KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.category == ProviderCategory::Llm)
+        {
+            if std::env::var(p.env_var)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false)
+            {
+                providers.push(p.id.to_string());
+            }
         }
 
         if providers.is_empty() {
@@ -708,6 +703,64 @@ default = "openai"
         let config = ctx.config.unwrap();
         assert_eq!(config.tools.permission, "accept-edits");
         assert_eq!(config.provider.default, "openai");
+    }
+
+    // ─── Bug 14: provider validation must use KNOWN_PROVIDERS, not hardcoded ──
+
+    #[tokio::test]
+    async fn test_provider_validation_detects_xai() {
+        let temp = tempdir().unwrap();
+        let nika_dir = temp.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+        std::fs::write(nika_dir.join("config.toml"), "").unwrap();
+
+        // Set xAI env var
+        let key = "XAI_API_KEY";
+        let original = std::env::var(key).ok();
+        std::env::set_var(key, "xai-test-key-12345");
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run().await.unwrap();
+
+        assert!(
+            ctx.providers.contains(&"xai".to_string()),
+            "Provider validation must detect xAI, got: {:?}",
+            ctx.providers
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    async fn test_provider_validation_ignores_empty_env_var() {
+        let temp = tempdir().unwrap();
+        let nika_dir = temp.path().join(".nika");
+        std::fs::create_dir_all(&nika_dir).unwrap();
+        std::fs::write(nika_dir.join("config.toml"), "").unwrap();
+
+        // Set empty env var
+        let key = "MISTRAL_API_KEY";
+        let original = std::env::var(key).ok();
+        std::env::set_var(key, "");
+
+        let boot = BootSequence::new(temp.path());
+        let ctx = boot.run().await.unwrap();
+
+        assert!(
+            !ctx.providers.contains(&"mistral".to_string()),
+            "Provider validation must ignore empty env vars, got: {:?}",
+            ctx.providers
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
     }
 
     #[test]

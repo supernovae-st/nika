@@ -1124,6 +1124,20 @@ impl View for MonitorView {
                 ViewAction::None
             }
 
+            // 't' cycles sub-tabs within the focused panel
+            KeyCode::Char('t') => {
+                match self.focus {
+                    PanelId::RunnerMission => state.ui.mission_tab = state.ui.mission_tab.next(),
+                    PanelId::RunnerDag => state.ui.dag_tab = state.ui.dag_tab.next(),
+                    PanelId::RunnerNovanet => state.ui.novanet_tab = state.ui.novanet_tab.next(),
+                    PanelId::RunnerReasoning => {
+                        state.ui.reasoning_tab = state.ui.reasoning_tab.next()
+                    }
+                    _ => {}
+                }
+                ViewAction::None
+            }
+
             // ? falls through to app-level Help mode
             _ => ViewAction::None,
         }

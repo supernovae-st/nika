@@ -14,7 +14,7 @@
 //! let validator = McpValidator::new(ValidationConfig::default());
 //! validator.cache().populate("novanet", &tools)?;
 //!
-//! let result = validator.validate("novanet", "novanet_generate", &params);
+//! let result = validator.validate("novanet", "novanet_context", &params);
 //! if !result.is_valid {
 //!     for error in result.errors {
 //!         eprintln!("{}", error.message);

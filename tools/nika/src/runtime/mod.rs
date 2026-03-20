@@ -73,7 +73,10 @@ pub use boot::{
 };
 pub use policy::{PolicyDecision, PolicyEnforcer, TokenBudget};
 
-pub use security::{check_blocklist, validate_command_string, validate_exec_command};
+pub use security::{
+    check_blocklist, check_shell_mode_blocklist, validate_command_string, validate_exec_command,
+    validate_exec_command_with_shell,
+};
 
 pub use artifact_processor::{process_task_artifacts, ArtifactProcessResult};
 

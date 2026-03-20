@@ -13,6 +13,8 @@ use ratatui::{
 };
 use std::time::{Duration, Instant};
 
+use crate::tui::tokens::compat;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT TASK STATE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -41,10 +43,10 @@ impl ChatTaskState {
     /// Get color for this state
     pub fn color(&self) -> Color {
         match self {
-            ChatTaskState::Pending => Color::Gray,
-            ChatTaskState::Running => Color::Yellow,
-            ChatTaskState::Complete => Color::Green,
-            ChatTaskState::Failed => Color::Red,
+            ChatTaskState::Pending => compat::SLATE_500,
+            ChatTaskState::Running => compat::AMBER_500,
+            ChatTaskState::Complete => compat::GREEN_500,
+            ChatTaskState::Failed => compat::RED_500,
         }
     }
 }
@@ -324,7 +326,7 @@ impl Widget for ChatTaskQueue {
                 inner.x + 1,
                 inner.y,
                 "No tasks",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(compat::SLATE_600),
             );
             return;
         }
@@ -384,7 +386,7 @@ impl Widget for ChatTaskQueue {
                 inner.x + inner.width.saturating_sub(1),
                 inner.y,
                 scroll_indicator,
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(compat::SLATE_600),
             );
 
             let can_scroll_down = self.scroll_offset + visible_count < self.items.len();
@@ -393,7 +395,7 @@ impl Widget for ChatTaskQueue {
                 inner.x + inner.width.saturating_sub(1),
                 inner.y + inner.height.saturating_sub(1),
                 scroll_down,
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(compat::SLATE_600),
             );
         }
     }
@@ -442,10 +444,10 @@ mod tests {
 
     #[test]
     fn test_chat_task_state_colors() {
-        assert_eq!(ChatTaskState::Pending.color(), Color::Gray);
-        assert_eq!(ChatTaskState::Running.color(), Color::Yellow);
-        assert_eq!(ChatTaskState::Complete.color(), Color::Green);
-        assert_eq!(ChatTaskState::Failed.color(), Color::Red);
+        assert_eq!(ChatTaskState::Pending.color(), compat::SLATE_500);
+        assert_eq!(ChatTaskState::Running.color(), compat::AMBER_500);
+        assert_eq!(ChatTaskState::Complete.color(), compat::GREEN_500);
+        assert_eq!(ChatTaskState::Failed.color(), compat::RED_500);
     }
 
     #[test]

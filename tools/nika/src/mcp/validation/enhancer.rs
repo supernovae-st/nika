@@ -17,7 +17,7 @@
 //! cache.populate("novanet", &tools)?;
 //!
 //! let enhancer = ErrorEnhancer::new(&cache);
-//! let enhanced = enhancer.enhance("novanet", "novanet_generate", original_error);
+//! let enhanced = enhancer.enhance("novanet", "novanet_context", original_error);
 //! ```
 
 use super::schema_cache::{CachedSchema, ToolSchemaCache};
@@ -127,7 +127,7 @@ mod tests {
             .populate(
                 "novanet",
                 &[
-                    ToolDefinition::new("novanet_generate").with_input_schema(json!({
+                    ToolDefinition::new("novanet_context").with_input_schema(json!({
                         "type": "object",
                         "properties": {
                             "entity": { "type": "string" },
@@ -141,12 +141,12 @@ mod tests {
 
         let enhancer = ErrorEnhancer::new(&cache);
         let original = NikaError::McpToolError {
-            tool: "novanet_generate".to_string(),
+            tool: "novanet_context".to_string(),
             reason: "missing field `entity`".to_string(),
             error_code: None,
         };
 
-        let enhanced = enhancer.enhance("novanet", "novanet_generate", original);
+        let enhanced = enhancer.enhance("novanet", "novanet_context", original);
 
         let NikaError::McpToolError { reason, .. } = enhanced else {
             panic!("Expected McpToolError");

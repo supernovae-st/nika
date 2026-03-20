@@ -330,15 +330,6 @@
               "type": "string",
               "description": "LLM prompt (supports {{with.alias}} templates)"
             },
-            "provider": {
-              "type": "string",
-              "enum": ["claude", "openai", "mistral", "groq", "deepseek", "gemini", "xai", "grok", "native", "mock"],
-              "description": "Provider override for this task (native = local GGUF inference)"
-            },
-            "model": {
-              "type": "string",
-              "description": "Model override for this task"
-            },
             "temperature": {
               "type": "number",
               "minimum": 0,

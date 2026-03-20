@@ -28,6 +28,18 @@ const ZSTD_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
 #[cfg(feature = "media-compression")]
 const CAS_ZSTD_MARKER: u8 = 0x01;
 
+/// CAS-internal no-compression marker: 1-byte prefix before raw data.
+/// Indicates that the blob was stored uncompressed (e.g., already-compressed media).
+/// Format: [0x00] [raw-data...]
+///
+/// Without this marker, small user data that happens to start with [0x01][zstd-magic]
+/// would be falsely treated as compressed on read. The framing byte eliminates
+/// all false positives by giving every new blob a deterministic prefix.
+///
+/// Legacy blobs (written before framing) have no marker byte -- they are returned as-is.
+#[cfg(feature = "media-compression")]
+const CAS_NO_COMPRESSION_MARKER: u8 = 0x00;
+
 /// Zstd compression level (3 = optimal speed/ratio for CAS workloads).
 #[cfg(feature = "media-compression")]
 const ZSTD_LEVEL: i32 = 3;
@@ -116,8 +128,13 @@ fn should_compress(data: &[u8]) -> bool {
 
 /// Compress data with zstd if beneficial.
 ///
-/// Prepends `CAS_ZSTD_MARKER` byte to distinguish from user-stored zstd data.
-/// Returns marker + compressed bytes, or original data if compression didn't help.
+/// Always returns framed data with a 1-byte prefix:
+/// - Compressed: `[0x01][zstd-data...]` when compression saves space
+/// - Uncompressed: `[0x00][raw-data...]` when compression is not beneficial
+///
+/// The framing byte eliminates false-positive decompression: on read,
+/// `transparent_decompress` checks the first byte deterministically instead
+/// of pattern-matching against zstd magic bytes in user data.
 #[cfg(feature = "media-compression")]
 fn compress_if_beneficial(data: &[u8]) -> Vec<u8> {
     match zstd::encode_all(std::io::Cursor::new(data), ZSTD_LEVEL) {
@@ -128,48 +145,84 @@ fn compress_if_beneficial(data: &[u8]) -> Vec<u8> {
             framed.extend_from_slice(&compressed);
             framed
         }
-        _ => data.to_vec(), // Compression didn't help or failed — store raw
+        _ => {
+            // Compression didn't help or failed — store with no-compression marker
+            let mut framed = Vec::with_capacity(1 + data.len());
+            framed.push(CAS_NO_COMPRESSION_MARKER);
+            framed.extend_from_slice(data);
+            framed
+        }
     }
 }
 
-/// Transparently decompress data if it starts with CAS compression marker.
+/// Prepend the no-compression marker to raw data.
 ///
-/// Detection: `[CAS_ZSTD_MARKER][zstd-data...]` — the 1-byte prefix
-/// distinguishes CAS-compressed blobs from user-stored raw zstd files.
-/// Raw zstd files (without the marker) are returned as-is.
+/// Used when `should_compress` returns false (media formats, small data).
+/// Ensures every blob stored under `media-compression` has a deterministic
+/// framing byte, eliminating false-positive decompression.
+#[cfg(feature = "media-compression")]
+fn frame_uncompressed(data: &[u8]) -> Vec<u8> {
+    let mut framed = Vec::with_capacity(1 + data.len());
+    framed.push(CAS_NO_COMPRESSION_MARKER);
+    framed.extend_from_slice(data);
+    framed
+}
+
+/// Transparently decompress data based on CAS framing byte.
+///
+/// Three cases:
+/// 1. **New compressed** (`0x01`): Strip marker, decompress zstd payload.
+/// 2. **New uncompressed** (`0x00`): Strip marker, return raw bytes.
+/// 3. **Legacy** (anything else): No framing byte — return data as-is
+///    for backward compatibility with blobs written before framing was added.
 #[cfg(feature = "media-compression")]
 fn transparent_decompress(data: Vec<u8>) -> Result<Vec<u8>, MediaError> {
-    // Check for CAS marker + zstd magic (marker byte + 4 zstd magic bytes = 5 bytes minimum)
-    if data.len() >= 5 && data[0] == CAS_ZSTD_MARKER && data[1..5] == ZSTD_MAGIC {
-        // Strip the CAS marker byte, decompress the rest
-        let zstd_data = &data[1..];
-        let cursor = std::io::Cursor::new(zstd_data);
-        let mut decoder = zstd::Decoder::new(cursor).map_err(|e| MediaError::MediaStoreIo {
-            path: PathBuf::from("<zstd-decompress>"),
-            source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
-        })?;
+    if data.is_empty() {
+        return Ok(data);
+    }
 
-        let mut output = Vec::new();
-        let mut limited = std::io::Read::take(&mut decoder, MAX_DECOMPRESS_SIZE);
-        std::io::Read::read_to_end(&mut limited, &mut output).map_err(|e| {
-            MediaError::MediaStoreIo {
-                path: PathBuf::from("<zstd-decompress>"),
-                source: e,
+    match data[0] {
+        CAS_ZSTD_MARKER => {
+            // New compressed: [0x01][zstd-data...]
+            if data.len() < 2 {
+                // Just the marker byte with no payload — treat as legacy
+                return Ok(data);
             }
-        })?;
+            let zstd_data = &data[1..];
+            let cursor = std::io::Cursor::new(zstd_data);
+            let mut decoder = zstd::Decoder::new(cursor).map_err(|e| MediaError::MediaStoreIo {
+                path: PathBuf::from("<zstd-decompress>"),
+                source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+            })?;
 
-        // SECURITY: detect if decompression was truncated (decompression bomb)
-        let mut probe = [0u8; 1];
-        if std::io::Read::read(&mut decoder, &mut probe).unwrap_or(0) > 0 {
-            return Err(MediaError::Base64InputTooLarge {
-                size: MAX_DECOMPRESS_SIZE as usize + 1,
-                max: MAX_DECOMPRESS_SIZE as usize,
-            });
+            let mut output = Vec::new();
+            let mut limited = std::io::Read::take(&mut decoder, MAX_DECOMPRESS_SIZE);
+            std::io::Read::read_to_end(&mut limited, &mut output).map_err(|e| {
+                MediaError::MediaStoreIo {
+                    path: PathBuf::from("<zstd-decompress>"),
+                    source: e,
+                }
+            })?;
+
+            // SECURITY: detect if decompression was truncated (decompression bomb)
+            let mut probe = [0u8; 1];
+            if std::io::Read::read(&mut decoder, &mut probe).unwrap_or(0) > 0 {
+                return Err(MediaError::Base64InputTooLarge {
+                    size: MAX_DECOMPRESS_SIZE as usize + 1,
+                    max: MAX_DECOMPRESS_SIZE as usize,
+                });
+            }
+
+            Ok(output)
         }
-
-        Ok(output)
-    } else {
-        Ok(data) // Not CAS-compressed (raw data or user zstd) — return as-is
+        CAS_NO_COMPRESSION_MARKER => {
+            // New uncompressed: [0x00][raw-data...]
+            Ok(data[1..].to_vec())
+        }
+        _ => {
+            // Legacy blob (no framing byte) — return as-is for backward compat
+            Ok(data)
+        }
     }
 }
 
@@ -238,15 +291,22 @@ impl CasStore {
         let dir = self.root.join(&raw_hash[..2]);
         let final_path = dir.join(&raw_hash[2..]);
 
-        // Optionally compress non-media data for storage efficiency
+        // Optionally compress non-media data for storage efficiency.
+        // With media-compression enabled, ALL data gets a 1-byte framing prefix:
+        // - Compressible data: [0x01][zstd-data...] or [0x00][raw-data...]
+        // - Non-compressible data (media/small): [0x00][raw-data...]
+        // This eliminates false-positive decompression of user data that
+        // happens to start with [0x01][zstd-magic].
         #[cfg(feature = "media-compression")]
-        let compressed;
+        let framed;
         #[cfg(feature = "media-compression")]
         let write_data: &[u8] = if should_compress(data) {
-            compressed = compress_if_beneficial(data);
-            &compressed
+            framed = compress_if_beneficial(data);
+            &framed
         } else {
-            data
+            // Not compressible (media/small) — still add framing byte
+            framed = frame_uncompressed(data);
+            &framed
         };
         #[cfg(not(feature = "media-compression"))]
         let write_data: &[u8] = data;
@@ -356,6 +416,28 @@ impl CasStore {
                 MediaError::MediaStoreIo { path, source: e }
             }
         })?;
+
+        // Transparent decompression when media-compression is enabled
+        #[cfg(feature = "media-compression")]
+        let data = transparent_decompress(data)?;
+
+        Ok(data)
+    }
+
+    /// Read a CAS file directly by path, with transparent decompression.
+    ///
+    /// Unlike `read()` which takes a hash and resolves the path internally,
+    /// this method reads from a known CAS file path. Used by the artifact
+    /// writer to produce decompressed output files (Bug 21 fix).
+    ///
+    /// Returns the original user data with any CAS framing/compression stripped.
+    pub async fn read_raw(path: &Path) -> Result<Vec<u8>, MediaError> {
+        let data = tokio::fs::read(path)
+            .await
+            .map_err(|e| MediaError::MediaStoreIo {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
 
         // Transparent decompression when media-compression is enabled
         #[cfg(feature = "media-compression")]
@@ -912,13 +994,23 @@ mod tests {
             let path = dir.path().join(&raw[..2]).join(&raw[2..]);
             let on_disk = tokio::fs::read(&path).await.unwrap();
 
-            // PNG should NOT have CAS compression marker
+            // PNG should have no-compression marker (not compressed, but framed)
+            assert_eq!(
+                on_disk[0], CAS_NO_COMPRESSION_MARKER,
+                "PNG should have no-compression framing marker"
+            );
             assert_ne!(
                 on_disk[0], CAS_ZSTD_MARKER,
                 "PNG should not be CAS-compressed"
             );
+            // After the marker, the original PNG data follows
+            assert_eq!(
+                &on_disk[1..],
+                &png_data[..],
+                "PNG data should follow the no-compression marker"
+            );
 
-            // Read-back should still work
+            // Read-back should still work (strips marker)
             let read_back = store.read(&result.hash).await.unwrap();
             assert_eq!(read_back, png_data);
         }
@@ -998,14 +1090,13 @@ mod tests {
                 "zstd data should not be re-compressed"
             );
 
-            // Store and read back — with CAS marker framing, user-stored zstd
-            // is stored raw (no CAS marker prefix) and returned as-is on read.
+            // Store and read back — user-stored zstd is stored with
+            // [0x00] no-compression marker (should_compress returns false for
+            // data starting with zstd magic). On read, the 0x00 marker is
+            // stripped and original data is returned.
             let result = store.store(&pre_compressed).await.unwrap();
             let read_back = store.read(&result.hash).await.unwrap();
 
-            // With CAS marker framing, raw zstd data round-trips correctly!
-            // On-disk: raw zstd bytes (no marker prefix)
-            // On read: no CAS marker → returned as-is
             assert_eq!(
                 read_back, pre_compressed,
                 "user-stored zstd data should round-trip exactly"
@@ -1080,15 +1171,155 @@ mod tests {
         }
 
         #[test]
-        fn cas_marker_framing() {
-            // compress_if_beneficial prepends CAS_ZSTD_MARKER
+        fn cas_marker_framing_compressed() {
+            // compress_if_beneficial prepends CAS_ZSTD_MARKER when beneficial
             let data = b"test data that is long enough to be over sixty-four bytes threshold for compression!";
             let framed = compress_if_beneficial(data);
-            if framed.len() < data.len() {
-                // Compression was beneficial — should have CAS marker
-                assert_eq!(framed[0], CAS_ZSTD_MARKER, "should have CAS marker");
+            if framed[0] == CAS_ZSTD_MARKER {
+                // Compression was beneficial — should have CAS marker + zstd magic
                 assert_eq!(&framed[1..5], &ZSTD_MAGIC, "zstd magic after marker");
+                assert!(framed.len() < data.len(), "compressed should be smaller");
+            } else {
+                // Compression not beneficial — should have no-compression marker
+                assert_eq!(framed[0], CAS_NO_COMPRESSION_MARKER);
+                assert_eq!(&framed[1..], data.as_slice());
             }
+        }
+
+        #[test]
+        fn cas_marker_framing_uncompressed() {
+            // compress_if_beneficial returns [0x00][raw] when compression is not beneficial
+            // Use incompressible random-looking data
+            let data: Vec<u8> = (0..=255).cycle().take(100).collect();
+            let framed = compress_if_beneficial(&data);
+            // Whether compressed or not, it must have a framing byte
+            assert!(
+                framed[0] == CAS_ZSTD_MARKER || framed[0] == CAS_NO_COMPRESSION_MARKER,
+                "framed data must start with a marker byte"
+            );
+        }
+
+        #[test]
+        fn frame_uncompressed_roundtrips() {
+            let data = b"hello world";
+            let framed = frame_uncompressed(data);
+            assert_eq!(framed[0], CAS_NO_COMPRESSION_MARKER);
+            assert_eq!(&framed[1..], data.as_slice());
+            let decompressed = transparent_decompress(framed).unwrap();
+            assert_eq!(decompressed, data);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Bug 6 regression: false-positive decompression prevention
+        // ═══════════════════════════════════════════════════════════
+
+        #[tokio::test]
+        async fn bug6_small_data_starting_with_cas_marker_and_zstd_magic() {
+            // Bug 6: Data < 64 bytes that starts with [0x01][0x28][0xB5][0x2F][0xFD]
+            // was falsely treated as CAS-compressed. With framing, all data stored
+            // under media-compression gets a deterministic marker byte, so this
+            // user data now roundtrips correctly.
+            let dir = tempfile::tempdir().unwrap();
+            let store = CasStore::new(dir.path());
+
+            // Craft the exact problematic pattern: CAS_ZSTD_MARKER + ZSTD_MAGIC + payload
+            let mut evil_data: Vec<u8> = vec![0x01, 0x28, 0xB5, 0x2F, 0xFD];
+            evil_data.extend_from_slice(b"this is user data, not compressed!");
+            assert!(evil_data.len() < 64, "must be below compression threshold");
+
+            let result = store.store(&evil_data).await.unwrap();
+            let read_back = store.read(&result.hash).await.unwrap();
+
+            assert_eq!(
+                read_back, evil_data,
+                "Bug 6 regression: small data starting with [0x01][zstd-magic] \
+                 must NOT be falsely decompressed"
+            );
+        }
+
+        #[tokio::test]
+        async fn bug6_large_data_starting_with_cas_marker_and_zstd_magic() {
+            // Same as above but >= 64 bytes (compression eligible).
+            // The data starts with the CAS marker + zstd magic pattern but
+            // is NOT actually compressed. With framing, it roundtrips correctly.
+            let dir = tempfile::tempdir().unwrap();
+            let store = CasStore::new(dir.path());
+
+            let mut evil_data: Vec<u8> = vec![0x01, 0x28, 0xB5, 0x2F, 0xFD];
+            evil_data.extend_from_slice(&[0xAB; 200]); // compressible padding
+            assert!(evil_data.len() >= 64, "must be above compression threshold");
+
+            let result = store.store(&evil_data).await.unwrap();
+            let read_back = store.read(&result.hash).await.unwrap();
+
+            assert_eq!(
+                read_back, evil_data,
+                "Bug 6 regression: large data starting with [0x01][zstd-magic] \
+                 must NOT be falsely decompressed"
+            );
+        }
+
+        #[test]
+        fn bug6_transparent_decompress_three_cases() {
+            // Verify the three-case logic in transparent_decompress:
+
+            // Case 1: New compressed (0x01) — decompress
+            let original = b"hello world! ".repeat(20);
+            let compressed =
+                zstd::encode_all(std::io::Cursor::new(original.as_slice()), ZSTD_LEVEL).unwrap();
+            let mut framed_compressed = vec![CAS_ZSTD_MARKER];
+            framed_compressed.extend_from_slice(&compressed);
+            let result = transparent_decompress(framed_compressed).unwrap();
+            assert_eq!(result, original, "case 1: compressed must decompress");
+
+            // Case 2: New uncompressed (0x00) — strip marker
+            let raw_data = b"raw user data bytes";
+            let mut framed_raw = vec![CAS_NO_COMPRESSION_MARKER];
+            framed_raw.extend_from_slice(raw_data);
+            let result = transparent_decompress(framed_raw).unwrap();
+            assert_eq!(result, raw_data, "case 2: uncompressed must strip marker");
+
+            // Case 3: Legacy (anything else) — return as-is
+            let legacy = vec![0x89, 0x50, 0x4E, 0x47]; // PNG magic
+            let result = transparent_decompress(legacy.clone()).unwrap();
+            assert_eq!(result, legacy, "case 3: legacy must return as-is");
+
+            // Case 3b: Legacy data that happens to look like [0x01][zstd-magic]
+            // but is a legacy blob (stored before framing was added)
+            let legacy_false_positive = vec![0x02, 0x28, 0xB5, 0x2F, 0xFD, 0xAA, 0xBB];
+            let result = transparent_decompress(legacy_false_positive.clone()).unwrap();
+            assert_eq!(
+                result, legacy_false_positive,
+                "case 3: byte 0x02 is neither 0x00 nor 0x01 — must be legacy"
+            );
+        }
+
+        #[test]
+        fn bug6_empty_data_decompress() {
+            let result = transparent_decompress(vec![]).unwrap();
+            assert!(result.is_empty(), "empty data must return empty");
+        }
+
+        #[tokio::test]
+        async fn bug6_read_raw_decompresses_correctly() {
+            // Verify that CasStore::read_raw (used by artifact writer)
+            // correctly strips framing.
+            let dir = tempfile::tempdir().unwrap();
+            let store = CasStore::new(dir.path());
+
+            // Store user data that happens to start with problematic bytes
+            let mut user_data: Vec<u8> = vec![0x01, 0x28, 0xB5, 0x2F, 0xFD];
+            user_data.extend_from_slice(b"not actually compressed!!!");
+            assert!(user_data.len() < 64);
+
+            let result = store.store(&user_data).await.unwrap();
+
+            // read_raw must also return original data
+            let via_read_raw = CasStore::read_raw(&result.path).await.unwrap();
+            assert_eq!(
+                via_read_raw, user_data,
+                "read_raw must strip framing and return original data"
+            );
         }
     }
 

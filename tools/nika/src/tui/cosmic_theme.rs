@@ -239,11 +239,11 @@ impl Theme {
             phase_rendezvous: semantic.accent_primary, // Violet
 
             // ═══ MCP TOOLS ═══
-            mcp_describe: semantic.status_info,     // Blue
-            mcp_traverse: semantic.accent_tertiary, // Pink
-            mcp_search: semantic.verb_exec,         // Amber
-            mcp_atoms: semantic.accent_primary,     // Violet
-            mcp_generate: semantic.status_success,  // Emerald
+            mcp_describe: semantic.status_info,    // Blue
+            mcp_context: semantic.accent_tertiary, // Pink
+            mcp_search: semantic.verb_exec,        // Amber
+            mcp_audit: semantic.accent_primary,    // Violet
+            mcp_write: semantic.status_success,    // Emerald
 
             // ═══ UI ELEMENTS ═══
             border_normal: semantic.border_default,

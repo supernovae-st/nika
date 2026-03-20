@@ -303,7 +303,7 @@ impl RmcpClientAdapter {
     ///
     /// # Arguments
     ///
-    /// * `name` - Tool name (e.g., "novanet_generate")
+    /// * `name` - Tool name (e.g., "novanet_context")
     /// * `params` - Tool parameters as JSON value
     ///
     /// # Errors
@@ -749,7 +749,7 @@ mod tests {
             "locale": "fr-FR"
         });
 
-        let result = adapter.call_tool("novanet_generate", params).await;
+        let result = adapter.call_tool("novanet_context", params).await;
 
         // Should fail with McpNotConnected, not with param conversion error
         assert!(result.is_err());
@@ -851,15 +851,15 @@ mod tests {
 
         // Manually populate cache
         let tools = vec![
-            ToolDefinition::new("novanet_generate"),
-            ToolDefinition::new("novanet_traverse"),
+            ToolDefinition::new("novanet_context"),
+            ToolDefinition::new("novanet_search"),
         ];
         *adapter.cached_tools.lock() = tools.clone();
 
         let cached = adapter.get_cached_tools();
         assert_eq!(cached.len(), 2);
-        assert_eq!(cached[0].name, "novanet_generate");
-        assert_eq!(cached[1].name, "novanet_traverse");
+        assert_eq!(cached[0].name, "novanet_context");
+        assert_eq!(cached[1].name, "novanet_search");
     }
 
     #[test]

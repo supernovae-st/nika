@@ -6,12 +6,14 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
+use crate::tui::unicode::display_width;
 
 /// InvokeBox data and rendering
 #[derive(Debug, Clone)]
@@ -112,6 +114,13 @@ impl InvokeBox {
         }
     }
 
+    /// Update result in-place (keeps JSON cache coherent)
+    pub fn set_result(&mut self, result: serde_json::Value) {
+        self.result_oneline_cached = serde_json::to_string(&result).ok();
+        self.result_pretty_cached = serde_json::to_string_pretty(&result).ok();
+        self.result = Some(result);
+    }
+
     /// Set error
     pub fn with_error(mut self, error: impl Into<String>) -> Self {
         self.error = Some(error.into());
@@ -173,18 +182,29 @@ impl InvokeBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
     }
 
     /// Format JSON value for single-line display
+    #[allow(dead_code)]
     fn format_json_oneline(value: &serde_json::Value, max_len: usize) -> String {
         let json_str = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
         Self::truncate(&json_str, max_len)
@@ -197,7 +217,7 @@ impl InvokeBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let dim_style = Style::default().fg(compat::SLATE_500);
 
         let status_icon = self.state.icon();
         let server_info = format!("server: {}", self.server);
@@ -206,8 +226,8 @@ impl InvokeBox {
         let prefix = format!("{}: {} ", verb.icon_label(), self.tool);
         let suffix = format!("  {} {}", status_icon, server_info);
         let available = (area.width as usize)
-            .saturating_sub(prefix.chars().count())
-            .saturating_sub(suffix.chars().count());
+            .saturating_sub(display_width(&prefix))
+            .saturating_sub(display_width(&suffix));
 
         // Build line with proper spacing
         let padding = " ".repeat(available);
@@ -215,7 +235,7 @@ impl InvokeBox {
         buf.set_string(area.x, area.y, &line, line_style);
 
         // Dim the server info portion
-        let suffix_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
+        let suffix_x = area.x + (display_width(&line) - display_width(&suffix)) as u16;
         buf.set_string(suffix_x, area.y, &suffix, dim_style);
     }
 
@@ -223,9 +243,9 @@ impl InvokeBox {
     pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
         let verb = VerbColor::Invoke;
         let verb_color = verb.rgb();
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let success_style = Style::default().fg(Color::Rgb(34, 197, 94));
-        let error_style = Style::default().fg(Color::Rgb(239, 68, 68));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let success_style = Style::default().fg(compat::GREEN_500);
+        let error_style = Style::default().fg(compat::RED_500);
 
         // Compact mode: single line
         if self.render_mode == RenderMode::Compact {
@@ -252,7 +272,7 @@ impl InvokeBox {
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix().into_owned();
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("┌─ ", border_style),
+            Span::styled("╭─ ", border_style),
             Span::styled(verb.icon_label(), Style::default().fg(verb_color)),
             Span::styled(
                 format!(" {} ", status_icon),
@@ -265,9 +285,9 @@ impl InvokeBox {
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", border_style),
             Span::styled("Tool: ", dim_style),
-            Span::styled(self.tool.clone(), Style::default().fg(Color::White)),
+            Span::styled(self.tool.clone(), Style::default().fg(compat::SLATE_200)),
             Span::styled(" @ ", dim_style),
-            Span::styled(self.server.clone(), Style::default().fg(Color::Cyan)),
+            Span::styled(self.server.clone(), Style::default().fg(compat::CYAN_500)),
         ])));
 
         // PARAMS section
@@ -341,9 +361,9 @@ impl InvokeBox {
             ])));
         }
 
-        // Bottom border
+        // Bottom border (rounded, matching other verbs)
         items.push(ListItem::new(Line::from(vec![Span::styled(
-            "└─────────────────────────────────────────",
+            "╰─────────────────────────────────────────╯",
             border_style,
         )])));
 
@@ -368,10 +388,10 @@ impl Widget for InvokeBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let success_style = Style::default().fg(Color::Rgb(34, 197, 94));
-        let error_style = Style::default().fg(Color::Rgb(239, 68, 68));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let success_style = Style::default().fg(compat::GREEN_500);
+        let error_style = Style::default().fg(compat::RED_500);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -381,8 +401,8 @@ impl Widget for InvokeBox {
         let title_prefix = format!("╭─ {}: {} ", verb.icon_label(), self.tool);
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 

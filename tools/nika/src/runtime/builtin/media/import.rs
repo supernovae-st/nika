@@ -13,8 +13,11 @@ use super::error::{invalid_args, security_violation, tool_error};
 use super::{MediaOp, MediaOpResult};
 use crate::error::NikaError;
 
-/// Maximum import file size: 500 MB (matches CAS budget default).
-const MAX_IMPORT_FILE_SIZE: u64 = 500 * 1024 * 1024;
+/// Maximum import file size: 100 MB (matches CAS MAX_STORE_SIZE).
+///
+/// The CAS store rejects data > 100 MB, so accepting larger imports would
+/// succeed at read time but fail at store time — a confusing UX. Fail early.
+const MAX_IMPORT_FILE_SIZE: u64 = 100 * 1024 * 1024;
 
 /// Sensitive system directories that import must never read from.
 /// Includes macOS `/private/etc` symlink targets.
@@ -485,5 +488,48 @@ mod tests {
     fn validate_path_allows_normal() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         assert!(validate_import_path(tmp.path()).is_ok());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug 20 regression: import limit must match CAS MAX_STORE_SIZE
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn bug20_import_limit_matches_cas_store_limit() {
+        // Bug 20: Import allowed 500MB but CAS rejects at 100MB.
+        // The import limit must be <= CAS MAX_STORE_SIZE (100MB).
+        assert_eq!(
+            MAX_IMPORT_FILE_SIZE,
+            100 * 1024 * 1024,
+            "MAX_IMPORT_FILE_SIZE must be 100MB to match CAS MAX_STORE_SIZE"
+        );
+    }
+
+    #[tokio::test]
+    async fn bug20_import_rejects_over_100mb() {
+        let (_dir, ctx) = setup().await;
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+
+        // Create file just over 100MB by writing sparse data
+        // (we check metadata.len() not actual disk usage)
+        let f = std::fs::File::options()
+            .write(true)
+            .open(tmp.path())
+            .unwrap();
+        f.set_len(MAX_IMPORT_FILE_SIZE + 1).unwrap();
+        drop(f);
+
+        let op = ImportOp;
+        let result = op
+            .execute(
+                serde_json::json!({"path": tmp.path().to_string_lossy()}),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "files > 100MB must be rejected");
+        assert!(
+            result.unwrap_err().to_string().contains("too large"),
+            "error should mention size limit"
+        );
     }
 }

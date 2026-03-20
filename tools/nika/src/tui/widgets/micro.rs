@@ -84,7 +84,7 @@ pub fn throughput_meter(current_rate: f32, history: &[f32], peak: f32) -> Line<'
     };
 
     // Build sparkline from history
-    let sparkline: String = if peak > 0.0 {
+    let _sparkline: String = if peak > 0.0 {
         history
             .iter()
             .map(|&v| {
@@ -265,7 +265,7 @@ pub fn token_budget_bar(used: u64, total: u64, cache_read: u64, bar_width: usize
         0.0
     };
 
-    let (input_color, output_color) = if ratio > 0.8 {
+    let (input_color, _output_color) = if ratio > 0.8 {
         (compat::RED_400, compat::RED_600)
     } else if ratio > 0.5 {
         (compat::AMBER_400, compat::AMBER_600)
@@ -538,7 +538,7 @@ pub fn retry_progress(
     let max_delay = delays.iter().max().copied().unwrap_or(1).max(1);
 
     // Render past attempts as dots with proportional delay bars
-    for (i, &delay) in delays.iter().enumerate() {
+    for &delay in delays.iter() {
         // Failed dot
         spans.push(Span::styled("●", Style::default().fg(compat::RED_400)));
 

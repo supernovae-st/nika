@@ -25,9 +25,10 @@
 //!
 //! tasks:
 //!   - id: generate
-//!     invoke: novanet.novanet_generate
+//!     invoke: novanet.novanet_context
 //!     params:
-//!       entity: "qr-code"
+//!       mode: "page"
+//!       focus_key: "qr-code"
 //!       locale: "fr-FR"
 //! ```
 //!
@@ -44,8 +45,9 @@
 //! client.connect().await?;
 //!
 //! // Call a tool
-//! let result = client.call_tool("novanet_generate", json!({
-//!     "entity": "qr-code",
+//! let result = client.call_tool("novanet_context", json!({
+//!     "mode": "page",
+//!     "focus_key": "qr-code",
 //!     "locale": "fr-FR"
 //! })).await?;
 //!

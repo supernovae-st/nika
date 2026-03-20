@@ -16,7 +16,7 @@
 //! let validator = McpValidator::new(ValidationConfig::default());
 //! validator.cache().populate("novanet", &tools)?;
 //!
-//! let result = validator.validate("novanet", "novanet_generate", &params);
+//! let result = validator.validate("novanet", "novanet_context", &params);
 //! if !result.is_valid {
 //!     for error in result.errors {
 //!         println!("{}", error.message);
@@ -323,7 +323,7 @@ mod tests {
             .populate(
                 "novanet",
                 &[
-                    ToolDefinition::new("novanet_generate").with_input_schema(json!({
+                    ToolDefinition::new("novanet_context").with_input_schema(json!({
                         "type": "object",
                         "properties": {
                             "entity": { "type": "string" },
@@ -338,7 +338,7 @@ mod tests {
         // Missing required "entity" field
         let result = validator.validate(
             "novanet",
-            "novanet_generate",
+            "novanet_context",
             &json!({
                 "locale": "fr-FR"
             }),
@@ -369,7 +369,7 @@ mod tests {
             .populate(
                 "novanet",
                 &[
-                    ToolDefinition::new("novanet_generate").with_input_schema(json!({
+                    ToolDefinition::new("novanet_context").with_input_schema(json!({
                         "type": "object",
                         "properties": {
                             "entity": { "type": "string" }
@@ -382,7 +382,7 @@ mod tests {
 
         let result = validator.validate(
             "novanet",
-            "novanet_generate",
+            "novanet_context",
             &json!({
                 "entity": "qr-code"
             }),

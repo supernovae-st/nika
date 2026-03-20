@@ -164,6 +164,19 @@ fn lower_infer(
     provider: Option<String>,
     model: Option<String>,
 ) -> InferParams {
+    use crate::ast::action::ResponseFormat;
+
+    let response_format =
+        infer
+            .response_format
+            .as_deref()
+            .and_then(|s| match s.to_lowercase().as_str() {
+                "text" => Some(ResponseFormat::Text),
+                "json" => Some(ResponseFormat::Json),
+                "markdown" => Some(ResponseFormat::Markdown),
+                _ => None,
+            });
+
     InferParams {
         prompt: infer.prompt,
         provider,
@@ -171,7 +184,7 @@ fn lower_infer(
         temperature: infer.temperature,
         max_tokens: infer.max_tokens,
         system: infer.system,
-        response_format: None,
+        response_format,
         extended_thinking: infer.thinking,
         thinking_budget: infer.thinking_budget.map(u64::from),
         content: infer
@@ -184,8 +197,9 @@ fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
     ExecParams {
         command: e.command,
         shell: Some(e.shell),
-        // Convert milliseconds (YAML) to seconds (runtime)
-        timeout: e.timeout_ms.map(|ms| ms / 1000),
+        // Convert milliseconds (YAML) to seconds (runtime), ceiling division
+        // to avoid losing sub-second values (e.g. 500ms -> 1s, not 0s)
+        timeout: e.timeout_ms.map(|ms| ms.div_ceil(1000)),
         cwd: e.working_dir,
         env: if e.env.is_empty() {
             None
@@ -202,8 +216,8 @@ fn lower_fetch(fetch: AnalyzedFetchAction, retry: Option<AnalyzedRetry>) -> Fetc
         headers: fetch.headers.into_iter().collect(),
         body: fetch.body,
         json: fetch.json,
-        // Convert milliseconds (YAML) to seconds (runtime)
-        timeout: fetch.timeout_ms.map(|ms| ms / 1000),
+        // Convert milliseconds (YAML) to seconds (runtime), ceiling division
+        timeout: fetch.timeout_ms.map(|ms| ms.div_ceil(1000)),
         retry: retry.map(lower_retry),
         follow_redirects: Some(fetch.follow_redirects),
         response: fetch.response,
@@ -218,8 +232,8 @@ fn lower_invoke(invoke: AnalyzedInvokeAction) -> InvokeParams {
         tool: Some(invoke.tool),
         params: invoke.params,
         resource: None,
-        // Convert milliseconds (YAML) to seconds (runtime)
-        timeout: invoke.timeout_ms.map(|ms| ms / 1000),
+        // Convert milliseconds (YAML) to seconds (runtime), ceiling division
+        timeout: invoke.timeout_ms.map(|ms| ms.div_ceil(1000)),
     }
 }
 
@@ -261,10 +275,27 @@ fn lower_agent(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn lower_output(output: AnalyzedOutput) -> OutputPolicy {
+    // Determine SchemaRef: prefer explicit schema_ref, then classify schema value
+    let schema = if let Some(ref schema_ref_str) = output.schema_ref {
+        // Explicit schema_ref always treated as a file path
+        Some(SchemaRef::File(schema_ref_str.clone()))
+    } else {
+        output.schema.map(|v| {
+            // If the schema value is a string that looks like a file path,
+            // classify it as SchemaRef::File instead of Inline
+            if let serde_json::Value::String(ref s) = v {
+                if s.starts_with("./") || s.starts_with('/') || s.ends_with(".json") {
+                    return SchemaRef::File(s.clone());
+                }
+            }
+            SchemaRef::Inline(v)
+        })
+    };
+
     OutputPolicy {
         format: lower_output_format(output.format),
-        schema: output.schema.map(SchemaRef::Inline),
-        max_retries: None,
+        schema,
+        max_retries: output.max_retries.map(|v| v as u8),
         source_structured_spec: None,
     }
 }
@@ -622,6 +653,14 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
                     })
                     .collect()
             }),
+            response_format: infer.response_format.as_ref().map(|rf| {
+                use crate::ast::action::ResponseFormat;
+                match rf {
+                    ResponseFormat::Text => "text".to_string(),
+                    ResponseFormat::Json => "json".to_string(),
+                    ResponseFormat::Markdown => "markdown".to_string(),
+                }
+            }),
             span: Span::dummy(),
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
@@ -697,12 +736,19 @@ fn unlower_output(output: &OutputPolicy) -> AnalyzedOutput {
         OutputFormat::Markdown => AnalyzedOutputFormat::Text,
         OutputFormat::Binary => AnalyzedOutputFormat::Text, // Binary bypasses text formatting
     };
+
+    // Extract schema_ref from File variant, pass inline as schema
+    let (schema, schema_ref) = match output.schema.as_ref() {
+        Some(SchemaRef::Inline(v)) => (Some(v.clone()), None),
+        Some(SchemaRef::File(path)) => (None, Some(path.clone())),
+        None => (None, None),
+    };
+
     AnalyzedOutput {
         format,
-        schema: output.schema.as_ref().map(|s| match s {
-            SchemaRef::Inline(v) => v.clone(),
-            SchemaRef::File(path) => serde_json::Value::String(path.clone()),
-        }),
+        schema,
+        schema_ref,
+        max_retries: output.max_retries.map(u32::from),
         span: Span::dummy(),
     }
 }
@@ -830,6 +876,7 @@ mod tests {
                 thinking: Some(true),
                 thinking_budget: Some(8192),
                 content: None,
+                response_format: None,
                 span: Span::dummy(),
             }),
             provider: Some("mistral".to_string()),
@@ -951,7 +998,7 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
                 server: Some("novanet".to_string()),
-                tool: "novanet_generate".to_string(),
+                tool: "novanet_context".to_string(),
                 params: Some(serde_json::json!({"entity": "qr-code"})),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -963,7 +1010,7 @@ mod tests {
         match &lowered.tasks[0].action {
             TaskAction::Invoke { invoke } => {
                 assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
-                assert_eq!(invoke.tool.as_deref(), Some("novanet_generate"));
+                assert_eq!(invoke.tool.as_deref(), Some("novanet_context"));
                 assert!(invoke.params.is_some());
                 assert!(invoke.resource.is_none());
             }
@@ -1128,6 +1175,8 @@ mod tests {
         let output = AnalyzedOutput {
             format: AnalyzedOutputFormat::Json,
             schema: Some(serde_json::json!({"type": "object"})),
+            schema_ref: None,
+            max_retries: None,
             span: Span::dummy(),
         };
         let lowered = lower_output(output);
@@ -1777,6 +1826,8 @@ mod tests {
             output: Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Text,
                 schema: None,
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             ..dummy_task(id, "md_task")
@@ -2035,5 +2086,380 @@ mod tests {
             unlowered.description.is_none(),
             "Workflow description should be lost after roundtrip"
         );
+    }
+
+    // =========================================================================
+    // Bug fix regression tests
+    // =========================================================================
+
+    /// Bug 7: schema_ref must survive the Raw -> Analyzed -> Lower pipeline.
+    #[test]
+    fn bug7_schema_ref_threaded_through_pipeline() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: None,
+                schema_ref: Some("./schemas/result.json".to_string()),
+                max_retries: None,
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let output = lowered.tasks[0]
+            .output
+            .as_ref()
+            .expect("output should exist");
+        match &output.schema {
+            Some(SchemaRef::File(path)) => {
+                assert_eq!(path, "./schemas/result.json");
+            }
+            other => panic!("expected SchemaRef::File, got {:?}", other),
+        }
+    }
+
+    /// Bug 7: schema_ref roundtrips through lower -> unlower.
+    #[test]
+    fn bug7_schema_ref_roundtrip() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: None,
+                schema_ref: Some("/absolute/schema.json".to_string()),
+                max_retries: None,
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let output = unlowered.tasks[0]
+            .output
+            .as_ref()
+            .expect("output should exist");
+        assert_eq!(
+            output.schema_ref.as_deref(),
+            Some("/absolute/schema.json"),
+            "schema_ref should survive roundtrip"
+        );
+        assert!(
+            output.schema.is_none(),
+            "File schema should not appear as inline schema"
+        );
+    }
+
+    /// Bug 8: String schemas that look like file paths must become SchemaRef::File.
+    #[test]
+    fn bug8_schema_file_path_classified_correctly() {
+        // Test ./ prefix
+        let output = AnalyzedOutput {
+            format: AnalyzedOutputFormat::Json,
+            schema: Some(serde_json::Value::String("./schemas/user.json".to_string())),
+            schema_ref: None,
+            max_retries: None,
+            span: Span::dummy(),
+        };
+        let lowered = lower_output(output);
+        assert!(
+            matches!(lowered.schema, Some(SchemaRef::File(ref p)) if p == "./schemas/user.json"),
+            "Schema starting with ./ should be File, got {:?}",
+            lowered.schema
+        );
+
+        // Test / prefix
+        let output = AnalyzedOutput {
+            format: AnalyzedOutputFormat::Json,
+            schema: Some(serde_json::Value::String("/etc/schema.json".to_string())),
+            schema_ref: None,
+            max_retries: None,
+            span: Span::dummy(),
+        };
+        let lowered = lower_output(output);
+        assert!(
+            matches!(lowered.schema, Some(SchemaRef::File(ref p)) if p == "/etc/schema.json"),
+            "Schema starting with / should be File"
+        );
+
+        // Test .json suffix
+        let output = AnalyzedOutput {
+            format: AnalyzedOutputFormat::Json,
+            schema: Some(serde_json::Value::String("schemas/result.json".to_string())),
+            schema_ref: None,
+            max_retries: None,
+            span: Span::dummy(),
+        };
+        let lowered = lower_output(output);
+        assert!(
+            matches!(lowered.schema, Some(SchemaRef::File(ref p)) if p == "schemas/result.json"),
+            "Schema ending with .json should be File"
+        );
+
+        // Test inline schema object (should remain Inline)
+        let output = AnalyzedOutput {
+            format: AnalyzedOutputFormat::Json,
+            schema: Some(serde_json::json!({"type": "object"})),
+            schema_ref: None,
+            max_retries: None,
+            span: Span::dummy(),
+        };
+        let lowered = lower_output(output);
+        assert!(
+            matches!(lowered.schema, Some(SchemaRef::Inline(_))),
+            "JSON object schema should remain Inline"
+        );
+
+        // Test string that does NOT look like a file path (should remain Inline)
+        let output = AnalyzedOutput {
+            format: AnalyzedOutputFormat::Json,
+            schema: Some(serde_json::Value::String("just-a-string".to_string())),
+            schema_ref: None,
+            max_retries: None,
+            span: Span::dummy(),
+        };
+        let lowered = lower_output(output);
+        assert!(
+            matches!(lowered.schema, Some(SchemaRef::Inline(_))),
+            "Non-path string schema should remain Inline"
+        );
+    }
+
+    /// Bug 42: output.max_retries must survive the pipeline.
+    #[test]
+    fn bug42_output_max_retries_threaded() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(serde_json::json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: Some(5),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let output = lowered.tasks[0]
+            .output
+            .as_ref()
+            .expect("output should exist");
+        assert_eq!(
+            output.max_retries,
+            Some(5),
+            "max_retries should survive lowering"
+        );
+    }
+
+    /// Bug 42: output.max_retries roundtrips.
+    #[test]
+    fn bug42_output_max_retries_roundtrip() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            output: Some(AnalyzedOutput {
+                format: AnalyzedOutputFormat::Json,
+                schema: Some(serde_json::json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: Some(3),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        let output = unlowered.tasks[0]
+            .output
+            .as_ref()
+            .expect("output should exist");
+        assert_eq!(
+            output.max_retries,
+            Some(3),
+            "max_retries should survive roundtrip"
+        );
+    }
+
+    /// Bug 43: infer.response_format must survive the pipeline.
+    #[test]
+    fn bug43_response_format_threaded() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "test".to_string(),
+                response_format: Some("json".to_string()),
+                ..Default::default()
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Infer { infer } => {
+                assert_eq!(
+                    infer.response_format,
+                    Some(crate::ast::action::ResponseFormat::Json),
+                    "response_format should survive lowering"
+                );
+            }
+            _ => panic!("expected Infer action"),
+        }
+    }
+
+    /// Bug 43: response_format roundtrips.
+    #[test]
+    fn bug43_response_format_roundtrip() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                prompt: "test".to_string(),
+                response_format: Some("markdown".to_string()),
+                ..Default::default()
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        let unlowered = unlower(lowered).unwrap();
+        match &unlowered.tasks[0].action {
+            AnalyzedTaskAction::Infer(infer) => {
+                assert_eq!(
+                    infer.response_format.as_deref(),
+                    Some("markdown"),
+                    "response_format should survive roundtrip"
+                );
+            }
+            _ => panic!("expected Infer action"),
+        }
+    }
+
+    /// Bug 44: Sub-second timeouts must not be truncated to zero.
+    #[test]
+    fn bug44_timeout_ceiling_division() {
+        // 500ms should become 1s (not 0s)
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hi".to_string(),
+                shell: false,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: Some(500),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Exec { exec: e } => {
+                assert_eq!(
+                    e.timeout,
+                    Some(1),
+                    "500ms should ceil to 1s, not truncate to 0s"
+                );
+            }
+            _ => panic!("expected Exec action"),
+        }
+    }
+
+    /// Bug 44: Exact second boundaries should not be inflated.
+    #[test]
+    fn bug44_timeout_exact_seconds_unchanged() {
+        // 1000ms -> 1s (no inflation)
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hi".to_string(),
+                shell: false,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: Some(1000),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Exec { exec: e } => {
+                assert_eq!(e.timeout, Some(1), "1000ms should remain 1s");
+            }
+            _ => panic!("expected Exec action"),
+        }
+    }
+
+    /// Bug 44: Fetch timeout ceiling division.
+    #[test]
+    fn bug44_timeout_fetch_ceiling() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                method: HttpMethod::Get,
+                headers: IndexMap::new(),
+                body: None,
+                json: None,
+                timeout_ms: Some(1500),
+                follow_redirects: true,
+                response: None,
+                extract: None,
+                selector: None,
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(
+                    fetch.timeout,
+                    Some(2),
+                    "1500ms should ceil to 2s, not truncate to 1s"
+                );
+            }
+            _ => panic!("expected Fetch action"),
+        }
+    }
+
+    /// Bug 44: Invoke timeout ceiling division.
+    #[test]
+    fn bug44_timeout_invoke_ceiling() {
+        let mut wf = dummy_workflow();
+        let id = wf.task_table.insert("t");
+        wf.tasks.push(AnalyzedTask {
+            action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+                server: Some("test".to_string()),
+                tool: "tool".to_string(),
+                params: None,
+                timeout_ms: Some(100),
+                span: Span::dummy(),
+            }),
+            ..dummy_task(id, "t")
+        });
+
+        let lowered = lower(wf).unwrap();
+        match &lowered.tasks[0].action {
+            TaskAction::Invoke { invoke } => {
+                assert_eq!(
+                    invoke.timeout,
+                    Some(1),
+                    "100ms should ceil to 1s, not truncate to 0s"
+                );
+            }
+            _ => panic!("expected Invoke action"),
+        }
     }
 }

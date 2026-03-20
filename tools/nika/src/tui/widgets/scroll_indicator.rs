@@ -3,13 +3,10 @@
 //! Displays a vertical scroll bar to indicate scroll position.
 //! Uses Unicode block characters for smooth appearance.
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Style},
-    widgets::Widget,
-};
+use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::Widget};
 use std::fmt;
+
+use crate::tui::tokens::compat;
 
 /// Scroll indicator widget - displays a vertical scrollbar
 ///
@@ -44,8 +41,8 @@ impl Default for ScrollIndicator {
             offset: 0,
             total: 0,
             visible: 0,
-            track_style: Style::default().fg(Color::DarkGray),
-            thumb_style: Style::default().fg(Color::Cyan),
+            track_style: Style::default().fg(compat::SLATE_600),
+            thumb_style: Style::default().fg(compat::CYAN_500),
             show_arrows: true,
         }
     }
@@ -221,7 +218,7 @@ impl ScrollHint {
         Self {
             above,
             below,
-            style: Style::default().fg(Color::DarkGray),
+            style: Style::default().fg(compat::SLATE_600),
         }
     }
 

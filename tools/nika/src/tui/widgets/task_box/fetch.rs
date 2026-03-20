@@ -8,12 +8,14 @@ use std::collections::HashMap;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{http, BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
+use crate::tui::unicode::display_width;
 
 /// FetchBox data and rendering
 #[derive(Debug, Clone)]
@@ -164,12 +166,22 @@ impl FetchBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -208,8 +220,8 @@ impl FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let method_style = Style::default().fg(compat::CYAN_400); // Cyan
 
         let status_icon = self.state.icon();
         let status_text = self
@@ -221,18 +233,18 @@ impl FetchBox {
         let prefix = format!("{} ", verb.icon_label());
         let suffix = format!("  {} {}", status_icon, status_text);
         let available = (area.width as usize)
-            .saturating_sub(prefix.chars().count())
-            .saturating_sub(suffix.chars().count())
-            .saturating_sub(self.method.len() + 1);
+            .saturating_sub(display_width(&prefix))
+            .saturating_sub(display_width(&suffix))
+            .saturating_sub(display_width(&self.method) + 1);
         let url = Self::truncate(&self.url, available);
 
         // Build the line
         buf.set_string(area.x, area.y, &prefix, line_style);
-        let x = area.x + prefix.chars().count() as u16;
+        let x = area.x + display_width(&prefix) as u16;
         buf.set_string(x, area.y, &self.method, method_style);
-        let x = x + self.method.len() as u16 + 1;
+        let x = x + display_width(&self.method) as u16 + 1;
         buf.set_string(x, area.y, &url, line_style);
-        let x = area.x + (area.width as usize - suffix.chars().count()) as u16;
+        let x = area.x + (area.width as usize - display_width(&suffix)) as u16;
         buf.set_string(x, area.y, &suffix, dim_style);
     }
 
@@ -246,9 +258,9 @@ impl FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let method_style = Style::default().fg(compat::CYAN_400); // Cyan
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -344,7 +356,7 @@ impl FetchBox {
         let status_color = self
             .status_code
             .map(http::status_color)
-            .unwrap_or(Color::Rgb(100, 116, 139));
+            .unwrap_or(compat::SLATE_500);
         let status_text = self
             .status_code
             .map(|c| format!("{} {}", c, http::status_text(c)))
@@ -427,8 +439,8 @@ impl Widget for FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -438,8 +450,8 @@ impl Widget for FetchBox {
         let title_prefix = format!("╭─ {} ", verb.icon_label());
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 
@@ -450,7 +462,7 @@ impl Widget for FetchBox {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+            let method_style = Style::default().fg(compat::CYAN_400); // Cyan
             let url_display = Self::truncate(&self.url, inner_width - self.method.len() - 4);
             buf.set_string(area.x + 2, y, &self.method, method_style);
             buf.set_string(
@@ -536,7 +548,7 @@ impl Widget for FetchBox {
             let status_color = self
                 .status_code
                 .map(http::status_color)
-                .unwrap_or(Color::Rgb(100, 116, 139));
+                .unwrap_or(compat::SLATE_500);
             let status_text = self
                 .status_code
                 .map(|c| format!("{} {}", c, http::status_text(c)))

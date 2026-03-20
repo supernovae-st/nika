@@ -10,10 +10,10 @@
 //! - StatusBar: Bottom status bar with provider/MCP status
 //! - Header: Top header with view title and navigation hints
 
-// Pre-built widget library — many widgets staged for future TUI views.
-// Individual #[allow(dead_code)] on structs where needed.
-#![allow(dead_code)]
+// Pre-built widget library for TUI views.
+// Per-module #[allow(dead_code)] for staged widgets awaiting TUI redesign integration.
 
+#[allow(dead_code)]
 mod activity_stack;
 mod agent_steps;
 mod animation;
@@ -22,15 +22,18 @@ mod chat_edge_line;
 mod chat_node_box;
 mod chat_task_queue;
 mod command_palette;
-mod dag;
 mod dag_ascii;
+#[allow(dead_code)]
 mod dag_edge;
+#[allow(dead_code)]
 mod dag_layout;
+#[allow(dead_code)]
 mod dag_node_box;
 mod gauge;
 mod header;
 mod help_overlay;
 mod infer_stream_box;
+#[allow(dead_code)]
 mod matrix_decrypt;
 mod matrix_rain;
 mod mcp_call_box;
@@ -39,9 +42,11 @@ mod mission_control;
 mod nika_intro;
 mod pro_status_bar;
 pub mod provider_modal;
+#[allow(dead_code)]
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
+#[allow(dead_code)]
 mod sparkline;
 mod status_bar;
 mod status_message;
@@ -49,8 +54,14 @@ pub mod task_box;
 mod terminal_size;
 mod timeline;
 pub mod tree;
+mod utils;
 mod verb_input;
+mod verb_type;
 mod which_key;
+
+// Micro-widgets for F1-style inline telemetry (staged for TUI redesign Phase 6)
+#[allow(dead_code)]
+pub mod micro;
 
 // Shared panel components for view composition
 pub mod panels;
@@ -84,8 +95,8 @@ pub use infer_stream_box::{InferStatus, InferStreamBox, InferStreamData};
 pub use activity_stack::{ActivityItem, ActivityTemp};
 // Command palette (⌘K)
 pub use command_palette::{default_commands, CommandPalette, CommandPaletteState, PaletteCommand};
-// DAG widgets
-pub use dag::{Dag, DagNode, EdgeState, VerbType};
+// Verb type (extracted from deprecated dag.rs)
+pub use verb_type::VerbType;
 // DAG node box widget for individual task rendering
 pub use dag_node_box::{NodeBox, NodeBoxData, NodeBoxMode};
 // Complete DAG ASCII visualization widget
@@ -147,5 +158,6 @@ pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
 pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
 };
-// Progress widgets
-pub use progress::{DownloadProgress, DownloadStatus, TaskProgress, TaskProgressStatus};
+// Progress widgets (DownloadProgress + TaskProgress removed — never rendered)
+// Shared utilities
+pub use utils::centered_rect;

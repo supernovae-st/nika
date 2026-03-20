@@ -327,31 +327,39 @@ async fn framing_cas_compressed_starts_with_marker_then_zstd() {
     );
 }
 
+/// CAS-internal no-compression marker (must match store.rs CAS_NO_COMPRESSION_MARKER).
+const CAS_NO_COMPRESSION_MARKER: u8 = 0x00;
+
 #[tokio::test]
-async fn framing_raw_zstd_starts_with_zstd_magic_no_marker() {
+async fn framing_raw_zstd_has_no_compression_marker() {
     let dir = tempfile::tempdir().unwrap();
     let store = CasStore::new(dir.path());
 
-    // Pre-compressed zstd data (raw, no CAS marker)
+    // Pre-compressed zstd data (raw, should NOT be CAS-compressed)
     let original = b"raw zstd framing test data that exceeds the sixty-four byte threshold for compression!!!!!!!!";
     let raw_zstd = zstd::encode_all(std::io::Cursor::new(original.as_slice()), 3).unwrap();
 
     let result = store.store(&raw_zstd).await.unwrap();
 
-    // On disk: raw zstd data (should_compress returns false for zstd magic)
+    // On disk: [0x00][zstd-data] (no-compression marker + original zstd bytes)
+    // should_compress returns false for data starting with zstd magic,
+    // so store() uses frame_uncompressed() which prepends 0x00.
     let path = cas_path(dir.path(), &result.hash);
     let on_disk = tokio::fs::read(&path).await.unwrap();
 
-    // Raw zstd: [0x28][0xB5][0x2F][0xFD]... (no 0x01 prefix)
-    assert!(on_disk.len() >= 4);
+    assert!(on_disk.len() >= 5);
     assert_eq!(
-        &on_disk[..4],
+        on_disk[0], CAS_NO_COMPRESSION_MARKER,
+        "raw zstd on disk must start with no-compression marker 0x00"
+    );
+    assert_eq!(
+        &on_disk[1..5],
         &ZSTD_MAGIC,
-        "raw zstd on disk must start with zstd magic (no CAS marker)"
+        "raw zstd data follows after the no-compression marker"
     );
     assert_ne!(
         on_disk[0], CAS_ZSTD_MARKER,
-        "raw zstd on disk must NOT start with CAS marker 0x01"
+        "raw zstd on disk must NOT start with CAS compression marker 0x01"
     );
 }
 
@@ -625,17 +633,26 @@ async fn edge_below_compression_threshold() {
     let read_back = store.read(&result.hash).await.unwrap();
     assert_eq!(read_back, data, "data below threshold must round-trip");
 
-    // Should NOT be compressed (too small)
+    // Should NOT be compressed (too small), but gets no-compression framing marker
     let path = cas_path(dir.path(), &result.hash);
     let on_disk = tokio::fs::read(&path).await.unwrap();
+    assert_eq!(
+        on_disk[0], CAS_NO_COMPRESSION_MARKER,
+        "data below 64-byte threshold must have no-compression marker"
+    );
     assert_ne!(
         on_disk[0], CAS_ZSTD_MARKER,
         "data below 64-byte threshold must NOT be compressed"
     );
     assert_eq!(
         on_disk.len(),
-        63,
-        "on-disk size must equal original for uncompressed data"
+        64,
+        "on-disk size must be original + 1 marker byte for uncompressed data"
+    );
+    assert_eq!(
+        &on_disk[1..],
+        &data[..],
+        "on-disk data after marker must be original bytes"
     );
 }
 
@@ -661,7 +678,7 @@ async fn edge_compression_makes_data_larger() {
     let store = CasStore::new(dir.path());
 
     // High-entropy data where zstd compression makes it larger.
-    // compress_if_beneficial detects this and stores raw.
+    // compress_if_beneficial detects this and stores with no-compression marker.
     let mut data = Vec::with_capacity(64);
     let mut state: u32 = 0xCAFE_BABE;
     for _ in 0..64 {
@@ -676,13 +693,19 @@ async fn edge_compression_makes_data_larger() {
         "data where compression inflates must still round-trip correctly"
     );
 
-    // When compression makes data larger, compress_if_beneficial returns the
-    // original bytes. So on-disk should equal the original data (no marker).
+    // When compression makes data larger, compress_if_beneficial stores with
+    // no-compression marker [0x00][raw-data]. The on-disk file is 1 byte
+    // larger than the original.
     let path = cas_path(dir.path(), &result.hash);
     let on_disk = tokio::fs::read(&path).await.unwrap();
     assert_eq!(
-        on_disk, data,
-        "when compression inflates, data should be stored raw (no marker)"
+        on_disk[0], CAS_NO_COMPRESSION_MARKER,
+        "when compression inflates, data should have no-compression marker"
+    );
+    assert_eq!(
+        &on_disk[1..],
+        &data[..],
+        "original data follows the no-compression marker"
     );
 }
 
@@ -786,52 +809,39 @@ async fn edge_corrupt_marker_no_payload() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Known Issue Characterization: BinarySource::CasPath raw-copy
+// Bug 21 FIXED: CasStore::read_raw decompresses before artifact copy
 // ═══════════════════════════════════════════════════════════════════
 
 #[tokio::test]
-async fn known_issue_cas_path_raw_copy_compressed() {
-    // CHARACTERIZES the known issue: BinarySource::CasPath copies the on-disk
-    // (potentially compressed) bytes without decompressing.
-    //
-    // When compression is enabled and data is compressible, the on-disk form
-    // is [0x01][zstd-data]. BinarySource::CasPath does a raw file copy,
-    // so the artifact file will contain compressed data, NOT the original.
-    //
-    // A fix would require BinarySource::CasPath to either:
-    // (a) use CasStore::read() which decompresses transparently, or
-    // (b) add a decompress step to the raw copy path.
+async fn cas_read_raw_decompresses_for_artifact_copy() {
+    // Verifies Bug 21 fix: CasStore::read_raw() returns original data,
+    // not the on-disk framed/compressed bytes. This is what the artifact
+    // writer now uses instead of a raw file copy.
     let dir = tempfile::tempdir().unwrap();
     let store = CasStore::new(dir.path());
 
-    let text: Vec<u8> = "known issue characterization test "
+    let text: Vec<u8> = "read_raw decompression test "
         .repeat(100)
         .into_bytes();
     let result = store.store(&text).await.unwrap();
 
-    // Read via CAS API (correct path) -- decompresses transparently
+    // Read via CAS API -- decompresses transparently
     let via_api = store.read(&result.hash).await.unwrap();
     assert_eq!(via_api, text, "CAS API read must return original data");
 
-    // Read raw on-disk bytes (simulates what BinarySource::CasPath does)
+    // Read via read_raw (used by artifact writer) -- also decompresses
     let path = cas_path(dir.path(), &result.hash);
-    let via_raw_copy = tokio::fs::read(&path).await.unwrap();
-
-    // On-disk bytes are compressed -- they differ from original
-    assert_ne!(
-        via_raw_copy, text,
-        "KNOWN ISSUE: raw on-disk bytes are compressed, not original data. \
-         BinarySource::CasPath copies these bytes without decompressing."
-    );
+    let via_read_raw = CasStore::read_raw(&path).await.unwrap();
     assert_eq!(
-        via_raw_copy[0], CAS_ZSTD_MARKER,
-        "on-disk data starts with CAS marker (compressed)"
+        via_read_raw, text,
+        "read_raw must return original data (not compressed framing bytes)"
     );
-    assert!(
-        via_raw_copy.len() < text.len(),
-        "compressed on-disk size ({}) < original size ({})",
-        via_raw_copy.len(),
-        text.len()
+
+    // Raw on-disk bytes ARE different (compressed + framed)
+    let raw_on_disk = tokio::fs::read(&path).await.unwrap();
+    assert_ne!(
+        raw_on_disk, text,
+        "on-disk bytes should be framed/compressed"
     );
 }
 

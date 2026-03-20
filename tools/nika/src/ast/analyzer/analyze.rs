@@ -564,7 +564,7 @@ fn analyze_task(
 
     // Analyze action
     if let Some(ref action) = raw.action {
-        task.action = analyze_action(action);
+        task.action = analyze_action(action, ctx);
 
         // Merge agent-block provider/model into task if not set at task level
         if let RawTaskAction::Agent(ref agent_spanned) = action {
@@ -660,11 +660,11 @@ fn analyze_task(
 }
 
 /// Analyze task action.
-fn analyze_action(raw: &RawTaskAction) -> AnalyzedTaskAction {
+fn analyze_action(raw: &RawTaskAction, ctx: &mut AnalyzerContext) -> AnalyzedTaskAction {
     match raw {
         RawTaskAction::Infer(s) => AnalyzedTaskAction::Infer(analyze_infer(&s.value)),
         RawTaskAction::Exec(s) => AnalyzedTaskAction::Exec(analyze_shell_cmd(&s.value)),
-        RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value)),
+        RawTaskAction::Fetch(s) => AnalyzedTaskAction::Fetch(analyze_fetch(&s.value, ctx)),
         RawTaskAction::Invoke(s) => AnalyzedTaskAction::Invoke(analyze_invoke(&s.value)),
         RawTaskAction::Agent(s) => AnalyzedTaskAction::Agent(analyze_agent(&s.value)),
     }
@@ -684,6 +684,7 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
             .content
             .as_ref()
             .map(|spanned| spanned.value.iter().map(analyze_content_part).collect()),
+        response_format: raw.response_format.as_ref().map(|s| s.value.clone()),
         span: raw.prompt.span,
     }
 }
@@ -708,12 +709,25 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
     }
 }
 
-fn analyze_fetch(raw: &RawFetchAction) -> AnalyzedFetchAction {
-    let method = raw
-        .method
-        .as_ref()
-        .and_then(|s| HttpMethod::parse(&s.value))
-        .unwrap_or(HttpMethod::Get);
+fn analyze_fetch(raw: &RawFetchAction, ctx: &mut AnalyzerContext) -> AnalyzedFetchAction {
+    let method = match raw.method.as_ref() {
+        Some(s) if !s.value.is_empty() => match HttpMethod::parse(&s.value) {
+            Some(m) => m,
+            None => {
+                ctx.add_warning(AnalyzeError::new(
+                    AnalyzeErrorKind::InvalidValue,
+                    s.span,
+                    format!(
+                        "unknown HTTP method '{}', defaulting to GET. \
+                         Valid methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS",
+                        s.value
+                    ),
+                ));
+                HttpMethod::Get
+            }
+        },
+        _ => HttpMethod::Get,
+    };
 
     AnalyzedFetchAction {
         url: raw.url.value.clone(),
@@ -801,6 +815,8 @@ fn analyze_output(
     AnalyzedOutput {
         format,
         schema: raw.schema.as_ref().map(|s| s.value.clone()),
+        schema_ref: raw.schema_ref.as_ref().map(|s| s.value.clone()),
+        max_retries: raw.max_retries.as_ref().map(|s| s.value),
         span: raw.format.as_ref().map(|s| s.span).unwrap_or(Span::dummy()),
     }
 }

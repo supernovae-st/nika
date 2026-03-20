@@ -49,7 +49,7 @@ L'architecture complete de Nika v0.30+ avec tous les layers interconnectes.
 ║  │                            ORCHESTRATION LAYER                                       │ ║
 ║  ├──────────────────────────────────────────────────────────────────────────────────────┤ ║
 ║  │                                                                                      │ ║
-║  │   🎯 SHAKA (PUNK-01)                                                                 │ ║
+║  │   🎯 ORCHESTRATOR (PUNK-01)                                                                 │ ║
 ║  │   ├── Dynamic Router LLM (claude-haiku / gpt-4o-mini)                               │ ║
 ║  │   ├── Capability Matching (accepts/produces MIME types)                              │ ║
 ║  │   ├── Satellite Dispatch (parallel or sequential based on dependencies)            │ ║
@@ -106,7 +106,7 @@ L'architecture complete de Nika v0.30+ avec tous les layers interconnectes.
 ║  │   ├── nika:grep                               ├── replicate:run                      │ ║
 ║  │   ├── nika:sleep                              ├── browser:navigate                   │ ║
 ║  │   ├── nika:records                            ├── github:create_pr                   │ ║
-║  │   ├── nika:shaka                              ├── slack:send_message                 │ ║
+║  │   ├── nika:orchestrate                              ├── slack:send_message                 │ ║
 ║  │   ├── nika:dag_state                          └── ... (48 MCP aliases)               │ ║
 ║  │   ├── nika:budget                                                                    │ ║
 ║  │   ├── nika:task_status                                                               │ ║
@@ -194,9 +194,9 @@ Exemple concret d'une requete traversant tout l'ecosysteme.
 │  │  Attachments: ./data/qr-sample.png (image/png)                                      │   │
 │  └────────────────────────────────────────────────┬────────────────────────────────────┘   │
 │                                                   │                                         │
-│  2. SHAKA ROUTING                                 ▼                                         │
+│  2. ORCHESTRATOR ROUTING                                 ▼                                         │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐   │
-│  │  Shaka detecte:                                                                      │   │
+│  │  Orchestrator detecte:                                                                      │   │
 │  │  • Input MIME: image/png → needs vision capability                                   │   │
 │  │  • Output demande: "landing page" → needs text generation                            │   │
 │  │  • Output demande: "hero image" → needs image generation                             │   │
@@ -389,10 +389,10 @@ Le meme principe applique a chaque niveau de l'ecosysteme.
 ║             │                         │                         │            ║
 ║  ───────────┼─────────────────────────┼─────────────────────────┼────────────║
 ║             │                         │                         │            ║
-║  FULL       │  + capabilities[]       │  + orchestration: shaka │  + nika.yaml║
+║  FULL       │  + capabilities[]       │  + goal: │  + nika.yaml║
 ║  (10 fields)│  + fallback model       │  + satellites[]         │  manifest  ║
 ║             │  + record: config       │  + record: config       │  with deps ║
-║             │  + cost/latency hints   │  + shaka: config        │            ║
+║             │  + cost/latency hints   │  + goal: config        │            ║
 ║             │                         │                         │            ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -779,7 +779,7 @@ Table maitre montrant comment chaque piece s'integre.
 
 | Piece | Role | Integrated via | Example |
 |-------|------|----------------|---------|
-| **Shaka** | Orchestre les satellites | `orchestration: shaka` | Routes image→vision-analyst |
+| **Orchestrator** | Orchestre les satellites | `goal:` | Routes image→vision-analyst |
 | **Satellite** | Worker specialise | YAML def ou package | `@supernovae/vision-analyst` |
 | **Model cloud** | LLM distant | `provider: anthropic/openai/...` | gpt-4o, claude-sonnet |
 | **Model native** | LLM local | `provider: native` + GGUF | qwen2-vl, llama3.2 |
@@ -848,13 +848,13 @@ Exemple complet et realiste montrant tout l'ecosysteme ensemble.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 schema: nika/workflow@0.10
-orchestration: shaka
+goal:
 
 # ───────────────────────────────────────────────────────────────────────────────
-#  SHAKA CONFIGURATION (PUNK-01 — The Strategist)
+#  ORCHESTRATOR CONFIGURATION (PUNK-01 — The Strategist)
 # ───────────────────────────────────────────────────────────────────────────────
 
-shaka:
+goal:
   model: anthropic/claude-haiku
   routing: capability-match
   fallback: text-analyst
@@ -940,7 +940,7 @@ satellites:
     skills: [seo]
 
 # ───────────────────────────────────────────────────────────────────────────────
-#  GOAL (Natural language instruction for Shaka)
+#  GOAL (Natural language instruction for the orchestrator)
 # ───────────────────────────────────────────────────────────────────────────────
 
 goal: |
@@ -983,13 +983,13 @@ context:
    │
    ├── Initialize RunContext (DashMap)
    │
-   ├── Shaka analyzes goal + inputs:
+   ├── Orchestrator analyzes goal + inputs:
    │   • Input: qr_image (image/png) → needs vision
    │   • Goal mentions: "hero image" → needs image generation
    │   • Goal mentions: "SEO" → needs search/novanet
    │   • Goal mentions: "embeddings" → needs embedding model
    │
-   ├── Shaka creates execution plan:
+   ├── Orchestrator creates execution plan:
    │   1. vision-analyst (qr_image → analysis.json)
    │   2. text-analyst (analysis + novanet context → landing_page.md)
    │   3. creative-director (landing_page → hero.png) [parallel with 4]
@@ -1060,7 +1060,7 @@ Ce document capture l'ecosysteme coherent de Nika v0.30+ :
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
 ║  🎯 ORCHESTRATION                                                             ║
-║  └── Shaka (PUNK-01) route dynamiquement vers les satellites                  ║
+║  └── Orchestrator (historical: Shaka/PUNK-01) route dynamiquement vers les satellites                  ║
 ║                                                                               ║
 ║  🛰️ SATELLITES                                                                 ║
 ║  └── Workers specialises avec model + accepts/produces + tools                ║
@@ -1094,5 +1094,5 @@ Ce document capture l'ecosysteme coherent de Nika v0.30+ :
 1. Valider les decisions PROPOSED avec l'equipe
 2. Implementer RunContext rename (doc 14)
 3. Designer le schema SatelliteCard pour NovaNet
-4. Prototyper Shaka orchestrator (v0.29)
+4. Prototyper orchestrator (v0.29)
 5. Definir le package registry (skills.sh ou autre)

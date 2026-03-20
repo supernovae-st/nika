@@ -79,6 +79,9 @@ pub struct RawInferAction {
 
     /// Multimodal content parts (text + images) for vision models
     pub content: Option<Spanned<Vec<crate::ast::content::RawContentPart>>>,
+
+    /// Expected response format: text, json, markdown
+    pub response_format: Option<Spanned<String>>,
 }
 
 /// Parameters for the `exec` verb (shell command execution).

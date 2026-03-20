@@ -7,21 +7,11 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
 use crate::tui::theme::VerbColor;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DEFAULT COLORS (fallbacks for theme-aware rendering)
-// ═══════════════════════════════════════════════════════════════════════════
-
-const DEFAULT_BORDER_COLOR: Color = Color::Rgb(99, 102, 241); // indigo
-const DEFAULT_BG_COLOR: Color = Color::Rgb(17, 24, 39); // dark slate
-const DEFAULT_PLACEHOLDER_COLOR: Color = Color::Rgb(156, 163, 175); // gray
-const DEFAULT_SEPARATOR_COLOR: Color = Color::Rgb(55, 65, 81); // dark gray
-const DEFAULT_TEXT_COLOR: Color = Color::Rgb(229, 231, 235); // light text
-const DEFAULT_MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // muted text
+use crate::tui::tokens::compat;
 
 /// A command in the palette
 #[derive(Debug, Clone)]
@@ -480,8 +470,9 @@ impl Widget for CommandPalette<'_> {
         // Draw border
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(DEFAULT_BORDER_COLOR))
-            .style(Style::default().bg(DEFAULT_BG_COLOR));
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(compat::INDIGO_500))
+            .style(Style::default().bg(compat::GRAY_900));
         let inner = block.inner(palette_area);
         block.render(palette_area, buf);
 
@@ -509,7 +500,7 @@ impl Widget for CommandPalette<'_> {
             };
 
             Line::from(vec![
-                Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
+                Span::styled("🔍 > ", Style::default().fg(compat::SLATE_600)),
                 Span::styled(cmd_name, cmd_style),
                 Span::styled(" ", Style::default()),
                 Span::styled(arg, Style::default().fg(Color::White)),
@@ -522,7 +513,7 @@ impl Widget for CommandPalette<'_> {
             ])
         } else {
             Line::from(vec![
-                Span::styled("🔍 > ", Style::default().fg(DEFAULT_PLACEHOLDER_COLOR)),
+                Span::styled("🔍 > ", Style::default().fg(compat::SLATE_600)),
                 Span::styled(&self.state.query, Style::default().fg(Color::White)),
                 Span::styled(
                     cursor,
@@ -540,7 +531,7 @@ impl Widget for CommandPalette<'_> {
             inner.x + 1,
             inner.y + 1,
             &sep,
-            Style::default().fg(DEFAULT_SEPARATOR_COLOR),
+            Style::default().fg(compat::GRAY_700),
         );
 
         // Command list
@@ -557,9 +548,9 @@ impl Widget for CommandPalette<'_> {
             let row_y = list_y + i as u16;
 
             let bg = if is_selected {
-                DEFAULT_SEPARATOR_COLOR
+                compat::GRAY_700
             } else {
-                DEFAULT_BG_COLOR
+                compat::GRAY_900
             };
 
             // Clear line background
@@ -601,7 +592,7 @@ impl Widget for CommandPalette<'_> {
                     )
                 } else {
                     // Unselected non-verb: default text
-                    (Style::default().fg(DEFAULT_TEXT_COLOR), Style::default())
+                    (Style::default().fg(compat::SLATE_200), Style::default())
                 };
 
             buf.set_string(inner.x + 2, row_y, cmd.icon, icon_style);
@@ -615,7 +606,7 @@ impl Widget for CommandPalette<'_> {
                         shortcut_x,
                         row_y,
                         shortcut,
-                        Style::default().fg(DEFAULT_MUTED_COLOR),
+                        Style::default().fg(compat::SLATE_500),
                     );
                 }
             }
@@ -628,7 +619,7 @@ impl Widget for CommandPalette<'_> {
                 inner.x + 2,
                 footer_y,
                 "↑↓ Navigate  ⏎ Select  Esc Cancel",
-                Style::default().fg(DEFAULT_MUTED_COLOR),
+                Style::default().fg(compat::SLATE_500),
             );
         }
     }

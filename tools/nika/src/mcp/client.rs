@@ -568,7 +568,7 @@ impl McpClient {
     ///
     /// The mock client is pre-connected and returns canned responses:
     /// - `novanet_describe`: Returns `{"nodes": 62, "arcs": 182}`
-    /// - `novanet_generate`: Returns entity context JSON
+    /// - `novanet_context`: Returns entity context JSON
     /// - Other tools: Returns a generic success response
     ///
     /// # Example
@@ -849,7 +849,7 @@ impl McpClient {
     ///
     /// # Arguments
     ///
-    /// * `name` - Tool name (e.g., "novanet_generate", "read_file")
+    /// * `name` - Tool name (e.g., "novanet_context", "read_file")
     /// * `params` - Tool parameters as JSON value
     ///
     /// # Validation
@@ -867,8 +867,9 @@ impl McpClient {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let result = client.call_tool("novanet_generate", json!({
-    ///     "entity": "qr-code",
+    /// let result = client.call_tool("novanet_context", json!({
+    ///     "mode": "page",
+    ///     "focus_key": "qr-code",
     ///     "locale": "fr-FR"
     /// })).await?;
     /// ```
@@ -1009,7 +1010,7 @@ impl McpClient {
     ///
     /// # Arguments
     ///
-    /// * `name` - Tool name (e.g., "novanet_generate")
+    /// * `name` - Tool name (e.g., "novanet_context")
     /// * `params` - Tool parameters as JSON
     /// * `task_id` - Task ID for event correlation
     /// * `event_log` - EventLog for emitting McpRetry events
@@ -1018,8 +1019,8 @@ impl McpClient {
     ///
     /// ```rust,ignore
     /// let result = client.call_tool_with_retry_events(
-    ///     "novanet_generate",
-    ///     json!({"entity": "qr-code"}),
+    ///     "novanet_context",
+    ///     json!({"mode": "page", "locale": "fr-FR"}),
     ///     &task_id,
     ///     &event_log,
     /// ).await?;
@@ -1285,10 +1286,11 @@ impl McpClient {
                 ToolCallResult::success(vec![ContentBlock::text(response.to_string())])
             }
 
-            "novanet_generate" => {
-                // Extract entity from params for a realistic response
+            "novanet_context" => {
+                // Extract focus_key/entity from params for a realistic response
                 let entity = params
-                    .get("entity")
+                    .get("focus_key")
+                    .or_else(|| params.get("entity"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown");
                 let locale = params
@@ -1304,17 +1306,6 @@ impl McpClient {
                         "description": format!("Auto-generated content for {} in {}", entity, locale),
                         "keywords": ["generated", "mock", entity]
                     }
-                });
-                ToolCallResult::success(vec![ContentBlock::text(response.to_string())])
-            }
-
-            "novanet_traverse" => {
-                let response = serde_json::json!({
-                    "path": [
-                        {"type": "Entity", "id": "qr-code"},
-                        {"type": "EntityNative", "id": "qr-code:fr-FR"}
-                    ],
-                    "total": 2
                 });
                 ToolCallResult::success(vec![ContentBlock::text(response.to_string())])
             }
@@ -1409,31 +1400,19 @@ impl McpClient {
     fn mock_list_tools(&self) -> Vec<ToolDefinition> {
         vec![
             ToolDefinition::new("novanet_describe")
-                .with_description("Describe the NovaNet knowledge graph schema"),
-            ToolDefinition::new("novanet_generate")
-                .with_description("Generate native content for an entity")
+                .with_description("Bootstrap understanding of the graph"),
+            ToolDefinition::new("novanet_search")
+                .with_description("Find nodes via 5 modes: fulltext, property, hybrid, walk, triggers"),
+            ToolDefinition::new("novanet_context")
+                .with_description("Unified context assembly for LLM content generation")
                 .with_input_schema(serde_json::json!({
                     "type": "object",
                     "properties": {
-                        "entity": {"type": "string", "description": "Entity ID"},
-                        "locale": {"type": "string", "description": "Target locale (e.g., fr-FR)"},
-                        "forms": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Content forms to generate"
-                        }
+                        "mode": {"type": "string", "description": "Context mode (page, block, knowledge, assemble)"},
+                        "focus_key": {"type": "string", "description": "Focus node key"},
+                        "locale": {"type": "string", "description": "Target locale (e.g., fr-FR)"}
                     },
-                    "required": ["entity"]
-                })),
-            ToolDefinition::new("novanet_traverse")
-                .with_description("Traverse the knowledge graph from a starting node")
-                .with_input_schema(serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "start": {"type": "string", "description": "Starting node (e.g., entity:qr-code)"},
-                        "arc": {"type": "string", "description": "Arc type to follow"}
-                    },
-                    "required": ["start"]
+                    "required": ["mode", "locale"]
                 })),
         ]
     }
@@ -1606,13 +1585,13 @@ mod tests {
         let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
         client.connect().await.unwrap();
 
-        // novanet_generate requires "entity"
+        // novanet_context requires "mode" and "locale"
         let result = client
             .call_tool(
-                "novanet_generate",
+                "novanet_context",
                 serde_json::json!({
-                    "locale": "fr-FR"
-                    // Missing "entity"
+                    "focus_key": "qr-code"
+                    // Missing "mode" and "locale"
                 }),
             )
             .await;
@@ -1625,8 +1604,8 @@ mod tests {
             missing, details, ..
         } = err
         {
-            assert!(missing.contains(&"entity".to_string()));
-            assert!(details.contains("entity"));
+            assert!(missing.contains(&"mode".to_string()));
+            assert!(details.contains("mode"));
         }
     }
 
@@ -1635,12 +1614,13 @@ mod tests {
         let client = McpClient::mock("novanet").with_validation(ValidationConfig::default());
         client.connect().await.unwrap();
 
-        // Valid params - has required "entity"
+        // Valid params - has required "mode" and "locale"
         let result = client
             .call_tool(
-                "novanet_generate",
+                "novanet_context",
                 serde_json::json!({
-                    "entity": "qr-code",
+                    "mode": "page",
+                    "focus_key": "qr-code",
                     "locale": "fr-FR"
                 }),
             )
@@ -1661,10 +1641,10 @@ mod tests {
         // Missing required field, but validation is disabled
         let result = client
             .call_tool(
-                "novanet_generate",
+                "novanet_context",
                 serde_json::json!({
-                    "locale": "fr-FR"
-                    // Missing "entity" - but validation disabled
+                    "focus_key": "qr-code"
+                    // Missing "mode" and "locale" - but validation disabled
                 }),
             )
             .await;
@@ -1681,9 +1661,9 @@ mod tests {
         // No connect needed for mock without validation
         let result = client
             .call_tool(
-                "novanet_generate",
+                "novanet_context",
                 serde_json::json!({
-                    // Missing "entity" but no validator
+                    // Missing required fields but no validator
                 }),
             )
             .await;
@@ -1748,7 +1728,7 @@ mod tests {
         let params = serde_json::json!({"entity": "qr-code"});
 
         // First call - miss
-        let result1 = client.call_tool("novanet_generate", params.clone()).await;
+        let result1 = client.call_tool("novanet_context", params.clone()).await;
         assert!(result1.is_ok());
 
         let stats = client.cache_stats().unwrap();
@@ -1757,7 +1737,7 @@ mod tests {
         assert_eq!(stats.entries, 1);
 
         // Second call with same params - hit
-        let result2 = client.call_tool("novanet_generate", params.clone()).await;
+        let result2 = client.call_tool("novanet_context", params.clone()).await;
         assert!(result2.is_ok());
 
         let stats = client.cache_stats().unwrap();
@@ -1775,18 +1755,12 @@ mod tests {
         let client = McpClient::mock("test").with_cache(CacheConfig::default());
 
         // Call with params A
-        let params_a = serde_json::json!({"entity": "qr-code"});
-        client
-            .call_tool("novanet_generate", params_a)
-            .await
-            .unwrap();
+        let params_a = serde_json::json!({"focus_key": "qr-code"});
+        client.call_tool("novanet_context", params_a).await.unwrap();
 
         // Call with params B - different, should miss
-        let params_b = serde_json::json!({"entity": "barcode"});
-        client
-            .call_tool("novanet_generate", params_b)
-            .await
-            .unwrap();
+        let params_b = serde_json::json!({"focus_key": "barcode"});
+        client.call_tool("novanet_context", params_b).await.unwrap();
 
         let stats = client.cache_stats().unwrap();
         assert_eq!(stats.misses, 2);
@@ -1808,7 +1782,7 @@ mod tests {
 
         // Call tool B with same params - different tool, should miss
         client
-            .call_tool("novanet_traverse", params.clone())
+            .call_tool("novanet_search", params.clone())
             .await
             .unwrap();
 
@@ -1981,8 +1955,8 @@ mod tests {
         // Mock client should succeed immediately (no retries)
         let result = client
             .call_tool_with_retry_events(
-                "novanet_generate",
-                serde_json::json!({"entity": "qr-code"}),
+                "novanet_context",
+                serde_json::json!({"focus_key": "qr-code"}),
                 &task_id,
                 &event_log,
             )
@@ -2019,18 +1993,18 @@ mod tests {
         let event_log = EventLog::new();
         let task_id: Arc<str> = Arc::from("test_cache_hit");
 
-        let params = serde_json::json!({"entity": "qr-code"});
+        let params = serde_json::json!({"focus_key": "qr-code"});
 
         // First call - cache miss
         let _result1 = client
-            .call_tool_with_retry_events("novanet_generate", params.clone(), &task_id, &event_log)
+            .call_tool_with_retry_events("novanet_context", params.clone(), &task_id, &event_log)
             .await
             .unwrap();
         assert!(!client.was_last_call_cached());
 
         // Second call - should hit cache
         let _result2 = client
-            .call_tool_with_retry_events("novanet_generate", params.clone(), &task_id, &event_log)
+            .call_tool_with_retry_events("novanet_context", params.clone(), &task_id, &event_log)
             .await
             .unwrap();
         assert!(client.was_last_call_cached());

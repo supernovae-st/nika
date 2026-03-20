@@ -28,8 +28,8 @@
 //!
 //! // Create a request
 //! let request = JsonRpcRequest::new(1, "tools/call", json!({
-//!     "name": "novanet_generate",
-//!     "arguments": {"entity": "qr-code"}
+//!     "name": "novanet_context",
+//!     "arguments": {"mode": "page", "focus_key": "qr-code", "locale": "fr-FR"}
 //! }));
 //!
 //! // Serialize and send

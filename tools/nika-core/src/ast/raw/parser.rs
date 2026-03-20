@@ -1752,10 +1752,11 @@ schema: "nika/workflow@0.12"
 tasks:
   - id: mcp_call
     invoke:
-      tool: novanet_generate
+      tool: novanet_context
       mcp: novanet
       params:
-        entity: "qr-code"
+        mode: "page"
+        focus_key: "qr-code"
         locale: "fr-FR"
 "#;
         let workflow = parse(yaml, FileId(0)).unwrap();
@@ -1763,7 +1764,7 @@ tasks:
 
         match &task.value.action {
             Some(RawTaskAction::Invoke(action)) => {
-                assert_eq!(action.value.tool.value, "novanet_generate");
+                assert_eq!(action.value.tool.value, "novanet_context");
                 assert_eq!(action.value.mcp.as_ref().unwrap().value, "novanet");
                 assert!(action.value.params.is_some());
             }

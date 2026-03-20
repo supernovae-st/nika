@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum DecomposeStrategy {
-    /// Use novanet_traverse with arc to discover items
+    /// Use novanet_search (walk mode) with arc to discover items
     #[default]
     Semantic,
     /// Use literal array from source binding

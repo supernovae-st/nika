@@ -11,11 +11,14 @@ use std::borrow::Cow;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
 
+use unicode_width::UnicodeWidthStr;
+
+use crate::tui::icons::provider as icons_provider;
 use crate::tui::keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 use crate::tui::mode::InputMode;
 use crate::tui::theme::Theme;
@@ -64,17 +67,17 @@ pub enum Provider {
 }
 
 impl Provider {
-    /// Get provider icon
+    /// Get provider icon (delegates to canonical icons::provider)
     pub fn icon(&self) -> &'static str {
         match self {
             Self::None => "  ",
-            Self::Claude => "🧠",   // Brain for Claude
-            Self::OpenAI => "🤖",   // Robot for OpenAI
-            Self::Mistral => "🌬️",  // Wind for Mistral (mistral wind)
-            Self::Native => "💎",   // Crystal for Native (local inference via mistral.rs)
-            Self::Groq => "⚡",     // Lightning for Groq (fast inference)
-            Self::DeepSeek => "🔍", // Magnifying glass for DeepSeek
-            Self::Mock => "🧪",     // Test tube for mock
+            Self::Claude => icons_provider::CLAUDE,
+            Self::OpenAI => icons_provider::OPENAI,
+            Self::Mistral => icons_provider::MISTRAL,
+            Self::Native => icons_provider::NATIVE,
+            Self::Groq => icons_provider::GROQ,
+            Self::DeepSeek => icons_provider::DEEPSEEK,
+            Self::Mock => icons_provider::MOCK,
         }
     }
 
@@ -433,8 +436,17 @@ impl<'a> StatusBar<'a> {
     }
 }
 
+/// Status bar background — matches header for visual consistency
+const STATUS_BAR_BG: Color = Color::Rgb(20, 24, 41);
+
 impl Widget for StatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Fill the entire row with the status bar background first
+        let bg_style = Style::default().bg(STATUS_BAR_BG);
+        for x in area.x..area.x + area.width {
+            buf[(x, area.y)].set_style(bg_style);
+        }
+
         // Get default hints before potentially moving self.hints
         let default = self.default_hints();
         let hints = self.hints.unwrap_or(default);
@@ -553,7 +565,7 @@ impl Widget for StatusBar<'_> {
             if metrics.provider != Provider::None {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -571,7 +583,7 @@ impl Widget for StatusBar<'_> {
             if let Some(token_str) = metrics.format_tokens() {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -589,7 +601,7 @@ impl Widget for StatusBar<'_> {
             if metrics.mcp_total > 0 {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -632,14 +644,19 @@ impl Widget for StatusBar<'_> {
             right_spans.push(Span::raw(" "));
         }
 
-        // Calculate widths for layout
-        let left_width: usize = left_spans.iter().map(|s| s.content.len()).sum();
-        let right_width: usize = right_spans.iter().map(|s| s.content.len()).sum();
+        // Calculate widths for layout (use display width, not byte length)
+        let left_width: usize = left_spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
+        let right_width: usize = right_spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
 
         // Render left side
         let left_line = Line::from(left_spans);
-        let left_paragraph =
-            Paragraph::new(left_line).style(Style::default().bg(self.theme.background));
+        let left_paragraph = Paragraph::new(left_line).style(Style::default().bg(STATUS_BAR_BG));
         left_paragraph.render(area, buf);
 
         // Render right side (right-aligned)
@@ -648,7 +665,10 @@ impl Widget for StatusBar<'_> {
             let right_line = Line::from(right_spans);
 
             for (i, span) in right_line.spans.iter().enumerate() {
-                let x_offset: usize = right_line.spans[..i].iter().map(|s| s.content.len()).sum();
+                let x_offset: usize = right_line.spans[..i]
+                    .iter()
+                    .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+                    .sum();
                 buf.set_string(
                     right_x + x_offset as u16,
                     area.y,
@@ -688,14 +708,15 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_icons() {
-        assert_eq!(Provider::Claude.icon(), "🧠");
-        assert_eq!(Provider::OpenAI.icon(), "🤖");
-        assert_eq!(Provider::Mistral.icon(), "🌬️");
-        assert_eq!(Provider::Native.icon(), "💎");
-        assert_eq!(Provider::Groq.icon(), "⚡");
-        assert_eq!(Provider::DeepSeek.icon(), "🔍");
-        assert_eq!(Provider::Mock.icon(), "🧪");
+    fn test_provider_icons_match_canonical() {
+        use crate::tui::icons::provider as p;
+        assert_eq!(Provider::Claude.icon(), p::CLAUDE);
+        assert_eq!(Provider::OpenAI.icon(), p::OPENAI);
+        assert_eq!(Provider::Mistral.icon(), p::MISTRAL);
+        assert_eq!(Provider::Native.icon(), p::NATIVE);
+        assert_eq!(Provider::Groq.icon(), p::GROQ);
+        assert_eq!(Provider::DeepSeek.icon(), p::DEEPSEEK);
+        assert_eq!(Provider::Mock.icon(), p::MOCK);
         assert_eq!(Provider::None.icon(), "  ");
     }
 

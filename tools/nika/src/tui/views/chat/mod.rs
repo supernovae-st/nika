@@ -17,8 +17,8 @@
 //! +-----------------------------------------------------------------------------+
 //! ```
 
-// Allow dead code for types that will be used when agent integration is complete
-#![allow(dead_code)]
+// Blanket #![allow(dead_code)] removed — Phase 1 Batch 1.1.2
+// Per-item allows added where needed for staged code.
 
 use std::time::Instant;
 
@@ -47,13 +47,16 @@ use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::tui::theme::{Theme, VerbColor};
 
 // PERF: Pre-computed constants to avoid allocations in render loop
+#[allow(dead_code)]
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
+#[allow(dead_code)]
 const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
                                                                                     // PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
 const SEPARATOR_200: &str = "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────";
 // tui utils moved to messages.rs
 use crate::tui::widgets::{
+    centered_rect,
     // Task Box widgets
     task_box::{BoxState, RenderMode, TaskBox},
     ActivityItem,
@@ -958,26 +961,7 @@ impl View for ChatView {
 // DAG panel methods extracted to dag_panel.rs
 // char_to_byte_offset moved to selection.rs
 
-/// Helper function to create a centered rectangle for overlays
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(area);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
+// centered_rect moved to widgets/utils.rs (shared utility)
 
 #[cfg(test)]
 mod tests;

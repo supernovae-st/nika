@@ -6,7 +6,6 @@
 //! - Tokio handles all concurrency (no artificial limits)
 
 use indexmap::IndexMap;
-use rustc_hash::FxHashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -1233,6 +1232,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Spawn all ready tasks in parallel (Tokio handles concurrency)
             let mut join_set = JoinSet::new();
 
+            // Per-parent cancellation tokens for for_each fail_fast.
+            // Using targeted cancellation instead of JoinSet::abort_all() to avoid
+            // killing unrelated sibling tasks from other for_each parents (Bug #26).
+            let mut for_each_cancel_tokens: rustc_hash::FxHashMap<Arc<str>, CancellationToken> =
+                rustc_hash::FxHashMap::default();
+
             // Prepare artifact config for all tasks in this batch
             let workflow_artifacts = self.workflow.artifacts.clone();
             let artifact_base_path = base_path.clone();
@@ -1338,7 +1343,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             // Check for $inputs.xxx format first (workflow inputs)
                             if alias.starts_with("inputs.") {
                                 match self.datastore.resolve_input_path(alias) {
-                                    Some(value) => value_to_array(&value),
+                                    Some(value) => match value_to_array(&value) {
+                                        Some(items) => Some(items),
+                                        None => {
+                                            self.datastore.insert(
+                                                intern(&task.name),
+                                                TaskResult::failed(
+                                                    format!(
+                                                        "for_each binding '${}' resolved to non-array value",
+                                                        alias
+                                                    ),
+                                                    std::time::Duration::ZERO,
+                                                ),
+                                            );
+                                            continue;
+                                        }
+                                    },
                                     None => {
                                         self.datastore.insert(
                                             intern(&task.name),
@@ -1467,7 +1487,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     let param_path = &after[..end];
                                     let full_path = format!("inputs.{}", param_path);
                                     match self.datastore.resolve_input_path(&full_path) {
-                                        Some(value) => value_to_array(&value),
+                                        Some(value) => match value_to_array(&value) {
+                                            Some(items) => Some(items),
+                                            None => {
+                                                self.datastore.insert(
+                                                    intern(&task.name),
+                                                    TaskResult::failed(
+                                                        format!(
+                                                            "for_each binding '{{{{inputs.{}}}}}' resolved to non-array value",
+                                                            param_path
+                                                        ),
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                );
+                                                continue;
+                                            }
+                                        },
                                         None => {
                                             self.datastore.insert(
                                                 intern(&task.name),
@@ -1541,9 +1576,34 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                             }
 
                                             if traversal_failed {
-                                                None
+                                                self.datastore.insert(
+                                                    intern(&task.name),
+                                                    TaskResult::failed(
+                                                        format!(
+                                                            "for_each items: path traversal failed for '{{{{with.{}}}}}'",
+                                                            path
+                                                        ),
+                                                        std::time::Duration::ZERO,
+                                                    ),
+                                                );
+                                                continue;
                                             } else {
-                                                value_to_array(value_ref)
+                                                match value_to_array(value_ref) {
+                                                    Some(items) => Some(items),
+                                                    None => {
+                                                        self.datastore.insert(
+                                                            intern(&task.name),
+                                                            TaskResult::failed(
+                                                                format!(
+                                                                    "for_each binding '{{{{with.{}}}}}' resolved to non-array value",
+                                                                    path
+                                                                ),
+                                                                std::time::Duration::ZERO,
+                                                            ),
+                                                        );
+                                                        continue;
+                                                    }
+                                                }
                                             }
                                         }
                                         Err(e) => {
@@ -1603,6 +1663,12 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         let semaphore = Arc::new(Semaphore::new(concurrency));
                         // Create cancellation token for fail_fast (notification-based, no busy-poll)
                         let cancel = CancellationToken::new();
+
+                        // Store token so the result-collection loop can cancel only THIS
+                        // parent's iterations on fail_fast, not the entire JoinSet.
+                        if fail_fast {
+                            for_each_cancel_tokens.insert(intern(&task.name), cancel.clone());
+                        }
 
                         // Spawn one execution per item in the array
                         let var_name = fe.map(|f| f.as_var.as_str()).unwrap_or("item").to_string();
@@ -1751,18 +1817,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             // Use IndexMap to preserve insertion order (deterministic iteration)
             let mut for_each_results: IndexMap<Arc<str>, Vec<(usize, TaskResult)>> =
                 IndexMap::new();
-
-            // Track which parent tasks have fail_fast enabled (for result collection)
-            let fail_fast_parents: FxHashSet<Arc<str>> = self
-                .workflow
-                .tasks
-                .iter()
-                .filter(|t| t.for_each.as_ref().map(|fe| fe.fail_fast).unwrap_or(false))
-                .map(|t| intern(&t.name))
-                .collect();
-
-            // Track if we've already triggered abort_all for fail_fast
-            let mut fail_fast_triggered = false;
 
             // Wait for all spawned tasks to complete (with cancellation support)
             loop {
@@ -1919,19 +1973,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     .insert(Arc::clone(&store_id), task_result.clone());
 
                                 // If this is a for_each failure with fail_fast,
-                                // abort all remaining in-flight tasks immediately.
-                                // Only abort if the PARENT task had fail_fast enabled.
-                                let parent_has_fail_fast = for_each_info
-                                    .as_ref()
-                                    .map(|(parent_id, _)| fail_fast_parents.contains(parent_id))
-                                    .unwrap_or(false);
-                                if !success && !skipped && parent_has_fail_fast && !fail_fast_triggered {
-                                    fail_fast_triggered = true;
-                                    debug!(
-                                        store_id = %store_id,
-                                        "Triggering abort_all due to fail_fast"
-                                    );
-                                    join_set.abort_all();
+                                // cancel only THIS parent's remaining iterations via its
+                                // CancellationToken. This avoids killing unrelated sibling
+                                // tasks from other for_each parents (Bug #26).
+                                if !success && !skipped {
+                                    if let Some((ref parent_id, _)) = for_each_info {
+                                        if let Some(token) = for_each_cancel_tokens.get(parent_id) {
+                                            if !token.is_cancelled() {
+                                                debug!(
+                                                    store_id = %store_id,
+                                                    parent_id = %parent_id,
+                                                    "Triggering fail_fast cancellation for parent"
+                                                );
+                                                token.cancel();
+                                            }
+                                        }
+                                    }
                                 }
 
                                 // If this is a for_each iteration, collect for aggregation
@@ -1943,10 +2000,10 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 }
                             }
                             Some(Err(e)) => {
-                                // Task was aborted (likely via abort_all) or panicked
+                                // Task was cancelled or panicked
                                 if e.is_cancelled() {
-                                    // Task was aborted by abort_all - this is expected
-                                    debug!("Task aborted (likely due to fail_fast)");
+                                    // Task was cancelled (workflow abort or fail_fast) - expected
+                                    debug!("Task cancelled (workflow abort or fail_fast)");
                                     // Continue collecting remaining results
                                 } else {
                                     // EMIT: WorkflowFailed (task panic)
@@ -3899,6 +3956,8 @@ mod tests {
             output: Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             for_each: None,
@@ -3935,6 +3994,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Text,
                 schema: Some(json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             Some(StructuredOutputSpec::with_inline_schema(
@@ -3954,6 +4015,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: None,
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             Some(StructuredOutputSpec::with_inline_schema(
@@ -3973,6 +4036,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             None, // No structured spec → no max_retries
@@ -3992,6 +4057,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             Some(structured),
@@ -4011,6 +4078,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             Some(structured),
@@ -4031,6 +4100,8 @@ mod tests {
             Some(AnalyzedOutput {
                 format: AnalyzedOutputFormat::Json,
                 schema: Some(schema.clone()),
+                schema_ref: None,
+                max_retries: None,
                 span: Span::dummy(),
             }),
             Some(structured),
@@ -5103,5 +5174,310 @@ mod tests {
 
         // Drop should not panic
         drop(guard);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug #24: for_each {{with.alias.path}} traversal failure must
+    // record a failed result, not silently run as a regular task.
+    // ═══════════════════════════════════════════════════════════════
+
+    /// Build a two-step workflow where step2 uses {{with.step1.path}} for_each.
+    fn create_with_template_for_each_workflow(
+        step1_cmd: &str,
+        step1_shell: bool,
+        for_each_template: &str,
+        step2_cmd: &str,
+    ) -> AnalyzedWorkflow {
+        let mut task_table = TaskTable::new();
+        task_table.insert("step1");
+        task_table.insert("step2");
+        let tid1 = task_table.get_id("step1").unwrap();
+        let tid2 = task_table.get_id("step2").unwrap();
+
+        let step1 = AnalyzedTask {
+            id: tid1,
+            name: "step1".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: step1_cmd.to_string(),
+                shell: step1_shell,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let mut with_spec = WithSpec::default();
+        with_spec.insert(
+            "step1".to_string(),
+            WithEntry::simple(BindingPath {
+                source: BindingSource::Task(intern("step1")),
+                segments: vec![],
+            }),
+        );
+
+        let step2 = AnalyzedTask {
+            id: tid2,
+            name: "step2".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: step2_cmd.to_string(),
+                shell: false,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec,
+            depends_on: vec![tid1],
+            implicit_deps: vec![],
+            output: None,
+            for_each: Some(AnalyzedForEach {
+                items: for_each_template.to_string(),
+                as_var: "item".to_string(),
+                parallel: None,
+                fail_fast: true,
+                span: Span::dummy(),
+            }),
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            task_table,
+            tasks: vec![step1, step2],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
+            span: Span::dummy(),
+        }
+    }
+
+    #[tokio::test]
+    async fn bug24_for_each_with_template_traversal_failure_records_error() {
+        // step1 outputs JSON object, step2 references nonexistent nested path
+        let workflow = create_with_template_for_each_workflow(
+            r#"echo '{"items": ["a","b"]}'"#,
+            true,
+            "{{with.step1.nonexistent}}",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap().quiet();
+        let _ = runner.run().await;
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+
+        let result = task_result.unwrap();
+        assert!(
+            !result.is_success(),
+            "step2 should FAIL when path traversal fails, not run as regular task"
+        );
+        let error_msg = result.error().expect("should have error message");
+        assert!(
+            error_msg.contains("traversal failed"),
+            "Error should mention path traversal failure, got: {}",
+            error_msg
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug #25: for_each {{with.alias}} non-array must record error,
+    // not silently run as a regular task.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn bug25_for_each_with_template_non_array_records_error() {
+        // step1 outputs a plain string (not an array), step2 tries to iterate over it
+        let workflow = create_with_template_for_each_workflow(
+            "echo not_an_array",
+            false,
+            "{{with.step1}}",
+            "echo {{with.item}}",
+        );
+
+        let mut runner = Runner::new(workflow).unwrap().quiet();
+        let _ = runner.run().await;
+
+        let task_result = runner.datastore.get("step2");
+        assert!(task_result.is_some(), "step2 result should exist");
+
+        let result = task_result.unwrap();
+        assert!(
+            !result.is_success(),
+            "step2 should FAIL when for_each binding resolves to non-array"
+        );
+        let error_msg = result.error().expect("should have error message");
+        assert!(
+            error_msg.contains("non-array"),
+            "Error should mention 'non-array', got: {}",
+            error_msg
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug #26: fail_fast should only cancel sibling iterations,
+    // not unrelated tasks in the same JoinSet.
+    // ═══════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn bug26_fail_fast_does_not_abort_unrelated_sibling_tasks() {
+        // Two independent for_each parents: one fails fast, the other should still complete.
+        // "failing_parent" has fail_fast=true and one failing item.
+        // "passing_parent" has fail_fast=true but all items succeed.
+        // Both run in parallel (no depends_on between them).
+        //
+        // Before the fix, abort_all() would kill BOTH parents' tasks.
+        // After the fix, only failing_parent's iterations are cancelled.
+
+        let mut task_table = TaskTable::new();
+        task_table.insert("failing_parent");
+        task_table.insert("passing_parent");
+        let tid_fail = task_table.get_id("failing_parent").unwrap();
+        let tid_pass = task_table.get_id("passing_parent").unwrap();
+
+        let failing_parent = AnalyzedTask {
+            id: tid_fail,
+            name: "failing_parent".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "test '{{with.item}}' != 'FAIL' && echo {{with.item}}".to_string(),
+                shell: true,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: Some(AnalyzedForEach {
+                items: r#"["ok", "FAIL", "ok2"]"#.to_string(),
+                as_var: "item".to_string(),
+                parallel: Some(3),
+                fail_fast: true,
+                span: Span::dummy(),
+            }),
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let passing_parent = AnalyzedTask {
+            id: tid_pass,
+            name: "passing_parent".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo {{with.item}}".to_string(),
+                shell: true,
+                working_dir: None,
+                env: IndexMap::new(),
+                timeout_ms: None,
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec: Default::default(),
+            depends_on: vec![],
+            implicit_deps: vec![],
+            output: None,
+            for_each: Some(AnalyzedForEach {
+                items: r#"["a", "b", "c"]"#.to_string(),
+                as_var: "item".to_string(),
+                parallel: Some(3),
+                fail_fast: true,
+                span: Span::dummy(),
+            }),
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let workflow = AnalyzedWorkflow {
+            schema_version: SchemaVersion::V03,
+            name: None,
+            description: None,
+            provider: Some("mock".to_string()),
+            model: None,
+            task_table,
+            tasks: vec![failing_parent, passing_parent],
+            mcp_servers: IndexMap::new(),
+            context_files: vec![],
+            imports: vec![],
+            inputs: IndexMap::new(),
+            artifacts: None,
+            log: None,
+            agents: None,
+            span: Span::dummy(),
+        };
+
+        let mut runner = Runner::new(workflow).unwrap().quiet();
+        let _ = runner.run().await;
+
+        // The failing parent should have a result (aggregated, with at least one failure)
+        let fail_result = runner.datastore.get("failing_parent");
+        assert!(fail_result.is_some(), "failing_parent result should exist");
+
+        // The passing parent should ALSO have a result — it should NOT be aborted
+        let pass_result = runner.datastore.get("passing_parent");
+        assert!(
+            pass_result.is_some(),
+            "passing_parent result should exist (fail_fast of sibling should not abort it)"
+        );
+
+        let pass_tr = pass_result.unwrap();
+        assert!(
+            pass_tr.is_success(),
+            "passing_parent should succeed — its iterations were all OK. \
+            Error: {:?}",
+            pass_tr.error()
+        );
     }
 }

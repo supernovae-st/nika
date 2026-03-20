@@ -85,6 +85,8 @@ pub struct RawOutputConfig {
     pub schema: Option<Spanned<serde_json::Value>>,
     /// Schema reference: file path or inline
     pub schema_ref: Option<Spanned<String>>,
+    /// Maximum retries on validation failure
+    pub max_retries: Option<Spanned<u32>>,
 }
 
 /// For-each iteration configuration.

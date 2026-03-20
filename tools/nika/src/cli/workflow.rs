@@ -138,7 +138,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                     r#"  - id: {}
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params: {{}}
 "#,
                     task_id

@@ -271,7 +271,7 @@ async fn test_execute_invoke_tool_call() {
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
             mcp: Some("novanet".to_string()),
-            tool: Some("novanet_generate".to_string()),
+            tool: Some("novanet_context".to_string()),
             params: Some(json!({"entity": "qr-code", "locale": "fr-FR"})),
             resource: None,
             timeout: None,
@@ -381,7 +381,7 @@ async fn test_execute_invoke_tool_with_template_params() {
     let action = TaskAction::Invoke {
         invoke: InvokeParams {
             mcp: Some("novanet".to_string()),
-            tool: Some("novanet_generate".to_string()),
+            tool: Some("novanet_context".to_string()),
             params: Some(json!({
                 "entity": "{{with.entity_key}}",
                 "locale": "{{with.locale_val}}"

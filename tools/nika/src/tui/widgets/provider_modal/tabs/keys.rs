@@ -72,15 +72,22 @@ impl ProviderKeyEntry {
 
     /// Detect key state from keyring (priority) or environment
     ///
-    /// Keyring is checked FIRST, env var is fallback
-    /// Returns Stored for keyring keys, Configured for env var keys
+    /// Keyring is checked FIRST (only when NIKA_KEYCHAIN_BOOT=1), env var is fallback.
+    /// Returns Stored for keyring keys, Configured for env var keys.
     fn detect_state(provider: &str) -> ApiKeyState {
-        // Priority 1: Check keyring
+        // Check if keychain access is allowed during boot
+        let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
+            .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false);
+
+        // Priority 1: Check keyring (only when keychain boot is allowed and not in test mode)
         // Use Stored variant to indicate secure keyring storage
-        if let Ok(key) = NikaKeyring::get(provider) {
-            return ApiKeyState::Stored {
-                masked: mask_api_key(&key),
-            };
+        if keychain_allowed && !cfg!(test) {
+            if let Ok(key) = NikaKeyring::get(provider) {
+                return ApiKeyState::Stored {
+                    masked: mask_api_key(&key),
+                };
+            }
         }
 
         // Priority 2: Check env var fallback
@@ -103,6 +110,7 @@ impl ProviderKeyEntry {
             "groq" => "Groq",
             "deepseek" => "DeepSeek",
             "gemini" => "Gemini",
+            "xai" => "xAI",
             _ => "Unknown",
         }
     }
@@ -322,6 +330,7 @@ mod tests {
         assert_eq!(entries[3].provider, "groq");
         assert_eq!(entries[4].provider, "deepseek");
         assert_eq!(entries[5].provider, "gemini");
+        assert_eq!(entries[6].provider, "xai");
     }
 
     #[test]
@@ -330,6 +339,38 @@ mod tests {
         assert_eq!(entries[0].display_name(), "Anthropic");
         assert_eq!(entries[1].display_name(), "OpenAI");
         assert_eq!(entries[2].display_name(), "Mistral");
+    }
+
+    // ─── Bug 36: display_name must return "xAI" for xai provider ────
+
+    #[test]
+    fn test_xai_display_name() {
+        let entry = ProviderKeyEntry {
+            provider: "xai",
+            icon: "\u{1d54f}",
+            env_var: "XAI_API_KEY",
+            state: ApiKeyState::NotConfigured,
+        };
+        assert_eq!(
+            entry.display_name(),
+            "xAI",
+            "display_name() must return 'xAI' for xai provider, not 'Unknown'"
+        );
+    }
+
+    // ─── Bug 15: detect_state must not access keychain without NIKA_KEYCHAIN_BOOT ────
+
+    #[test]
+    fn test_detect_state_skips_keyring_without_keychain_boot() {
+        // In test mode, detect_state should never try keychain access.
+        // It should only check env vars.
+        let state = ProviderKeyEntry::detect_state("anthropic");
+        // Without an env var set, it should be NotConfigured (not Stored from keychain)
+        // This test verifies no keychain popup is triggered
+        assert!(
+            !matches!(state, ApiKeyState::Stored { .. }),
+            "detect_state must not access keychain in test mode"
+        );
     }
 
     #[test]

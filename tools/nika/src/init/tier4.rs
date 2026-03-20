@@ -43,7 +43,7 @@ pub const WORKFLOW_10_MCP_NOVANET: &str = r##"# ╔═════════�
 # ║  │   │                    NIKA (MCP CLIENT)                            │  │   ║
 # ║  │   │                                                                 │  │   ║
 # ║  │   │    invoke:               invoke:               invoke:         │  │   ║
-# ║  │   │    novanet_search        novanet_generate      novanet_write   │  │   ║
+# ║  │   │    novanet_search        novanet_context       novanet_write   │  │   ║
 # ║  │   │         │                     │                     │          │  │   ║
 # ║  │   └─────────┼─────────────────────┼─────────────────────┼──────────┘  │   ║
 # ║  │             │                     │                     │             │   ║
@@ -56,8 +56,8 @@ pub const WORKFLOW_10_MCP_NOVANET: &str = r##"# ╔═════════�
 # ║  │   │                   NOVANET (MCP SERVER)                          │  │   ║
 # ║  │   │                                                                 │  │   ║
 # ║  │   │  ┌───────────────┐  ┌────────────────┐  ┌──────────────────┐   │  │   ║
-# ║  │   │  │ novanet_search│  │novanet_generate│  │  novanet_write   │   │  │   ║
-# ║  │   │  │   (find)      │  │  (context)     │  │   (persist)      │   │  │   ║
+# ║  │   │  │ novanet_search│  │novanet_context │  │  novanet_write   │   │  │   ║
+# ║  │   │  │   (find)      │  │  (assemble)    │  │   (persist)      │   │  │   ║
 # ║  │   │  └───────┬───────┘  └───────┬────────┘  └────────┬─────────┘   │  │   ║
 # ║  │   │          │                  │                    │             │  │   ║
 # ║  │   │          └──────────────────┴────────────────────┘             │  │   ║
@@ -72,21 +72,15 @@ pub const WORKFLOW_10_MCP_NOVANET: &str = r##"# ╔═════════�
 # ║  │                                                                        │   ║
 # ║  └────────────────────────────────────────────────────────────────────────┘   ║
 # ║                                                                               ║
-# ║  NOVANET TOOLS (14 available):                                                ║
+# ║  NOVANET TOOLS (7 available, v0.22.0):                                        ║
 # ║  ┌─────────────────────┬──────────────────────────────────────────────────┐   ║
 # ║  │ novanet_describe    │ Bootstrap: understand the graph schema           │   ║
+# ║  │ novanet_search      │ Find nodes + graph walk (5 modes)               │   ║
 # ║  │ novanet_introspect  │ Get NodeClass/ArcClass definitions              │   ║
-# ║  │ novanet_search      │ Find nodes by text or properties                │   ║
-# ║  │ novanet_traverse    │ Explore relationships from a node               │   ║
-# ║  │ novanet_generate    │ Assemble LLM context for content generation     │   ║
-# ║  │ novanet_atoms       │ Get locale-specific knowledge (terms, etc.)     │   ║
-# ║  │ novanet_assemble    │ Custom context assembly strategy                │   ║
-# ║  │ novanet_check       │ Validate before writing                         │   ║
-# ║  │ novanet_write       │ Create/update nodes and arcs                    │   ║
+# ║  │ novanet_context     │ Assemble LLM context for content generation     │   ║
+# ║  │ novanet_write       │ Create/update nodes and arcs (dry_run=true)     │   ║
 # ║  │ novanet_audit       │ Quality checks (CSR metrics)                    │   ║
 # ║  │ novanet_batch       │ Execute multiple operations in parallel         │   ║
-# ║  │ novanet_query       │ Raw Cypher (LAST RESORT - analytics only)       │   ║
-# ║  │ novanet_cache_*     │ Cache management                                │   ║
 # ║  └─────────────────────┴──────────────────────────────────────────────────┘   ║
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
@@ -163,18 +157,19 @@ tasks:
         limit: 5
 
   # ───────────────────────────────────────────────────────────────────────────────
-  # 🧭 TASK 3: Traverse Relationships
+  # 🧭 TASK 3: Explore Relationships (Walk Mode)
   # ───────────────────────────────────────────────────────────────────────────────
-  # Explore what's connected to the found entity
+  # Use novanet_search walk mode to explore what's connected to the found entity
 
-  - id: traverse_entity
+  - id: walk_entity
     depends_on: [search_entities]
     with:
       results: $search_entities
     invoke:
       mcp: novanet
-      tool: novanet_traverse
+      tool: novanet_search
       params:
+        mode: walk
         start_key: "qr-code"    # Entity key to start from
         direction: both
         max_depth: 2
@@ -186,30 +181,31 @@ tasks:
   # ───────────────────────────────────────────────────────────────────────────────
   # 🌍 TASK 4: Get Locale-Specific Knowledge
   # ───────────────────────────────────────────────────────────────────────────────
-  # Retrieve terms and expressions for a specific locale
+  # Retrieve terms and expressions for a specific locale via context knowledge mode
 
-  - id: get_locale_atoms
+  - id: get_locale_knowledge
     invoke:
       mcp: novanet
-      tool: novanet_atoms
+      tool: novanet_context
       params:
+        mode: knowledge
         locale: fr-FR
         atom_type: all
         limit: 20
 
   # ───────────────────────────────────────────────────────────────────────────────
-  # ⭐ TASK 5: Generate LLM Context
+  # ⭐ TASK 5: Assemble LLM Context
   # ───────────────────────────────────────────────────────────────────────────────
   # This is the MAIN tool - assembles context for content generation
 
-  - id: generate_context
-    depends_on: [traverse_entity, get_locale_atoms]
+  - id: assemble_context
+    depends_on: [walk_entity, get_locale_knowledge]
     with:
-      traversal: $traverse_entity
-      atoms: $get_locale_atoms
+      walk_result: $walk_entity
+      knowledge: $get_locale_knowledge
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         focus_key: "qr-code"        # Starting entity
         locale: fr-FR               # Target locale
@@ -223,9 +219,9 @@ tasks:
   # Now use the assembled context with an LLM
 
   - id: generate_content
-    depends_on: [generate_context]
+    depends_on: [assemble_context]
     with:
-      context: $generate_context
+      context: $assemble_context
     infer:
       prompt: |
         Using the following knowledge context, generate a landing page intro
@@ -261,11 +257,12 @@ tasks:
       content: $generate_content
     invoke:
       mcp: novanet
-      tool: novanet_check
+      tool: novanet_write
       params:
         operation: upsert_node
         class: PageNative
         key: "landing-qr-code:fr-FR"
+        dry_run: true              # Validate without executing
         properties:
           locale: fr-FR
           content: "{{with.content}}"
@@ -341,13 +338,13 @@ tasks:
 # ┌────────────────────────┬───────────────────────────────────────────────────┐
 # │ Need                   │ Use This Tool                                     │
 # ├────────────────────────┼───────────────────────────────────────────────────┤
-# │ Find nodes             │ novanet_search (NOT novanet_query)               │
-# │ Explore relationships  │ novanet_traverse (NOT novanet_query)             │
-# │ LLM context            │ novanet_generate (orchestrates everything)       │
+# │ Find nodes             │ novanet_search (fulltext/property/hybrid)        │
+# │ Explore relationships  │ novanet_search (walk mode)                       │
+# │ LLM context            │ novanet_context (page/block/knowledge/assemble)  │
 # │ Schema info            │ novanet_introspect                               │
-# │ Locale knowledge       │ novanet_atoms                                    │
-# │ Write data             │ novanet_check → novanet_write                    │
-# │ Custom analytics ONLY  │ novanet_query (LAST RESORT)                      │
+# │ Validate before write  │ novanet_write (dry_run=true)                     │
+# │ Write data             │ novanet_write                                    │
+# │ Quality checks         │ novanet_audit                                    │
 # └────────────────────────┴───────────────────────────────────────────────────┘
 #
 # SETUP:

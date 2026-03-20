@@ -796,7 +796,7 @@ mod tests {
             &[("task1", &[], &[]), ("task2", &["task1"], &["task1"])],
             "task2",
             AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
-                tool: "novanet_generate".to_string(),
+                tool: "novanet_context".to_string(),
                 params: Some(json!({
                     "entity": "{{with.entity_key}}",
                     "locale": "{{with.locale}}"

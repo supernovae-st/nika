@@ -230,7 +230,7 @@ pub fn verb_completions() -> Vec<CompletionItem> {
             }),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "**invoke:** MCP tool call\n\n```yaml\ninvoke:\n  mcp: novanet\n  tool: novanet_generate\n  params:\n    entity: \"qr-code\"\n    locale: \"fr-FR\"\n```".to_string(),
+                value: "**invoke:** MCP tool call\n\n```yaml\ninvoke:\n  mcp: novanet\n  tool: novanet_context\n  params:\n    mode: \"page\"\n    focus_key: \"qr-code\"\n    locale: \"fr-FR\"\n```".to_string(),
             })),
             insert_text: Some("invoke:\n  mcp: $1\n  tool: $2\n  params:\n    $3".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),

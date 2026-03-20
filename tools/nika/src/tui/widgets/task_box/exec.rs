@@ -6,12 +6,14 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{exit, BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
+use crate::tui::unicode::display_width;
 
 /// ExecBox data and rendering
 #[derive(Debug, Clone)]
@@ -143,12 +145,22 @@ impl ExecBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -170,9 +182,9 @@ impl ExecBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let stderr_style = Style::default().fg(Color::Rgb(251, 191, 36)); // Amber
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let stderr_style = Style::default().fg(compat::AMBER_400); // Amber
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -270,30 +282,32 @@ impl ExecBox {
             }
         }
 
-        // Footer: exit code, pid, cwd
+        // Footer: exit code, pid (if Some), cwd (if Some)
         let exit_style = Style::default().fg(exit::code_color(self.exit_code.unwrap_or(0)));
         let exit_display = self.exit_display();
-        let pid_display = self.pid.map(|p| format!("pid: {}", p)).unwrap_or_default();
-        let cwd_display = self
-            .cwd
-            .as_ref()
-            .map(|c| {
-                let path = std::path::Path::new(c);
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(c)
-                    .to_string()
-            })
-            .unwrap_or_default();
 
-        let footer = Line::from(vec![
+        let mut footer_spans = vec![
             Span::styled("├─ ", border_style),
             Span::styled(exit_display, exit_style),
-            Span::styled(" │ ", dim_style),
-            Span::styled(pid_display, dim_style),
-            Span::styled(" │ ", dim_style),
-            Span::styled(cwd_display, dim_style),
-        ]);
+        ];
+
+        if let Some(pid) = self.pid {
+            footer_spans.push(Span::styled(" │ ", dim_style));
+            footer_spans.push(Span::styled(format!("pid: {}", pid), dim_style));
+        }
+
+        if let Some(ref cwd) = self.cwd {
+            let path = std::path::Path::new(cwd);
+            let cwd_display = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(cwd)
+                .to_string();
+            footer_spans.push(Span::styled(" │ ", dim_style));
+            footer_spans.push(Span::styled(cwd_display, dim_style));
+        }
+
+        let footer = Line::from(footer_spans);
         items.push(ListItem::new(footer));
 
         // Bottom border
@@ -317,9 +331,9 @@ impl Widget for ExecBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let stderr_style = Style::default().fg(Color::Rgb(251, 191, 36)); // Amber
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let stderr_style = Style::default().fg(compat::AMBER_400); // Amber
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -329,8 +343,8 @@ impl Widget for ExecBox {
         let title_prefix = format!("╭─ {} ", verb.icon_label());
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 
@@ -425,7 +439,7 @@ impl Widget for ExecBox {
         let exit_color = self
             .exit_code
             .map(exit::code_color)
-            .unwrap_or(Color::Rgb(100, 116, 139));
+            .unwrap_or(compat::SLATE_500);
         let exit_style = Style::default().fg(exit_color);
 
         let pid_str = self
@@ -436,11 +450,22 @@ impl Widget for ExecBox {
             .cwd
             .as_ref()
             .map(|c| {
-                // PERF: Use char count, not byte length (UTF-8 safe)
-                let char_count = c.chars().count();
-                let display = if char_count > 20 {
-                    let truncated: String = c.chars().skip(char_count - 17).collect();
-                    format!("...{}", truncated)
+                // Use display width for terminal column calculation
+                let w = display_width(c);
+                let display = if w > 20 {
+                    // Take last ~17 display-width columns
+                    let mut chars: Vec<char> = c.chars().collect();
+                    let mut result = String::new();
+                    let mut rw = 0;
+                    while let Some(ch) = chars.pop() {
+                        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                        if rw + cw > 17 {
+                            break;
+                        }
+                        result.insert(0, ch);
+                        rw += cw;
+                    }
+                    format!("...{}", result)
                 } else {
                     c.clone()
                 };

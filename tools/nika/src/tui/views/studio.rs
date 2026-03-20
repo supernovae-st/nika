@@ -49,8 +49,8 @@ use crate::tui::widgets::tree::{
     TreeFilter, TreeNode, TreeState, TreeWidget,
 };
 use crate::tui::widgets::{
-    CommandPalette, CommandPaletteState, DagAscii, MatrixRain, NodeBoxData, NodeBoxMode,
-    ScrollIndicator, WhichKey, WhichKeyState,
+    centered_rect, CommandPalette, CommandPaletteState, DagAscii, MatrixRain, NodeBoxData,
+    NodeBoxMode, ScrollIndicator, WhichKey, WhichKeyState,
 };
 use crate::util::atomic_write;
 
@@ -2705,27 +2705,6 @@ impl YamlHighlight {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Helper Functions
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// Create a centered rectangle with given percentage width and height
-fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(area);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
 
 #[cfg(test)]
 mod tests {

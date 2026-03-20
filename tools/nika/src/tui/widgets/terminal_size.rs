@@ -7,8 +7,10 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap},
 };
+
+use crate::tui::tokens::compat;
 
 /// Minimum terminal dimensions for proper rendering
 pub const MIN_WIDTH: u16 = 60;
@@ -76,7 +78,7 @@ impl TerminalTooSmallOverlay {
 impl Widget for TerminalTooSmallOverlay {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Clear background with dark color
-        let bg_style = Style::default().bg(Color::Rgb(30, 30, 46));
+        let bg_style = Style::default().bg(compat::GRAY_900);
         for y in area.top()..area.bottom() {
             for x in area.left()..area.right() {
                 if let Some(cell) = buf.cell_mut((x, y)) {
@@ -98,8 +100,9 @@ impl Widget for TerminalTooSmallOverlay {
             .title(title)
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Yellow))
-            .style(Style::default().bg(Color::Rgb(40, 40, 60)));
+            .style(Style::default().bg(compat::SLATE_800));
 
         let inner = block.inner(box_area);
         block.render(box_area, buf);

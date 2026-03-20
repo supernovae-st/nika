@@ -583,10 +583,10 @@ pub struct Theme {
     // MCP TOOLS
     // ═══════════════════════════════════════════
     pub mcp_describe: Color,
-    pub mcp_traverse: Color,
+    pub mcp_context: Color,
     pub mcp_search: Color,
-    pub mcp_atoms: Color,
-    pub mcp_generate: Color,
+    pub mcp_audit: Color,
+    pub mcp_write: Color,
 
     // ═══════════════════════════════════════════
     // UI ELEMENTS
@@ -670,10 +670,12 @@ impl Theme {
     pub fn mcp_tool_color(&self, tool: &str) -> Color {
         match tool {
             t if t.contains("describe") => self.mcp_describe,
-            t if t.contains("traverse") => self.mcp_traverse,
             t if t.contains("search") => self.mcp_search,
-            t if t.contains("atoms") => self.mcp_atoms,
-            t if t.contains("generate") => self.mcp_generate,
+            t if t.contains("introspect") => self.mcp_describe, // shares describe color
+            t if t.contains("context") => self.mcp_context,
+            t if t.contains("write") => self.mcp_write,
+            t if t.contains("audit") => self.mcp_audit,
+            t if t.contains("batch") => self.mcp_search, // shares search color
             _ => self.text_secondary,
         }
     }
@@ -890,10 +892,15 @@ mod tests {
     fn test_mcp_tool_color_matches_tool_name() {
         let theme = Theme::novanet();
         assert_eq!(theme.mcp_tool_color("novanet_describe"), theme.mcp_describe);
-        assert_eq!(theme.mcp_tool_color("novanet_traverse"), theme.mcp_traverse);
         assert_eq!(theme.mcp_tool_color("novanet_search"), theme.mcp_search);
-        assert_eq!(theme.mcp_tool_color("novanet_atoms"), theme.mcp_atoms);
-        assert_eq!(theme.mcp_tool_color("novanet_generate"), theme.mcp_generate);
+        assert_eq!(
+            theme.mcp_tool_color("novanet_introspect"),
+            theme.mcp_describe
+        );
+        assert_eq!(theme.mcp_tool_color("novanet_context"), theme.mcp_context);
+        assert_eq!(theme.mcp_tool_color("novanet_write"), theme.mcp_write);
+        assert_eq!(theme.mcp_tool_color("novanet_audit"), theme.mcp_audit);
+        assert_eq!(theme.mcp_tool_color("novanet_batch"), theme.mcp_search);
     }
 
     #[test]
@@ -1347,9 +1354,9 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_mcp_tool_color_traverse() {
+    fn test_theme_mcp_tool_color_context() {
         let theme = Theme::default();
-        assert_eq!(theme.mcp_tool_color("novanet_traverse"), theme.mcp_traverse);
+        assert_eq!(theme.mcp_tool_color("novanet_context"), theme.mcp_context);
     }
 
     #[test]

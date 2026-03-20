@@ -20,15 +20,16 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Widget},
 };
 
-// Solarized-inspired colors
-const COLOR_FILE: Color = Color::Rgb(38, 139, 210); // Blue
-const COLOR_ENTITY: Color = Color::Rgb(108, 113, 196); // Violet
-const COLOR_LOCALE: Color = Color::Rgb(42, 161, 152); // Cyan
-const COLOR_PROJECT: Color = Color::Rgb(133, 153, 0); // Green
-const COLOR_TERM: Color = Color::Rgb(181, 137, 0); // Yellow
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Gray
-const COLOR_SELECTED: Color = Color::Rgb(250, 204, 21); // Gold
-const COLOR_BORDER: Color = Color::Rgb(147, 161, 161); // Gray border
+use crate::tui::tokens::compat;
+
+const COLOR_FILE: Color = compat::BLUE_500;
+const COLOR_ENTITY: Color = compat::VIOLET_500;
+const COLOR_LOCALE: Color = compat::CYAN_500;
+const COLOR_PROJECT: Color = compat::GREEN_500;
+const COLOR_TERM: Color = compat::AMBER_500;
+const COLOR_MUTED: Color = compat::SLATE_500;
+const COLOR_SELECTED: Color = compat::AMBER_400;
+const COLOR_BORDER: Color = compat::SLATE_700;
 
 /// Mention type categories
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

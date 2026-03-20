@@ -147,12 +147,28 @@ impl App {
         let alt_pressed = modifiers.contains(KeyModifiers::ALT);
         let is_normal = self.input_mode == InputMode::Normal;
 
-        if (is_normal && modifiers.is_empty()) || alt_pressed {
+        // In Settings view, 1/2/3 are theme shortcuts — don't steal them for view switching.
+        // Alt+1-4 always works for view switching regardless of current view.
+        let on_settings = self.current_view == TuiView::Settings;
+        let on_chat = self.current_view == TuiView::Chat;
+        if alt_pressed || (is_normal && modifiers.is_empty() && !on_settings) {
             if let Some(view) = match code {
                 KeyCode::Char('1') => Some(TuiView::Studio),
                 KeyCode::Char('2') => Some(TuiView::Runner),
                 KeyCode::Char('3') => Some(TuiView::Chat),
                 KeyCode::Char('4') => Some(TuiView::Settings),
+                _ => None,
+            } {
+                return Action::SwitchView(view);
+            }
+        }
+
+        // Letter shortcuts for view switching (Normal mode only, not in Chat where they're text input)
+        if is_normal && modifiers.is_empty() && !on_chat {
+            if let Some(view) = match code {
+                KeyCode::Char('s') => Some(TuiView::Studio),
+                KeyCode::Char('r') => Some(TuiView::Runner),
+                KeyCode::Char('c') => Some(TuiView::Chat),
                 _ => None,
             } {
                 return Action::SwitchView(view);

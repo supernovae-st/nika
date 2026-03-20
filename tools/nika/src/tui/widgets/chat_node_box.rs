@@ -12,6 +12,8 @@ use ratatui::{
     widgets::{Block, Borders, Widget},
 };
 
+use crate::tui::tokens::compat;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT NODE KIND
 // ═══════════════════════════════════════════════════════════════════════════
@@ -57,11 +59,11 @@ impl ChatNodeKind {
     /// Default color for this node kind
     pub fn color(&self) -> Color {
         match self {
-            ChatNodeKind::User => Color::Cyan,
-            ChatNodeKind::Assistant => Color::Green,
-            ChatNodeKind::ToolCall => Color::Magenta,
-            ChatNodeKind::System => Color::Yellow,
-            ChatNodeKind::Error => Color::Red,
+            ChatNodeKind::User => compat::CYAN_500,
+            ChatNodeKind::Assistant => compat::GREEN_500,
+            ChatNodeKind::ToolCall => compat::PINK_500,
+            ChatNodeKind::System => compat::AMBER_500,
+            ChatNodeKind::Error => compat::RED_500,
         }
     }
 }
@@ -93,10 +95,10 @@ impl ChatNodeState {
     /// Get border color for this state
     pub fn border_color(&self) -> Color {
         match self {
-            ChatNodeState::Idle => Color::Gray,
-            ChatNodeState::Running => Color::Yellow,
-            ChatNodeState::Complete => Color::Green,
-            ChatNodeState::Failed => Color::Red,
+            ChatNodeState::Idle => compat::SLATE_500,
+            ChatNodeState::Running => compat::AMBER_500,
+            ChatNodeState::Complete => compat::GREEN_500,
+            ChatNodeState::Failed => compat::RED_500,
         }
     }
 }
@@ -300,11 +302,11 @@ mod tests {
 
     #[test]
     fn test_chat_node_kind_colors() {
-        assert_eq!(ChatNodeKind::User.color(), Color::Cyan);
-        assert_eq!(ChatNodeKind::Assistant.color(), Color::Green);
-        assert_eq!(ChatNodeKind::ToolCall.color(), Color::Magenta);
-        assert_eq!(ChatNodeKind::System.color(), Color::Yellow);
-        assert_eq!(ChatNodeKind::Error.color(), Color::Red);
+        assert_eq!(ChatNodeKind::User.color(), compat::CYAN_500);
+        assert_eq!(ChatNodeKind::Assistant.color(), compat::GREEN_500);
+        assert_eq!(ChatNodeKind::ToolCall.color(), compat::PINK_500);
+        assert_eq!(ChatNodeKind::System.color(), compat::AMBER_500);
+        assert_eq!(ChatNodeKind::Error.color(), compat::RED_500);
     }
 
     // --- ChatNodeState tests ---
@@ -319,10 +321,10 @@ mod tests {
 
     #[test]
     fn test_chat_node_state_border_color() {
-        assert_eq!(ChatNodeState::Idle.border_color(), Color::Gray);
-        assert_eq!(ChatNodeState::Running.border_color(), Color::Yellow);
-        assert_eq!(ChatNodeState::Complete.border_color(), Color::Green);
-        assert_eq!(ChatNodeState::Failed.border_color(), Color::Red);
+        assert_eq!(ChatNodeState::Idle.border_color(), compat::SLATE_500);
+        assert_eq!(ChatNodeState::Running.border_color(), compat::AMBER_500);
+        assert_eq!(ChatNodeState::Complete.border_color(), compat::GREEN_500);
+        assert_eq!(ChatNodeState::Failed.border_color(), compat::RED_500);
     }
 
     #[test]

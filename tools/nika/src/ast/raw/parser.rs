@@ -455,6 +455,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             thinking: None,
             thinking_budget: None,
             content: None,
+            response_format: None,
         }),
         // Full form: infer: { prompt: "...", temperature: ..., content: [...] }
         Node::Mapping(m) => {
@@ -485,6 +486,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                 )?),
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
                 content,
+                response_format: get_string_field(file, m, "response_format")?,
             })
         }
         _ => Err(ParseError {
@@ -981,6 +983,7 @@ fn parse_output(
                     schema: parse_json_value(file, m, "schema")?,
                     schema_ref: get_string_field(file, m, "schema_ref")?
                         .or(get_string_field(file, m, "$ref")?),
+                    max_retries: get_u32_field(file, m, "max_retries")?,
                 },
                 span,
             )))
@@ -1752,7 +1755,7 @@ schema: "nika/workflow@0.12"
 tasks:
   - id: mcp_call
     invoke:
-      tool: novanet_generate
+      tool: novanet_context
       mcp: novanet
       params:
         entity: "qr-code"
@@ -1763,7 +1766,7 @@ tasks:
 
         match &task.value.action {
             Some(RawTaskAction::Invoke(action)) => {
-                assert_eq!(action.value.tool.value, "novanet_generate");
+                assert_eq!(action.value.tool.value, "novanet_context");
                 assert_eq!(action.value.mcp.as_ref().unwrap().value, "novanet");
                 assert!(action.value.params.is_some());
             }

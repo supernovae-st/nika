@@ -243,8 +243,9 @@ impl ArtifactWriter {
 
     /// Write a binary artifact by copying from CAS store path.
     ///
-    /// Uses reflink_or_copy for instant copy-on-write on APFS/btrfs,
-    /// with automatic fallback to regular copy on other filesystems.
+    /// Reads CAS file data through `CasStore::read_raw()` which transparently
+    /// strips compression framing, then writes the original user data to the
+    /// artifact path using atomic temp+rename.
     ///
     /// # Arguments
     ///
@@ -288,57 +289,33 @@ impl ArtifactWriter {
         // Final path validation after directory creation (mitigates TOCTOU)
         let final_path = validate_artifact_path(&self.artifact_dir, Path::new(&resolved_path))?;
 
-        // Copy binary from source using atomic temp+rename pattern.
+        // Write binary from CAS source using atomic temp+rename pattern.
         //
-        // reflink_or_copy uses O_EXCL (create_new) semantics -- it fails if the
-        // destination exists. A remove+copy approach (even with retries) has a
-        // fundamental TOCTOU race under high concurrency. The correct fix is the
-        // same pattern write_atomic uses: copy to a unique temp file, then
-        // atomically rename. POSIX rename() on the same filesystem is atomic --
-        // concurrent renames to the same path all succeed, last writer wins.
+        // CAS files may contain compression framing bytes (media-compression feature).
+        // We read through CasStore::read_raw() which transparently decompresses,
+        // then write the original user data to the artifact path. A raw file copy
+        // would leak the framing byte prefix ([0x00] or [0x01][zstd...]) into
+        // the output artifact.
         let size = match request.source {
             BinarySource::CasPath(ref src) => {
-                let parent = final_path.parent().unwrap_or(Path::new("."));
-                let temp_path = parent.join(format!(
-                    ".nika-tmp-{}-{}",
-                    std::process::id(),
-                    uuid::Uuid::new_v4().simple()
-                ));
-
-                let src = src.clone();
-                let tmp = temp_path.clone();
-                tokio::task::spawn_blocking(move || reflink_copy::reflink_or_copy(&src, &tmp))
-                    .await
-                    .map_err(|e| NikaError::ArtifactWriteError {
+                // Read CAS file and strip compression framing if present.
+                // This calls transparent_decompress under media-compression.
+                let data = crate::media::CasStore::read_raw(src).await.map_err(|e| {
+                    NikaError::ArtifactWriteError {
                         path: final_path.display().to_string(),
-                        reason: format!("Task join error: {}", e),
-                    })?
-                    .map_err(|e| {
-                        let _ = std::fs::remove_file(&temp_path);
-                        NikaError::ArtifactWriteError {
-                            path: final_path.display().to_string(),
-                            reason: format!("Binary copy failed: {}", e),
-                        }
-                    })?;
-
-                let size = fs::metadata(&temp_path)
-                    .await
-                    .map(|m| m.len())
-                    .map_err(|e| NikaError::ArtifactWriteError {
-                        path: final_path.display().to_string(),
-                        reason: format!("Failed to stat temp file: {}", e),
-                    })?;
-
-                match fs::rename(&temp_path, &final_path).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        let _ = fs::remove_file(&temp_path).await;
-                        return Err(NikaError::ArtifactWriteError {
-                            path: final_path.display().to_string(),
-                            reason: format!("Atomic rename failed: {}", e),
-                        });
+                        reason: format!("CAS read failed: {}", e),
                     }
-                }
+                })?;
+
+                let size = data.len() as u64;
+
+                // Atomic write: temp file + rename
+                write_atomic(&final_path, &data).await.map_err(|e| {
+                    NikaError::ArtifactWriteError {
+                        path: final_path.display().to_string(),
+                        reason: format!("Atomic write failed: {}", e),
+                    }
+                })?;
 
                 size
             }
@@ -1021,8 +998,8 @@ mod tests {
         let err = result.unwrap_err();
         if let NikaError::ArtifactWriteError { reason, .. } = &err {
             assert!(
-                reason.contains("Binary copy failed"),
-                "Error should mention copy failure: {}",
+                reason.contains("CAS read failed"),
+                "Error should mention CAS read failure: {}",
                 reason
             );
         } else {

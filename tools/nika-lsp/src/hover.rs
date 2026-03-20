@@ -187,7 +187,7 @@ Call a tool from an MCP server.
 ```yaml
 invoke:
   mcp: novanet           # MCP server name
-  tool: novanet_generate # Tool name
+  tool: novanet_context  # Tool name
   params:
     entity: "qr-code"
     locale: "fr-FR"

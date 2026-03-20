@@ -21,7 +21,7 @@ use crate::error::NikaError;
 /// ```yaml
 /// invoke:
 ///   mcp: novanet
-///   tool: novanet_generate
+///   tool: novanet_context
 ///   params:
 ///     entity: qr-code
 ///     locale: fr-FR
@@ -146,13 +146,13 @@ mod tests {
     fn parse_tool_call() {
         let yaml = r#"
 mcp: novanet
-tool: novanet_generate
+tool: novanet_context
 params:
   entity: qr-code
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.mcp, Some("novanet".to_string()));
-        assert_eq!(params.tool, Some("novanet_generate".to_string()));
+        assert_eq!(params.tool, Some("novanet_context".to_string()));
         assert_eq!(params.params, Some(json!({"entity": "qr-code"})));
         assert!(params.resource.is_none());
     }
@@ -356,7 +356,7 @@ resource: entity://qr-code/fr-FR
         // Non-builtin tools (no nika:* prefix) require mcp
         let params = InvokeParams {
             mcp: None,
-            tool: Some("novanet_generate".to_string()),
+            tool: Some("novanet_context".to_string()),
             params: None,
             resource: None,
             timeout: None,
@@ -382,7 +382,7 @@ resource: entity://qr-code/fr-FR
     fn is_builtin_tool_rejects_non_nika() {
         let params = InvokeParams {
             mcp: Some("test".to_string()),
-            tool: Some("novanet_generate".to_string()),
+            tool: Some("novanet_context".to_string()),
             params: None,
             resource: None,
             timeout: None,
@@ -412,7 +412,7 @@ params:
     fn parse_tool_call_with_timeout() {
         let yaml = r#"
 mcp: novanet
-tool: novanet_generate
+tool: novanet_context
 timeout: 60
 params:
   entity: qr-code
@@ -426,7 +426,7 @@ params:
     fn parse_tool_call_without_timeout() {
         let yaml = r#"
 mcp: novanet
-tool: novanet_generate
+tool: novanet_context
 "#;
         let params: InvokeParams = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(params.timeout, None);

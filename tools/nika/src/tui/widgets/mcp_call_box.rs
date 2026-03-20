@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_mcp_call_failure() {
-        let call = McpCallData::new("novanet_traverse", "novanet").with_error("Entity not found");
+        let call = McpCallData::new("novanet_search", "novanet").with_error("Entity not found");
 
         assert_eq!(call.status, McpCallStatus::Failed);
         assert!(call.error.is_some());

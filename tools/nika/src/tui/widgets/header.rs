@@ -61,14 +61,22 @@ impl<'a> Header<'a> {
         self
     }
 
+    /// Header background — slightly lighter than main bg for visual separation
+    const HEADER_BG: Color = Color::Rgb(20, 24, 41);
+    /// Active tab highlight — verb violet
+    const TAB_ACTIVE_BG: Color = Color::Rgb(139, 92, 246);
+    /// Inactive tab text — slate-400
+    const TAB_INACTIVE_FG: Color = Color::Rgb(148, 163, 184);
+
     /// Get tab label style based on active state
     fn tab_style(&self, is_active: bool) -> Style {
         if is_active {
             Style::default()
-                .fg(self.theme.highlight)
+                .fg(Color::White)
+                .bg(Self::TAB_ACTIVE_BG)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(self.theme.text_muted)
+            Style::default().fg(Self::TAB_INACTIVE_FG)
         }
     }
 }
@@ -101,13 +109,13 @@ impl Widget for Header<'_> {
             spans.push(Span::raw(" "));
 
             if is_active {
-                // Active tab: [1:Chat]
+                // Active tab: highlighted background, no brackets
                 spans.push(Span::styled(
-                    format!("[{}:{}]", num, name),
+                    format!(" {}:{} ", num, name),
                     self.tab_style(true),
                 ));
             } else {
-                // Inactive tab: 2:Home
+                // Inactive tab: muted text, no brackets
                 spans.push(Span::styled(
                     format!("{}:{}", num, name),
                     self.tab_style(false),
@@ -138,6 +146,23 @@ impl Widget for Header<'_> {
             ));
         }
 
+        // Add status badge if present (e.g. "PAUSED")
+        if let Some(status) = self.status {
+            if !status.is_empty() {
+                spans.push(Span::styled(
+                    " │",
+                    Style::default().fg(self.theme.border_normal),
+                ));
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    format!("[{}]", status),
+                    Style::default()
+                        .fg(Color::Rgb(251, 191, 36)) // Amber
+                        .add_modifier(Modifier::BOLD),
+                ));
+            }
+        }
+
         // Calculate current width (unicode-aware for proper terminal alignment)
         let left_width: usize = spans.iter().map(|s| s.content.width()).sum();
 
@@ -163,7 +188,7 @@ impl Widget for Header<'_> {
         all_spans.extend(right_spans);
 
         let line = Line::from(all_spans);
-        let paragraph = Paragraph::new(line).style(Style::default().bg(self.theme.background));
+        let paragraph = Paragraph::new(line).style(Style::default().bg(Self::HEADER_BG));
 
         paragraph.render(area, buf);
     }
@@ -194,7 +219,7 @@ impl Header<'_> {
         ];
 
         let line = Line::from(spans);
-        let paragraph = Paragraph::new(line).style(Style::default().bg(self.theme.background));
+        let paragraph = Paragraph::new(line).style(Style::default().bg(Self::HEADER_BG));
         paragraph.render(area, buf);
     }
 }

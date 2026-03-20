@@ -85,7 +85,16 @@ mod native {
         }
 
         /// Store API key for a provider.
+        ///
+        /// Guarded: returns error in test mode or when NIKA_SKIP_KEYCHAIN is set.
         pub fn set(provider: &str, key: &str) -> Result<(), KeyringError> {
+            if cfg!(test) || super::should_skip_keychain() {
+                return Err(KeyringError::StoreError(format!(
+                    "{} (keychain skipped)",
+                    provider
+                )));
+            }
+
             let entry = Entry::new(SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
@@ -95,7 +104,16 @@ mod native {
         }
 
         /// Delete API key for a provider.
+        ///
+        /// Guarded: returns error in test mode or when NIKA_SKIP_KEYCHAIN is set.
         pub fn delete(provider: &str) -> Result<(), KeyringError> {
+            if cfg!(test) || super::should_skip_keychain() {
+                return Err(KeyringError::DeleteError(format!(
+                    "{} (keychain skipped)",
+                    provider
+                )));
+            }
+
             let entry = Entry::new(SERVICE_NAME, provider)
                 .map_err(|e| KeyringError::AccessError(e.to_string()))?;
 
@@ -254,6 +272,7 @@ const MIGRATEABLE_PROVIDERS: &[&str] = &[
     "groq",
     "deepseek",
     "gemini",
+    "xai",
 ];
 
 #[derive(Debug, Default)]
@@ -407,6 +426,50 @@ mod tests {
         let summary = report.summary();
         assert!(summary.contains("2 migrated"));
         assert!(summary.contains("1 skipped"));
+    }
+
+    // ─── Bug 34: set/delete must be guarded in test mode ──────────────
+
+    #[test]
+    fn test_keyring_set_guarded_in_test_mode() {
+        // In cfg!(test), NikaKeyring::set() must return an error
+        // to prevent accidental keychain access during tests
+        let result = NikaKeyring::set("test_provider", "test-key-value");
+        assert!(
+            result.is_err(),
+            "NikaKeyring::set() must be guarded in test mode"
+        );
+    }
+
+    #[test]
+    fn test_keyring_delete_guarded_in_test_mode() {
+        // In cfg!(test), NikaKeyring::delete() must return an error
+        let result = NikaKeyring::delete("test_provider");
+        assert!(
+            result.is_err(),
+            "NikaKeyring::delete() must be guarded in test mode"
+        );
+    }
+
+    // ─── Bug 35: MIGRATEABLE_PROVIDERS must include xai ─────────────
+
+    #[test]
+    fn test_migrateable_providers_includes_xai() {
+        assert!(
+            MIGRATEABLE_PROVIDERS.contains(&"xai"),
+            "MIGRATEABLE_PROVIDERS must include xai, got: {:?}",
+            MIGRATEABLE_PROVIDERS
+        );
+    }
+
+    #[test]
+    fn test_migrateable_providers_count() {
+        assert_eq!(
+            MIGRATEABLE_PROVIDERS.len(),
+            7,
+            "Expected 7 migrateable providers (all LLM), got: {:?}",
+            MIGRATEABLE_PROVIDERS
+        );
     }
 
     // Tests that are only relevant with native-keychain

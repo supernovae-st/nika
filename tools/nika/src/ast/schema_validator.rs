@@ -402,7 +402,7 @@ tasks:
       schema: describe
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         entity: qr-code
         locale: fr-FR

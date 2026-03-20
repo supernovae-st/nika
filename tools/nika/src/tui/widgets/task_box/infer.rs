@@ -8,12 +8,14 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{BoxState, RenderMode, StreamingContext, TokenVelocity, VerbColor};
+use crate::tui::tokens::compat;
+use crate::tui::unicode::display_width;
 use crate::tui::widgets::matrix_decrypt::{DecryptVerb, StreamingDecrypt};
 
 /// InferBox data and rendering
@@ -223,12 +225,22 @@ impl InferBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -258,8 +270,8 @@ impl InferBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -374,18 +386,19 @@ impl InferBox {
             // Prepend border and ┊ prefix
             let mut spans = vec![Span::styled("│ ┊ ", border_style)];
             spans.extend(decrypt_line.spans);
-            // Add streaming cursor if active
-            if self.streaming_cursor {
+            // Add blinking streaming cursor (500ms on, 500ms off at 60fps)
+            if self.streaming_cursor && (ctx.frame / 30) % 2 == 0 {
                 spans.push(Span::styled("█", content_style));
             }
             items.push(ListItem::new(Line::from(spans)));
         } else {
             // Plain text (completed or decrypt disabled)
-            let cursor = if self.streaming_cursor && self.state.is_running() {
-                "█"
-            } else {
-                ""
-            };
+            let cursor =
+                if self.streaming_cursor && self.state.is_running() && (ctx.frame / 30) % 2 == 0 {
+                    "█"
+                } else {
+                    ""
+                };
 
             if self.expanded_response {
                 // Show full response with line breaks when expanded
@@ -466,8 +479,8 @@ impl Widget for InferBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -477,8 +490,8 @@ impl Widget for InferBox {
         let title_prefix = format!("╭─ {} ", verb.icon_label());
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 
@@ -589,9 +602,8 @@ impl Widget for InferBox {
                 self.decrypt.render(decrypt_area, buf);
                 // Add streaming cursor
                 if self.streaming_cursor {
-                    let cursor_x = area.x
-                        + 4
-                        + self.decrypt.text().chars().count().min(inner_width - 6) as u16;
+                    let cursor_x =
+                        area.x + 4 + display_width(self.decrypt.text()).min(inner_width - 6) as u16;
                     if cursor_x < area.x + area.width - 1 {
                         buf.set_string(cursor_x, y, "█", content_style);
                     }

@@ -1523,7 +1523,7 @@ impl RigProvider {
 /// We convert MCP tool definitions from rmcp 0.16 into this format.
 #[derive(Debug, Clone)]
 pub struct NikaMcpToolDef {
-    /// Tool name (e.g., "novanet_generate")
+    /// Tool name (e.g., "novanet_context")
     pub name: String,
     /// Tool description for the LLM
     pub description: String,
@@ -2099,7 +2099,7 @@ mod tests {
     fn test_nika_mcp_tool_implements_tool_dyn() {
         // Given: A tool definition from our MCP infrastructure
         let tool_def = NikaMcpToolDef {
-            name: "novanet_generate".to_string(),
+            name: "novanet_context".to_string(),
             description: "Generate native content for an entity".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
@@ -2115,7 +2115,7 @@ mod tests {
         let tool = NikaMcpTool::new(tool_def);
 
         // Then: It should have the correct name
-        assert_eq!(tool.tool_name(), "novanet_generate");
+        assert_eq!(tool.tool_name(), "novanet_context");
     }
 
     #[test]
@@ -2184,9 +2184,9 @@ mod tests {
     // USE CASE TESTS - Real-world NovaNet MCP tool scenarios
     // =========================================================================
 
-    /// UC1: novanet_generate - Generate native content for an entity
+    /// UC1: novanet_context - Assemble LLM context for content generation
     #[tokio::test]
-    async fn test_usecase_novanet_generate_entity_locale() {
+    async fn test_usecase_novanet_context_entity_locale() {
         use crate::mcp::McpClient;
         use rig::tool::ToolDyn;
         use std::sync::Arc;
@@ -2194,9 +2194,9 @@ mod tests {
         // Given: Mock NovaNet MCP client
         let client = Arc::new(McpClient::mock("novanet"));
 
-        // Given: novanet_generate tool with full schema (matching NovaNet MCP spec)
+        // Given: novanet_context tool with full schema (matching NovaNet MCP spec)
         let tool_def = NikaMcpToolDef {
-            name: "novanet_generate".to_string(),
+            name: "novanet_context".to_string(),
             description: "Full RLM-on-KG context assembly for generation".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
@@ -2230,7 +2230,7 @@ mod tests {
         // Then: Should succeed with mock response
         assert!(
             result.is_ok(),
-            "novanet_generate should succeed: {:?}",
+            "novanet_context should succeed: {:?}",
             result
         );
         let output = result.unwrap();
@@ -2274,9 +2274,9 @@ mod tests {
         assert!(result.is_ok(), "novanet_describe should succeed");
     }
 
-    /// UC3: novanet_traverse - Graph traversal
+    /// UC3: novanet_search (walk mode) - Graph traversal
     #[tokio::test]
-    async fn test_usecase_novanet_traverse_graph() {
+    async fn test_usecase_novanet_search_walk_graph() {
         use crate::mcp::McpClient;
         use rig::tool::ToolDyn;
         use std::sync::Arc;
@@ -2284,7 +2284,7 @@ mod tests {
         let client = Arc::new(McpClient::mock("novanet"));
 
         let tool_def = NikaMcpToolDef {
-            name: "novanet_traverse".to_string(),
+            name: "novanet_search".to_string(),
             description: "Graph traversal with configurable depth and filters".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
@@ -2310,7 +2310,7 @@ mod tests {
         .to_string();
 
         let result = tool.call(args).await;
-        assert!(result.is_ok(), "novanet_traverse should succeed");
+        assert!(result.is_ok(), "novanet_search walk should succeed");
     }
 
     /// UC4: novanet_search - Hybrid search
@@ -2352,9 +2352,9 @@ mod tests {
         assert!(result.is_ok(), "novanet_search should succeed");
     }
 
-    /// UC5: novanet_atoms - Knowledge atoms retrieval
+    /// UC5: novanet_audit - Quality checks with CSR metrics
     #[tokio::test]
-    async fn test_usecase_novanet_atoms_locale() {
+    async fn test_usecase_novanet_audit_locale() {
         use crate::mcp::McpClient;
         use rig::tool::ToolDyn;
         use std::sync::Arc;
@@ -2362,7 +2362,7 @@ mod tests {
         let client = Arc::new(McpClient::mock("novanet"));
 
         let tool_def = NikaMcpToolDef {
-            name: "novanet_atoms".to_string(),
+            name: "novanet_audit".to_string(),
             description: "Retrieve knowledge atoms for a specific locale".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
@@ -2388,12 +2388,12 @@ mod tests {
         .to_string();
 
         let result = tool.call(args).await;
-        assert!(result.is_ok(), "novanet_atoms should succeed");
+        assert!(result.is_ok(), "novanet_audit should succeed");
     }
 
-    /// UC6: novanet_assemble - Context assembly
+    /// UC6: novanet_batch - Parallel operations
     #[tokio::test]
-    async fn test_usecase_novanet_assemble_context() {
+    async fn test_usecase_novanet_batch_context() {
         use crate::mcp::McpClient;
         use rig::tool::ToolDyn;
         use std::sync::Arc;
@@ -2401,7 +2401,7 @@ mod tests {
         let client = Arc::new(McpClient::mock("novanet"));
 
         let tool_def = NikaMcpToolDef {
-            name: "novanet_assemble".to_string(),
+            name: "novanet_batch".to_string(),
             description: "Assemble context for LLM generation (token-aware)".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
@@ -2429,7 +2429,7 @@ mod tests {
         .to_string();
 
         let result = tool.call(args).await;
-        assert!(result.is_ok(), "novanet_assemble should succeed");
+        assert!(result.is_ok(), "novanet_batch should succeed");
     }
 
     // =========================================================================
@@ -2556,7 +2556,7 @@ mod tests {
     fn test_multiple_tools_independent() {
         // Given: Multiple tool definitions
         let tool1 = NikaMcpTool::new(NikaMcpToolDef {
-            name: "novanet_generate".to_string(),
+            name: "novanet_context".to_string(),
             description: "Generate content".to_string(),
             input_schema: serde_json::json!({"type": "object"}),
         });
@@ -2568,15 +2568,15 @@ mod tests {
         });
 
         let tool3 = NikaMcpTool::new(NikaMcpToolDef {
-            name: "novanet_traverse".to_string(),
+            name: "novanet_search".to_string(),
             description: "Traverse graph".to_string(),
             input_schema: serde_json::json!({"type": "object"}),
         });
 
         // Then: Each tool maintains its own identity
-        assert_eq!(tool1.tool_name(), "novanet_generate");
+        assert_eq!(tool1.tool_name(), "novanet_context");
         assert_eq!(tool2.tool_name(), "novanet_describe");
-        assert_eq!(tool3.tool_name(), "novanet_traverse");
+        assert_eq!(tool3.tool_name(), "novanet_search");
     }
 
     /// Test tool can be cloned and remains functional
@@ -2619,7 +2619,7 @@ mod tests {
 
         let client = Arc::new(McpClient::mock("novanet"));
         let tool_def = NikaMcpToolDef {
-            name: "novanet_generate".to_string(),
+            name: "novanet_context".to_string(),
             description: "Generate native content".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",

@@ -166,6 +166,7 @@ impl ChatMode {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Failed MCP call data for display
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct FailedMcpCall {
     pub server: String,
@@ -176,6 +177,7 @@ pub struct FailedMcpCall {
 }
 
 /// Line position for text editing
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct LinePosition {
     /// Line number (0-indexed)
@@ -185,6 +187,7 @@ pub struct LinePosition {
 }
 
 /// Text selection state
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TextSelection {
     pub active: bool,
@@ -193,12 +196,14 @@ pub struct TextSelection {
 }
 
 /// Selection position in text
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SelectionPos {
     pub line: usize,
     pub col: usize,
 }
 
+#[allow(dead_code)]
 impl TextSelection {
     pub fn new() -> Self {
         Self {

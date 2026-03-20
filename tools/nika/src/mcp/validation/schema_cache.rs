@@ -15,7 +15,7 @@
 //!
 //! let cache = ToolSchemaCache::new();
 //! let count = cache.populate("novanet", &tools)?;
-//! let schema = cache.get("novanet", "novanet_generate");
+//! let schema = cache.get("novanet", "novanet_context");
 //! ```
 
 use dashmap::DashMap;

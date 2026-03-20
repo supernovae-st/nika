@@ -73,8 +73,12 @@ impl TaskExecutor {
         // Validate infer params (empty prompt, invalid temperature)
         infer.validate()?;
 
-        // Resolve {{with.alias}} templates
+        // Resolve {{with.alias}} templates in prompt and system prompt (Bug 1)
         let mut prompt = template_resolve(&infer.prompt, bindings, datastore)?.into_owned();
+        let resolved_system = match &infer.system {
+            Some(sys) => Some(template_resolve(sys, bindings, datastore)?.into_owned()),
+            None => None,
+        };
 
         // Validate resolved prompt is not empty (could happen if template resolves to empty)
         // Skip this check when content is present (vision mode — prompt is optional)
@@ -250,7 +254,14 @@ impl TaskExecutor {
         if has_content {
             return self
                 .run_infer_vision(
-                    task_id, infer, &prompt, bindings, datastore, &provider, model,
+                    task_id,
+                    infer,
+                    &prompt,
+                    bindings,
+                    datastore,
+                    &provider,
+                    model,
+                    resolved_system.as_deref(),
                 )
                 .await;
         }
@@ -422,15 +433,15 @@ impl TaskExecutor {
         // We discard the stream chunks (no TUI display in executor mode) but keep the StreamResult metrics.
         let (tx, _rx) = mpsc::channel::<StreamChunk>(64);
         let has_llm_options =
-            infer.temperature.is_some() || infer.max_tokens.is_some() || infer.system.is_some();
+            infer.temperature.is_some() || infer.max_tokens.is_some() || resolved_system.is_some();
 
         let stream_result = if has_llm_options {
-            // Use InferOptions for temperature, max_tokens, system prompt
+            // Use InferOptions for temperature, max_tokens, system prompt (resolved)
             let options = InferOptions {
                 model: model.map(|s| s.to_string()),
                 temperature: infer.temperature,
                 max_tokens: infer.max_tokens,
-                system: infer.system.clone(),
+                system: resolved_system.clone(),
             };
             provider
                 .infer_stream_with_options(&prompt, tx, &options)
@@ -546,6 +557,7 @@ impl TaskExecutor {
         datastore: &RunContext,
         provider: &crate::provider::rig::RigProvider,
         model: Option<&str>,
+        resolved_system: Option<&str>,
     ) -> Result<String, NikaError> {
         const MAX_VISION_IMAGE_PARTS: usize = 20;
         const MAX_VISION_TOTAL_BYTES: u64 = 100 * 1024 * 1024;
@@ -560,7 +572,13 @@ impl TaskExecutor {
 
         let image_part_count = content
             .iter()
-            .filter(|p| matches!(p, crate::ast::content::ContentPart::Image { .. }))
+            .filter(|p| {
+                matches!(
+                    p,
+                    crate::ast::content::ContentPart::Image { .. }
+                        | crate::ast::content::ContentPart::ImageUrl { .. }
+                )
+            })
             .count();
         if image_part_count > MAX_VISION_IMAGE_PARTS {
             return Err(NikaError::ValidationError {
@@ -616,6 +634,15 @@ impl TaskExecutor {
                     }
 
                     let media_type = detect_image_media_type(&image_data);
+                    // Bug 39: reject unsupported formats with clear error
+                    if media_type.is_none() {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "Vision image has unsupported format (CAS: {}). Supported: PNG, JPEG, GIF, WebP",
+                                resolved_source
+                            ),
+                        });
+                    }
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&image_data);
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {
@@ -660,6 +687,7 @@ impl TaskExecutor {
                         None,
                         rig_detail,
                     ));
+                    image_count += 1; // Bug 40: count ImageUrl in telemetry
                 }
             }
         }
@@ -681,12 +709,8 @@ impl TaskExecutor {
             "Vision content resolved, calling infer_vision"
         );
 
-        let vision_work = provider.infer_vision(
-            user_content,
-            model,
-            infer.system.as_deref(),
-            infer.max_tokens,
-        );
+        let vision_work =
+            provider.infer_vision(user_content, model, resolved_system, infer.max_tokens);
         let vision_result = tokio::select! {
             result = vision_work => {
                 result.map_err(|e| NikaError::ProviderApiError { message: e.to_string() })?
@@ -732,7 +756,9 @@ impl TaskExecutor {
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
         // SECURITY CHECK: validate command for control characters and blocklist
-        crate::runtime::security::validate_exec_command(&resolved_cmd)?;
+        // In shell mode, also block command substitution ($(), backticks)
+        let is_shell = params.shell == Some(true);
+        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, is_shell)?;
 
         // POLICY CHECK: exec verb
         let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);
@@ -867,6 +893,16 @@ impl TaskExecutor {
 
         // Resolve {{with.alias}} templates
         let url = template_resolve(&fetch.url, bindings, datastore)?;
+
+        // Bug 4: SSRF protection — only allow http(s) schemes
+        if !url.starts_with("https://") && !url.starts_with("http://") {
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "fetch: URL must use http:// or https:// scheme, got: {}",
+                    url.chars().take(50).collect::<String>()
+                ),
+            });
+        }
 
         // POLICY CHECK: fetch verb
         let policy_decision = self.policy_enforcer.read().check_fetch(&url);
@@ -1116,6 +1152,24 @@ impl TaskExecutor {
                         let bytes = response.bytes().await.map_err(|e| {
                             NikaError::Execution(format!("Failed to read binary response: {}", e))
                         })?;
+                        // Bug 3: Post-read size check (catches chunked encoding bypass)
+                        if bytes.len() as u64 > BINARY_MAX_RESPONSE_SIZE {
+                            return Err(NikaError::Execution(format!(
+                                "Binary response too large ({} bytes, max {} bytes)",
+                                bytes.len(),
+                                BINARY_MAX_RESPONSE_SIZE
+                            )));
+                        }
+                        // Bug 11: Handle 0-byte responses gracefully
+                        if bytes.is_empty() {
+                            return Ok(serde_json::json!({
+                                "hash": null,
+                                "mime_type": content_type,
+                                "size_bytes": 0,
+                                "deduplicated": false,
+                            })
+                            .to_string());
+                        }
                         let store_result = self.cas.store(&bytes).await.map_err(|e| {
                             NikaError::Execution(format!("CAS store failed: {}", e))
                         })?;
@@ -1162,6 +1216,10 @@ impl TaskExecutor {
                                 }
                                 if resp.status().is_success() {
                                     if let Ok(body) = resp.text().await {
+                                        // Bug 10: Post-read size check (chunked bypass)
+                                        if body.len() > 1_048_576 {
+                                            continue;
+                                        }
                                         if !body.trim().is_empty() {
                                             return Ok(serde_json::json!({
                                                 "found": true,
