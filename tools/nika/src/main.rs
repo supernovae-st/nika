@@ -798,26 +798,110 @@ async fn run_workflow(
 }
 
 async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
+    use nika::display::{
+        print_check_header, print_check_summary, print_phase, print_phase_skipped, PhaseResult,
+    };
+    use std::time::Instant;
+
+    let total_start = Instant::now();
     let resolved_path = resolve_workflow_path(file).await?;
 
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
 
+    // Phase 1: Schema validation
+    let t = Instant::now();
     let validator = WorkflowSchemaValidator::new()?;
     validator.validate_yaml(&yaml)?;
+    let schema_elapsed = t.elapsed();
 
+    // Phase 2: Parse
+    let t = Instant::now();
     let workflow = parse_workflow(&yaml)?;
+    let parse_elapsed = t.elapsed();
 
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
+
+    // Phase 3: Includes
+    let t = Instant::now();
     let workflow = expand_includes(workflow, base_path)?;
+    let includes_elapsed = t.elapsed();
 
+    // Phase 4: DAG
+    let t = Instant::now();
     let flow_graph = Dag::from_workflow(&workflow)?;
-    flow_graph.detect_cycles()?;
-    validate_bindings(&workflow, &flow_graph)?;
+    let dag_cycle_result = flow_graph.detect_cycles();
+    let dag_elapsed = t.elapsed();
 
-    // Phase 4: Validate structured output schema files
+    if let Err(ref e) = dag_cycle_result {
+        if !quiet {
+            print_check_header(file, false, env!("CARGO_PKG_VERSION"));
+            print_phase(&PhaseResult {
+                name: "schema",
+                passed: true,
+                detail: format!("YAML valid against @{}", workflow.schema),
+                duration_ms: schema_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: vec![],
+            });
+            print_phase(&PhaseResult {
+                name: "parse",
+                passed: true,
+                detail: format!(
+                    "{} tasks \u{00B7} provider: {} \u{00B7} model: {}",
+                    workflow.tasks.len(),
+                    workflow.provider,
+                    workflow.model.as_deref().unwrap_or("(default)")
+                ),
+                duration_ms: parse_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: vec![],
+            });
+            print_phase(&PhaseResult {
+                name: "includes",
+                passed: true,
+                detail: "resolved".to_string(),
+                duration_ms: includes_elapsed.as_millis() as u64,
+                errors: vec![],
+                hints: vec![],
+            });
+            print_phase(&PhaseResult {
+                name: "dag",
+                passed: false,
+                detail: "CYCLE DETECTED".to_string(),
+                duration_ms: dag_elapsed.as_millis() as u64,
+                errors: vec![e.to_string()],
+                hints: vec![
+                    "Remove one dependency to break the cycle.".to_string(),
+                    "Common fix: use with: binding instead of depends_on.".to_string(),
+                ],
+            });
+            print_phase_skipped("bindings", "DAG invalid");
+            print_phase_skipped("schemas", "DAG invalid");
+            println!();
+            print_check_summary(
+                false,
+                total_start.elapsed().as_millis() as u64,
+                workflow.tasks.len(),
+                workflow.flow_count(),
+                0,
+                0,
+                None,
+                &[("NIKA-020", "Circular dependency detected")],
+            );
+        }
+        return dag_cycle_result;
+    }
+
+    // Phase 5: Bindings
+    let t = Instant::now();
+    validate_bindings(&workflow, &flow_graph)?;
+    let bindings_elapsed = t.elapsed();
+
+    // Phase 6: Validate structured output schema files
+    let t = Instant::now();
     let mut schema_count = 0u32;
     for task in &workflow.tasks {
         // Check output.schema file references
@@ -835,19 +919,80 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
             }
         }
     }
+    let schemas_elapsed = t.elapsed();
 
     if !quiet {
-        println!("{} Workflow '{}' is valid", "✓".green(), file);
-        println!("  Provider: {}", workflow.provider);
-        println!(
-            "  Model: {}",
-            workflow.model.as_deref().unwrap_or("(default)")
-        );
-        println!("  Tasks: {}", workflow.tasks.len());
-        println!("  Edges: {}", workflow.flow_count());
-        if schema_count > 0 {
-            println!("  Schemas: {} validated", schema_count);
-        }
+        print_check_header(file, false, env!("CARGO_PKG_VERSION"));
+
+        // Phase 1: Schema
+        print_phase(&PhaseResult {
+            name: "schema",
+            passed: true,
+            detail: format!("YAML valid against @{}", workflow.schema),
+            duration_ms: schema_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+
+        // Phase 2: Parse
+        print_phase(&PhaseResult {
+            name: "parse",
+            passed: true,
+            detail: format!(
+                "{} tasks \u{00B7} provider: {} \u{00B7} model: {}",
+                workflow.tasks.len(),
+                workflow.provider,
+                workflow.model.as_deref().unwrap_or("(default)")
+            ),
+            duration_ms: parse_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+
+        // Phase 3: Includes
+        print_phase(&PhaseResult {
+            name: "includes",
+            passed: true,
+            detail: "resolved".to_string(),
+            duration_ms: includes_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+
+        // Phase 4: DAG
+        print_phase(&PhaseResult {
+            name: "dag",
+            passed: true,
+            detail: format!("{} edges \u{00B7} acyclic", workflow.flow_count()),
+            duration_ms: dag_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+
+        // Phase 5: Bindings
+        print_phase(&PhaseResult {
+            name: "bindings",
+            passed: true,
+            detail: "all references valid".to_string(),
+            duration_ms: bindings_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+
+        // Phase 6: Schemas
+        let schemas_detail = if schema_count > 0 {
+            format!("{} validated", schema_count)
+        } else {
+            "none required".to_string()
+        };
+        print_phase(&PhaseResult {
+            name: "schemas",
+            passed: true,
+            detail: schemas_detail,
+            duration_ms: schemas_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
 
         // Show DAG visualization for multi-task workflows
         if workflow.tasks.len() > 1 {
@@ -862,6 +1007,7 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
                     verb: t.action.verb_name().to_string(),
                     status: DagTaskStatus::Pending,
                     meta: None,
+                    tags: Vec::new(),
                 })
                 .collect();
 
@@ -874,6 +1020,45 @@ async fn validate_workflow(file: &str, quiet: bool) -> Result<(), NikaError> {
 
             render_dag(&dag_tasks, &deps_map);
         }
+
+        // Compute layer count for summary
+        let layer_count = {
+            let mut depths: std::collections::HashMap<&str, usize> =
+                workflow.tasks.iter().map(|t| (t.id.as_str(), 0)).collect();
+            let mut changed = true;
+            let mut iters = 0;
+            while changed && iters < 100 {
+                changed = false;
+                iters += 1;
+                for task in &workflow.tasks {
+                    if let Some(ref task_deps) = task.depends_on {
+                        for dep in task_deps {
+                            if let Some(&dep_depth) = depths.get(dep.as_str()) {
+                                let new_depth = dep_depth + 1;
+                                if new_depth > depths[task.id.as_str()] {
+                                    depths.insert(&task.id, new_depth);
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            depths.values().max().copied().unwrap_or(0) + 1
+        };
+
+        // Summary footer
+        println!();
+        print_check_summary(
+            true,
+            total_start.elapsed().as_millis() as u64,
+            workflow.tasks.len(),
+            workflow.flow_count(),
+            layer_count,
+            schema_count,
+            None,
+            &[],
+        );
     }
 
     Ok(())
@@ -914,45 +1099,127 @@ async fn validate_schema_file(
 
 /// Validate a workflow with --strict mode (connects to MCP servers)
 async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
+    use nika::display::{
+        print_check_header, print_check_summary, print_mcp_validation, print_phase,
+        print_phase_skipped, McpCallValidation, McpCheckResult, McpParamError, PhaseResult,
+    };
+    use std::time::Instant;
+
+    let total_start = Instant::now();
     let resolved_path = resolve_workflow_path(file).await?;
 
     let yaml = tokio::fs::read_to_string(&resolved_path).await?;
 
+    // Phase 1: Schema validation
+    let t = Instant::now();
     let schema_validator = WorkflowSchemaValidator::new()?;
     schema_validator.validate_yaml(&yaml)?;
+    let schema_elapsed = t.elapsed();
 
+    // Phase 2: Parse
+    let t = Instant::now();
     let workflow = parse_workflow(&yaml)?;
+    let parse_elapsed = t.elapsed();
 
     let base_path = resolved_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
+
+    // Phase 3: Includes
+    let t = Instant::now();
     let workflow = expand_includes(workflow, base_path)?;
+    let includes_elapsed = t.elapsed();
 
+    // Phase 4: DAG
+    let t = Instant::now();
     let flow_graph = Dag::from_workflow(&workflow)?;
-    flow_graph.detect_cycles()?;
-    validate_bindings(&workflow, &flow_graph)?;
+    let dag_cycle_result = flow_graph.detect_cycles();
+    let dag_elapsed = t.elapsed();
 
-    // Validate structured output schema files
+    if let Err(ref e) = dag_cycle_result {
+        print_check_header(file, true, env!("CARGO_PKG_VERSION"));
+        print_phase(&PhaseResult {
+            name: "schema",
+            passed: true,
+            detail: format!("YAML valid against @{}", workflow.schema),
+            duration_ms: schema_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+        print_phase(&PhaseResult {
+            name: "parse",
+            passed: true,
+            detail: format!(
+                "{} tasks \u{00B7} provider: {} \u{00B7} model: {}",
+                workflow.tasks.len(),
+                workflow.provider,
+                workflow.model.as_deref().unwrap_or("(default)")
+            ),
+            duration_ms: parse_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+        print_phase(&PhaseResult {
+            name: "includes",
+            passed: true,
+            detail: "resolved".to_string(),
+            duration_ms: includes_elapsed.as_millis() as u64,
+            errors: vec![],
+            hints: vec![],
+        });
+        print_phase(&PhaseResult {
+            name: "dag",
+            passed: false,
+            detail: "CYCLE DETECTED".to_string(),
+            duration_ms: dag_elapsed.as_millis() as u64,
+            errors: vec![e.to_string()],
+            hints: vec![
+                "Remove one dependency to break the cycle.".to_string(),
+                "Common fix: use with: binding instead of depends_on.".to_string(),
+            ],
+        });
+        print_phase_skipped("bindings", "DAG invalid");
+        print_phase_skipped("schemas", "DAG invalid");
+        println!();
+        print_check_summary(
+            false,
+            total_start.elapsed().as_millis() as u64,
+            workflow.tasks.len(),
+            workflow.flow_count(),
+            0,
+            0,
+            None,
+            &[("NIKA-020", "Circular dependency detected")],
+        );
+        return dag_cycle_result;
+    }
+
+    // Phase 5: Bindings
+    let t = Instant::now();
+    validate_bindings(&workflow, &flow_graph)?;
+    let bindings_elapsed = t.elapsed();
+
+    // Phase 6: Validate structured output schema files
+    let t = Instant::now();
+    let mut schema_count = 0u32;
     for task in &workflow.tasks {
         if let Some(ref output) = task.output {
             if let Some(SchemaRef::File(ref path)) = output.schema {
                 validate_schema_file(&task.id, path, base_path).await?;
+                schema_count += 1;
             }
         }
         if let Some(ref spec) = task.structured {
             if let SchemaRef::File(ref path) = spec.schema {
                 validate_schema_file(&task.id, path, base_path).await?;
+                schema_count += 1;
             }
         }
     }
+    let schemas_elapsed = t.elapsed();
 
-    // Phase 3: MCP parameter validation (strict mode)
-    println!(
-        "{} Strict mode: validating invoke parameters...",
-        "→".cyan()
-    );
-
+    // MCP parameter validation (strict mode)
     let invoke_tasks: Vec<_> = workflow
         .tasks
         .iter()
@@ -965,9 +1232,13 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         })
         .collect();
 
-    if invoke_tasks.is_empty() {
-        println!("  {} No invoke tasks to validate", "✓".green());
-    } else {
+    let mut mcp_results: Vec<McpCheckResult> = Vec::new();
+    let mut all_valid = true;
+    let mut total_calls = 0u32;
+    let mut valid_calls = 0u32;
+    let mut total_param_errors = 0u32;
+
+    if !invoke_tasks.is_empty() {
         let mcp_validator = McpValidator::new(ValidationConfig::default());
 
         let mcp_servers: std::collections::HashSet<&str> = invoke_tasks
@@ -989,11 +1260,7 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
                 });
             };
 
-            println!(
-                "  {} Connecting to MCP server '{}'...",
-                "→".cyan(),
-                server_name
-            );
+            let connect_start = Instant::now();
 
             let mut config = McpConfig::new(server_name, &inline_config.command)
                 .with_args(inline_config.args.iter().cloned());
@@ -1008,64 +1275,252 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
             client.connect().await?;
 
             let tools = client.list_tools().await?;
-            println!("    {} Found {} tools", "✓".green(), tools.len());
+            let connect_ms = connect_start.elapsed().as_millis() as u64;
 
             mcp_validator.cache().populate(server_name, &tools)?;
-        }
 
-        let mut all_valid = true;
-        for (task_id, params) in &invoke_tasks {
-            let tool_name = params.tool.as_deref().unwrap_or("(resource read)");
-
-            if let Some(ref tool) = params.tool {
-                let invoke_params = params.params.clone().unwrap_or_default();
-                let mcp_server = params.mcp.as_deref().unwrap_or("unknown");
-                let result = mcp_validator.validate(mcp_server, tool, &invoke_params);
-
-                if result.is_valid {
-                    println!(
-                        "    {} Task '{}': {} parameters valid",
-                        "✓".green(),
-                        task_id,
-                        tool_name
-                    );
-                } else {
-                    all_valid = false;
-                    println!(
-                        "    {} Task '{}': {} validation errors",
-                        "✗".red(),
-                        task_id,
-                        result.errors.len()
-                    );
-                    for error in &result.errors {
-                        println!("      {} [{}] {}", "→".yellow(), error.path, error.message);
-                    }
+            // Validate invoke tasks targeting this server
+            let mut validations: Vec<McpCallValidation> = Vec::new();
+            for (task_id, params) in &invoke_tasks {
+                if params.mcp.as_deref() != Some(server_name) {
+                    continue;
                 }
-            } else {
-                println!(
-                    "    {} Task '{}': resource read (no params to validate)",
-                    "•".cyan(),
-                    task_id
-                );
-            }
-        }
+                total_calls += 1;
 
-        if !all_valid {
-            return Err(NikaError::ValidationError {
-                reason: "Strict validation failed: invoke parameters don't match tool schemas"
-                    .to_string(),
+                if let Some(ref tool) = params.tool {
+                    let invoke_params = params.params.clone().unwrap_or_default();
+                    let result = mcp_validator.validate(server_name, tool, &invoke_params);
+
+                    if result.is_valid {
+                        valid_calls += 1;
+                        validations.push(McpCallValidation {
+                            task_id: task_id.to_string(),
+                            tool_name: tool.clone(),
+                            valid: true,
+                            errors: vec![],
+                        });
+                    } else {
+                        all_valid = false;
+                        let errors: Vec<McpParamError> = result
+                            .errors
+                            .iter()
+                            .map(|e| McpParamError {
+                                path: e.path.clone(),
+                                message: e.message.clone(),
+                            })
+                            .collect();
+                        total_param_errors += errors.len() as u32;
+                        validations.push(McpCallValidation {
+                            task_id: task_id.to_string(),
+                            tool_name: tool.clone(),
+                            valid: false,
+                            errors,
+                        });
+                    }
+                } else {
+                    // Resource read -- no params to validate
+                    valid_calls += 1;
+                    validations.push(McpCallValidation {
+                        task_id: task_id.to_string(),
+                        tool_name: "(resource read)".to_string(),
+                        valid: true,
+                        errors: vec![],
+                    });
+                }
+            }
+
+            mcp_results.push(McpCheckResult {
+                server_name: server_name.to_string(),
+                tool_count: tools.len(),
+                connect_ms,
+                validations,
             });
         }
     }
 
-    println!("{} Workflow '{}' is valid (strict)", "✓".green(), file);
-    println!("  Provider: {}", workflow.provider);
-    println!(
-        "  Model: {}",
-        workflow.model.as_deref().unwrap_or("(default)")
+    // Print all output
+    print_check_header(file, true, env!("CARGO_PKG_VERSION"));
+
+    // Phase 1: Schema
+    print_phase(&PhaseResult {
+        name: "schema",
+        passed: true,
+        detail: format!("YAML valid against @{}", workflow.schema),
+        duration_ms: schema_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // Phase 2: Parse
+    print_phase(&PhaseResult {
+        name: "parse",
+        passed: true,
+        detail: format!(
+            "{} tasks \u{00B7} provider: {} \u{00B7} model: {}",
+            workflow.tasks.len(),
+            workflow.provider,
+            workflow.model.as_deref().unwrap_or("(default)")
+        ),
+        duration_ms: parse_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // Phase 3: Includes
+    print_phase(&PhaseResult {
+        name: "includes",
+        passed: true,
+        detail: "resolved".to_string(),
+        duration_ms: includes_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // Phase 4: DAG
+    print_phase(&PhaseResult {
+        name: "dag",
+        passed: true,
+        detail: format!("{} edges \u{00B7} acyclic", workflow.flow_count()),
+        duration_ms: dag_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // Phase 5: Bindings
+    print_phase(&PhaseResult {
+        name: "bindings",
+        passed: true,
+        detail: "all references valid".to_string(),
+        duration_ms: bindings_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // Phase 6: Schemas
+    let schemas_detail = if schema_count > 0 {
+        format!("{} validated", schema_count)
+    } else {
+        "none required".to_string()
+    };
+    print_phase(&PhaseResult {
+        name: "schemas",
+        passed: true,
+        detail: schemas_detail,
+        duration_ms: schemas_elapsed.as_millis() as u64,
+        errors: vec![],
+        hints: vec![],
+    });
+
+    // MCP Validation section
+    if !mcp_results.is_empty() {
+        print_mcp_validation(&mcp_results);
+    }
+
+    // Show DAG visualization for multi-task workflows
+    if workflow.tasks.len() > 1 {
+        use nika::display::{render_dag, DagTask, DagTaskStatus};
+        use std::collections::HashMap;
+
+        // Build a set of task IDs that failed MCP validation
+        let failed_task_ids: std::collections::HashSet<String> = mcp_results
+            .iter()
+            .flat_map(|r| &r.validations)
+            .filter(|v| !v.valid)
+            .map(|v| v.task_id.clone())
+            .collect();
+
+        let dag_tasks: Vec<DagTask> = workflow
+            .tasks
+            .iter()
+            .map(|t| {
+                let status = if failed_task_ids.contains(&t.id) {
+                    DagTaskStatus::Failed
+                } else if invoke_tasks.iter().any(|(id, _)| *id == t.id) {
+                    DagTaskStatus::Success
+                } else {
+                    DagTaskStatus::Pending
+                };
+                DagTask {
+                    id: t.id.clone(),
+                    verb: t.action.verb_name().to_string(),
+                    status,
+                    meta: None,
+                    tags: Vec::new(),
+                }
+            })
+            .collect();
+
+        let mut deps_map: HashMap<String, Vec<String>> = HashMap::new();
+        for task in &workflow.tasks {
+            if let Some(ref task_deps) = task.depends_on {
+                deps_map.insert(task.id.clone(), task_deps.clone());
+            }
+        }
+
+        render_dag(&dag_tasks, &deps_map);
+    }
+
+    // Compute layer count for summary
+    let layer_count = {
+        let mut depths: std::collections::HashMap<&str, usize> =
+            workflow.tasks.iter().map(|t| (t.id.as_str(), 0)).collect();
+        let mut changed = true;
+        let mut iters = 0;
+        while changed && iters < 100 {
+            changed = false;
+            iters += 1;
+            for task in &workflow.tasks {
+                if let Some(ref task_deps) = task.depends_on {
+                    for dep in task_deps {
+                        if let Some(&dep_depth) = depths.get(dep.as_str()) {
+                            let new_depth = dep_depth + 1;
+                            if new_depth > depths[task.id.as_str()] {
+                                depths.insert(&task.id, new_depth);
+                                changed = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        depths.values().max().copied().unwrap_or(0) + 1
+    };
+
+    // Build error codes for summary
+    let mut error_codes: Vec<(&str, &str)> = Vec::new();
+    if !all_valid {
+        error_codes.push((
+            "NIKA-100",
+            "Strict validation failed: invoke parameter mismatch",
+        ));
+    }
+
+    // Strict info for summary
+    let strict_info = if total_calls > 0 {
+        Some((valid_calls, total_calls, total_param_errors))
+    } else {
+        None
+    };
+
+    // Summary footer
+    println!();
+    print_check_summary(
+        all_valid,
+        total_start.elapsed().as_millis() as u64,
+        workflow.tasks.len(),
+        workflow.flow_count(),
+        layer_count,
+        schema_count,
+        strict_info,
+        &error_codes,
     );
-    println!("  Tasks: {}", workflow.tasks.len());
-    println!("  Edges: {}", workflow.flow_count());
+
+    if !all_valid {
+        return Err(NikaError::ValidationError {
+            reason: "Strict validation failed: invoke parameters don't match tool schemas"
+                .to_string(),
+        });
+    }
 
     Ok(())
 }
