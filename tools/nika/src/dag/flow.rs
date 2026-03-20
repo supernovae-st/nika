@@ -462,6 +462,12 @@ impl Dag {
                     .cloned()
                     .unwrap_or_else(|| intern(&task.id));
                 for dep in deps {
+                    if !task_set.contains(dep.as_str()) {
+                        return Err(NikaError::MissingDependency {
+                            task_id: task.id.clone(),
+                            dep_id: dep.clone(),
+                        });
+                    }
                     let src_arc = task_set
                         .get(dep.as_str())
                         .cloned()
@@ -1220,5 +1226,179 @@ mod tests {
         let dag = result.unwrap();
         assert!(dag.has_path("produce", "process"));
         assert!(dag.has_path("process", "aggregate"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // BUG #27: from_workflow must reject phantom dependency references
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_from_workflow_phantom_dependency_returns_error() {
+        // A workflow where task "b" depends on "ghost" which doesn't exist.
+        // Previously this silently created a dangling edge → deadlock at runtime.
+        use crate::ast::{Task, TaskAction, Workflow};
+
+        let workflow = Workflow {
+            schema: "nika/workflow@0.12".to_string(),
+            provider: "test".to_string(),
+            model: None,
+            mcp: None,
+            context: None,
+            include: None,
+            agents: None,
+            skills: None,
+            artifacts: None,
+            log: None,
+            inputs: None,
+            tasks: vec![
+                Arc::new(Task {
+                    id: "a".to_string(),
+                    with_spec: None,
+                    output: None,
+                    decompose: None,
+                    for_each: None,
+                    for_each_as: None,
+                    concurrency: None,
+                    fail_fast: None,
+                    action: TaskAction::Exec {
+                        exec: crate::ast::ExecParams {
+                            command: "echo hello".to_string(),
+                            shell: Some(false),
+                            env: None,
+                            timeout: None,
+                            cwd: None,
+                        },
+                    },
+                    artifact: None,
+                    log: None,
+                    depends_on: None,
+                    structured: None,
+                }),
+                Arc::new(Task {
+                    id: "b".to_string(),
+                    with_spec: None,
+                    output: None,
+                    decompose: None,
+                    for_each: None,
+                    for_each_as: None,
+                    concurrency: None,
+                    fail_fast: None,
+                    action: TaskAction::Exec {
+                        exec: crate::ast::ExecParams {
+                            command: "echo world".to_string(),
+                            shell: Some(false),
+                            env: None,
+                            timeout: None,
+                            cwd: None,
+                        },
+                    },
+                    artifact: None,
+                    log: None,
+                    depends_on: Some(vec!["ghost".to_string()]),
+                    structured: None,
+                }),
+            ],
+        };
+
+        let result = Dag::from_workflow(&workflow);
+        assert!(
+            result.is_err(),
+            "Phantom dependency 'ghost' should be rejected"
+        );
+        let err = result.unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("NIKA-021"),
+            "Should be MissingDependency error, got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("ghost"),
+            "Error should mention the phantom dependency 'ghost', got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("b"),
+            "Error should mention the task 'b', got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_from_workflow_valid_dependency_accepted() {
+        // Ensure valid dependencies still work after the phantom check.
+        use crate::ast::{Task, TaskAction, Workflow};
+
+        let workflow = Workflow {
+            schema: "nika/workflow@0.12".to_string(),
+            provider: "test".to_string(),
+            model: None,
+            mcp: None,
+            context: None,
+            include: None,
+            agents: None,
+            skills: None,
+            artifacts: None,
+            log: None,
+            inputs: None,
+            tasks: vec![
+                Arc::new(Task {
+                    id: "a".to_string(),
+                    with_spec: None,
+                    output: None,
+                    decompose: None,
+                    for_each: None,
+                    for_each_as: None,
+                    concurrency: None,
+                    fail_fast: None,
+                    action: TaskAction::Exec {
+                        exec: crate::ast::ExecParams {
+                            command: "echo hello".to_string(),
+                            shell: Some(false),
+                            env: None,
+                            timeout: None,
+                            cwd: None,
+                        },
+                    },
+                    artifact: None,
+                    log: None,
+                    depends_on: None,
+                    structured: None,
+                }),
+                Arc::new(Task {
+                    id: "b".to_string(),
+                    with_spec: None,
+                    output: None,
+                    decompose: None,
+                    for_each: None,
+                    for_each_as: None,
+                    concurrency: None,
+                    fail_fast: None,
+                    action: TaskAction::Exec {
+                        exec: crate::ast::ExecParams {
+                            command: "echo world".to_string(),
+                            shell: Some(false),
+                            env: None,
+                            timeout: None,
+                            cwd: None,
+                        },
+                    },
+                    artifact: None,
+                    log: None,
+                    depends_on: Some(vec!["a".to_string()]),
+                    structured: None,
+                }),
+            ],
+        };
+
+        let result = Dag::from_workflow(&workflow);
+        assert!(
+            result.is_ok(),
+            "Valid dependency should be accepted: {:?}",
+            result.err()
+        );
+
+        let dag = result.unwrap();
+        assert!(dag.has_path("a", "b"));
     }
 }
