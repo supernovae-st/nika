@@ -21,7 +21,7 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 23 media/fetch tools (nika:thumbnail, etc.)
+│   ├── builtin/         #   12 core + 26 media/fetch tools (nika:thumbnail, etc.)
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── mcp/                 # MCP client (rmcp adapter, pool, retry, validation)
@@ -89,6 +89,7 @@ cargo clippy -- -D warnings  # Zero warnings policy
 - **Dependencies:** `depends_on: [task_id]`
 - **Bindings:** `with: { alias: $task_id }` — `$` prefix required
 - **Timeout:** `timeout:` in seconds (parser converts to ms internally)
+- **Pipe transforms:** `{{with.data | uppercase | trim}}` — available in all template contexts
 - **Logging:** `tracing` macros
 - **Tests:** TDD preferred. `insta` for snapshots. `cargo test --lib` always.
 
