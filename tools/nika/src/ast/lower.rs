@@ -654,8 +654,8 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             timeout_ms: fetch.timeout.map(|s| s * 1000),
             follow_redirects: fetch.follow_redirects.unwrap_or(true),
             response: fetch.response.clone(),
-            extract: None,
-            selector: None,
+            extract: fetch.extract.clone(),
+            selector: fetch.selector.clone(),
             span: Span::dummy(),
         }),
         TaskAction::Invoke { invoke } => AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
