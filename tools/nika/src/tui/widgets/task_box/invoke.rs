@@ -6,12 +6,13 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 
 /// InvokeBox data and rendering
@@ -216,7 +217,7 @@ impl InvokeBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
+        let dim_style = Style::default().fg(compat::SLATE_500);
 
         let status_icon = self.state.icon();
         let server_info = format!("server: {}", self.server);
@@ -242,9 +243,9 @@ impl InvokeBox {
     pub fn to_list_items(&self, _ctx: &StreamingContext) -> Vec<ListItem<'static>> {
         let verb = VerbColor::Invoke;
         let verb_color = verb.rgb();
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let success_style = Style::default().fg(Color::Rgb(34, 197, 94));
-        let error_style = Style::default().fg(Color::Rgb(239, 68, 68));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let success_style = Style::default().fg(compat::GREEN_500);
+        let error_style = Style::default().fg(compat::RED_500);
 
         // Compact mode: single line
         if self.render_mode == RenderMode::Compact {
@@ -284,9 +285,9 @@ impl InvokeBox {
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", border_style),
             Span::styled("Tool: ", dim_style),
-            Span::styled(self.tool.clone(), Style::default().fg(Color::White)),
+            Span::styled(self.tool.clone(), Style::default().fg(compat::SLATE_200)),
             Span::styled(" @ ", dim_style),
-            Span::styled(self.server.clone(), Style::default().fg(Color::Cyan)),
+            Span::styled(self.server.clone(), Style::default().fg(compat::CYAN_500)),
         ])));
 
         // PARAMS section
@@ -387,10 +388,10 @@ impl Widget for InvokeBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let success_style = Style::default().fg(Color::Rgb(34, 197, 94));
-        let error_style = Style::default().fg(Color::Rgb(239, 68, 68));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let success_style = Style::default().fg(compat::GREEN_500);
+        let error_style = Style::default().fg(compat::RED_500);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();

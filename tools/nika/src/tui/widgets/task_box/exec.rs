@@ -6,12 +6,13 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{exit, BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 
 /// ExecBox data and rendering
@@ -181,9 +182,9 @@ impl ExecBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let stderr_style = Style::default().fg(Color::Rgb(251, 191, 36)); // Amber
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let stderr_style = Style::default().fg(compat::AMBER_400); // Amber
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -330,9 +331,9 @@ impl Widget for ExecBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let stderr_style = Style::default().fg(Color::Rgb(251, 191, 36)); // Amber
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let stderr_style = Style::default().fg(compat::AMBER_400); // Amber
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -438,7 +439,7 @@ impl Widget for ExecBox {
         let exit_color = self
             .exit_code
             .map(exit::code_color)
-            .unwrap_or(Color::Rgb(100, 116, 139));
+            .unwrap_or(compat::SLATE_500);
         let exit_style = Style::default().fg(exit_color);
 
         let pid_str = self

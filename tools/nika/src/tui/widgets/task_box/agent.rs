@@ -6,7 +6,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
@@ -14,6 +14,7 @@ use ratatui::{
 use super::StreamingContext;
 
 use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
+use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 
 /// AgentBox data and rendering
@@ -317,9 +318,9 @@ impl AgentBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let metric_style = Style::default().fg(Color::Rgb(148, 163, 184));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let metric_style = Style::default().fg(compat::SLATE_400);
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -476,9 +477,9 @@ impl Widget for AgentBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let metric_style = Style::default().fg(Color::Rgb(148, 163, 184));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let metric_style = Style::default().fg(compat::SLATE_400);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();

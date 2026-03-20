@@ -8,12 +8,13 @@ use std::collections::HashMap;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{ListItem, Widget},
 };
 
 use super::{http, BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
 
 /// FetchBox data and rendering
@@ -219,8 +220,8 @@ impl FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let line_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let method_style = Style::default().fg(compat::CYAN_400); // Cyan
 
         let status_icon = self.state.icon();
         let status_text = self
@@ -257,9 +258,9 @@ impl FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
-        let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
+        let method_style = Style::default().fg(compat::CYAN_400); // Cyan
 
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix();
@@ -355,7 +356,7 @@ impl FetchBox {
         let status_color = self
             .status_code
             .map(http::status_color)
-            .unwrap_or(Color::Rgb(100, 116, 139));
+            .unwrap_or(compat::SLATE_500);
         let status_text = self
             .status_code
             .map(|c| format!("{} {}", c, http::status_text(c)))
@@ -438,8 +439,8 @@ impl Widget for FetchBox {
             .state
             .border_color_with_pulse(verb.rgb(), self.pulse_intensity);
         let border_style = Style::default().fg(border_color);
-        let dim_style = Style::default().fg(Color::Rgb(100, 116, 139));
-        let content_style = Style::default().fg(Color::Rgb(226, 232, 240));
+        let dim_style = Style::default().fg(compat::SLATE_500);
+        let content_style = Style::default().fg(compat::SLATE_200);
 
         let inner_width = (area.width - 2) as usize;
         let status_icon = self.state.icon();
@@ -461,7 +462,7 @@ impl Widget for FetchBox {
             buf.set_string(area.x, y, "│", border_style);
             buf.set_string(area.x + area.width - 1, y, "│", border_style);
 
-            let method_style = Style::default().fg(Color::Rgb(34, 211, 238)); // Cyan
+            let method_style = Style::default().fg(compat::CYAN_400); // Cyan
             let url_display = Self::truncate(&self.url, inner_width - self.method.len() - 4);
             buf.set_string(area.x + 2, y, &self.method, method_style);
             buf.set_string(
@@ -547,7 +548,7 @@ impl Widget for FetchBox {
             let status_color = self
                 .status_code
                 .map(http::status_color)
-                .unwrap_or(Color::Rgb(100, 116, 139));
+                .unwrap_or(compat::SLATE_500);
             let status_text = self
                 .status_code
                 .map(|c| format!("{} {}", c, http::status_text(c)))

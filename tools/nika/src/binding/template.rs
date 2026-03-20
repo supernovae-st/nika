@@ -778,105 +778,158 @@ pub fn resolve<'a>(
     let template_str: &str = normalized.as_ref();
 
     // Single-pass: build result by copying segments + inserting replacements
-    // Better capacity: template length + some extra for expansions
+    // Uses TEMPLATE_RE (matches ALL {{...}}) + parse_template_expr for full transform support.
     let mut result = String::with_capacity(template_str.len() + 64);
     let mut last_end = 0;
-    // SmallVec: stack-allocated for up to 4 errors (common case: 0-1 errors)
-    // Note: must be String because alias borrows from cap which is dropped each iteration
     let mut errors: SmallVec<[String; 4]> = SmallVec::new();
 
-    for cap in USE_RE.captures_iter(template_str) {
+    for cap in TEMPLATE_RE.captures_iter(template_str) {
         let m = cap.get(0).unwrap();
-        let path = &cap[1]; // e.g., "forecast" or "flight_info.departure"
-        let modifier = cap.get(2).map(|m| m.as_str()); // optional |shell modifier
+        let content = &cap[1];
 
         // Copy segment before this match
         result.push_str(&template_str[last_end..m.start()]);
 
-        // Guard: reject pathologically deep alias paths
-        let segment_count = path.split('.').count();
-        if segment_count > MAX_PATH_DEPTH {
-            return Err(NikaError::TemplateError {
-                template: path.to_string(),
-                reason: format!(
-                    "Path depth {} exceeds maximum of {} segments",
-                    segment_count, MAX_PATH_DEPTH
-                ),
-            });
-        }
-
-        // Split: first segment is alias, rest is nested path
-        let mut parts = path.split('.');
-        let alias = parts.next().unwrap();
-
-        // Get the resolved value for this alias (supports lazy bindings via RunContext)
-        match bindings.get_resolved(alias, datastore) {
-            Ok(base_value) => {
-                // Zero-clone traversal: use references until we need the final value
-                let mut value_ref: &Value = &base_value;
-                let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
-                traversed_segments.push(alias);
-
-                // Traverse nested path if present (all by reference)
-                for segment in parts {
-                    let next = if let Ok(idx) = segment.parse::<usize>() {
-                        value_ref.get(idx)
-                    } else {
-                        value_ref.get(segment)
-                    };
-
-                    match next {
-                        Some(v) => {
-                            traversed_segments.push(segment);
-                            value_ref = v;
-                        }
-                        None => {
-                            // Determine if it's an invalid traversal or missing field
-                            let value_type = match value_ref {
-                                Value::Null => "null",
-                                Value::Bool(_) => "bool",
-                                Value::Number(_) => "number",
-                                Value::String(_) => "string",
-                                Value::Array(_) => "array",
-                                Value::Object(_) => "object",
-                            };
-
-                            if matches!(value_ref, Value::Object(_) | Value::Array(_)) {
-                                // Field/index doesn't exist - build path for error
-                                let traversed_path = traversed_segments.join(".");
-                                return Err(NikaError::PathNotFound {
-                                    path: format!("{}.{}", traversed_path, segment),
-                                });
-                            } else {
-                                // Trying to traverse a primitive
-                                return Err(NikaError::InvalidTraversal {
-                                    segment: segment.to_string(),
-                                    value_type: value_type.to_string(),
-                                    full_path: path.to_string(),
-                                });
-                            }
-                        }
-                    }
+        match parse_template_expr(content) {
+            Ok(TemplateExpr::Alias {
+                ref path,
+                ref transforms,
+            }) => {
+                // Guard: reject pathologically deep alias paths
+                let segment_count = path.split('.').count();
+                if segment_count > MAX_PATH_DEPTH {
+                    return Err(NikaError::TemplateError {
+                        template: path.to_string(),
+                        reason: format!(
+                            "Path depth {} exceeds maximum of {} segments",
+                            segment_count, MAX_PATH_DEPTH
+                        ),
+                    });
                 }
 
-                // Convert Value to string (strict mode - null is error)
-                // This is the ONLY place we convert/allocate for the value
-                let replacement = value_to_string(value_ref, path, alias)?;
+                // Split: first segment is alias, rest is nested path
+                let mut parts = path.split('.');
+                let alias = parts.next().unwrap();
 
-                // Apply modifier or context-based escaping
-                let replacement = match modifier {
-                    Some("shell") => Cow::Owned(escape_for_shell(&replacement)),
-                    _ if is_in_json_context(template_str, m.start()) => {
-                        escape_for_json(&replacement)
+                // Get the resolved value for this alias (supports lazy bindings via RunContext)
+                match bindings.get_resolved(alias, datastore) {
+                    Ok(base_value) => {
+                        // Zero-clone traversal: use references until we need the final value
+                        let mut value_ref: &Value = &base_value;
+                        let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
+                        traversed_segments.push(alias);
+
+                        // Traverse nested path if present (all by reference)
+                        for segment in parts {
+                            let next = if let Ok(idx) = segment.parse::<usize>() {
+                                value_ref.get(idx)
+                            } else {
+                                value_ref.get(segment)
+                            };
+
+                            match next {
+                                Some(v) => {
+                                    traversed_segments.push(segment);
+                                    value_ref = v;
+                                }
+                                None => {
+                                    let value_type = match value_ref {
+                                        Value::Null => "null",
+                                        Value::Bool(_) => "bool",
+                                        Value::Number(_) => "number",
+                                        Value::String(_) => "string",
+                                        Value::Array(_) => "array",
+                                        Value::Object(_) => "object",
+                                    };
+
+                                    if matches!(value_ref, Value::Object(_) | Value::Array(_)) {
+                                        let traversed_path = traversed_segments.join(".");
+                                        return Err(NikaError::PathNotFound {
+                                            path: format!("{}.{}", traversed_path, segment),
+                                        });
+                                    } else {
+                                        return Err(NikaError::InvalidTraversal {
+                                            segment: segment.to_string(),
+                                            value_type: value_type.to_string(),
+                                            full_path: path.to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
+                        // Apply transforms if any, then convert to string
+                        let has_shell = transforms.iter().any(|t| t == "shell");
+
+                        let display = if has_shell {
+                            // Shell transform: apply non-shell transforms first, then escape
+                            let non_shell: Vec<&String> =
+                                transforms.iter().filter(|t| *t != "shell").collect();
+                            let pre_shell_value = if non_shell.is_empty() {
+                                value_ref.clone()
+                            } else {
+                                let transform_str = non_shell
+                                    .iter()
+                                    .map(|s| s.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(" | ");
+                                let expr =
+                                    crate::binding::transform::TransformExpr::parse(&transform_str)
+                                        .map_err(|e| NikaError::TemplateParse {
+                                            position: m.start(),
+                                            details: format!("Transform parse error: {}", e),
+                                        })?;
+                                expr.apply(value_ref)
+                                    .map_err(|e| NikaError::TemplateParse {
+                                        position: m.start(),
+                                        details: format!("Transform apply error: {}", e),
+                                    })?
+                            };
+                            escape_for_shell(&value_to_display(&pre_shell_value))
+                        } else if !transforms.is_empty() {
+                            // Non-shell transforms: parse and apply chain
+                            let transform_str = transforms.join(" | ");
+                            let expr =
+                                crate::binding::transform::TransformExpr::parse(&transform_str)
+                                    .map_err(|e| NikaError::TemplateParse {
+                                        position: m.start(),
+                                        details: format!("Transform parse error: {}", e),
+                                    })?;
+                            let final_value =
+                                expr.apply(value_ref)
+                                    .map_err(|e| NikaError::TemplateParse {
+                                        position: m.start(),
+                                        details: format!("Transform apply error: {}", e),
+                                    })?;
+                            if is_in_json_context(template_str, m.start()) {
+                                escape_for_json(&value_to_display(&final_value)).into_owned()
+                            } else {
+                                value_to_display(&final_value).into_owned()
+                            }
+                        } else {
+                            // No transforms: use strict value_to_string (null = error)
+                            let replacement = value_to_string(value_ref, path, alias)?;
+                            if is_in_json_context(template_str, m.start()) {
+                                escape_for_json(&replacement).into_owned()
+                            } else {
+                                replacement.into_owned()
+                            }
+                        };
+
+                        result.push_str(&display);
                     }
-                    _ => replacement,
-                };
-
-                result.push_str(&replacement);
+                    Err(_) => {
+                        errors.push(alias.to_string());
+                    }
+                }
+            }
+            Ok(TemplateExpr::Context(_) | TemplateExpr::Input(_)) => {
+                // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
+                result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
             Err(_) => {
-                // Binding not found (neither eager nor lazy)
-                errors.push(alias.to_string());
+                // Malformed expression — re-emit literally
+                result.push_str(m.as_str());
             }
         }
 
@@ -3142,21 +3195,13 @@ mod v028_template_tests {
         bindings.set("items", json!(["a", "b", "c"]));
         let ds = empty_datastore();
 
-        // Negative index is NOT supported by normalize_bracket_notation.
-        // The regex only matches `[\d+]`, so `[-1]` is left as-is in the path.
-        // The resolver then treats it as an unknown segment, returning unresolved.
+        // Negative index is NOT supported — the template engine now correctly reports
+        // an error instead of silently leaving the template unresolved.
         let result = resolve("{{with.items[-1]}}", &bindings, &ds);
         assert!(
-            result.is_ok(),
-            "Negative index silently returns unresolved template: {:?}",
+            result.is_err(),
+            "Negative index should produce an error, got: {:?}",
             result
-        );
-        // Documented limitation: negative indices are not supported
-        let value = result.unwrap();
-        assert!(
-            value.contains("items[-1]"),
-            "Template left unresolved: {}",
-            value
         );
     }
 
@@ -3170,12 +3215,11 @@ mod v028_template_tests {
         let ds = empty_datastore();
 
         // Documented limitation: bracket notation only supports numeric indices.
-        // `[key]` is NOT converted to `.key` by normalize_bracket_notation.
+        // The template engine now correctly reports an error for non-numeric brackets.
         let result = resolve("{{with.data[key]}}", &bindings, &ds);
-        // The template is left unresolved since [key] isn't normalized
         assert!(
-            result.is_ok(),
-            "Non-numeric bracket access returns unresolved: {:?}",
+            result.is_err(),
+            "Non-numeric bracket access should produce an error, got: {:?}",
             result
         );
     }
