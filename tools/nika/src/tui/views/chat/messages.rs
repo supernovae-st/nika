@@ -142,7 +142,7 @@ impl ChatView {
                     MessageRole::User => ("👤 You", theme.trait_retrieved),
                     MessageRole::Nika => ("🤖 AI", theme.status_success),
                     MessageRole::System => ("💡 System", theme.status_running),
-                    MessageRole::Tool => ("🔧 Tool", theme.mcp_traverse),
+                    MessageRole::Tool => ("🔧 Tool", theme.mcp_context),
                 };
 
                 // WOW: Flash effect - bright highlight when copied

@@ -16,7 +16,7 @@ This section summarizes the design decisions validated during the 2026-03-15 bra
 |----------|---------|
 | **Approach** | **Approach C (Full Capabilities Manifest) + Progressive Disclosure** |
 | **Capability Source** | Hybrid: Model modalities + Tool input schemas (auto-inferred) |
-| **Routing** | Shaka capability-match with LLM fallback for ambiguous cases |
+| **Routing** | Orchestrator capability-match with LLM fallback for ambiguous cases |
 | **Image Generation** | MCP tools (image-gen:*) called by satellite LLMs, not dedicated workers |
 | **Local Models** | `provider: native` with mistral.rs, optional cloud fallback |
 | **Extensibility** | MCP as universal capability extender |
@@ -61,7 +61,7 @@ The most structured approach is Google's **A2A AgentCard** with explicit `skills
 
 14. [Progressive Disclosure Design](#14-progressive-disclosure-design)
 15. [Capability Inference](#15-capability-inference)
-16. [Shaka Routing Algorithm](#16-shaka-routing-algorithm)
+16. [Orchestrator Routing Algorithm](#16-orchestrator-routing-algorithm)
 17. [Image Generation Strategy](#17-image-generation-strategy)
 18. [Local Native Models](#18-local-native-models)
 19. [MCP as Capability Extender](#19-mcp-as-capability-extender)
@@ -1314,15 +1314,15 @@ satellites:
 
 ---
 
-## 16. Shaka Routing Algorithm
+## 16. Orchestrator Routing Algorithm
 
-The Shaka orchestrator uses capability-based routing with LLM fallback for ambiguous cases.
+The orchestrator uses capability-based routing with LLM fallback for ambiguous cases.
 
 ### Routing Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  SHAKA ROUTING ALGORITHM                                                        │
+│  ORCHESTRATOR ROUTING ALGORITHM                                                        │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  1. DETECT INPUT MIME TYPE(S)                                                   │
@@ -1343,7 +1343,7 @@ The Shaka orchestrator uses capability-based routing with LLM fallback for ambig
 │  4. LLM SELECTOR (when multiple candidates)                                     │
 │     └── Small model (e.g., claude-haiku) with context:                          │
 │         ├── Input description                                                   │
-│         ├── Goal/task context from shaka: block                                 │
+│         ├── Goal/task context from goal: block                                 │
 │         ├── Candidate satellites with descriptions + tags                       │
 │         └── Returns: satellite_id                                               │
 │                                                                                 │
@@ -1356,7 +1356,7 @@ The Shaka orchestrator uses capability-based routing with LLM fallback for ambig
 ### Configuration
 
 ```yaml
-shaka:
+goal:
   routing:
     strategy: capability-match     # capability-match | round-robin | static
     selector:

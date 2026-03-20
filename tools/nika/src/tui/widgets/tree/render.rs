@@ -39,6 +39,7 @@ pub mod chars {
     /// Expanded folder arrow (fallback)
     pub const EXPANDED_FALLBACK: &str = "▼";
     /// Spacer (empty indent)
+    #[allow(dead_code)]
     pub const SPACER: &str = "  ";
 }
 
@@ -303,9 +304,11 @@ struct FlatNode {
     id: u64,
     name: String,
     kind: NodeKind,
+    #[allow(dead_code)]
     depth: usize,
     is_directory: bool,
     is_expanded: bool,
+    #[allow(dead_code)]
     is_last: bool,
     ancestors: Vec<bool>,
     git_status: Option<super::GitStatus>,

@@ -22,14 +22,14 @@ flowchart LR
     subgraph TOMORROW["v0.30 — Target"]
         F1["4-slot model routing"]
         F2["Record compression"]
-        F3["Shaka orchestration"]
+        F3["Orchestration mode"]
         F4["Context budget mgmt"]
         F5["3-tier Punk Records"]
     end
 
     T1 -->|"P-MODEL"| F1
     T2 -->|"P-RECORD"| F2
-    T3 -->|"P-SHAKA"| F3
+    T3 -->|"P-ORCHESTRATE"| F3
     T4 -->|"P-CONTEXT"| F4
     T5 -->|"P-MEMORY"| F5
 
@@ -48,7 +48,7 @@ flowchart LR
 flowchart TD
     PM["🎛️ P-MODEL\n4-slot model routing"]
     PE["📦 P-RECORD\nRecord compression"]
-    PS["🎯 P-SHAKA\nShaka orchestration"]
+    PS["🎯 P-ORCHESTRATE\nOrchestration mode"]
     PC["📊 P-CONTEXT\nContext budgeting"]
     PMEM["🧠 P-MEMORY\n3-tier Punk Records"]
     PI["🔍 P-INTROSPECT\nRuntime introspection"]
@@ -81,7 +81,7 @@ flowchart TD
 ```
 
 > [!NOTE]
-> **Old P3 (ConfidenceRouter) absorbed** — Confidence is now a record property. The Shaka LLM handles escalation naturally, with full context, rather than a rigid router with fixed rules.
+> **Old P3 (ConfidenceRouter) absorbed** — Confidence is now a record property. The orchestrator handles escalation naturally, with full context, rather than a rigid router with fixed rules.
 
 ---
 
@@ -248,7 +248,7 @@ tasks:
       compress: true           # Generate record summary after execution
       retain: [key_findings]   # What to keep from raw output
       max_tokens: 500          # Record summary size limit
-      confidence_threshold: 0.8 # Shaka can escalate if below
+      confidence_threshold: 0.8 # Orchestrator can escalate if below
 ```
 
 </details>
@@ -284,8 +284,8 @@ Old approach (ConfidenceRouter):
   Rigid. Fixed rules. No context.
 
 New approach (Record confidence):
-  Task → Record (with confidence) → Shaka LLM sees low confidence
-  → Shaka DECIDES: retry with better model? get more context? skip?
+  Task → Record (with confidence) → Orchestrator sees low confidence
+  → Orchestrator DECIDES: retry with better model? get more context? skip?
   Adaptive. Full context. Natural escalation.
 ```
 
@@ -319,15 +319,15 @@ New approach (Record confidence):
 
 ---
 
-## Wave 2: Shaka Intelligence (v0.29, schema @0.13)
+## Wave 2: Orchestrator Intelligence (v0.29, schema @0.13)
 
-### P-SHAKA: Shaka Orchestration
+### P-ORCHESTRATE: Orchestrate Mode
 
-A new workflow execution mode where a **Shaka LLM** dynamically dispatches **satellites** based on the goal and accumulated records. This is Slate's thread weaving[^1]: implicit adaptive decomposition via an orchestrator loop.
+A new workflow execution mode where Nika's **orchestrator** dynamically dispatches **satellites** based on the goal and accumulated records. This is Slate's thread weaving[^1]: implicit adaptive decomposition via an orchestrator loop.
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Shaka LLM
+    participant S as 🎯 Orchestrator
     participant R as 🔍 research
     participant W as ✍️ write_section
     participant V as 🔬 review
@@ -356,10 +356,10 @@ sequenceDiagram
 
 | Aspect | Today (v0.27) | After (v0.29) |
 |--------|---------------|---------------|
-| Execution mode | Static DAG only | `dag` (default) or `shaka` |
-| Task dispatch | All known at parse time | Dynamic by Shaka LLM |
+| Execution mode | Static DAG only | `dag` (default) or `goal:` (auto-detected) |
+| Task dispatch | All known at parse time | Dynamic by orchestrator |
 | Inter-task data | Raw `with:` bindings | Record synthesis between rounds |
-| Stopping condition | DAG completed | Shaka LLM decides "DONE" |
+| Stopping condition | DAG completed | Orchestrator decides "DONE" |
 | DAG mutation | Immutable after parse | `DynamicDag` adds tasks at runtime |
 
 <details>
@@ -369,7 +369,7 @@ sequenceDiagram
 schema: nika/workflow@0.13
 workflow: landing-page-generator
 
-orchestration: shaka    # NEW: enables shaka/satellites mode
+goal: "Generate a complete French landing page for QR Code AI"  # NEW: goal: field auto-enables orchestrate mode
 
 model_slots:
   pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
@@ -377,13 +377,11 @@ model_slots:
   york: { provider: groq, model: llama-3.3-70b-versatile }
   atlas: { provider: deepseek, model: deepseek-chat }
 
-shaka:
-  goal: "Generate a complete French landing page for QR Code AI"
   model_slot: pythagoras
   max_rounds: 10
   record_budget: 15000    # Total token budget across all records
 
-# Satellite templates — dispatched dynamically by Shaka
+# Satellite templates — dispatched dynamically by the orchestrator
 tasks:
   - id: research
     model_slot: york
@@ -423,13 +421,13 @@ tasks:
 
 | Change | Location | Effort |
 |--------|----------|--------|
-| `ShakaOrchestrator` struct | `runtime/shaka.rs` (NEW) | **High** |
+| `Orchestrator` struct | `runtime/orchestrator.rs` (NEW) | **High** |
 | `SatelliteTemplate`, `SatelliteInstance` | `runtime/satellite.rs` (NEW) | Medium |
 | `DynamicDag` (mutable DAG) | `dag/dynamic.rs` (NEW) | **High** |
-| `orchestration:` + `shaka:` fields | `ast/raw/workflow.rs` | Low |
-| Shaka mode routing | `runtime/runner.rs` | Medium |
+| `goal:` field (auto-detected) | `ast/raw/workflow.rs` | Low |
+| Orchestrate mode routing | `runtime/runner.rs` | Medium |
 | Mutable DAG operations | `dag/mod.rs` | Medium |
-| Shaka visualization in TUI | `tui/views/runner.rs` | Medium |
+| Orchestrator visualization in TUI | `tui/views/runner.rs` | Medium |
 | Schema bump | `schemas/nika-workflow.schema.json` → @0.13 | Low |
 
 **Dependencies:** Requires P-MODEL + P-RECORD (Wave 1) as foundation.
@@ -440,9 +438,140 @@ tasks:
 <summary>📚 Source Inspiration</summary>
 
 - **Slate:** Thread weaving — implicit adaptive decomposition[^1]
-- **Slate:** Shaka/satellites separation, AlphaZero mapping (value network = Shaka, policy network = satellites)[^5]
+- **Slate:** Orchestrator/satellites separation (historical: "Shaka" in One Piece naming), AlphaZero mapping (value network = orchestrator, policy network = satellites)[^5]
 - **THREAD:** Hierarchical decomposition with resource-aware model selection[^2]
 - **RLM:** Recursive sub-LM calls with external working memory[^6]
+
+</details>
+
+---
+
+### Dynamic Workflow Generation
+
+The core capability of P-ORCHESTRATE. When Nika receives a `goal:`, the orchestrator does not merely dispatch existing tasks — it **writes new `.nika.yaml` workflows on the fly**, runs them, evaluates quality, improves them, and re-runs until the goal is achieved. The orchestrator thinks in YAML workflows, not natural language.
+
+When Nika receives a `goal:`, the orchestrator:
+
+1. **Plans in YAML** — Creates a `.nika.yaml` workflow to achieve the goal
+   - Uses ALL Nika features: 5 verbs, agents, guardrails, limits, structured output
+   - The plan IS a workflow — deterministic, auditable, version-controlled
+
+2. **Executes the plan** — Runs the generated workflow via `nika:run`
+
+3. **Evaluates quality** — Checks results against guardrails and goal criteria
+
+4. **Improves the plan** — If quality is insufficient:
+   - Analyzes what failed (via records and events)
+   - Rewrites the workflow with improvements
+   - Re-runs the improved version
+
+5. **Parallelizes** — Can generate and run MULTIPLE workflows simultaneously
+   - Different strategies for the same goal
+   - Pick the best result
+   - Or combine results from parallel workflows
+
+6. **Is omniscient** — Has access to:
+   - `nika:cost` (budget awareness)
+   - `nika:events` (what happened)
+   - `nika:dag_info` (workflow structure)
+   - `nika:task_status` (per-task results)
+   - All agent definitions (available capabilities)
+
+The orchestrator loop:
+
+```
+goal: "Generate French landing page"
+  |
+Round 1: Nika writes plan.nika.yaml
+  |
+Round 2: Nika runs plan.nika.yaml -> gets results
+  |
+Round 3: Nika evaluates -> quality 0.6 (too low)
+  |
+Round 4: Nika writes improved-plan.nika.yaml
+  |
+Round 5: Nika runs improved plan -> quality 0.9 -> DONE
+```
+
+<details>
+<summary>Example: What the Orchestrator Generates Internally</summary>
+
+```yaml
+# Auto-generated by Nika's orchestrator
+schema: nika/workflow@0.13
+name: __orchestrator_round_1
+
+models:
+  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
+
+agents:
+  researcher:
+    model: sonnet
+    system: "You are a QR code market research analyst"
+    mcp: [web-search]
+    completion: { mode: explicit }
+    limits: { max_turns: 10, max_cost_usd: 0.50 }
+
+  writer:
+    model: sonnet
+    system: "You are a French copywriter for tech products"
+    guardrails:
+      - type: length
+        min: 500
+
+tasks:
+  research:
+    agent: researcher
+    prompt: "Find latest QR code adoption trends in France"
+
+  write-hero:
+    agent: writer
+    infer: "Write hero section using {{with.research}}"
+    with: { research: research }
+    depends_on: [research]
+
+  write-features:
+    agent: writer
+    infer: "Write features section using {{with.research}}"
+    with: { research: research }
+    depends_on: [research]
+
+  assemble:
+    agent: default
+    infer: |
+      Assemble the landing page:
+      Hero: {{with.hero}}
+      Features: {{with.features}}
+    with:
+      hero: write-hero
+      features: write-features
+    depends_on: [write-hero, write-features]
+    artifact: { path: "./landing-page.md" }
+```
+
+The generated workflow uses ALL Nika primitives: agents, guardrails, limits, `with:` bindings, `depends_on`, DAG parallelism, artifacts. It is a complete, valid `.nika.yaml` file.
+
+</details>
+
+<details>
+<summary>Why This Is Unique</summary>
+
+No other framework has an orchestrator that plans in its own workflow language:
+
+| Framework | How It Plans | Limitation |
+|-----------|-------------|------------|
+| **LangGraph** | Python code | Plans are opaque, not portable |
+| **CrewAI** | Natural language | Plans are non-deterministic, not auditable |
+| **AutoGen** | Agent conversations | Plans are implicit, not reusable |
+| **Nika** | `.nika.yaml` workflows | Plans are deterministic, auditable, reusable, full-featured |
+
+Because Nika's plans are YAML workflows, they are:
+
+- **Deterministic** — DAG execution with explicit dependencies
+- **Auditable** — YAML is human-readable, diffable, reviewable
+- **Reusable** — Save the generated workflow for next time
+- **Full-featured** — All 5 verbs, guardrails, limits, agents, structured output, MCP
+- **Version-controlled** — Store generated plans in git alongside hand-written workflows
 
 </details>
 
@@ -502,7 +631,7 @@ tasks:
 1. Each task receives ONLY: its prompt + relevant records + NovaNet context
 2. Never raw history from other tasks
 3. `context_budget` enforced by the runtime (truncate/warn if exceeded)
-4. Shaka orchestrator manages which records to include per thread
+4. The orchestrator manages which records to include per thread
 5. Token budget tracked in events for observability
 
 </details>
@@ -516,7 +645,7 @@ tasks:
 | Budget enforcement | `runtime/executor.rs` | Medium |
 | Token counting utilities | `runtime/context_budget.rs` (NEW) | Medium |
 | Budget tracking in events | `event/log.rs` | Low |
-| Shaka record selection | `runtime/shaka.rs` | Medium |
+| Orchestrator record selection | `runtime/orchestrator.rs` | Medium |
 
 **Accuracy note:** Token counting is approximate (tokenizer-dependent). Use conservative estimates.
 
@@ -627,7 +756,7 @@ New builtin tools that let agents query the current workflow's runtime state. Th
 |------|---------|----------|
 | `nika:records` | `[{task_id, summary, confidence, tokens}]` | Query accumulated records |
 | `nika:threads` | `[{task_id, status, model_slot}]` | List active/completed threads |
-| `nika:shaka` | `{round, max_rounds, budget_used, budget_total}` | Check Shaka progress |
+| `nika:orchestrate` | `{round, max_rounds, budget_used, budget_total}` | Check orchestration progress |
 | `nika:cost` | `{total_tokens, total_cost, per_model}` | Token usage and cost report |
 | `nika:dag_info` | `{predecessors, successors, critical_path}` | DAG structure queries |
 | `nika:task_status` | `{task_id, status, record}` | Individual task status |
@@ -646,7 +775,7 @@ tasks:
       tools:
         - nika:records       # Query accumulated records
         - nika:cost           # Check remaining budget
-        - nika:shaka          # Know current round
+        - nika:orchestrate    # Know current round
         - nika:dag_info       # Understand DAG structure
 ```
 
@@ -669,7 +798,7 @@ quadrantChart
     "P-RECORD": [0.45, 0.85]
     "P-CONTEXT": [0.50, 0.70]
     "P-INTROSPECT": [0.40, 0.50]
-    "P-SHAKA": [0.80, 0.90]
+    "P-ORCHESTRATE": [0.80, 0.90]
     "P-MEMORY": [0.75, 0.95]
 ```
 
@@ -681,10 +810,10 @@ quadrantChart
 |----------|---------|--------|-----------|----------------|--------------|
 | P-MODEL | v0.28.0 | @0.12 | 2 | 6 | None |
 | P-RECORD | v0.28.0 | @0.12 | 2 | 5 | None (ships with P-MODEL) |
-| P-SHAKA | v0.29.0 | @0.13 | 3 | 5 | P-MODEL + P-RECORD |
+| P-ORCHESTRATE | v0.29.0 | @0.13 | 3 | 5 | P-MODEL + P-RECORD |
 | P-CONTEXT | v0.29.0 | @0.13 | 1 | 3 | P-RECORD |
 | P-MEMORY | v0.30.0 | @0.13 + NovaNet | 1 | 3 | P-RECORD |
-| P-INTROSPECT | v0.30.0 | — | 6 tools | 3 | P-RECORD + P-SHAKA |
+| P-INTROSPECT | v0.30.0 | — | 6 tools | 3 | P-RECORD + P-ORCHESTRATE |
 
 ---
 
@@ -699,9 +828,9 @@ quadrantChart
 | `src/ast/analyzed/model_slot.rs` | P-MODEL | Analyzed slot with validation |
 | `src/runtime/record.rs` | P-RECORD | `Record` struct + lifecycle |
 | `src/runtime/record_compress.rs` | P-RECORD | LLM-based compression |
-| `src/runtime/shaka.rs` | P-SHAKA | `ShakaOrchestrator` |
-| `src/runtime/satellite.rs` | P-SHAKA | `SatelliteTemplate`, `SatelliteInstance` |
-| `src/dag/dynamic.rs` | P-SHAKA | `DynamicDag` for runtime mutation |
+| `src/runtime/orchestrator.rs` | P-ORCHESTRATE | `Orchestrator` |
+| `src/runtime/satellite.rs` | P-ORCHESTRATE | `SatelliteTemplate`, `SatelliteInstance` |
+| `src/dag/dynamic.rs` | P-ORCHESTRATE | `DynamicDag` for runtime mutation |
 | `src/runtime/episodic_memory.rs` | P-MEMORY | `EpisodicMemoryManager` |
 
 </details>
@@ -711,16 +840,16 @@ quadrantChart
 
 | File | Priorities | Changes |
 |------|-----------|---------|
-| `src/ast/raw/workflow.rs` | P-MODEL, P-SHAKA | `model_slots`, `orchestration`, `shaka` fields |
+| `src/ast/raw/workflow.rs` | P-MODEL, P-ORCHESTRATE | `model_slots`, `goal:` field |
 | `src/ast/raw/task.rs` | P-MODEL, P-RECORD, P-CONTEXT | `model_slot`, `record`, `context_budget` fields |
 | `src/ast/analyzer/analyze.rs` | P-MODEL, P-RECORD | Slot validation, record config validation |
 | `src/provider/rig.rs` | P-MODEL | `from_slot()` constructor |
 | `src/runtime/executor.rs` | P-MODEL, P-RECORD, P-CONTEXT | Slot routing, record gen, budget enforcement |
-| `src/runtime/runner.rs` | P-SHAKA | Shaka mode routing |
+| `src/runtime/runner.rs` | P-ORCHESTRATE | Orchestrate mode routing |
 | `src/store/mod.rs` | P-RECORD | Record storage in `Egghead` |
 | `src/binding/resolve.rs` | P-RECORD | Record-aware resolution |
 | `src/event/log.rs` | P-RECORD, P-CONTEXT | `RecordCreated`, `BudgetExceeded` events |
-| `src/dag/mod.rs` | P-SHAKA | Mutable operations |
+| `src/dag/mod.rs` | P-ORCHESTRATE | Mutable operations |
 | `src/mcp/client.rs` | P-MEMORY | `Record` read/write |
 
 </details>
@@ -749,20 +878,20 @@ Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give a
 ## Sequencing Rationale
 
 > [!TIP]
-> **Why this order?** Each wave builds the foundation for the next. You can't have Shaka without model slots and records. You can't have memory without records being stable.
+> **Why this order?** Each wave builds the foundation for the next. You can't have orchestrate mode without model slots and records. You can't have memory without records being stable.
 
-1. **P-MODEL first** — Low-effort, high-value, prerequisite for everything (Shaka needs model slots to route satellites)
+1. **P-MODEL first** — Low-effort, high-value, prerequisite for everything (orchestrator needs model slots to route satellites)
 2. **P-RECORD with P-MODEL** — Records are the core primitive. Everything downstream depends on compressed task results
-3. **P-SHAKA after Wave 1** — Shaka orchestration REQUIRES both model slots (routing) and records (inter-round communication)
-4. **P-CONTEXT with P-SHAKA** — Context budgeting makes Shaka mode practical (without budgets, rounds accumulate unbounded context)
+3. **P-ORCHESTRATE after Wave 1** — Orchestrate mode REQUIRES both model slots (routing) and records (inter-round communication)
+4. **P-CONTEXT with P-ORCHESTRATE** — Context budgeting makes orchestrate mode practical (without budgets, rounds accumulate unbounded context)
 5. **P-MEMORY last** — Requires cross-project NovaNet schema changes (ADR, NodeClass, ArcClasses) and builds on records being stable
-6. **P-INTROSPECT with P-MEMORY** — Introspection tools are simple once runtime state (records, Shaka, cost) is already tracked
+6. **P-INTROSPECT with P-MEMORY** — Introspection tools are simple once runtime state (records, orchestration, cost) is already tracked
 
 ---
 
 <div align="center">
 
-[← 04 Nika × NovaNet Overlap](./04-nika-novanet-overlap.md) · [📋 Index](./00-README.md) · [06 Research Synthesis →](./06-research-synthesis-report.md)
+[← 04 Nika × NovaNet Overlap](./04-nika-novanet-overlap.md) · [📋 Index](./00-README.md) · [07 Slate Deep Integration →](./07-slate-deep-integration.md)
 
 </div>
 
@@ -772,6 +901,6 @@ Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give a
 [^2]: THREAD: Thinking Deeper with Recursive Spawning — [arXiv:2405.17402](https://arxiv.org/abs/2405.17402). Hierarchical agent decomposition with resource-aware model selection.
 [^3]: Context-Folding: Scaling Long-Horizon LLM Agent — [arXiv:2510.11967](https://arxiv.org/abs/2510.11967). Branch/fold sub-trajectory compression.
 [^4]: Memory-R1: RL-trained agent memory policies — [arXiv:2508.19828](https://arxiv.org/abs/2508.19828). Confidence scoring and memory retention.
-[^5]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Shaka/satellites separation cited in Slate blog.
+[^5]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Orchestrator/satellites separation (historical: "Shaka" in Slate blog).
 [^6]: RLM: Recursive Language Models — [arXiv:2512.24601](https://arxiv.org/abs/2512.24601) (MIT, 2025). Recursive sub-LM calls with external working memory.
 [^7]: CodeAct: Code Actions for LLM Agents — [arXiv:2402.01030](https://arxiv.org/abs/2402.01030) (ICML 2024).

@@ -1,6 +1,6 @@
 # 10 — Nika v0.30 TUI: The Jarvis Vision
 
-> The complete visual design specification for Nika's shaka-mode TUI.
+> The complete visual design specification for Nika's orchestrate-mode TUI.
 > Every panel, every data point, every color — designed to feel like piloting an AI.
 
 **Nika** v0.30 · **NovaNet** v0.20.0 · Updated 2026-03-14
@@ -9,14 +9,14 @@
 
 ## The Cockpit — Full Screen Layout
 
-**Scenario:** Round 4/8 of `generate-multilingual.nika.yaml`. Generating fr-FR landing page for QR Code AI. Three models active simultaneously. NovaNet connected. Records flowing. Shaka making live decisions.
+**Scenario:** Round 4/8 of `generate-multilingual.nika.yaml`. Generating fr-FR landing page for QR Code AI. Three models active simultaneously. NovaNet connected. Records flowing. Orchestrator making live decisions.
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 🦋 NIKA v0.30                generate-multilingual.nika.yaml                                                ┃
-┃ ┈ Shaka Mode ┈              Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
+┃ ┈ Orchestrate Mode ┈              Goal: Landing pages × 5 locales        Round 4/8  ◉ 0.91  $0.037  ⏱ 47.2s    ┃
 ┣━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-┃ 🎯 SHAKA         ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
+┃ 🎯 ORCHESTRATOR         ┃  📊 LIVE DAG                                                ┃  🧠 NOVANET              ┃
 ┃ COMMANDER        ┃                                                              ┃  INTELLIGENCE            ┃
 ┃──────────────────┃  ┌────────┐                              ┌──────────┐       ┃──────────────────────────┃
 ┃                  ┃  │🔌 ctx  │─────────────┬───────────────▶│✍️ hero   │       ┃  ◆ Entity: qr-code-ai    ┃
@@ -113,7 +113,7 @@
 
 ## Panel Breakdown
 
-### Panel 1: Shaka Commander (top-left)
+### Panel 1: Orchestrator (top-left)
 
 The "brain" of Jarvis. Shows WHAT the AI is thinking and deciding.
 
@@ -125,8 +125,8 @@ The "brain" of Jarvis. Shows WHAT the AI is thinking and deciding.
 | Token budget | Bar + numbers (spent/total) | Per task completion |
 | Model roster | 4 dots: ◉ active, ○ idle, per slot name + color | Real-time |
 | Decision log | Chronological: R1 ✅, R2 ⏳, R3 ○ with task names | Per round |
-| Shaka thinking | Live preview of strategist's reasoning (truncated) | Streaming |
-| Next actions | Queue of planned tasks (from shaka) | Per decision |
+| Orchestrator thinking | Live preview of strategist's reasoning (truncated) | Streaming |
+| Next actions | Queue of planned tasks (from orchestrator) | Per decision |
 
 **Color coding:**
 - Round ring: teal gradient filling
@@ -270,7 +270,7 @@ The "heads-up display" — always visible, always current.
 | `1-6` | Jump to specific panel |
 | `↑↓` | Navigate within panel (records, decisions, tasks) |
 | `Enter` | Expand selected item (record detail, task detail) |
-| `Space` | Pause/resume shaka (manual override) |
+| `Space` | Pause/resume orchestrator (manual override) |
 | `d` | Toggle DAG mode (tree/flat/radial) |
 | `e` | Toggle record panel (collapsed/expanded) |
 | `n` | Toggle NovaNet panel |
@@ -278,7 +278,7 @@ The "heads-up display" — always visible, always current.
 | `c` | Show cost detail overlay |
 | `?` | Command palette (fuzzy search all actions) |
 | `q` | Quit (with confirmation if running) |
-| `Ctrl+P` | Pause shaka and enter manual mode |
+| `Ctrl+P` | Pause orchestrator and enter manual mode |
 | `Ctrl+S` | Save current state as snapshot |
 
 ---
@@ -299,7 +299,7 @@ The "heads-up display" — always visible, always current.
 ║  ── Semantic Colors ──                                                     ║
 ║                                                                            ║
 ║  #0d9488  Teal     NovaNet, knowledge, entity links, brain                 ║
-║  #7c3aed  Purple   Pythagoras model, shaka decisions, thinking              ║
+║  #7c3aed  Purple   Pythagoras model, orchestrator decisions, thinking              ║
 ║  #2563eb  Blue     Edison model, primary execution, MCP protocol           ║
 ║  #d97706  Orange   York model, warnings, alerts, atlas                     ║
 ║  #b58900  Gold     Records, compressed data, memory packets                ║
@@ -333,7 +333,7 @@ The "heads-up display" — always visible, always current.
 
 ```
 Create a hyper-detailed UI mockup of a futuristic terminal-based AI workflow
-orchestrator called "Nika v0.30 — Shaka Runner". This is the user's view
+orchestrator called "Nika v0.30 — Orchestrate Runner". This is the user's view
 when piloting an AI — it should feel like JARVIS from Iron Man, but as a
 real terminal application. Dark, information-dense, every pixel meaningful.
 
@@ -358,8 +358,8 @@ HEADER BAR (full width, ~3% height):
 
 ═══ TOP ROW (55% of screen height) ═══
 
-PANEL 1 — SHAKA COMMANDER (top-left, 15% width):
-- Header: "🎯 SHAKA COMMANDER" with teal accent line
+PANEL 1 — ORCHESTRATOR (top-left, 15% width):
+- Header: "🎯 ORCHESTRATOR" with teal accent line
 - Round indicator: Large "④" with circular progress ring (teal, 50% filled)
 - State badge: "EXEC" in cyan pill
 - Quality: "0.91" in large green text with threshold line at 0.85
@@ -378,7 +378,7 @@ PANEL 1 — SHAKA COMMANDER (top-left, 15% width):
   R6 ○ pricing
   R7 ○ faq
   R8 ○ review
-- Shaka thinking: Small box at bottom showing live reasoning text in
+- Orchestrator thinking: Small box at bottom showing live reasoning text in
   purple italic: "hero & research can run in parallel since..."
 
 PANEL 2 — LIVE DAG (top-center, 50% width):
@@ -490,7 +490,7 @@ CRITICAL DETAILS FOR REALISM:
 - Dimmed completed nodes vs bright active nodes creates visual flow
 - The gold record cards in the left panel should feel like "memory packets"
 - The teal NovaNet panel should feel like an "intelligence briefing"
-- The purple shaka thinking should feel like "the AI explaining itself"
+- The purple orchestrator thinking should feel like "the AI explaining itself"
 
 RENDER AS:
 - A high-fidelity terminal screenshot, as if captured from a real application
@@ -526,7 +526,7 @@ Around it, 5 smaller icons representing the 5 semantic verbs:
 ORBITAL RING 1 — "v0.30 Features" (6 modules orbiting the core):
 Arranged in a circle around the kernel, connected by circuit traces:
 
-1. TOP: SHAKA_ORCHESTRATOR
+1. TOP: ORCHESTRATOR
    Icon: compass/target. Color: purple (#7c3aed)
    Label: "Dynamic task dispatch, goal-driven reasoning"
    Sub-elements: goal text, max_rounds counter, quality gauge
@@ -553,7 +553,7 @@ Arranged in a circle around the kernel, connected by circuit traces:
 
 6. LEFT: INTROSPECTION_TOOLS
    Icon: magnifying glass + wrench. Color: cyan (#06b6d4)
-   Label: "6 runtime tools: records, threads, cost, dag, status, shaka"
+   Label: "6 runtime tools: records, threads, cost, dag, status, orchestrate"
    Sub-elements: 6 small tool icons
 
 BETWEEN ORBITAL MODULES:
@@ -616,7 +616,7 @@ Small labels throughout explaining key concepts:
 - "structured: is the quality gate" (near VALIDATE section)
 - "record: prevents the dumb zone" (near COMPRESS section)
 - "NovaNet remembers across sessions" (near roots)
-- "Shaka = Slate's thread weaving" (near SHAKA module)
+- "Orchestrator = Slate's thread weaving" (near ORCHESTRATOR module)
 - "YAML-first: auditable, reproducible" (near INPUT section)
 
 TECHNICAL LABELS:
@@ -631,7 +631,7 @@ COLOR PALETTE:
 - Background: #002b36 (dark blue-gray, like blueprint paper)
 - Circuit traces: #586e75 (gray, thin lines)
 - Teal (#0d9488): NovaNet elements, roots, knowledge
-- Purple (#7c3aed): Shaka, pythagoras, thinking
+- Purple (#7c3aed): Orchestrator, pythagoras, thinking
 - Blue (#2563eb): Edison execution, context management
 - Orange (#d97706): York, atlas, warnings
 - Gold (#b58900): Records, data packets, memory
@@ -688,7 +688,7 @@ SURROUNDING ELEMENTS:
 - Top: "NIKA v0.30" in large, clean, white monospace text
 - Below butterfly: "The AI Orchestrator" in smaller teal text
 - Bottom: 6 feature badges in a horizontal row:
-  "Model Slots" | "Records" | "Shaka" | "Context Budget" | "Memory" | "Introspect"
+  "Model Slots" | "Records" | "Orchestrate" | "Context Budget" | "Memory" | "Introspect"
   Each with its icon and accent color
 
 FLOATING DATA ELEMENTS around the butterfly:
@@ -708,12 +708,12 @@ TEXT OVERLAYS (small, positioned around the butterfly):
 - "KNOWING × DOING × CONNECTING" (the golden rule)
 - "5 Verbs. 4 Models. 1 DAG."
 - "NovaNet remembers. Nika executes."
-- Version: "v0.30 • YAML-first • Knowledge-aware • Shaka-driven"
+- Version: "v0.30 • YAML-first • Knowledge-aware • Orchestrate-driven"
 
 COLOR TREATMENT:
 - Predominantly dark with selective color accents
 - Teal (#0d9488) for NovaNet/knowledge elements (right wing)
-- Purple (#7c3aed) for shaka/pythagoras (top of butterfly)
+- Purple (#7c3aed) for orchestrator/pythagoras (top of butterfly)
 - Blue (#2563eb) for execution paths (left wing)
 - Gold (#b58900) for records (scattered throughout)
 - The butterfly should have a subtle bioluminescent glow
@@ -737,7 +737,7 @@ MCP connection point.
 ║  JARVIS (Iron Man)              NIKA v0.30 (SuperNovae)                    ║
 ║  ─────────────────              ────────────────────────                    ║
 ║                                                                            ║
-║  "Sir, I've analyzed the        Shaka: "I should run hero                ║
+║  "Sir, I've analyzed the        Orchestrator: "I should run hero                ║
 ║   data and recommend..."        & research in parallel since               ║
 ║                                 they don't depend on each other"           ║
 ║                                                                            ║
@@ -753,9 +753,9 @@ MCP connection point.
 ║   encounters..."                from 2025-03-12 for qr-code/fr-FR"        ║
 ║                                                                            ║
 ║  "I'm running diagnostics"      Introspection: nika:cost, nika:records,   ║
-║                                 nika:dag_info, nika:shaka                  ║
+║                                 nika:dag_info, nika:orchestrate                  ║
 ║                                                                            ║
-║  "Shall I deploy the            Shaka: quality ≥ 0.85 → persist           ║
+║  "Shall I deploy the            Orchestrator: quality ≥ 0.85 → persist           ║
 ║   solution, sir?"               to NovaNet → next locale                   ║
 ║                                                                            ║
 ║  One key difference:                                                       ║

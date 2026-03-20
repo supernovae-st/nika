@@ -15,7 +15,7 @@
 4. [What's New in v0.30 — The 6 Features](#whats-new-in-v030)
 5. [Feature 1: Model Slots](#feature-1-model-slots)
 6. [Feature 2: Records](#feature-2-records)
-7. [Feature 3: Shaka Orchestration](#feature-3-shaka-orchestration)
+7. [Feature 3: Orchestrate Mode](#feature-3-orchestrate-mode)
 8. [Feature 4: Context Budget](#feature-4-context-budget)
 9. [Feature 5: Persistent Memory](#feature-5-persistent-memory-novanet)
 10. [Feature 6: Runtime Introspection](#feature-6-runtime-introspection)
@@ -309,7 +309,7 @@ flowchart TB
     subgraph TOMORROW["v0.30 — Target"]
         F1["✨ Model Slots\n4 models per workflow"]
         F2["✨ Records\ncompressed task results"]
-        F3["✨ Shaka Mode\nLLM-driven orchestration"]
+        F3["✨ Orchestrate Mode\nLLM-driven orchestration"]
         F4["✨ Context Budget\ntoken limits per task"]
         F5["✨ Persistent Memory\nrecords stored in NovaNet"]
         F6["✨ Introspection\n6 new runtime tools"]
@@ -333,7 +333,7 @@ flowchart TB
 ║                                                                               ║
 ║  1. MODEL SLOTS    → Use different LLMs for different tasks (save 5-10x $)    ║
 ║  2. RECORDS        → Compress task outputs before passing downstream          ║
-║  3. SHAKA          → Let an LLM decide what tasks to run dynamically          ║
+║  3. ORCHESTRATE    → Let an LLM decide what tasks to run dynamically          ║
 ║  4. CONTEXT BUDGET → Set token limits so LLMs never get confused              ║
 ║  5. MEMORY         → Save records to NovaNet for cross-session learning       ║
 ║  6. INTROSPECT     → Let agents query the workflow's own runtime state        ║
@@ -346,7 +346,7 @@ flowchart TB
 | Wave | Version | Schema | Features | Dependencies |
 |:----:|---------|--------|----------|--------------|
 | 1 | v0.28 | @0.12 | Model Slots + Records | None |
-| 2 | v0.29 | @0.13 | Shaka + Context Budget | Wave 1 |
+| 2 | v0.29 | @0.13 | Orchestrate + Context Budget | Wave 1 |
 | 3 | v0.30 | @0.13 | Memory + Introspection | Wave 1 + 2 |
 
 ---
@@ -539,7 +539,7 @@ pub struct Record {
 
 ---
 
-## Feature 3: Shaka Orchestration
+## Feature 3: Orchestrate Mode
 
 ### The Problem
 
@@ -560,20 +560,20 @@ tasks:
 
 ### The Solution
 
-`orchestration: shaka` adds a new execution mode where the **Shaka** dynamically dispatches tasks:
+`goal:` adds a new execution mode where the **orchestrator** dynamically dispatches tasks:
 
 ```yaml
-# v0.29 — The Shaka decides what to do
+# v0.29 — The orchestrator decides what to do
 schema: nika/workflow@0.13
 
-orchestration: shaka                   # ← NEW: enables shaka mode
+goal:                   # ← NEW: enables orchestrate mode
 
 model_slots:
   pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
   edison:     { provider: anthropic, model: claude-sonnet-4-6 }
   york:       { provider: groq,      model: llama-3.3-70b-versatile }
 
-shaka:
+goal:
   goal: |
     Generate a complete landing page for QR Code AI in French.
     Research trends, write sections, review quality.
@@ -582,7 +582,7 @@ shaka:
   max_rounds: 8
   record_budget: 15000
 
-# These are TEMPLATES — the Shaka dispatches them
+# These are TEMPLATES — the orchestrator dispatches them
 tasks:
   - id: research
     model_slot: york
@@ -617,7 +617,7 @@ tasks:
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Shaka<br/>(Claude + thinking)
+    participant S as 🎯 Orchestrator<br/>(Claude + thinking)
     participant R as 🔍 research<br/>(Groq — cheap)
     participant W as ✍️ write_section<br/>(Claude — quality)
     participant V as 🔬 review<br/>(Claude + thinking)
@@ -668,10 +668,10 @@ sequenceDiagram
 ║  • Predictable, reproducible, deterministic                                   ║
 ║  • Best for: pipelines, batch processing, CI/CD                               ║
 ║                                                                               ║
-║  Mode 2: orchestration: shaka (new in v0.29)                                  ║
+║  Mode 2: goal: (new in v0.29)                                  ║
 ║  ─────────────────────────────────────────────────────────────                ║
-║  • Tasks are TEMPLATES dispatched by the Shaka                                ║
-║  • Shaka decides what to run, when, and with what params                      ║
+║  • Tasks are TEMPLATES dispatched by the orchestrator                                ║
+║  • Orchestrator decides what to run, when, and with what params                      ║
 ║  • Adaptive: adds tasks, retries on low quality, changes approach             ║
 ║  • Best for: content generation, research, complex multi-step reasoning       ║
 ║                                                                               ║
@@ -687,7 +687,7 @@ sequenceDiagram
 
 ### The Problem
 
-Without limits, a task's context can grow unbounded — especially in shaka mode where multiple rounds accumulate records:
+Without limits, a task's context can grow unbounded — especially in orchestrate mode where multiple rounds accumulate records:
 
 ```
 Round 1: research record       → 300 tokens
@@ -695,7 +695,7 @@ Round 2: write_hero record     → 800 tokens
 Round 3: write_features record → 800 tokens
 Round 4: review record         → 500 tokens
 ...
-Round 8: Shaka has 5,000+ tokens of records
+Round 8: Orchestrator has 5,000+ tokens of records
 → LLM starts losing quality
 ```
 
@@ -866,7 +866,7 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
     tools:
       - nika:records          # "What did previous tasks produce?"
       - nika:threads          # "What tasks are running/completed?"
-      - nika:shaka            # "What round are we on? Budget left?"
+      - nika:orchestrate            # "What round are we on? Budget left?"
       - nika:cost             # "How many tokens/dollars spent so far?"
       - nika:dag_info         # "What tasks come after me?"
       - nika:task_status      # "Did task X succeed?"
@@ -878,7 +878,7 @@ Today, an `agent:` task is blind — it can't see what happened before it in the
 |------|---------|-------------|
 | `nika:records` | List of all records with summaries and confidence | "Check if research was thorough enough" |
 | `nika:threads` | Active, completed, and pending tasks | "Know what's left to do" |
-| `nika:shaka` | Current round, max rounds, budget used/remaining | "Am I running out of budget?" |
+| `nika:orchestrate` | Current round, max rounds, budget used/remaining | "Am I running out of budget?" |
 | `nika:cost` | Token counts and cost per model slot | "Switch to cheaper model if over budget" |
 | `nika:dag_info` | Predecessors, successors, critical path | "Understand my position in the workflow" |
 | `nika:task_status` | Single task's status and record | "Check if dependency succeeded" |
@@ -964,7 +964,7 @@ tasks:
 
 ```yaml
 schema: nika/workflow@0.13
-orchestration: shaka
+goal:
 
 model_slots:
   pythagoras: { provider: anthropic,
@@ -975,7 +975,7 @@ model_slots:
   york: { provider: groq,
     model: llama-3.3-70b-versatile }
 
-shaka:
+goal:
   goal: |
     Generate French landing page
     for QR Code AI.
@@ -1068,7 +1068,7 @@ tasks:
 
 **Behavior:**
 - 3 models, right tool for each job
-- Shaka adds tasks dynamically
+- Orchestrator adds tasks dynamically
 - Context bounded by records + budget
 - Records persisted in NovaNet
 - Quality loop: review → retry if < 0.85
@@ -1087,7 +1087,7 @@ All 6 features work independently. You can adopt them incrementally:
 |---------|:----------:|----------|-----------|
 | Model Slots | ✅ | Nothing | Any workflow |
 | Records | ✅ | Nothing | Multi-step pipelines |
-| Shaka | ❌ | Model Slots + Records | Content generation |
+| Orchestrate | ❌ | Model Slots + Records | Content generation |
 | Context Budget | ✅ | Nothing (better with Records) | Long pipelines |
 | Memory | ❌ | Records + NovaNet | Cross-session workflows |
 | Introspect | ✅ | Nothing (better with Records) | Agent tasks |
@@ -1102,7 +1102,7 @@ Level 2 — Add compression:
   Add record: to tasks that pass data downstream
 
 Level 3 — Go adaptive:
-  Switch to orchestration: shaka for complex workflows
+  Switch to goal: for complex workflows
 
 Level 4 — Add memory:
   Add record.persist: novanet for cross-session learning
@@ -1118,11 +1118,11 @@ Level 4 — Add memory:
 
 ### "Do I need NovaNet to use v0.30?"
 
-**No.** Features 1-4 (model slots, records, shaka, context budget) work without NovaNet. Only Feature 5 (persistent memory) requires NovaNet.
+**No.** Features 1-4 (model slots, records, orchestrator, context budget) work without NovaNet. Only Feature 5 (persistent memory) requires NovaNet.
 
-### "Is shaka mode deterministic?"
+### "Is orchestrate mode deterministic?"
 
-**No.** The Shaka makes decisions dynamically, so two runs may produce different task sequences. Use `orchestration: dag` when you need determinism.
+**No.** The orchestrator makes decisions dynamically, so two runs may produce different task sequences. Use `orchestration: dag` when you need determinism.
 
 ### "How is this different from LangGraph?"
 
@@ -1134,8 +1134,8 @@ LangGraph is Python code that defines agent graphs. Nika is YAML that defines wo
 
 ### "How is this different from CrewAI?"
 
-CrewAI is multi-agent with role-based crews. Nika is workflow-first with optional shaka mode. Key differences:
-- Nika's shaka mode is simpler (1 Shaka + N satellite templates)
+CrewAI is multi-agent with role-based crews. Nika is workflow-first with optional orchestrate mode. Key differences:
+- Nika's orchestrate mode is simpler (1 orchestrator + N satellite templates)
 - Nika records are compressed (CrewAI passes full outputs)
 - Nika has NovaNet (no competitor has a knowledge graph)
 
@@ -1143,9 +1143,9 @@ CrewAI is multi-agent with role-based crews. Nika is workflow-first with optiona
 
 The dumb zone (term from Dex Horthy / Slate) is the point where an LLM has so much context that its performance actually **degrades**. Think of it like trying to read a 100-page document while writing — you lose track. Records and context budgets prevent this.
 
-### "Can I mix DAG and shaka mode?"
+### "Can I mix DAG and orchestrate mode?"
 
-Not in the same workflow. But you can have a shaka workflow that `include:`s a DAG sub-workflow, or an `agent:` task that calls `nika:run` to execute a DAG workflow.
+Not in the same workflow. But you can have an orchestrate-mode workflow that `include:`s a DAG sub-workflow, or an `agent:` task that calls `nika:run` to execute a DAG workflow.
 
 ---
 

@@ -1,7 +1,7 @@
 //! Decompose expansion strategies
 //!
 //! Expands decompose specs into iteration items via:
-//! - Semantic: MCP traverse (novanet_traverse)
+//! - Semantic: MCP walk (novanet_search walk mode)
 //! - Static: Binding resolution (no MCP call)
 //! - Nested: Recursive BFS traversal via MCP
 
@@ -43,7 +43,7 @@ impl TaskExecutor {
         }
     }
 
-    /// Expand using semantic traversal via MCP (calls novanet_traverse)
+    /// Expand using semantic traversal via MCP (calls novanet_search walk mode)
     async fn expand_decompose_semantic(
         &self,
         spec: &DecomposeSpec,
@@ -63,22 +63,23 @@ impl TaskExecutor {
         debug!(
             source_key = %source_key,
             arc = %spec.traverse,
-            "Calling novanet_traverse for decompose"
+            "Calling novanet_search (walk) for decompose"
         );
 
-        // Call novanet_traverse
+        // Call novanet_search with walk mode (replaces novanet_traverse)
         let params = json!({
-            "start": source_key,
-            "arc": spec.traverse,
+            "mode": "walk",
+            "start_key": source_key,
+            "arc_kinds": [spec.traverse],
             "direction": "outgoing"
         });
 
-        let result = client.call_tool("novanet_traverse", params).await?;
+        let result = client.call_tool("novanet_search", params).await?;
 
         // Parse JSON from result content
         let result_json: Value =
             serde_json::from_str(&result.text()).map_err(|e| NikaError::McpInvalidResponse {
-                tool: "novanet_traverse".to_string(),
+                tool: "novanet_search".to_string(),
                 reason: format!("failed to parse JSON response: {}", e),
             })?;
 
@@ -178,14 +179,15 @@ impl TaskExecutor {
                 break;
             }
 
-            // Call novanet_traverse for current node
+            // Call novanet_search (walk mode) for current node
             let params = json!({
-                "start": current_key,
-                "arc": spec.traverse,
+                "mode": "walk",
+                "start_key": current_key,
+                "arc_kinds": [spec.traverse],
                 "direction": "outgoing"
             });
 
-            let result = match client.call_tool("novanet_traverse", params).await {
+            let result = match client.call_tool("novanet_search", params).await {
                 Ok(r) => r,
                 Err(e) => {
                     debug!(key = %current_key, error = %e, "Traverse failed, skipping node");
@@ -295,7 +297,7 @@ impl TaskExecutor {
         }
     }
 
-    /// Extract nodes array from novanet_traverse result
+    /// Extract nodes array from novanet_search walk result
     /// Extract nodes from decompose result, taking ownership to avoid cloning
     /// PERF: Takes ownership of Value to avoid cloning arrays
     pub(super) fn extract_decompose_nodes(
@@ -318,7 +320,7 @@ impl TaskExecutor {
             return Ok(arr);
         }
         Err(NikaError::McpInvalidResponse {
-            tool: "novanet_traverse".to_string(),
+            tool: "novanet_search".to_string(),
             reason: "expected nodes/items/results array in response".to_string(),
         })
     }

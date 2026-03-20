@@ -9,7 +9,7 @@
 
 ## Why This Document Exists
 
-Slate (Random Labs)[^1] introduced an architecture — threads, records, thread weaving, shaka/agent orchestration — that solves the fundamental problems of long-running AI agents. This document maps every Slate concept to Nika's existing architecture, identifies what needs to change, and designs how Nika goes **beyond** Slate by leveraging the NovaNet knowledge graph, YAML declarative workflows, and full observability.
+Slate (Random Labs)[^1] introduced an architecture — threads, records, thread weaving, orchestrator/agent dispatch — that solves the fundamental problems of long-running AI agents. This document maps every Slate concept to Nika's existing architecture, identifies what needs to change, and designs how Nika goes **beyond** Slate by leveraging the NovaNet knowledge graph, YAML declarative workflows, and full observability.
 
 > [!IMPORTANT]
 > **Guiding principle** — We are not building feature parity with Slate. We are taking Slate's **architectural insights** and implementing them in a way that is **declaratively superior** — auditable, reproducible, version-controlled, and knowledge-graph-powered.
@@ -57,7 +57,7 @@ flowchart TD
     WM["1. Working Memory\n& Dumb Zone"] --> TH["2. Threads\nOne-action workers"]
     TH --> EP["3. Records\nCompletion-boundary compression"]
     EP --> TW["4. Thread Weaving\nOrchestrator loop"]
-    TW --> ST["5. Shaka/Agents\nAlphaZero mapping"]
+    TW --> ST["5. Orchestrator/Agents\nAlphaZero mapping"]
     EP --> KO["6. Knowledge Overhang\nScaffolding activates latent knowledge"]
     EP --> CO["7. Composability\nRecords flow between threads"]
     TW --> OS["8. OS Framing\nKernel + processes + return values"]
@@ -81,7 +81,7 @@ flowchart TD
 | 2 | **Threads** | Each thread executes ONE action, then pauses. NOT persistent subagents | Context isolated per thread |
 | 3 | **Records** | Compressed representation at completion boundary (not mid-stream) | Only important results retained |
 | 4 | **Thread Weaving** | Orchestrator: dispatch threads → collect records → synthesize → dispatch | Implicit adaptive decomposition |
-| 5 | **Shaka/Agents** | Shaka = open-ended planning. Agents = learned action sequences | AlphaZero mapping (value + policy networks)[^2] |
+| 5 | **Orchestrator/Agents** | Orchestrator = open-ended planning. Agents = learned action sequences | AlphaZero mapping (value + policy networks)[^2] |
 | 6 | **Knowledge Overhang** | Models have knowledge they can't access without scaffolding | Records provide the scaffolding |
 | 7 | **Composability** | Records flow between threads as handoff boundary | Cross-model composition |
 | 8 | **OS Framing** | Orchestrator = kernel, Threads = processes, Records = return values | Karpathy's LLM OS framing |
@@ -89,7 +89,7 @@ flowchart TD
 </details>
 
 > [!NOTE]
-> **Slate's model configuration** — Slate supports cross-model composition (e.g., Sonnet + Codex for different cognitive tasks)[^1]. The "8 agent presets" (main/fast/reason/search/vision/judge/code/summary) is our design, inspired by this capability.
+> **Slate's model configuration** — Slate supports cross-model composition (e.g., Sonnet + Codex for different cognitive tasks)[^1]. The "8 agent presets" (default/lite/think/search/vision/judge/coder/summary) is our design, inspired by this capability.
 
 ---
 
@@ -130,7 +130,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (shaka), memory budgets, and agent routing. The kernel itself (`Runner` + `TaskExecutor` + `Egghead`) already works.
+> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (orchestrator), memory budgets, and agent routing. The kernel itself (`Runner` + `TaskExecutor` + `Egghead`) already works.
 
 ---
 
@@ -142,19 +142,19 @@ flowchart LR
 |:-:|---------------|---------------|-------------|------------------|
 | 1 | Working Memory | No awareness | Context budget per task | Budget is declarative YAML |
 | 2 | Dumb Zone | N/A | Working memory boundary | Token budget in events |
-| 3 | Threads | Tasks in DAG (partial) | Dynamic dispatch by shaka | Tasks referencing agents in YAML |
+| 3 | Threads | Tasks in DAG (partial) | Dynamic dispatch by orchestrator | Tasks referencing agents in YAML |
 | 4 | Records | `TaskResult` (raw) | Record compression at boundary | NovaNet persistence |
-| 5 | Thread Weaving | DAG execution (static) | Dynamic DAG + shaka loop | Real-time TUI visualization |
-| 6 | Shaka/Agents | Flat agent loop | `orchestration: shaka` | Declarative YAML shakas |
+| 5 | Thread Weaving | DAG execution (static) | Dynamic DAG + orchestrator loop | Real-time TUI visualization |
+| 6 | Orchestrator/Agents | Flat agent loop | `goal:` | Declarative YAML orchestrators |
 | 7 | Knowledge Overhang | NovaNet context + files | Record-based scaffolding | 200+ locale knowledge atoms |
 | 8 | Episodic Memory | In-memory `Egghead` | NovaNet `Record` | Graph-queryable, entity-linked |
 | 9 | Agent Presets | Single provider | `agents:` in YAML | Per-workflow agents |
 | 10 | Composability | `use:` bindings | Record-aware bindings | Structured output + records |
-| 11 | Parallel Threads | `for_each` + concurrency | Shaka parallel dispatch | Token budget + cost tracking |
+| 11 | Parallel Threads | `for_each` + concurrency | Orchestrator parallel dispatch | Token budget + cost tracking |
 | 12 | Cross-model | Multi-provider (6+native) | Agent preset per task | YAML-declared routing |
-| 13 | OS Framing | DAG = kernel | Shaka = kernel upgrade | NovaNet = persistent storage |
+| 13 | OS Framing | DAG = kernel | Orchestrator = kernel upgrade | NovaNet = persistent storage |
 | 14 | Permissions | Command blocklist + shell-free | Already better | 4-layer security model |
-| 15 | build/plan agents | `agent:` verb | Shaka mode selection | Multiple shaka configurations |
+| 15 | build/plan agents | `agent:` verb | orchestrate mode selection | Multiple orchestrator configurations |
 | 16 | Custom /commands | Skills via `include:` | Already exists | YAML skills merged via DAG |
 | 17 | .env config | `.nika/config.toml` | Already exists | 3-level config merge |
 
@@ -172,8 +172,8 @@ flowchart TB
         EE["record:\ncompression at completion boundary"]
     end
 
-    subgraph L3["Layer 3 — Shaka Orchestration"]
-        SO["orchestration: shaka\ndynamic agent dispatch"]
+    subgraph L3["Layer 3 — Orchestrate Mode"]
+        SO["goal:\ndynamic agent dispatch"]
     end
 
     subgraph L4["Layer 4 — Context Budget"]
@@ -198,18 +198,26 @@ flowchart TB
 
 ### Layer 1: Agent Presets
 
-Per-workflow agent definitions that route different cognitive tasks to different providers. 8 presets available: main, fast, reason, search, vision, judge, code, summary. See [05-evolution-roadmap.md § P-MODEL](./05-evolution-roadmap.md#p-model-4-slot-model-architecture) for full design.
+Per-workflow agent definitions that route different cognitive tasks to different providers. 8 presets available: default, lite, think, search, vision, judge, coder, summary. See [05-evolution-roadmap.md § P-MODEL](./05-evolution-roadmap.md#p-model-4-slot-model-architecture) for full design.
 
 ```yaml
+# models: layer defines reusable model references
+models:
+  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
+  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
+  deepseek: { provider: deepseek, model: deepseek-chat }
+  gpt4o: { provider: openai, model: gpt-4o }
+
+# agents: reference models by alias
 agents:
-  main:    { provider: anthropic, model: claude-sonnet-4-6 }
-  fast:    { provider: groq,     model: llama-3.3-70b-versatile }
-  search:  { provider: deepseek, model: deepseek-chat }
-  reason:  { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
-  vision:  { provider: openai,   model: gpt-4o }
-  judge:   { provider: anthropic, model: claude-sonnet-4-6 }
-  code:    { provider: anthropic, model: claude-sonnet-4-6 }
-  summary: { provider: groq,     model: llama-3.3-70b-versatile }
+  default: { model: sonnet }
+  lite:    { model: groq-llama }
+  search:  { model: deepseek }
+  think:   { model: sonnet, extended_thinking: true }
+  vision:  { model: gpt4o }
+  judge:   { model: sonnet }
+  coder:   { model: sonnet }
+  summary: { model: groq-llama }
 ```
 
 ### Layer 2: Record Engine
@@ -224,13 +232,13 @@ record:
   confidence_threshold: 0.8
 ```
 
-### Layer 3: Shaka Orchestration
+### Layer 3: Orchestrate Mode
 
-The core upgrade. See [05-evolution-roadmap.md § P-SHAKA](./05-evolution-roadmap.md#p-shaka-shaka-orchestration) for full design.
+The core upgrade. See [05-evolution-roadmap.md § P-ORCHESTRATE](./05-evolution-roadmap.md#p-orchestrate-orchestrate-mode) for full design.
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Shaka Orchestrator
+    participant S as 🎯 Orchestrator
     participant T as ⚡ Tasks with agent: ref
 
     loop Until DONE or max_rounds
@@ -325,7 +333,7 @@ For each dimension in Slate's comparison table[^1], here's where Nika lands:
 | Feedback | Per-step | End | End | None | Per-task | Per-step | Per-record | **Per-record** |
 | Context isolation | None | None | Partial | None | Full | None | Per-thread | **Per-task** |
 | Compression | Compact | Compact | None | None | Compress | Compact | Record | **Record+NovaNet** |
-| Parallelism | None | None | None | None | Multi-agent | None | Native | **for_each+shaka** |
+| Parallelism | None | None | None | None | Multi-agent | None | Native | **for_each+orchestrate** |
 | Adaptability | Low | Low | Low | Low | Medium | High | High | **High** |
 | **Reproducibility** | Low | Low | Low | Low | Low | Low | Low | **High** |
 | **Observability** | Low | Low | Low | Low | Medium | Medium | Low | **High** |
@@ -337,36 +345,36 @@ For each dimension in Slate's comparison table[^1], here's where Nika lands:
 ## Complete Example
 
 <details>
-<summary>📋 Full Shaka Workflow — Landing Page Generation</summary>
+<summary>📋 Full Orchestrate Workflow — Landing Page Generation</summary>
 
 ```yaml
 schema: nika/workflow@0.13
 workflow: generate-landing-page
 
-orchestration: shaka
+models:
+  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
+  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
+  deepseek: { provider: deepseek, model: deepseek-chat }
+  gpt4o: { provider: openai, model: gpt-4o }
+
+goal: |
+  Generate a complete French landing page for QR Code AI.
+  Use NovaNet for entity context and locale knowledge.
+  Research current trends, write sections, review quality.
 
 agents:
-  reason:
-    provider: anthropic
-    model: claude-sonnet-4-6
+  think:
+    model: sonnet
     extended_thinking: true
     thinking_budget: 16384
-  main:
-    provider: anthropic
-    model: claude-sonnet-4-6
-  search:
-    provider: groq
-    model: llama-3.3-70b-versatile
-  fast:
-    provider: deepseek
-    model: deepseek-chat
-  vision:
-    provider: openai
-    model: gpt-4o
+  default:  { model: sonnet }
+  search:   { model: groq-llama }
+  lite:     { model: deepseek }
+  vision:   { model: gpt4o }
   judge:
     provider: anthropic
     model: claude-sonnet-4-6
-  code:
+  coder:
     provider: anthropic
     model: claude-sonnet-4-6
   summary:
@@ -379,18 +387,18 @@ mcp:
       command: cargo
       args: ["run", "--manifest-path", "/path/to/novanet/Cargo.toml"]
 
-shaka:
+goal:
   goal: |
     Generate a complete French landing page for QR Code AI.
     Use NovaNet for entity context and locale knowledge.
     Research current trends, write sections, review quality.
-  agent: reason
+  agent: think
   max_rounds: 8
   record_budget: 15000
 
 tasks:
   - id: get_context
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_context
       server: novanet
@@ -412,7 +420,7 @@ tasks:
       retain: [key_findings]
 
   - id: write_section
-    agent: main
+    agent: default
     context_budget: 8000
     use:
       context: $get_context
@@ -437,7 +445,7 @@ tasks:
       confidence_threshold: 0.85
 
   - id: persist_records
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_write
       server: novanet
@@ -467,7 +475,7 @@ flowchart LR
 
     subgraph NEW["New: Record Confidence"]
         N1["Task"] --> N2["Record\nconfidence: 0.6"]
-        N2 --> N3["Shaka orchestrator\nsees low confidence"]
+        N2 --> N3["orchestrator\nsees low confidence"]
         N3 -->|"retry?"| N4["Better agent"]
         N3 -->|"more context?"| N5["Add research"]
         N3 -->|"good enough?"| N6["Accept & continue"]
@@ -478,7 +486,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> The Shaka orchestrator has **full context** to decide how to handle low confidence. A rigid router has fixed rules. This is simpler AND more powerful.
+> The orchestrator has **full context** to decide how to handle low confidence. A rigid router has fixed rules. This is simpler AND more powerful.
 
 ---
 
@@ -490,7 +498,7 @@ mindmap
         Slate's Insights
             Threads → Tasks
             Records → Compressed results
-            Weaving → Shaka orchestration
+            Weaving → orchestrate mode
             Agent presets → Per-workflow routing
         Nika's Additions
             YAML declarative
@@ -512,19 +520,19 @@ mindmap
 > | **KNOWING** things | NovaNet | Knowledge graph, entities, locales, semantics |
 > | **DOING** things | Nika | Workflow execution, DAG, verbs, providers |
 > | **CONNECTING** | MCP | Protocol boundary, zero Cypher in Nika |
-> | **THINKING** | Records | Shaka orchestration, agent routing, confidence |
+> | **THINKING** | Records | orchestrate mode, agent routing, confidence |
 > | **REMEMBERING** | Records → NovaNet | Cross-session memory, entity-linked persistence |
 
 ---
 
 <div align="center">
 
-[← 06 Research Synthesis](./06-research-synthesis-report.md) · [📋 Index](./00-README.md) · [08 v0.30 Guide →](./08-nika-030-complete-guide.md)
+[← 05 Evolution Roadmap](./05-evolution-roadmap.md) · [📋 Index](./00-README.md) · [08 Nika Complete Guide →](./08-nika-030-complete-guide.md)
 
 </div>
 
 ---
 
 [^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with 26 academic references. Thread-based episodic memory architecture. The "8 agent presets" design is our proposal, inspired by Slate's cross-model composition (Sonnet + Codex).
-[^2]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Shaka/agents separation cited in Slate blog.
+[^2]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). orchestrator/agents separation cited in Slate blog.
 [^3]: Verified via `src/event/log.rs` — 34 `EventKind` variants as of v0.27.0.

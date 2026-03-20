@@ -185,6 +185,7 @@ impl InvokeBox {
     }
 
     /// Format JSON value for single-line display
+    #[allow(dead_code)]
     fn format_json_oneline(value: &serde_json::Value, max_len: usize) -> String {
         let json_str = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
         Self::truncate(&json_str, max_len)

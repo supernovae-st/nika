@@ -383,7 +383,7 @@ flowchart LR
     end
 
     subgraph W2["Wave 2: v0.36"]
-        PS["P-SHAKA"]
+        PS["P-ORCHESTRATE"]
         PC["P-CONTEXT"]
     end
 
@@ -415,10 +415,14 @@ flowchart LR
 | PolicyEnforcer (check_token_spend) | **P-CONTEXT** budget enforcement | Extend per-task; `ContextAssembled` event already emits `total_tokens` |
 | BuiltinToolRouter (31 tools) | **P-INTROSPECT** tool registration | Register 6 new introspection tools in existing FxHashMap router |
 | 39 EventKind | **P-INTROSPECT** data source | `nika:cost`, `nika:task_status` read from event stream |
-| Guardrails + Limits | **P-SHAKA** quality scoring | Quality gates for satellite dispatch decisions; LimitTracker for round budgets |
+| Guardrails + Limits | **P-ORCHESTRATE** quality scoring | Quality gates for satellite dispatch decisions; LimitTracker for round budgets |
 | MCP pool (retry, caching) | **P-MEMORY** NovaNet bridge | `novanet_write` for COLD tier; retry ensures reliability |
 | Agent Completion (confidence) | **P-RECORD** confidence | Confidence score → record compression threshold |
 | LimitTracker | **P-CONTEXT** | Foundation for per-task token budgets (already tracks per-turn) |
+| BuiltinToolRouter (`nika:run`) | **P-ORCHESTRATE** Dynamic Workflow Generation | `nika:run` builtin tool lets the orchestrator execute generated workflows |
+| BuiltinToolRouter (`nika:write`) | **P-ORCHESTRATE** Dynamic Workflow Generation | `nika:write` builtin tool lets the orchestrator write `.nika.yaml` files |
+| 5-Layer Structured Output | **P-ORCHESTRATE** Dynamic Workflow Generation | Orchestrator generates valid YAML via schema validation; structured output ensures correctness |
+| 5-Layer Structured Output | **P-ORCHESTRATE** workflow gen | 5-layer defense ensures generated workflows are syntactically correct YAML |
 
 ---
 
@@ -473,7 +477,7 @@ blake3 is faster (3.5 GB/s on modern CPUs), produces 256-bit hashes, and has a s
 
 ### D5: with: keyword (not use:)
 
-Doc 07 (Slate Deep Integration) used `use:` in Shaka examples. Code uses `with:`. Decision: `with:` everywhere. It is consistent with the existing binding system and more intuitive for YAML authors ("with these bindings").
+Doc 07 (Slate Deep Integration) used `use:` in orchestrator examples. Code uses `with:`. Decision: `with:` everywhere. It is consistent with the existing binding system and more intuitive for YAML authors ("with these bindings").
 
 ### D6: Raw vs Runtime naming is intentional
 

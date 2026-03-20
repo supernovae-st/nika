@@ -105,7 +105,7 @@ flowchart TB
 ### Slate's Model Slots
 
 > [!IMPORTANT]
-> **Attribution note:** Slate configures 4 model slots: **main**, **subagent**, **search**, **reasoning**. Our proposed 4-slot design (P-MODEL) uses **edison**, **atlas**, **york**, **pythagoras** — renaming "subagent" to "atlas" to better reflect the shaka/satellites separation from THREAD[^2] and AlphaZero[^3]. The slot concept is inspired by Slate; the specific taxonomy is our design.
+> **Attribution note:** Slate configures 4 model slots: **main**, **subagent**, **search**, **reasoning**. Our proposed 4-slot design (P-MODEL) uses **edison**, **atlas**, **york**, **pythagoras** — renaming "subagent" to "atlas" to better reflect the orchestrator/satellites separation from THREAD[^2] and AlphaZero[^3]. The slot concept is inspired by Slate; the specific taxonomy is our design.
 
 ```mermaid
 flowchart LR
@@ -151,9 +151,9 @@ flowchart LR
 | Context management | Working memory awareness, episode compression | None — full context carried | P-CONTEXT |
 | Model routing | 4 model slots (main/subagent/search/reasoning) | Single provider per workflow | P-MODEL |
 | Episodic memory | Cross-session persistence (session files) | In-memory only | P-MEMORY |
-| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop | P-SHAKA |
+| Strategy/tactics | Orchestrator dispatches threads, synthesizes episodes | Flat agent loop | P-ORCHESTRATE |
 | Thread model | One-shot threads with episode compression | Persistent subagents | P-RECORD |
-| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation | P-SHAKA |
+| Adaptive planning | Implicit via thread weaving, no stale plans | Static DAG, no runtime adaptation | P-ORCHESTRATE |
 | Long-running tasks | Hours to days | Single session | P-MEMORY |
 
 </details>
@@ -176,7 +176,7 @@ flowchart LR
 </details>
 
 > [!TIP]
-> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, shaka mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
+> **Key takeaway:** Nika's DAG IS already Slate's kernel. Tasks ARE processes. `TaskResult` IS return values. `Egghead` IS RAM. We don't BUILD Slate — we UPGRADE the kernel with 4 additions (model slots, records, orchestrate mode, context budgets), then persist via NovaNet. See [doc 07](./07-slate-deep-integration.md) for the complete integration strategy.
 
 ---
 
@@ -380,7 +380,7 @@ Research confirmed that NovaNet has **no direct competitors** in the curated-gra
 
 <div align="center">
 
-[← 02 Scientific Literature](./02-scientific-literature.md) · [📋 Index](./00-README.md) · [04 Nika × NovaNet Overlap →](./04-nika-novanet-overlap.md)
+[← 01 Current Features](./01-current-features.md) · [📋 Index](./00-README.md) · [04 Nika × NovaNet Overlap →](./04-nika-novanet-overlap.md)
 
 </div>
 

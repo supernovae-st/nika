@@ -159,6 +159,7 @@ impl<'a> HelpOverlay<'a> {
     }
 
     /// Calculate total content height
+    #[allow(dead_code)]
     fn content_height(&self) -> usize {
         let mut height = 0;
         for section in HELP_SECTIONS {

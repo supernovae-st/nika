@@ -32,6 +32,7 @@ const COLOR_PINK: Color = Color::Rgb(236, 72, 153); // #ec4899 - Tokens highligh
 const COLOR_GRAY: Color = Color::Rgb(107, 114, 128); // #6b7280 - Muted
 const COLOR_TURQUOISE: Color = Color::Rgb(45, 212, 191); // #2dd4bf - Accents
 const COLOR_VIOLET: Color = Color::Rgb(139, 92, 246); // #8b5cf6 - Agent mode
+#[allow(dead_code)]
 const COLOR_AMBER: Color = Color::Rgb(245, 158, 11); // #f59e0b - Thinking/warning
 const COLOR_ORANGE: Color = Color::Rgb(251, 146, 60); // #fb923c - Warning level
 

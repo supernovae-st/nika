@@ -15,83 +15,55 @@ pub struct McpToolDef {
     pub params_snippet: &'static str,
 }
 
-/// NovaNet MCP tools (12 tools from novanet-mcp server)
+/// NovaNet MCP tools (7 tools from novanet-mcp server v0.22.0)
 pub const NOVANET_TOOLS: &[McpToolDef] = &[
     McpToolDef {
-        name: "novanet_query",
-        description: "Execute a raw Cypher query against the knowledge graph",
-        params_snippet: r#"cypher: "$1"
-params: {$2}"#,
-    },
-    McpToolDef {
         name: "novanet_describe",
-        description: "Get detailed description of a node or arc class from the schema",
-        params_snippet: r#"class: "$1"
-type: "${2|node,arc|}"#,
+        description: "Bootstrap understanding of the graph (schema, entity, category, relations, locales, stats)",
+        params_snippet: r#"describe: "${1|schema,entity,category,relations,locales,stats|}"#,
     },
     McpToolDef {
         name: "novanet_search",
-        description: "Full-text search across the knowledge graph",
-        params_snippet: r#"query: "$1"
-limit: ${2:10}"#,
-    },
-    McpToolDef {
-        name: "novanet_traverse",
-        description: "Traverse the graph from a starting node following arc patterns",
-        params_snippet: r#"start: "$1"
-arc: "${2:HAS_NATIVE}"
-depth: ${3:1}"#,
-    },
-    McpToolDef {
-        name: "novanet_assemble",
-        description: "Assemble context for an entity with all related content",
-        params_snippet: r#"entity: "$1"
-locale: "${2:en-US}"
-include: [${3:"native", "terms", "expressions"}]"#,
-    },
-    McpToolDef {
-        name: "novanet_atoms",
-        description: "Retrieve knowledge atoms (terms, expressions, patterns) for an entity",
-        params_snippet: r#"entity: "$1"
-locale: "${2:en-US}"
-types: [${3:"terms", "expressions"}]"#,
-    },
-    McpToolDef {
-        name: "novanet_generate",
-        description: "Generate denomination forms and LLM context for an entity",
-        params_snippet: r#"entity: "$1"
-locale: "${2:en-US}"
-forms: [${3:"text", "title", "abbrev"}]"#,
+        description: "Find nodes via 5 modes: fulltext, property, hybrid, walk (graph traversal), triggers",
+        params_snippet: r#"mode: "${1|fulltext,property,hybrid,walk,triggers|}"
+query: "$2"
+limit: ${3:20}"#,
     },
     McpToolDef {
         name: "novanet_introspect",
-        description: "Introspect the schema to discover node classes, arc classes, and properties",
-        params_snippet: r#"node_class: "$1"
-include: [${2:"arcs", "properties", "constraints"}]"#,
+        description: "Query NodeClasses and ArcClasses with their relationships and properties",
+        params_snippet: r#"target: "${1|classes,class,arcs,arc|}"
+name: "$2"
+include_arcs: ${3:true}"#,
     },
     McpToolDef {
-        name: "novanet_batch",
-        description: "Execute multiple MCP tool calls in a single request",
-        params_snippet: r#"calls:
-  - tool: "$1"
-    params: {$2}"#,
-    },
-    McpToolDef {
-        name: "novanet_cache_stats",
-        description: "Get cache statistics for the MCP server",
-        params_snippet: "",
-    },
-    McpToolDef {
-        name: "novanet_cache_invalidate",
-        description: "Invalidate cache entries matching a pattern",
-        params_snippet: r#"pattern: "$1""#,
+        name: "novanet_context",
+        description: "Unified context assembly for LLM content generation (page, block, knowledge, assemble modes)",
+        params_snippet: r#"mode: "${1|page,block,knowledge,assemble|}"
+focus_key: "$2"
+locale: "${3:fr-FR}"
+token_budget: ${4:4000}"#,
     },
     McpToolDef {
         name: "novanet_write",
-        description: "Write or update nodes and relationships in the knowledge graph",
-        params_snippet: r#"operation: "${1|create,update,delete|}"
-node_class: "$2"
-properties: {$3}"#,
+        description: "Write or update nodes and arcs with schema validation (dry_run=true to preview)",
+        params_snippet: r#"operation: "${1|upsert_node,create_arc,update_props|}"
+class: "$2"
+key: "$3"
+properties: {$4}"#,
+    },
+    McpToolDef {
+        name: "novanet_audit",
+        description: "Post-write quality checks with CSR metrics (coverage, orphans, integrity, freshness)",
+        params_snippet: r#"target: "${1|coverage,orphans,integrity,freshness,provenance,all|}"#,
+    },
+    McpToolDef {
+        name: "novanet_batch",
+        description: "Execute multiple MCP tool calls in a single request with parallel support",
+        params_snippet: r#"operations:
+  - tool: "$1"
+    params: {$2}
+parallel: ${3:true}"#,
     },
 ];
 
@@ -206,17 +178,17 @@ mod tests {
 
     #[test]
     fn test_novanet_tools_count() {
-        assert_eq!(NOVANET_TOOLS.len(), 12);
+        assert_eq!(NOVANET_TOOLS.len(), 7);
     }
 
     #[test]
     fn test_novanet_tool_completions() {
         let completions = novanet_tool_completions();
-        assert_eq!(completions.len(), 12);
+        assert_eq!(completions.len(), 7);
 
         // Check first tool
         let first = &completions[0];
-        assert_eq!(first.label, "novanet_query");
+        assert_eq!(first.label, "novanet_describe");
         assert_eq!(first.kind, Some(CompletionItemKind::FUNCTION));
     }
 
@@ -232,7 +204,7 @@ mod tests {
     #[test]
     fn test_mcp_tool_completions_novanet() {
         let completions = mcp_tool_completions("novanet");
-        assert_eq!(completions.len(), 12);
+        assert_eq!(completions.len(), 7);
     }
 
     #[test]
@@ -262,6 +234,6 @@ mod tests {
     fn test_invoke_completions_with_server() {
         let servers = vec!["novanet".to_string()];
         let completions = invoke_completions(&servers, Some("novanet"));
-        assert_eq!(completions.len(), 12);
+        assert_eq!(completions.len(), 7);
     }
 }

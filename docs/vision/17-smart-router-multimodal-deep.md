@@ -171,7 +171,7 @@ nika:imagine (builtin tool, Tier 3 MCP router)
     +-- Agent calls: "Generate a cyberpunk QR code hero image, 1024x1024"
     |
     v
-+--- Shaka Router (capability match) ---+
++--- Orchestrator Router (capability match) ---+
 |                                        |
 |  1. Check RunContext.mcp_servers       |
 |     +-- comfyui connected? --YES-->  invoke: comfyui.generate_image  |
@@ -598,7 +598,7 @@ Audio input (LLM)       FUTURE       NONE        FUTURE (mistral.rs Gemma 3n)
 | `nika:grep` | Search file contents | v0.15.0 |
 | `nika:sleep` | Wait (max 5 min) | v0.15.0 |
 | `nika:records` | Query Punk Records | v0.30.0 (renamed from nika:episodes) |
-| `nika:shaka` | Orchestration state | v0.30.0 (renamed from nika:strategy_state) |
+| `nika:orchestrate` | Orchestration state | v0.30.0 (renamed from nika:strategy_state) |
 | `nika:dag_state` | DAG introspection | v0.30.0 |
 | `nika:budget` | Token budget tracking | v0.30.0 |
 | `nika:task_status` | Task status query | v0.30.0 |
@@ -759,8 +759,8 @@ nika:ocr("invoice.pdf")
 
 | Doc | Connection to This Document |
 |-----|-----------------------------|
-| **Doc 12** (Vegapunk Naming) | Smart Router = extension of Shaka routing. RunContext gets `vector_index` field for nika:search |
-| **Doc 13** (Multi-Modal Worker) | Smart Router IS the evolved Shaka routing from Approach C. Capability matching now includes tool backends |
+| **Doc 12** (Vegapunk Naming) | Smart Router = extension of Orchestrator routing. RunContext gets `vector_index` field for nika:search |
+| **Doc 13** (Multi-Modal Worker) | Smart Router IS the evolved Orchestrator routing from Approach C. Capability matching now includes tool backends |
 | **Doc 14** (DataStore Naming) | RunContext confirmed. Now extended with vector_index for HNSW |
 | **Doc 15** (Ecosystem Coherence) | Tool Layer updated: 20 tools (was 11). New MCP aliases. Package types unchanged |
 | **Doc 16** (Builtin Research) | Research validated. All crate selections confirmed. candle for NLLB is the new addition |
@@ -772,7 +772,7 @@ nika:ocr("invoice.pdf")
 ```
 v0.28: P-MODEL + P-RECORD (Wave 1)
   |
-v0.29: P-SHAKA + P-CONTEXT (Wave 2)
+v0.29: P-ORCHESTRATE + P-CONTEXT (Wave 2)
   |
 v0.30: P-MEMORY + P-INTROSPECT + MULTIMODAL (Wave 3)
   |

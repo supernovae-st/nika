@@ -524,9 +524,10 @@ const VERB_DOCUMENTATION: &[(&str, &str)] = &[
         ```yaml\n\
         invoke:\n\
           mcp: novanet\n\
-          tool: novanet_generate\n\
+          tool: novanet_context\n\
           params:\n\
-            entity: \"qr-code\"\n\
+            mode: \"page\"\n\
+            focus_key: \"qr-code\"\n\
             locale: \"fr-FR\"\n\
         ```\n\n\
         **Builtin tools:** `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:prompt`, `nika:run`\n\n\

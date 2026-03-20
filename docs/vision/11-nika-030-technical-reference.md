@@ -16,7 +16,7 @@
 5. [Model Routing — 4 Slots](#5-model-routing--4-slots)
 6. [Agent System](#6-agent-system)
 7. [Record Engine](#7-record-engine)
-8. [Shaka Orchestration](#8-shaka-orchestration)
+8. [Orchestrate Mode](#8-orchestrate-mode)
 9. [Context Budget Management](#9-context-budget-management)
 10. [Structured Output Pipeline](#10-structured-output-pipeline)
 11. [NovaNet Integration (MCP)](#11-novanet-integration-mcp)
@@ -59,7 +59,7 @@ Two execution modes:
 | Mode | Description | YAML field |
 |------|-------------|------------|
 | **dag** (default) | Static DAG — all tasks known at parse time, executed in dependency order | `orchestration: dag` or omitted |
-| **shaka** | Dynamic — a Shaka orchestrator dispatches satellites across rounds | `orchestration: shaka` |
+| **orchestrate** | Dynamic — an orchestrator dispatches satellites across rounds | `goal:` |
 
 ---
 
@@ -305,14 +305,14 @@ sequenceDiagram
 
 Creates N task instances running in a `tokio::JoinSet` with bounded concurrency.
 
-### DynamicDag (v0.30 — shaka mode)
+### DynamicDag (v0.30 — orchestrate mode)
 
-In `orchestration: shaka` mode, the DAG is mutable at runtime. The Shaka orchestrator can dispatch new satellites that get inserted into the live DAG.
+In `goal:` mode, the DAG is mutable at runtime. The orchestrator can dispatch new satellites that get inserted into the live DAG.
 
 | DAG Type | When | Mutability |
 |----------|------|------------|
 | `StableDag` | `orchestration: dag` (default) | Immutable after parse |
-| `DynamicDag` | `orchestration: shaka` | Tasks added at runtime by Shaka orchestrator |
+| `DynamicDag` | `goal:` | Tasks added at runtime by the orchestrator |
 
 Source: `dag/stable.rs` (existing), `dag/dynamic.rs` (v0.30)
 
@@ -469,7 +469,7 @@ sequenceDiagram
 |------|---------|
 | `nika:records` | Accumulated records `[{task_id, summary, confidence, tokens}]` |
 | `nika:threads` | Active/completed threads `[{task_id, status, model_slot}]` |
-| `nika:shaka` | Shaka progress `{round, max_rounds, budget_used, budget_total}` |
+| `nika:orchestrate` | Orchestration progress `{round, max_rounds, budget_used, budget_total}` |
 | `nika:cost` | Token usage and cost report `{total_tokens, total_cost, per_model}` |
 | `nika:dag_info` | DAG structure `{predecessors, successors, critical_path}` |
 | `nika:task_status` | Individual task status `{task_id, status, record}` |
@@ -561,7 +561,7 @@ tasks:
       compress: true            # Generate record summary
       retain: [key_findings]    # What to extract from raw output
       max_tokens: 500           # Record summary size limit
-      confidence_threshold: 0.8 # Shaka can escalate if below
+      confidence_threshold: 0.8 # Orchestrator can escalate if below
 ```
 
 ### How It Works
@@ -593,13 +593,13 @@ Source: `runtime/record.rs`, `runtime/record_compress.rs` (v0.28)
 
 ---
 
-## 8. Shaka Orchestration
+## 8. Orchestrate Mode
 
-A new execution mode where a Shaka orchestrator dynamically dispatches satellites based on the goal and accumulated records.
+A new execution mode where an orchestrator dynamically dispatches satellites based on the goal and accumulated records.
 
 ```mermaid
 sequenceDiagram
-    participant STR as Shaka (pythagoras slot)
+    participant STR as Orchestrator (pythagoras slot)
     participant R as research (york slot)
     participant W as write_section (edison slot)
     participant V as review (pythagoras slot)
@@ -629,7 +629,7 @@ sequenceDiagram
 schema: nika/workflow@0.13
 workflow: landing-page-generator
 
-orchestration: shaka              # Enables shaka/satellites mode
+goal:              # Enables orchestrator/satellites mode
 
 model_slots:
   pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
@@ -637,13 +637,13 @@ model_slots:
   york: { provider: groq, model: llama-3.3-70b-versatile }
   atlas: { provider: deepseek, model: deepseek-chat }
 
-shaka:
+goal:
   goal: "Generate a complete French landing page for QR Code AI"
   model_slot: pythagoras
   max_rounds: 10
   record_budget: 15000            # Total token budget across all records
 
-# Satellite templates — dispatched dynamically by Shaka orchestrator
+# Satellite templates — dispatched dynamically by the orchestrator
 tasks:
   - id: research
     model_slot: york
@@ -661,13 +661,13 @@ tasks:
     record: { compress: true, retain: [issues, suggestions] }
 ```
 
-### DAG vs Shaka — When to Use Which
+### DAG vs Orchestrate — When to Use Which
 
-| Criterion | DAG Mode | Shaka Mode |
+| Criterion | DAG Mode | Orchestrate Mode |
 |-----------|----------|------------|
 | Tasks known at design time | Yes | No — discovered at runtime |
 | Execution order | Fixed by depends_on | Dynamic per round |
-| Stopping condition | All tasks done | Shaka orchestrator says "DONE" |
+| Stopping condition | All tasks done | orchestrator says "DONE" |
 | Cost | Predictable | Variable (max_rounds bounds it) |
 | Inter-task data | Raw bindings or records | Always records |
 | Use case | Pipelines, ETL, deterministic flows | Creative generation, research, iterative refinement |
@@ -676,12 +676,12 @@ tasks:
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `ShakaOrchestrator` | `runtime/shaka.rs` | Main loop — sends goal + records to Shaka, dispatches satellites |
+| `Orchestrator` | `runtime/orchestrator.rs` | Main loop — sends goal + records to the orchestrator, dispatches satellites |
 | `SatelliteTemplate` | `runtime/satellite.rs` | Parsed task definitions available as satellites |
 | `SatelliteInstance` | `runtime/satellite.rs` | Concrete instantiation with runtime parameters |
 | `DynamicDag` | `dag/dynamic.rs` | Mutable DAG that accepts new tasks at runtime |
 
-Source: `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` (v0.29)
+Source: `runtime/orchestrator.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` (v0.29)
 
 ---
 
@@ -736,7 +736,7 @@ tasks:
 1. Each task receives ONLY: its prompt + relevant records + NovaNet context
 2. Never raw history from other tasks
 3. `context_budget` enforced by runtime (truncate/warn if exceeded)
-4. In shaka mode, the orchestrator selects which records to include per round
+4. In orchestrate mode, the orchestrator selects which records to include per round
 5. Token budget tracked in events for observability
 
 ### Agent Budget Awareness
@@ -1016,7 +1016,7 @@ flowchart TB
 
     AGENT -->|"nika:records"| EP["Records accumulated\nfrom completed tasks"]
     AGENT -->|"nika:threads"| TH["Active/completed threads\nwith status + model_slot"]
-    AGENT -->|"nika:shaka"| SS["Shaka progress\nround, budget used/total"]
+    AGENT -->|"nika:orchestrate"| SS["Orchestration progress\nround, budget used/total"]
     AGENT -->|"nika:cost"| CO["Token usage report\ntotal, per-model, per-task"]
     AGENT -->|"nika:dag_info"| DG["DAG structure\npredecessors, successors, path"]
     AGENT -->|"nika:task_status"| TS["Individual task\nstatus + record"]
@@ -1039,7 +1039,7 @@ Agents make better decisions when they can observe their own state:
 | "30% budget remaining" | Simplify approach, use atlas model |
 | "Previous task failed at confidence 0.4" | Change approach, retry with more context |
 | "3 sub-agents already spawned" | Don't spawn a 4th, handle inline |
-| "Round 7 of 10 in shaka mode" | Start synthesizing, stop researching |
+| "Round 7 of 10 in orchestrate mode" | Start synthesizing, stop researching |
 | "DAG critical path has 2 remaining tasks" | Focus on unblocking them |
 
 These tools join the existing 12 builtins, bringing the total to **18 builtin tools**.
@@ -1442,7 +1442,7 @@ flowchart TB
         end
 
         subgraph EXEC_LAYER["Execution Layer"]
-            RUNTIME_M["runtime/ (38 files)\nexecutor, runner, agents\nrecords, shaka, builtins"]
+            RUNTIME_M["runtime/ (38 files)\nexecutor, runner, agents\nrecords, orchestrator, builtins"]
             PROVIDER_M["provider/ (7 files)\nrig-core, native/mistral.rs\ncost tracking"]
             BINDING_M["binding/ (9 files)\nlazy, templates, JSONPath\nmentions, transforms"]
         end
@@ -1525,7 +1525,7 @@ flowchart TB
 | YAML bomb protection | Shipped | v0.27+ | `ast/budget.rs` |
 | **Model routing (4 slots)** | **Planned** | **v0.28** | `ast/raw/model_slot.rs`, `provider/rig.rs` |
 | **Record engine** | **Planned** | **v0.28** | `runtime/record.rs`, `runtime/record_compress.rs` |
-| **Shaka Orchestration** | **Planned** | **v0.29** | `runtime/shaka.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` |
+| **Orchestrate Mode** | **Planned** | **v0.29** | `runtime/orchestrator.rs`, `runtime/satellite.rs`, `dag/dynamic.rs` |
 | **Context budget management** | **Planned** | **v0.29** | `runtime/context_budget.rs` |
 | **Persistent Records (NovaNet)** | **Planned** | **v0.30** | `runtime/record_memory.rs` |
 | **6 introspection tools** | **Planned** | **v0.30** | `runtime/builtin/` (6 new tools) |
@@ -1545,7 +1545,7 @@ gantt
     P-RECORD: Record compression           :pe, 2026-04-01, 30d
 
     section Wave 2 (v0.29)
-    P-SHAKA: Shaka orchestration           :ps, after pe, 45d
+    P-ORCHESTRATE: orchestrate mode           :ps, after pe, 45d
     P-CONTEXT: Context budgets             :pc, after pe, 30d
 
     section Wave 3 (v0.30)
@@ -1557,7 +1557,7 @@ gantt
 
 ```mermaid
 flowchart LR
-    PM["P-MODEL\n4 slots"] --> PS["P-SHAKA\nneeds slots for routing"]
+    PM["P-MODEL\n4 slots"] --> PS["P-ORCHESTRATE\nneeds slots for routing"]
     PE["P-RECORD\ncompression"] --> PS
     PE --> PC["P-CONTEXT\nneeds records for budgets"]
     PS --> PMEM["P-MEMORY\nneeds records stable"]

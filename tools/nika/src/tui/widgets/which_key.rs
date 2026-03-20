@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 
 // Solarized-inspired colors
 const COLOR_BG: Color = Color::Rgb(30, 30, 46);
+#[allow(dead_code)]
 const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
 const COLOR_KEY: Color = Color::Rgb(34, 211, 238); // Cyan
 const COLOR_DESC: Color = Color::Rgb(205, 214, 244); // Light text

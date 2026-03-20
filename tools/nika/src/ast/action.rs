@@ -1176,7 +1176,7 @@ fetch:
         let yaml = r#"
 invoke:
   mcp: novanet
-  tool: novanet_generate
+  tool: novanet_context
   params:
     entity: qr-code
     locale: fr-FR
@@ -1185,7 +1185,7 @@ invoke:
         match action {
             TaskAction::Invoke { invoke } => {
                 assert_eq!(invoke.mcp, Some("novanet".to_string()));
-                assert_eq!(invoke.tool, Some("novanet_generate".to_string()));
+                assert_eq!(invoke.tool, Some("novanet_context".to_string()));
                 assert_eq!(
                     invoke.params,
                     Some(json!({"entity": "qr-code", "locale": "fr-FR"}))

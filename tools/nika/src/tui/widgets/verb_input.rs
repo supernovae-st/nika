@@ -27,6 +27,7 @@ const COLOR_EXEC: Color = Color::Rgb(181, 137, 0); // Yellow 📟
 const COLOR_FETCH: Color = Color::Rgb(42, 161, 152); // Cyan 🛰️
 const COLOR_INVOKE: Color = Color::Rgb(133, 153, 0); // Green 🔌
 const COLOR_AGENT: Color = Color::Rgb(236, 72, 153); // Pink 🐔
+#[allow(dead_code)]
 const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted text
 
 /// Chat verb types - maps to Nika's 5 semantic verbs

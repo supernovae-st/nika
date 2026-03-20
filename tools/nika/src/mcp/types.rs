@@ -289,7 +289,7 @@ impl McpConfig {
 /// Sent to an MCP server to invoke a specific tool with arguments.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ToolCallRequest {
-    /// Tool name (e.g., "novanet_generate", "read_file")
+    /// Tool name (e.g., "novanet_context", "read_file")
     pub name: String,
 
     /// Tool arguments as JSON object
@@ -557,7 +557,7 @@ impl ResourceContent {
 /// Describes a tool that can be called, including its JSON Schema.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ToolDefinition {
-    /// Tool name (e.g., "novanet_generate")
+    /// Tool name (e.g., "novanet_context")
     pub name: String,
 
     /// Human-readable description
@@ -679,9 +679,9 @@ mod tests {
 
     #[test]
     fn test_tool_call_request_new() {
-        let request = ToolCallRequest::new("novanet_generate");
+        let request = ToolCallRequest::new("novanet_context");
 
-        assert_eq!(request.name, "novanet_generate");
+        assert_eq!(request.name, "novanet_context");
         assert!(request.arguments.is_object());
         assert!(request.arguments.as_object().unwrap().is_empty());
     }
@@ -693,9 +693,9 @@ mod tests {
             "locale": "fr-FR"
         });
 
-        let request = ToolCallRequest::new("novanet_generate").with_arguments(args.clone());
+        let request = ToolCallRequest::new("novanet_context").with_arguments(args.clone());
 
-        assert_eq!(request.name, "novanet_generate");
+        assert_eq!(request.name, "novanet_context");
         assert_eq!(request.arguments, args);
     }
 
@@ -859,11 +859,11 @@ mod tests {
             "required": ["entity"]
         });
 
-        let tool = ToolDefinition::new("novanet_generate")
+        let tool = ToolDefinition::new("novanet_context")
             .with_description("Generate native content for an entity")
             .with_input_schema(schema.clone());
 
-        assert_eq!(tool.name, "novanet_generate");
+        assert_eq!(tool.name, "novanet_context");
         assert_eq!(
             tool.description,
             Some("Generate native content for an entity".to_string())

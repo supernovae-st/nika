@@ -28,16 +28,16 @@
 # pipeline-report.nika.yaml — Automated data analysis pipeline
 schema: nika/workflow@0.13
 
+# models: layer defines reusable model references
+models:
+  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
+  deepseek: { provider: deepseek, model: deepseek-chat }
+  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
+
 agents:
-  main:
-    provider: anthropic
-    model: claude-sonnet-4-6
-  fast:
-    provider: deepseek
-    model: deepseek-chat
-  search:
-    provider: groq
-    model: llama-3.3-70b-versatile
+  default: { model: sonnet }
+  lite:    { model: deepseek }
+  search:  { model: groq-llama }
 
 tasks:
   # ──────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ tasks:
       retain: [topics, sentiment, themes]
 
   - id: analyze_metrics
-    agent: fast                      # ← DeepSeek: very cheap
+    agent: lite                      # ← DeepSeek: very cheap
     context_budget: 4000
     with:
       data: "$get_internal_data"
@@ -115,7 +115,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: generate_report
-    agent: main                     # ← Claude: quality writing
+    agent: default                     # ← Claude: quality writing
     context_budget: 8000
     with:
       trends: "$analyze_trends"            # ← Gets 400-token record, not raw data
@@ -137,7 +137,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: format_html
-    agent: fast                      # ← DeepSeek: simple formatting
+    agent: lite                      # ← DeepSeek: simple formatting
     with:
       report: "$generate_report"
     infer: "Convert this report to clean HTML with inline CSS: {{with.report}}"
@@ -244,28 +244,28 @@ flowchart TB
 
 **Scenario:** Generate localized landing pages for QR Code AI in 5 languages, using NovaNet's knowledge graph for entity context and cultural intelligence.
 
-**v0.30 features used:** ALL 6 features (Agents, Records, Shaka, Context Budget, Memory, Introspection)
+**v0.30 features used:** ALL 6 features (Agents, Records, Orchestrate Mode, Context Budget, Memory, Introspection)
 
 ### The Workflow
 
 ```yaml
 # generate-multilingual.nika.yaml — Full v0.30 showcase
 schema: nika/workflow@0.13
-orchestration: shaka
+goal:
 
 agents:
-  reason:
+  think:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
-  main:
+  default:
     provider: anthropic
     model: claude-sonnet-4-6
   search:
     provider: groq
     model: llama-3.3-70b-versatile
-  fast:
+  lite:
     provider: deepseek
     model: deepseek-chat
 
@@ -275,7 +275,7 @@ mcp:
       command: cargo
       args: ["run", "-p", "novanet-mcp"]
 
-shaka:
+goal:
   goal: |
     Generate landing pages for QR Code AI in 5 locales: fr-FR, en-US, de-DE, ja-JP, es-ES.
     For each locale:
@@ -285,7 +285,7 @@ shaka:
     4. Write 4 sections: hero, features, pricing, FAQ
     5. Review for quality (score >= 0.85)
     6. Persist records for future reuse
-  agent: reason
+  agent: think
   max_rounds: 25
   record_budget: 50000
 
@@ -295,7 +295,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: get_entity_context
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_context
       server: novanet
@@ -308,7 +308,7 @@ tasks:
       max_tokens: 500
 
   - id: get_knowledge
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_context
       server: novanet
@@ -327,7 +327,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: recall_records
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_search
       server: novanet
@@ -374,10 +374,10 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: write_section
-    agent: main
+    agent: default
     context_budget: 8000
     with:
-      section: "$shaka.current_section"
+      section: "$orchestrator.current_section"
       locale: "$get_entity_context.locale"
       entity_context: "$get_entity_context"
       knowledge: "$get_knowledge"
@@ -413,7 +413,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: review_page
-    agent: reason
+    agent: think
     context_budget: 12000
     with:
       locale: "$get_entity_context.locale"
@@ -447,7 +447,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: persist_page
-    agent: fast
+    agent: lite
     invoke:
       tool: novanet_write
       server: novanet
@@ -467,11 +467,11 @@ tasks:
       entity_link: qr-code-ai
 ```
 
-### Execution Flow (Shaka Mode)
+### Execution Flow (Orchestrate Mode)
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Shaka
+    participant S as 🎯 Orchestrator
     participant CTX as 🔌 NovaNet
     participant R as 🔍 Research
     participant W as ✍️ Writer
@@ -540,29 +540,29 @@ sequenceDiagram
 
 **Scenario:** A coding agent that analyzes a codebase, plans changes, implements them, runs tests, and iterates until tests pass.
 
-**v0.30 features used:** Agents, Records, Shaka, Context Budget, Introspection
+**v0.30 features used:** Agents, Records, Orchestrate Mode, Context Budget, Introspection
 
 ### The Workflow
 
 ```yaml
-# code-agent.nika.yaml — Coding agent with shaka mode
+# code-agent.nika.yaml — Coding agent with orchestrate mode
 schema: nika/workflow@0.13
-orchestration: shaka
+goal:
 
 agents:
-  reason:
+  think:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 32768
-  main:
+  default:
     provider: anthropic
     model: claude-sonnet-4-6
-  fast:
+  lite:
     provider: deepseek
     model: deepseek-chat
 
-shaka:
+goal:
   goal: |
     Implement the feature described in the user's request.
     Steps:
@@ -572,7 +572,7 @@ shaka:
     4. Run tests
     5. If tests fail: analyze errors, fix, re-test
     6. Done when all tests pass
-  agent: reason
+  agent: think
   max_rounds: 15
   record_budget: 30000
 
@@ -587,9 +587,9 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: read_files
-    agent: fast
+    agent: lite
     with:
-      files: "$shaka.target_files"
+      files: "$orchestrator.target_files"
     agent:
       prompt: |
         Read the source files relevant to this task: {{with.files}}
@@ -606,7 +606,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: plan
-    agent: reason
+    agent: think
     context_budget: 10000
     with:
       codebase: "$read_files"
@@ -640,10 +640,10 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: implement
-    agent: main
+    agent: default
     context_budget: 12000
     with:
-      change_description: "$shaka.current_change"
+      change_description: "$orchestrator.current_change"
       plan: "$plan"
       relevant_code: "$read_files"
     agent:
@@ -680,7 +680,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_failures
-    agent: reason
+    agent: think
     context_budget: 8000
     with:
       test_output: "$run_tests"
@@ -714,7 +714,7 @@ tasks:
 
 ```mermaid
 sequenceDiagram
-    participant S as 🎯 Shaka<br/>(Claude + thinking)
+    participant S as 🎯 Orchestrator<br/>(Claude + thinking)
     participant R as 📖 read_files<br/>(DeepSeek)
     participant P as 🗺️ plan<br/>(Claude + thinking)
     participant I as 💻 implement<br/>(Claude)
@@ -756,7 +756,7 @@ sequenceDiagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  SIMPLE AGENT vs SHAKA CODING AGENT                                             │
+│  SIMPLE AGENT vs ORCHESTRATE CODING AGENT                                             │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  Simple agent (v0.27):                                                          │
@@ -766,8 +766,8 @@ sequenceDiagram
 │  • Can't switch models for different subtasks                                   │
 │  • Everything in one prompt = confused, unfocused                               │
 │                                                                                 │
-│  Shaka coding agent (v0.30):                                                    │
-│  • Shaka PLANS what to do (with extended thinking)                             │
+│  Orchestrate coding agent (v0.30):                                                    │
+│  • Orchestrator PLANS what to do (with extended thinking)                             │
 │  • Each task (read, plan, implement, test) has fresh context                   │
 │  • Records pass only essential info (not 500 lines of code)                    │
 │  • Cheap model reads files (DeepSeek), expensive model plans (Claude)          │
@@ -789,14 +789,20 @@ Quick reference for which YAML fields to use:
 # FEATURE 1: AGENTS (MODEL ROUTING)
 # ══════════════════════════════════════════════════════════════
 
-agents:
-  main:       { provider: anthropic, model: claude-sonnet-4-6 }
-  fast:       { provider: deepseek,  model: deepseek-chat }
-  search:     { provider: groq,      model: llama-3.3-70b-versatile }
-  reason:     { provider: anthropic, model: claude-sonnet-4-6,
-               extended_thinking: true, thinking_budget: 16384 }
+# models: layer — define model aliases once
+models:
+  sonnet: { provider: claude, model: claude-sonnet-4-20250514 }
+  deepseek: { provider: deepseek, model: deepseek-chat }
+  groq-llama: { provider: groq, model: llama-3.3-70b-versatile }
 
-default_agent: main
+# agents: reference models by alias
+agents:
+  default: { model: sonnet }
+  lite:    { model: deepseek }
+  search:  { model: groq-llama }
+  think:   { model: sonnet, extended_thinking: true, thinking_budget: 16384 }
+
+default_agent: default
 
 tasks:
   - id: my_task
@@ -816,14 +822,14 @@ tasks:
       confidence_threshold: 0.8     # Quality threshold
 
 # ══════════════════════════════════════════════════════════════
-# FEATURE 3: SHAKA ORCHESTRATION
+# FEATURE 3: ORCHESTRATE MODE
 # ══════════════════════════════════════════════════════════════
 
-orchestration: shaka                # At workflow level
+goal: |                              # goal: field auto-enables orchestrate mode
+  What you want to achieve.
+  Natural language description.
 
-shaka:
-  goal: "What you want to achieve"  # Natural language goal
-  agent: reason                     # Which agent for Shaka
+  agent: think                      # Which agent for orchestrator
   max_rounds: 10                    # Max dispatch rounds
   record_budget: 15000              # Total token budget
 
@@ -859,7 +865,7 @@ tasks:
       tools:
         - nika:records              # Past records
         - nika:threads              # Active/completed tasks
-        - nika:shaka                # Round, budget
+        - nika:orchestrate                # Round, budget
         - nika:cost                 # Token/cost report
         - nika:dag_info             # DAG structure
         - nika:task_status          # Single task status
@@ -871,8 +877,8 @@ tasks:
 
 | Dimension | Use Case C (Pipeline) | Use Case A (Multilingual) | Use Case B (Coding) |
 |-----------|:--------------------:|:------------------------:|:-------------------:|
-| Mode | `dag` | `shaka` | `shaka` |
-| Agents | 3 (main, fast, search) | 4 (all) | 3 (reason, main, fast) |
+| Mode | `dag` | `orchestrate` | `orchestrate` |
+| Agents | 3 (default, lite, search) | 4 (all) | 3 (think, default, lite) |
 | Records | ✅ compress + retain | ✅ compress + retain + persist | ✅ compress + retain |
 | Context Budget | ✅ per-task | ✅ per-task | ✅ per-task |
 | NovaNet | ❌ not needed | ✅ context + knowledge + persist | ❌ not needed |

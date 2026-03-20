@@ -1064,12 +1064,12 @@ fn c20_fetch_default_method_get() {
 #[test]
 fn d01_invoke_simple_tool() {
     let yaml =
-        wrap("invoke:\n  mcp: novanet\n  tool: novanet_generate\n  params:\n    entity: qr-code");
+        wrap("invoke:\n  mcp: novanet\n  tool: novanet_context\n  params:\n    entity: qr-code");
     let w = ok(&yaml);
     match &w.tasks[0].action {
         TaskAction::Invoke { invoke } => {
             assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
-            assert_eq!(invoke.tool.as_deref(), Some("novanet_generate"));
+            assert_eq!(invoke.tool.as_deref(), Some("novanet_context"));
             assert!(invoke.params.is_some());
         }
         _ => panic!("expected Invoke"),

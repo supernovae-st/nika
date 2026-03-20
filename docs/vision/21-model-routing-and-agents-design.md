@@ -1,10 +1,11 @@
-# 21 -- Model Routing & Naming -- Deep Research
+# 21 -- Model Routing & Agents Design
 
 > Industry survey of model routing patterns, naming conventions, and semantic agent preset systems.
-> Validates Nika's unified `agents:` block with 8 presets (main/fast/reason/search/vision/judge/code/summary) against the state of the art.
+> Validates Nika's unified `agents:` block with 8 presets (default/lite/think/search/vision/judge/coder/summary) against the state of the art.
+> Includes adversarial analysis (devil's advocate counter-arguments) of the unified design.
 
 **Status:** RESEARCH (updated 2026-03-20) | **Date:** 2026-03-16
-**Dependencies:** Doc 05 (Evolution Roadmap), Doc 12 (Vegapunk Naming), Doc 17 (Smart Router)
+**Dependencies:** Doc 05 (Evolution Roadmap), Doc 12 (Naming & Identity), Doc 17 (Smart Router)
 **Research Sources:** Perplexity (5 queries), arXiv (4 papers), framework docs (6 frameworks)
 
 ---
@@ -20,14 +21,15 @@
 7. [Nika's 8-Preset Unified Agents Block: Deep Analysis](#7-nikas-8-preset-unified-agents-block-deep-analysis)
 8. [Cross-Framework Comparison Matrix](#8-cross-framework-comparison-matrix)
 9. [Recommendation for Nika](#9-recommendation-for-nika)
-10. [Sources](#10-sources)
+10. [Devil's Advocate: Counter-Arguments](#10-devils-advocate-counter-arguments)
+11. [Sources](#11-sources)
 
 ---
 
 ## 1. Why This Research Matters
 
 Nika v0.28 introduces P-MODEL: a unified `agents:` block where workflows declare WHAT capability
-they need (main, fast, reason, search, vision, judge, code, summary) rather than WHICH specific
+they need (default, lite, think, search, vision, judge, coder, summary) rather than WHICH specific
 model to use. This document validates the design against the 2025-2026 landscape.
 
 ```
@@ -35,10 +37,10 @@ THE CORE QUESTION
 -----------------------------------------------------------------
 Should workflows say:       Or should they say:
 
-  model: claude-sonnet-4-6       agent: main
-  model: llama-3.3-70b           agent: fast
+  model: claude-sonnet-4-6       agent: default
+  model: llama-3.3-70b           agent: lite
   model: deepseek-chat           agent: search
-  model: claude-sonnet-4-6       agent: reason
+  model: claude-sonnet-4-6       agent: think
 
 Explicit model IDs             Semantic agent presets
 (brittle, coupled)             (portable, intent-driven)
@@ -63,8 +65,8 @@ Generation 2 (2024-2025):    Per-task explicit model IDs
                              analysis_model = ChatOpenAI(model="o1-preview")
 
 Generation 3 (2025-2026):    Unified agent presets + dynamic routing
-                             agent: reason            # Router picks best model
-                             agent: fast              # Cost-optimized
+                             agent: think            # Router picks best model
+                             agent: lite              # Cost-optimized
 ```
 
 ### 2.2 Platform-Level Routing (Gateways)
@@ -103,8 +105,8 @@ GPT-4o              Llama 3.3 70B
 o1-preview          GPT-4o-mini
 ```
 
-This maps directly to Nika's agent preset model: `reason` for deep, `fast` for throughput,
-with `main` and `search` providing additional specialization, plus `vision`, `judge`, `code`,
+This maps directly to Nika's agent preset model: `think` for deep, `lite` for throughput,
+with `default` and `search` providing additional specialization, plus `vision`, `judge`, `coder`,
 and `summary` for targeted capabilities.
 
 ---
@@ -189,7 +191,7 @@ which registered service to use via `PromptExecutionSettings`.
 
 ```csharp
 // Semantic Kernel: registered services as implicit slots
-builder.AddOpenAIChatCompletion("gpt-4o-mini", key);   // "fast"
+builder.AddOpenAIChatCompletion("gpt-4o-mini", key);   // "lite"
 builder.AddAzureChatCompletion("gpt-4o", endpoint);    // "quality"
 
 // Per-invocation selection
@@ -237,7 +239,7 @@ pattern of explicit model IDs per step.
 
 | Paper | Year | Key Contribution | Relevance to Nika |
 |-------|:----:|------------------|-------------------|
-| **FrugalGPT**[^6] | 2023 | Cascading: try cheap model first, escalate if uncertain | Confidence-based model escalation in Shaka |
+| **FrugalGPT**[^6] | 2023 | Cascading: try cheap model first, escalate if uncertain | Confidence-based model escalation in orchestration |
 | **AutoMix**[^7] | 2024 | Automatic routing between model sizes based on query | Validates per-task model routing |
 | **RouteLLM**[^5] | 2024 | Open-source cost-quality routing with 4 classifier types | SW ranking + BERT classifiers for routing |
 | **R2-Router**[^8] | 2026 | Treats LLMs as quality-cost curves, not points | Powerful models with constrained budgets can beat weak models |
@@ -267,8 +269,8 @@ Return result
 ```
 
 **Cost savings:** Up to 98% cost reduction with minimal quality loss on certain benchmarks.
-**Relevance to Nika:** This pattern maps to Shaka's confidence-based escalation (P-SHAKA).
-A record with low confidence triggers re-execution with a more capable model slot.
+**Relevance to Nika:** This pattern maps to orchestration's confidence-based escalation (P-SHAKA).
+A record with low confidence triggers re-execution with a more capable agent preset.
 
 ### 4.3 R2-Router: Models as Quality-Cost Curves
 
@@ -279,7 +281,7 @@ instructions), the paper discovers configurations where:
 - Powerful LLMs with **constrained budgets** outperform weaker models at full budget
 - Optimal model selection depends on the specific cost-quality tradeoff desired
 
-**Relevance to Nika:** Validates the `fast` agent preset concept -- a powerful model with
+**Relevance to Nika:** Validates the `lite` agent preset concept -- a powerful model with
 constrained parameters (fast, short outputs) can outperform a weaker model at full length.
 
 ### 4.4 Dynamic Routing Survey (2026)
@@ -296,7 +298,7 @@ The most comprehensive survey to date[^9] analyzes routing across:
 individual models by strategically leveraging specialized capabilities across models
 while maximizing efficiency gains."
 
-This is the definitive academic validation for Nika's multi-slot approach.
+This is the definitive academic validation for Nika's multi-preset approach.
 
 ---
 
@@ -312,7 +314,7 @@ This is the definitive academic validation for Nika's multi-slot approach.
 | **Slate** | Role (main/subagent/search/reasoning) | 4 | Functional role in agent system |
 | **OpenRouter** | Tiered (fast/quality/balanced) | 3 | Routing strategy, not model identity |
 | **Azure Router** | Mode (quality/cost/balanced) | 3 | Optimization objective |
-| **Nika (current)** | Descriptive (main/fast/reason/search/vision/judge/code/summary) | 8 | Functional capability presets in unified agents: block |
+| **Nika (current)** | Descriptive presets (default/lite/think/search/vision/judge/coder/summary) | 8 | Functional capability presets in unified agents: block |
 
 ### 5.2 Two Philosophies
 
@@ -321,7 +323,7 @@ PHILOSOPHY A: Name by size/speed              PHILOSOPHY B: Name by capability/r
 ---------------------------------------------  -------------------------------------------
 Haiku / Sonnet / Opus                          main / subagent / search / reasoning (Slate)
 Flash / Pro / Ultra                            fast / quality / balanced (OpenRouter)
-mini / standard / premium                      main / fast / reason / search (Nika)
+mini / standard / premium                      default / lite / think / search (Nika)
 
 Pros:                                          Pros:
 - Clear cost/perf ordering                     - Decoupled from model identity
@@ -349,21 +351,21 @@ Nika's current mapping (unified `agents:` block with 8 presets):
 
 | Slate Slot | Nika Agent Preset | Cognitive Role |
 |-----------|-------------------|----------------|
-| `main` | `main` | Primary creative generation, writing, orchestration |
-| `subagent` | `fast` | Fast execution, structured tasks, formatting |
+| `main` | `default` | Primary creative generation, writing, orchestration |
+| `subagent` | `lite` | Fast execution, structured tasks, formatting |
 | `search` | `search` | Search, retrieval, data collection |
-| `reasoning` | `reason` | Deep reasoning, planning, critique, review |
+| `reasoning` | `think` | Deep reasoning, planning, critique, review |
 | -- | `vision` | Visual analysis, OCR, image understanding |
 | -- | `judge` | Quality evaluation, scoring, validation |
-| -- | `code` | Code generation, review, execution |
+| -- | `coder` | Code generation, review, execution |
 | -- | `summary` | Compression, summarization, extraction |
 
 ### 5.4 Why Nika Evolved Beyond Slate's 4 Slots
 
 The evolution from 4 named slots (edison/atlas/york/pythagoras) to 8 descriptive agent presets
-(main/fast/reason/search/vision/judge/code/summary) serves three purposes:
+(default/lite/think/search/vision/judge/coder/summary) serves three purposes:
 
-1. **Descriptive over lore-based.** Functional names (main, fast, reason) are instantly
+1. **Descriptive over lore-based.** Functional names (default, lite, think) are instantly
    understandable without learning Vegapunk lore. Lower onboarding friction.
 
 2. **Expanded coverage.** 4 slots could not adequately cover vision, code, judging, and
@@ -382,13 +384,13 @@ The dominant pattern across all frameworks that support multi-model is:
 
 ```
 [User-Facing Preset]  -->  [Provider + Model Config]  -->  [Runtime Resolution]
-     main              -->  anthropic / claude-sonnet   -->  API call
-     fast              -->  groq / llama-3.3-70b        -->  API call
+     default           -->  anthropic / claude-sonnet   -->  API call
+     lite              -->  groq / llama-3.3-70b        -->  API call
      search            -->  deepseek / deepseek-chat    -->  API call
-     reason            -->  anthropic / claude + think   -->  API call with thinking
+     think             -->  anthropic / claude + think   -->  API call with thinking
      vision            -->  openai / gpt-4o              -->  API call
      judge             -->  anthropic / claude-sonnet    -->  API call
-     code              -->  anthropic / claude-sonnet    -->  API call
+     coder             -->  anthropic / claude-sonnet    -->  API call
      summary           -->  groq / llama-3.3-70b         -->  API call
 ```
 
@@ -401,7 +403,7 @@ Every production routing system implements fallback:
 ```yaml
 # Nika agents with fallback (proposed for v0.28+)
 agents:
-  main:
+  default:
     primary:
       provider: anthropic
       model: claude-sonnet-4-6
@@ -419,11 +421,11 @@ The key insight from FrugalGPT, RouteLLM, and enterprise adoption:
 
 ```
                     Cost per 1M tokens    Quality (avg)    Latency
-                    ─────────────────    ─────────────    ───────
-reason              $15.00               9.2/10           2-8s (thinking)
-main                $3.00                8.5/10           1-3s
+                    -----------------    -------------    -------
+think               $15.00               9.2/10           2-8s (thinking)
+default             $3.00                8.5/10           1-3s
 search              $0.27                7.8/10           0.5-1s
-fast                $0.05                7.0/10           0.2-0.5s
+lite                $0.05                7.0/10           0.2-0.5s
 ```
 
 The cost difference between presets can be **100-300x**, making routing a significant
@@ -431,16 +433,16 @@ optimization lever. IDC reports 70% cost reduction through intelligent routing[^
 
 ### 6.4 Pattern: Confidence-Based Escalation
 
-From FrugalGPT cascading + Nika's Shaka orchestration:
+From FrugalGPT cascading + Nika's orchestration:
 
 ```
-Task executes with fast (cheap, fast)
+Task executes with lite (cheap, fast)
     |
     v
 Record generated: confidence = 0.65 (below threshold)
     |
     v
-Shaka sees low confidence --> Re-dispatch with main
+Orchestrator sees low confidence --> Re-dispatch with default
     |
     v
 Record generated: confidence = 0.92 (above threshold)
@@ -463,19 +465,19 @@ P-RECORD (confidence tracking) + P-SHAKA (dynamic re-dispatch) integration.
 |                    NIKA AGENT PRESETS (P-MODEL)                                 |
 +===============================================================================+
 |                                                                                |
-|  MAIN                                                                          |
+|  DEFAULT                                                                       |
 |  Role:     Primary creative work -- generation, writing, orchestration         |
 |  Profile:  High quality, moderate cost, moderate speed                         |
 |  Default:  claude-sonnet-4-6 / gpt-4o                                          |
 |  Use:      Content generation, complex infer: tasks, general purpose           |
 |                                                                                |
-|  FAST                                                                          |
+|  LITE                                                                          |
 |  Role:     Fast tactical execution -- structured tasks, formatting             |
 |  Profile:  Good quality, low cost, high speed                                  |
 |  Default:  llama-3.3-70b (Groq) / gpt-4o-mini / claude-haiku                  |
 |  Use:      Record compression, JSON extraction, simple transforms              |
 |                                                                                |
-|  REASON                                                                        |
+|  THINK                                                                         |
 |  Role:     Deep reasoning -- planning, analysis, critique, review              |
 |  Profile:  Highest quality, high cost, slow (thinking enabled)                 |
 |  Default:  claude-sonnet-4-6 + extended_thinking / o1-preview                  |
@@ -499,7 +501,7 @@ P-RECORD (confidence tracking) + P-SHAKA (dynamic re-dispatch) integration.
 |  Default:  claude-sonnet-4-6 / gpt-4o                                          |
 |  Use:      Output validation, quality scoring, acceptance criteria              |
 |                                                                                |
-|  CODE                                                                          |
+|  CODER                                                                         |
 |  Role:     Code generation and review                                          |
 |  Profile:  Code-optimized, moderate cost                                       |
 |  Default:  claude-sonnet-4-6 / deepseek-coder                                  |
@@ -520,16 +522,16 @@ P-RECORD (confidence tracking) + P-SHAKA (dynamic re-dispatch) integration.
 schema: nika/workflow@0.12
 
 agents:
-  main:
+  default:
     provider: anthropic
     model: claude-sonnet-4-6
-  fast:
+  lite:
     provider: groq
     model: llama-3.3-70b-versatile
   search:
     provider: deepseek
     model: deepseek-chat
-  reason:
+  think:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
@@ -540,7 +542,7 @@ agents:
   judge:
     provider: anthropic
     model: claude-sonnet-4-6
-  code:
+  coder:
     provider: anthropic
     model: claude-sonnet-4-6
   summary:
@@ -549,16 +551,16 @@ agents:
 
 tasks:
   - id: plan
-    agent: reason
+    agent: think
     infer: "Create a content plan for {{with.entity}}"
 
   - id: generate_pages
-    agent: main
+    agent: default
     for_each: $pages
     infer: "Generate page {{with.item}}"
 
   - id: format
-    agent: fast
+    agent: lite
     infer: "Format and validate the generated page"
 ```
 
@@ -568,9 +570,9 @@ tasks:
 |:-----:|----------|---------|
 | 2 | fast / quality | Too coarse. Cannot distinguish reasoning from creative. |
 | 3 | Haiku / Sonnet / Opus | Size-based, not capability-based. Search is not a "size". |
-| 4 | main / fast / search / reason | Misses vision, code, judging, summarization -- real workflow needs. |
-| **8** | **main / fast / reason / search / vision / judge / code / summary** | **Covers all functional roles that workflows actually dispatch to.** |
-| 10+ | Adding more specializations | Diminishing returns. Shaka (the orchestrator) is not a preset -- it is the dispatcher. |
+| 4 | default / lite / search / think | Misses vision, code, judging, summarization -- real workflow needs. |
+| **8** | **default / lite / think / search / vision / judge / coder / summary** | **Covers all functional roles that workflows actually dispatch to.** |
+| 10+ | Adding more specializations | Diminishing returns. The orchestrator is not a preset -- it is the dispatcher. |
 
 The 8-preset design aligns with:
 - **Slate's 4 slots** (main/subagent/search/reasoning) as a foundation -- extended with 4 more
@@ -579,14 +581,14 @@ The 8-preset design aligns with:
 
 ### 7.4 Agent Assignment Heuristics
 
-When `agent:` is omitted, Nika uses the `main` preset by default.
-In Shaka mode, the Shaka LLM can dynamically assign presets per task dispatch:
+When `agent:` is omitted, Nika uses the `default` preset by default.
+In orchestrate mode, the orchestrator LLM can dynamically assign presets per task dispatch:
 
 ```
-Shaka decision loop:
+Orchestrator decision loop:
   "This task needs research" --> search
-  "This task needs fast formatting" --> fast
-  "This task needs creative writing" --> main
+  "This task needs fast formatting" --> lite
+  "This task needs creative writing" --> default
   "This task needs image analysis" --> vision
   "I need to review all results" --> judge
   "Compress this output" --> summary
@@ -606,7 +608,7 @@ Shaka decision loop:
 | Provider abstraction | 7 providers | ~3 | Via LangChain | Via LangChain | Direct | Direct |
 | Fallback chain | Planned | Yes | Manual | Manual | Manual | -- |
 | Cost tracking per slot | Yes (events) | Partial | Manual | Manual | Manual | Metrics |
-| Dynamic re-routing | Via Shaka | Via orchestrator | Conditional edges | -- | -- | Compile-time |
+| Dynamic re-routing | Via orchestrator | Via orchestrator | Conditional edges | -- | -- | Compile-time |
 | Extended thinking support | Per slot | Per slot | Manual | -- | -- | -- |
 
 ### 8.2 Abstraction Level
@@ -614,7 +616,7 @@ Shaka decision loop:
 ```
 HIGH ABSTRACTION (semantic, portable)
   |
-  |  Nika:      agent: main             (YAML, capability-named, 8 presets)
+  |  Nika:      agent: default          (YAML, capability-named, 8 presets)
   |  Slate:     slot: main              (JSON, role-named)
   |
   |  OpenRouter: tier: quality           (API, objective-named)
@@ -635,7 +637,7 @@ Nika uses **YAML-first declarative** configuration while Slate uses JSON/TypeScr
 
 | Framework | Naming Style | Memorable? | Portable? | Self-Documenting? |
 |-----------|-------------|:----------:|:---------:|:-----------------:|
-| **Nika** | Descriptive presets (main, fast, reason) | Medium | High | High (self-documenting) |
+| **Nika** | Descriptive presets (default, lite, think) | Medium | High | High (self-documenting) |
 | **Slate** | Role names (main, subagent) | Medium | High | High |
 | **OpenRouter** | Objective names (fast, quality) | Medium | High | High |
 | **Anthropic** | Poetry names (haiku, sonnet) | High | Low (vendor-specific) | Medium |
@@ -647,14 +649,14 @@ Nika uses **YAML-first declarative** configuration while Slate uses JSON/TypeScr
 
 ### 9.1 Validation Summary
 
-The research validates Nika's 4-slot design on every dimension:
+The research validates Nika's 8-preset unified `agents:` design on every dimension:
 
 | Dimension | Finding | Confidence |
 |-----------|---------|:----------:|
-| **Slot count (4)** | Matches Slate, covers all cognitive modes, aligns with enterprise patterns | High |
-| **Named slots** | Higher abstraction than any competitor except Slate | High |
-| **YAML-first** | Only declarative system with named slots (unique differentiator) | High |
-| **Vegapunk names** | Memorable, cohesive with lore, no conflicts with industry terms | High |
+| **Preset count (8)** | Covers all cognitive modes + specialized capabilities, aligns with enterprise patterns | High |
+| **Named presets** | Higher abstraction than any competitor except Slate | High |
+| **YAML-first** | Only declarative system with named presets (unique differentiator) | High |
+| **Descriptive names** | Self-documenting, zero onboarding friction, no lore required | High |
 | **Per-task assignment** | Standard pattern across all frameworks | High |
 | **Fallback chains** | Industry standard, must ship in v0.28 or v0.29 | High |
 | **Confidence escalation** | Academically validated (FrugalGPT, RouteLLM) | High |
@@ -663,12 +665,12 @@ The research validates Nika's 4-slot design on every dimension:
 
 | Decision | Status | Rationale |
 |----------|:------:|-----------|
-| Use 4 named slots, not N dynamic slots | CONFIRMED | 4 covers all cognitive modes. More is complexity without value. |
-| Use Vegapunk names (edison/atlas/york/pythagoras) | CONFIRMED | Cohesive with lore (Doc 12), memorable, no industry collision. |
+| Use 8 named presets as unified `agents:` block | CONFIRMED | Covers all cognitive modes + specialized capabilities. |
+| Use descriptive names (default/lite/think/search/vision/judge/coder/summary) | CONFIRMED | Self-documenting, zero onboarding friction, no lore dependency. |
 | YAML-level declaration, not runtime-only | CONFIRMED | Declarative = version-controlled, auditable, reproducible. |
-| `model_slot:` per task, `default_model_slot:` per workflow | CONFIRMED | Matches Slate pattern, granular control with sensible defaults. |
-| Shaka can dynamically assign slots | CONFIRMED | Dynamic dispatch is validated by every orchestration framework. |
-| Extended thinking as slot property, not separate slot | CONFIRMED | Thinking is a model capability, not a cognitive mode. |
+| `agent:` per task, `default` as fallback | CONFIRMED | Matches Slate pattern, granular control with sensible defaults. |
+| Orchestrator can dynamically assign presets | CONFIRMED | Dynamic dispatch is validated by every orchestration framework. |
+| Extended thinking as preset property, not separate preset | CONFIRMED | Thinking is a model capability, not a cognitive mode. |
 
 ### 9.3 Gap: Fallback Chains (Ship in v0.28)
 
@@ -676,8 +678,8 @@ The one gap in the current P-MODEL design is **explicit fallback configuration**
 Every production routing system supports this. Proposed addition:
 
 ```yaml
-model_slots:
-  edison:
+agents:
+  default:
     provider: anthropic
     model: claude-sonnet-4-6
     fallback:                        # NEW: fallback chain
@@ -689,20 +691,20 @@ model_slots:
 
 This enables resilience (provider outages) and flexibility (dev vs production configs).
 
-### 9.4 Gap: Slot Aliases (Consider for v0.29)
+### 9.4 Gap: Preset Aliases (Consider for v0.29)
 
-For onboarding, consider accepting both Vegapunk names and descriptive aliases:
+For migration from Vegapunk naming, consider accepting both old and new names:
 
 ```yaml
-# Both accepted, Vegapunk names are canonical
-model_slots:
-  edison:     ...    # OR:  creative:   ...
-  atlas:      ...    # OR:  fast:       ...
-  york:       ...    # OR:  search:     ...
-  pythagoras: ...    # OR:  reasoning:  ...
+# Both accepted, descriptive names are canonical
+agents:
+  default:    ...    # Alias: edison, main
+  lite:       ...    # Alias: atlas, fast, tactical
+  think:      ...    # Alias: pythagoras, reason, reasoning
+  search:     ...    # Alias: york
 ```
 
-This would lower the learning curve while maintaining the lore-cohesive canonical names.
+This would lower the migration curve while maintaining the descriptive canonical names.
 The parser would normalize aliases to canonical names at parse time.
 
 ### 9.5 Future: Auto-Routing (v0.30+)
@@ -710,17 +712,149 @@ The parser would normalize aliases to canonical names at parse time.
 Long-term, Nika could offer an `auto` mode inspired by RouteLLM and R2-Router:
 
 ```yaml
-model_slots:
-  edison: auto       # Router picks best model for creative tasks
-  atlas: auto        # Router picks best model for fast tasks
+agents:
+  default: auto       # Router picks best model for creative tasks
+  lite: auto           # Router picks best model for fast tasks
 ```
 
 This is explicitly out of scope for v0.28-v0.30 (transparent manual routing first),
-but the slot abstraction makes it a natural future extension.
+but the preset abstraction makes it a natural future extension.
 
 ---
 
-## 10. Sources
+## 10. Devil's Advocate: Counter-Arguments
+
+> Consolidated from the adversarial analysis session (2026-03-20).
+> Steel-manning the opposition: the strongest arguments AGAINST the unified `agents:` block design.
+
+### 10.1 What the Unified Block Merges
+
+Three previously separate concepts became one unified `agents:` block:
+
+```
+CONCEPT 1: model aliases (lightweight)
+  Purpose: Named model aliases (default, lite, think, search)
+  Minimal: Just provider + model ID
+  Example: lite: { provider: groq, model: llama-3.3-70b }
+
+CONCEPT 2: satellites (medium)
+  Purpose: Worker templates dispatched by orchestrator
+  Rich:    Accept/produce MIME types, tools, agent preset, instructions
+  Example: vision-analyst: { model: gpt-4o, accepts: image, tools: [read] }
+
+CONCEPT 3: agent persona (full)
+  Purpose: Reusable agent identity with instructions + tools + model + guardrails
+  Full:    name, instructions, model, tools, guardrails, handoffs, output_type
+  Example: code-reviewer: { instructions: "Review code...", tools: [...], guardrails: [...] }
+```
+
+### 10.2 Risk: The Kubernetes Lesson -- Orthogonal Concerns
+
+Kubernetes separates Pod/Service/Deployment/ConfigMap because they have different lifecycles, owners, and rates of change. In a team scenario:
+- The **platform team** configures model routing (providers, API keys, cost limits, fallback chains).
+- The **workflow author** configures agent behavior (instructions, tools, output schemas, guardrails).
+
+If both live in one `agents:` block, you cannot share model configs without duplicating behavior, or lock down routing while letting users customize prompts.
+
+**Assessment:** MEDIUM severity. Nika v0.x is single-user; becomes HIGH if targeting teams.
+
+### 10.3 Risk: Cognitive Overload -- Polymorphic Entries
+
+Under the same `agents:` key, entries range from 2-line model aliases to 20-line full agent personas. This creates "what IS an agent?" confusion -- a known anti-pattern (Docker Compose `ports:` polymorphism).
+
+```yaml
+agents:
+  lite:            # 2 lines -- just a model alias
+    provider: groq
+    model: llama-3.3-70b-versatile
+
+  code-reviewer:   # 15 lines -- full agent persona
+    provider: anthropic
+    model: claude-sonnet-4-6
+    instructions: |
+      You are a senior code reviewer. Focus on security...
+    tools: [nika:read, nika:exec]
+    guardrails:
+      output: [no-secrets-in-output]
+    output_type: ReviewResult
+```
+
+**Assessment:** HIGH severity for DX with new users. Mitigated by Progressive Disclosure (shorthand syntax).
+
+### 10.4 Risk: The DRY Violation
+
+Multiple agents using the same model must duplicate `provider: anthropic, model: claude-sonnet-4-6`. Changing the model requires updating N entries.
+
+**Assessment:** HIGH severity. Scales with workflow complexity.
+
+### 10.5 Risk: Identity vs Execution Separation
+
+No way to say "same agent persona, different model this time" without duplicating the entire agent definition. OpenAI's Assistants API solves this with per-Run overrides.
+
+**Assessment:** HIGH severity. Real composability gap.
+
+### 10.6 Risk: Preset Proliferation
+
+The jump from Slate's 4 to Nika's 8 shows pressure to add more. When native tools ship (translate, embed, audio, safety), 8 may not be enough.
+
+**Assessment:** MEDIUM severity. Not a problem today; becomes one at 15+.
+
+### 10.7 Risk: Historical Precedent
+
+Docker Compose v1->v3 progressively split concerns. Ansible roles split into galaxy+vault+inventory. React classes split into hooks. Terraform inlined providers were refactored to separate blocks. The pattern: unification -> split at scale.
+
+**Assessment:** MEDIUM severity. Pattern-level concern.
+
+### 10.8 Recommended Mitigations
+
+**Keep the unified `agents:` block** as the primary authoring surface (good DX for 80% case), but add two escape hatches:
+
+**Mitigation A: Model References (solves DRY)**
+
+```yaml
+models:
+  sonnet: { provider: anthropic, model: claude-sonnet-4-6 }
+
+agents:
+  default:
+    model: sonnet            # reference, not inline
+  code-reviewer:
+    model: sonnet            # same reference, different behavior
+    instructions: "..."
+```
+
+**Mitigation B: Per-Task Model Override (solves Identity vs Execution)**
+
+```yaml
+agents:
+  code-reviewer:
+    model: sonnet
+    instructions: "Review code..."
+    tools: [nika:read]
+
+tasks:
+  - id: quick-review
+    agent: code-reviewer
+    model: lite              # override model, keep instructions + tools
+  - id: deep-review
+    agent: code-reviewer
+    model: think             # override model, keep instructions + tools
+```
+
+**What NOT to do:**
+1. Do NOT split `agents:` into three separate blocks -- kills simplicity.
+2. Do NOT add inheritance (`extends:`) -- config inheritance is a complexity trap.
+3. Do NOT add more than 8-10 presets -- new capabilities should be custom agents, not built-in presets.
+
+### 10.9 Devil's Advocate Verdict
+
+The unified `agents:` block is aligned with industry consensus. The strongest counter-arguments come from AutoGen's dependency injection, OpenAI's Run overrides, and Terraform's provider aliasing. Mitigations A and B address the urgent risks without abandoning the unified design.
+
+**Confidence:** High on risk identification, Medium on mitigations (need prototyping).
+
+---
+
+## 11. Sources
 
 | # | Source | Type | Key Finding |
 |:-:|--------|------|-------------|
@@ -738,33 +872,41 @@ but the slot abstraction makes it a natural future extension.
 | 12 | LangGraph docs (2025-2026) | Framework docs | Per-node model binding |
 | 13 | Slate by Random Labs | Framework docs | 4-slot model system |
 | 14 | Kosmoy, "6 AI Gateway Trends" (Jan 2026) | Industry analysis | Semantic routing as gateway trend |
+| 15 | Kubernetes API design | Architecture reference | Separation of orthogonal concerns |
+| 16 | AutoGen Component system | Framework source | Model client as injected dependency |
+| 17 | OpenAI Assistants API | API reference | Per-Run model/instruction overrides |
+| 18 | Terraform provider aliasing | IaC reference | Infrastructure config referenced, not inlined |
 
 ### Research Methodology
 
 - 5 Perplexity searches covering frameworks, naming, gateways, and academic papers
 - Cross-referenced with framework documentation (CrewAI, LangGraph, AutoGen, Semantic Kernel, DSPy)
 - Validated against existing Nika vision documents (Doc 03, 05, 12, 17)
+- Adversarial analysis: steel-man opposition, cross-domain analogies (K8s, Terraform, Docker, React)
 - March 2026 data -- captures post-GPT-5 router landscape
 
 ---
 
 ## Confidence Level
 
-**High** -- The 4-slot semantic model routing design is validated by:
-- Direct precedent (Slate's identical 4-slot system)
+**High** -- The 8-preset semantic agent routing design is validated by:
+- Direct precedent (Slate's identical 4-slot system, extended)
 - Academic research (FrugalGPT, RouteLLM, R2-Router, Dynamic Routing Survey)
 - Enterprise adoption patterns (37% using 5+ models, two-stack dominant)
 - Industry trajectory (IDC 70% prediction, gateway trend toward semantic routing)
-- No framework offers declarative YAML-first named slots (unique differentiator)
+- No framework offers declarative YAML-first named presets (unique differentiator)
 
-The Vegapunk naming (edison/atlas/york/pythagoras) adds memorability and lore cohesion
-without introducing industry naming conflicts.
+The descriptive naming (default/lite/think/search/vision/judge/coder/summary) is self-documenting
+and eliminates the Vegapunk lore onboarding requirement while maintaining all functional coverage.
+
+The adversarial analysis identified real risks (DRY, identity-vs-execution, cognitive overload)
+with practical mitigations (model references + per-task overrides) that preserve the unified design.
 
 ---
 
 <div align="center">
 
-[<- 20 Agent Memory Architectures](./20-agent-memory-architectures.md) . [Index](./00-README.md)
+[<- 20 Agent Memory Architectures](./20-agent-memory-architectures.md) . [22 Wave 0 Foundation Report ->](./22-wave0-foundation-report.md) . [Index](./00-README.md)
 
 </div>
 

@@ -228,7 +228,7 @@ Nika's 5 package types map directly to the ecosystem architecture:
 **workflow** -- Complete DAG definitions that can be run directly or composed via `include:`.
 These are the primary "application" unit.
 
-**satellite** -- Specialized worker definitions (v0.30+ Shaka orchestration). Each satellite
+**satellite** -- Specialized worker definitions (v0.30+ orchestrate mode). Each satellite
 specifies model, capabilities, tools. This is novel -- no existing registry supports this concept.
 
 **model** -- References to GGUF models with configuration (quantization, context length,
@@ -1079,6 +1079,6 @@ tests/contracts/pkg_contracts.rs -- Extend contract tests
 
 <div align="center">
 
-[<-- 18 MCP Multi-Modal Ecosystem](./18-mcp-multimodal-ecosystem-march2026.md) -- [Index](./00-README.md)
+[<-- 17 Smart Router Design](./17-smart-router-multimodal-deep.md) -- [Index](./00-README.md)
 
 </div>

@@ -1468,14 +1468,14 @@ mod tests {
     #[test]
     fn test_mcp_tool_error_without_code() {
         let err = NikaError::McpToolError {
-            tool: "novanet_generate".to_string(),
+            tool: "novanet_context".to_string(),
             reason: "invalid parameters".to_string(),
             error_code: None,
         };
         assert_eq!(err.code(), "NIKA-102");
         let msg = err.to_string();
         assert!(msg.contains("[NIKA-102]"));
-        assert!(msg.contains("novanet_generate"));
+        assert!(msg.contains("novanet_context"));
     }
 
     #[test]
@@ -1526,7 +1526,7 @@ mod tests {
     #[test]
     fn test_mcp_invalid_response_error() {
         let err = NikaError::McpInvalidResponse {
-            tool: "novanet_traverse".to_string(),
+            tool: "novanet_search".to_string(),
             reason: "missing 'result' field".to_string(),
         };
         assert_eq!(err.code(), "NIKA-106");
@@ -1537,9 +1537,9 @@ mod tests {
     #[test]
     fn test_mcp_validation_failed_error() {
         let err = NikaError::McpValidationFailed {
-            tool: "novanet_generate".to_string(),
+            tool: "novanet_context".to_string(),
             details: "parameter validation failed".to_string(),
-            missing: vec!["entity".to_string(), "locale".to_string()],
+            missing: vec!["focus_key".to_string(), "locale".to_string()],
             suggestions: vec!["Check parameter names".to_string()],
         };
         assert_eq!(err.code(), "NIKA-107");
@@ -1550,7 +1550,7 @@ mod tests {
     #[test]
     fn test_mcp_schema_error() {
         let err = NikaError::McpSchemaError {
-            tool: "novanet_assemble".to_string(),
+            tool: "novanet_context".to_string(),
             reason: "invalid property type in schema".to_string(),
         };
         assert_eq!(err.code(), "NIKA-108");
@@ -1562,7 +1562,7 @@ mod tests {
     fn test_mcp_timeout_error() {
         let err = NikaError::McpTimeout {
             name: "novanet".to_string(),
-            operation: "novanet_generate".to_string(),
+            operation: "novanet_context".to_string(),
             timeout_secs: 30,
         };
         assert_eq!(err.code(), "NIKA-109");
@@ -1625,7 +1625,7 @@ mod tests {
     #[test]
     fn test_mcp_tool_call_failed_error() {
         let err = NikaError::McpToolCallFailed {
-            tool: "novanet_atoms".to_string(),
+            tool: "novanet_audit".to_string(),
             reason: "malformed response".to_string(),
         };
         assert_eq!(err.code(), "NIKA-125");

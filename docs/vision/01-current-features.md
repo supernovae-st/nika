@@ -492,7 +492,7 @@ tasks:
 
 <div align="center">
 
-[← 00 Index](./00-README.md) · [📋 Index](./00-README.md) · [02 Scientific Literature →](./02-scientific-literature.md)
+[← 00 Index](./00-README.md) · [📋 Index](./00-README.md) · [03 Competitive Landscape →](./03-competitive-landscape.md)
 
 </div>
 

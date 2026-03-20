@@ -951,7 +951,7 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
                 server: Some("novanet".to_string()),
-                tool: "novanet_generate".to_string(),
+                tool: "novanet_context".to_string(),
                 params: Some(serde_json::json!({"entity": "qr-code"})),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -963,7 +963,7 @@ mod tests {
         match &lowered.tasks[0].action {
             TaskAction::Invoke { invoke } => {
                 assert_eq!(invoke.mcp.as_deref(), Some("novanet"));
-                assert_eq!(invoke.tool.as_deref(), Some("novanet_generate"));
+                assert_eq!(invoke.tool.as_deref(), Some("novanet_context"));
                 assert!(invoke.params.is_some());
                 assert!(invoke.resource.is_none());
             }

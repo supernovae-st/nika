@@ -457,7 +457,7 @@ mcp:
 tasks:
   - id: test
     invoke:
-      tool: novanet_query
+      tool: novanet_search
       mcp: novanet
 "#;
         // Position inside invoke block

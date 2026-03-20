@@ -479,7 +479,7 @@ tasks:
   - id: invoke_task
     invoke:
       mcp: novanet
-      tool: novanet_generate
+      tool: novanet_context
       params:
         entity: qr-code
 "#;
@@ -707,7 +707,7 @@ fetch:
 id: test
 invoke:
   mcp: novanet
-  tool: novanet_generate
+  tool: novanet_context
 "#;
         let task: Task = serde_yaml::from_str(yaml).expect("Failed to parse");
         assert_eq!(task.action_icon(), "🔌");
