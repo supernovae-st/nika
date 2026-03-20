@@ -998,8 +998,8 @@ mod tests {
         let err = result.unwrap_err();
         if let NikaError::ArtifactWriteError { reason, .. } = &err {
             assert!(
-                reason.contains("Binary copy failed"),
-                "Error should mention copy failure: {}",
+                reason.contains("CAS read failed"),
+                "Error should mention CAS read failure: {}",
                 reason
             );
         } else {

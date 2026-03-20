@@ -768,7 +768,7 @@ mod tests {
         view.section = SettingsSection::Providers;
         let key = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
         let action = view.handle_key(key, &mut state);
-        assert!(matches!(action, ViewAction::OpenSettings));
+        assert!(matches!(action, ViewAction::VerifyProviders));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
