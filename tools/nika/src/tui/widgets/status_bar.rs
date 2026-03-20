@@ -18,6 +18,7 @@ use ratatui::{
 
 use unicode_width::UnicodeWidthStr;
 
+use crate::tui::icons::provider as icons_provider;
 use crate::tui::keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 use crate::tui::mode::InputMode;
 use crate::tui::theme::Theme;
@@ -66,17 +67,17 @@ pub enum Provider {
 }
 
 impl Provider {
-    /// Get provider icon
+    /// Get provider icon (delegates to canonical icons::provider)
     pub fn icon(&self) -> &'static str {
         match self {
             Self::None => "  ",
-            Self::Claude => "🧠",   // Brain for Claude
-            Self::OpenAI => "🤖",   // Robot for OpenAI
-            Self::Mistral => "🌬️",  // Wind for Mistral (mistral wind)
-            Self::Native => "💎",   // Crystal for Native (local inference via mistral.rs)
-            Self::Groq => "⚡",     // Lightning for Groq (fast inference)
-            Self::DeepSeek => "🔍", // Magnifying glass for DeepSeek
-            Self::Mock => "🧪",     // Test tube for mock
+            Self::Claude => icons_provider::CLAUDE,
+            Self::OpenAI => icons_provider::OPENAI,
+            Self::Mistral => icons_provider::MISTRAL,
+            Self::Native => icons_provider::NATIVE,
+            Self::Groq => icons_provider::GROQ,
+            Self::DeepSeek => icons_provider::DEEPSEEK,
+            Self::Mock => icons_provider::MOCK,
         }
     }
 
@@ -699,14 +700,15 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_icons() {
-        assert_eq!(Provider::Claude.icon(), "🧠");
-        assert_eq!(Provider::OpenAI.icon(), "🤖");
-        assert_eq!(Provider::Mistral.icon(), "🌬️");
-        assert_eq!(Provider::Native.icon(), "💎");
-        assert_eq!(Provider::Groq.icon(), "⚡");
-        assert_eq!(Provider::DeepSeek.icon(), "🔍");
-        assert_eq!(Provider::Mock.icon(), "🧪");
+    fn test_provider_icons_match_canonical() {
+        use crate::tui::icons::provider as p;
+        assert_eq!(Provider::Claude.icon(), p::CLAUDE);
+        assert_eq!(Provider::OpenAI.icon(), p::OPENAI);
+        assert_eq!(Provider::Mistral.icon(), p::MISTRAL);
+        assert_eq!(Provider::Native.icon(), p::NATIVE);
+        assert_eq!(Provider::Groq.icon(), p::GROQ);
+        assert_eq!(Provider::DeepSeek.icon(), p::DEEPSEEK);
+        assert_eq!(Provider::Mock.icon(), p::MOCK);
         assert_eq!(Provider::None.icon(), "  ");
     }
 

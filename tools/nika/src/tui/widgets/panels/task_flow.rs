@@ -204,15 +204,7 @@ impl TaskBoxFlow {
             TaskStatus::Skipped => "⊘",
         };
 
-        let verb_icon = match verb {
-            VerbColor::Infer => "⚡",
-            VerbColor::Exec => "📟",
-            VerbColor::Fetch => "🛰️",
-            VerbColor::Invoke => "🔌",
-            VerbColor::Agent => "🐔",
-            VerbColor::Spawn => "🐤",
-            VerbColor::User => "💬",
-        };
+        let verb_icon = verb.icon();
 
         let status_color = match task.status {
             TaskStatus::Queued => theme.text_muted,

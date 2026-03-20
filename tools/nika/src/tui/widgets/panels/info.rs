@@ -334,15 +334,7 @@ impl InfoPanel {
     }
 
     fn verb_icon(verb: VerbColor) -> &'static str {
-        match verb {
-            VerbColor::Infer => "⚡",
-            VerbColor::Exec => "📟",
-            VerbColor::Fetch => "🛰️",
-            VerbColor::Invoke => "🔌",
-            VerbColor::Agent => "🐔",
-            VerbColor::Spawn => "🐤",
-            VerbColor::User => "💬",
-        }
+        verb.icon()
     }
 
     fn status_icon(status: TaskStatus) -> &'static str {

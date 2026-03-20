@@ -207,15 +207,7 @@ impl TaskListPanel {
     }
 
     fn verb_icon(verb: VerbColor) -> &'static str {
-        match verb {
-            VerbColor::Infer => "⚡",
-            VerbColor::Exec => "📟",
-            VerbColor::Fetch => "🛰️",
-            VerbColor::Invoke => "🔌",
-            VerbColor::Agent => "🐔",
-            VerbColor::Spawn => "🐤",
-            VerbColor::User => "💬",
-        }
+        verb.icon()
     }
 
     fn verb_color(verb: VerbColor, theme: &Theme) -> ratatui::style::Color {
