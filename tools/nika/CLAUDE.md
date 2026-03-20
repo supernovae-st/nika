@@ -73,7 +73,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (6400+, safe — no keychain)
+cargo test --lib             # Unit tests (6600+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
@@ -119,14 +119,16 @@ infer:
 
 The `fetch:` verb supports `extract:` for HTML post-processing and `response:` for output modes:
 
-### Extract modes
+### Extract modes (9 total)
 - `extract: markdown` — Clean Markdown via htmd [fetch-markdown]
-- `extract: article` — Main article content via dom_smoothie [fetch-article]
+- `extract: article` — Main article content via dom_smoothie Readability [fetch-article]
 - `extract: text` — Visible text, optionally filtered by `selector:` [fetch-html]
-- `extract: selector` — Raw HTML of matching elements [fetch-html]
+- `extract: selector` — Raw HTML of matching elements, requires `selector:` [fetch-html]
 - `extract: metadata` — OG, Twitter Cards, JSON-LD, SEO tags as JSON [fetch-html]
-- `extract: links` — Rich link classification (internal/external, nav/content) [fetch-html]
-- `extract: jsonpath` — JSONPath query on JSON responses (zero deps)
+- `extract: links` — Rich link classification (internal/external, nav/content/footer) [fetch-html]
+- `extract: jsonpath` — JSONPath query on JSON API responses, use `selector:` for path (zero deps)
+- `extract: feed` — RSS/Atom/JSON Feed parsing via feed-rs [fetch-feed]
+- `extract: llm_txt` — AI-era content discovery (/.well-known/llm.txt, /llms.txt)
 
 ### Response modes
 - `response: full` — JSON with status, headers, body, final URL
