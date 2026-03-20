@@ -79,6 +79,8 @@ mod tests_pr3b_tools;
 #[cfg(test)]
 mod tests_pr4_pipelines;
 #[cfg(test)]
+mod tests_pr5_integration;
+#[cfg(test)]
 mod tests_security;
 #[cfg(feature = "media-provenance")]
 mod verify;
