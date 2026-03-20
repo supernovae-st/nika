@@ -17,19 +17,12 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 use std::time::{Duration, Instant};
 
-// Solarized-inspired colors
-const COLOR_BG: Color = Color::Rgb(30, 30, 46);
-#[allow(dead_code)]
-const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
-const COLOR_KEY: Color = Color::Rgb(34, 211, 238); // Cyan
-const COLOR_DESC: Color = Color::Rgb(205, 214, 244); // Light text
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted
-const COLOR_BORDER: Color = Color::Rgb(69, 133, 136); // Teal
+use crate::tui::tokens::compat;
 
 /// Timeout before which-key popup appears (ms)
 const POPUP_DELAY_MS: u64 = 300;
@@ -304,8 +297,8 @@ impl Widget for WhichKey<'_> {
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(COLOR_BORDER))
-            .style(Style::default().bg(COLOR_BG));
+            .border_style(Style::default().fg(compat::VIOLET_600))
+            .style(Style::default().bg(compat::GRAY_900));
 
         let inner = block.inner(popup_area);
         block.render(popup_area, buf);
@@ -330,13 +323,20 @@ impl Widget for WhichKey<'_> {
                 x,
                 y,
                 &key_display,
-                Style::default().fg(COLOR_KEY).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(compat::CYAN_500)
+                    .add_modifier(Modifier::BOLD),
             );
 
             // Icon (if any)
             let icon_offset = key_display.len() as u16;
             if let Some(icon) = binding.icon {
-                buf.set_string(x + icon_offset, y, icon, Style::default().fg(COLOR_MUTED));
+                buf.set_string(
+                    x + icon_offset,
+                    y,
+                    icon,
+                    Style::default().fg(compat::SLATE_500),
+                );
             }
 
             // Description
@@ -352,7 +352,7 @@ impl Widget for WhichKey<'_> {
                 x + desc_offset,
                 y,
                 &description,
-                Style::default().fg(COLOR_DESC),
+                Style::default().fg(compat::SLATE_200),
             );
         }
 
@@ -366,7 +366,7 @@ impl Widget for WhichKey<'_> {
                 hint_y,
                 hint,
                 Style::default()
-                    .fg(COLOR_MUTED)
+                    .fg(compat::SLATE_500)
                     .add_modifier(Modifier::ITALIC),
             );
         }

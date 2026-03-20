@@ -11,13 +11,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget, Wrap},
 };
 
-// Solarized-inspired colors
-const COLOR_BG: Color = Color::Rgb(30, 30, 46);
-const COLOR_HEADER: Color = Color::Rgb(250, 204, 21); // Gold
-const COLOR_KEY: Color = Color::Rgb(34, 211, 238); // Cyan
-const COLOR_DESC: Color = Color::Rgb(205, 214, 244); // Light text
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted
-const COLOR_BORDER: Color = Color::Rgb(69, 133, 136); // Teal
+use crate::tui::tokens::compat;
 
 /// A section of keybindings
 #[derive(Debug, Clone)]
@@ -186,7 +180,7 @@ impl<'a> HelpOverlay<'a> {
             lines.push(Line::from(vec![Span::styled(
                 format!(" {} ", section.title),
                 Style::default()
-                    .fg(COLOR_HEADER)
+                    .fg(compat::AMBER_500)
                     .add_modifier(Modifier::BOLD),
             )]));
 
@@ -196,8 +190,8 @@ impl<'a> HelpOverlay<'a> {
                 let padded_key = format!("  {:<width$}", key, width = key_width);
 
                 lines.push(Line::from(vec![
-                    Span::styled(padded_key, Style::default().fg(COLOR_KEY)),
-                    Span::styled(*desc, Style::default().fg(COLOR_DESC)),
+                    Span::styled(padded_key, Style::default().fg(compat::CYAN_500)),
+                    Span::styled(*desc, Style::default().fg(compat::SLATE_200)),
                 ]));
             }
 
@@ -243,8 +237,8 @@ impl Widget for HelpOverlay<'_> {
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(COLOR_BORDER))
-            .style(Style::default().bg(COLOR_BG));
+            .border_style(Style::default().fg(compat::VIOLET_600))
+            .style(Style::default().bg(compat::GRAY_900));
 
         let inner = block.inner(box_area);
         block.render(box_area, buf);
@@ -288,7 +282,7 @@ impl Widget for HelpOverlay<'_> {
             for (i, ch) in scroll_info.chars().enumerate() {
                 if let Some(cell) = buf.cell_mut((info_x + i as u16, info_y)) {
                     cell.set_char(ch);
-                    cell.set_style(Style::default().fg(COLOR_MUTED));
+                    cell.set_style(Style::default().fg(compat::SLATE_500));
                 }
             }
         }
@@ -301,7 +295,11 @@ impl Widget for HelpOverlay<'_> {
         for (i, ch) in hint.chars().enumerate() {
             if let Some(cell) = buf.cell_mut((hint_x + i as u16, hint_y)) {
                 cell.set_char(ch);
-                cell.set_style(Style::default().fg(COLOR_MUTED).add_modifier(Modifier::DIM));
+                cell.set_style(
+                    Style::default()
+                        .fg(compat::SLATE_500)
+                        .add_modifier(Modifier::DIM),
+                );
             }
         }
     }
