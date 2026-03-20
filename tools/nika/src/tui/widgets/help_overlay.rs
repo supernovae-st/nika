@@ -32,7 +32,10 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         title: "Navigation",
         keybindings: &[
             ("Tab / Shift+Tab", "Cycle views"),
-            ("h / a / s / m", "Home / Chat / Studio / Monitor"),
+            ("1 / s", "Studio"),
+            ("2 / r", "Runner"),
+            ("3 / c", "Chat"),
+            ("4 / ,", "Settings"),
             ("Ctrl+P", "Command palette"),
             ("?  or  F1", "Toggle help"),
             ("Escape", "Close overlay / Cancel"),
@@ -53,7 +56,7 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
         ],
     },
     HelpSection {
-        title: "Home View",
+        title: "Studio View",
         keybindings: &[
             ("j / k", "Navigate files"),
             ("Enter", "Open workflow"),
@@ -61,17 +64,21 @@ pub const HELP_SECTIONS: &[HelpSection] = &[
             ("/", "Search files"),
             ("r", "Refresh list"),
             ("n", "New workflow"),
-        ],
-    },
-    HelpSection {
-        title: "Studio View",
-        keybindings: &[
             ("Ctrl+S", "Save file"),
             ("Ctrl+Z", "Undo"),
             ("Ctrl+Y", "Redo"),
             ("Ctrl+F", "Find"),
             ("F5", "Run workflow"),
             ("F6", "Validate"),
+        ],
+    },
+    HelpSection {
+        title: "Runner View",
+        keybindings: &[
+            ("j / k", "Navigate tasks"),
+            ("t", "Cycle sub-tab"),
+            ("Enter", "Expand task detail"),
+            ("Space", "Toggle section"),
         ],
     },
     HelpSection {

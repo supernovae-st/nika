@@ -281,30 +281,32 @@ impl ExecBox {
             }
         }
 
-        // Footer: exit code, pid, cwd
+        // Footer: exit code, pid (if Some), cwd (if Some)
         let exit_style = Style::default().fg(exit::code_color(self.exit_code.unwrap_or(0)));
         let exit_display = self.exit_display();
-        let pid_display = self.pid.map(|p| format!("pid: {}", p)).unwrap_or_default();
-        let cwd_display = self
-            .cwd
-            .as_ref()
-            .map(|c| {
-                let path = std::path::Path::new(c);
-                path.file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or(c)
-                    .to_string()
-            })
-            .unwrap_or_default();
 
-        let footer = Line::from(vec![
+        let mut footer_spans = vec![
             Span::styled("├─ ", border_style),
             Span::styled(exit_display, exit_style),
-            Span::styled(" │ ", dim_style),
-            Span::styled(pid_display, dim_style),
-            Span::styled(" │ ", dim_style),
-            Span::styled(cwd_display, dim_style),
-        ]);
+        ];
+
+        if let Some(pid) = self.pid {
+            footer_spans.push(Span::styled(" │ ", dim_style));
+            footer_spans.push(Span::styled(format!("pid: {}", pid), dim_style));
+        }
+
+        if let Some(ref cwd) = self.cwd {
+            let path = std::path::Path::new(cwd);
+            let cwd_display = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(cwd)
+                .to_string();
+            footer_spans.push(Span::styled(" │ ", dim_style));
+            footer_spans.push(Span::styled(cwd_display, dim_style));
+        }
+
+        let footer = Line::from(footer_spans);
         items.push(ListItem::new(footer));
 
         // Bottom border

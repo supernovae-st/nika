@@ -138,6 +138,23 @@ impl Widget for Header<'_> {
             ));
         }
 
+        // Add status badge if present (e.g. "PAUSED")
+        if let Some(status) = self.status {
+            if !status.is_empty() {
+                spans.push(Span::styled(
+                    " │",
+                    Style::default().fg(self.theme.border_normal),
+                ));
+                spans.push(Span::raw(" "));
+                spans.push(Span::styled(
+                    format!("[{}]", status),
+                    Style::default()
+                        .fg(Color::Rgb(251, 191, 36)) // Amber
+                        .add_modifier(Modifier::BOLD),
+                ));
+            }
+        }
+
         // Calculate current width (unicode-aware for proper terminal alignment)
         let left_width: usize = spans.iter().map(|s| s.content.width()).sum();
 
