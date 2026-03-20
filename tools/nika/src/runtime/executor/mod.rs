@@ -9,6 +9,7 @@
 //! - `decompose.rs`: Decompose expansion strategies (semantic, static, nested)
 
 mod decompose;
+mod extract;
 #[cfg(test)]
 mod tests;
 mod verbs;

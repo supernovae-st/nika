@@ -205,6 +205,8 @@ async fn test_execute_fetch_invalid_url() {
             retry: None,
             follow_redirects: None,
             response: None,
+            extract: None,
+            selector: None,
         },
     };
 
@@ -234,6 +236,8 @@ async fn test_execute_fetch_with_template_url() {
             retry: None,
             follow_redirects: None,
             response: None,
+            extract: None,
+            selector: None,
         },
     };
 
@@ -853,6 +857,8 @@ async fn test_action_type_helper() {
             retry: None,
             follow_redirects: None,
             response: None,
+            extract: None,
+            selector: None,
         },
     };
     assert_eq!(action_type(&fetch_action), "fetch");
@@ -1034,6 +1040,8 @@ async fn test_execute_fetch_blocked_by_policy() {
             retry: None,
             follow_redirects: None,
             response: None,
+            extract: None,
+            selector: None,
         },
     };
 
@@ -1074,6 +1082,8 @@ async fn test_execute_fetch_disabled_by_policy() {
             retry: None,
             follow_redirects: None,
             response: None,
+            extract: None,
+            selector: None,
         },
     };
 
