@@ -7,6 +7,338 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.35.1](https://github.com/supernovae-st/nika/releases/tag/v0.35.1) - 2026-03-20
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.35.1 — LSP INTELLIGENCE + NATIVE VISION                      |
+|                                                                             |
+|     nika-lsp-core crate | 16 CursorContext variants | GPU vision           |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **nika-lsp-core crate** — protocol-agnostic LSP intelligence with `WorldDatabase`,
+  `LineIndex`, `PositionIndex`, and lock-free `DashMap<FileKey, FileSnapshot>` storage
+- **LSP completion** — 16-variant `CursorContext` (WorkflowRoot, TaskField, VerbBlock,
+  WithBlock, Template, InvokeBlock, McpConfig, ProviderContext, ContentPart, ForEach,
+  SchemaBlock, DependsOn, and more) drives context-aware completions for all 5 verbs,
+  provider/model catalogs, depends_on task refs, and vision content parts
+- **LSP hover** — documentation popups for verbs, fields, providers, and models
+- **LSP go-to-definition** — jump to task definitions from `depends_on:` and `with:` references
+- **LSP code actions** — quick fixes for common schema mistakes
+- **LSP semantic tokens** — syntax-aware token classification for editors
+- **LSP document symbols** — outline view with task hierarchy
+- **Error recovery parser** — tree-sitter-yaml bridge with 5s timeout (anti-DoS),
+  `extract_partial()` for broken YAML, and 10 adversarial fixtures
+- **Native vision inference** — `mistral.rs` `VisionModelBuilder` + ISQ quantization
+  for running multimodal models locally on GPU
+- **tower-lsp-server 0.23** upgrade — async RPITIT, `Url` to `Uri` migration
+- **389 LSP E2E tests** across all handler types
+
+### Fixed
+
+- Parse timeout + `saturating_sub` in PositionIndex sort
+- 3 critical bugs from LSP review gate + cargo fmt
+
+---
+
+## [0.35.0](https://github.com/supernovae-st/nika/releases/tag/v0.35.0) - 2026-03-20
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.35.0 — THE GREAT EXTRACTION                                  |
+|                                                                             |
+|     nika-core crate | 9 fetch modes | 5 web builtins | 518 parse tests     |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **nika-core crate** — zero-runtime extraction of AST pipeline, binding types,
+  catalogs (providers, models, mcp_aliases), source spans, and error types; compiles
+  in ~4s with no tokio/reqwest/rig-core/image dependencies
+- **9 fetch extraction modes** — `markdown`, `article`, `text`, `selector`, `metadata`,
+  `links`, `jsonpath`, `feed`, `llm_txt` via new `extract:` and `selector:` AST fields
+- **5 web extraction builtins** — `nika:html_to_md`, `nika:css_select`,
+  `nika:extract_metadata`, `nika:extract_links`, `nika:readability`
+- **`response: full`** mode — returns `{ status, headers, body }` JSON from fetch
+- **`response: binary`** mode — CAS integration for fetched images/PDFs
+- **`HttpRequest` + `HttpResponse` telemetry events** — 41 total event variants
+- **gzip/brotli/deflate decompression** in reqwest HTTP client
+- **518 workflow parse tests** + 48 E2E extraction tests + 48 cross-feature integration tests
+- New deps: `scraper`, `htmd`, `dom_smoothie`, `psl`, `feed-rs`
+
+### Fixed
+
+- **OPTIONS method dispatch** — was silently routing to GET
+- **50 MB response size limit** — OOM protection for large responses
+- **`fetch.validate()` now called in `run_fetch`** — was skipped at runtime
+- **Size limit on `response: full` + `binary`** — enforced consistently
+- **5 security findings** — `.unwrap()` replaced with `.expect()`, `unreachable!()` replaced
+  with `warn!()`, `llm_txt` response size limits
+- **Unlower preserves extract/selector fields** through round-trip
+- **`content:` preserved through unlower** + ContentPart added to JSON schema
+
+---
+
+## [0.34.1](https://github.com/supernovae-st/nika/releases/tag/v0.34.1) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.34.1 — VISION + ADVANCED MEDIA                               |
+|                                                                             |
+|     21 media tools | QR validation | C2PA verify | Image quality           |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **Vision multimodal support** — `infer:` with `content:` field supporting image + text
+  parts through 3-phase AST pipeline (RawContentPart → AnalyzedContentPart → ContentPart);
+  6 cloud providers (Claude, OpenAI, Mistral, Groq, Gemini, xAI)
+- **CAS → base64 automatic resolution** — image hashes in `source:` auto-read from CAS,
+  base64-encoded with MIME detection; paths never leak to cloud APIs
+- **Streaming vision** — `infer_vision_stream()` for token-by-token vision responses
+- **`nika:qr_validate`** — QR decode + 0-100 scan scoring via `qrcode-ai-scanner-core`
+  with multi-decoder strategy (rxing + rqrr) and 4-tier brute-force preprocessing
+- **`nika:verify`** — C2PA manifest verification + EU AI Act Article 50 compliance check;
+  returns `has_manifest`, `validation_status`, `eu_ai_act_compliant`
+- **`nika:quality`** — DSSIM/SSIM image quality assessment via `dssim-core` 3.4;
+  returns quality grade (excellent/good/acceptable/poor)
+- **CAS zstd compression** — transparent compression for non-media blobs (text, JSON, SVG)
+  with framing byte (`0x01` prefix), level 3 (~1 GB/s, ~3.5x ratio on text)
+- **`VisionContentResolved` telemetry event** — tracks vision part count, total bytes,
+  MIME types, and resolution timing
+- **Vision dispatch before structured output Layer 0** — vision path takes priority
+- **Mock provider vision awareness** + `ProviderCalled` telemetry
+- **System prompt preamble in streaming path**
+- **215 workflow parse tests** + 14 cross-tool pipeline E2E tests
+- New deps: `qrcode-ai-scanner-core`, `zstd`, `dssim-core`, `rgb`
+
+### Fixed
+
+- `.unwrap()` panic in `run_infer_vision`
+- UTF-8 byte-boundary panic in SSRF error messages
+- 199 lines of dead code removed
+- `MediaProcessed` + `MediaStoreFailed` events for resource blobs
+- Revoked C2PA certificates no longer report "valid"
+- MAX_VISION_IMAGE_PARTS=20, MAX_VISION_TOTAL_BYTES=100 MB (OOM prevention)
+- Zstd decompression bomb detection (probe for remaining data after limit)
+- SSRF protection for ImageUrl: reject `file://`, `javascript:`, `data:` schemes
+- Token spend recording in vision path for policy enforcement
+- `prompt:` now optional when `content:` is present
+
+---
+
+## [0.34.0](https://github.com/supernovae-st/nika/releases/tag/v0.34.0) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.34.0 — MEDIA TOOLS COMPLETE                                  |
+|                                                                             |
+|     18→21 tools | import + chart + provenance | audit hardening             |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **`nika:import`** — import any file into CAS with path traversal validation
+  and 50 MB pre-read size check
+- **`nika:chart`** — bar/line/pie charts from JSON data
+- **`nika:provenance`** — C2PA content credentials signing
+- **`nika:pipeline`** — chain media operations in-memory (1 CAS read → N transforms → 1 CAS write),
+  budget charged once
+- **`nika:phash`** — DCT-based perceptual image hashing for near-duplicate detection
+- **`nika:compare`** — visual distance between two images using perceptual hashes;
+  returns distance, similarity percentage, and identical flag
+- **`nika:pdf_extract`** — PDF text extraction with dedicated 4 MB stack thread for security
+- Auto-enrichment on import — dimensions, thumbhash, dominant color extracted automatically
+- Telemetry: `mcp_response` now emitted on builtin tool errors
+
+### Fixed
+
+- Gate `decode_image_safe` import in `pipeline.rs` behind `media-thumbnail` feature
+
+---
+
+## [0.33.1](https://github.com/supernovae-st/nika/releases/tag/v0.33.1) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.33.1 — FORTRESS MODE                                         |
+|                                                                             |
+|     25-agent audit | 330+ tests | Zero new features | Maximum paranoia     |
+|                                                                             |
++=============================================================================+
+```
+
+### Fixed
+
+- **CRITICAL: Decompression bomb in enrichment** — `processor.rs` used raw
+  `image::load_from_memory()` for auto-enrichment; crafted PNG with 1:1000
+  compression ratio could allocate gigabytes; now uses `decode_image_safe()` with Limits
+- **CRITICAL: `color_thief` panic** — `get_palette` asserts `max_colors >= 2`;
+  passing `count: 1` from JSON caused rayon thread panic; now clamped to `2..20`
+- **CRITICAL: Alpha compositing** — PNG→JPEG conversion silently dropped transparency;
+  `to_rgb8()` made transparent red pixels appear solid red; now uses `composite_on_white()`
+  with per-pixel alpha blending in convert, thumbnail, and strip
+- **HIGH: CAS path traversal** — crafted `blake3:../../etc/passwd` could escape CAS directory;
+  now validates hex-only hashes before filesystem access
+- **HIGH: Thumbnail OOM** — extreme aspect ratios computed `height=25,000,000`;
+  now clamps computed height to `1..10000`
+- **HIGH: Timeout gap** — `MediaToolAdapter` timeout only wrapped `execute()`, not CAS write;
+  29s execute + slow CAS write could exceed 30s; now wraps both
+- SVG pixmap dimensions clamped to `10000x10000` max
+- SVG sanitizer blocks `xlink:href`, `file://`, `data:text/html` (XSS vectors)
+- `check_cancelled()` called in all 9 media tools
+- Thumbnail width/height clamped to `1..10000` at runtime
+- JPEG quality clamped to `1..100`
+- Removed `.clone()` on multi-MB `Vec` in optimize.rs
+- `LazyLock` for SVG regex (compile once, not per-call)
+- Simplified format detection (single reader instead of two)
+- Strip JPEG quality `95→100` (strip should never degrade image data)
+- Removed double `[NIKA-290]` prefix in decode errors
+
+### Added
+
+- **330+ paranoid tests** across 5 audit waves: security review, deep dive,
+  adversarial/concurrent stress, alpha compositing pixel-level verification, E2E smoke
+- 100-concurrent stress test
+- E2E binary smoke tests: check, run, invoke, file, for_each
+
+---
+
+## [0.33.0](https://github.com/supernovae-st/nika/releases/tag/v0.33.0) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.33.0 — MEDIA SUPERPOWERS                                     |
+|                                                                             |
+|     9 builtin tools | MediaOp trait | ComputePool | 512 MB budget          |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **`MediaOp` trait** — unified interface for all media operations;
+  every tool implements `execute(args, ctx) → MediaOpResult`
+- **`ComputePool`** — dedicated 4-thread rayon pool isolated from tokio;
+  CPU-intensive image processing never blocks async I/O
+- **`WorkingMemoryBudget`** — 512 MB transient buffer limit with RAII guards;
+  no single workflow can OOM the process
+- **`BuiltinToolRouter.with_all_tools()`** — auto-registers all media tools;
+  tool name dispatch via `nika:*` prefix
+- **`MediaToolAdapter`** — bridge between `MediaOp` and `BuiltinTool` with
+  30s timeout and cancellation support
+- **9 media tools across 2 tiers:**
+  - Tier 1 (always-on): `nika:dimensions`, `nika:thumbhash`, `nika:dominant_color`
+  - Tier 2 (media-core): `nika:thumbnail`, `nika:metadata`, `nika:optimize`,
+    `nika:svg_render`, `nika:convert`, `nika:strip`
+- **`decode_image_safe()`** — image decoding with `image::Limits` (max 100 MP)
+- **`sanitize_svg()`** — XSS prevention before SVG parsing
+- New deps: `image`, `fast_image_resize`, `thumbhash`, `color-thief`, `imagesize`,
+  `nom-exif`, `lofty`, `oxipng`, `resvg`, `usvg`, `fontdb`, `rayon`
+
+---
+
+## [0.32.0](https://github.com/supernovae-st/nika/releases/tag/v0.32.0) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.32.0 — BINARY ARTIFACTS + MEDIA CLI                          |
+|                                                                             |
+|     format: binary | nika media CLI | CAS → disk | E2E integrity           |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **Binary artifact format** — `format: binary` in artifact specs writes raw bytes from
+  CAS to disk; source resolution walks binding chain: `source` → `MediaRef` → CAS path;
+  uses `reflink_or_copy` for instant CoW on APFS/btrfs with automatic fallback
+- **E2E media integrity check** — after all tasks complete, runner verifies every
+  `MediaRef.path` exists and size matches `MediaRef.size_bytes`; warn-only, never fails
+  successful workflows; emits `MediaIntegrityCheck { checked, warnings }`
+- **`nika media` CLI** — 3 subcommands for CAS store management:
+  `nika media list` (table output), `nika media stats` (count + size + shards),
+  `nika media clean --older-than 1h` (GC with lockfile + 5min min age + `--dry-run`)
+- **Artifact processor** — text/json/yaml/binary format dispatch with source binding resolution
+
+---
+
+## [0.31.0](https://github.com/supernovae-st/nika/releases/tag/v0.31.0) - 2026-03-19
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.31.0 — MEDIA EXTRACTION PIPELINE                             |
+|                                                                             |
+|     CAS storage | blake3 hashing | ContentBlock enum | MediaBudget         |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **Content-Addressable Storage (CAS)** — binary media from MCP tool results stored in
+  `.nika/media/store/` using blake3 hashing; automatic deduplication, 2-char shard dirs,
+  atomic writes via `O_EXCL`, read-back verification for files >= 1 MB
+- **3-layer MIME detection** — magic bytes → Content-Type hint → explicit error;
+  cross-validates at category level, SVG special handling, case normalization
+- **`ContentBlock` enum refactor** — 5 variants (Text, Image, Audio, Resource, ResourceLink)
+  replacing flat struct with optional fields; enables exhaustive matching
+- **`MediaRef`** — carries hash, MIME type, size, path, extension, creator task ID
+- **`MediaBudget`** — `AtomicU64` lock-free per-run byte tracking (500 MB default);
+  prevents unbounded media accumulation from `for_each` loops
+- **4 telemetry events** — `MediaExtracted`, `MediaProcessed`, `MediaStored`,
+  `MediaStoreFailed` (36 total variants)
+- **`MediaProcessor` pipeline** — ContentBlock → decode → MIME detect → blake3 → CAS store → MediaRef
+- Pre-decode size guard (100 MB max base64 input)
+- `NIKA_MEDIA_STORE` env var override for custom CAS location
+- `CasStore::list()`, `clean_all()`, `clean_older_than()` for store management
+- 9 new error codes (NIKA-251 through NIKA-259)
+- New deps: `blake3`, `infer`, `base64`, `mime_guess`, `mime`, `bytes`
+
+---
+
+## [0.30.8](https://github.com/supernovae-st/nika/releases/tag/v0.30.8) - 2026-03-18
+
+```
++=============================================================================+
+|                                                                             |
+|     🦋 NIKA 0.30.8 — LIVE DAG + ANSI FIX                                   |
+|                                                                             |
+|     In-place DAG updates | 7 build targets | linux-arm64 + musl            |
+|                                                                             |
++=============================================================================+
+```
+
+### Added
+
+- **Live DAG during `nika run`** — DAG is the progress display; tasks update in-place
+  using ANSI cursor movement; pending → dim, running → `⟳`, success → `╔═✓═══╗` green,
+  failed → `╔═✗═══╗` red with error snippet; falls back to line-by-line for
+  single-task workflows or `--quiet` mode
+- **linux-arm64 + musl static builds** in release CI — 7 build targets total;
+  `x86_64-unknown-linux-musl` + `aarch64-unknown-linux-musl` for fully static binaries
+
+---
+
 ## [0.30.7](https://github.com/supernovae-st/nika/releases/tag/v0.30.7) - 2026-03-18
 
 ```
