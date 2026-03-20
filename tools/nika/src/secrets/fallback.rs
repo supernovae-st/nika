@@ -50,12 +50,25 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
 
 /// Try loading from keyring and inject into env if found.
 ///
-/// During tests (`cfg(test)`), always returns false to avoid macOS Keychain popups.
+/// DISABLED during automatic boot to prevent macOS Keychain popup storms.
+/// The keychain is only accessed via explicit CLI commands:
+/// - `nika provider set <name>` — stores a key
+/// - `nika provider get <name>` — retrieves a key
+/// - `nika provider list` — checks which keys exist
+///
+/// During `nika run` / `nika check` / `nika ui`, only env vars are used.
+/// Set `NIKA_KEYCHAIN_BOOT=1` to re-enable keychain access during boot.
 fn try_load_from_fallback(provider: &str, env_var: &str) -> bool {
-    // Never access real keychain during tests — prevents macOS popup storms
-    if cfg!(test) || should_skip_keychain() {
+    // Default: never access keychain during automatic boot
+    // This prevents the macOS "nika wants to use your confidential information" popup
+    // Users should set API keys via env vars or .env files
+    let keychain_boot = std::env::var("NIKA_KEYCHAIN_BOOT")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+
+    if cfg!(test) || should_skip_keychain() || !keychain_boot {
         trace!(
-            "{}: keychain skipped (test mode or NIKA_SKIP_KEYCHAIN)",
+            "{}: keychain skipped (boot mode — use env vars or NIKA_KEYCHAIN_BOOT=1)",
             provider
         );
         return false;
@@ -85,12 +98,17 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
         }
     }
 
-    // Skip keychain in tests to prevent macOS popup storms
-    if cfg!(test) || should_skip_keychain() {
+    // Never access keychain during run/check — only via explicit CLI commands
+    // This prevents macOS Keychain popup during nika run
+    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+
+    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
         return None;
     }
 
-    // Fall back to keyring
+    // Fall back to keyring (only when NIKA_KEYCHAIN_BOOT=1)
     NikaKeyring::get_secret(provider).ok()
 }
 
@@ -103,12 +121,16 @@ pub async fn has_secret(provider: &str) -> bool {
         return true;
     }
 
-    // Skip keychain in tests to prevent macOS popup storms
-    if cfg!(test) || should_skip_keychain() {
+    // Never access keychain during run/check
+    let keychain_allowed = std::env::var("NIKA_KEYCHAIN_BOOT")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false);
+
+    if cfg!(test) || should_skip_keychain() || !keychain_allowed {
         return false;
     }
 
-    // Fall back to keyring
+    // Fall back to keyring (only when NIKA_KEYCHAIN_BOOT=1)
     NikaKeyring::exists(provider)
 }
 
