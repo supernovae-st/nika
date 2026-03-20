@@ -8185,3 +8185,281 @@ fn ab26_invoke_nika_grep() {
         _ => panic!("expected Invoke"),
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AC. BUG FIX REGRESSION TESTS (Bugs 7, 8, 41, 42, 43, 44)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Bug 7: schema_ref must survive the full YAML -> Runtime pipeline.
+#[test]
+fn ac01_bug7_schema_ref_survives_pipeline() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: structured_task
+    infer: "Generate JSON"
+    output:
+      format: json
+      schema_ref: "./schemas/result.json"
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
+    match &output.schema {
+        Some(crate::ast::output::SchemaRef::File(path)) => {
+            assert_eq!(path, "./schemas/result.json");
+        }
+        other => panic!("expected SchemaRef::File, got {:?}", other),
+    }
+}
+
+/// Bug 7: $ref alias for schema_ref also works.
+#[test]
+fn ac02_bug7_dollar_ref_alias() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: ref_task
+    infer: "Generate JSON"
+    output:
+      format: json
+      $ref: "./schemas/entity.json"
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
+    match &output.schema {
+        Some(crate::ast::output::SchemaRef::File(path)) => {
+            assert_eq!(path, "./schemas/entity.json");
+        }
+        other => panic!("expected SchemaRef::File from $ref, got {:?}", other),
+    }
+}
+
+/// Bug 8: String schemas that look like file paths become SchemaRef::File.
+#[test]
+fn ac03_bug8_schema_string_file_path() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    infer: "Generate"
+    output:
+      format: json
+      schema: "./schemas/user.json"
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
+    match &output.schema {
+        Some(crate::ast::output::SchemaRef::File(path)) => {
+            assert_eq!(path, "./schemas/user.json");
+        }
+        other => panic!("expected SchemaRef::File for ./ path, got {:?}", other),
+    }
+}
+
+/// Bug 8: Inline JSON schema objects remain Inline.
+#[test]
+fn ac04_bug8_inline_schema_stays_inline() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: t1
+    infer: "Generate"
+    output:
+      format: json
+      schema:
+        type: object
+        properties:
+          name:
+            type: string
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
+    assert!(
+        matches!(
+            output.schema,
+            Some(crate::ast::output::SchemaRef::Inline(_))
+        ),
+        "JSON object schema should remain Inline"
+    );
+}
+
+/// Bug 41: Invalid HTTP method still parses (defaults to GET with warning).
+#[test]
+fn ac05_bug41_invalid_http_method_defaults_to_get() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: bad_method
+    fetch:
+      url: "https://example.com"
+      method: FROBNICATE
+"#;
+    // Should parse without error (defaults to GET, warning emitted)
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.method, "GET", "Invalid method should default to GET");
+        }
+        _ => panic!("expected Fetch action"),
+    }
+}
+
+/// Bug 42: output.max_retries survives the full pipeline.
+#[test]
+fn ac06_bug42_output_max_retries() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: retry_task
+    infer: "Generate JSON"
+    output:
+      format: json
+      max_retries: 5
+      schema:
+        type: object
+"#;
+    let w = ok(yaml);
+    let output = w.tasks[0].output.as_ref().expect("output should exist");
+    assert_eq!(
+        output.max_retries,
+        Some(5),
+        "max_retries should survive the pipeline"
+    );
+}
+
+/// Bug 43: infer.response_format survives the full pipeline.
+#[test]
+fn ac07_bug43_response_format_json() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: json_response
+    infer:
+      prompt: "Generate structured data"
+      response_format: json
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(
+                infer.response_format,
+                Some(crate::ast::action::ResponseFormat::Json),
+                "response_format: json should survive pipeline"
+            );
+        }
+        _ => panic!("expected Infer action"),
+    }
+}
+
+/// Bug 43: response_format: markdown variant.
+#[test]
+fn ac08_bug43_response_format_markdown() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: md_response
+    infer:
+      prompt: "Generate docs"
+      response_format: markdown
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(
+                infer.response_format,
+                Some(crate::ast::action::ResponseFormat::Markdown),
+                "response_format: markdown should survive pipeline"
+            );
+        }
+        _ => panic!("expected Infer action"),
+    }
+}
+
+/// Bug 43: response_format: text (explicit default).
+#[test]
+fn ac09_bug43_response_format_text() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: text_response
+    infer:
+      prompt: "Generate text"
+      response_format: text
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Infer { infer } => {
+            assert_eq!(
+                infer.response_format,
+                Some(crate::ast::action::ResponseFormat::Text),
+                "response_format: text should survive pipeline"
+            );
+        }
+        _ => panic!("expected Infer action"),
+    }
+}
+
+/// Bug 43: response_format absent remains None (backward compatible).
+#[test]
+fn ac10_bug43_response_format_absent() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: no_rf
+    infer: "Simple prompt"
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Infer { infer } => {
+            assert!(
+                infer.response_format.is_none(),
+                "Absent response_format should be None"
+            );
+        }
+        _ => panic!("expected Infer action"),
+    }
+}
+
+/// Bug 44: Sub-second exec timeout must not truncate to zero.
+#[test]
+fn ac11_bug44_sub_second_exec_timeout() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: fast_cmd
+    exec:
+      command: "echo hi"
+      timeout_ms: 500
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Exec { exec: e } => {
+            assert_eq!(
+                e.timeout,
+                Some(1),
+                "500ms should ceil to 1s, not truncate to 0s"
+            );
+        }
+        _ => panic!("expected Exec action"),
+    }
+}
+
+/// Bug 44: Exact second fetch timeout unchanged.
+#[test]
+fn ac12_bug44_exact_second_fetch_timeout() {
+    let yaml = r#"
+schema: "nika/workflow@0.12"
+tasks:
+  - id: fetch_5s
+    fetch:
+      url: "https://example.com"
+      timeout_ms: 5000
+"#;
+    let w = ok(yaml);
+    match &w.tasks[0].action {
+        TaskAction::Fetch { fetch } => {
+            assert_eq!(fetch.timeout, Some(5), "5000ms should remain 5s");
+        }
+        _ => panic!("expected Fetch action"),
+    }
+}

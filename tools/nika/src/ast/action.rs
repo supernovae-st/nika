@@ -435,6 +435,15 @@ impl FetchParams {
                 reason: "fetch 'selector' requires 'extract' to be set".to_string(),
             });
         }
+        if self.response.is_some() && self.extract.is_some() {
+            return Err(NikaError::ValidationError {
+                reason: format!(
+                    "fetch cannot combine 'response: {}' with 'extract: {}' — response modes bypass extraction",
+                    self.response.as_deref().unwrap_or(""),
+                    self.extract.as_deref().unwrap_or("")
+                ),
+            });
+        }
         Ok(())
     }
 }

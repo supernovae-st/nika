@@ -149,6 +149,9 @@ pub struct AnalyzedInferAction {
     /// Multimodal content parts for vision (analyzed, spans stripped)
     pub content: Option<Vec<crate::ast::content::AnalyzedContentPart>>,
 
+    /// Expected response format: text, json, markdown
+    pub response_format: Option<String>,
+
     /// Span of the action
     pub span: Span,
 }
@@ -327,6 +330,12 @@ pub struct AnalyzedOutput {
 
     /// JSON Schema for validation (validated)
     pub schema: Option<serde_json::Value>,
+
+    /// Schema reference: file path or named ref (from `schema_ref:` / `$ref:`)
+    pub schema_ref: Option<String>,
+
+    /// Maximum retries on validation failure
+    pub max_retries: Option<u32>,
 
     /// Span of the output config
     pub span: Span,
