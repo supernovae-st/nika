@@ -486,9 +486,6 @@ impl App {
                         .map(|s| Rect::new(0, 0, s.width, s.height))
                         .unwrap_or_else(|| Rect::new(0, 0, 80, 24));
                     intro.tick(intro_area);
-                } else {
-                    // Mark dirty when intro completes so views render
-                    self.state.dirty.mark_all();
                 }
             }
 
@@ -497,6 +494,11 @@ impl App {
             // differential rendering. The Clear widget in render.rs handles this properly.
             if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
                 self.intro_state = None;
+                // Force full redraw so Clear + background paint over intro remnants.
+                // Previously mark_all() lived in an unreachable else branch above:
+                // intro.tick() can flip is_done() in the same tick, so the else never
+                // ran, and on the next tick intro_state was already None.
+                self.state.dirty.mark_all();
                 // Call on_enter() NOW when view first becomes visible (not at startup)
                 self.call_view_on_enter(self.current_view);
             }
