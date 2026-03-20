@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap},
 };
 
 /// Minimum terminal dimensions for proper rendering
@@ -98,6 +98,7 @@ impl Widget for TerminalTooSmallOverlay {
             .title(title)
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::Yellow))
             .style(Style::default().bg(Color::Rgb(40, 40, 60)));
 

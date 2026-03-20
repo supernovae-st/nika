@@ -18,7 +18,7 @@ use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 use std::time::{Duration, Instant};
 
@@ -303,6 +303,7 @@ impl Widget for WhichKey<'_> {
             .title(format!(" {} ({}) ", group.name, prefix_display))
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(COLOR_BORDER))
             .style(Style::default().bg(COLOR_BG));
 

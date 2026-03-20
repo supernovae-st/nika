@@ -8,7 +8,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget, Wrap},
 };
 
 // Solarized-inspired colors
@@ -235,6 +235,7 @@ impl Widget for HelpOverlay<'_> {
             .title(" Keyboard Shortcuts ")
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(COLOR_BORDER))
             .style(Style::default().bg(COLOR_BG));
 

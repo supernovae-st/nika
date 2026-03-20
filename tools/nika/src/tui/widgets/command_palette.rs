@@ -7,7 +7,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
 use crate::tui::theme::VerbColor;
@@ -480,6 +480,7 @@ impl Widget for CommandPalette<'_> {
         // Draw border
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(DEFAULT_BORDER_COLOR))
             .style(Style::default().bg(DEFAULT_BG_COLOR));
         let inner = block.inner(palette_area);
