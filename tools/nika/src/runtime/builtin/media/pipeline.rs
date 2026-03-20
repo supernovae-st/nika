@@ -91,15 +91,35 @@ impl MediaOp for PipelineOp {
                         match op {
                             #[cfg(feature = "media-thumbnail")]
                             "thumbnail" => {
-                                let width = step
-                                    .get("width")
-                                    .and_then(|v| v.as_u64())
-                                    .unwrap_or(256)
-                                    .clamp(1, 10_000)
-                                    as u32;
+                                let width =
+                                    step.get("width").and_then(|v| v.as_u64()).unwrap_or(256);
+                                if width == 0 || width > 10_000 {
+                                    return Err(pipeline_step_failed(
+                                        i,
+                                        format!("width must be 1..10000, got {width}"),
+                                    ));
+                                }
+                                let width = width as u32;
+                                let target_height = step.get("height").and_then(|v| v.as_u64());
+                                if let Some(h) = target_height {
+                                    if h == 0 || h > 10_000 {
+                                        return Err(pipeline_step_failed(
+                                            i,
+                                            format!("height must be 1..10000, got {h}"),
+                                        ));
+                                    }
+                                }
                                 let img = decode_image_safe(&current_data)?;
-                                let resized =
-                                    img.resize(width, width, image::imageops::FilterType::Lanczos3);
+                                let (orig_w, orig_h) = (img.width(), img.height());
+                                let th = target_height.map(|h| h as u32).unwrap_or_else(|| {
+                                    let ratio = orig_h as f64 / orig_w as f64;
+                                    (width as f64 * ratio).round().max(1.0) as u32
+                                });
+                                let resized = img.resize_exact(
+                                    width,
+                                    th,
+                                    image::imageops::FilterType::Lanczos3,
+                                );
                                 let mut buf = Vec::new();
                                 let rgba = resized.to_rgba8();
                                 let (w, h) = (rgba.width(), rgba.height());
@@ -354,5 +374,197 @@ mod tests {
         let result = op.execute(serde_json::json!({}), &ctx).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("NIKA-294"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug 22 regression: pipeline thumbnail must use height param
+    // ═══════════════════════════════════════════════════════════════
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug22_pipeline_thumbnail_respects_height() {
+        // Bug 22: Pipeline thumbnail used resize(w, w) ignoring the height param.
+        // Now it parses height and uses resize_exact(w, h).
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png(); // 100x50
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 60, "height": 30 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        if let MediaOpResult::Binary { data, .. } = result {
+            let img = image::load_from_memory(&data).unwrap();
+            assert_eq!(
+                img.width(),
+                60,
+                "Bug 22 regression: pipeline thumbnail width must be respected"
+            );
+            assert_eq!(
+                img.height(),
+                30,
+                "Bug 22 regression: pipeline thumbnail height must be respected"
+            );
+        } else {
+            panic!("expected Binary result");
+        }
+    }
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug22_pipeline_thumbnail_aspect_ratio_without_height() {
+        // When height is not specified, aspect ratio must be preserved.
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png(); // 100x50
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 50 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        if let MediaOpResult::Binary { data, .. } = result {
+            let img = image::load_from_memory(&data).unwrap();
+            assert_eq!(img.width(), 50);
+            assert_eq!(
+                img.height(),
+                25,
+                "Bug 22 regression: without height, aspect ratio must be preserved (100:50 = 50:25)"
+            );
+        } else {
+            panic!("expected Binary result");
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bug 38 regression: pipeline thumbnail must reject out-of-range
+    // ═══════════════════════════════════════════════════════════════
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug38_pipeline_thumbnail_rejects_zero_width() {
+        // Bug 38: Pipeline thumbnail silently clamped out-of-range values
+        // instead of returning an error.
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png();
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 0 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "width=0 must be rejected, not clamped");
+        assert!(
+            result.unwrap_err().to_string().contains("NIKA-295"),
+            "must be a pipeline step error"
+        );
+    }
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug38_pipeline_thumbnail_rejects_width_over_limit() {
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png();
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 20000 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "width=20000 must be rejected, not clamped");
+        assert!(
+            result.unwrap_err().to_string().contains("NIKA-295"),
+            "must be a pipeline step error"
+        );
+    }
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug38_pipeline_thumbnail_rejects_zero_height() {
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png();
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 50, "height": 0 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(result.is_err(), "height=0 must be rejected, not clamped");
+        assert!(
+            result.unwrap_err().to_string().contains("NIKA-295"),
+            "must be a pipeline step error"
+        );
+    }
+
+    #[cfg(feature = "media-thumbnail")]
+    #[tokio::test]
+    async fn bug38_pipeline_thumbnail_rejects_height_over_limit() {
+        let (_dir, ctx) = setup().await;
+        let png = fixture_png();
+        let sr = ctx.cas.store(&png).await.unwrap();
+
+        let op = PipelineOp;
+        let result = op
+            .execute(
+                serde_json::json!({
+                  "hash": sr.hash,
+                  "steps": [
+                    { "op": "thumbnail", "width": 50, "height": 20000 }
+                  ]
+                }),
+                &ctx,
+            )
+            .await;
+        assert!(
+            result.is_err(),
+            "height=20000 must be rejected, not clamped"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("NIKA-295"),
+            "must be a pipeline step error"
+        );
     }
 }
