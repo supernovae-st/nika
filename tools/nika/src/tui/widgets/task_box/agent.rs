@@ -16,6 +16,7 @@ use super::StreamingContext;
 use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
 use crate::tui::tokens::compat;
 use crate::tui::unicode::display_width;
+use crate::tui::utils::format_number_compact;
 
 /// AgentBox data and rendering
 #[derive(Debug, Clone)]
@@ -290,17 +291,6 @@ impl AgentBox {
         }
     }
 
-    /// Format tokens for display
-    fn format_tokens(tokens: u64) -> String {
-        if tokens >= 1_000_000 {
-            format!("{:.1}M", tokens as f64 / 1_000_000.0)
-        } else if tokens >= 1_000 {
-            format!("{:.1}K", tokens as f64 / 1_000.0)
-        } else {
-            tokens.to_string()
-        }
-    }
-
     /// Convert to ListItem for scrollable List widget rendering
     ///
     /// Returns multiple lines based on render mode:
@@ -367,8 +357,8 @@ impl AgentBox {
                 let turn_info = format!("turn {}/{}", self.turn, self.max_turns);
                 let tokens_str = format!(
                     "{}↓ {}↑",
-                    Self::format_tokens(self.tokens_in),
-                    Self::format_tokens(self.tokens_out)
+                    format_number_compact(self.tokens_in),
+                    format_number_compact(self.tokens_out)
                 );
                 let cost_str = format!("${:.4}", self.cost);
                 let tools_str = format!("🔧{}", self.tool_calls);
@@ -539,8 +529,8 @@ impl Widget for AgentBox {
                 "Turn {}/{} │ 📊 {} in / {} out │ 💰 ${:.2} │ 🔌 {} tools{}",
                 self.turn,
                 self.max_turns,
-                Self::format_tokens(self.tokens_in),
-                Self::format_tokens(self.tokens_out),
+                format_number_compact(self.tokens_in),
+                format_number_compact(self.tokens_out),
                 self.cost,
                 self.tool_calls,
                 velocity_str
@@ -755,9 +745,9 @@ mod tests {
 
     #[test]
     fn test_format_tokens() {
-        assert_eq!(AgentBox::format_tokens(500), "500");
-        assert_eq!(AgentBox::format_tokens(1500), "1.5K");
-        assert_eq!(AgentBox::format_tokens(1_500_000), "1.5M");
+        assert_eq!(format_number_compact(500), "500");
+        assert_eq!(format_number_compact(1500), "1.5K");
+        assert_eq!(format_number_compact(1_500_000), "1.5M");
     }
 
     #[test]

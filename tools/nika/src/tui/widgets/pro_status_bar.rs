@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 
 use super::{McpServerInfo, McpStatus, Provider};
 use crate::tui::theme::{Theme, VerbColor};
+use crate::tui::utils::format_number_compact;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks when no theme provided)
@@ -203,16 +204,6 @@ impl<'a> ProStatusBar<'a> {
         }
     }
 
-    fn format_tokens(tokens: u64) -> String {
-        if tokens >= 1_000_000 {
-            format!("{:.1}M", tokens as f64 / 1_000_000.0)
-        } else if tokens >= 1_000 {
-            format!("{:.1}k", tokens as f64 / 1_000.0)
-        } else {
-            format!("{}", tokens)
-        }
-    }
-
     fn format_duration(duration: Duration) -> String {
         let secs = duration.as_secs();
         if secs < 60 {
@@ -350,8 +341,8 @@ impl<'a> ProStatusBar<'a> {
 
         // Tokens
         spans.push(Span::raw("🔢 "));
-        let total = Self::format_tokens(self.metrics.total_tokens());
-        let max = Self::format_tokens(self.metrics.max_tokens);
+        let total = format_number_compact(self.metrics.total_tokens());
+        let max = format_number_compact(self.metrics.max_tokens);
         let pct = self.metrics.context_percentage();
         spans.push(Span::styled(
             total,
@@ -464,9 +455,9 @@ mod tests {
 
     #[test]
     fn test_format_tokens() {
-        assert_eq!(ProStatusBar::format_tokens(500), "500");
-        assert_eq!(ProStatusBar::format_tokens(1500), "1.5k");
-        assert_eq!(ProStatusBar::format_tokens(1_500_000), "1.5M");
+        assert_eq!(format_number_compact(500), "500");
+        assert_eq!(format_number_compact(1500), "1.5K");
+        assert_eq!(format_number_compact(1_500_000), "1.5M");
     }
 
     #[test]

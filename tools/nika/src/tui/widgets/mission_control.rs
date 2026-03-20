@@ -34,6 +34,7 @@ use ratatui::{
 
 use super::{ActivityItem, ActivityTemp, McpServerInfo, McpStatus};
 use crate::tui::theme::{Theme, VerbColor};
+use crate::tui::utils::format_number_compact;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT COLORS (fallbacks when no theme provided)
@@ -520,8 +521,8 @@ impl<'a> MissionControlPanel<'a> {
         ]));
 
         // Token counts
-        let in_tokens = format_tokens(self.turn_metrics.input_tokens);
-        let out_tokens = format_tokens(self.turn_metrics.output_tokens);
+        let in_tokens = format_number_compact(self.turn_metrics.input_tokens);
+        let out_tokens = format_number_compact(self.turn_metrics.output_tokens);
         lines.push(Line::from(vec![
             Span::raw("  In: "),
             Span::styled(in_tokens, Style::default().fg(cyan)),
@@ -642,16 +643,6 @@ impl<'a> MissionControlPanel<'a> {
     }
 }
 
-fn format_tokens(tokens: u64) -> String {
-    if tokens >= 1_000_000 {
-        format!("{:.1}M", tokens as f64 / 1_000_000.0)
-    } else if tokens >= 1_000 {
-        format!("{:.1}k", tokens as f64 / 1_000.0)
-    } else {
-        format!("{}", tokens)
-    }
-}
-
 fn format_cost(cost: f64) -> String {
     if cost < 0.01 {
         format!("${:.4}", cost)
@@ -751,10 +742,10 @@ mod tests {
     }
 
     #[test]
-    fn test_format_tokens() {
-        assert_eq!(format_tokens(500), "500");
-        assert_eq!(format_tokens(1500), "1.5k");
-        assert_eq!(format_tokens(1_500_000), "1.5M");
+    fn test_format_number_compact() {
+        assert_eq!(format_number_compact(500), "500");
+        assert_eq!(format_number_compact(1500), "1.5K");
+        assert_eq!(format_number_compact(1_500_000), "1.5M");
     }
 
     #[test]
