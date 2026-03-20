@@ -1,0 +1,156 @@
+# Data Enrichment Pipeline
+# exec to generate JSON data, for_each to process items, infer to classify each.
+#
+# Features tested:
+#   - exec with JSON output parsing
+#   - for_each over complex objects with concurrency
+#   - Structured output with enum constraints per classification
+#   - with: bindings from exec -> for_each -> infer aggregation
+#   - Multi-field structured schema validation
+#
+# Usage:
+#   nika run examples/use-cases/data-enrichment.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: data-enrichment
+description: "Generate data -> for_each classification -> aggregate enriched dataset"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Generate raw dataset via exec
+  # -------------------------------------------------------------------------
+
+  - id: generate_data
+    description: "Generate synthetic customer interaction dataset"
+    exec:
+      command: |
+        echo '[
+          {"id":"INT-001","channel":"email","text":"Order #4521 never arrived, been 3 weeks. Need refund ASAP.","customer_tier":"gold"},
+          {"id":"INT-002","channel":"chat","text":"Love the new dashboard redesign! So much faster now.","customer_tier":"silver"},
+          {"id":"INT-003","channel":"phone","text":"How do I upgrade my plan from Basic to Pro?","customer_tier":"basic"},
+          {"id":"INT-004","channel":"email","text":"Your API keeps returning 503 errors during peak hours. This is impacting our production system.","customer_tier":"enterprise"},
+          {"id":"INT-005","channel":"social","text":"Just discovered your product through a friend. Signed up yesterday, impressed so far!","customer_tier":"basic"},
+          {"id":"INT-006","channel":"chat","text":"Billing shows double charge for February. Please investigate and credit back.","customer_tier":"gold"}
+        ]'
+      shell: true
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Classify and enrich each interaction
+  # -------------------------------------------------------------------------
+
+  - id: classify_interactions
+    description: "Classify each interaction with sentiment, intent, priority, and department"
+    depends_on: [generate_data]
+    for_each:
+      - id: "INT-001"
+        text: "Order #4521 never arrived, been 3 weeks. Need refund ASAP."
+        channel: "email"
+        tier: "gold"
+      - id: "INT-002"
+        text: "Love the new dashboard redesign! So much faster now."
+        channel: "chat"
+        tier: "silver"
+      - id: "INT-003"
+        text: "How do I upgrade my plan from Basic to Pro?"
+        channel: "phone"
+        tier: "basic"
+      - id: "INT-004"
+        text: "Your API keeps returning 503 errors during peak hours. This is impacting our production system."
+        channel: "email"
+        tier: "enterprise"
+      - id: "INT-005"
+        text: "Just discovered your product through a friend. Signed up yesterday, impressed so far!"
+        channel: "social"
+        tier: "basic"
+      - id: "INT-006"
+        text: "Billing shows double charge for February. Please investigate and credit back."
+        channel: "chat"
+        tier: "gold"
+    as: interaction
+    concurrency: 3
+    infer:
+      prompt: |
+        Classify and enrich this customer interaction:
+
+        ID: {{with.interaction.id}}
+        CHANNEL: {{with.interaction.channel}}
+        CUSTOMER TIER: {{with.interaction.tier}}
+        MESSAGE: {{with.interaction.text}}
+
+        Return a JSON classification with:
+        - interaction_id: the original ID
+        - sentiment: positive, negative, neutral, or mixed
+        - intent: complaint, praise, question, bug_report, feedback, billing
+        - priority: critical, high, medium, low
+        - department: support, engineering, billing, product, marketing
+        - escalation_needed: true/false (true if enterprise + negative, or critical priority)
+        - suggested_action: brief recommended next step
+        - confidence: 0.0-1.0 confidence score
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          interaction_id:
+            type: string
+          sentiment:
+            type: string
+            enum: [positive, negative, neutral, mixed]
+          intent:
+            type: string
+          priority:
+            type: string
+            enum: [critical, high, medium, low]
+          department:
+            type: string
+          escalation_needed:
+            type: boolean
+          suggested_action:
+            type: string
+          confidence:
+            type: number
+        required: [interaction_id, sentiment, intent, priority, department, escalation_needed]
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Generate enrichment summary report
+  # -------------------------------------------------------------------------
+
+  - id: enrichment_summary
+    description: "Aggregate classifications into an enrichment summary"
+    depends_on: [classify_interactions, generate_data]
+    with:
+      classifications: $classify_interactions
+      raw_data: $generate_data
+    infer:
+      prompt: |
+        Generate an enrichment summary report from these classified interactions.
+
+        RAW DATA COUNT: 6 interactions
+        CLASSIFICATIONS:
+        {{with.classifications}}
+
+        Produce a report with:
+        1. Distribution breakdown (sentiment, intent, priority, department)
+        2. Escalation queue: list all items where escalation_needed is true
+        3. Department routing: group interactions by assigned department
+        4. Average confidence score across all classifications
+        5. Top 3 action items ranked by priority and customer tier
+        6. Insights on channel distribution patterns
+
+        Format as a clean markdown report.
+      max_tokens: 500
+    artifact:
+      path: data-enrichment-report.md
+      template: |
+        # Data Enrichment Report
+
+        {{task.output}}

@@ -1,0 +1,240 @@
+# SEO Competitor Analysis
+# Fetch 3 competitor URLs, extract metadata from each, aggregate with infer.
+#
+# Features tested:
+#   - Parallel fetch with extract: metadata
+#   - JSONPath extraction
+#   - with: bindings from multiple parallel tasks
+#   - Structured output with schema validation
+#   - infer aggregation over heterogeneous sources
+#
+# Usage:
+#   nika run examples/use-cases/seo-competitor-analysis.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: seo-competitor-analysis
+description: "Fetch 3 competitor URLs, extract metadata, aggregate SEO analysis"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Parallel metadata extraction from 3 competitor sites
+  # -------------------------------------------------------------------------
+
+  - id: fetch_competitor_1
+    description: "Fetch GitHub repo data (competitor 1)"
+    fetch:
+      url: "https://api.github.com/repos/denoland/deno"
+      method: GET
+    output:
+      format: json
+
+  - id: fetch_competitor_2
+    description: "Fetch Bun repo data (competitor 2)"
+    fetch:
+      url: "https://api.github.com/repos/oven-sh/bun"
+      method: GET
+    output:
+      format: json
+
+  - id: fetch_competitor_3
+    description: "Fetch Node.js repo data (competitor 3)"
+    fetch:
+      url: "https://api.github.com/repos/nodejs/node"
+      method: GET
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Fetch API data for star counts via JSONPath
+  # -------------------------------------------------------------------------
+
+  - id: fetch_repo_stars
+    description: "Fetch GitHub API for a popular repo's star count"
+    fetch:
+      url: "https://api.github.com/repos/astral-sh/ruff"
+      extract: jsonpath
+      selector: "$.stargazers_count"
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Per-competitor SEO analysis (parallel infer)
+  # -------------------------------------------------------------------------
+
+  - id: analyze_competitor_1
+    description: "Analyze Deno project positioning"
+    depends_on: [fetch_competitor_1]
+    with:
+      data: $fetch_competitor_1
+    infer:
+      prompt: |
+        Analyze this open-source project's competitive positioning from its GitHub data.
+
+        REPO DATA:
+        {{with.data}}
+
+        Evaluate (1-10 each):
+        1. Community traction (stars, forks, watchers)
+        2. Description clarity and messaging
+        3. Topic/keyword coverage
+        4. Activity level (recent updates)
+        5. Overall competitive score
+
+        Return as JSON with fields: site, community_score, messaging_score, keyword_score, activity_score, overall_score, recommendations (array of strings).
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          site:
+            type: string
+          community_score:
+            type: integer
+          messaging_score:
+            type: integer
+          keyword_score:
+            type: integer
+          activity_score:
+            type: integer
+          overall_score:
+            type: integer
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [site, overall_score, recommendations]
+
+  - id: analyze_competitor_2
+    description: "Analyze Bun project positioning"
+    depends_on: [fetch_competitor_2]
+    with:
+      data: $fetch_competitor_2
+    infer:
+      prompt: |
+        Analyze this open-source project's competitive positioning from its GitHub data.
+
+        REPO DATA:
+        {{with.data}}
+
+        Evaluate (1-10 each):
+        1. Community traction (stars, forks, watchers)
+        2. Description clarity and messaging
+        3. Topic/keyword coverage
+        4. Activity level (recent updates)
+        5. Overall competitive score
+
+        Return as JSON with fields: site, community_score, messaging_score, keyword_score, activity_score, overall_score, recommendations (array of strings).
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          site:
+            type: string
+          community_score:
+            type: integer
+          messaging_score:
+            type: integer
+          keyword_score:
+            type: integer
+          activity_score:
+            type: integer
+          overall_score:
+            type: integer
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [site, overall_score, recommendations]
+
+  - id: analyze_competitor_3
+    description: "Analyze Node.js project positioning"
+    depends_on: [fetch_competitor_3]
+    with:
+      data: $fetch_competitor_3
+    infer:
+      prompt: |
+        Analyze this open-source project's competitive positioning from its GitHub data.
+
+        REPO DATA:
+        {{with.data}}
+
+        Evaluate (1-10 each):
+        1. Community traction (stars, forks, watchers)
+        2. Description clarity and messaging
+        3. Topic/keyword coverage
+        4. Activity level (recent updates)
+        5. Overall competitive score
+
+        Return as JSON with fields: site, community_score, messaging_score, keyword_score, activity_score, overall_score, recommendations (array of strings).
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          site:
+            type: string
+          community_score:
+            type: integer
+          messaging_score:
+            type: integer
+          keyword_score:
+            type: integer
+          activity_score:
+            type: integer
+          overall_score:
+            type: integer
+          recommendations:
+            type: array
+            items:
+              type: string
+        required: [site, overall_score, recommendations]
+
+  # -------------------------------------------------------------------------
+  # PHASE 4: Aggregate all analyses into final report
+  # -------------------------------------------------------------------------
+
+  - id: aggregate_report
+    description: "Synthesize all competitor analyses into a strategic SEO report"
+    depends_on: [analyze_competitor_1, analyze_competitor_2, analyze_competitor_3, fetch_repo_stars]
+    with:
+      github_seo: $analyze_competitor_1
+      gitlab_seo: $analyze_competitor_2
+      bitbucket_seo: $analyze_competitor_3
+      repo_stars: $fetch_repo_stars
+    infer:
+      prompt: |
+        Create a comprehensive SEO competitor analysis report from these individual analyses.
+
+        DENO ANALYSIS:
+        {{with.github_seo}}
+
+        BUN ANALYSIS:
+        {{with.gitlab_seo}}
+
+        NODE.JS ANALYSIS:
+        {{with.bitbucket_seo}}
+
+        BONUS DATA - Popular repo star count (Ruff): {{with.repo_stars}}
+
+        Synthesize into a strategic report with:
+        1. Comparative ranking table (all 3 competitors scored across dimensions)
+        2. Common strengths across all competitors
+        3. Common weaknesses / missed opportunities
+        4. Best practices identified from the leaders
+        5. Top 5 actionable recommendations for a new JS runtime entering this space
+        6. Quick wins vs long-term investments
+
+        Format as a well-structured markdown report.
+      max_tokens: 600
+    artifact:
+      path: seo-competitor-analysis.md
+      template: |
+        # SEO Competitor Analysis Report
+
+        {{task.output}}

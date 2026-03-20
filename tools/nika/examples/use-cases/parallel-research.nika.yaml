@@ -1,0 +1,233 @@
+# Parallel Research
+# Fan-out 4 research queries in parallel, fan-in with synthesis.
+#
+# Features tested:
+#   - 4 parallel infer tasks (true fan-out pattern)
+#   - Each task has distinct system prompt / research angle
+#   - Fan-in aggregation with all 4 results
+#   - for_each for post-processing across research angles
+#   - Structured output on synthesis
+#   - Diamond DAG pattern
+#
+# Usage:
+#   nika run examples/use-cases/parallel-research.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: parallel-research
+description: "Fan-out 4 research queries -> fan-in synthesis -> final report"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # SETUP: Define research topic
+  # -------------------------------------------------------------------------
+
+  - id: research_topic
+    description: "Define the research topic and angles"
+    exec:
+      command: |
+        echo '{"topic":"WebAssembly (WASM) adoption in server-side applications","year":"2026","angles":["technical_capabilities","industry_adoption","security_model","performance_benchmarks"]}'
+      shell: true
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # FAN-OUT: 4 parallel research queries, each with a different angle
+  # -------------------------------------------------------------------------
+
+  - id: research_technical
+    description: "Research technical capabilities angle"
+    depends_on: [research_topic]
+    with:
+      topic: $research_topic
+    infer:
+      prompt: |
+        You are a systems architecture researcher. Analyze WebAssembly for server-side applications from a TECHNICAL CAPABILITIES perspective.
+
+        TOPIC: {{with.topic.topic}}
+
+        Cover:
+        1. Current WASM runtime capabilities (WASI, component model)
+        2. Language support maturity (Rust, Go, C++, Python)
+        3. Threading and concurrency model
+        4. Memory management and garbage collection
+        5. Networking and I/O capabilities
+        6. Key limitations vs native code
+
+        Be specific with version numbers, feature names, and technical details.
+      max_tokens: 400
+
+  - id: research_adoption
+    description: "Research industry adoption angle"
+    depends_on: [research_topic]
+    with:
+      topic: $research_topic
+    infer:
+      prompt: |
+        You are an industry analyst. Analyze WebAssembly for server-side applications from an INDUSTRY ADOPTION perspective.
+
+        TOPIC: {{with.topic.topic}}
+
+        Cover:
+        1. Major companies using WASM server-side (Cloudflare, Fastly, Fermyon, etc.)
+        2. Use cases in production (edge computing, serverless, plugin systems)
+        3. Developer ecosystem maturity (tooling, frameworks, documentation)
+        4. Market size and growth trajectory
+        5. Comparison with container-based approaches
+        6. Barriers to adoption
+
+        Focus on real companies and concrete deployments.
+      max_tokens: 400
+
+  - id: research_security
+    description: "Research security model angle"
+    depends_on: [research_topic]
+    with:
+      topic: $research_topic
+    infer:
+      prompt: |
+        You are a security researcher. Analyze WebAssembly for server-side applications from a SECURITY MODEL perspective.
+
+        TOPIC: {{with.topic.topic}}
+
+        Cover:
+        1. Sandboxing model and isolation guarantees
+        2. Capability-based security (WASI capabilities)
+        3. Known vulnerabilities and attack surfaces
+        4. Comparison with container/VM isolation
+        5. Supply chain security considerations
+        6. Audit and compliance implications
+
+        Be precise about security boundaries and threat models.
+      max_tokens: 400
+
+  - id: research_performance
+    description: "Research performance benchmarks angle"
+    depends_on: [research_topic]
+    with:
+      topic: $research_topic
+    infer:
+      prompt: |
+        You are a performance engineer. Analyze WebAssembly for server-side applications from a PERFORMANCE BENCHMARKS perspective.
+
+        TOPIC: {{with.topic.topic}}
+
+        Cover:
+        1. Startup time vs containers vs native
+        2. Runtime performance overhead vs native code
+        3. Memory footprint comparison
+        4. Cold start latency (critical for serverless)
+        5. I/O throughput benchmarks
+        6. Optimization techniques (AOT vs JIT compilation)
+
+        Include specific numbers and benchmark references where possible.
+      max_tokens: 400
+
+  # -------------------------------------------------------------------------
+  # FAN-IN: Synthesize all 4 research angles
+  # -------------------------------------------------------------------------
+
+  - id: synthesize_research
+    description: "Synthesize all 4 research angles into unified findings"
+    depends_on: [research_technical, research_adoption, research_security, research_performance]
+    with:
+      technical: $research_technical
+      adoption: $research_adoption
+      security: $research_security
+      performance: $research_performance
+      topic: $research_topic
+    infer:
+      prompt: |
+        Synthesize these 4 research angles into a comprehensive assessment.
+
+        TOPIC: {{with.topic.topic}}
+
+        TECHNICAL CAPABILITIES:
+        {{with.technical}}
+
+        INDUSTRY ADOPTION:
+        {{with.adoption}}
+
+        SECURITY MODEL:
+        {{with.security}}
+
+        PERFORMANCE BENCHMARKS:
+        {{with.performance}}
+
+        Create a synthesis that:
+        1. Identifies common themes across all 4 angles
+        2. Highlights contradictions or tensions between angles
+        3. Provides an overall readiness assessment (1-10)
+        4. Lists top 5 opportunities and top 5 risks
+        5. Gives a clear recommendation: adopt now / evaluate / wait / avoid
+
+        Return as JSON.
+      max_tokens: 500
+    structured:
+      schema:
+        type: object
+        properties:
+          readiness_score:
+            type: integer
+          common_themes:
+            type: array
+            items:
+              type: string
+          tensions:
+            type: array
+            items:
+              type: string
+          opportunities:
+            type: array
+            items:
+              type: string
+          risks:
+            type: array
+            items:
+              type: string
+          recommendation:
+            type: string
+            enum: [adopt_now, evaluate, wait, avoid]
+          rationale:
+            type: string
+        required: [readiness_score, recommendation, rationale, opportunities, risks]
+
+  # -------------------------------------------------------------------------
+  # FINAL: Generate executive report
+  # -------------------------------------------------------------------------
+
+  - id: final_report
+    description: "Generate final executive research report"
+    depends_on: [synthesize_research]
+    with:
+      synthesis: $synthesize_research
+      topic: $research_topic
+    infer:
+      prompt: |
+        Write a polished executive research report.
+
+        TOPIC: {{with.topic.topic}}
+        SYNTHESIS: {{with.synthesis}}
+
+        Structure:
+        1. Title and date
+        2. Executive Summary (1 paragraph)
+        3. Readiness Score: {{with.synthesis.readiness_score}}/10
+        4. Key Findings (from common themes)
+        5. Opportunities (top 5 with brief description)
+        6. Risks and Mitigations (top 5)
+        7. Recommendation: {{with.synthesis.recommendation}}
+        8. Next Steps (3 concrete actions)
+
+        Format as a professional markdown report.
+      max_tokens: 600
+    artifact:
+      path: parallel-research-report.md
+      template: |
+        {{task.output}}

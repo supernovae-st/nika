@@ -1,0 +1,288 @@
+# Multi-Step Analysis Pipeline
+# 8-task DAG: fetch -> extract -> transform -> analyze -> summarize -> format -> output -> verify
+#
+# Features tested:
+#   - Deep 8-task DAG chain with strict sequential dependencies
+#   - fetch with extract: metadata
+#   - exec for data transformation
+#   - Multiple infer tasks in sequence (each consuming previous output)
+#   - Structured output at multiple stages
+#   - Final verification task that validates the entire pipeline
+#   - Diamond dependency pattern (verify depends on both format and output)
+#
+# Usage:
+#   nika run examples/use-cases/multi-step-analysis.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: multi-step-analysis
+description: "8-task DAG: fetch -> extract -> transform -> analyze -> summarize -> format -> output -> verify"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # STEP 1: FETCH — Retrieve raw data from API
+  # -------------------------------------------------------------------------
+
+  - id: step_fetch
+    description: "Fetch raw data from a public API"
+    fetch:
+      url: "https://api.github.com/repos/nickel-lang/nickel"
+      method: GET
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # STEP 2: EXTRACT — Pull specific fields via exec
+  # -------------------------------------------------------------------------
+
+  - id: step_extract
+    description: "Extract key fields from the raw API response"
+    depends_on: [step_fetch]
+    with:
+      raw: $step_fetch
+    exec:
+      command: |
+        echo '{"extracted": true, "source": "github-api", "fields": ["name","description","stargazers_count","forks_count","open_issues_count","language","license","created_at","updated_at","topics"]}'
+      shell: true
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # STEP 3: TRANSFORM — Normalize and structure extracted data
+  # -------------------------------------------------------------------------
+
+  - id: step_transform
+    description: "Transform extracted data into normalized analysis format"
+    depends_on: [step_extract, step_fetch]
+    with:
+      extracted: $step_extract
+      raw: $step_fetch
+    infer:
+      prompt: |
+        Transform this GitHub repository data into a structured analysis format.
+
+        RAW API DATA:
+        {{with.raw}}
+
+        EXTRACTION METADATA:
+        {{with.extracted}}
+
+        Create a normalized JSON with:
+        - project_name: repository name
+        - description: one-line summary
+        - health_metrics: { stars, forks, open_issues, star_to_fork_ratio }
+        - metadata: { language, license, age_days (approx from created_at to now), last_update }
+        - topics: array of topic tags
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          project_name:
+            type: string
+          description:
+            type: string
+          health_metrics:
+            type: object
+            properties:
+              stars:
+                type: integer
+              forks:
+                type: integer
+              open_issues:
+                type: integer
+            required: [stars, forks, open_issues]
+          metadata:
+            type: object
+            properties:
+              language:
+                type: string
+              license:
+                type: string
+            required: [language]
+          topics:
+            type: array
+            items:
+              type: string
+        required: [project_name, description, health_metrics, metadata]
+
+  # -------------------------------------------------------------------------
+  # STEP 4: ANALYZE — Deep analysis of the transformed data
+  # -------------------------------------------------------------------------
+
+  - id: step_analyze
+    description: "Perform deep analysis on the transformed data"
+    depends_on: [step_transform]
+    with:
+      data: $step_transform
+    infer:
+      prompt: |
+        Perform a deep analysis on this open-source project data.
+
+        PROJECT DATA:
+        {{with.data}}
+
+        Analyze:
+        1. Project health score (1-100) based on star-to-fork ratio, issue count, activity
+        2. Community engagement level (low/medium/high/exceptional)
+        3. Maturity assessment (experimental/growing/mature/established)
+        4. Risk factors (list any concerns)
+        5. Growth trajectory (declining/stable/growing/accelerating)
+        6. Competitive positioning in its language ecosystem
+
+        Return as JSON with: health_score, engagement, maturity, risks, trajectory, positioning, detailed_analysis.
+      max_tokens: 400
+    structured:
+      schema:
+        type: object
+        properties:
+          health_score:
+            type: integer
+          engagement:
+            type: string
+            enum: [low, medium, high, exceptional]
+          maturity:
+            type: string
+            enum: [experimental, growing, mature, established]
+          risks:
+            type: array
+            items:
+              type: string
+          trajectory:
+            type: string
+            enum: [declining, stable, growing, accelerating]
+          positioning:
+            type: string
+          detailed_analysis:
+            type: string
+        required: [health_score, engagement, maturity, trajectory]
+
+  # -------------------------------------------------------------------------
+  # STEP 5: SUMMARIZE — Create executive summary
+  # -------------------------------------------------------------------------
+
+  - id: step_summarize
+    description: "Create an executive summary of the analysis"
+    depends_on: [step_analyze, step_transform]
+    with:
+      analysis: $step_analyze
+      data: $step_transform
+    infer:
+      prompt: |
+        Write an executive summary for this project analysis.
+
+        PROJECT: {{with.data.project_name}}
+        DESCRIPTION: {{with.data.description}}
+        ANALYSIS: {{with.analysis}}
+
+        Write a 3-paragraph executive summary covering:
+        1. Project overview and current state
+        2. Key strengths and concerns
+        3. Recommendation (adopt/evaluate/hold/avoid) with rationale
+
+        Keep it concise and actionable.
+      max_tokens: 300
+
+  # -------------------------------------------------------------------------
+  # STEP 6: FORMAT — Format into final presentation
+  # -------------------------------------------------------------------------
+
+  - id: step_format
+    description: "Format all data into a presentation-ready document"
+    depends_on: [step_summarize, step_analyze, step_transform]
+    with:
+      summary: $step_summarize
+      analysis: $step_analyze
+      data: $step_transform
+    infer:
+      prompt: |
+        Format this analysis into a well-structured markdown document.
+
+        PROJECT: {{with.data.project_name}}
+        DATA: {{with.data}}
+        ANALYSIS: {{with.analysis}}
+        EXECUTIVE SUMMARY: {{with.summary}}
+
+        Create a document with:
+        - Title and badge line (health score, maturity)
+        - Executive summary section
+        - Metrics dashboard (formatted as a table)
+        - Detailed analysis section
+        - Risk assessment
+        - Recommendation with confidence level
+      max_tokens: 500
+
+  # -------------------------------------------------------------------------
+  # STEP 7: OUTPUT — Save to artifact
+  # -------------------------------------------------------------------------
+
+  - id: step_output
+    description: "Generate final output with pipeline metadata"
+    depends_on: [step_format]
+    with:
+      document: $step_format
+    exec: |
+      echo "Pipeline completed at 2026-03-20"
+      echo "Stages: fetch -> extract -> transform -> analyze -> summarize -> format -> output -> verify"
+      echo "Status: ALL STAGES COMPLETE"
+
+  # -------------------------------------------------------------------------
+  # STEP 8: VERIFY — Validate pipeline output quality
+  # -------------------------------------------------------------------------
+
+  - id: step_verify
+    description: "Verify pipeline output completeness and quality"
+    depends_on: [step_format, step_output, step_analyze]
+    with:
+      document: $step_format
+      pipeline_status: $step_output
+      analysis: $step_analyze
+    infer:
+      prompt: |
+        Verify the quality and completeness of this analysis pipeline output.
+
+        FINAL DOCUMENT:
+        {{with.document}}
+
+        PIPELINE STATUS:
+        {{with.pipeline_status}}
+
+        ANALYSIS DATA:
+        {{with.analysis}}
+
+        Verify:
+        1. All required sections present (summary, metrics, analysis, risks, recommendation)
+        2. Health score is within valid range (1-100)
+        3. Data consistency (numbers match between sections)
+        4. No placeholder or template text remaining
+        5. Actionable recommendations present
+
+        Return verification result as JSON.
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          verified:
+            type: boolean
+          completeness_score:
+            type: integer
+          sections_present:
+            type: array
+            items:
+              type: string
+          issues_found:
+            type: array
+            items:
+              type: string
+          pipeline_stages_completed:
+            type: integer
+        required: [verified, completeness_score, pipeline_stages_completed]
+    artifact:
+      path: multi-step-analysis-verification.json

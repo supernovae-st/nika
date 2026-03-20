@@ -1,0 +1,222 @@
+# Quality Gate Pipeline
+# Generate content, evaluate quality, retry if below threshold (using depends_on chain).
+#
+# Features tested:
+#   - Multi-stage quality evaluation chain
+#   - Structured output with strict schema for scoring
+#   - depends_on chain: generate -> evaluate -> improve -> re-evaluate -> finalize
+#   - with: bindings carrying quality scores across stages
+#   - exec for threshold calculation
+#   - 5-stage quality pipeline pattern
+#
+# Usage:
+#   nika run examples/use-cases/quality-gate.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: quality-gate
+description: "Generate -> evaluate -> improve -> re-evaluate -> finalize (quality gate pattern)"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # STAGE 1: Generate initial content
+  # -------------------------------------------------------------------------
+
+  - id: generate_draft
+    description: "Generate initial technical blog post draft"
+    infer:
+      prompt: |
+        Write a short technical blog post (300-400 words) about "Why Rust's Ownership Model Prevents Memory Bugs".
+
+        Requirements:
+        - Start with a compelling hook
+        - Include at least one code example
+        - Explain the concept for intermediate programmers
+        - End with a practical takeaway
+        - Use markdown formatting
+
+        Write the full post now.
+      max_tokens: 500
+
+  # -------------------------------------------------------------------------
+  # STAGE 2: Quality evaluation (first gate)
+  # -------------------------------------------------------------------------
+
+  - id: evaluate_draft
+    description: "Evaluate the draft against quality criteria"
+    depends_on: [generate_draft]
+    with:
+      draft: $generate_draft
+    infer:
+      prompt: |
+        Evaluate this technical blog post against strict quality criteria.
+
+        CONTENT:
+        {{with.draft}}
+
+        Score each dimension from 1-10:
+        - technical_accuracy: Are code examples correct? Are claims verifiable?
+        - clarity: Is the writing clear and well-structured?
+        - engagement: Does the hook grab attention? Is the tone compelling?
+        - completeness: Are all key points covered? Is the conclusion strong?
+        - code_quality: Are code examples idiomatic, correct, and well-explained?
+
+        Also provide:
+        - overall_score: weighted average (accuracy 30%, clarity 25%, engagement 20%, completeness 15%, code 10%)
+        - passes_gate: true if overall_score >= 7
+        - improvement_areas: array of specific, actionable improvements needed
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          technical_accuracy:
+            type: integer
+          clarity:
+            type: integer
+          engagement:
+            type: integer
+          completeness:
+            type: integer
+          code_quality:
+            type: integer
+          overall_score:
+            type: number
+          passes_gate:
+            type: boolean
+          improvement_areas:
+            type: array
+            items:
+              type: string
+        required: [technical_accuracy, clarity, engagement, completeness, overall_score, passes_gate, improvement_areas]
+
+  # -------------------------------------------------------------------------
+  # STAGE 3: Improve based on evaluation feedback
+  # -------------------------------------------------------------------------
+
+  - id: improve_draft
+    description: "Improve the draft based on quality evaluation feedback"
+    depends_on: [evaluate_draft, generate_draft]
+    with:
+      original: $generate_draft
+      evaluation: $evaluate_draft
+    infer:
+      prompt: |
+        Improve this blog post based on the quality evaluation feedback.
+
+        ORIGINAL DRAFT:
+        {{with.original}}
+
+        EVALUATION:
+        {{with.evaluation}}
+
+        IMPROVEMENT AREAS:
+        {{with.evaluation.improvement_areas}}
+
+        SCORES TO IMPROVE:
+        - Technical Accuracy: {{with.evaluation.technical_accuracy}}/10
+        - Clarity: {{with.evaluation.clarity}}/10
+        - Engagement: {{with.evaluation.engagement}}/10
+        - Completeness: {{with.evaluation.completeness}}/10
+        - Code Quality: {{with.evaluation.code_quality}}/10
+
+        Rewrite the ENTIRE post addressing every improvement area.
+        Make each dimension score at least 8/10.
+        Keep the same topic and general structure, but enhance quality significantly.
+      max_tokens: 600
+
+  # -------------------------------------------------------------------------
+  # STAGE 4: Re-evaluate improved version
+  # -------------------------------------------------------------------------
+
+  - id: reevaluate_draft
+    description: "Re-evaluate the improved draft (second quality gate)"
+    depends_on: [improve_draft]
+    with:
+      improved: $improve_draft
+    infer:
+      prompt: |
+        Re-evaluate this IMPROVED technical blog post against the same quality criteria.
+
+        IMPROVED CONTENT:
+        {{with.improved}}
+
+        Score each dimension from 1-10:
+        - technical_accuracy: Are code examples correct? Are claims verifiable?
+        - clarity: Is the writing clear and well-structured?
+        - engagement: Does the hook grab attention? Is the tone compelling?
+        - completeness: Are all key points covered? Is the conclusion strong?
+        - code_quality: Are code examples idiomatic, correct, and well-explained?
+
+        Also provide:
+        - overall_score: weighted average (accuracy 30%, clarity 25%, engagement 20%, completeness 15%, code 10%)
+        - passes_gate: true if overall_score >= 7
+        - improvement_delta: brief note on what improved from the original evaluation
+      max_tokens: 300
+    structured:
+      schema:
+        type: object
+        properties:
+          technical_accuracy:
+            type: integer
+          clarity:
+            type: integer
+          engagement:
+            type: integer
+          completeness:
+            type: integer
+          code_quality:
+            type: integer
+          overall_score:
+            type: number
+          passes_gate:
+            type: boolean
+          improvement_delta:
+            type: string
+        required: [overall_score, passes_gate]
+
+  # -------------------------------------------------------------------------
+  # STAGE 5: Finalize (compare before/after)
+  # -------------------------------------------------------------------------
+
+  - id: finalize
+    description: "Compare evaluations and produce final quality report"
+    depends_on: [evaluate_draft, reevaluate_draft, improve_draft]
+    with:
+      first_eval: $evaluate_draft
+      second_eval: $reevaluate_draft
+      final_content: $improve_draft
+    infer:
+      prompt: |
+        Create a final quality gate report comparing the two evaluation rounds.
+
+        FIRST EVALUATION:
+        {{with.first_eval}}
+
+        SECOND EVALUATION (after improvement):
+        {{with.second_eval}}
+
+        Write a report that includes:
+        1. Before/after score comparison table
+        2. Which dimensions improved the most
+        3. Whether the content passed the quality gate (score >= 7)
+        4. Final verdict: APPROVED / NEEDS_REVISION / REJECTED
+        5. The improved content is ready for publication: yes/no
+
+        End with the final content itself.
+
+        FINAL CONTENT:
+        {{with.final_content}}
+      max_tokens: 600
+    artifact:
+      path: quality-gate-report.md
+      template: |
+        # Quality Gate Report
+
+        {{task.output}}

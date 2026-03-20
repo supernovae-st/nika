@@ -1,0 +1,195 @@
+# Multilingual Content Pipeline
+# Generate content in English, translate to 3 languages with for_each + infer.
+#
+# Features tested:
+#   - infer for source content generation
+#   - for_each over complex language objects (code, name, tone, formality)
+#   - Concurrency 3 for parallel translation
+#   - with: binding from upstream infer to for_each loop
+#   - Second for_each for quality review of each translation
+#   - Final aggregation across all translations + reviews
+#   - Artifact with template
+#
+# Usage:
+#   nika run examples/use-cases/multilingual.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: multilingual
+description: "Generate English content -> translate to 3 languages -> review quality -> compile"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Generate source content in English
+  # -------------------------------------------------------------------------
+
+  - id: generate_source
+    description: "Generate marketing copy in English"
+    infer:
+      prompt: |
+        Write a product announcement for a new feature: "AI-Powered Workflow Automation."
+
+        The announcement should be:
+        - 150-200 words
+        - Professional but enthusiastic tone
+        - Include a headline, 3 bullet points of key benefits, and a CTA
+        - Target audience: technical decision-makers
+
+        Write ONLY the announcement copy, no meta-commentary.
+      max_tokens: 300
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Translate to 3 languages in parallel
+  # -------------------------------------------------------------------------
+
+  - id: translate_all
+    description: "Translate to French, Japanese, and Portuguese"
+    depends_on: [generate_source]
+    with:
+      source: $generate_source
+    for_each:
+      - code: "fr-FR"
+        name: "French"
+        tone: "professional and elegant"
+        formality: "vous (formal)"
+        cultural_note: "French business communication tends to be more formal. Adapt idioms appropriately."
+      - code: "ja-JP"
+        name: "Japanese"
+        tone: "polite and respectful"
+        formality: "keigo (honorific language)"
+        cultural_note: "Japanese marketing emphasizes trust and reliability over hype. Use appropriate honorifics."
+      - code: "pt-BR"
+        name: "Brazilian Portuguese"
+        tone: "warm and dynamic"
+        formality: "voce (semiformal)"
+        cultural_note: "Brazilian Portuguese is more casual than European Portuguese. Tech terms can stay in English."
+    as: lang
+    concurrency: 3
+    infer:
+      prompt: |
+        Translate this product announcement into {{with.lang.name}} ({{with.lang.code}}).
+
+        SOURCE TEXT (English):
+        {{with.source}}
+
+        TRANSLATION GUIDELINES:
+        - Tone: {{with.lang.tone}}
+        - Formality level: {{with.lang.formality}}
+        - Cultural adaptation: {{with.lang.cultural_note}}
+        - Preserve the headline/bullets/CTA structure
+        - Adapt idioms and metaphors (do NOT translate literally)
+        - Keep technical terms that are commonly used in English in the target market
+        - Do NOT include the original English text
+
+        Return ONLY the translated text.
+      max_tokens: 400
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Quality review each translation
+  # -------------------------------------------------------------------------
+
+  - id: review_translations
+    description: "Quality review each translation for accuracy and cultural fit"
+    depends_on: [translate_all, generate_source]
+    with:
+      translations: $translate_all
+      source: $generate_source
+    for_each:
+      - lang: "French (fr-FR)"
+        index: 0
+      - lang: "Japanese (ja-JP)"
+        index: 1
+      - lang: "Brazilian Portuguese (pt-BR)"
+        index: 2
+    as: review
+    concurrency: 3
+    infer:
+      prompt: |
+        Review this translation for quality and cultural appropriateness.
+
+        ORIGINAL ENGLISH:
+        {{with.source}}
+
+        ALL TRANSLATIONS:
+        {{with.translations}}
+
+        YOU ARE REVIEWING: {{with.review.lang}}
+
+        Evaluate:
+        1. Accuracy: Does it preserve the original meaning? (1-10)
+        2. Fluency: Does it read naturally in the target language? (1-10)
+        3. Cultural fit: Is it appropriately adapted? (1-10)
+        4. Tone: Does it match the intended professional tone? (1-10)
+        5. Technical terms: Are they handled correctly? (1-10)
+
+        Return as JSON with: language, accuracy, fluency, cultural_fit, tone, technical_terms, overall_score, issues (array), verdict (approved/needs_revision).
+      max_tokens: 250
+    structured:
+      schema:
+        type: object
+        properties:
+          language:
+            type: string
+          accuracy:
+            type: integer
+          fluency:
+            type: integer
+          cultural_fit:
+            type: integer
+          tone:
+            type: integer
+          technical_terms:
+            type: integer
+          overall_score:
+            type: number
+          issues:
+            type: array
+            items:
+              type: string
+          verdict:
+            type: string
+            enum: [approved, needs_revision]
+        required: [language, overall_score, verdict]
+
+  # -------------------------------------------------------------------------
+  # PHASE 4: Compile final multilingual document
+  # -------------------------------------------------------------------------
+
+  - id: compile_document
+    description: "Compile all translations and reviews into final document"
+    depends_on: [review_translations, translate_all, generate_source]
+    with:
+      source: $generate_source
+      translations: $translate_all
+      reviews: $review_translations
+    infer:
+      prompt: |
+        Compile a final multilingual content package.
+
+        ENGLISH SOURCE:
+        {{with.source}}
+
+        TRANSLATIONS:
+        {{with.translations}}
+
+        QUALITY REVIEWS:
+        {{with.reviews}}
+
+        Create a well-formatted markdown document with:
+        1. Header with project name and date
+        2. English (source) section
+        3. Each translation with its language header and locale code
+        4. Quality scorecard table (language | accuracy | fluency | cultural_fit | overall | verdict)
+        5. Summary: how many passed review, any needed revisions
+        6. Recommendations for translation process improvement
+      max_tokens: 600
+    artifact:
+      path: multilingual-content.md
+      template: |
+        {{task.output}}

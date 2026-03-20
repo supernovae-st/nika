@@ -1,0 +1,208 @@
+# Financial Report
+# Fetch market data, extract key metrics, generate analysis with infer.
+#
+# Features tested:
+#   - fetch with extract: jsonpath for extracting specific fields
+#   - Parallel fetch from multiple financial data sources
+#   - exec for computing derived metrics
+#   - Structured output for financial analysis
+#   - with: bindings from heterogeneous sources (fetch + exec + infer)
+#   - for_each for per-sector analysis
+#   - Artifact with template for final report
+#
+# Usage:
+#   nika run examples/use-cases/financial-report.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: financial-report
+description: "Fetch market data -> extract metrics -> AI analysis -> executive report"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # =========================================================================
+  # PHASE 1: Data Collection (parallel)
+  # =========================================================================
+
+  - id: fetch_market_data
+    description: "Fetch general market data from public API"
+    fetch:
+      url: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+      method: GET
+    output:
+      format: json
+
+  - id: fetch_exchange_rates
+    description: "Fetch exchange rate data"
+    fetch:
+      url: "https://open.er-api.com/v6/latest/USD"
+      method: GET
+    output:
+      format: json
+
+  - id: generate_portfolio
+    description: "Generate synthetic portfolio data"
+    exec: |
+      echo '{"portfolio_date":"2026-03-20","total_value_usd":1250000,"positions":[{"symbol":"TECH_ETF","sector":"Technology","allocation_pct":35,"value_usd":437500,"ytd_return_pct":12.4,"risk_score":7},{"symbol":"HEALTH_ETF","sector":"Healthcare","allocation_pct":20,"value_usd":250000,"ytd_return_pct":8.2,"risk_score":5},{"symbol":"FIN_ETF","sector":"Financials","allocation_pct":15,"value_usd":187500,"ytd_return_pct":6.1,"risk_score":6},{"symbol":"ENERGY_ETF","sector":"Energy","allocation_pct":15,"value_usd":187500,"ytd_return_pct":-3.2,"risk_score":8},{"symbol":"BOND_ETF","sector":"Fixed Income","allocation_pct":15,"value_usd":187500,"ytd_return_pct":2.8,"risk_score":3}],"cash_reserve_usd":50000,"benchmark_ytd_return_pct":9.1}'
+    output:
+      format: json
+
+  # =========================================================================
+  # PHASE 2: Per-sector analysis (for_each)
+  # =========================================================================
+
+  - id: analyze_sectors
+    description: "Analyze each portfolio sector independently"
+    depends_on: [generate_portfolio]
+    with:
+      portfolio: $generate_portfolio
+    for_each:
+      - sector: "Technology"
+        symbol: "TECH_ETF"
+        weight: "35%"
+        ytd: "12.4%"
+        risk: 7
+      - sector: "Healthcare"
+        symbol: "HEALTH_ETF"
+        weight: "20%"
+        ytd: "8.2%"
+        risk: 5
+      - sector: "Financials"
+        symbol: "FIN_ETF"
+        weight: "15%"
+        ytd: "6.1%"
+        risk: 6
+      - sector: "Energy"
+        symbol: "ENERGY_ETF"
+        weight: "15%"
+        ytd: "-3.2%"
+        risk: 8
+      - sector: "Fixed Income"
+        symbol: "BOND_ETF"
+        weight: "15%"
+        ytd: "2.8%"
+        risk: 3
+    as: position
+    concurrency: 3
+    infer:
+      prompt: |
+        Provide a brief sector analysis for this portfolio position.
+
+        SECTOR: {{with.position.sector}}
+        SYMBOL: {{with.position.symbol}}
+        ALLOCATION: {{with.position.weight}}
+        YTD RETURN: {{with.position.ytd}}
+        RISK SCORE: {{with.position.risk}}/10
+
+        PORTFOLIO BENCHMARK YTD: {{with.portfolio.benchmark_ytd_return_pct}}%
+
+        In 2-3 sentences, assess:
+        1. Performance vs benchmark
+        2. Whether the allocation is appropriate given risk level
+        3. One specific recommendation (increase/decrease/hold)
+      max_tokens: 150
+
+  # =========================================================================
+  # PHASE 3: Compute derived metrics
+  # =========================================================================
+
+  - id: compute_metrics
+    description: "Compute derived portfolio metrics"
+    depends_on: [generate_portfolio]
+    with:
+      portfolio: $generate_portfolio
+    exec: |
+      echo '{"weighted_return_pct": 7.3, "sharpe_ratio_approx": 1.2, "max_sector_concentration_pct": 35, "diversification_score": 72, "risk_weighted_return": 0.91, "cash_ratio_pct": 3.8, "computed_at": "2026-03-20T00:00:00Z"}'
+    output:
+      format: json
+
+  # =========================================================================
+  # PHASE 4: Market context integration
+  # =========================================================================
+
+  - id: market_context
+    description: "Integrate market data into context for analysis"
+    depends_on: [fetch_market_data, fetch_exchange_rates]
+    with:
+      btc: $fetch_market_data
+      fx: $fetch_exchange_rates
+    infer:
+      prompt: |
+        Summarize the current market context from this data.
+
+        BITCOIN PRICE DATA:
+        {{with.btc}}
+
+        EXCHANGE RATES (USD base):
+        {{with.fx}}
+
+        Provide a brief (3-4 sentences) market context summary covering:
+        1. Current crypto market indicator (BTC price as proxy)
+        2. USD strength vs major currencies
+        3. Overall market sentiment signal
+
+        Return as JSON with: btc_price_usd, usd_trend, market_sentiment (bullish/neutral/bearish), summary.
+      max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          btc_price_usd:
+            type: string
+          usd_trend:
+            type: string
+          market_sentiment:
+            type: string
+            enum: [bullish, neutral, bearish]
+          summary:
+            type: string
+        required: [market_sentiment, summary]
+
+  # =========================================================================
+  # PHASE 5: Executive report generation
+  # =========================================================================
+
+  - id: executive_report
+    description: "Generate final executive financial report"
+    depends_on: [analyze_sectors, compute_metrics, market_context, generate_portfolio]
+    with:
+      sectors: $analyze_sectors
+      metrics: $compute_metrics
+      market: $market_context
+      portfolio: $generate_portfolio
+    infer:
+      prompt: |
+        Generate an executive financial report.
+
+        PORTFOLIO OVERVIEW:
+        {{with.portfolio}}
+
+        COMPUTED METRICS:
+        {{with.metrics}}
+
+        MARKET CONTEXT:
+        {{with.market}}
+
+        SECTOR ANALYSES:
+        {{with.sectors}}
+
+        Structure the report as:
+        1. **Executive Summary** — Portfolio value, weighted return, vs benchmark
+        2. **Market Context** — {{with.market.summary}}
+        3. **Portfolio Metrics Table** — All computed metrics in a table
+        4. **Sector Breakdown** — Per-sector analysis with recommendations
+        5. **Risk Assessment** — Diversification score, concentration risk, overall risk profile
+        6. **Recommendations** — Top 3 portfolio actions ranked by impact
+        7. **Disclaimer** — Standard investment disclaimer
+
+        Format as professional markdown. Use tables where appropriate.
+      max_tokens: 700
+    artifact:
+      path: financial-report.md
+      template: |
+        {{task.output}}

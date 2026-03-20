@@ -1,0 +1,182 @@
+# API Health Check
+# Fetch 5 endpoints in parallel, extract status from each, report summary.
+#
+# Features tested:
+#   - 5 parallel fetch tasks (fan-out pattern)
+#   - response: full for status code + headers + body
+#   - exec for timestamp generation
+#   - with: bindings from 5+ upstream tasks
+#   - Structured output for health report
+#   - Artifact with template
+#
+# Usage:
+#   nika run examples/use-cases/api-health-check.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+#   - Network access to httpbin.org
+
+schema: nika/workflow@0.12
+workflow: api-health-check
+description: "Fetch 5 endpoints in parallel, extract status, generate health report"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Record check timestamp
+  # -------------------------------------------------------------------------
+
+  - id: check_timestamp
+    description: "Record when health check started"
+    exec:
+      command: "date -u '+%Y-%m-%dT%H:%M:%SZ'"
+      shell: true
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Parallel endpoint checks (5 endpoints)
+  # -------------------------------------------------------------------------
+
+  - id: check_get
+    description: "Check GET endpoint"
+    fetch:
+      url: "https://httpbin.org/get"
+      method: GET
+      response: full
+
+  - id: check_post
+    description: "Check POST endpoint"
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+      body: '{"health": "check", "ts": "2026-03-20"}'
+      response: full
+
+  - id: check_headers
+    description: "Check response headers endpoint"
+    fetch:
+      url: "https://httpbin.org/response-headers?X-Health=ok&X-Version=1.0"
+      method: GET
+      response: full
+
+  - id: check_status_200
+    description: "Check 200 status endpoint"
+    fetch:
+      url: "https://httpbin.org/status/200"
+      method: GET
+      response: full
+
+  - id: check_json
+    description: "Check JSON response endpoint"
+    fetch:
+      url: "https://httpbin.org/json"
+      method: GET
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Aggregate and analyze
+  # -------------------------------------------------------------------------
+
+  - id: analyze_health
+    description: "Analyze all endpoint responses and produce health report"
+    depends_on: [check_timestamp, check_get, check_post, check_headers, check_status_200, check_json]
+    with:
+      timestamp: $check_timestamp
+      ep_get: $check_get
+      ep_post: $check_post
+      ep_headers: $check_headers
+      ep_status: $check_status_200
+      ep_json: $check_json
+    infer:
+      prompt: |
+        Generate a comprehensive API health check report.
+
+        CHECK TIMESTAMP: {{with.timestamp}}
+
+        ENDPOINT RESULTS:
+
+        1. GET /get:
+        {{with.ep_get}}
+
+        2. POST /post:
+        {{with.ep_post}}
+
+        3. GET /response-headers:
+        {{with.ep_headers}}
+
+        4. GET /status/200:
+        {{with.ep_status}}
+
+        5. GET /json:
+        {{with.ep_json}}
+
+        Analyze each endpoint for:
+        - Response status (success/failure)
+        - Content type correctness
+        - Response completeness
+
+        Return JSON with: overall_status (HEALTHY/DEGRADED/DOWN), endpoints array (name, status, notes), total_checked, healthy_count, timestamp.
+      max_tokens: 400
+    structured:
+      schema:
+        type: object
+        properties:
+          overall_status:
+            type: string
+            enum: [HEALTHY, DEGRADED, DOWN]
+          total_checked:
+            type: integer
+          healthy_count:
+            type: integer
+          timestamp:
+            type: string
+          endpoints:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                notes:
+                  type: string
+              required: [name, status]
+        required: [overall_status, total_checked, healthy_count, endpoints]
+
+  # -------------------------------------------------------------------------
+  # PHASE 4: Generate human-readable summary
+  # -------------------------------------------------------------------------
+
+  - id: generate_summary
+    description: "Generate human-readable health summary for dashboards"
+    depends_on: [analyze_health]
+    with:
+      report: $analyze_health
+      timestamp: $check_timestamp
+    infer:
+      prompt: |
+        Write a concise API health status report suitable for a monitoring dashboard.
+
+        HEALTH REPORT:
+        {{with.report}}
+
+        TIMESTAMP: {{with.timestamp}}
+
+        Format as a clean markdown document:
+        - Overall status with clear indicator
+        - Table of endpoints with status
+        - Any action items
+        - Keep it under 150 words
+      max_tokens: 300
+    artifact:
+      path: api-health-check.md
+      template: |
+        # API Health Check Report
+
+        {{task.output}}

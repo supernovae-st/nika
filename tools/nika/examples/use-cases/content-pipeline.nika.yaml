@@ -1,0 +1,166 @@
+# Content Pipeline
+# Generate outline with infer, expand each section with for_each, aggregate final document.
+#
+# Features tested:
+#   - infer for outline generation with structured output
+#   - for_each over generated sections with concurrency
+#   - with: bindings across all phases
+#   - Artifact generation with template
+#   - Multi-phase DAG: plan -> expand -> aggregate
+#
+# Usage:
+#   nika run examples/use-cases/content-pipeline.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: content-pipeline
+description: "Generate outline -> expand sections with for_each -> aggregate final document"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Topic setup via exec
+  # -------------------------------------------------------------------------
+
+  - id: setup_topic
+    description: "Define the article topic and constraints"
+    exec:
+      command: |
+        echo '{"topic":"Building Reliable CI/CD Pipelines for Rust Projects","audience":"Senior developers and DevOps engineers","tone":"technical but accessible","target_words":2000,"sections":5}'
+      shell: true
+    output:
+      format: json
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Generate structured outline
+  # -------------------------------------------------------------------------
+
+  - id: generate_outline
+    description: "Generate article outline with section titles and summaries"
+    depends_on: [setup_topic]
+    with:
+      config: $setup_topic
+    infer:
+      prompt: |
+        Create a detailed article outline for the following configuration:
+
+        TOPIC: {{with.config.topic}}
+        AUDIENCE: {{with.config.audience}}
+        TONE: {{with.config.tone}}
+        TARGET SECTIONS: {{with.config.sections}}
+
+        Return a JSON object with an "sections" array. Each section must have:
+        - title: section heading
+        - key_points: array of 3-4 bullet points to cover
+        - word_target: approximate word count for this section
+
+        Also include an "intro_hook" and "conclusion_cta" field.
+      max_tokens: 400
+    structured:
+      schema:
+        type: object
+        properties:
+          intro_hook:
+            type: string
+          sections:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                key_points:
+                  type: array
+                  items:
+                    type: string
+                word_target:
+                  type: integer
+              required: [title, key_points]
+          conclusion_cta:
+            type: string
+        required: [intro_hook, sections, conclusion_cta]
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Expand each section in parallel
+  # -------------------------------------------------------------------------
+
+  - id: expand_sections
+    description: "Expand each outline section into full content"
+    depends_on: [generate_outline, setup_topic]
+    with:
+      outline: $generate_outline
+      config: $setup_topic
+    for_each:
+      - section_index: 0
+        focus: "introduction and hook"
+      - section_index: 1
+        focus: "core concept explanation"
+      - section_index: 2
+        focus: "practical implementation"
+      - section_index: 3
+        focus: "advanced patterns and pitfalls"
+      - section_index: 4
+        focus: "conclusion and next steps"
+    as: assignment
+    concurrency: 3
+    infer:
+      prompt: |
+        Write section {{with.assignment.section_index}} of an article about: {{with.config.topic}}
+
+        FULL OUTLINE (for context):
+        {{with.outline}}
+
+        YOUR ASSIGNMENT:
+        - Section focus: {{with.assignment.focus}}
+        - Audience: {{with.config.audience}}
+        - Tone: {{with.config.tone}}
+
+        Write substantive content with:
+        - Clear subheadings (use ### for sub-sections)
+        - Code examples where appropriate (use Rust/YAML/TOML)
+        - Practical tips and real-world scenarios
+        - Smooth transitions
+
+        Return ONLY the section content in Markdown. Do NOT include a top-level title.
+      max_tokens: 500
+
+  # -------------------------------------------------------------------------
+  # PHASE 4: Aggregate into final document
+  # -------------------------------------------------------------------------
+
+  - id: assemble_document
+    description: "Assemble all expanded sections into a cohesive document"
+    depends_on: [expand_sections, generate_outline, setup_topic]
+    with:
+      sections: $expand_sections
+      outline: $generate_outline
+      config: $setup_topic
+    infer:
+      prompt: |
+        Assemble these sections into a polished, cohesive article.
+
+        TOPIC: {{with.config.topic}}
+        OUTLINE STRUCTURE: {{with.outline}}
+
+        EXPANDED SECTIONS:
+        {{with.sections}}
+
+        Your job:
+        1. Add a compelling title (# heading)
+        2. Write a brief author-style intro paragraph using this hook: {{with.outline.intro_hook}}
+        3. Arrange all sections in logical order
+        4. Ensure smooth transitions between sections
+        5. Add the conclusion CTA: {{with.outline.conclusion_cta}}
+        6. Add a "TL;DR" box at the top with 3 key takeaways
+
+        Return the complete article in Markdown.
+      max_tokens: 800
+    artifact:
+      path: content-pipeline-article.md
+      template: |
+        {{task.output}}

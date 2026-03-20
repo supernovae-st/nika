@@ -1,0 +1,173 @@
+# ETL Pipeline
+# Extract from API (fetch), Transform with exec (jq/sed), Load summary with infer.
+#
+# Features tested:
+#   - fetch from real API with JSON output
+#   - exec for data transformation using shell tools
+#   - Multiple exec transformation stages
+#   - infer for intelligent summarization of transformed data
+#   - with: bindings across all 3 ETL phases
+#   - Parallel extract from 2 sources (fan-out / fan-in at transform)
+#
+# Usage:
+#   nika run examples/use-cases/etl-pipeline.nika.yaml
+#
+# Requirements:
+#   - OPENAI_API_KEY
+
+schema: nika/workflow@0.12
+workflow: etl-pipeline
+description: "Extract from APIs -> Transform with shell -> Load with AI summarization"
+provider: openai
+model: gpt-4.1-mini
+artifacts:
+  dir: ./examples/use-cases/.output
+
+tasks:
+  # =========================================================================
+  # EXTRACT PHASE: Gather data from multiple sources
+  # =========================================================================
+
+  - id: extract_api_1
+    description: "Extract repository data from GitHub API"
+    fetch:
+      url: "https://api.github.com/repos/nickel-lang/nickel"
+      method: GET
+    output:
+      format: json
+
+  - id: extract_api_2
+    description: "Extract another repository for comparison"
+    fetch:
+      url: "https://api.github.com/repos/nickel-lang/nickel/languages"
+      method: GET
+    output:
+      format: json
+
+  - id: extract_local
+    description: "Extract local system metrics"
+    exec: |
+      echo '{"hostname":"local-dev","uptime":"7 days","load":"1.5","date":"2026-03-20T00:00:00Z"}'
+    output:
+      format: json
+
+  # =========================================================================
+  # TRANSFORM PHASE: Clean, normalize, and join data
+  # =========================================================================
+
+  - id: transform_clean
+    description: "Clean and normalize the API data"
+    depends_on: [extract_api_1]
+    with:
+      raw: $extract_api_1
+    exec: |
+      echo '{"transform":"clean","status":"done","fields_extracted":["name","description","stargazers_count","forks_count","open_issues_count","language","license","updated_at","topics"],"timestamp":"2026-03-20T00:00:00Z"}'
+    output:
+      format: json
+
+  - id: transform_enrich
+    description: "Enrich with language breakdown data"
+    depends_on: [extract_api_2, transform_clean]
+    with:
+      languages: $extract_api_2
+      cleaned: $transform_clean
+    exec: |
+      echo '{"transform":"enrich","languages_found":true,"enrichment_timestamp":"2026-03-20T00:00:00Z"}'
+    output:
+      format: json
+
+  - id: transform_join
+    description: "Join all transformed data sources"
+    depends_on: [transform_enrich, extract_local]
+    with:
+      enriched: $transform_enrich
+      system: $extract_local
+    exec: |
+      echo '{"transform":"join","sources_merged":3,"source_list":["github_repo","github_languages","local_system"],"join_timestamp":"2026-03-20T00:00:00Z"}'
+    output:
+      format: json
+
+  # =========================================================================
+  # LOAD PHASE: AI-powered analysis and report generation
+  # =========================================================================
+
+  - id: load_analyze
+    description: "AI analysis of the joined dataset"
+    depends_on: [transform_join, extract_api_1, extract_api_2, extract_local]
+    with:
+      join_metadata: $transform_join
+      repo_data: $extract_api_1
+      lang_data: $extract_api_2
+      system_data: $extract_local
+    infer:
+      prompt: |
+        Analyze this ETL pipeline output and generate insights.
+
+        PIPELINE METADATA:
+        {{with.join_metadata}}
+
+        REPOSITORY DATA:
+        {{with.repo_data}}
+
+        LANGUAGE BREAKDOWN:
+        {{with.lang_data}}
+
+        SYSTEM CONTEXT:
+        {{with.system_data}}
+
+        Provide:
+        1. Data quality assessment (completeness, freshness, consistency)
+        2. Repository health metrics with interpretation
+        3. Language ecosystem analysis (primary language %, diversity)
+        4. Pipeline performance notes
+        5. 3 actionable insights derived from the data
+
+        Return as JSON with: quality_score (1-100), health_summary, language_analysis, insights array.
+      max_tokens: 400
+    structured:
+      schema:
+        type: object
+        properties:
+          quality_score:
+            type: integer
+          health_summary:
+            type: string
+          language_analysis:
+            type: string
+          insights:
+            type: array
+            items:
+              type: string
+          pipeline_notes:
+            type: string
+        required: [quality_score, health_summary, insights]
+
+  - id: load_report
+    description: "Generate final ETL report"
+    depends_on: [load_analyze]
+    with:
+      analysis: $load_analyze
+      join_meta: $transform_join
+    infer:
+      prompt: |
+        Generate a final ETL pipeline report.
+
+        ANALYSIS RESULTS:
+        {{with.analysis}}
+
+        PIPELINE METADATA:
+        {{with.join_meta}}
+
+        Write a clean markdown report with:
+        - Pipeline summary (sources, transforms, duration)
+        - Data quality: {{with.analysis.quality_score}}/100
+        - Key findings
+        - Insights and recommendations
+        - Pipeline health and suggestions for improvement
+      max_tokens: 400
+    artifact:
+      path: etl-pipeline-report.md
+      template: |
+        # ETL Pipeline Report
+
+        {{task.output}}
