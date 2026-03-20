@@ -36,6 +36,49 @@ pub fn apply_extract(
         #[cfg(feature = "fetch-html")]
         Some("links") => extract_links_json(body, None),
 
+        #[cfg(feature = "fetch-article")]
+        Some("article") => {
+            let mut readability =
+                dom_smoothie::Readability::new(body, None, None)
+                    .map_err(|e| NikaError::Execution(format!("Readability init failed: {e}")))?;
+            let article = readability.parse().map_err(|e| {
+                NikaError::Execution(format!("Readability parse failed: {e}"))
+            })?;
+            Ok(serde_json::json!({
+                "title": article.title,
+                "content": article.content.to_string(),
+                "text_content": article.text_content.to_string(),
+                "excerpt": article.excerpt,
+                "byline": article.byline,
+            })
+            .to_string())
+        }
+
+        #[cfg(feature = "fetch-feed")]
+        Some("feed") => {
+            let feed = feed_rs::parser::parse(body.as_bytes())
+                .map_err(|e| NikaError::Execution(format!("Feed parse failed: {e}")))?;
+            let entries: Vec<serde_json::Value> = feed
+                .entries
+                .iter()
+                .take(100)
+                .map(|entry| {
+                    serde_json::json!({
+                        "title": entry.title.as_ref().map(|t| &t.content),
+                        "url": entry.links.first().map(|l| &l.href),
+                        "published": entry.published.map(|d| d.to_rfc3339()),
+                        "summary": entry.summary.as_ref().map(|s| &s.content),
+                    })
+                })
+                .collect();
+            Ok(serde_json::json!({
+                "title": feed.title.map(|t| t.content),
+                "entry_count": feed.entries.len(),
+                "entries": entries,
+            })
+            .to_string())
+        }
+
         Some("jsonpath") => {
             let path = selector.ok_or_else(|| {
                 NikaError::Execution(
@@ -47,7 +90,7 @@ pub fn apply_extract(
         }
 
         Some(unknown) => Err(NikaError::Execution(format!(
-            "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath",
+            "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
             unknown
         ))),
     }
@@ -326,6 +369,84 @@ mod tests {
         assert_eq!(parsed["og"]["image"], "https://example.com/img.png");
         assert_eq!(parsed["twitter"]["card"], "summary");
         assert_eq!(parsed["canonical"], "https://example.com/page");
+    }
+
+    #[cfg(feature = "fetch-article")]
+    #[test]
+    fn article_extract_returns_structured_json() {
+        let html = r#"<html><head><title>Test Article</title></head>
+        <body>
+            <article>
+                <h1>Test Article</h1>
+                <p>This is the main body of the article. It needs to be long enough
+                for the readability algorithm to consider it as content. The algorithm
+                typically requires a minimum amount of text content to identify an
+                article region. So we add several sentences here to make sure the
+                extraction works properly. This is important for testing purposes.</p>
+                <p>Second paragraph with more content to help the readability score.
+                The more text we have here, the better the extraction will work.</p>
+            </article>
+        </body></html>"#;
+        let result = apply_extract(html, Some("article"), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.get("title").is_some());
+        assert!(parsed.get("content").is_some());
+        assert!(parsed.get("text_content").is_some());
+    }
+
+    #[cfg(feature = "fetch-feed")]
+    #[test]
+    fn feed_extract_parses_rss() {
+        let rss = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+            <channel>
+                <title>Test Feed</title>
+                <item>
+                    <title>First Post</title>
+                    <link>https://example.com/post1</link>
+                    <description>Summary of first post</description>
+                    <pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate>
+                </item>
+                <item>
+                    <title>Second Post</title>
+                    <link>https://example.com/post2</link>
+                </item>
+            </channel>
+        </rss>"#;
+        let result = apply_extract(rss, Some("feed"), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["title"], "Test Feed");
+        assert_eq!(parsed["entry_count"], 2);
+        let entries = parsed["entries"].as_array().unwrap();
+        assert_eq!(entries[0]["title"], "First Post");
+        assert_eq!(entries[0]["url"], "https://example.com/post1");
+    }
+
+    #[cfg(feature = "fetch-feed")]
+    #[test]
+    fn feed_extract_parses_atom() {
+        let atom = r#"<?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+            <title>Atom Feed</title>
+            <entry>
+                <title>Atom Entry</title>
+                <link href="https://example.com/entry1"/>
+                <summary>Atom summary</summary>
+            </entry>
+        </feed>"#;
+        let result = apply_extract(atom, Some("feed"), None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["title"], "Atom Feed");
+        assert_eq!(parsed["entry_count"], 1);
+    }
+
+    #[cfg(feature = "fetch-feed")]
+    #[test]
+    fn feed_extract_invalid_input_returns_error() {
+        let result = apply_extract("not xml at all", Some("feed"), None);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Feed parse failed"));
     }
 
     #[cfg(feature = "fetch-html")]

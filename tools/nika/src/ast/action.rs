@@ -417,7 +417,8 @@ impl FetchParams {
         }
         if let Some(ref extract) = self.extract {
             let valid = [
-                "markdown", "text", "selector", "metadata", "links", "jsonpath",
+                "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
+                "llm_txt",
             ];
             if !valid.contains(&extract.as_str()) {
                 return Err(NikaError::ValidationError {
@@ -1633,7 +1634,8 @@ fetch:
     #[test]
     fn test_fetch_validate_valid_extract_modes() {
         let valid_modes = [
-            "markdown", "text", "selector", "metadata", "links", "jsonpath",
+            "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
+            "llm_txt",
         ];
         for mode in &valid_modes {
             let params = FetchParams {
