@@ -491,6 +491,24 @@
         "retry": {
           "$ref": "#/$defs/RetryConfig",
           "description": "Retry configuration for failed requests (v0.19+)"
+        },
+        "follow_redirects": {
+          "type": "boolean",
+          "description": "Whether to follow HTTP redirects (defaults to true)"
+        },
+        "response": {
+          "type": "string",
+          "enum": ["full", "binary"],
+          "description": "Response mode: full (status + headers + body JSON) or binary (CAS store)"
+        },
+        "extract": {
+          "type": "string",
+          "enum": ["markdown", "text", "selector", "metadata", "links", "jsonpath"],
+          "description": "Extraction mode for response body"
+        },
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)"
         }
       }
     },

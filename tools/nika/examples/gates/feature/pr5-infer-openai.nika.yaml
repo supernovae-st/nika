@@ -1,0 +1,9 @@
+# PR5 Gate: Simple OpenAI inference
+schema: nika/workflow@0.12
+workflow: pr5-infer-openai
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: greet
+    infer: "Say hello in exactly 3 words"
+    max_tokens: 20

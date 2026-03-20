@@ -1,0 +1,17 @@
+# PR5 Gate: Fetch + extract markdown, then summarize
+schema: nika/workflow@0.12
+workflow: pr5-fetch-markdown
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: fetch_page
+    fetch:
+      url: "https://httpbin.org/html"
+      extract: markdown
+  - id: summarize
+    infer:
+      prompt: "Summarize this in one sentence: {{with.page}}"
+    max_tokens: 100
+    with:
+      page: $fetch_page
+    depends_on: [fetch_page]

@@ -1,0 +1,9 @@
+# PR5 Gate: Fetch metadata extraction
+schema: nika/workflow@0.12
+workflow: pr5-fetch-metadata
+provider: mock
+tasks:
+  - id: meta
+    fetch:
+      url: "https://github.com"
+      extract: metadata

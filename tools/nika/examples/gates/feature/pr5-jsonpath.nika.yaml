@@ -1,0 +1,10 @@
+# PR5 Gate: Fetch + JSONPath extraction
+schema: nika/workflow@0.12
+workflow: pr5-jsonpath
+provider: mock
+tasks:
+  - id: api
+    fetch:
+      url: "https://api.github.com/repos/anthropics/claude-code"
+      extract: jsonpath
+      selector: "$.stargazers_count"

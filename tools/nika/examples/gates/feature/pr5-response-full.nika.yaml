@@ -1,0 +1,9 @@
+# PR5 Gate: Fetch with response: full (status + headers + body)
+schema: nika/workflow@0.12
+workflow: pr5-response-full
+provider: mock
+tasks:
+  - id: api
+    fetch:
+      url: "https://httpbin.org/get"
+      response: full
