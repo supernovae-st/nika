@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.30.8-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.35.2-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-5212%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-6735+%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -43,17 +43,18 @@ cargo build --release
 ./target/release/nika --help
 ```
 
-## v0.30 Features
+## v0.35 Features
 
+- **Vision Support** — Multimodal `content:` for infer: with CAS images (v0.34.0)
+- **26 Media Tools** — 3 tiers: import/thumbnail/chart/provenance/QR/PDF (v0.34.0)
+- **Fetch Extraction** — 9 extract modes: markdown, article, feed, links, etc. (v0.35.0)
+- **Pipe Transforms** — `{{with.data | uppercase | trim}}` in all templates (v0.35.1)
+- **8 LLM Providers** — +Gemini, +xAI (Grok) alongside Claude, OpenAI, Mistral, Groq, DeepSeek
+- **TUI Redesign** — Tailwind colors, rounded borders, streaming cursor (v0.35.2)
+- **47 Bug Fixes** — Security/correctness audit: SSRF, vision limits, binary size (v0.35.2)
 - **Structured Output** — DynamicSubmitTool + 5-layer architecture (v0.30.0)
-- **LSP Intelligence** — Semantic tokens, Go to Definition, VS Code extension (v0.30.1)
-- **Security Hardening** — Block LD_PRELOAD, strip API keys, AST hardening (v0.30.2)
-- **A+++ Quality Pass** — CRLF compliance, NaN fixes, 34 property tests (v0.30.3)
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
-- **IndexedDag** — Vec-based adjacency list with Kahn's topological sort (v0.29.0)
-- **use→with Migration** — Complete binding syntax migration to `with:` (v0.29.1)
-- **Deep Audit** — 519 gate workflows, 15-agent swarm, 44+ bug fixes (v0.30.5)
-- **5,219+ lib tests passing** | 34 proptests | Zero clippy warnings
+- **6,735+ lib tests passing** | 34 proptests | Zero clippy warnings
 
 ## Architecture
 
@@ -225,14 +226,14 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test                    # All 6,264 tests
+cargo test --lib              # All 6,735+ tests (safe — no keychain)
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.30.3)
-- **5,204+ lib tests** + 34 property tests
+### Test Breakdown (v0.35.2)
+- **6,735+ lib tests** + 34 property tests
 - Zero clippy warnings
 - Schema @0.12 validation in CI
 
