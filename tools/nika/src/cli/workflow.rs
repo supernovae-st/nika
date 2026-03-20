@@ -378,7 +378,7 @@ pub async fn handle_workflow_command(action: WorkflowAction, quiet: bool) -> Res
                         }).collect::<Vec<_>>(),
                         "suggestions": suggestions
                     });
-                    println!("{}", serde_json::to_string_pretty(&result).unwrap());
+                    println!("{}", serde_json::to_string_pretty(&result)?);
                 }
                 _ => {
                     // Text format

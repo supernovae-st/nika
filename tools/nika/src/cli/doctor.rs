@@ -97,7 +97,7 @@ pub async fn handle_doctor_command(full: bool, format: &str, quiet: bool) -> Res
 
     // Output results
     if format == "json" {
-        output_doctor_json(&checks);
+        output_doctor_json(&checks)?;
     } else {
         output_doctor_text(&checks, quiet);
     }
@@ -496,7 +496,7 @@ fn output_doctor_text(checks: &[DiagnosticCheck], quiet: bool) {
     }
 }
 
-fn output_doctor_json(checks: &[DiagnosticCheck]) {
+fn output_doctor_json(checks: &[DiagnosticCheck]) -> Result<(), NikaError> {
     let results: Vec<serde_json::Value> = checks
         .iter()
         .map(|c| {
@@ -522,5 +522,6 @@ fn output_doctor_json(checks: &[DiagnosticCheck]) {
         }
     });
 
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
 }

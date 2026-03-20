@@ -139,7 +139,7 @@ pub async fn handle_model_command(action: ModelAction, quiet: bool) -> Result<()
                         })
                     })
                     .collect();
-                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+                println!("{}", serde_json::to_string_pretty(&output)?);
             } else if models.is_empty() {
                 if !quiet {
                     println!("{} No models downloaded yet.", "ℹ".cyan());
