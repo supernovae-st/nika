@@ -369,7 +369,7 @@ pub struct FetchParams {
     /// Response mode: "full" (status + headers + body JSON) or "binary" (CAS store)
     #[serde(default)]
     pub response: Option<String>,
-    /// Extraction mode: markdown, article, text, selector, metadata, links, feed, jsonpath, llm_txt
+    /// Extraction mode: markdown, text, selector, metadata, links, jsonpath
     #[serde(default)]
     pub extract: Option<String>,
     /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
@@ -417,8 +417,7 @@ impl FetchParams {
         }
         if let Some(ref extract) = self.extract {
             let valid = [
-                "markdown", "article", "text", "selector", "metadata", "links", "feed", "jsonpath",
-                "llm_txt",
+                "markdown", "text", "selector", "metadata", "links", "jsonpath",
             ];
             if !valid.contains(&extract.as_str()) {
                 return Err(NikaError::ValidationError {
@@ -1634,8 +1633,7 @@ fetch:
     #[test]
     fn test_fetch_validate_valid_extract_modes() {
         let valid_modes = [
-            "markdown", "article", "text", "selector", "metadata", "links", "feed", "jsonpath",
-            "llm_txt",
+            "markdown", "text", "selector", "metadata", "links", "jsonpath",
         ];
         for mode in &valid_modes {
             let params = FetchParams {
