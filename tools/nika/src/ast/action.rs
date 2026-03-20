@@ -1626,4 +1626,164 @@ fetch:
         let _ = exec.clone();
         let _ = fetch.clone();
     }
+
+    // =========================================================================
+    // FetchParams extract/selector validation
+    // =========================================================================
+
+    #[test]
+    fn test_fetch_validate_valid_extract_modes() {
+        let valid_modes = [
+            "markdown", "article", "text", "selector", "metadata", "links", "feed", "jsonpath",
+            "llm_txt",
+        ];
+        for mode in &valid_modes {
+            let params = FetchParams {
+                url: "https://example.com".to_string(),
+                method: "GET".to_string(),
+                headers: FxHashMap::default(),
+                body: None,
+                json: None,
+                timeout: None,
+                retry: None,
+                follow_redirects: None,
+                response: None,
+                extract: Some(mode.to_string()),
+                selector: None,
+            };
+            assert!(
+                params.validate().is_ok(),
+                "extract mode '{}' should be valid",
+                mode
+            );
+        }
+    }
+
+    #[test]
+    fn test_fetch_validate_invalid_extract_mode() {
+        let params = FetchParams {
+            url: "https://example.com".to_string(),
+            method: "GET".to_string(),
+            headers: FxHashMap::default(),
+            body: None,
+            json: None,
+            timeout: None,
+            retry: None,
+            follow_redirects: None,
+            response: None,
+            extract: Some("invalid_mode".to_string()),
+            selector: None,
+        };
+        let err = params.validate().unwrap_err();
+        assert!(err.to_string().contains("extract must be one of"));
+        assert!(err.to_string().contains("invalid_mode"));
+    }
+
+    #[test]
+    fn test_fetch_validate_selector_without_extract() {
+        let params = FetchParams {
+            url: "https://example.com".to_string(),
+            method: "GET".to_string(),
+            headers: FxHashMap::default(),
+            body: None,
+            json: None,
+            timeout: None,
+            retry: None,
+            follow_redirects: None,
+            response: None,
+            extract: None,
+            selector: Some("div.content".to_string()),
+        };
+        let err = params.validate().unwrap_err();
+        assert!(err.to_string().contains("selector"));
+        assert!(err.to_string().contains("requires"));
+    }
+
+    #[test]
+    fn test_fetch_validate_selector_with_extract() {
+        let params = FetchParams {
+            url: "https://example.com".to_string(),
+            method: "GET".to_string(),
+            headers: FxHashMap::default(),
+            body: None,
+            json: None,
+            timeout: None,
+            retry: None,
+            follow_redirects: None,
+            response: None,
+            extract: Some("text".to_string()),
+            selector: Some("p.intro".to_string()),
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_fetch_validate_no_extract_no_selector() {
+        let params = FetchParams {
+            url: "https://example.com".to_string(),
+            method: "GET".to_string(),
+            headers: FxHashMap::default(),
+            body: None,
+            json: None,
+            timeout: None,
+            retry: None,
+            follow_redirects: None,
+            response: None,
+            extract: None,
+            selector: None,
+        };
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn test_fetch_params_extract_deserialize() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com"
+  extract: markdown
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.url, "https://example.com");
+                assert_eq!(fetch.extract, Some("markdown".to_string()));
+                assert!(fetch.selector.is_none());
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_params_extract_with_selector_deserialize() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com"
+  extract: selector
+  selector: "div.content"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert_eq!(fetch.extract, Some("selector".to_string()));
+                assert_eq!(fetch.selector, Some("div.content".to_string()));
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
+
+    #[test]
+    fn test_fetch_params_no_extract_backward_compatible() {
+        let yaml = r#"
+fetch:
+  url: "https://example.com"
+"#;
+        let action: TaskAction = serde_yaml::from_str(yaml).unwrap();
+        match action {
+            TaskAction::Fetch { fetch } => {
+                assert!(fetch.extract.is_none());
+                assert!(fetch.selector.is_none());
+            }
+            _ => panic!("Expected TaskAction::Fetch"),
+        }
+    }
 }
