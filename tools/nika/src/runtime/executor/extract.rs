@@ -89,6 +89,23 @@ pub fn apply_extract(
             extract_jsonpath(body, path)
         }
 
+        #[cfg(not(feature = "fetch-markdown"))]
+        Some("markdown") => Err(NikaError::Execution(
+            "extract: markdown requires feature 'fetch-markdown'. Build with: cargo build --features fetch-markdown".to_string(),
+        )),
+        #[cfg(not(feature = "fetch-html"))]
+        Some("text" | "selector" | "metadata" | "links") => Err(NikaError::Execution(
+            "extract: text/selector/metadata/links requires feature 'fetch-html'. Build with: cargo build --features fetch-html".to_string(),
+        )),
+        #[cfg(not(feature = "fetch-article"))]
+        Some("article") => Err(NikaError::Execution(
+            "extract: article requires feature 'fetch-article'. Build with: cargo build --features fetch-article".to_string(),
+        )),
+        #[cfg(not(feature = "fetch-feed"))]
+        Some("feed") => Err(NikaError::Execution(
+            "extract: feed requires feature 'fetch-feed'. Build with: cargo build --features fetch-feed".to_string(),
+        )),
+
         Some(unknown) => Err(NikaError::Execution(format!(
             "Unknown extract mode '{}'. Available: markdown, article, text, selector, metadata, links, jsonpath, feed, llm_txt",
             unknown
