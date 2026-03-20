@@ -158,7 +158,7 @@ impl ChatView {
         for content in self.inline_content.iter_mut().rev() {
             if let InlineContent::Task(TaskBox::Invoke(invoke)) = content {
                 if invoke.state.is_running() {
-                    invoke.result = Some(result);
+                    invoke.set_result(result);
                     invoke.state = BoxState::success(duration_ms);
                     break;
                 }

@@ -112,6 +112,13 @@ impl InvokeBox {
         }
     }
 
+    /// Update result in-place (keeps JSON cache coherent)
+    pub fn set_result(&mut self, result: serde_json::Value) {
+        self.result_oneline_cached = serde_json::to_string(&result).ok();
+        self.result_pretty_cached = serde_json::to_string_pretty(&result).ok();
+        self.result = Some(result);
+    }
+
     /// Set error
     pub fn with_error(mut self, error: impl Into<String>) -> Self {
         self.error = Some(error.into());
