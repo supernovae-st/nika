@@ -6,8 +6,10 @@
 //! - `colors` — Color constants and helpers
 
 pub mod colors;
+pub mod detail;
 pub mod icons;
 mod legacy;
 
 // Re-export legacy API so nothing breaks
+pub use detail::DetailLevel;
 pub use legacy::*;

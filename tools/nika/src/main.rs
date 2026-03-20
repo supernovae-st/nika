@@ -140,6 +140,10 @@ struct Cli {
     #[arg(long, default_value = "auto", global = true, value_enum)]
     color: ColorChoice,
 
+    /// Detail level for run output: max (default), default, min, json
+    #[arg(long, default_value = "max", global = true)]
+    detail: nika::display::DetailLevel,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -423,7 +427,14 @@ async fn main() {
 
         // Check if it's a .nika.yaml file
         if is_nika_workflow(file) {
-            let result = run_workflow(&file.display().to_string(), None, None, cli.quiet).await;
+            let result = run_workflow(
+                &file.display().to_string(),
+                None,
+                None,
+                cli.quiet,
+                cli.detail,
+            )
+            .await;
             handle_result(result);
             return;
         } else {
@@ -439,6 +450,7 @@ async fn main() {
 
     // Extract global flags for use in handlers
     let quiet = cli.quiet;
+    let detail = cli.detail;
 
     // Handle subcommands or default to help (terminal-first)
     let result = match cli.command {
@@ -483,7 +495,7 @@ async fn main() {
             file,
             provider,
             model,
-        }) => run_workflow(&file, provider, model, quiet).await,
+        }) => run_workflow(&file, provider, model, quiet, detail).await,
 
         Some(Commands::Check { file, strict }) => {
             if strict {
@@ -693,6 +705,7 @@ async fn run_workflow(
     provider_override: Option<String>,
     model_override: Option<String>,
     quiet: bool,
+    _detail: nika::display::DetailLevel,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
 
