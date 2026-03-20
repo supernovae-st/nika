@@ -11,7 +11,7 @@ use std::borrow::Cow;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
@@ -436,8 +436,17 @@ impl<'a> StatusBar<'a> {
     }
 }
 
+/// Status bar background — matches header for visual consistency
+const STATUS_BAR_BG: Color = Color::Rgb(20, 24, 41);
+
 impl Widget for StatusBar<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Fill the entire row with the status bar background first
+        let bg_style = Style::default().bg(STATUS_BAR_BG);
+        for x in area.x..area.x + area.width {
+            buf[(x, area.y)].set_style(bg_style);
+        }
+
         // Get default hints before potentially moving self.hints
         let default = self.default_hints();
         let hints = self.hints.unwrap_or(default);
@@ -556,7 +565,7 @@ impl Widget for StatusBar<'_> {
             if metrics.provider != Provider::None {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -574,7 +583,7 @@ impl Widget for StatusBar<'_> {
             if let Some(token_str) = metrics.format_tokens() {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -592,7 +601,7 @@ impl Widget for StatusBar<'_> {
             if metrics.mcp_total > 0 {
                 if !right_spans.is_empty() {
                     right_spans.push(Span::styled(
-                        " | ",
+                        " │ ",
                         Style::default().fg(self.theme.text_muted),
                     ));
                 }
@@ -647,8 +656,7 @@ impl Widget for StatusBar<'_> {
 
         // Render left side
         let left_line = Line::from(left_spans);
-        let left_paragraph =
-            Paragraph::new(left_line).style(Style::default().bg(self.theme.background));
+        let left_paragraph = Paragraph::new(left_line).style(Style::default().bg(STATUS_BAR_BG));
         left_paragraph.render(area, buf);
 
         // Render right side (right-aligned)
