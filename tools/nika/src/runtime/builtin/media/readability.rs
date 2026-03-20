@@ -43,6 +43,7 @@ impl MediaOp for ReadabilityOp {
               "description": "URL of the page (for resolving relative links)"
             }
           },
+          "required": ["hash"],
           "additionalProperties": false
         })
     }

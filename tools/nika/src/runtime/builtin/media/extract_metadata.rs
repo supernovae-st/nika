@@ -38,6 +38,7 @@ impl MediaOp for ExtractMetadataOp {
               "description": "Raw HTML string to extract metadata from"
             }
           },
+          "required": ["hash"],
           "additionalProperties": false
         })
     }
