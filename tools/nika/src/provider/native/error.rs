@@ -374,4 +374,36 @@ mod tests {
             _ => panic!("Expected ModelNotFound variant"),
         }
     }
+
+    // ========================================================================
+    // Vision error variant display tests
+    // ========================================================================
+
+    #[test]
+    fn test_vision_not_supported_display() {
+        let err = NativeError::VisionNotSupported {
+            reason: "Model is text-only GGUF".to_string(),
+        };
+        assert!(err.to_string().contains("Vision not supported"));
+        assert!(err.to_string().contains("text-only GGUF"));
+    }
+
+    #[test]
+    fn test_vision_model_load_failed_display() {
+        let err = NativeError::VisionModelLoadFailed {
+            model_id: "Qwen/Qwen2.5-VL-7B".to_string(),
+            reason: "network timeout".to_string(),
+        };
+        assert!(err.to_string().contains("Qwen/Qwen2.5-VL-7B"));
+        assert!(err.to_string().contains("network timeout"));
+    }
+
+    #[test]
+    fn test_invalid_image_data_display() {
+        let err = NativeError::InvalidImageData {
+            reason: "corrupt PNG header".to_string(),
+        };
+        assert!(err.to_string().contains("Invalid image data"));
+        assert!(err.to_string().contains("corrupt PNG"));
+    }
 }

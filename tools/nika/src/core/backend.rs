@@ -717,4 +717,96 @@ mod tests {
         assert!(!BackendError::ModelNotFound("model".to_string()).is_retryable());
         assert!(!BackendError::InsufficientMemory.is_retryable());
     }
+
+    // ========================================================================
+    // NativeModelKind serde tests
+    // ========================================================================
+
+    #[test]
+    fn test_native_model_kind_serde_text_gguf() {
+        let kind = NativeModelKind::TextGguf;
+        let json = serde_json::to_string(&kind).unwrap();
+        assert!(json.contains("text_gguf"));
+        let roundtrip: NativeModelKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtrip, NativeModelKind::TextGguf);
+    }
+
+    #[test]
+    fn test_native_model_kind_serde_vision_hf() {
+        let kind = NativeModelKind::VisionHf {
+            model_id: "Qwen/Qwen2.5-VL-7B-Instruct".to_string(),
+            isq: Some("Q4K".to_string()),
+        };
+        let json = serde_json::to_string(&kind).unwrap();
+        assert!(json.contains("vision_hf"));
+        assert!(json.contains("Qwen/Qwen2.5-VL-7B-Instruct"));
+        assert!(json.contains("Q4K"));
+        let roundtrip: NativeModelKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtrip, kind);
+    }
+
+    #[test]
+    fn test_native_model_kind_serde_vision_hf_no_isq() {
+        let kind = NativeModelKind::VisionHf {
+            model_id: "google/gemma-3-4b-it".to_string(),
+            isq: None,
+        };
+        let json = serde_json::to_string(&kind).unwrap();
+        assert!(json.contains("vision_hf"));
+        assert!(json.contains("google/gemma-3-4b-it"));
+        // isq serializes as null (no skip_serializing_if), roundtrip still works
+        let roundtrip: NativeModelKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtrip, kind);
+        assert_eq!(
+            roundtrip,
+            NativeModelKind::VisionHf {
+                model_id: "google/gemma-3-4b-it".to_string(),
+                isq: None,
+            }
+        );
+    }
+
+    // ========================================================================
+    // LoadConfig serde tests (vision model kind)
+    // ========================================================================
+
+    #[test]
+    fn test_load_config_serde_default_model_kind() {
+        // Deserialize without model_kind → defaults to TextGguf
+        let json = r#"{"gpu_ids":[],"gpu_layers":-1,"context_size":null,"keep_alive":false}"#;
+        let config: LoadConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.model_kind, NativeModelKind::TextGguf);
+    }
+
+    #[test]
+    fn test_load_config_serde_with_vision_hf() {
+        let json = r#"{"gpu_ids":[],"gpu_layers":-1,"context_size":4096,"keep_alive":false,"model_kind":{"kind":"vision_hf","model_id":"Qwen/Qwen2.5-VL-7B","isq":"Q4K"}}"#;
+        let config: LoadConfig = serde_json::from_str(json).unwrap();
+        assert!(config.model_kind.is_vision());
+        match &config.model_kind {
+            NativeModelKind::VisionHf { model_id, isq } => {
+                assert_eq!(model_id, "Qwen/Qwen2.5-VL-7B");
+                assert_eq!(isq.as_deref(), Some("Q4K"));
+            }
+            _ => panic!("Expected VisionHf"),
+        }
+    }
+
+    // ========================================================================
+    // VisionImage tests
+    // ========================================================================
+
+    #[test]
+    fn test_vision_image_construction() {
+        let img = VisionImage::new(vec![0x89, 0x50, 0x4E, 0x47], "image/png");
+        assert_eq!(img.bytes.len(), 4);
+        assert_eq!(img.media_type, "image/png");
+    }
+
+    #[test]
+    fn test_vision_image_empty_bytes() {
+        let img = VisionImage::new(vec![], "image/jpeg");
+        assert_eq!(img.bytes.len(), 0);
+        assert_eq!(img.media_type, "image/jpeg");
+    }
 }
