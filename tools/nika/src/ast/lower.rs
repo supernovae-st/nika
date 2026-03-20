@@ -598,7 +598,30 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             thinking_budget: infer
                 .thinking_budget
                 .map(|b| u32::try_from(b).unwrap_or(u32::MAX)),
-            content: None, // Content is consumed during lowering; not round-tripped
+            content: infer.content.as_ref().map(|parts| {
+                parts
+                    .iter()
+                    .map(|p| match p {
+                        crate::ast::content::ContentPart::Text { text } => {
+                            crate::ast::content::AnalyzedContentPart::Text {
+                                text: text.clone(),
+                            }
+                        }
+                        crate::ast::content::ContentPart::Image { source, detail } => {
+                            crate::ast::content::AnalyzedContentPart::Image {
+                                source: source.clone(),
+                                detail: *detail,
+                            }
+                        }
+                        crate::ast::content::ContentPart::ImageUrl { url, detail } => {
+                            crate::ast::content::AnalyzedContentPart::ImageUrl {
+                                url: url.clone(),
+                                detail: *detail,
+                            }
+                        }
+                    })
+                    .collect()
+            }),
             span: Span::dummy(),
         }),
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {

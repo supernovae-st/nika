@@ -324,7 +324,6 @@
         },
         {
           "type": "object",
-          "required": ["prompt"],
           "additionalProperties": false,
           "properties": {
             "prompt": {
@@ -372,7 +371,45 @@
               "maximum": 65536,
               "default": 4096,
               "description": "Token budget for thinking (requires extended_thinking: true)"
+            },
+            "content": {
+              "type": "array",
+              "description": "Multimodal vision content parts (v0.34+).",
+              "items": { "$ref": "#/$defs/ContentPart" }
             }
+          }
+        }
+      ]
+    },
+    "ContentPart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "text"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "text" },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "image" },
+            "source": { "type": "string" },
+            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "url"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "const": "image_url" },
+            "url": { "type": "string", "format": "uri" },
+            "detail": { "type": "string", "enum": ["auto", "low", "high"], "default": "auto" }
           }
         }
       ]
