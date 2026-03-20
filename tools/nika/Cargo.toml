@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [features]
 default = ["tui", "nika-daemon", "native-keychain", "native-inference", "media-core"]
-tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:unicode-width", "dep:terminal_size", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
+tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
 native-keychain = ["dep:keyring"]  # OS keychain support (macOS Keychain, Windows Credential Manager, Linux Secret Service)
@@ -183,8 +183,8 @@ streaming-iterator = { version = "0.1", optional = true }
 tui-input = { version = "0.15", features = ["crossterm"], optional = true }  # Chat input
 
 # Unicode text handling (from NovaNet patterns)
-unicode-width = { version = "0.2", optional = true }  # Display width for CJK, emoji
-terminal_size = { version = "0.4", optional = true }  # Terminal dimensions for responsive layouts
+unicode-width = "0.2"  # Display width for icon alignment (always-on for CLI renderer)
+terminal_size = "0.4"  # Terminal dimensions for responsive CLI output (always-on)
 
 # LSP Server (feature-gated) - v0.22 Language Server Protocol support
 tower-lsp-server = { version = "0.23", optional = true }
