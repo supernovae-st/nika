@@ -31,12 +31,12 @@ VERBS                              STATUS
 ⊛  invoke   bright green           ✗  failed      bright red
 ❋  agent    bright red             ⊘  skipped     dimmed
 
-SUBSYSTEMS
-△  provider    blue                ◎  artifact    cyan
-⊞  mcp         green               ▣  media       magenta
-⛨  guardrail   yellow              ⬡  structured  blue
-◐  vision      purple              ⇄  http        cyan
-↯  retry       yellow              ◈  agent meta  red
+SUBSYSTEMS (all Narrow eaw=N — no alignment issues)
+⋈  provider    blue                ⊚  artifact    cyan
+⊞  mcp         green               ⊡  media       magenta
+⊠  guardrail   yellow              ⬡  structured  blue
+⟐  vision      purple              ⇄  http        cyan
+↯  retry       yellow              ⊗  agent meta  red
 ▪  log/custom  dimmed
 ```
 

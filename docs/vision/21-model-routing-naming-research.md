@@ -374,30 +374,34 @@ The evolution from 4 named slots (edison/atlas/york/pythagoras) to 8 descriptive
 
 ---
 
-## 6. Semantic Slot Design Patterns
+## 6. Semantic Agent Preset Design Patterns
 
-### 6.1 Pattern: Capability Slot with Provider Binding
+### 6.1 Pattern: Agent Preset with Provider Binding
 
 The dominant pattern across all frameworks that support multi-model is:
 
 ```
-[User-Facing Slot]  -->  [Provider + Model Config]  -->  [Runtime Resolution]
-     edison         -->  anthropic / claude-sonnet   -->  API call
-     atlas          -->  groq / llama-3.3-70b        -->  API call
-     york           -->  deepseek / deepseek-chat    -->  API call
-     pythagoras     -->  anthropic / claude + think   -->  API call with thinking
+[User-Facing Preset]  -->  [Provider + Model Config]  -->  [Runtime Resolution]
+     main              -->  anthropic / claude-sonnet   -->  API call
+     fast              -->  groq / llama-3.3-70b        -->  API call
+     search            -->  deepseek / deepseek-chat    -->  API call
+     reason            -->  anthropic / claude + think   -->  API call with thinking
+     vision            -->  openai / gpt-4o              -->  API call
+     judge             -->  anthropic / claude-sonnet    -->  API call
+     code              -->  anthropic / claude-sonnet    -->  API call
+     summary           -->  groq / llama-3.3-70b         -->  API call
 ```
 
-This is exactly what Nika proposes in the P-MODEL design (Doc 05).
+This is exactly what Nika implements in the unified `agents:` block (Doc 05).
 
 ### 6.2 Pattern: Fallback Chain
 
 Every production routing system implements fallback:
 
 ```yaml
-# Nika model_slots with fallback (proposed for v0.28+)
-model_slots:
-  edison:
+# Nika agents with fallback (proposed for v0.28+)
+agents:
+  main:
     primary:
       provider: anthropic
       model: claude-sonnet-4-6
@@ -409,20 +413,20 @@ model_slots:
 This mirrors OpenRouter's automatic failover, Azure's provider redundancy,
 and LiteLLM's fallback configuration.
 
-### 6.3 Pattern: Cost-Aware Slot Assignment
+### 6.3 Pattern: Cost-Aware Preset Assignment
 
 The key insight from FrugalGPT, RouteLLM, and enterprise adoption:
 
 ```
                     Cost per 1M tokens    Quality (avg)    Latency
                     ─────────────────    ─────────────    ───────
-pythagoras          $15.00               9.2/10           2-8s (thinking)
-edison              $3.00                8.5/10           1-3s
-york                $0.27                7.8/10           0.5-1s
-atlas               $0.05                7.0/10           0.2-0.5s
+reason              $15.00               9.2/10           2-8s (thinking)
+main                $3.00                8.5/10           1-3s
+search              $0.27                7.8/10           0.5-1s
+fast                $0.05                7.0/10           0.2-0.5s
 ```
 
-The cost difference between slots can be **100-300x**, making routing a significant
+The cost difference between presets can be **100-300x**, making routing a significant
 optimization lever. IDC reports 70% cost reduction through intelligent routing[^1].
 
 ### 6.4 Pattern: Confidence-Based Escalation
@@ -430,13 +434,13 @@ optimization lever. IDC reports 70% cost reduction through intelligent routing[^
 From FrugalGPT cascading + Nika's Shaka orchestration:
 
 ```
-Task executes with atlas (cheap, fast)
+Task executes with fast (cheap, fast)
     |
     v
 Record generated: confidence = 0.65 (below threshold)
     |
     v
-Shaka sees low confidence --> Re-dispatch with edison
+Shaka sees low confidence --> Re-dispatch with main
     |
     v
 Record generated: confidence = 0.92 (above threshold)

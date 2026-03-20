@@ -20,7 +20,7 @@
 
 **Scenario:** You have a data processing pipeline — scrape web data, analyze it with an LLM, generate a report, send it via API.
 
-**v0.30 features used:** Model Slots, Records, Context Budget
+**v0.30 features used:** Agents, Records, Context Budget
 
 ### The Workflow
 
@@ -28,14 +28,14 @@
 # pipeline-report.nika.yaml — Automated data analysis pipeline
 schema: nika/workflow@0.13
 
-model_slots:
-  edison:
+agents:
+  main:
     provider: anthropic
     model: claude-sonnet-4-6
-  atlas:
+  fast:
     provider: deepseek
     model: deepseek-chat
-  york:
+  search:
     provider: groq
     model: llama-3.3-70b-versatile
 
@@ -217,22 +217,22 @@ flowchart TB
 │  💰 COST BREAKDOWN                                                              │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  Task               Model Slot    Tokens    Cost                                │
+│  Task               Agent         Tokens    Cost                                │
 │  ─────────────────────────────────────────────────                              │
 │  scrape_hackernews   (none)        0         $0                                 │
 │  scrape_reddit       (none)        0         $0                                 │
 │  get_internal_data   (none)        0         $0                                 │
-│  analyze_trends      york/Groq     3K        $0.0009                           │
-│  analyze_metrics     atlas/DS      2K        $0.0002                           │
-│  generate_report     edison/Claude 4K        $0.012                            │
-│  format_html         atlas/DS      2K        $0.0002                           │
+│  analyze_trends      search/Groq   3K        $0.0009                           │
+│  analyze_metrics     fast/DS       2K        $0.0002                           │
+│  generate_report     main/Claude   4K        $0.012                            │
+│  format_html         fast/DS       2K        $0.0002                           │
 │  send_email          (none)        0         $0                                 │
 │  save_to_db          (none)        0         $0                                 │
 │  ─────────────────────────────────────────────────                              │
 │  TOTAL                             11K       $0.0133                            │
 │                                                                                 │
 │  v0.27 (all Claude): 11K tokens × $0.003 = $0.033                             │
-│  v0.30 (model slots): $0.0133                                                  │
+│  v0.30 (agents): $0.0133                                                       │
 │  Savings: 60%                                                                   │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -244,7 +244,7 @@ flowchart TB
 
 **Scenario:** Generate localized landing pages for QR Code AI in 5 languages, using NovaNet's knowledge graph for entity context and cultural intelligence.
 
-**v0.30 features used:** ALL 6 features (Model Slots, Records, Shaka, Context Budget, Memory, Introspection)
+**v0.30 features used:** ALL 6 features (Agents, Records, Shaka, Context Budget, Memory, Introspection)
 
 ### The Workflow
 
@@ -253,19 +253,19 @@ flowchart TB
 schema: nika/workflow@0.13
 orchestration: shaka
 
-model_slots:
-  pythagoras:
+agents:
+  reason:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
-  edison:
+  main:
     provider: anthropic
     model: claude-sonnet-4-6
-  york:
+  search:
     provider: groq
     model: llama-3.3-70b-versatile
-  atlas:
+  fast:
     provider: deepseek
     model: deepseek-chat
 
