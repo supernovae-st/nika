@@ -1150,7 +1150,16 @@ impl TaskExecutor {
                             "/llms-full.txt",
                         ] {
                             let llm_url = format!("{}{}", origin, path);
-                            if let Ok(resp) = http_client.get(&llm_url).send().await {
+                            if let Ok(resp) = http_client
+                                .get(&llm_url)
+                                .timeout(std::time::Duration::from_secs(5))
+                                .send()
+                                .await
+                            {
+                                // Size limit on llm.txt response (1 MB max -- these are text files)
+                                if resp.content_length().unwrap_or(0) > 1_048_576 {
+                                    continue;
+                                }
                                 if resp.status().is_success() {
                                     if let Ok(body) = resp.text().await {
                                         if !body.trim().is_empty() {
@@ -1368,12 +1377,17 @@ impl TaskExecutor {
                     let media_blocks = tool_result.media_blocks();
                     let content_types: Vec<String> = media_blocks
                         .iter()
-                        .map(|b| match b {
-                            ContentBlock::Text { .. } => unreachable!("media_blocks filters text"),
-                            ContentBlock::Image { .. } => "image".to_string(),
-                            ContentBlock::Audio { .. } => "audio".to_string(),
-                            ContentBlock::Resource(_) => "resource".to_string(),
-                            ContentBlock::ResourceLink { .. } => "resource_link".to_string(),
+                        .filter_map(|b| match b {
+                            ContentBlock::Text { .. } => {
+                                tracing::warn!(
+                                    "Unexpected text block in media processing, skipping"
+                                );
+                                None
+                            }
+                            ContentBlock::Image { .. } => Some("image".to_string()),
+                            ContentBlock::Audio { .. } => Some("audio".to_string()),
+                            ContentBlock::Resource(_) => Some("resource".to_string()),
+                            ContentBlock::ResourceLink { .. } => Some("resource_link".to_string()),
                         })
                         .collect();
 

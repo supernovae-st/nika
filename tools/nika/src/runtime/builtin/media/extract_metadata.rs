@@ -80,7 +80,9 @@ fn extract_all_metadata(html: &str) -> Result<serde_json::Value, NikaError> {
     let feeds = extract_feeds(&document);
 
     let mut result = serde_json::json!({});
-    let obj = result.as_object_mut().unwrap();
+    let obj = result
+        .as_object_mut()
+        .expect("json!({}) is always an object");
 
     if let Some(t) = title {
         obj.insert("title".to_string(), serde_json::Value::String(t));

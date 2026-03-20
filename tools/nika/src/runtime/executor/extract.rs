@@ -128,7 +128,7 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
     let mut meta = serde_json::Map::new();
 
     // <title>
-    let title_sel = scraper::Selector::parse("title").unwrap();
+    let title_sel = scraper::Selector::parse("title").expect("static CSS selector");
     if let Some(el) = document.select(&title_sel).next() {
         meta.insert(
             "title".into(),
@@ -137,7 +137,7 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
     }
 
     // meta name="description"
-    let meta_sel = scraper::Selector::parse("meta[name=description]").unwrap();
+    let meta_sel = scraper::Selector::parse("meta[name=description]").expect("static CSS selector");
     if let Some(el) = document.select(&meta_sel).next() {
         if let Some(content) = el.value().attr("content") {
             meta.insert("description".into(), content.into());
@@ -181,7 +181,8 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
     }
 
     // JSON-LD
-    let jsonld_sel = scraper::Selector::parse("script[type=\"application/ld+json\"]").unwrap();
+    let jsonld_sel = scraper::Selector::parse("script[type=\"application/ld+json\"]")
+        .expect("static CSS selector");
     let json_ld: Vec<serde_json::Value> = document
         .select(&jsonld_sel)
         .filter_map(|el| serde_json::from_str(&el.text().collect::<String>()).ok())
@@ -191,7 +192,7 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
     }
 
     // Canonical
-    let canon_sel = scraper::Selector::parse("link[rel=canonical]").unwrap();
+    let canon_sel = scraper::Selector::parse("link[rel=canonical]").expect("static CSS selector");
     if let Some(el) = document.select(&canon_sel).next() {
         if let Some(href) = el.value().attr("href") {
             meta.insert("canonical".into(), href.into());
@@ -204,7 +205,7 @@ fn extract_metadata_json(html: &str) -> Result<String, NikaError> {
 #[cfg(feature = "fetch-html")]
 fn extract_links_json(html: &str, _base_url: Option<&str>) -> Result<String, NikaError> {
     let document = scraper::Html::parse_document(html);
-    let a_sel = scraper::Selector::parse("a[href]").unwrap();
+    let a_sel = scraper::Selector::parse("a[href]").expect("static CSS selector");
     let links: Vec<serde_json::Value> = document
         .select(&a_sel)
         .map(|el| {
