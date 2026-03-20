@@ -271,7 +271,7 @@ impl InvokeBox {
         let status_icon = self.state.icon();
         let status_suffix = self.state.suffix().into_owned();
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("┌─ ", border_style),
+            Span::styled("╭─ ", border_style),
             Span::styled(verb.icon_label(), Style::default().fg(verb_color)),
             Span::styled(
                 format!(" {} ", status_icon),
@@ -360,9 +360,9 @@ impl InvokeBox {
             ])));
         }
 
-        // Bottom border
+        // Bottom border (rounded, matching other verbs)
         items.push(ListItem::new(Line::from(vec![Span::styled(
-            "└─────────────────────────────────────────",
+            "╰─────────────────────────────────────────╯",
             border_style,
         )])));
 
