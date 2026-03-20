@@ -616,6 +616,14 @@ impl TaskExecutor {
                     }
 
                     let media_type = detect_image_media_type(&image_data);
+                    if media_type.is_none() {
+                        return Err(NikaError::ValidationError {
+                            reason: format!(
+                                "Vision image has unsupported format (CAS hash: {}). Supported: PNG, JPEG, GIF, WebP",
+                                resolved_source
+                            ),
+                        });
+                    }
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&image_data);
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {
@@ -732,7 +740,9 @@ impl TaskExecutor {
         let resolved_cmd = template_resolve(&params.command, bindings, datastore)?;
 
         // SECURITY CHECK: validate command for control characters and blocklist
-        crate::runtime::security::validate_exec_command(&resolved_cmd)?;
+        // In shell mode, also block command substitution ($(), backticks)
+        let is_shell = params.shell == Some(true);
+        crate::runtime::security::validate_exec_command_with_shell(&resolved_cmd, is_shell)?;
 
         // POLICY CHECK: exec verb
         let policy_decision = self.policy_enforcer.read().check_exec(&resolved_cmd);

@@ -115,18 +115,22 @@ impl PolicyEnforcer {
             );
         }
 
-        // Parse URL to check host
+        // Parse URL to check host — fail-closed on invalid URLs
         let parsed = match Url::parse(url) {
             Ok(u) => u,
             Err(_) => {
-                // If URL is invalid, allow but warn
-                return PolicyDecision::Allow;
+                return PolicyDecision::Block(format!(
+                    "Unparseable URL rejected (fail-closed): '{}'",
+                    url
+                ));
             }
         };
 
         let host = match parsed.host_str() {
             Some(h) => h.to_lowercase(),
-            None => return PolicyDecision::Allow,
+            None => {
+                return PolicyDecision::Block(format!("URL has no host (fail-closed): '{}'", url));
+            }
         };
 
         // Check blocked hosts first (takes precedence)
@@ -325,5 +329,39 @@ mod tests {
         assert!(!allow.is_blocked());
         assert!(block.is_blocked());
         assert!(!block.is_allowed());
+    }
+
+    // =========================================================================
+    // Regression: Bug 18 — unparseable URLs must be blocked (fail-closed)
+    // =========================================================================
+
+    #[test]
+    fn test_policy_blocks_unparseable_url() {
+        let enforcer = PolicyEnforcer::default();
+        let decision = enforcer.check_fetch("not a url at all %%%");
+        assert!(
+            decision.is_blocked(),
+            "Unparseable URL should be blocked (fail-closed), got: {:?}",
+            decision
+        );
+    }
+
+    #[test]
+    fn test_policy_blocks_url_without_host() {
+        let enforcer = PolicyEnforcer::default();
+        // data: URIs have no host
+        let decision = enforcer.check_fetch("data:text/html,<script>alert(1)</script>");
+        assert!(
+            decision.is_blocked(),
+            "URL without host should be blocked (fail-closed), got: {:?}",
+            decision
+        );
+    }
+
+    #[test]
+    fn test_policy_still_allows_valid_urls() {
+        let enforcer = PolicyEnforcer::default();
+        assert!(enforcer.check_fetch("https://example.com/api").is_allowed());
+        assert!(enforcer.check_fetch("http://localhost:8080").is_allowed());
     }
 }

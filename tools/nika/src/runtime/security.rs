@@ -70,6 +70,46 @@ const BLOCKLIST: &[&str] = &[
     "| base64 --decode",
 ];
 
+/// Additional blocklist patterns that only apply in shell mode.
+///
+/// These patterns are dangerous only when executed via `sh -c` (shell mode).
+/// In shell-free mode (shlex), they are harmless literal strings.
+const SHELL_MODE_BLOCKLIST: &[&str] = &[
+    // Command substitution — executes arbitrary commands inside $()
+    "$(", // Backtick command substitution — legacy form of $()
+    "`",
+];
+
+/// Check command against shell-mode-specific blocklist.
+///
+/// These patterns (command substitution, backticks) are only dangerous
+/// when shell mode is active (`shell: true`). In shell-free mode,
+/// they are harmless literal characters.
+///
+/// # Errors
+///
+/// Returns `BlockedCommand` if a shell-mode blocklisted pattern is found.
+pub fn check_shell_mode_blocklist(cmd: &str) -> Result<(), NikaError> {
+    let normalized = normalize_for_blocklist(cmd);
+    let lower = normalized.to_lowercase();
+
+    for pattern in SHELL_MODE_BLOCKLIST {
+        if lower.contains(pattern) {
+            tracing::warn!(
+                command = %cmd,
+                normalized = %lower,
+                pattern = %pattern,
+                "NIKA-053: Blocked dangerous shell-mode pattern"
+            );
+            return Err(NikaError::BlockedCommand {
+                command: cmd.to_string(),
+                reason: format!("Shell-mode blocklisted pattern: {}", pattern),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Validate command string for control characters
 ///
 /// Rejects control characters (0x00-0x1F) except:
@@ -196,14 +236,29 @@ const BLOCKED_ENV_VARS: &[&str] = &[
 
 /// Validate environment variables for dangerous names.
 ///
-/// Rejects env vars that enable library injection or privilege escalation.
-/// Comparison is case-insensitive.
+/// Performs two checks:
+/// 1. Rejects env var names that don't match `^[A-Za-z_][A-Za-z0-9_]*$`.
+///    This prevents BASH_FUNC injection and other shell metacharacter abuse
+///    via crafted env var names (e.g., `BASH_FUNC_x%%`, `FOO=BAR`).
+/// 2. Rejects env vars that enable library injection or privilege escalation.
+///    Comparison is case-insensitive.
 ///
 /// # Errors
 ///
-/// Returns `BlockedCommand` if a blocked env var name is found.
+/// Returns `BlockedCommand` if a blocked or invalid env var name is found.
 pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
     for (key, _) in vars {
+        // Validate env var name format: must be [A-Za-z_][A-Za-z0-9_]*
+        if !is_valid_env_var_name(key) {
+            return Err(NikaError::BlockedCommand {
+                command: format!("env: {}=...", key),
+                reason: format!(
+                    "Invalid environment variable name '{}': must match [A-Za-z_][A-Za-z0-9_]*",
+                    key
+                ),
+            });
+        }
+
         let upper = key.to_uppercase();
         for blocked in BLOCKED_ENV_VARS {
             if upper == *blocked {
@@ -220,6 +275,28 @@ pub fn validate_env_vars(vars: &[(String, String)]) -> Result<(), NikaError> {
     Ok(())
 }
 
+/// Check if an environment variable name is valid.
+///
+/// Valid names match `^[A-Za-z_][A-Za-z0-9_]*$` — the POSIX standard for
+/// environment variable names. This rejects names containing `%`, `{`, `}`,
+/// `(`, `)`, `=`, spaces, etc., which could be used for BASH_FUNC injection.
+fn is_valid_env_var_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+
+    let mut chars = name.chars();
+
+    // First character: must be [A-Za-z_]
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+
+    // Remaining characters: must be [A-Za-z0-9_]
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 /// Returns the list of sensitive env var names that should be stripped
 /// from child processes to prevent API key leakage.
 pub fn sensitive_env_vars() -> Vec<&'static str> {
@@ -228,6 +305,34 @@ pub fn sensitive_env_vars() -> Vec<&'static str> {
         .iter()
         .map(|p| p.env_var)
         .collect();
+
+    // Common sensitive env vars beyond LLM providers
+    vars.extend_from_slice(&[
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "MONGO_URI",
+        "JWT_SECRET",
+        "SESSION_SECRET",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "GITLAB_TOKEN",
+        "SLACK_TOKEN",
+        "SLACK_WEBHOOK_URL",
+        "STRIPE_SECRET_KEY",
+        "TWILIO_AUTH_TOKEN",
+        "SENDGRID_API_KEY",
+        "MAILGUN_API_KEY",
+        "SENTRY_DSN",
+        "DATADOG_API_KEY",
+        "PRIVATE_KEY",
+        "SECRET_KEY",
+        "ENCRYPTION_KEY",
+    ]);
+
+    // Sort and dedup to ensure consistent, duplicate-free output
+    vars.sort();
     vars.dedup();
     vars
 }
@@ -242,13 +347,30 @@ pub fn strip_sensitive_env_vars(cmd: &mut tokio::process::Command) {
 /// Full security validation for exec commands
 ///
 /// Combines control character validation and blocklist checking.
+/// When `shell_mode` is true, also checks for shell-specific bypass
+/// patterns like command substitution (`$()`, backticks).
 ///
 /// # Errors
 ///
 /// Returns `BlockedCommand` if any security check fails.
 pub fn validate_exec_command(cmd: &str) -> Result<(), NikaError> {
+    validate_exec_command_with_shell(cmd, false)
+}
+
+/// Full security validation for exec commands with explicit shell mode flag.
+///
+/// When `shell_mode` is true, additionally blocks command substitution
+/// patterns (`$()`, backticks) that are only dangerous in shell mode.
+///
+/// # Errors
+///
+/// Returns `BlockedCommand` if any security check fails.
+pub fn validate_exec_command_with_shell(cmd: &str, shell_mode: bool) -> Result<(), NikaError> {
     validate_command_string(cmd)?;
     check_blocklist(cmd)?;
+    if shell_mode {
+        check_shell_mode_blocklist(cmd)?;
+    }
     Ok(())
 }
 
@@ -836,5 +958,179 @@ mod tests {
     #[test]
     fn test_normalize_whitespace_mixed() {
         assert_eq!(normalize_for_blocklist("rm \t -rf \t /"), "rm -rf /");
+    }
+
+    // =========================================================================
+    // Regression: Bug 5 — sensitive_env_vars includes non-provider secrets
+    // =========================================================================
+
+    #[test]
+    fn test_sensitive_env_vars_includes_aws_secret() {
+        let vars = sensitive_env_vars();
+        assert!(
+            vars.contains(&"AWS_SECRET_ACCESS_KEY"),
+            "AWS_SECRET_ACCESS_KEY should be in sensitive list"
+        );
+        assert!(
+            vars.contains(&"AWS_SESSION_TOKEN"),
+            "AWS_SESSION_TOKEN should be in sensitive list"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_env_vars_includes_common_secrets() {
+        let vars = sensitive_env_vars();
+        assert!(vars.contains(&"DATABASE_URL"));
+        assert!(vars.contains(&"GITHUB_TOKEN"));
+        assert!(vars.contains(&"GH_TOKEN"));
+        assert!(vars.contains(&"STRIPE_SECRET_KEY"));
+        assert!(vars.contains(&"JWT_SECRET"));
+        assert!(vars.contains(&"PRIVATE_KEY"));
+        assert!(vars.contains(&"ENCRYPTION_KEY"));
+    }
+
+    #[test]
+    fn test_sensitive_env_vars_sorted_and_deduped() {
+        let vars = sensitive_env_vars();
+        // Verify sorted
+        for pair in vars.windows(2) {
+            assert!(
+                pair[0] <= pair[1],
+                "sensitive_env_vars not sorted: '{}' > '{}'",
+                pair[0],
+                pair[1]
+            );
+        }
+        // Verify no duplicates
+        let unique_count = {
+            let mut v = vars.clone();
+            v.dedup();
+            v.len()
+        };
+        assert_eq!(
+            vars.len(),
+            unique_count,
+            "sensitive_env_vars has duplicates"
+        );
+    }
+
+    // =========================================================================
+    // Regression: Bug 16 — shell-mode blocklist blocks $() and backticks
+    // =========================================================================
+
+    #[test]
+    fn test_shell_mode_blocklist_blocks_command_substitution() {
+        let result = check_shell_mode_blocklist("echo $(rm -rf /)");
+        assert!(result.is_err(), "$() should be blocked in shell mode");
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn test_shell_mode_blocklist_blocks_backtick() {
+        let result = check_shell_mode_blocklist("echo `whoami`");
+        assert!(result.is_err(), "backtick should be blocked in shell mode");
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn test_shell_mode_blocklist_allows_safe_commands() {
+        assert!(check_shell_mode_blocklist("echo hello").is_ok());
+        assert!(check_shell_mode_blocklist("ls -la | grep foo").is_ok());
+        assert!(check_shell_mode_blocklist("cat file.txt").is_ok());
+    }
+
+    #[test]
+    fn test_validate_exec_command_with_shell_blocks_substitution() {
+        // Shell mode: $() should be blocked
+        let result = validate_exec_command_with_shell("echo $(rm -rf /)", true);
+        assert!(result.is_err(), "$() should be blocked in shell mode");
+
+        // Non-shell mode: $() is harmless (shlex treats it as literal)
+        let result = validate_exec_command_with_shell("echo $(rm -rf /)", false);
+        // Still blocked by the regular blocklist due to "rm -rf /"
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_exec_command_with_shell_blocks_backtick_only_in_shell() {
+        // Shell mode: backtick should be blocked
+        let result = validate_exec_command_with_shell("echo `whoami`", true);
+        assert!(result.is_err(), "backtick should be blocked in shell mode");
+
+        // Non-shell mode: backtick is harmless
+        let result = validate_exec_command_with_shell("echo `whoami`", false);
+        assert!(
+            result.is_ok(),
+            "backtick should be allowed in non-shell mode"
+        );
+    }
+
+    // =========================================================================
+    // Regression: Bug 19 — env var name validation
+    // =========================================================================
+
+    #[test]
+    fn test_validate_env_vars_rejects_bash_func_injection() {
+        let vars = vec![("BASH_FUNC_x%%".to_string(), "() { evil; }".to_string())];
+        let result = validate_env_vars(&vars);
+        assert!(
+            result.is_err(),
+            "BASH_FUNC_x%% should be rejected as invalid env var name"
+        );
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("NIKA-053"));
+    }
+
+    #[test]
+    fn test_validate_env_vars_rejects_special_chars() {
+        let invalid_names = vec![
+            "FOO=BAR",     // contains =
+            "MY{VAR}",     // contains { }
+            "VAR(NAME)",   // contains ( )
+            "MY VAR",      // contains space
+            "123START",    // starts with digit
+            "",            // empty
+            "PATH%INJECT", // contains %
+        ];
+
+        for name in invalid_names {
+            let vars = vec![(name.to_string(), "value".to_string())];
+            let result = validate_env_vars(&vars);
+            assert!(
+                result.is_err(),
+                "Env var name '{}' should be rejected",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_env_vars_allows_valid_names() {
+        let valid_names = vec![
+            "HOME", "MY_VAR", "_PRIVATE", "node_env", "CC", "A1B2C3", "_", "_123",
+        ];
+
+        for name in valid_names {
+            let vars = vec![(name.to_string(), "value".to_string())];
+            let result = validate_env_vars(&vars);
+            assert!(result.is_ok(), "Env var name '{}' should be allowed", name);
+        }
+    }
+
+    #[test]
+    fn test_is_valid_env_var_name() {
+        assert!(is_valid_env_var_name("HOME"));
+        assert!(is_valid_env_var_name("_FOO"));
+        assert!(is_valid_env_var_name("MY_VAR_123"));
+        assert!(is_valid_env_var_name("_"));
+
+        assert!(!is_valid_env_var_name(""));
+        assert!(!is_valid_env_var_name("123"));
+        assert!(!is_valid_env_var_name("FOO%BAR"));
+        assert!(!is_valid_env_var_name("BASH_FUNC_x%%"));
+        assert!(!is_valid_env_var_name("MY{VAR}"));
+        assert!(!is_valid_env_var_name("A=B"));
     }
 }
