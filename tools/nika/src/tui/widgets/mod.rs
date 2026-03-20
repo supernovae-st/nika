@@ -23,7 +23,6 @@ mod chat_node_box;
 mod chat_task_queue;
 mod command_palette;
 mod dag_ascii;
-mod verb_type;
 #[allow(dead_code)]
 mod dag_edge;
 #[allow(dead_code)]
@@ -55,7 +54,9 @@ pub mod task_box;
 mod terminal_size;
 mod timeline;
 pub mod tree;
+mod utils;
 mod verb_input;
+mod verb_type;
 mod which_key;
 
 // Shared panel components for view composition
@@ -154,3 +155,5 @@ pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
 };
 // Progress widgets (DownloadProgress + TaskProgress removed — never rendered)
+// Shared utilities
+pub use utils::centered_rect;

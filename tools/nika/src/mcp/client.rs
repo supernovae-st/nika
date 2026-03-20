@@ -1756,17 +1756,11 @@ mod tests {
 
         // Call with params A
         let params_a = serde_json::json!({"focus_key": "qr-code"});
-        client
-            .call_tool("novanet_context", params_a)
-            .await
-            .unwrap();
+        client.call_tool("novanet_context", params_a).await.unwrap();
 
         // Call with params B - different, should miss
         let params_b = serde_json::json!({"focus_key": "barcode"});
-        client
-            .call_tool("novanet_context", params_b)
-            .await
-            .unwrap();
+        client.call_tool("novanet_context", params_b).await.unwrap();
 
         let stats = client.cache_stats().unwrap();
         assert_eq!(stats.misses, 2);

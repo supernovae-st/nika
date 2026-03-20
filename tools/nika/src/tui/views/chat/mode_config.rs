@@ -2,8 +2,6 @@
 //!
 //! Contains mode switching, configuration, and utility methods.
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-
 use super::{ChatMode, ChatView, MessageRole};
 use crate::tui::state::{ChatOverlayMessage, ChatOverlayMessageRole, ChatOverlayState};
 
@@ -112,26 +110,7 @@ pub(super) fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
         .unwrap_or(s.len())
 }
 
-/// Helper function to create a centered rectangle for overlays
-pub(super) fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(area);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
+// centered_rect moved to widgets/utils.rs (shared utility)
 
 #[cfg(test)]
 mod tests {
@@ -159,6 +138,8 @@ mod tests {
 
     #[test]
     fn test_centered_rect() {
+        use crate::tui::widgets::centered_rect;
+        use ratatui::layout::Rect;
         let area = Rect::new(0, 0, 100, 50);
         let centered = centered_rect(60, 80, area);
 

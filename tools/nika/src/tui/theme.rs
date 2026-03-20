@@ -893,7 +893,10 @@ mod tests {
         let theme = Theme::novanet();
         assert_eq!(theme.mcp_tool_color("novanet_describe"), theme.mcp_describe);
         assert_eq!(theme.mcp_tool_color("novanet_search"), theme.mcp_search);
-        assert_eq!(theme.mcp_tool_color("novanet_introspect"), theme.mcp_describe);
+        assert_eq!(
+            theme.mcp_tool_color("novanet_introspect"),
+            theme.mcp_describe
+        );
         assert_eq!(theme.mcp_tool_color("novanet_context"), theme.mcp_context);
         assert_eq!(theme.mcp_tool_color("novanet_write"), theme.mcp_write);
         assert_eq!(theme.mcp_tool_color("novanet_audit"), theme.mcp_audit);
