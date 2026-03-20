@@ -103,6 +103,7 @@ impl ChatView {
 
 /// Convert character offset to byte offset in a UTF-8 string
 /// This handles multi-byte characters correctly
+#[allow(dead_code)]
 pub(super) fn char_to_byte_offset(s: &str, char_offset: usize) -> usize {
     s.char_indices()
         .nth(char_offset)

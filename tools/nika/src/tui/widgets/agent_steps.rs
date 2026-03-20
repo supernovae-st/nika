@@ -1834,7 +1834,7 @@ mod tests {
     use super::*;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // VERB TYPE TESTS (VerbType is defined in dag.rs, re-exported here)
+    // VERB TYPE TESTS (VerbType is defined in verb_type.rs, re-exported here)
     // ═══════════════════════════════════════════════════════════════════════════════
 
     #[test]

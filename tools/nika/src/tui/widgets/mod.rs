@@ -59,6 +59,10 @@ mod verb_input;
 mod verb_type;
 mod which_key;
 
+// Micro-widgets for F1-style inline telemetry (staged for TUI redesign Phase 6)
+#[allow(dead_code)]
+pub mod micro;
+
 // Shared panel components for view composition
 pub mod panels;
 

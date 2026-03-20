@@ -17,8 +17,8 @@
 //! +-----------------------------------------------------------------------------+
 //! ```
 
-// Allow dead code for types that will be used when agent integration is complete
-#![allow(dead_code)]
+// Blanket #![allow(dead_code)] removed — Phase 1 Batch 1.1.2
+// Per-item allows added where needed for staged code.
 
 use std::time::Instant;
 
@@ -47,7 +47,9 @@ use crate::tui::state::{ChatPanel, PanelScrollState, TuiState};
 use crate::tui::theme::{Theme, VerbColor};
 
 // PERF: Pre-computed constants to avoid allocations in render loop
+#[allow(dead_code)]
 const SEPARATOR_20: &str = "────────────────────"; // 20 Unicode box chars (─), compile-time
+#[allow(dead_code)]
 const SEPARATOR_20_ASCII: &str = "--------------------"; // 20 ASCII dashes (-), compile-time
 const SEPARATOR_52: &str = "╰───────────────────────────────────────────────────╯"; // MCP box bottom
                                                                                     // PERF: 200-char separator for dynamic slicing (avoids .repeat() allocation)
