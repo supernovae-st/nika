@@ -568,6 +568,25 @@ pub enum EventKind {
     },
 
     // ═══════════════════════════════════════════
+    // HTTP TELEMETRY EVENTS
+    // ═══════════════════════════════════════════
+    /// HTTP request initiated by fetch: verb
+    HttpRequest {
+        task_id: Arc<str>,
+        method: String,
+        url: String,
+        has_body: bool,
+    },
+    /// HTTP response received by fetch: verb
+    HttpResponse {
+        task_id: Arc<str>,
+        status_code: u16,
+        content_type: Option<String>,
+        content_length: Option<u64>,
+        elapsed_ms: u64,
+    },
+
+    // ═══════════════════════════════════════════
     // MEDIA CLEANUP EVENTS
     // ═══════════════════════════════════════════
     /// Media store cleanup (GC) operation completed
@@ -608,6 +627,8 @@ impl EventKind {
             | Self::MediaStoreFailed { task_id, .. }
             | Self::StructuredOutputAttempt { task_id, .. }
             | Self::StructuredOutputSuccess { task_id, .. }
+            | Self::HttpRequest { task_id, .. }
+            | Self::HttpResponse { task_id, .. }
             | Self::GuardrailPassed { task_id, .. }
             | Self::GuardrailFailed { task_id, .. }
             | Self::GuardrailEscalation { task_id, .. } => Some(task_id),
@@ -3421,5 +3442,79 @@ mod tests {
             resolve_ms: 5,
         };
         assert_eq!(event.task_id(), Some("my_task"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // HTTP Telemetry Events
+    // ═══════════════════════════════════════════════════════════════
+
+    #[test]
+    fn http_request_serde_round_trip() {
+        let event = EventKind::HttpRequest {
+            task_id: Arc::from("fetch_task"),
+            method: "POST".to_string(),
+            url: "https://api.example.com/data".to_string(),
+            has_body: true,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("http_request"));
+        assert!(json.contains("POST"));
+        assert!(json.contains("api.example.com"));
+        let parsed: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, parsed);
+    }
+
+    #[test]
+    fn http_request_has_task_id() {
+        let event = EventKind::HttpRequest {
+            task_id: Arc::from("t1"),
+            method: "GET".to_string(),
+            url: "https://example.com".to_string(),
+            has_body: false,
+        };
+        assert_eq!(event.task_id(), Some("t1"));
+    }
+
+    #[test]
+    fn http_response_serde_round_trip() {
+        let event = EventKind::HttpResponse {
+            task_id: Arc::from("fetch_task"),
+            status_code: 200,
+            content_type: Some("application/json".to_string()),
+            content_length: Some(1234),
+            elapsed_ms: 150,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("http_response"));
+        assert!(json.contains("200"));
+        assert!(json.contains("application/json"));
+        let parsed: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, parsed);
+    }
+
+    #[test]
+    fn http_response_without_content_type() {
+        let event = EventKind::HttpResponse {
+            task_id: Arc::from("t2"),
+            status_code: 404,
+            content_type: None,
+            content_length: None,
+            elapsed_ms: 50,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: EventKind = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, parsed);
+    }
+
+    #[test]
+    fn http_response_has_task_id() {
+        let event = EventKind::HttpResponse {
+            task_id: Arc::from("t3"),
+            status_code: 500,
+            content_type: None,
+            content_length: None,
+            elapsed_ms: 0,
+        };
+        assert_eq!(event.task_id(), Some("t3"));
     }
 }

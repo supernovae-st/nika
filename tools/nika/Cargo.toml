@@ -46,6 +46,7 @@ media-iqa = ["dep:dssim-core", "dep:rgb", "dep:image"]
 fetch-html = ["dep:scraper", "dep:psl"]
 fetch-markdown = ["dep:htmd"]
 fetch-article = ["dep:dom_smoothie", "dep:scraper"]
+fetch-feed = ["dep:feed-rs"]
 fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
@@ -229,6 +230,7 @@ rgb = { version = "0.8", optional = true }
 scraper = { version = "0.22", optional = true, features = ["atomic"] }
 htmd = { version = "0.5", optional = true }
 dom_smoothie = { version = "0.16", optional = true }
+feed-rs = { version = "2.3", optional = true }
 psl = { version = "2", optional = true }
 
 # Logging
