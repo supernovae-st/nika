@@ -21,7 +21,7 @@ src/
 │   ├── runner.rs        #   Main workflow runner
 │   ├── executor/        #   Task executor (verb dispatch)
 │   ├── rig_agent_loop/  #   Agent loop (per-provider)
-│   ├── builtin/         #   12 core + 18 media tools (nika:thumbnail, etc.)
+│   ├── builtin/         #   12 core + 23 media/fetch tools (nika:thumbnail, etc.)
 │   │   └── media/       #   Media tools: import, thumbnail, chart, provenance, etc.
 │   └── security.rs      #   Command blocklist + env validation
 ├── mcp/                 # MCP client (rmcp adapter, pool, retry, validation)
@@ -73,7 +73,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (6200+, safe — no keychain)
+cargo test --lib             # Unit tests (6300+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
@@ -115,9 +115,27 @@ infer:
   - Note: GGUF models are text-only — vision requires VisionModelBuilder + ISQ from safetensors
 - Unsupported: DeepSeek (returns VisionNotSupported error)
 
+## Fetch Extraction (v0.35.0 — PR5)
+
+The `fetch:` verb supports `extract:` for HTML post-processing and `response:` for output modes:
+
+### Extract modes
+- `extract: markdown` — Clean Markdown via htmd [fetch-markdown]
+- `extract: article` — Main article content via dom_smoothie [fetch-article]
+- `extract: text` — Visible text, optionally filtered by `selector:` [fetch-html]
+- `extract: selector` — Raw HTML of matching elements [fetch-html]
+- `extract: metadata` — OG, Twitter Cards, JSON-LD, SEO tags as JSON [fetch-html]
+- `extract: links` — Rich link classification (internal/external, nav/content) [fetch-html]
+- `extract: jsonpath` — JSONPath query on JSON responses (zero deps)
+
+### Response modes
+- `response: full` — JSON with status, headers, body, final URL
+- `response: binary` — Store in CAS, return hash for media pipeline
+- No response field — Raw body text (backward compatible)
+
 ## Media Tools (v0.34.0)
 
-21 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
+26 builtin media tools accessible via `invoke: nika:*`, organized in 3 tiers:
 
 ### Tier 1 — Always-on (5 tools)
 
@@ -140,7 +158,7 @@ infer:
 | `nika:optimize` | media-optimize | Lossless PNG optimization (oxipng) |
 | `nika:svg_render` | media-svg | SVG to PNG rasterization (resvg) |
 
-### Tier 3 — Opt-in (8 tools)
+### Tier 3 — Opt-in (13 tools)
 
 | Tool | Feature | Description |
 |------|---------|-------------|
@@ -152,6 +170,11 @@ infer:
 | `nika:verify` | media-provenance | C2PA manifest verification + EU AI Act compliance |
 | `nika:qr_validate` | media-qr | QR decode + 0-100 scan score (qrcode-ai-scanner-core) |
 | `nika:quality` | media-iqa | Image quality assessment (DSSIM/SSIM) |
+| `nika:html_to_md` | fetch-markdown | HTML to clean Markdown (htmd) |
+| `nika:css_select` | fetch-html | CSS selector extraction (scraper) |
+| `nika:extract_metadata` | fetch-html | OG, Twitter Cards, JSON-LD, SEO metadata |
+| `nika:extract_links` | fetch-html | Rich link classification (internal/external/nav/content) |
+| `nika:readability` | fetch-article | Article content extraction (dom_smoothie) |
 
 **Security rules:**
 - NEVER use `image::load_from_memory()` directly → use `decode_image_safe()` with Limits
