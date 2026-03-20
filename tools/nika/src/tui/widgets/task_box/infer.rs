@@ -385,18 +385,19 @@ impl InferBox {
             // Prepend border and ┊ prefix
             let mut spans = vec![Span::styled("│ ┊ ", border_style)];
             spans.extend(decrypt_line.spans);
-            // Add streaming cursor if active
-            if self.streaming_cursor {
+            // Add blinking streaming cursor (500ms on, 500ms off at 60fps)
+            if self.streaming_cursor && (ctx.frame / 30) % 2 == 0 {
                 spans.push(Span::styled("█", content_style));
             }
             items.push(ListItem::new(Line::from(spans)));
         } else {
             // Plain text (completed or decrypt disabled)
-            let cursor = if self.streaming_cursor && self.state.is_running() {
-                "█"
-            } else {
-                ""
-            };
+            let cursor =
+                if self.streaming_cursor && self.state.is_running() && (ctx.frame / 30) % 2 == 0 {
+                    "█"
+                } else {
+                    ""
+                };
 
             if self.expanded_response {
                 // Show full response with line breaks when expanded
