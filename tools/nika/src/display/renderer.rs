@@ -1480,7 +1480,7 @@ impl CliRenderer {
 // ═══════════════════════════════════════
 
 /// Format bytes: 1234 → "1.2 KB", 1234567 → "1.2 MB"
-fn format_bytes(bytes: u64) -> String {
+pub(crate) fn format_bytes(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{} B", bytes)
     } else if bytes < 1024 * 1024 {
