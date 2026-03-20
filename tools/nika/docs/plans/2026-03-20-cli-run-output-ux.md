@@ -8,6 +8,70 @@
 
 **Tech Stack:** `colored` 2.1 (already dep), `unicode-width` 0.2 (move from optional to always-on), `terminal_size` 0.4 (move from optional to always-on). No new crates.
 
+## Critical Bugs Fixed in This Plan
+
+### BUG FIX 1: ColoredString alignment (CRITICAL)
+
+`format!("{:<14}", task_id.bold())` does NOT work — Rust's `Formatter` counts ANSI
+escape bytes toward the width. ALL downstream columns shift left.
+
+**Rule:** NEVER use `{:<width}` with `ColoredString`. Always pad plain text first:
+
+```rust
+// WRONG:
+format!("{:<14}", task_id.bold())
+
+// CORRECT — pad first, color second:
+format!("{}", format!("{:<14}", task_id).bold())
+```
+
+### BUG FIX 2: UTF-8 panic in JSON preview (CRITICAL)
+
+`&json[..max_chars]` panics if `max_chars` falls mid multi-byte UTF-8. Use `floor_char_boundary()`:
+
+```rust
+// WRONG:
+&json[..max_chars]
+
+// CORRECT:
+let end = json.floor_char_boundary(max_chars);
+&json[..end]
+```
+
+### BUG FIX 3: .dimmed() on String won't compile (CRITICAL)
+
+`Colorize` trait is NOT implemented for `String` in `colored` 2.x. Only `&str` and `ColoredString`.
+
+```rust
+// WRONG:
+colors::tokens(42).dimmed()
+
+// CORRECT:
+colors::tokens(42).as_str().dimmed()
+```
+
+### BUG FIX 4: display_width heuristic is wrong (MAJOR)
+
+Existing `display_width()` uses `ch.len_utf8() >= 3` — wrong for all Cosmic icons (3 bytes but 1 column).
+
+```rust
+// CORRECT:
+fn display_width(s: &str) -> usize {
+    unicode_width::UnicodeWidthStr::width(s)
+}
+```
+
+### BUG FIX 5: Ambiguous-width Unicode icons (MAJOR)
+
+| Old | New | Reason |
+|-----|-----|--------|
+| △ U+25B3 (A) | ⋈ U+22C8 (N) | provider |
+| ⛨ U+26E8 (A) | ⊠ U+22A0 (N) | guardrail |
+| ◎ U+25CE (A) | ⊚ U+229A (N) | artifact |
+| ▣ U+25A3 (A) | ⊡ U+22A1 (N) | media |
+| ◐ U+25D0 (A) | ⟐ U+27D0 (N) | vision |
+| ◈ U+25C8 (A) | ⊗ U+2297 (N) | agent meta |
+
 **Two distinct philosophies:**
 
 | | `nika run` | `nika check` |
@@ -146,17 +210,20 @@ pub fn skipped()  -> ColoredString { "\u{2298}".dimmed()       } // ⊘
 // SUBSYSTEM ICONS
 // ═══════════════════════════════════════════
 
-pub fn provider()   -> ColoredString { "\u{25B3}".blue()    } // △
-pub fn mcp()        -> ColoredString { "\u{229E}".green()   } // ⊞
-pub fn guardrail()  -> ColoredString { "\u{26E8}".yellow()  } // ⛨
-pub fn artifact()   -> ColoredString { "\u{25CE}".cyan()    } // ◎
-pub fn media()      -> ColoredString { "\u{25A3}".magenta() } // ▣
-pub fn structured() -> ColoredString { "\u{2B21}".blue()    } // ⬡
-pub fn vision()     -> ColoredString { "\u{25D0}".purple()  } // ◐
-pub fn http()       -> ColoredString { "\u{21C4}".cyan()    } // ⇄
-pub fn retry()      -> ColoredString { "\u{21AF}".yellow()  } // ↯
-pub fn agent_meta() -> ColoredString { "\u{25C8}".red()     } // ◈
-pub fn log()        -> ColoredString { "\u{25AA}".dimmed()   } // ▪
+// NOTE: All icons are East Asian Width = Narrow (N) to avoid
+// alignment issues across terminals (CJK, macOS, iTerm2).
+// Ambiguous (A) characters like △⛨◎▣◐◈ were replaced.
+pub fn provider()   -> ColoredString { "\u{22C8}".blue()    } // ⋈ bowtie
+pub fn mcp()        -> ColoredString { "\u{229E}".green()   } // ⊞ squared plus
+pub fn guardrail()  -> ColoredString { "\u{22A0}".yellow()  } // ⊠ squared times
+pub fn artifact()   -> ColoredString { "\u{229A}".cyan()    } // ⊚ circled ring
+pub fn media()      -> ColoredString { "\u{22A1}".magenta() } // ⊡ squared dot
+pub fn structured() -> ColoredString { "\u{2B21}".blue()    } // ⬡ hexagon
+pub fn vision()     -> ColoredString { "\u{27D0}".purple()  } // ⟐ diamond dot
+pub fn http()       -> ColoredString { "\u{21C4}".cyan()    } // ⇄ bidirectional
+pub fn retry()      -> ColoredString { "\u{21AF}".yellow()  } // ↯ zigzag
+pub fn agent_meta() -> ColoredString { "\u{2297}".red()     } // ⊗ circled times
+pub fn log()        -> ColoredString { "\u{25AA}".dimmed()   } // ▪ small square
 ```
 
 **Step 3: Create `src/display/colors.rs`**
@@ -262,7 +329,9 @@ pub fn ttft(ms: u64) -> ColoredString {
 /// Keys in blue, strings in green, numbers in yellow, booleans in magenta.
 pub fn json_preview(json: &str, max_chars: usize) -> String {
     let truncated = if json.len() > max_chars {
-        format!("{}…", &json[..max_chars])
+        // CRITICAL: &json[..max_chars] panics if mid-UTF8. Use floor_char_boundary.
+        let end = json.floor_char_boundary(max_chars);
+        format!("{}…", &json[..end])
     } else {
         json.to_string()
     };

@@ -454,38 +454,62 @@ P-RECORD (confidence tracking) + P-SHAKA (dynamic re-dispatch) integration.
 
 ---
 
-## 7. Nika's 4-Slot Proposal: Deep Analysis
+## 7. Nika's 8-Preset Unified Agents Block: Deep Analysis
 
-### 7.1 The Four Satellites
+### 7.1 The Eight Agent Presets
 
 ```
 +===============================================================================+
-|                    NIKA MODEL SLOTS (P-MODEL)                                  |
+|                    NIKA AGENT PRESETS (P-MODEL)                                 |
 +===============================================================================+
 |                                                                                |
-|  EDISON (PUNK-03, Intelligence)                                                |
-|  Role:     Primary creative work -- generation, writing, coding                |
+|  MAIN                                                                          |
+|  Role:     Primary creative work -- generation, writing, orchestration         |
 |  Profile:  High quality, moderate cost, moderate speed                         |
 |  Default:  claude-sonnet-4-6 / gpt-4o                                          |
-|  Use:      Content generation, complex infer: tasks, code writing              |
+|  Use:      Content generation, complex infer: tasks, general purpose           |
 |                                                                                |
-|  ATLAS (PUNK-05, Force)                                                        |
+|  FAST                                                                          |
 |  Role:     Fast tactical execution -- structured tasks, formatting             |
 |  Profile:  Good quality, low cost, high speed                                  |
 |  Default:  llama-3.3-70b (Groq) / gpt-4o-mini / claude-haiku                  |
 |  Use:      Record compression, JSON extraction, simple transforms              |
 |                                                                                |
-|  YORK (PUNK-06, Resources)                                                     |
+|  REASON                                                                        |
+|  Role:     Deep reasoning -- planning, analysis, critique, review              |
+|  Profile:  Highest quality, high cost, slow (thinking enabled)                 |
+|  Default:  claude-sonnet-4-6 + extended_thinking / o1-preview                  |
+|  Use:      Strategic planning, complex analysis, multi-step reasoning          |
+|                                                                                |
+|  SEARCH                                                                        |
 |  Role:     Search and retrieval -- research, data collection                   |
 |  Profile:  Search-optimized, low cost, variable speed                          |
 |  Default:  deepseek-chat / perplexity/sonar-pro                                |
 |  Use:      Information gathering, search synthesis, RAG queries                |
 |                                                                                |
-|  PYTHAGORAS (PUNK-04, Logic)                                                   |
-|  Role:     Deep reasoning -- planning, analysis, critique, review              |
-|  Profile:  Highest quality, high cost, slow (thinking enabled)                 |
-|  Default:  claude-sonnet-4-6 + extended_thinking / o1-preview                  |
-|  Use:      Strategic planning, code review, complex analysis                   |
+|  VISION                                                                        |
+|  Role:     Visual analysis -- image understanding, OCR                         |
+|  Profile:  Vision-capable, moderate cost                                       |
+|  Default:  openai/gpt-4o / native/qwen2-vl                                    |
+|  Use:      Image analysis, visual QA, screenshot understanding                 |
+|                                                                                |
+|  JUDGE                                                                         |
+|  Role:     Quality evaluation -- scoring, validation, gate checks              |
+|  Profile:  High quality, moderate cost, deterministic                          |
+|  Default:  claude-sonnet-4-6 / gpt-4o                                          |
+|  Use:      Output validation, quality scoring, acceptance criteria              |
+|                                                                                |
+|  CODE                                                                          |
+|  Role:     Code generation and review                                          |
+|  Profile:  Code-optimized, moderate cost                                       |
+|  Default:  claude-sonnet-4-6 / deepseek-coder                                  |
+|  Use:      Code writing, refactoring, code review, debugging                   |
+|                                                                                |
+|  SUMMARY                                                                       |
+|  Role:     Compression and summarization                                       |
+|  Profile:  Good quality, low cost, fast                                        |
+|  Default:  llama-3.3-70b (Groq) / gpt-4o-mini                                 |
+|  Use:      Text summarization, record compression, key extraction              |
 |                                                                                |
 +===============================================================================+
 ```
@@ -495,64 +519,77 @@ P-RECORD (confidence tracking) + P-SHAKA (dynamic re-dispatch) integration.
 ```yaml
 schema: nika/workflow@0.12
 
-model_slots:
-  edison:
+agents:
+  main:
     provider: anthropic
     model: claude-sonnet-4-6
-  atlas:
+  fast:
     provider: groq
     model: llama-3.3-70b-versatile
-  york:
+  search:
     provider: deepseek
     model: deepseek-chat
-  pythagoras:
+  reason:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
-
-default_model_slot: edison
+  vision:
+    provider: openai
+    model: gpt-4o
+  judge:
+    provider: anthropic
+    model: claude-sonnet-4-6
+  code:
+    provider: anthropic
+    model: claude-sonnet-4-6
+  summary:
+    provider: groq
+    model: llama-3.3-70b-versatile
 
 tasks:
   - id: plan
-    model_slot: pythagoras
+    agent: reason
     infer: "Create a content plan for {{with.entity}}"
 
   - id: generate_pages
-    model_slot: edison
+    agent: main
     for_each: $pages
     infer: "Generate page {{with.item}}"
 
   - id: format
-    model_slot: atlas
+    agent: fast
     infer: "Format and validate the generated page"
 ```
 
-### 7.3 Why 4 Slots (Not 2, 3, or 5)
+### 7.3 Why 8 Presets (Not 2, 3, or 4)
 
 | Count | Examples | Problem |
 |:-----:|----------|---------|
 | 2 | fast / quality | Too coarse. Cannot distinguish reasoning from creative. |
 | 3 | Haiku / Sonnet / Opus | Size-based, not capability-based. Search is not a "size". |
-| **4** | **edison / atlas / york / pythagoras** | **Covers all 4 cognitive modes: creative, tactical, search, reasoning.** |
-| 5+ | Adding "orchestrator" or "judge" | Diminishing returns. Shaka (the orchestrator) is not a model slot -- it is the dispatcher. |
+| 4 | main / fast / search / reason | Misses vision, code, judging, summarization -- real workflow needs. |
+| **8** | **main / fast / reason / search / vision / judge / code / summary** | **Covers all functional roles that workflows actually dispatch to.** |
+| 10+ | Adding more specializations | Diminishing returns. Shaka (the orchestrator) is not a preset -- it is the dispatcher. |
 
-The 4-slot design aligns with:
-- **Slate's 4 slots** (main/subagent/search/reasoning) -- validated by production usage
-- **Enterprise two-stack + two-specialty** (deep + fast + search + reasoning)
-- **Cognitive task taxonomy** (create, execute, retrieve, analyze)
+The 8-preset design aligns with:
+- **Slate's 4 slots** (main/subagent/search/reasoning) as a foundation -- extended with 4 more
+- **Enterprise multi-model patterns** (deep + fast + search + reasoning + specialized)
+- **Real workflow needs** (vision analysis, code gen, quality judging, summarization are first-class tasks)
 
-### 7.4 Slot Assignment Heuristics
+### 7.4 Agent Assignment Heuristics
 
-When `model_slot:` is omitted, Nika uses `default_model_slot` (typically `edison`).
-In Shaka mode, the Shaka LLM can dynamically assign slots per satellite dispatch:
+When `agent:` is omitted, Nika uses the `main` preset by default.
+In Shaka mode, the Shaka LLM can dynamically assign presets per task dispatch:
 
 ```
 Shaka decision loop:
-  "This satellite needs research" --> york
-  "This satellite needs fast formatting" --> atlas
-  "This satellite needs creative writing" --> edison
-  "I need to review all results" --> pythagoras (self)
+  "This task needs research" --> search
+  "This task needs fast formatting" --> fast
+  "This task needs creative writing" --> main
+  "This task needs image analysis" --> vision
+  "I need to review all results" --> judge
+  "Compress this output" --> summary
 ```
 
 ---
@@ -561,9 +598,9 @@ Shaka decision loop:
 
 ### 8.1 Model Routing Capabilities
 
-| Feature | Nika (proposed) | Slate | LangGraph | CrewAI | AutoGen | DSPy |
+| Feature | Nika (current) | Slate | LangGraph | CrewAI | AutoGen | DSPy |
 |---------|:-:|:-:|:-:|:-:|:-:|:-:|
-| Named capability slots | **4 slots** | 4 slots | -- | -- | -- | -- |
+| Named capability presets | **8 presets** | 4 slots | -- | -- | -- | -- |
 | Per-task model selection | Yes | Yes | Yes (code) | Via agent | Via agent | Per module |
 | Declarative (config/YAML) | **YAML** | JSON | Code only | Code only | Code only | Code only |
 | Provider abstraction | 7 providers | ~3 | Via LangChain | Via LangChain | Direct | Direct |
@@ -577,7 +614,7 @@ Shaka decision loop:
 ```
 HIGH ABSTRACTION (semantic, portable)
   |
-  |  Nika:      model_slot: edison      (YAML, capability-named)
+  |  Nika:      agent: main             (YAML, capability-named, 8 presets)
   |  Slate:     slot: main              (JSON, role-named)
   |
   |  OpenRouter: tier: quality           (API, objective-named)
@@ -598,7 +635,7 @@ Nika uses **YAML-first declarative** configuration while Slate uses JSON/TypeScr
 
 | Framework | Naming Style | Memorable? | Portable? | Self-Documenting? |
 |-----------|-------------|:----------:|:---------:|:-----------------:|
-| **Nika** | Character names (edison, atlas) | High | High | Medium (requires learning) |
+| **Nika** | Descriptive presets (main, fast, reason) | Medium | High | High (self-documenting) |
 | **Slate** | Role names (main, subagent) | Medium | High | High |
 | **OpenRouter** | Objective names (fast, quality) | Medium | High | High |
 | **Anthropic** | Poetry names (haiku, sonnet) | High | Low (vendor-specific) | Medium |
