@@ -14,7 +14,7 @@
 <sup>✨ Transform YAML into intelligent AI workflows ✨</sup>
 
 <!-- Primary Badges -->
-[![Version](https://img.shields.io/badge/v0.30.8-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/v0.35.2-7c3aed?style=for-the-badge&logo=semver&logoColor=white)](CHANGELOG.md)
 [![Rust](https://img.shields.io/badge/rust_1.86+-f97316?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/AGPL--3.0-22c55e?style=for-the-badge&logo=gnu&logoColor=white)](LICENSE)
 [![Website](https://img.shields.io/badge/🦋_nika.sh-8b5cf6?style=for-the-badge)](https://nika.sh)
@@ -22,11 +22,11 @@
 <!-- GitHub Badges -->
 [![CI](https://img.shields.io/github/actions/workflow/status/supernovae-st/nika/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/supernovae-st/nika/actions)
 [![Stars](https://img.shields.io/github/stars/supernovae-st/nika?style=flat-square&logo=github&label=Stars)](https://github.com/supernovae-st/nika/stargazers)
-[![Tests](https://img.shields.io/badge/tests-5,212_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
+[![Tests](https://img.shields.io/badge/tests-6,735+_passing-10b981?style=flat-square&logo=checkmarx)](https://github.com/supernovae-st/nika/actions)
 [![LOC](https://img.shields.io/badge/LOC-110k-0ea5e9?style=flat-square&logo=codeclimate)](https://github.com/supernovae-st/nika)
 
 <!-- Feature Badges -->
-[![Providers](https://img.shields.io/badge/🤖_LLM_providers-6-ec4899?style=flat-square)](#-providers)
+[![Providers](https://img.shields.io/badge/🤖_LLM_providers-8-ec4899?style=flat-square)](#-providers)
 [![Views](https://img.shields.io/badge/🖥️_TUI_views-4-f59e0b?style=flat-square)](#-studio-tui)
 [![Widgets](https://img.shields.io/badge/🧩_widgets-39-06b6d4?style=flat-square)](#-chat-dag-widgets)
 [![MCP](https://img.shields.io/badge/🔌_MCP-native-8b5cf6?style=flat-square)](#-mcp-integration)
@@ -56,7 +56,9 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
     ║                                                                       ║
     ║       • Zero dependencies          • Full observability               ║
     ║       • Single Rust binary         • Native MCP client                ║
-    ║       • 5 semantic verbs           • 6 LLM providers                  ║
+    ║       • 5 semantic verbs           • 8 LLM providers                  ║
+    ║       • 26 media tools             • 9 extract modes                  ║
+    ║       • Vision support             • Pipe transforms                  ║
     ║                                                                       ║
     ╚═══════════════════════════════════════════════════════════════════════╝
 ```
@@ -68,7 +70,7 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 <!-- TUI Screenshot as ASCII Art -->
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│  🦋 Nika Studio                                                v0.30.3  ⌘K  ?  │
+│  🦋 Nika Studio                                                v0.35.2  ⌘K  ?  │
 ├─────────────────────────────────────────────────────────────────────────────────────┤
 │ ┌─ 📁 Files ───────────┐ ┌─ 📝 Editor ──────────────────────────────────────────┐  │
 │ │ ▸ workflows/         │ │  1 │ schema: "nika/workflow@0.12"                   │  │
@@ -97,31 +99,32 @@ Connect LLMs, shell commands, HTTP APIs, and MCP tools in a single declarative f
 
 <br>
 
-## ✨ What's New in v0.30
+## ✨ What's New in v0.35
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🦋 v0.30 — STRUCTURED OUTPUT + LSP + SECURITY HARDENING                       ║
+║  🦋 v0.35 — VISION + MEDIA PIPELINE + FETCH EXTRACTION + TUI REDESIGN         ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  ⚡ v0.30.0 — Structured Output + Tool Injection                              ║
-║  ├── DynamicSubmitTool — rig ToolDyn trait for structured output               ║
-║  ├── structured: field — Wired through 3-phase AST pipeline                   ║
-║  └── 5-layer structured output architecture                                   ║
+║  👁️ v0.34.0 — Vision Support + 26 Media Tools                                 ║
+║  ├── Multimodal content: for infer: (images → base64 via CAS)                 ║
+║  ├── 26 builtin media tools (3 tiers: always-on, core, opt-in)               ║
+║  └── Cloud vision: Claude, OpenAI, Mistral, Groq, Gemini, xAI               ║
 ║                                                                               ║
-║  🧠 v0.30.1 — LSP Intelligence + VS Code Extension                            ║
-║  ├── Semantic tokens, Go to Definition, verb completions                      ║
-║  └── Dedicated .nika.yaml language support for VS Code                        ║
+║  🌐 v0.35.0 — Fetch Extraction (9 modes)                                      ║
+║  ├── extract: markdown | article | text | selector | metadata                 ║
+║  ├── extract: links | jsonpath | feed | llm_txt                               ║
+║  └── response: full | binary for output control                               ║
 ║                                                                               ║
-║  🔒 v0.30.2 — Deep Audit + Security Hardening                                 ║
-║  ├── Block LD_PRELOAD, strip API keys from exec, 10MB write limit             ║
-║  └── AST hardening: reject multi-verb tasks, NaN, dangling deps              ║
+║  🔗 v0.35.1 — Pipe Transforms in All Templates                                ║
+║  ├── {{with.data | uppercase | trim}} syntax in all template contexts         ║
+║  └── 8 LLM providers: +Gemini, +xAI (Grok)                                   ║
 ║                                                                               ║
-║  🔬 v0.30.3 — A+++ Quality Pass                                               ║
-║  ├── CRLF state machine (LSP 3.17 compliant), NaN bug fixes                  ║
-║  └── 34 property tests, silent-skip elimination                               ║
+║  🎨 v0.35.2 — TUI Redesign + 47 Bug Fixes                                     ║
+║  ├── Tailwind-compatible colors, rounded borders, streaming cursor            ║
+║  └── Security/correctness audit: SSRF, binary size, vision limits             ║
 ║                                                                               ║
-║  📊 STATS: 5,204+ tests | 34 proptests | Zero clippy warnings | 0.x.x forever║
+║  📊 STATS: 6,735+ tests | 34 proptests | Zero clippy warnings | 0.x.x forever║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -277,7 +280,7 @@ flowchart TB
 │  • 50 custom integrations              • 1 MCP client, unlimited servers        │
 │  • 4-6 hours to detect faults          • Real-time NDJSON traces               │
 │  • Python/JS spaghetti code            • Declarative YAML (5 verbs)            │
-│  • Vendor lock-in                      • 6 providers, swap in 1 line           │
+│  • Vendor lock-in                      • 8 providers, swap in 1 line           │
 │  • "It worked on my machine"           • Reproducible, version-controlled      │
 │  • 500+ hours debugging                • Structured events, clear errors       │
 │                                                                                 │
@@ -297,7 +300,7 @@ flowchart LR
         A1["YAML<br/>workflows"]
         A2["Native MCP<br/>client"]
         A3["NDJSON<br/>traces"]
-        A4["6 providers<br/>1 config"]
+        A4["8 providers<br/>1 config"]
     end
 
     B1 -.->|"becomes"| A1
@@ -330,8 +333,8 @@ flowchart LR
 | **Dependencies** | 0 | Many | Many | Many | Many |
 | **Chat-as-DAG** | ✅ Native | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Type Safety** | ✅ Rust | ❌ Python | ❌ Python | ❌ Python | ❌ Python |
-| **Streaming** | ✅ All 6 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
-| **Production Ready** | ✅ 4,152 tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
+| **Streaming** | ✅ All 8 | ✅ Yes | ✅ Yes | 🟡 Partial | 🟡 Partial |
+| **Production Ready** | ✅ 6,735+ tests | 🟡 Varies | 🟡 Varies | 🟡 New | 🔴 Needs guardrails |
 
 </div>
 
@@ -374,7 +377,7 @@ mindmap
 │  ✅ You need MCP tool integration         🦙 You're building pure RAG apps      │
 │  ✅ You want full observability           👥 You need pre-built agent roles     │
 │  ✅ You prefer Rust performance           🤖 You're doing research/exploration  │
-│  ✅ You need 6 LLM provider support                                             │
+│  ✅ You need 8 LLM provider support                                             │
 │  ✅ You want Chat-as-DAG architecture                                           │
 │  ✅ You need reproducible workflows                                             │
 │                                                                                 │
@@ -399,7 +402,7 @@ cd nika && cargo install --path tools/nika
 
 # ✅ Verify installation
 nika --version
-# nika 0.17.5
+# nika 0.35.2
 ```
 
 ### 👋 Hello World (30 seconds)
@@ -493,7 +496,7 @@ flowchart TB
         Parser["🔍 AST Parser<br/><i>YAML → Rust structs</i>"]
         StableDag["🔗 StableGraph DAG<br/><i>petgraph stable_graph</i>"]
         Executor["⚡ Task Executor<br/><i>5 verbs + for_each</i>"]
-        BuiltinTools["🔧 Builtin Tools<br/><i>6 nika:* tools</i>"]
+        BuiltinTools["🔧 Builtin Tools<br/><i>12 core + 26 media tools</i>"]
         Binding["🔗 Binding System<br/><i>{{with.alias}} + @mentions</i>"]
 
         Parser --> StableDag
@@ -511,14 +514,16 @@ flowchart TB
         Agent["🤖 agent"]
     end
 
-    subgraph Providers["🔮 6 LLM Providers"]
+    subgraph Providers["🔮 8 LLM Providers"]
         direction TB
         Claude["🟠 Claude"]
         OpenAI["🟢 OpenAI"]
         Mistral["🔵 Mistral"]
         Groq["⚡ Groq"]
         DeepSeek["🌊 DeepSeek"]
-        Ollama["🦙 Ollama"]
+        Gemini["💎 Gemini"]
+        XAi["⚡ xAI"]
+        Native["🦙 Native"]
     end
 
     subgraph MCP["🔌 MCP Integration"]
@@ -604,7 +609,7 @@ flowchart TB
 │      └── animation.rs       AnimationTicker (60fps)                            │
 │                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  📊 TOTALS: 172 files │ 106,000 LOC │ 3,449 tests │ 0 clippy warnings         │
+│  📊 TOTALS: 180+ files │ 110,000 LOC │ 6,735+ tests │ 0 clippy warnings       │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -689,7 +694,7 @@ mindmap
   root((⚡ 5 Verbs))
     🧠 infer
       LLM text generation
-      6 providers supported
+      8 providers supported
       Real-time streaming
       Shorthand syntax
       Temperature control
@@ -952,13 +957,11 @@ flowchart LR
 
 ## 🔧 Builtin Tools
 
-<sup>✨ New in v0.9.3</sup>
-
-6 `nika:*` prefixed tools for workflow control:
+12 core `nika:*` tools for workflow control + 26 media tools (see [Media Tools](#-media-tools)):
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         🔧 BUILTIN TOOLS (nika:*)                               │
+│                       🔧 CORE BUILTIN TOOLS (nika:*)                            │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
 │  ⏱️  nika:sleep     │  Delay execution with millisecond precision              │
@@ -968,8 +971,11 @@ flowchart LR
 │  💬  nika:prompt    │  Interactive user prompts (Human-in-the-Loop)            │
 │  🔄  nika:run       │  Execute sub-workflows with validation                   │
 │                                                                                 │
+│  📂 FILE TOOLS: nika:read | nika:write | nika:edit | nika:glob | nika:grep    │
+│  📸 MEDIA TOOLS: 26 tools in 3 tiers (import, thumbnail, chart, etc.)         │
+│                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  💡 These tools are available in any agent: block without MCP config!          │
+│  💡 Core tools available in any agent: block without MCP config!               │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1136,16 +1142,20 @@ stateDiagram-v2
 
 <div align="center">
 
-### 6 LLM Providers, 1 Config
+### 8 LLM Providers, 1 Config
 
-| Provider | Env Variable | Default Model | Streaming | Thinking | Status |
-|:--------:|:-------------|:--------------|:---------:|:--------:|:------:|
-| 🟠 **Claude** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | ✅ | ✅ | Primary |
-| 🟢 **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | ✅ | - | Full |
-| 🔵 **Mistral** | `MISTRAL_API_KEY` | `mistral-large-latest` | ✅ | - | Full |
-| ⚡ **Groq** | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | ✅ | - | Full |
-| 🌊 **DeepSeek** | `DEEPSEEK_API_KEY` | `deepseek-chat` | ✅ | - | Full |
-| 🦙 **Ollama** | `OLLAMA_API_BASE_URL` | `llama3.2` | ✅ | - | Local |
+| Provider | Env Variable | Default Model | Streaming | Thinking | Vision | Status |
+|:--------:|:-------------|:--------------|:---------:|:--------:|:------:|:------:|
+| 🟠 **Claude** | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | ✅ | ✅ | ✅ | Primary |
+| 🟢 **OpenAI** | `OPENAI_API_KEY` | `gpt-4o` | ✅ | - | ✅ | Full |
+| 🔵 **Mistral** | `MISTRAL_API_KEY` | `mistral-large-latest` | ✅ | - | ✅ | Full |
+| ⚡ **Groq** | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | ✅ | - | ✅ | Full |
+| 🌊 **DeepSeek** | `DEEPSEEK_API_KEY` | `deepseek-chat` | ✅ | - | - | Full |
+| 💎 **Gemini** | `GEMINI_API_KEY` | `gemini-2.0-flash` | ✅ | - | ✅ | Full |
+| ⚡ **xAI** | `XAI_API_KEY` | `grok-3` | ✅ | - | ✅ | Full |
+| 🦙 **Native** | - | GGUF models | ✅ | - | ✅* | Local |
+
+<sub>*Native vision requires HuggingFace VisionHf models (not GGUF)</sub>
 
 </div>
 
@@ -1168,10 +1178,13 @@ flowchart TD
     C4 -->|"❌ No"| C5{"DEEPSEEK_API_KEY<br/>set?"}
 
     C5 -->|"✅ Yes"| DeepSeek["🌊 Use DeepSeek"]
-    C5 -->|"❌ No"| C6{"OLLAMA_API_BASE_URL<br/>set?"}
+    C5 -->|"❌ No"| C6{"GEMINI_API_KEY<br/>set?"}
 
-    C6 -->|"✅ Yes"| Ollama["🦙 Use Ollama"]
-    C6 -->|"❌ No"| Error["❌ Error:<br/>No provider configured"]
+    C6 -->|"✅ Yes"| Gemini["💎 Use Gemini"]
+    C6 -->|"❌ No"| C7{"XAI_API_KEY<br/>set?"}
+
+    C7 -->|"✅ Yes"| XAi["⚡ Use xAI"]
+    C7 -->|"❌ No"| Error["❌ Error:<br/>No provider configured"]
 
     style Claude fill:#d97757,color:#fff
     style Error fill:#ef4444,color:#fff
@@ -1200,8 +1213,14 @@ flowchart TD
 │  🌊 DEEPSEEK    Best for: Cost-effective, reasoning                             │
 │                 Tip: Strong on math and coding tasks                            │
 │                                                                                 │
-│  🦙 OLLAMA      Best for: Local/private, no API costs                           │
-│                 Tip: Run llama3.2 locally for development                       │
+│  💎 GEMINI      Best for: Large context windows, multimodal                     │
+│                 Tip: 1M+ token context for massive documents                   │
+│                                                                                 │
+│  ⚡ XAI         Best for: Real-time data, Grok models                           │
+│                 Tip: Strong reasoning with up-to-date knowledge                │
+│                                                                                 │
+│  🦙 NATIVE      Best for: Local/private, no API costs                           │
+│                 Tip: GGUF models for text, VisionHf for images                 │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1638,17 +1657,22 @@ tasks:
 ```
 ╔═════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                 ║
-║                           🦋 NIKA v0.30.3 STATS                                 ║
+║                           🦋 NIKA v0.35.2 STATS                                 ║
 ║                                                                                 ║
 ╠═════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                 ║
-║   📊 Tests              │  6,264 passing                                        ║
+║   📊 Tests              │  6,735+ passing                                       ║
 ║   📝 Lines of Code      │  110,000+ LOC                                         ║
 ║   🔧 Clippy Warnings    │  0 (zero!)                                            ║
-║   🔮 LLM Providers      │  6 (Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini) ║
-║   🦙 Native Inference   │  1 (mistral.rs with GGUF models)                      ║
+║   🔮 LLM Providers      │  8 (Claude, OpenAI, Mistral, Groq, DeepSeek,         ║
+║                          │     Gemini, xAI, Native)                              ║
 ║   ⚡ Semantic Verbs     │  5 (infer, exec, fetch, invoke, agent)               ║
-║   🔧 Builtin Tools      │  11 (6 core + 5 file tools)                          ║
+║   🔧 Builtin Tools      │  12 core + 26 media tools                            ║
+║   📸 Media Tools        │  26 (3 tiers: always-on, core, opt-in)               ║
+║   🌐 Extract Modes      │  9 (markdown, article, text, selector, metadata,     ║
+║                          │     links, jsonpath, feed, llm_txt)                   ║
+║   👁️ Vision Support     │  7 cloud providers + native VisionHf                  ║
+║   🔗 Pipe Transforms    │  In all template contexts                             ║
 ║   🔌 MCP Servers        │  48 aliases (Neo4j, GitHub, Slack, etc.)             ║
 ║   🖥️ TUI Views          │  4 (Chat, Home, Studio, Monitor)                     ║
 ║   🧩 TUI Widgets        │  39 widgets                                           ║
@@ -1665,7 +1689,7 @@ tasks:
 ### 📈 Test Distribution by Module
 
 ```mermaid
-pie title 📊 Test Distribution (6,264 tests)
+pie title 📊 Test Distribution (6,735+ tests)
     "🖥️ TUI" : 1800
     "📁 IO" : 150
     "🔗 Binding" : 250
@@ -1694,7 +1718,7 @@ pie title 📊 Test Distribution (6,264 tests)
 | 🔀 `dag/` | 1,914 | 120 | StableGraph, validation |
 | 📊 `event/` | 1,732 | 100 | Event log, traces |
 | 🛠️ `util/` | 1,200 | 350 | Utilities, constants, validation |
-| **Total** | **106,000+** | **6,264** | |
+| **Total** | **110,000+** | **6,735+** | |
 
 <br>
 
@@ -1999,8 +2023,8 @@ cd nika
 # 🔨 Build
 cargo build
 
-# 🧪 Test (6,264 tests)
-cargo test
+# 🧪 Test (6,735+ tests)
+cargo test --lib
 
 # 🔍 Lint
 cargo clippy -- -D warnings
