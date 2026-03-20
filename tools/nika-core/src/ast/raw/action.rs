@@ -123,6 +123,15 @@ pub struct RawFetchAction {
 
     /// Follow redirects
     pub follow_redirects: Option<Spanned<bool>>,
+
+    /// Response mode: "full" (status + headers + body) or "binary" (CAS store)
+    pub response: Option<Spanned<String>>,
+
+    /// Extraction mode: markdown, article, text, selector, metadata, links, feed, jsonpath, llm_txt
+    pub extract: Option<Spanned<String>>,
+
+    /// CSS selector or JSONPath expression (used with extract: selector, text, jsonpath)
+    pub selector: Option<Spanned<String>>,
 }
 
 /// Parameters for the `invoke` verb (MCP tool invocation).

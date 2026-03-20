@@ -736,6 +736,9 @@ fn analyze_fetch(raw: &RawFetchAction) -> AnalyzedFetchAction {
             .as_ref()
             .map(|s| s.value)
             .unwrap_or(true),
+        response: raw.response.as_ref().map(|s| s.value.clone()),
+        extract: raw.extract.as_ref().map(|s| s.value.clone()),
+        selector: raw.selector.as_ref().map(|s| s.value.clone()),
         span: raw.url.span,
     }
 }

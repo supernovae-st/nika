@@ -662,6 +662,9 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
         message: "fetch action requires 'url' field".to_string(),
     })?;
 
+    let extract = get_string_field(file, m, "extract")?;
+    let selector = get_string_field(file, m, "selector")?;
+
     Ok(RawFetchAction {
         url,
         method: get_string_field(file, m, "method")?,
@@ -675,6 +678,9 @@ fn parse_fetch_action(file: FileId, node: &Node) -> Result<RawFetchAction, Parse
             }
         },
         follow_redirects: get_bool_field(file, m, "follow_redirects")?,
+        response: get_string_field(file, m, "response")?,
+        extract,
+        selector,
     })
 }
 
