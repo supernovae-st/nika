@@ -981,6 +981,11 @@ impl TaskExecutor {
         let effective_max_attempts = if can_retry { max_attempts } else { 1 };
         let mut last_error: Option<NikaError> = None;
         let mut current_request = Some(request);
+        let fetch_start = Instant::now();
+
+        // Determine method and has_body for HttpRequest event
+        let req_method = fetch.method.to_uppercase();
+        let req_has_body = fetch.body.is_some() || fetch.json.is_some();
 
         for attempt in 1..=effective_max_attempts {
             // Get the request for this attempt
@@ -1000,8 +1005,33 @@ impl TaskExecutor {
                 current_request = req.try_clone();
             }
 
+            // EMIT: HttpRequest
+            self.event_log.emit(EventKind::HttpRequest {
+                task_id: Arc::clone(task_id),
+                method: req_method.clone(),
+                url: url.to_string(),
+                has_body: req_has_body,
+            });
+
             match req.send().await {
                 Ok(response) => {
+                    // EMIT: HttpResponse
+                    let elapsed_ms = fetch_start.elapsed().as_millis() as u64;
+                    let status_code = response.status().as_u16();
+                    let content_type = response
+                        .headers()
+                        .get("content-type")
+                        .and_then(|v| v.to_str().ok())
+                        .map(|s| s.to_string());
+                    let content_length = response.content_length();
+                    self.event_log.emit(EventKind::HttpResponse {
+                        task_id: Arc::clone(task_id),
+                        status_code,
+                        content_type,
+                        content_length,
+                        elapsed_ms,
+                    });
+
                     // Check for server errors that should be retried
                     if response.status().is_server_error() && attempt < effective_max_attempts {
                         let status = response.status();
@@ -1107,6 +1137,37 @@ impl TaskExecutor {
                             )));
                         }
                     }
+                    // Special case: llm_txt requires sub-requests, handled here not in extract.rs
+                    if fetch.extract.as_deref() == Some("llm_txt") {
+                        let parsed = url::Url::parse(url.as_ref()).map_err(|e| {
+                            NikaError::Execution(format!("Invalid URL for llm_txt: {e}"))
+                        })?;
+                        let origin = parsed.origin().unicode_serialization();
+                        for path in &[
+                            "/.well-known/llm.txt",
+                            "/llm.txt",
+                            "/llms.txt",
+                            "/llms-full.txt",
+                        ] {
+                            let llm_url = format!("{}{}", origin, path);
+                            if let Ok(resp) = http_client.get(&llm_url).send().await {
+                                if resp.status().is_success() {
+                                    if let Ok(body) = resp.text().await {
+                                        if !body.trim().is_empty() {
+                                            return Ok(serde_json::json!({
+                                                "found": true,
+                                                "url": llm_url,
+                                                "content": body,
+                                            })
+                                            .to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return Ok(serde_json::json!({ "found": false }).to_string());
+                    }
+
                     let raw_body = response.text().await.map_err(|e| {
                         NikaError::Execution(format!("Failed to read response: {}", e))
                     })?;

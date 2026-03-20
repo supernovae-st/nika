@@ -1034,6 +1034,39 @@ impl TuiState {
             // ═══════════════════════════════════════════
             // MEDIA EVENTS (no TUI action needed yet)
             // ═══════════════════════════════════════════
+            // ═══════════════════════════════════════════
+            // HTTP TELEMETRY EVENTS
+            // ═══════════════════════════════════════════
+            EventKind::HttpRequest {
+                task_id,
+                method,
+                url,
+                ..
+            } => {
+                self.add_notification(Notification::info(
+                    format!("[{}] HTTP {} {}", task_id, method, url),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+
+            EventKind::HttpResponse {
+                task_id,
+                status_code,
+                elapsed_ms,
+                ..
+            } => {
+                let status_label = if *status_code < 400 { "OK" } else { "ERR" };
+                self.add_notification(Notification::info(
+                    format!(
+                        "[{}] HTTP {} {} ({}ms)",
+                        task_id, status_code, status_label, elapsed_ms
+                    ),
+                    timestamp_ms,
+                ));
+                self.dirty.notifications = true;
+            }
+
             EventKind::MediaExtracted {
                 task_id,
                 block_count,
