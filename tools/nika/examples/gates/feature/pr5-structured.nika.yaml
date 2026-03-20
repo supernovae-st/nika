@@ -1,0 +1,25 @@
+# PR5 Gate: Structured output with JSON schema
+schema: nika/workflow@0.12
+workflow: pr5-structured
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: extract
+    infer:
+      prompt: "List 3 programming languages with their year of creation"
+    max_tokens: 200
+    structured:
+      schema:
+        type: object
+        properties:
+          languages:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                year:
+                  type: integer
+              required: [name, year]
+        required: [languages]
