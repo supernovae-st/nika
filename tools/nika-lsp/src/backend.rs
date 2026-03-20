@@ -17,10 +17,7 @@ use tower_lsp_server::jsonrpc::Result;
 use tower_lsp_server::{Client, LanguageServer};
 
 use crate::ast_integration;
-use crate::completion::{
-    get_completion_context, provider_completions, schema_completions,
-    structured_output_completions, task_id_completions, verb_completions, CompletionContext,
-};
+use crate::completion::{get_completion_context, CompletionContext};
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
 use crate::hover::get_hover;
@@ -63,6 +60,9 @@ impl NikaBackend {
     ///
     /// Uses `ast_integration::extract_task_ids_from_ast()` for accurate
     /// parsing with fallback to string patterns for incomplete YAML.
+    ///
+    /// Retained as backup -- completion now delegates to nika-lsp-core.
+    #[allow(dead_code)]
     fn extract_task_ids(&self, uri: &Uri) -> Vec<String> {
         let doc = match self.documents.get(uri) {
             Some(d) => d,
@@ -239,43 +239,46 @@ impl LanguageServer for NikaBackend {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
 
-        let doc = match self.documents.get(uri) {
-            Some(d) => d,
-            None => return Ok(None),
+        let text = {
+            let doc = match self.documents.get(uri) {
+                Some(d) => d,
+                None => return Ok(None),
+            };
+            doc.content()
         };
 
-        // Determine completion context
-        let context = get_completion_context(&doc, position);
+        // Calculate byte offset from LSP Position
+        let offset = position_to_offset(&text, position);
 
-        let items = match context {
-            CompletionContext::TaskVerb => verb_completions(),
-            CompletionContext::Schema => schema_completions(),
-            CompletionContext::StructuredSchema => structured_output_completions(),
-            CompletionContext::Provider => provider_completions(),
-            CompletionContext::UseReference { partial } => {
-                let task_ids = self.extract_task_ids(uri);
-                task_id_completions(&task_ids, &partial)
-            }
-            CompletionContext::McpServer => {
-                // Extract MCP server names from the document content
-                let content = doc.content();
-                let servers = crate::completion::extract_mcp_servers(&content);
-                crate::mcp_discovery::invoke_completions(&servers, None)
-            }
-            CompletionContext::McpTool { server } => {
-                // Complete tools for the specified MCP server
-                crate::mcp_discovery::mcp_tool_completions(&server)
-            }
-            CompletionContext::Unknown => {
-                // Return all possible completions in unknown context
-                let mut items = verb_completions();
-                items.extend(schema_completions());
-                items
-            }
-        };
+        // Use nika-lsp-core for unified context detection + completions
+        let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
+        let items = nika_lsp_core::handlers::completion::completions(&text, offset, &context);
 
         if items.is_empty() {
-            return Ok(None);
+            // Fallback to legacy completion for contexts nika-lsp-core returns empty
+            // (e.g. MCP discovery which requires runtime state)
+            let doc = match self.documents.get(uri) {
+                Some(d) => d,
+                None => return Ok(None),
+            };
+
+            let legacy_context = get_completion_context(&doc, position);
+            let legacy_items = match legacy_context {
+                CompletionContext::McpServer => {
+                    let content = doc.content();
+                    let servers = crate::completion::extract_mcp_servers(&content);
+                    crate::mcp_discovery::invoke_completions(&servers, None)
+                }
+                CompletionContext::McpTool { server } => {
+                    crate::mcp_discovery::mcp_tool_completions(&server)
+                }
+                _ => vec![],
+            };
+
+            if legacy_items.is_empty() {
+                return Ok(None);
+            }
+            return Ok(Some(CompletionResponse::Array(legacy_items)));
         }
 
         Ok(Some(CompletionResponse::Array(items)))
@@ -354,6 +357,22 @@ impl LanguageServer for NikaBackend {
 
         Ok(None)
     }
+}
+
+/// Convert LSP Position to byte offset in the document text.
+///
+/// Walks the text line-by-line to find the byte offset corresponding to the
+/// given line/character position. Characters are counted as UTF-16 code units
+/// per the LSP spec (but for ASCII-only YAML this is effectively byte offset).
+fn position_to_offset(text: &str, position: Position) -> u32 {
+    let mut offset = 0u32;
+    for (i, line) in text.lines().enumerate() {
+        if i == position.line as usize {
+            return offset + (position.character as u32).min(line.len() as u32);
+        }
+        offset += line.len() as u32 + 1; // +1 for \n
+    }
+    text.len() as u32
 }
 
 /// Extract word at column position.

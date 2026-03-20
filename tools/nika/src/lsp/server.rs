@@ -210,7 +210,17 @@ impl LanguageServer for NikaLanguageServer {
         let docs = self.documents.read().await;
         let text = docs.get(uri).cloned().unwrap_or_default();
 
-        // Use AST-aware completion for semantic context
+        // Use nika-lsp-core for unified completions
+        let offset = super::conversion::position_to_offset(position, &text) as u32;
+        let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
+        let items = nika_lsp_core::handlers::completion::completions(&text, offset, &context);
+
+        if !items.is_empty() {
+            return Ok(Some(CompletionResponse::Array(items)));
+        }
+
+        // Fallback to existing AST-aware completion for contexts
+        // nika-lsp-core doesn't cover yet (e.g. MCP discovery)
         let completions = handlers::completion::compute_completions_with_ast(
             &self.ast_index,
             uri,

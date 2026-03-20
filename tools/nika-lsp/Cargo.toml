@@ -41,6 +41,9 @@ serde_json = "1"
 # Path used for local dev, version used for crates.io publishing
 nika = { path = "../nika", version = "0.34.0" }
 
+# Protocol-agnostic LSP intelligence (shared with embedded nika lsp)
+nika-lsp-core = { path = "../nika-lsp-core" }
+
 # Text manipulation (rope for efficient edits)
 ropey = "1.6"
 
