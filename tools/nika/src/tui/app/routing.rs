@@ -80,10 +80,10 @@ impl App {
                 self.handle_scroll_down();
             }
             Action::ScrollToTop => {
-                self.handle_scroll_up();
+                self.state.ui.chat_overlay.scroll = 0;
             }
             Action::ScrollToBottom => {
-                self.handle_scroll_down();
+                self.state.ui.chat_overlay.scroll = usize::MAX;
             }
 
             // ═══ Pause/Step ═══
