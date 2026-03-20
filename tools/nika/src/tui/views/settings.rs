@@ -525,10 +525,9 @@ impl View for SettingsView {
 
             // ? falls through to app-level Help mode
 
-            // Enter on Providers opens modal (via chat's Ctrl+P)
+            // Enter on Providers opens provider verification modal
             KeyCode::Enter if self.section == SettingsSection::Providers => {
-                // Return None - app.rs will need to handle this specially
-                ViewAction::OpenSettings // Reuse to trigger provider modal
+                ViewAction::VerifyProviders
             }
 
             // 'w' launches the setup wizard

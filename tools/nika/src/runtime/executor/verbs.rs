@@ -643,14 +643,6 @@ impl TaskExecutor {
                             ),
                         });
                     }
-                    if media_type.is_none() {
-                        return Err(NikaError::ValidationError {
-                            reason: format!(
-                                "Vision image has unsupported format (CAS hash: {}). Supported: PNG, JPEG, GIF, WebP",
-                                resolved_source
-                            ),
-                        });
-                    }
                     let b64 = base64::engine::general_purpose::STANDARD.encode(&image_data);
                     let rig_detail = Some(match detail {
                         crate::ast::content::ImageDetail::Low => {

@@ -147,7 +147,10 @@ impl App {
         let alt_pressed = modifiers.contains(KeyModifiers::ALT);
         let is_normal = self.input_mode == InputMode::Normal;
 
-        if (is_normal && modifiers.is_empty()) || alt_pressed {
+        // In Settings view, 1/2/3 are theme shortcuts — don't steal them for view switching.
+        // Alt+1-4 always works for view switching regardless of current view.
+        let on_settings = self.current_view == TuiView::Settings;
+        if alt_pressed || (is_normal && modifiers.is_empty() && !on_settings) {
             if let Some(view) = match code {
                 KeyCode::Char('1') => Some(TuiView::Studio),
                 KeyCode::Char('2') => Some(TuiView::Runner),
