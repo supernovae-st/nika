@@ -705,7 +705,7 @@ async fn run_workflow(
     provider_override: Option<String>,
     model_override: Option<String>,
     quiet: bool,
-    _detail: nika::display::DetailLevel,
+    detail: nika::display::DetailLevel,
 ) -> Result<(), NikaError> {
     let resolved_path = resolve_workflow_path(file).await?;
 
@@ -733,11 +733,42 @@ async fn run_workflow(
     }
 
     if !quiet {
-        nika::display::print_workflow_header(
+        let layer_count = {
+            let mut depths: std::collections::HashMap<&str, usize> = workflow
+                .tasks
+                .iter()
+                .map(|t| (t.name.as_str(), 0))
+                .collect();
+            let mut changed = true;
+            let mut iters = 0;
+            while changed && iters < 100 {
+                changed = false;
+                iters += 1;
+                for task in &workflow.tasks {
+                    for dep_id in &task.depends_on {
+                        if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
+                            if let Some(&dep_depth) = depths.get(dep_name) {
+                                let new_depth = dep_depth + 1;
+                                if new_depth > depths[task.name.as_str()] {
+                                    depths.insert(&task.name, new_depth);
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            depths.values().max().copied().unwrap_or(0) + 1
+        };
+        let gen_id = format!("{:08x}", rand::random::<u32>());
+        nika::display::header::print_header(
             workflow.name.as_deref(),
             workflow.provider.as_deref().unwrap_or("(auto)"),
             workflow.model.as_deref().unwrap_or("(default)"),
             workflow.tasks.len(),
+            layer_count,
+            env!("CARGO_PKG_VERSION"),
+            &gen_id,
         );
 
         // IMP-1: Migration hint for old schema versions
@@ -755,6 +786,7 @@ async fn run_workflow(
     if quiet {
         runner = runner.quiet();
     }
+    let mut runner = runner.with_detail_level(detail);
     let output = runner.run().await?;
 
     if !quiet && !output.is_empty() {

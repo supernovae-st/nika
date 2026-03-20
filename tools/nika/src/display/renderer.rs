@@ -101,6 +101,91 @@ impl CliRenderer {
             .to_string()
     }
 
+    pub fn render_stats_only(&mut self, event: &crate::event::Event) {
+        match &event.kind {
+            EventKind::ProviderResponded {
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                ttft_ms,
+                cost_usd,
+                ..
+            } => {
+                self.stats.total_input_tokens += input_tokens;
+                self.stats.total_output_tokens += output_tokens;
+                self.stats.total_cache_tokens += cache_read_tokens;
+                self.stats.total_cost += cost_usd;
+                if let Some(t) = ttft_ms {
+                    self.stats.ttft_values.push(*t);
+                }
+                self.stats.provider_calls.push(ProviderCallStat {
+                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
+                    input_tokens: *input_tokens,
+                    output_tokens: *output_tokens,
+                    cache_tokens: *cache_read_tokens,
+                    ttft_ms: *ttft_ms,
+                    cost: *cost_usd,
+                });
+            }
+            EventKind::TaskStarted { task_id, .. } => {
+                self.task_starts
+                    .insert(task_id.to_string(), event.timestamp_ms);
+            }
+            EventKind::WorkflowStarted { .. } => {
+                self.workflow_start_ms = event.timestamp_ms;
+            }
+            EventKind::McpInvoke { .. } => {
+                self.stats.mcp_calls += 1;
+            }
+            EventKind::McpRetry { .. } => {
+                self.stats.mcp_retries += 1;
+            }
+            EventKind::McpError { .. } => {
+                self.stats.mcp_errors += 1;
+            }
+            EventKind::MediaStored {
+                deduplicated,
+                size_bytes,
+                ..
+            } => {
+                self.stats.media_stored += 1;
+                self.stats.media_bytes += size_bytes;
+                if *deduplicated {
+                    self.stats.media_dedup += 1;
+                }
+            }
+            EventKind::ArtifactWritten { size, .. } => {
+                self.stats.artifacts_count += 1;
+                self.stats.artifacts_bytes += size;
+            }
+            EventKind::GuardrailPassed { .. } => {
+                self.stats.guardrails_passed += 1;
+            }
+            EventKind::GuardrailFailed { .. } => {
+                self.stats.guardrails_failed += 1;
+            }
+            EventKind::GuardrailEscalation { .. } => {
+                self.stats.guardrails_escalations += 1;
+            }
+            EventKind::StructuredOutputAttempt { .. } => {
+                self.stats.structured_attempts += 1;
+            }
+            EventKind::StructuredOutputSuccess { layer, .. } => {
+                self.stats.structured_success_layer = Some(*layer);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn render_kind(&mut self, kind: &crate::event::EventKind) {
+        let event = crate::event::Event {
+            id: 0,
+            timestamp_ms: self.start.elapsed().as_millis() as u64,
+            kind: kind.clone(),
+        };
+        self.render(&event);
+    }
+
     /// Main entry point: render a single event.
     pub fn render(&mut self, event: &crate::event::Event) {
         if self.detail.is_json() {

@@ -22,26 +22,12 @@ const VERTICAL: &str = "\u{2502}"; // │
 /// - invoke: 🔌 Emerald/Green
 /// - agent:  🐔 Rose/Magenta
 pub fn verb_icon(verb: &str) -> colored::ColoredString {
-    match verb {
-        "infer" => "⚡".purple(),
-        "exec" => "📟".yellow(),
-        "fetch" => "🛰️".cyan(),
-        "invoke" => "🔌".green(),
-        "agent" => "🐔".magenta(),
-        _ => "●".white(),
-    }
+    crate::display::icons::verb(verb)
 }
 
 /// Return the canonical emoji for a verb (uncolored, for DAG boxes).
 pub fn verb_emoji(verb: &str) -> &'static str {
-    match verb {
-        "infer" => "⚡",
-        "exec" => "📟",
-        "fetch" => "🛰️",
-        "invoke" => "🔌",
-        "agent" => "🐔",
-        _ => "●",
-    }
+    crate::display::icons::verb_plain(verb)
 }
 
 /// Print a header box around workflow metadata.
@@ -248,21 +234,7 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
 /// - 1-5s: yellow (moderate)
 /// - > 5s: red (slow)
 pub fn format_duration(secs: f32) -> colored::ColoredString {
-    let text = if secs < 0.1 {
-        format!("{:.0}ms", secs * 1000.0)
-    } else if secs < 60.0 {
-        format!("{:.1}s", secs)
-    } else {
-        format!("{}m{:.0}s", (secs / 60.0) as u32, secs % 60.0)
-    };
-
-    if secs < 1.0 {
-        text.green()
-    } else if secs < 5.0 {
-        text.yellow()
-    } else {
-        text.red()
-    }
+    crate::display::colors::duration(secs)
 }
 
 /// Print a workflow summary line with task counts by verb.
@@ -723,16 +695,8 @@ fn render_v3_edges(
 /// Calculate terminal display width of a string.
 /// Emojis are 2 columns, ASCII is 1 column.
 fn display_width(s: &str) -> usize {
-    let mut w = 0;
-    for ch in s.chars() {
-        if ch.len_utf8() >= 3 {
-            // Multi-byte char (emoji, CJK) → 2 columns
-            w += 2;
-        } else {
-            w += 1;
-        }
-    }
-    w
+    use unicode_width::UnicodeWidthStr;
+    UnicodeWidthStr::width(s)
 }
 
 /// Compute center column position for each box in a layer.
