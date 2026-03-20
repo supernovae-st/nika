@@ -1051,6 +1051,13 @@ impl TaskExecutor {
                         let body = response.text().await.map_err(|e| {
                             NikaError::Execution(format!("Failed to read response: {}", e))
                         })?;
+                        if body.len() as u64 > FULL_MAX_RESPONSE_SIZE {
+                            return Err(NikaError::Execution(format!(
+                                "Response body too large ({} bytes, max {} bytes)",
+                                body.len(),
+                                FULL_MAX_RESPONSE_SIZE
+                            )));
+                        }
                         return Ok(serde_json::json!({
                             "status": status,
                             "headers": headers,
@@ -1067,6 +1074,15 @@ impl TaskExecutor {
                             .and_then(|v| v.to_str().ok())
                             .unwrap_or("application/octet-stream")
                             .to_string();
+                        const BINARY_MAX_RESPONSE_SIZE: u64 = 100 * 1024 * 1024; // 100 MB (CAS limit)
+                        if let Some(len) = response.content_length() {
+                            if len > BINARY_MAX_RESPONSE_SIZE {
+                                return Err(NikaError::Execution(format!(
+                                    "Binary response too large ({} bytes, max {} bytes)",
+                                    len, BINARY_MAX_RESPONSE_SIZE
+                                )));
+                            }
+                        }
                         let bytes = response.bytes().await.map_err(|e| {
                             NikaError::Execution(format!("Failed to read binary response: {}", e))
                         })?;
