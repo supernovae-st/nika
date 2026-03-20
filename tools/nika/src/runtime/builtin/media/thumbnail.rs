@@ -8,7 +8,7 @@ use std::pin::Pin;
 
 use super::context::MediaToolContext;
 use super::error::{invalid_args, tool_error};
-use super::safety::{composite_on_white, decode_image_safe};
+use super::safety::{composite_on_white, decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
 use crate::error::NikaError;
 
@@ -63,11 +63,11 @@ impl MediaOp for ThumbnailOp {
                 .unwrap_or("png")
                 .to_string();
 
-            if target_width == 0 || target_width > 10_000 {
+            if target_width == 0 || target_width > MAX_IMAGE_DIM {
                 return Err(invalid_args("thumbnail", "width must be 1..10000"));
             }
             if let Some(h) = target_height {
-                if h == 0 || h > 10_000 {
+                if h == 0 || h > MAX_IMAGE_DIM {
                     return Err(invalid_args("thumbnail", "height must be 1..10000"));
                 }
             }
@@ -87,8 +87,8 @@ impl MediaOp for ThumbnailOp {
                                 let ratio = orig_h as f64 / orig_w as f64;
                                 (target_width as f64 * ratio).round() as u32
                             })
-                            .clamp(1, 10_000);
-                        let tw = target_width.min(10_000);
+                            .clamp(1, MAX_IMAGE_DIM);
+                        let tw = target_width.min(MAX_IMAGE_DIM);
 
                         // Resize using image crate's built-in resize (which uses fast algorithms)
                         let resized =

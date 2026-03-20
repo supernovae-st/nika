@@ -24,7 +24,7 @@ const MAX_DECODED_BYTES: u64 = 256 * 1024 * 1024;
     feature = "media-qr",
     feature = "media-iqa"
 ))]
-const MAX_IMAGE_DIM: u32 = 10_000;
+pub(crate) const MAX_IMAGE_DIM: u32 = 10_000;
 
 /// Safely decode an image with resource limits.
 ///

@@ -9,7 +9,7 @@ use std::pin::Pin;
 use super::context::MediaToolContext;
 use super::error::{invalid_args, pipeline_empty, pipeline_step_failed};
 #[cfg(feature = "media-thumbnail")]
-use super::safety::decode_image_safe;
+use super::safety::{decode_image_safe, MAX_IMAGE_DIM};
 use super::{MediaOp, MediaOpResult};
 use crate::error::NikaError;
 
@@ -93,7 +93,7 @@ impl MediaOp for PipelineOp {
                             "thumbnail" => {
                                 let width =
                                     step.get("width").and_then(|v| v.as_u64()).unwrap_or(256);
-                                if width == 0 || width > 10_000 {
+                                if width == 0 || width > MAX_IMAGE_DIM as u64 {
                                     return Err(pipeline_step_failed(
                                         i,
                                         format!("width must be 1..10000, got {width}"),
@@ -102,7 +102,7 @@ impl MediaOp for PipelineOp {
                                 let width = width as u32;
                                 let target_height = step.get("height").and_then(|v| v.as_u64());
                                 if let Some(h) = target_height {
-                                    if h == 0 || h > 10_000 {
+                                    if h == 0 || h > MAX_IMAGE_DIM as u64 {
                                         return Err(pipeline_step_failed(
                                             i,
                                             format!("height must be 1..10000, got {h}"),
