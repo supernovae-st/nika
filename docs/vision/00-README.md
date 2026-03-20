@@ -1,7 +1,7 @@
 # 🦋 Nika Evolution — Research & Strategy
 
 > Comprehensive research corpus for Nika's next evolution phase.
-> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 22 research documents produced. 19 active, 4 archived.
+> 13 research agents deployed. 6 papers analyzed. 5 competitors mapped. 22 research documents produced. 17 active, 5 archived.
 
 **Nika** v0.27.0 · **NovaNet** v0.20.0 · Updated 2026-03-20
 
@@ -14,15 +14,13 @@ mindmap
   root((Nika Evolution))
     Research
       01 Current Features
-      13 Multimodal Worker Architectures
       16 Multimodal Research
-      20 Agent Memory Research
+      20 Agent & Orchestration Research
     Analysis
-      03 Competitive Landscape
+      03 Competitive Analysis & Inspiration
       04 Nika × NovaNet Overlap
     Strategy
       05 Evolution Roadmap
-      07 Slate Deep Integration
       15 Ecosystem Coherence
       17 Smart Router Design
       19 Package Registry Design
@@ -37,28 +35,26 @@ mindmap
       12 Naming & Identity
 ```
 
-> **Note** — Docs 02, 06, 14 are gaps in numbering. This is intentional (stable URLs).
-> They were archived after consolidation; their content lives in 15, 22, and 12 respectively.
+> **Note** — Docs 02, 06, 07, 13, 14 are gaps in numbering. This is intentional (stable URLs).
+> They were archived or merged; 02/06/14 content lives in 15, 22, and 12 respectively. Doc 07 (Slate Deep Integration) was merged into 03. Doc 13 (Multimodal Worker Architectures) was merged into 20.
 
 | # | Document | Purpose | Key Output |
 |:-:|----------|---------|------------|
 | [01](./01-current-features.md) | **Current Features** | Exhaustive Nika v0.27 + NovaNet v0.20 inventory | 373 files, 220K lines, 6,610 tests[^1] |
-| [03](./03-competitive-landscape.md) | **Competitive Landscape** | Slate, Claude Code, Codex, LangGraph, CrewAI | Competitive positioning |
+| [03](./03-competitive-and-inspiration.md) | **Competitive Analysis & Inspiration** | Slate, Claude Code, Codex, LangGraph, CrewAI + Slate deep integration | Competitive positioning + kernel upgrade plan |
 | [04](./04-nika-novanet-overlap.md) | **Nika × NovaNet Overlap** | Boundary rules, synergy opportunities | Golden Rule definition |
 | [05](./05-evolution-roadmap.md) | **Evolution Roadmap** | 6 priorities in 3 waves with full designs | Implementation blueprint |
-| [07](./07-slate-deep-integration.md) | **Slate Deep Integration** | Thread/record/weaving → Nika architecture | Kernel upgrade plan |
 | [08](./08-nika-030-complete-guide.md) | **Nika Complete Guide** | Comprehensive tutorial: Nika + NovaNet + all 6 features | User-facing guide |
 | [09](./09-use-cases-cookbook.md) | **Use Cases Cookbook** | 3 concrete use cases with full YAML workflows | Copy-paste recipes |
 | [10](./10-jarvis-tui-vision.md) | **Jarvis TUI Vision** | Iron Man-inspired TUI design for orchestrate mode | Visual design spec |
 | [11](./11-nika-030-technical-reference.md) | **Technical Reference** | Complete technical spec: structs, traits, schemas | API-level reference |
-| [12](./12-vegapunk-naming.md) | **Naming & Identity** | Naming system + DataStore naming (merged: was 12 + 14) | Naming spec + codebase impact |
-| [13](./13-multimodal-worker-architectures.md) | **Multimodal Worker Architectures** | How frameworks handle multimodal workers | Validated Approach C (worker-level) |
+| [12](./12-naming-and-identity.md) | **Naming & Identity** | Naming system + DataStore naming (merged: was 12 + 14) | Naming spec + codebase impact |
 | [15](./15-ecosystem-coherence.md) | **Ecosystem Coherence** | Unified view of all ecosystem pieces (absorbed 02) | Complete system topology |
-| [16](./16-multimodal-builtin-research.md) | **Multimodal Research** | mistral.rs, Rust ML ecosystem, MCP multimodal (merged: was 16 + 18) | Native vision support roadmap |
+| [16](./16-multimodal-research.md) | **Multimodal Research** | mistral.rs, Rust ML ecosystem, MCP multimodal (merged: was 16 + 18) | Native vision support roadmap |
 | [17](./17-smart-router-multimodal-deep.md) | **Smart Router Design** | Smart Router pattern, complete tool inventory | Native RAG + translation tools |
 | [19](./19-package-registry-design.md) | **Package Registry Design** | Nika package registry and distribution | Registry architecture |
-| [20](./20-agent-memory-architectures.md) | **Agent Memory Research** | Memory architectures + Rust patterns (merged: was 20 + orphan 15) | Memory tier design |
-| [21](./21-model-routing-naming-research.md) | **Model Routing & Agents Design** | Model routing + agent unification (merged: was 21 + 23) | Preset routing spec |
+| [20](./20-agent-and-orchestration-research.md) | **Agent & Orchestration Research** | Worker architectures + memory patterns + Rust impl (merged: was 13 + 20) | Approach C + memory tier design |
+| [21](./21-model-routing-and-agents-design.md) | **Model Routing & Agents Design** | Model routing + agent unification (merged: was 21 + 23) | Preset routing spec |
 | [22](./22-wave0-foundation-report.md) | **Wave 0 Foundation Report** | Wave 0 implementation report (supersedes 06) | Foundation verification |
 
 <details>
@@ -68,8 +64,9 @@ mindmap
 |:-:|----------|-------------|
 | 02 | Scientific Literature | Absorbed into [15 Ecosystem Coherence](./15-ecosystem-coherence.md) |
 | 06 | Research Synthesis | Superseded by [15 Ecosystem Coherence](./15-ecosystem-coherence.md) + [22 Wave 0 Foundation Report](./22-wave0-foundation-report.md) |
-| 14 | DataStore Naming | Merged into [12 Naming & Identity](./12-vegapunk-naming.md) |
-| 15-orphan | Agent Memory Rust Patterns | Merged into [20 Agent Memory Research](./20-agent-memory-architectures.md) |
+| 14 | DataStore Naming | Merged into [12 Naming & Identity](./12-naming-and-identity.md) |
+| 13 | Multimodal Worker Architectures | Merged into [20 Agent & Orchestration Research](./20-agent-and-orchestration-research.md) |
+| 15-orphan | Agent Memory Rust Patterns | Merged into [20 Agent & Orchestration Research](./20-agent-and-orchestration-research.md) |
 
 </details>
 

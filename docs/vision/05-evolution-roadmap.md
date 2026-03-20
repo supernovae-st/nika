@@ -891,7 +891,7 @@ Potential future priority. A `code:` verb with Pyodide/Deno sandbox would give a
 
 <div align="center">
 
-[← 04 Nika × NovaNet Overlap](./04-nika-novanet-overlap.md) · [📋 Index](./00-README.md) · [07 Slate Deep Integration →](./07-slate-deep-integration.md)
+[← 04 Nika × NovaNet Overlap](./04-nika-novanet-overlap.md) · [📋 Index](./00-README.md) · [08 Nika Complete Guide →](./08-nika-030-complete-guide.md)
 
 </div>
 
