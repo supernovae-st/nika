@@ -1,4 +1,4 @@
-# 13 -- Multi-Modal AI Agent Worker/Satellite Architectures
+# 13 -- Multi-Modal AI Agent Worker Architectures
 
 > **Research Date**: 2026-03-14
 > **Last Updated**: 2026-03-15

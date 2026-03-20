@@ -9,7 +9,7 @@
 
 ## Why This Document Exists
 
-Slate (Random Labs)[^1] introduced an architecture — threads, records, thread weaving, shaka/satellites — that solves the fundamental problems of long-running AI agents. This document maps every Slate concept to Nika's existing architecture, identifies what needs to change, and designs how Nika goes **beyond** Slate by leveraging the NovaNet knowledge graph, YAML declarative workflows, and full observability.
+Slate (Random Labs)[^1] introduced an architecture — threads, records, thread weaving, shaka/agent orchestration — that solves the fundamental problems of long-running AI agents. This document maps every Slate concept to Nika's existing architecture, identifies what needs to change, and designs how Nika goes **beyond** Slate by leveraging the NovaNet knowledge graph, YAML declarative workflows, and full observability.
 
 > [!IMPORTANT]
 > **Guiding principle** — We are not building feature parity with Slate. We are taking Slate's **architectural insights** and implementing them in a way that is **declaratively superior** — auditable, reproducible, version-controlled, and knowledge-graph-powered.
@@ -57,7 +57,7 @@ flowchart TD
     WM["1. Working Memory\n& Dumb Zone"] --> TH["2. Threads\nOne-action workers"]
     TH --> EP["3. Records\nCompletion-boundary compression"]
     EP --> TW["4. Thread Weaving\nOrchestrator loop"]
-    TW --> ST["5. Shaka/Satellites\nAlphaZero mapping"]
+    TW --> ST["5. Shaka/Agents\nAlphaZero mapping"]
     EP --> KO["6. Knowledge Overhang\nScaffolding activates latent knowledge"]
     EP --> CO["7. Composability\nRecords flow between threads"]
     TW --> OS["8. OS Framing\nKernel + processes + return values"]
@@ -81,7 +81,7 @@ flowchart TD
 | 2 | **Threads** | Each thread executes ONE action, then pauses. NOT persistent subagents | Context isolated per thread |
 | 3 | **Records** | Compressed representation at completion boundary (not mid-stream) | Only important results retained |
 | 4 | **Thread Weaving** | Orchestrator: dispatch threads → collect records → synthesize → dispatch | Implicit adaptive decomposition |
-| 5 | **Shaka/Satellites** | Shaka = open-ended planning. Satellites = learned action sequences | AlphaZero mapping (value + policy networks)[^2] |
+| 5 | **Shaka/Agents** | Shaka = open-ended planning. Agents = learned action sequences | AlphaZero mapping (value + policy networks)[^2] |
 | 6 | **Knowledge Overhang** | Models have knowledge they can't access without scaffolding | Records provide the scaffolding |
 | 7 | **Composability** | Records flow between threads as handoff boundary | Cross-model composition |
 | 8 | **OS Framing** | Orchestrator = kernel, Threads = processes, Records = return values | Karpathy's LLM OS framing |
@@ -89,7 +89,7 @@ flowchart TD
 </details>
 
 > [!NOTE]
-> **Slate's model configuration** — Slate supports cross-model composition (e.g., Sonnet + Codex for different cognitive tasks)[^1]. The "4 named slots" (edison/atlas/york/pythagoras) is our design, inspired by this capability.
+> **Slate's model configuration** — Slate supports cross-model composition (e.g., Sonnet + Codex for different cognitive tasks)[^1]. The "8 agent presets" (main/fast/reason/search/vision/judge/code/summary) is our design, inspired by this capability.
 
 ---
 
@@ -130,7 +130,7 @@ flowchart LR
 ```
 
 > [!TIP]
-> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (shaka), memory budgets, and model routing. The kernel itself (`Runner` + `TaskExecutor` + `Egghead`) already works.
+> **What's missing is NOT the kernel** — it's 4 kernel upgrades: record compression, dynamic process creation (shaka), memory budgets, and agent routing. The kernel itself (`Runner` + `TaskExecutor` + `Egghead`) already works.
 
 ---
 
@@ -142,19 +142,19 @@ flowchart LR
 |:-:|---------------|---------------|-------------|------------------|
 | 1 | Working Memory | No awareness | Context budget per task | Budget is declarative YAML |
 | 2 | Dumb Zone | N/A | Working memory boundary | Token budget in events |
-| 3 | Threads | Tasks in DAG (partial) | Dynamic dispatch by shaka | Satellite TEMPLATES in YAML |
+| 3 | Threads | Tasks in DAG (partial) | Dynamic dispatch by shaka | Tasks referencing agents in YAML |
 | 4 | Records | `TaskResult` (raw) | Record compression at boundary | NovaNet persistence |
 | 5 | Thread Weaving | DAG execution (static) | Dynamic DAG + shaka loop | Real-time TUI visualization |
-| 6 | Shaka/Satellites | Flat agent loop | `orchestration: shaka` | Declarative YAML shakas |
+| 6 | Shaka/Agents | Flat agent loop | `orchestration: shaka` | Declarative YAML shakas |
 | 7 | Knowledge Overhang | NovaNet context + files | Record-based scaffolding | 200+ locale knowledge atoms |
 | 8 | Episodic Memory | In-memory `Egghead` | NovaNet `Record` | Graph-queryable, entity-linked |
-| 9 | Model Slots | Single provider | `model_slots:` in YAML | Per-workflow slots |
+| 9 | Agent Presets | Single provider | `agents:` in YAML | Per-workflow agents |
 | 10 | Composability | `use:` bindings | Record-aware bindings | Structured output + records |
 | 11 | Parallel Threads | `for_each` + concurrency | Shaka parallel dispatch | Token budget + cost tracking |
-| 12 | Cross-model | Multi-provider (6+native) | Model slot per task | YAML-declared routing |
+| 12 | Cross-model | Multi-provider (6+native) | Agent preset per task | YAML-declared routing |
 | 13 | OS Framing | DAG = kernel | Shaka = kernel upgrade | NovaNet = persistent storage |
 | 14 | Permissions | Command blocklist + shell-free | Already better | 4-layer security model |
-| 15 | build/plan agents | `agent:` verb | Shaka mode selection | Multiple shaka templates |
+| 15 | build/plan agents | `agent:` verb | Shaka mode selection | Multiple shaka configurations |
 | 16 | Custom /commands | Skills via `include:` | Already exists | YAML skills merged via DAG |
 | 17 | .env config | `.nika/config.toml` | Already exists | 3-level config merge |
 
@@ -164,8 +164,8 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph L1["Layer 1 — Model Slots"]
-        MS["model_slots:\n4 named slots per workflow"]
+    subgraph L1["Layer 1 — Agent Presets"]
+        MS["agents:\n8 named presets per workflow"]
     end
 
     subgraph L2["Layer 2 — Record Engine"]
@@ -173,7 +173,7 @@ flowchart TB
     end
 
     subgraph L3["Layer 3 — Shaka Orchestration"]
-        SO["orchestration: shaka\ndynamic satellite dispatch"]
+        SO["orchestration: shaka\ndynamic agent dispatch"]
     end
 
     subgraph L4["Layer 4 — Context Budget"]
@@ -196,16 +196,20 @@ flowchart TB
     style L5 fill:#dcfce7,stroke:#16a34a
 ```
 
-### Layer 1: Model Slots
+### Layer 1: Agent Presets
 
-Per-workflow model slot definitions that route different cognitive tasks to different providers. See [05-evolution-roadmap.md § P-MODEL](./05-evolution-roadmap.md#p-model-4-slot-model-architecture) for full design.
+Per-workflow agent definitions that route different cognitive tasks to different providers. 8 presets available: main, fast, reason, search, vision, judge, code, summary. See [05-evolution-roadmap.md § P-MODEL](./05-evolution-roadmap.md#p-model-4-slot-model-architecture) for full design.
 
 ```yaml
-model_slots:
-  edison:     { provider: anthropic, model: claude-sonnet-4-6 }
-  atlas:      { provider: groq,     model: llama-3.3-70b-versatile }
-  york:       { provider: deepseek, model: deepseek-chat }
-  pythagoras: { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
+agents:
+  main:    { provider: anthropic, model: claude-sonnet-4-6 }
+  fast:    { provider: groq,     model: llama-3.3-70b-versatile }
+  search:  { provider: deepseek, model: deepseek-chat }
+  reason:  { provider: anthropic, model: claude-sonnet-4-6, extended_thinking: true }
+  vision:  { provider: openai,   model: gpt-4o }
+  judge:   { provider: anthropic, model: claude-sonnet-4-6 }
+  code:    { provider: anthropic, model: claude-sonnet-4-6 }
+  summary: { provider: groq,     model: llama-3.3-70b-versatile }
 ```
 
 ### Layer 2: Record Engine
@@ -227,17 +231,17 @@ The core upgrade. See [05-evolution-roadmap.md § P-SHAKA](./05-evolution-roadma
 ```mermaid
 sequenceDiagram
     participant S as 🎯 Shaka Orchestrator
-    participant T as ⚡ Satellite Templates
+    participant T as ⚡ Tasks with agent: ref
 
     loop Until DONE or max_rounds
         S->>S: Review accumulated records
-        S->>T: Dispatch satellite(s) with params
+        S->>T: Dispatch task(s) with params
         T-->>S: Record(s) with confidence
         S->>S: Synthesize records
         alt confidence >= threshold
             S->>S: Continue or DONE
         else confidence < threshold
-            S->>T: Retry with better model_slot
+            S->>T: Retry with better agent
         end
     end
 ```
@@ -265,7 +269,7 @@ flowchart LR
     end
 
     subgraph NIKA_HAS["Nika Has (after integration)"]
-        N1["YAML satellite templates"]
+        N1["YAML tasks with agent: refs"]
         N2["NovaNet graph memory"]
         N3["34 events + NDJSON"]
         N4["Record budget + tokens"]
@@ -284,7 +288,7 @@ flowchart LR
 
 | Dimension | Slate | Nika (after integration) |
 |-----------|-------|--------------------------|
-| Thread definition | TypeScript code | YAML satellite templates |
+| Thread definition | TypeScript code | YAML tasks with agent: refs |
 | Record storage | In-memory session | `Egghead` + NovaNet graph |
 | Cross-session | Session files | Knowledge graph (queryable) |
 | Observability | Basic logging | 34 EventKind variants[^3] + NDJSON |
@@ -292,7 +296,7 @@ flowchart LR
 | Knowledge source | None | NovaNet atoms (200+ locales) |
 | Reproducibility | Non-deterministic | DAG traces + replay |
 | Multi-locale | English only | 200+ locales |
-| Model routing | Global config | Per-workflow `model_slots:` |
+| Model routing | Global config | Per-workflow `agents:` |
 | Orchestration | Imperative code | Declarative YAML |
 | DAG visualization | None | Real-time TUI |
 | Structured output | Not documented | 4-layer validation |
@@ -341,21 +345,33 @@ workflow: generate-landing-page
 
 orchestration: shaka
 
-model_slots:
-  pythagoras:
+agents:
+  reason:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 16384
-  edison:
+  main:
     provider: anthropic
     model: claude-sonnet-4-6
-  york:
+  search:
     provider: groq
     model: llama-3.3-70b-versatile
-  atlas:
+  fast:
     provider: deepseek
     model: deepseek-chat
+  vision:
+    provider: openai
+    model: gpt-4o
+  judge:
+    provider: anthropic
+    model: claude-sonnet-4-6
+  code:
+    provider: anthropic
+    model: claude-sonnet-4-6
+  summary:
+    provider: groq
+    model: llama-3.3-70b-versatile
 
 mcp:
   servers:
@@ -368,13 +384,13 @@ shaka:
     Generate a complete French landing page for QR Code AI.
     Use NovaNet for entity context and locale knowledge.
     Research current trends, write sections, review quality.
-  model_slot: pythagoras
+  agent: reason
   max_rounds: 8
   record_budget: 15000
 
-satellites:
+tasks:
   - id: get_context
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_context
       server: novanet
@@ -387,7 +403,7 @@ satellites:
       max_tokens: 500
 
   - id: research
-    model_slot: york
+    agent: search
     context_budget: 4000
     infer: "Research: {{use.topic}}"
     record:
@@ -396,7 +412,7 @@ satellites:
       retain: [key_findings]
 
   - id: write_section
-    model_slot: edison
+    agent: main
     context_budget: 8000
     use:
       context: $get_context
@@ -410,7 +426,7 @@ satellites:
       max_tokens: 800
 
   - id: review
-    model_slot: pythagoras
+    agent: judge
     infer: |
       Review the following draft sections for quality and coherence:
       {{use.drafts}}
@@ -421,7 +437,7 @@ satellites:
       confidence_threshold: 0.85
 
   - id: persist_records
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_write
       server: novanet
@@ -452,7 +468,7 @@ flowchart LR
     subgraph NEW["New: Record Confidence"]
         N1["Task"] --> N2["Record\nconfidence: 0.6"]
         N2 --> N3["Shaka orchestrator\nsees low confidence"]
-        N3 -->|"retry?"| N4["Better model_slot"]
+        N3 -->|"retry?"| N4["Better agent"]
         N3 -->|"more context?"| N5["Add research"]
         N3 -->|"good enough?"| N6["Accept & continue"]
     end
@@ -475,7 +491,7 @@ mindmap
             Threads → Tasks
             Records → Compressed results
             Weaving → Shaka orchestration
-            Model slots → Per-workflow routing
+            Agent presets → Per-workflow routing
         Nika's Additions
             YAML declarative
             NovaNet knowledge graph
@@ -496,7 +512,7 @@ mindmap
 > | **KNOWING** things | NovaNet | Knowledge graph, entities, locales, semantics |
 > | **DOING** things | Nika | Workflow execution, DAG, verbs, providers |
 > | **CONNECTING** | MCP | Protocol boundary, zero Cypher in Nika |
-> | **THINKING** | Records | Shaka orchestration, model routing, confidence |
+> | **THINKING** | Records | Shaka orchestration, agent routing, confidence |
 > | **REMEMBERING** | Records → NovaNet | Cross-session memory, entity-linked persistence |
 
 ---
@@ -509,6 +525,6 @@ mindmap
 
 ---
 
-[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with 26 academic references. Thread-based episodic memory architecture. The "4 model slots" design is our proposal, inspired by Slate's cross-model composition (Sonnet + Codex).
-[^2]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Shaka/satellites separation cited in Slate blog.
+[^1]: Slate by Random Labs — [Technical blog post](https://randomlabs.ai/blog/slate) with 26 academic references. Thread-based episodic memory architecture. The "8 agent presets" design is our proposal, inspired by Slate's cross-model composition (Sonnet + Codex).
+[^2]: McGrath et al., "Acquisition of Chess Knowledge in AlphaZero" — [PNAS 2022](https://www.pnas.org/doi/10.1073/pnas.2206625119). Shaka/agents separation cited in Slate blog.
 [^3]: Verified via `src/event/log.rs` — 34 `EventKind` variants as of v0.27.0.

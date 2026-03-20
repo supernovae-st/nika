@@ -1,9 +1,9 @@
 # 21 -- Model Routing & Naming -- Deep Research
 
-> Industry survey of model routing patterns, naming conventions, and semantic slot systems.
-> Validates Nika's 4-slot edison/atlas/york/pythagoras proposal against the state of the art.
+> Industry survey of model routing patterns, naming conventions, and semantic agent preset systems.
+> Validates Nika's unified `agents:` block with 8 presets (main/fast/reason/search/vision/judge/code/summary) against the state of the art.
 
-**Status:** RESEARCH | **Date:** 2026-03-16
+**Status:** RESEARCH (updated 2026-03-20) | **Date:** 2026-03-16
 **Dependencies:** Doc 05 (Evolution Roadmap), Doc 12 (Vegapunk Naming), Doc 17 (Smart Router)
 **Research Sources:** Perplexity (5 queries), arXiv (4 papers), framework docs (6 frameworks)
 
@@ -16,8 +16,8 @@
 3. [Framework-Level Model Assignment](#3-framework-level-model-assignment)
 4. [Academic Foundations: LLM Routing Research](#4-academic-foundations-llm-routing-research)
 5. [Naming Conventions Comparison](#5-naming-conventions-comparison)
-6. [Semantic Slot Design Patterns](#6-semantic-slot-design-patterns)
-7. [Nika's 4-Slot Proposal: Deep Analysis](#7-nikas-4-slot-proposal-deep-analysis)
+6. [Semantic Agent Preset Design Patterns](#6-semantic-agent-preset-design-patterns)
+7. [Nika's 8-Preset Unified Agents Block: Deep Analysis](#7-nikas-8-preset-unified-agents-block-deep-analysis)
 8. [Cross-Framework Comparison Matrix](#8-cross-framework-comparison-matrix)
 9. [Recommendation for Nika](#9-recommendation-for-nika)
 10. [Sources](#10-sources)
@@ -26,21 +26,21 @@
 
 ## 1. Why This Research Matters
 
-Nika v0.28 introduces P-MODEL: a 4-slot model routing system where workflows declare
-WHAT capability they need (creative, fast, reasoning, search) rather than WHICH specific model
-to use. This document validates the design against the 2025-2026 landscape.
+Nika v0.28 introduces P-MODEL: a unified `agents:` block where workflows declare WHAT capability
+they need (main, fast, reason, search, vision, judge, code, summary) rather than WHICH specific
+model to use. This document validates the design against the 2025-2026 landscape.
 
 ```
 THE CORE QUESTION
 -----------------------------------------------------------------
 Should workflows say:       Or should they say:
 
-  model: claude-sonnet-4-6       model_slot: edison
-  model: llama-3.3-70b           model_slot: atlas
-  model: deepseek-chat           model_slot: york
-  model: claude-sonnet-4-6       model_slot: pythagoras
+  model: claude-sonnet-4-6       agent: main
+  model: llama-3.3-70b           agent: fast
+  model: deepseek-chat           agent: search
+  model: claude-sonnet-4-6       agent: reason
 
-Explicit model IDs             Semantic capability slots
+Explicit model IDs             Semantic agent presets
 (brittle, coupled)             (portable, intent-driven)
 ```
 
@@ -62,9 +62,9 @@ Generation 2 (2024-2025):    Per-task explicit model IDs
                              research_model = ChatOpenAI(model="gpt-4o-mini")
                              analysis_model = ChatOpenAI(model="o1-preview")
 
-Generation 3 (2025-2026):    Semantic slots + dynamic routing
-                             model_slot: reasoning    # Router picks best model
-                             model_slot: fast          # Cost-optimized
+Generation 3 (2025-2026):    Unified agent presets + dynamic routing
+                             agent: reason            # Router picks best model
+                             agent: fast              # Cost-optimized
 ```
 
 ### 2.2 Platform-Level Routing (Gateways)
@@ -103,8 +103,9 @@ GPT-4o              Llama 3.3 70B
 o1-preview          GPT-4o-mini
 ```
 
-This maps directly to Nika's slot model: `pythagoras` for deep, `atlas` for fast,
-with `edison` and `york` providing additional specialization.
+This maps directly to Nika's agent preset model: `reason` for deep, `fast` for throughput,
+with `main` and `search` providing additional specialization, plus `vision`, `judge`, `code`,
+and `summary` for targeted capabilities.
 
 ---
 
@@ -278,7 +279,7 @@ instructions), the paper discovers configurations where:
 - Powerful LLMs with **constrained budgets** outperform weaker models at full budget
 - Optimal model selection depends on the specific cost-quality tradeoff desired
 
-**Relevance to Nika:** Validates the `atlas` slot concept -- a powerful model with
+**Relevance to Nika:** Validates the `fast` agent preset concept -- a powerful model with
 constrained parameters (fast, short outputs) can outperform a weaker model at full length.
 
 ### 4.4 Dynamic Routing Survey (2026)
@@ -311,7 +312,7 @@ This is the definitive academic validation for Nika's multi-slot approach.
 | **Slate** | Role (main/subagent/search/reasoning) | 4 | Functional role in agent system |
 | **OpenRouter** | Tiered (fast/quality/balanced) | 3 | Routing strategy, not model identity |
 | **Azure Router** | Mode (quality/cost/balanced) | 3 | Optimization objective |
-| **Nika (proposed)** | Character (edison/atlas/york/pythagoras) | 4 | Cognitive capability via Vegapunk lore |
+| **Nika (current)** | Descriptive (main/fast/reason/search/vision/judge/code/summary) | 8 | Functional capability presets in unified agents: block |
 
 ### 5.2 Two Philosophies
 
@@ -320,7 +321,7 @@ PHILOSOPHY A: Name by size/speed              PHILOSOPHY B: Name by capability/r
 ---------------------------------------------  -------------------------------------------
 Haiku / Sonnet / Opus                          main / subagent / search / reasoning (Slate)
 Flash / Pro / Ultra                            fast / quality / balanced (OpenRouter)
-mini / standard / premium                      edison / atlas / york / pythagoras (Nika)
+mini / standard / premium                      main / fast / reason / search (Nika)
 
 Pros:                                          Pros:
 - Clear cost/perf ordering                     - Decoupled from model identity
@@ -344,32 +345,32 @@ Slate defines exactly 4 model slots, configured in `slate.json`:
 | `search` | Fast retrieval and search synthesis | perplexity/sonar-pro |
 | `reasoning` | Deep thinking, planning, review | claude-sonnet-4-20250514 + thinking |
 
-Nika's proposed mapping:
+Nika's current mapping (unified `agents:` block with 8 presets):
 
-| Slate Slot | Nika Slot | Vegapunk Satellite | Cognitive Role |
-|-----------|-----------|-------------------|----------------|
-| `main` | `edison` | PUNK-03 (Intelligence) | Creative generation, writing, code |
-| `subagent` | `atlas` | PUNK-05 (Force) | Fast execution, structured tasks |
-| `search` | `york` | PUNK-06 (Resources) | Search, retrieval, data collection |
-| `reasoning` | `pythagoras` | PUNK-04 (Logic) | Deep reasoning, planning, critique |
+| Slate Slot | Nika Agent Preset | Cognitive Role |
+|-----------|-------------------|----------------|
+| `main` | `main` | Primary creative generation, writing, orchestration |
+| `subagent` | `fast` | Fast execution, structured tasks, formatting |
+| `search` | `search` | Search, retrieval, data collection |
+| `reasoning` | `reason` | Deep reasoning, planning, critique, review |
+| -- | `vision` | Visual analysis, OCR, image understanding |
+| -- | `judge` | Quality evaluation, scoring, validation |
+| -- | `code` | Code generation, review, execution |
+| -- | `summary` | Compression, summarization, extraction |
 
-### 5.4 Why Nika Renames Slate's Slots
+### 5.4 Why Nika Evolved Beyond Slate's 4 Slots
 
-The rename from `main/subagent/search/reasoning` to `edison/atlas/york/pythagoras`
-is intentional and serves three purposes:
+The evolution from 4 named slots (edison/atlas/york/pythagoras) to 8 descriptive agent presets
+(main/fast/reason/search/vision/judge/code/summary) serves three purposes:
 
-1. **Decoupling from Slate.** Using different names avoids confusion about compatibility.
-   Nika's slots are inspired by Slate's, but the semantics differ (e.g., "subagent" implies
-   spawning, while "atlas" implies speed/power).
+1. **Descriptive over lore-based.** Functional names (main, fast, reason) are instantly
+   understandable without learning Vegapunk lore. Lower onboarding friction.
 
-2. **Lore cohesion.** The Vegapunk naming system (Doc 12) maps the entire architecture
-   onto One Piece's satellite system. Edison/Atlas/York/Pythagoras are the four working
-   satellites, each with a distinct cognitive trait. This creates a unified, memorable
-   mental model for the entire Nika ecosystem.
+2. **Expanded coverage.** 4 slots could not adequately cover vision, code, judging, and
+   summarization -- capabilities that workflows need distinct model configurations for.
 
-3. **Broader semantics.** "subagent" is too tied to agent architecture. "atlas" (PUNK-05,
-   brute force) better describes the slot's purpose: fast, cheap, structured execution --
-   whether in an agent context or a simple DAG task.
+3. **Unified `agents:` block.** Instead of a separate `model_slots:` top-level key, agent
+   presets live inside the `agents:` block, unifying model configuration with agent behavior.
 
 ---
 

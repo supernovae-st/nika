@@ -66,7 +66,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_trends
-    model_slot: york                       # ← Groq: fast, cheap
+    agent: search                       # ← Groq: fast, cheap
     context_budget: 6000
     with:
       hn: "$scrape_hackernews"
@@ -90,7 +90,7 @@ tasks:
       retain: [topics, sentiment, themes]
 
   - id: analyze_metrics
-    model_slot: atlas                      # ← DeepSeek: very cheap
+    agent: fast                      # ← DeepSeek: very cheap
     context_budget: 4000
     with:
       data: "$get_internal_data"
@@ -115,7 +115,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: generate_report
-    model_slot: edison                     # ← Claude: quality writing
+    agent: main                     # ← Claude: quality writing
     context_budget: 8000
     with:
       trends: "$analyze_trends"            # ← Gets 400-token record, not raw data
@@ -137,7 +137,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: format_html
-    model_slot: atlas                      # ← DeepSeek: simple formatting
+    agent: fast                      # ← DeepSeek: simple formatting
     with:
       report: "$generate_report"
     infer: "Convert this report to clean HTML with inline CSS: {{with.report}}"
@@ -285,7 +285,7 @@ shaka:
     4. Write 4 sections: hero, features, pricing, FAQ
     5. Review for quality (score >= 0.85)
     6. Persist records for future reuse
-  model_slot: pythagoras
+  agent: reason
   max_rounds: 25
   record_budget: 50000
 
@@ -295,7 +295,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: get_entity_context
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_context
       server: novanet
@@ -308,7 +308,7 @@ tasks:
       max_tokens: 500
 
   - id: get_knowledge
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_context
       server: novanet
@@ -327,7 +327,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: recall_records
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_search
       server: novanet
@@ -344,7 +344,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: research_locale
-    model_slot: york
+    agent: search
     context_budget: 6000
     with:
       locale: "$get_entity_context.locale"
@@ -374,7 +374,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: write_section
-    model_slot: edison
+    agent: main
     context_budget: 8000
     with:
       section: "$shaka.current_section"
@@ -413,7 +413,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: review_page
-    model_slot: pythagoras
+    agent: reason
     context_budget: 12000
     with:
       locale: "$get_entity_context.locale"
@@ -447,7 +447,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: persist_page
-    model_slot: atlas
+    agent: fast
     invoke:
       tool: novanet_write
       server: novanet
@@ -540,7 +540,7 @@ sequenceDiagram
 
 **Scenario:** A coding agent that analyzes a codebase, plans changes, implements them, runs tests, and iterates until tests pass.
 
-**v0.30 features used:** Model Slots, Records, Shaka, Context Budget, Introspection
+**v0.30 features used:** Agents, Records, Shaka, Context Budget, Introspection
 
 ### The Workflow
 
@@ -549,16 +549,16 @@ sequenceDiagram
 schema: nika/workflow@0.13
 orchestration: shaka
 
-model_slots:
-  pythagoras:
+agents:
+  reason:
     provider: anthropic
     model: claude-sonnet-4-6
     extended_thinking: true
     thinking_budget: 32768
-  edison:
+  main:
     provider: anthropic
     model: claude-sonnet-4-6
-  atlas:
+  fast:
     provider: deepseek
     model: deepseek-chat
 
@@ -572,7 +572,7 @@ shaka:
     4. Run tests
     5. If tests fail: analyze errors, fix, re-test
     6. Done when all tests pass
-  model_slot: pythagoras
+  agent: reason
   max_rounds: 15
   record_budget: 30000
 
@@ -587,7 +587,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: read_files
-    model_slot: atlas
+    agent: fast
     with:
       files: "$shaka.target_files"
     agent:
@@ -606,7 +606,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: plan
-    model_slot: pythagoras
+    agent: reason
     context_budget: 10000
     with:
       codebase: "$read_files"
@@ -640,7 +640,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: implement
-    model_slot: edison
+    agent: main
     context_budget: 12000
     with:
       change_description: "$shaka.current_change"
@@ -680,7 +680,7 @@ tasks:
   # ──────────────────────────────────────────────────────────
 
   - id: analyze_failures
-    model_slot: pythagoras
+    agent: reason
     context_budget: 8000
     with:
       test_output: "$run_tests"
@@ -786,21 +786,21 @@ Quick reference for which YAML fields to use:
 
 ```yaml
 # ══════════════════════════════════════════════════════════════
-# FEATURE 1: MODEL SLOTS
+# FEATURE 1: AGENTS (MODEL ROUTING)
 # ══════════════════════════════════════════════════════════════
 
-model_slots:
-  edison:     { provider: anthropic, model: claude-sonnet-4-6 }
-  atlas:      { provider: deepseek,  model: deepseek-chat }
-  york:       { provider: groq,      model: llama-3.3-70b-versatile }
-  pythagoras: { provider: anthropic, model: claude-sonnet-4-6,
+agents:
+  main:       { provider: anthropic, model: claude-sonnet-4-6 }
+  fast:       { provider: deepseek,  model: deepseek-chat }
+  search:     { provider: groq,      model: llama-3.3-70b-versatile }
+  reason:     { provider: anthropic, model: claude-sonnet-4-6,
                extended_thinking: true, thinking_budget: 16384 }
 
-default_model_slot: edison
+default_agent: main
 
 tasks:
   - id: my_task
-    model_slot: york                # ← Reference a slot
+    agent: search                   # ← Reference an agent preset
 
 # ══════════════════════════════════════════════════════════════
 # FEATURE 2: RECORDS
@@ -823,7 +823,7 @@ orchestration: shaka                # At workflow level
 
 shaka:
   goal: "What you want to achieve"  # Natural language goal
-  model_slot: pythagoras            # Which slot for Shaka
+  agent: reason                     # Which agent for Shaka
   max_rounds: 10                    # Max dispatch rounds
   record_budget: 15000              # Total token budget
 
@@ -872,7 +872,7 @@ tasks:
 | Dimension | Use Case C (Pipeline) | Use Case A (Multilingual) | Use Case B (Coding) |
 |-----------|:--------------------:|:------------------------:|:-------------------:|
 | Mode | `dag` | `shaka` | `shaka` |
-| Model Slots | 3 (edison, atlas, york) | 4 (all) | 3 (pythagoras, edison, atlas) |
+| Agents | 3 (main, fast, search) | 4 (all) | 3 (reason, main, fast) |
 | Records | ✅ compress + retain | ✅ compress + retain + persist | ✅ compress + retain |
 | Context Budget | ✅ per-task | ✅ per-task | ✅ per-task |
 | NovaNet | ❌ not needed | ✅ context + knowledge + persist | ❌ not needed |
