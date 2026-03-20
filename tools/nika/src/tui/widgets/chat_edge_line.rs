@@ -12,6 +12,8 @@ use ratatui::{
     widgets::Widget,
 };
 
+use crate::tui::tokens::compat;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // POSITION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -60,7 +62,7 @@ impl ChatEdgeLine {
             label: None,
             active: false,
             animation_tick: 0,
-            color: Color::DarkGray,
+            color: compat::SLATE_600,
         }
     }
 
@@ -74,9 +76,9 @@ impl ChatEdgeLine {
     pub fn with_active(mut self, active: bool) -> Self {
         self.active = active;
         if active {
-            self.color = Color::Cyan;
+            self.color = compat::CYAN_500;
         } else {
-            self.color = Color::DarkGray;
+            self.color = compat::SLATE_600;
         }
         self
     }
@@ -325,7 +327,7 @@ impl Widget for ChatEdgeLine {
             };
 
             if in_bounds(ChatPosition::new(lx, ly)) {
-                let label_style = Style::default().fg(Color::Yellow);
+                let label_style = Style::default().fg(compat::AMBER_500);
                 buf.set_string(lx, ly, label, label_style);
             }
         }
@@ -334,7 +336,7 @@ impl Widget for ChatEdgeLine {
         if let Some(pos) = self.flow_position() {
             if in_bounds(pos) {
                 let flow_style = Style::default()
-                    .fg(Color::Cyan)
+                    .fg(compat::CYAN_500)
                     .add_modifier(Modifier::BOLD);
                 buf[(pos.x, pos.y)].set_symbol("●").set_style(flow_style);
             }
