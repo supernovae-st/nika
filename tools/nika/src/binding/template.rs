@@ -364,34 +364,12 @@ pub fn resolve_with<'a>(
             }) => {
                 match resolve_alias_path(path, with_values) {
                     Ok(value) => {
-                        // Apply transform chain if any
-                        let final_value = if transforms.is_empty() {
-                            value.clone()
-                        } else {
-                            // Rejoin transforms and parse via TransformExpr
-                            let transform_str = transforms.join(" | ");
-                            let expr = TransformExpr::parse(&transform_str).map_err(|e| {
-                                NikaError::TemplateParse {
-                                    position: m.start(),
-                                    details: format!(
-                                        "Transform parse error in '{{{{{}}}}}': {}",
-                                        content, e
-                                    ),
-                                }
-                            })?;
-                            expr.apply(value).map_err(|e| NikaError::TemplateParse {
-                                position: m.start(),
-                                details: format!(
-                                    "Transform apply error in '{{{{{}}}}}': {}",
-                                    content, e
-                                ),
-                            })?
-                        };
+                        let has_shell = transforms.iter().any(|t| t == "shell");
 
-                        // Check for shell escape in transforms
-                        let display = if transforms.iter().any(|t| t == "shell") {
-                            // "shell" is a special modifier, not a TransformOp
-                            // Remove shell from the transform chain and apply escape_for_shell
+                        // When shell is in transforms, skip the full-chain application
+                        // to avoid double-processing. Only run the non-shell transforms
+                        // followed by escape_for_shell.
+                        let display = if has_shell {
                             let non_shell: Vec<String> = transforms
                                 .iter()
                                 .filter(|t| *t != "shell")
@@ -419,10 +397,34 @@ pub fn resolve_with<'a>(
                                 })?
                             };
                             escape_for_shell(&value_to_display(&pre_shell_value))
-                        } else if is_in_json_context(template_str, m.start()) {
-                            escape_for_json(&value_to_display(&final_value)).into_owned()
                         } else {
-                            value_to_display(&final_value).into_owned()
+                            // Apply transform chain (no shell)
+                            let final_value = if transforms.is_empty() {
+                                value.clone()
+                            } else {
+                                let transform_str = transforms.join(" | ");
+                                let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                                    NikaError::TemplateParse {
+                                        position: m.start(),
+                                        details: format!(
+                                            "Transform parse error in '{{{{{}}}}}': {}",
+                                            content, e
+                                        ),
+                                    }
+                                })?;
+                                expr.apply(value).map_err(|e| NikaError::TemplateParse {
+                                    position: m.start(),
+                                    details: format!(
+                                        "Transform apply error in '{{{{{}}}}}': {}",
+                                        content, e
+                                    ),
+                                })?
+                            };
+                            if is_in_json_context(template_str, m.start()) {
+                                escape_for_json(&value_to_display(&final_value)).into_owned()
+                            } else {
+                                value_to_display(&final_value).into_owned()
+                            }
                         };
                         result.push_str(&display);
                     }
@@ -461,8 +463,11 @@ pub fn resolve_with<'a>(
     result.push_str(&template_str[last_end..]);
 
     // ─── Pass 2: Resolve {{context.*}} and {{inputs.*}} (direct refs) ───
-    let has_context = result.contains("context.");
-    let has_inputs = result.contains("inputs.");
+    // SECURITY: Check the ORIGINAL template for context/inputs references, not
+    // the post-Pass-1 result. This prevents template injection where a with: value
+    // containing "{{context.files.x}}" triggers Pass 2 resolution.
+    let has_context = template.contains("context.");
+    let has_inputs = template.contains("inputs.");
 
     if !has_context && !has_inputs {
         return Ok(Cow::Owned(result));
@@ -656,15 +661,69 @@ pub fn escape_for_shell(s: &str) -> String {
     result
 }
 
-/// Normalize bracket notation to dot notation
+/// Normalize bracket notation to dot notation ONLY inside `{{...}}` blocks
 ///
 /// Converts `{{with.items[0]}}` to `{{with.items.0}}` for uniform handling.
 /// This allows users to use familiar JavaScript-style array indexing.
+///
+/// IMPORTANT: Only applies normalization inside template blocks (`{{...}}`),
+/// preserving literal bracket notation in surrounding text (e.g., `data[0]`).
 fn normalize_bracket_notation(template: &str) -> Cow<'_, str> {
     if !template.contains('[') {
         return Cow::Borrowed(template);
     }
-    Cow::Owned(BRACKET_RE.replace_all(template, ".$1").to_string())
+
+    // Check if any bracket notation exists inside {{ }} blocks
+    let mut has_bracket_in_template = false;
+    let mut search_start = 0;
+    while let Some(open) = template[search_start..].find("{{") {
+        let abs_open = search_start + open;
+        if let Some(close) = template[abs_open..].find("}}") {
+            let block = &template[abs_open..abs_open + close + 2];
+            if block.contains('[') {
+                has_bracket_in_template = true;
+                break;
+            }
+            search_start = abs_open + close + 2;
+        } else {
+            break;
+        }
+    }
+
+    if !has_bracket_in_template {
+        return Cow::Borrowed(template);
+    }
+
+    // Rebuild string: copy literal segments verbatim, normalize only inside {{ }}
+    let mut result = String::with_capacity(template.len());
+    let mut pos = 0;
+
+    while pos < template.len() {
+        if let Some(open) = template[pos..].find("{{") {
+            let abs_open = pos + open;
+            // Copy literal text before this {{ block verbatim
+            result.push_str(&template[pos..abs_open]);
+
+            if let Some(close) = template[abs_open..].find("}}") {
+                let abs_close = abs_open + close + 2;
+                let block = &template[abs_open..abs_close];
+                // Normalize brackets only within this {{ }} block
+                let normalized_block = BRACKET_RE.replace_all(block, ".$1");
+                result.push_str(&normalized_block);
+                pos = abs_close;
+            } else {
+                // Unclosed {{ — copy rest verbatim
+                result.push_str(&template[abs_open..]);
+                pos = template.len();
+            }
+        } else {
+            // No more {{ — copy remaining literal text verbatim
+            result.push_str(&template[pos..]);
+            break;
+        }
+    }
+
+    Cow::Owned(result)
 }
 
 /// Resolve all {{with.alias}}, {{context.*}}, and {{inputs.*}} templates
@@ -2706,17 +2765,12 @@ mod v028_template_tests {
         ds.set_context(context);
 
         let result = resolve_with("Got: {{val}}", &with, &ds).unwrap();
-        // The {{context.files.secret}} from the alias value should remain literal
-        // BUT: since resolve_with does 2-pass, and pass 1 replaces {{val}} with
-        // the literal string "{{context.files.secret}}", pass 2 WILL resolve it.
-        // This is the documented behavior — values from aliases can trigger
-        // context/input resolution in pass 2. That's OK because:
-        // 1. Aliases come from with: block (user-controlled YAML)
-        // 2. Context/inputs are not sensitive (loaded from user files)
-        // If true isolation is needed, the runtime should sanitize values.
-        //
-        // For now, document actual behavior:
-        assert_eq!(result, "Got: TOP_SECRET");
+        // SECURITY FIX (Bug 45): has_context/has_inputs checks now use the
+        // ORIGINAL template, not the post-Pass-1 result. Since "Got: {{val}}"
+        // does NOT contain "context.", Pass 2 is skipped entirely.
+        // The {{context.files.secret}} from the alias value remains literal.
+        assert_eq!(result, "Got: {{context.files.secret}}");
+        assert!(!result.contains("TOP_SECRET"));
     }
 
     #[test]
@@ -3450,5 +3504,152 @@ mod v028_template_tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert_eq!(parsed["source"], "blake3:abc123");
         assert_eq!(parsed["thumb"], "blake3:def456");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Regression tests for binding/template bugs
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /// Bug 29: normalize_bracket_notation must NOT corrupt literal text outside
+    /// `{{...}}` blocks. Brackets like `data[0]` in plain text must be preserved.
+    #[test]
+    fn regression_bug29_bracket_notation_preserves_literal_text() {
+        let mut bindings = ResolvedBindings::new();
+        bindings.set("items", json!(["first", "second", "third"]));
+        let ds = empty_datastore();
+
+        // "data[0]" is literal text, "{{with.items[0]}}" is a template block
+        let result = resolve("data[0] is {{with.items[0]}}", &bindings, &ds).unwrap();
+        assert_eq!(
+            result, "data[0] is first",
+            "Literal 'data[0]' outside {{}} must NOT be normalized to 'data.0'"
+        );
+    }
+
+    /// Bug 29: normalize_bracket_notation preserves multiple literal brackets.
+    #[test]
+    fn regression_bug29_multiple_literal_brackets() {
+        let with = make_with(&[("items", json!(["a", "b"]))]);
+        let ds = empty_datastore();
+
+        let result = resolve_with(
+            "arr[0] and arr[1] are {{items[0]}} and {{items[1]}}",
+            &with,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(
+            result, "arr[0] and arr[1] are a and b",
+            "Multiple literal brackets must be preserved"
+        );
+    }
+
+    /// Bug 29: normalize_bracket_notation direct unit test.
+    #[test]
+    fn regression_bug29_normalize_unit_test() {
+        // Literal brackets outside {{ }} must NOT be changed
+        assert_eq!(
+            normalize_bracket_notation("data[0] is {{with.items[0]}}"),
+            "data[0] is {{with.items.0}}"
+        );
+        // No template blocks: brackets left as-is
+        assert_eq!(
+            normalize_bracket_notation("array[5] is cool"),
+            "array[5] is cool"
+        );
+        // Brackets only inside {{ }}: normalized
+        assert_eq!(
+            normalize_bracket_notation("{{a[0]}} and {{b[1]}}"),
+            "{{a.0}} and {{b.1}}"
+        );
+    }
+
+    /// Bug 45: resolve_with must NOT evaluate context/input templates injected
+    /// via with: values. Cross-pass contamination is blocked by checking the
+    /// ORIGINAL template for context/inputs markers.
+    #[test]
+    fn regression_bug45_no_cross_pass_contamination() {
+        let with = make_with(&[("user_input", json!("{{context.files.secret}}"))]);
+        let ds = empty_datastore();
+        let mut context = LoadedContext::new();
+        context
+            .files
+            .insert("secret".to_string(), json!("TOP_SECRET_VALUE"));
+        ds.set_context(context);
+
+        let result = resolve_with("Result: {{user_input}}", &with, &ds).unwrap();
+        // The original template "Result: {{user_input}}" does NOT contain "context."
+        // so Pass 2 must NOT run. The literal "{{context.files.secret}}" stays.
+        assert_eq!(result, "Result: {{context.files.secret}}");
+        assert!(
+            !result.contains("TOP_SECRET_VALUE"),
+            "with: value containing {{context.files.x}} must NOT be evaluated"
+        );
+    }
+
+    /// Bug 45: resolve_with must NOT evaluate inputs templates injected via with: values.
+    #[test]
+    fn regression_bug45_no_inputs_injection() {
+        let with = make_with(&[("val", json!("{{inputs.locale}}"))]);
+        let ds = empty_datastore();
+        let mut inputs = FxHashMap::default();
+        inputs.insert("locale".to_string(), json!("fr-FR"));
+        ds.set_inputs(inputs);
+
+        let result = resolve_with("Got: {{val}}", &with, &ds).unwrap();
+        assert_eq!(result, "Got: {{inputs.locale}}");
+        assert!(
+            !result.contains("fr-FR"),
+            "with: value containing {{inputs.x}} must NOT be evaluated"
+        );
+    }
+
+    /// Bug 45: when the original template DOES contain context refs, they still resolve.
+    #[test]
+    fn regression_bug45_legitimate_context_still_resolves() {
+        let with = make_with(&[("name", json!("Alice"))]);
+        let ds = empty_datastore();
+        let mut context = LoadedContext::new();
+        context
+            .files
+            .insert("brand".to_string(), json!("SuperNovae"));
+        ds.set_context(context);
+
+        // Original template contains both alias and context refs
+        let result =
+            resolve_with("Hello {{name}} from {{context.files.brand}}", &with, &ds).unwrap();
+        assert_eq!(result, "Hello Alice from SuperNovae");
+    }
+
+    /// Bug 47: shell transform must not be double-applied in resolve_with.
+    /// Verifies the output is correctly shell-escaped exactly once.
+    #[test]
+    fn regression_bug47_shell_not_double_applied() {
+        let with = make_with(&[("val", json!("hello world"))]);
+        let ds = empty_datastore();
+        let result = resolve_with("{{val | shell}}", &with, &ds).unwrap();
+        // Correct: single shell escape wraps in single quotes
+        assert_eq!(result, "'hello world'");
+        // If double-applied, would be "''hello world''" or similar nested quoting
+    }
+
+    /// Bug 47: shell transform with other transforms must not double-apply.
+    #[test]
+    fn regression_bug47_shell_with_chain_not_double_applied() {
+        let with = make_with(&[("val", json!("Hello World"))]);
+        let ds = empty_datastore();
+        let result = resolve_with("{{val | lower | shell}}", &with, &ds).unwrap();
+        // lower applied first, then shell escape
+        assert_eq!(result, "'hello world'");
+    }
+
+    /// Bug 47: shell transform on value with quotes must escape correctly once.
+    #[test]
+    fn regression_bug47_shell_with_quotes() {
+        let with = make_with(&[("val", json!("it's a test"))]);
+        let ds = empty_datastore();
+        let result = resolve_with("{{val | shell}}", &with, &ds).unwrap();
+        // Single correct shell escape: 'it'\''s a test'
+        assert_eq!(result, "'it'\\''s a test'");
     }
 }

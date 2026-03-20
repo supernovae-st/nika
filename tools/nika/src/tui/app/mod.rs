@@ -51,7 +51,7 @@ use crate::tui::chat_agent::ChatAgent;
 
 use super::config::{ThemeName, TuiConfig};
 use super::cosmic_theme::CosmicTheme;
-use super::focus::{FocusState, PanelId as NavPanelId};
+// FocusState import removed — field was never read (Phase 1 cleanup)
 use super::mode::InputMode;
 use super::standalone::StandaloneState;
 use super::startup;
@@ -99,9 +99,7 @@ pub struct App {
     pub(crate) current_view: TuiView,
     /// Current input mode (Normal, Insert, Command, Search)
     pub(crate) input_mode: InputMode,
-    /// Panel focus state for keyboard navigation
-    #[allow(dead_code)]
-    pub(crate) focus_state: FocusState,
+    // focus_state removed — was never read (Phase 1 cleanup)
     /// Chat view state
     pub(crate) chat_view: ChatView,
     /// Home view state (file browser)
@@ -115,9 +113,7 @@ pub struct App {
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     pub(crate) llm_response_rx: mpsc::Receiver<String>,
-    /// Sender for spawning LLM tasks (complete responses)
-    #[allow(dead_code)]
-    pub(crate) llm_response_tx: mpsc::Sender<String>,
+    // llm_response_tx removed — sender held but never used (Phase 1 cleanup)
     /// Channel for streaming tokens (real-time display)
     pub(crate) stream_chunk_rx: mpsc::Receiver<StreamChunk>,
     /// Sender for streaming tokens (passed to ChatAgent)
@@ -137,9 +133,7 @@ pub struct App {
     /// Current session ID (for save/load)
     pub(crate) session_id: Option<String>,
     // ═══ TUI Config ═══
-    /// Loaded configuration from .nika/config.toml
-    #[allow(dead_code)]
-    pub(crate) config: TuiConfig,
+    // config removed — loaded but never read (Phase 1 cleanup)
     // ═══ Performance: Reusable Event Buffer ═══
     /// PERF: Pre-allocated buffer for poll_runtime_events to avoid
     /// allocating a new Vec on every frame (60 FPS = 60 allocations/sec saved)
@@ -176,7 +170,7 @@ impl App {
         let monitor_view = MonitorView::new();
 
         // Initialize LLM response channel
-        let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+        let (_llm_response_tx, llm_response_rx) = mpsc::channel(32);
         // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
         let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
@@ -213,21 +207,18 @@ impl App {
             // 4-view architecture - start in Monitor mode for workflow execution
             current_view: TuiView::Runner,
             input_mode: InputMode::Normal,
-            focus_state: FocusState::new(NavPanelId::RunnerMission),
             chat_view,
             home_view: None, // No home view in execution mode
             studio_view,
             settings_view,
             monitor_view,
             llm_response_rx,
-            llm_response_tx,
             stream_chunk_rx,
             stream_chunk_tx,
             chat_agent,
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
             session_id: None,
-            config,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             intro_state: None,
@@ -248,7 +239,7 @@ impl App {
         let monitor_view = MonitorView::new();
 
         // Initialize LLM response channel
-        let (llm_response_tx, llm_response_rx) = mpsc::channel(32);
+        let (_llm_response_tx, llm_response_rx) = mpsc::channel(32);
         // P1 Fix: Increase buffer from 256 to 512 for fast providers like Groq (~200 tok/s)
         let (stream_chunk_tx, stream_chunk_rx) = mpsc::channel(512);
 
@@ -285,21 +276,18 @@ impl App {
             // 4-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
-            focus_state: FocusState::new(NavPanelId::StudioFiles),
             chat_view,
             home_view: Some(home_view),
             studio_view,
             settings_view,
             monitor_view,
             llm_response_rx,
-            llm_response_tx,
             stream_chunk_rx,
             stream_chunk_tx,
             chat_agent,
             mcp_pool: McpClientPool::new(crate::event::EventLog::new()),
             background_handles: Arc::new(Mutex::new(Vec::new())),
             session_id: None,
-            config,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
             intro_state: Some(NikaIntroState::new()),
