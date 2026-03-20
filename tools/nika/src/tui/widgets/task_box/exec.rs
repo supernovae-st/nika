@@ -12,6 +12,7 @@ use ratatui::{
 };
 
 use super::{exit, BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::unicode::display_width;
 
 /// ExecBox data and rendering
 #[derive(Debug, Clone)]
@@ -143,12 +144,22 @@ impl ExecBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -329,8 +340,8 @@ impl Widget for ExecBox {
         let title_prefix = format!("╭─ {} ", verb.icon_label());
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 
@@ -436,11 +447,22 @@ impl Widget for ExecBox {
             .cwd
             .as_ref()
             .map(|c| {
-                // PERF: Use char count, not byte length (UTF-8 safe)
-                let char_count = c.chars().count();
-                let display = if char_count > 20 {
-                    let truncated: String = c.chars().skip(char_count - 17).collect();
-                    format!("...{}", truncated)
+                // Use display width for terminal column calculation
+                let w = display_width(c);
+                let display = if w > 20 {
+                    // Take last ~17 display-width columns
+                    let mut chars: Vec<char> = c.chars().collect();
+                    let mut result = String::new();
+                    let mut rw = 0;
+                    while let Some(ch) = chars.pop() {
+                        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                        if rw + cw > 17 {
+                            break;
+                        }
+                        result.insert(0, ch);
+                        rw += cw;
+                    }
+                    format!("...{}", result)
                 } else {
                     c.clone()
                 };

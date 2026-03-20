@@ -14,6 +14,7 @@ use ratatui::{
 use super::StreamingContext;
 
 use super::{BoxState, RenderMode, TaskBox, TokenVelocity, VerbColor};
+use crate::tui::unicode::display_width;
 
 /// AgentBox data and rendering
 #[derive(Debug, Clone)]
@@ -267,12 +268,22 @@ impl AgentBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -491,9 +502,9 @@ impl Widget for AgentBox {
             header_label, prompt_truncated, status_icon, status_suffix
         );
         // Pad with dashes to fill width
-        let title_chars = title.chars().count();
-        let title_padded = if title_chars < inner_width + 2 {
-            let dashes_needed = inner_width + 2 - title_chars;
+        let title_display_width = display_width(&title);
+        let title_padded = if title_display_width < inner_width + 2 {
+            let dashes_needed = inner_width + 2 - title_display_width;
             let title_parts: Vec<&str> = title.splitn(2, " ─╮").collect();
             if title_parts.len() == 2 {
                 format!("{}{}─╮", title_parts[0], "─".repeat(dashes_needed))

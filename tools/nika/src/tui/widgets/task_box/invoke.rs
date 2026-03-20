@@ -12,6 +12,7 @@ use ratatui::{
 };
 
 use super::{BoxState, RenderMode, StreamingContext, VerbColor};
+use crate::tui::unicode::display_width;
 
 /// InvokeBox data and rendering
 #[derive(Debug, Clone)]
@@ -180,12 +181,22 @@ impl InvokeBox {
         height
     }
 
-    /// Truncate string preserving UTF-8
+    /// Truncate string preserving UTF-8, using display width for terminal columns
     fn truncate(s: &str, max_len: usize) -> String {
-        let char_count = s.chars().count();
-        if char_count > max_len && max_len > 3 {
-            let truncated: String = s.chars().take(max_len - 3).collect();
-            format!("{}...", truncated)
+        let width = display_width(s);
+        if width > max_len && max_len > 3 {
+            let target = max_len - 3;
+            let mut current = 0;
+            let mut result = String::new();
+            for c in s.chars() {
+                let cw = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+                if current + cw > target {
+                    break;
+                }
+                result.push(c);
+                current += cw;
+            }
+            format!("{}...", result)
         } else {
             s.to_string()
         }
@@ -214,8 +225,8 @@ impl InvokeBox {
         let prefix = format!("{}: {} ", verb.icon_label(), self.tool);
         let suffix = format!("  {} {}", status_icon, server_info);
         let available = (area.width as usize)
-            .saturating_sub(prefix.chars().count())
-            .saturating_sub(suffix.chars().count());
+            .saturating_sub(display_width(&prefix))
+            .saturating_sub(display_width(&suffix));
 
         // Build line with proper spacing
         let padding = " ".repeat(available);
@@ -223,7 +234,7 @@ impl InvokeBox {
         buf.set_string(area.x, area.y, &line, line_style);
 
         // Dim the server info portion
-        let suffix_x = area.x + (line.chars().count() - suffix.chars().count()) as u16;
+        let suffix_x = area.x + (display_width(&line) - display_width(&suffix)) as u16;
         buf.set_string(suffix_x, area.y, &suffix, dim_style);
     }
 
@@ -389,8 +400,8 @@ impl Widget for InvokeBox {
         let title_prefix = format!("╭─ {}: {} ", verb.icon_label(), self.tool);
         let title_suffix = format!(" {} {} ─╮", status_icon, status_suffix);
         let dash_count = inner_width
-            .saturating_sub(title_prefix.chars().count())
-            .saturating_sub(title_suffix.chars().count());
+            .saturating_sub(display_width(&title_prefix))
+            .saturating_sub(display_width(&title_suffix));
         let title = format!("{}{}{}", title_prefix, "─".repeat(dash_count), title_suffix);
         buf.set_string(area.x, area.y, &title, border_style);
 

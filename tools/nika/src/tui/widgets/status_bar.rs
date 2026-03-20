@@ -16,6 +16,8 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::tui::keybindings::{format_key, keybindings_for_context, KeyCategory, Keybinding};
 use crate::tui::mode::InputMode;
 use crate::tui::theme::Theme;
@@ -632,9 +634,15 @@ impl Widget for StatusBar<'_> {
             right_spans.push(Span::raw(" "));
         }
 
-        // Calculate widths for layout
-        let left_width: usize = left_spans.iter().map(|s| s.content.len()).sum();
-        let right_width: usize = right_spans.iter().map(|s| s.content.len()).sum();
+        // Calculate widths for layout (use display width, not byte length)
+        let left_width: usize = left_spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
+        let right_width: usize = right_spans
+            .iter()
+            .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+            .sum();
 
         // Render left side
         let left_line = Line::from(left_spans);
@@ -648,7 +656,10 @@ impl Widget for StatusBar<'_> {
             let right_line = Line::from(right_spans);
 
             for (i, span) in right_line.spans.iter().enumerate() {
-                let x_offset: usize = right_line.spans[..i].iter().map(|s| s.content.len()).sum();
+                let x_offset: usize = right_line.spans[..i]
+                    .iter()
+                    .map(|s| UnicodeWidthStr::width(s.content.as_ref()))
+                    .sum();
                 buf.set_string(
                     right_x + x_offset as u16,
                     area.y,
