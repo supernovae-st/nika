@@ -236,6 +236,7 @@ pub async fn handle_provider_command(action: ProviderAction) -> Result<(), NikaE
                 "groq" => RigProvider::groq(),
                 "deepseek" => RigProvider::deepseek(),
                 "gemini" => RigProvider::gemini(),
+                "xai" => RigProvider::xai(),
                 "native" => {
                     #[cfg(feature = "native-inference")]
                     {

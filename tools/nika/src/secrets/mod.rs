@@ -257,6 +257,73 @@ mod tests {
         assert!(!has_secret("fantasy_provider").await);
     }
 
+    // ─── Bug 12/33: empty env vars must NOT count as found ─────────────
+
+    #[tokio::test]
+    #[serial]
+    async fn test_has_secret_false_when_env_empty() {
+        let key = "XAI_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "");
+        assert!(
+            !has_secret("xai").await,
+            "has_secret() must return false for empty env var"
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_secret_returns_none_when_env_empty() {
+        let key = "GROQ_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "");
+        let secret = get_secret("groq").await;
+        assert!(
+            secret.is_none(),
+            "get_secret() must return None for empty env var"
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_load_does_not_count_empty_env_var_as_found() {
+        let key = "DEEPSEEK_API_KEY";
+        let original = std::env::var(key).ok();
+
+        std::env::set_var(key, "");
+        let result = load_from_daemon_or_fallback().await;
+
+        // deepseek should NOT appear in from_fallback or from_daemon
+        let found_in_daemon = result.from_daemon.contains(&"deepseek".to_string());
+        let found_in_fallback = result.from_fallback.contains(&"deepseek".to_string());
+        assert!(
+            !found_in_daemon && !found_in_fallback,
+            "Empty env var should not count as found: daemon={:?}, fallback={:?}",
+            result.from_daemon,
+            result.from_fallback
+        );
+
+        // Restore
+        match original {
+            Some(v) => std::env::set_var(key, v),
+            None => unsafe { std::env::remove_var(key) },
+        }
+    }
+
     // ─── load_from_daemon_or_fallback ───────────────────────────────────
 
     #[tokio::test]

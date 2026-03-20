@@ -30,8 +30,11 @@ pub async fn load_from_daemon_or_fallback() -> SecretsLoadResult {
         let provider_id = provider.id;
         let env_var = provider.env_var;
 
-        // Check if already in env
-        if std::env::var(env_var).is_ok() {
+        // Check if already in env (skip empty values)
+        if std::env::var(env_var)
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+        {
             trace!("{}: already in env", provider_id);
             result.from_fallback.push(provider_id.to_string());
             continue;
@@ -116,8 +119,11 @@ pub async fn get_secret(provider: &str) -> Option<SecretString> {
 pub async fn has_secret(provider: &str) -> bool {
     let env_var = provider_env_var(provider);
 
-    // Check env first
-    if std::env::var(env_var).is_ok() {
+    // Check env first (skip empty values)
+    if std::env::var(env_var)
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
         return true;
     }
 
