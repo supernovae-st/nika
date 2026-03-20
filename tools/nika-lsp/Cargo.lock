@@ -4056,6 +4056,7 @@ version = "0.34.0"
 dependencies = [
  "dashmap",
  "nika",
+ "nika-lsp-core",
  "parking_lot",
  "pretty_assertions",
  "regex",
@@ -4068,6 +4069,23 @@ dependencies = [
  "tower-lsp-server",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nika-lsp-core"
+version = "0.34.0"
+dependencies = [
+ "dashmap",
+ "ls-types",
+ "nika-core",
+ "parking_lot",
+ "ropey",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tree-sitter",
+ "tree-sitter-yaml",
 ]
 
 [[package]]

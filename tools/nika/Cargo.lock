@@ -5308,6 +5308,7 @@ dependencies = [
  "mime_guess",
  "mistralrs",
  "nika-core",
+ "nika-lsp-core",
  "nix 0.29.0",
  "nom-exif",
  "nucleo",
@@ -5393,6 +5394,23 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "xxhash-rust",
+]
+
+[[package]]
+name = "nika-lsp-core"
+version = "0.34.0"
+dependencies = [
+ "dashmap",
+ "ls-types",
+ "nika-core",
+ "parking_lot",
+ "ropey",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tree-sitter",
+ "tree-sitter-yaml",
 ]
 
 [[package]]
@@ -7514,6 +7532,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ropey"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
+dependencies = [
+ "smallvec 1.15.1",
+ "str_indices",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8741,6 +8769,12 @@ checksum = "645a3d441ccf4bf47f2e4b7681461986681a6eeea9937d4c3bc9febd61d17c71"
 dependencies = [
  "serde_json",
 ]
+
+[[package]]
+name = "str_indices"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d08889ec5408683408db66ad89e0e1f93dff55c73a4ccc71c427d5b277ee47e6"
 
 [[package]]
 name = "streaming-iterator"
