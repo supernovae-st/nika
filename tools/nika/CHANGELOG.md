@@ -7,6 +7,23 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.35.2](https://github.com/supernovae-st/nika/releases/tag/v0.35.2) - 2026-03-20
+
+### Fixed
+- **47 bugs fixed** from 8-agent parallel security/correctness audit
+- **Binding**: `|sort` now uses numeric ordering for numbers; `|length` returns char count (not bytes) for Unicode; bracket notation only applied inside `{{...}}`; template injection prevention in `resolve_with()`
+- **Security**: SSRF URL scheme validation (http/https only); `sensitive_env_vars()` includes AWS/GitHub/Stripe secrets; shell-mode blocklist blocks `$()` and backticks; policy fail-closed on unparseable URLs; env var name validation
+- **Secrets**: `has_secret()` rejects empty env vars; xAI provider fully supported (test, boot, TUI, migration); TUI keychain guard respects `NIKA_KEYCHAIN_BOOT`; `NikaKeyring::set/delete()` guarded in tests
+- **Media**: CAS framing byte prevents false-positive decompression; import size limit aligned with CAS (100MB); pipeline thumbnail respects height parameter; BinarySource::CasPath decompresses before artifact write
+- **AST**: `schema_ref` threaded through all 3 phases; schema file paths create `SchemaRef::File`; invalid HTTP methods emit warning; `max_retries` and `response_format` parsed; `timeout_ms` uses ceiling division
+- **DAG**: IndexedDag edge dedup prevents false cycle detection; for_each traversal failure reports error (not silent regular execution); `fail_fast` scoped to per-parent CancellationToken; `from_workflow` validates dependency references
+- **Runtime**: `infer.system` template-resolved; feature-gated extract modes give clear "requires feature" error; binary response post-read size check; 0-byte binary returns `{hash: null}`; `MAX_VISION_IMAGE_PARTS` counts ImageUrl; response+extract conflict rejected; unsupported image format gives clear error
+
+### Changed
+- **Template engine**: `resolve()` now uses `TEMPLATE_RE` + `parse_template_expr()` — all pipe transforms (`|sort`, `|upper`, `|length`, etc.) work in exec/infer/fetch templates (previously only `|shell` worked)
+- **JSON Schema**: `provider`/`model` removed from `InferParams` (they are task-level fields)
+- Tests: 6735 passing (up from 6670)
+
 ## [0.35.1](https://github.com/supernovae-st/nika/releases/tag/v0.35.1) - 2026-03-20
 
 ```

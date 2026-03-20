@@ -73,7 +73,7 @@ src/
 ## Testing
 
 ```bash
-cargo test --lib             # Unit tests (6600+, safe — no keychain)
+cargo test --lib             # Unit tests (6735+, safe — no keychain)
 cargo test --features lsp    # Include LSP tests
 cargo clippy -- -D warnings  # Zero warnings policy
 ```
