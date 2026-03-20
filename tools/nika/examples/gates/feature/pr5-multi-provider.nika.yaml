@@ -1,0 +1,18 @@
+# PR5 Gate: Multi-model chain (gpt-4.1-mini -> gpt-4.1-nano)
+# Demonstrates task-level model override with binding
+schema: nika/workflow@0.12
+workflow: pr5-multi-provider
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: first_task
+    infer: "Name a random color in one word"
+    max_tokens: 10
+  - id: second_task
+    infer:
+      prompt: "What emotion does the color {{with.color}} evoke? One sentence."
+    model: gpt-4.1-nano
+    max_tokens: 100
+    with:
+      color: $first_task
+    depends_on: [first_task]

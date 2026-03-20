@@ -1,0 +1,9 @@
+# PR5 Gate: Fetch + extract links
+schema: nika/workflow@0.12
+workflow: pr5-extract-links
+provider: mock
+tasks:
+  - id: links
+    fetch:
+      url: "https://news.ycombinator.com"
+      extract: links

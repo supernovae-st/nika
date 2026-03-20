@@ -1,0 +1,30 @@
+# Use Case: SEO audit pipeline
+# Fetches metadata + content from a website, then analyzes SEO
+schema: nika/workflow@0.12
+workflow: seo-audit
+description: "Analyze a website's SEO metadata and content"
+provider: openai
+model: gpt-4.1-mini
+tasks:
+  - id: fetch_page
+    fetch:
+      url: "https://supernovae.studio"
+      extract: metadata
+  - id: fetch_content
+    fetch:
+      url: "https://supernovae.studio"
+      extract: markdown
+  - id: analyze
+    infer:
+      prompt: |
+        Analyze this website's SEO based on its metadata and content.
+
+        Metadata: {{with.meta}}
+        Content (first 2000 chars): {{with.content}}
+
+        Provide a brief SEO score (1-10) and 3 recommendations.
+    max_tokens: 500
+    with:
+      meta: $fetch_page
+      content: $fetch_content
+    depends_on: [fetch_page, fetch_content]
