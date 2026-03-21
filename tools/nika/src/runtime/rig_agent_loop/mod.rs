@@ -46,6 +46,7 @@ use crate::error::NikaError;
 use crate::event::EventLog;
 use crate::mcp::McpClient;
 use crate::provider::rig::{AgentMediaStaging, NikaMcpTool, NikaMcpToolDef};
+use crate::runtime::limit_tracker::LimitTracker;
 use crate::runtime::submit_tool::DynamicSubmitTool;
 use crate::runtime::SkillInjector;
 use crate::tools::{
@@ -109,6 +110,9 @@ pub struct RigAgentLoop {
     /// Binary content blocks from MCP tools are collected here since
     /// rig's ToolDyn::call() returns String only.
     pub media_staging: AgentMediaStaging,
+    /// Runtime limit tracker for cost/token/duration enforcement.
+    /// Instantiated from `AgentParams.limits` if configured, otherwise unlimited.
+    limit_tracker: LimitTracker,
 }
 
 impl std::fmt::Debug for RigAgentLoop {
@@ -337,6 +341,12 @@ impl RigAgentLoop {
         // This reduces reallocations during conversation.
         let history_capacity = params.max_turns.unwrap_or(10) as usize * 2;
 
+        // Initialize limit tracker from AgentParams.limits (or unlimited)
+        let limit_tracker = match &params.limits {
+            Some(limits_config) => LimitTracker::new(limits_config.clone()),
+            None => LimitTracker::unlimited(),
+        };
+
         Ok(Self {
             task_id,
             params,
@@ -350,6 +360,7 @@ impl RigAgentLoop {
             skills_map: None,
             base_dir: None,
             media_staging,
+            limit_tracker,
         })
     }
 
@@ -503,6 +514,16 @@ impl RigAgentLoop {
                 preamble.push_str(
                     "\nUse the MOST SPECIFIC tool for each action. Call nika_complete when done.\n",
                 );
+            }
+        }
+
+        // Inject completion instructions from CompletionConfig
+        // This tells the agent how to signal completion (explicit/pattern/natural)
+        if let Some(ref completion_config) = self.params.completion {
+            let instruction = completion_config.generate_system_instruction();
+            if !instruction.is_empty() {
+                preamble.push_str("\n\n## Completion Instructions\n");
+                preamble.push_str(&instruction);
             }
         }
 

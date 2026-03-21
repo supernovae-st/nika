@@ -346,8 +346,8 @@ mod tests {
     fn test_cosmic_dark_resolver() {
         let resolver = TokenResolver::cosmic_dark();
         assert_eq!(resolver.variant(), CosmicVariant::CosmicDark);
-        // Slate-900 background
-        assert_eq!(resolver.bg_primary(), Color::Rgb(15, 23, 42));
+        // Catppuccin Mocha Base background
+        assert_eq!(resolver.bg_primary(), Color::Rgb(30, 30, 46));
     }
 
     #[test]
@@ -367,10 +367,10 @@ mod tests {
     #[test]
     fn test_verb_colors() {
         let resolver = TokenResolver::cosmic_dark();
-        // Violet for infer
-        assert_eq!(resolver.verb_infer(), Color::Rgb(139, 92, 246));
-        // Amber for exec
-        assert_eq!(resolver.verb_exec(), Color::Rgb(245, 158, 11));
+        // Catppuccin Mauve for infer
+        assert_eq!(resolver.verb_infer(), Color::Rgb(203, 166, 247));
+        // Catppuccin Peach for exec
+        assert_eq!(resolver.verb_exec(), Color::Rgb(250, 179, 135));
     }
 
     #[test]

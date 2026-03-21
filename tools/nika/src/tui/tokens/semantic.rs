@@ -341,8 +341,8 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.bg_primary, palette.slate_900);
-        assert_eq!(semantic.accent_primary, palette.violet_500);
+        assert_eq!(semantic.bg_primary, Color::Rgb(30, 30, 46)); // Catppuccin Mocha Base
+        assert_eq!(semantic.accent_primary, Color::Rgb(180, 190, 254)); // Catppuccin Lavender
         assert!(semantic.is_dark());
     }
 
@@ -370,11 +370,11 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.verb("infer"), palette.violet_500);
-        assert_eq!(semantic.verb("exec"), palette.amber_500);
-        assert_eq!(semantic.verb("fetch"), palette.cyan_500);
-        assert_eq!(semantic.verb("invoke"), palette.emerald_500);
-        assert_eq!(semantic.verb("agent"), palette.rose_500);
+        assert_eq!(semantic.verb("infer"), Color::Rgb(203, 166, 247)); // Catppuccin Mauve
+        assert_eq!(semantic.verb("exec"), Color::Rgb(250, 179, 135)); // Catppuccin Peach
+        assert_eq!(semantic.verb("fetch"), Color::Rgb(137, 220, 235)); // Catppuccin Sky
+        assert_eq!(semantic.verb("invoke"), Color::Rgb(148, 226, 213)); // Catppuccin Teal
+        assert_eq!(semantic.verb("agent"), Color::Rgb(245, 194, 231)); // Catppuccin Pink
         assert_eq!(semantic.verb("unknown"), semantic.text_muted);
     }
 
@@ -383,11 +383,11 @@ mod tests {
         let palette = ColorPalette::tailwind();
         let semantic = SemanticColors::cosmic_dark(&palette);
 
-        assert_eq!(semantic.status("success"), palette.emerald_500);
-        assert_eq!(semantic.status("completed"), palette.emerald_500);
-        assert_eq!(semantic.status("warning"), palette.amber_500);
-        assert_eq!(semantic.status("error"), palette.red_500);
-        assert_eq!(semantic.status("info"), palette.blue_500);
+        assert_eq!(semantic.status("success"), Color::Rgb(166, 227, 161)); // Catppuccin Green
+        assert_eq!(semantic.status("completed"), Color::Rgb(166, 227, 161)); // Catppuccin Green
+        assert_eq!(semantic.status("warning"), Color::Rgb(249, 226, 175)); // Catppuccin Yellow
+        assert_eq!(semantic.status("error"), Color::Rgb(243, 139, 168)); // Catppuccin Red
+        assert_eq!(semantic.status("info"), Color::Rgb(137, 180, 250)); // Catppuccin Blue
     }
 
     #[test]

@@ -121,7 +121,10 @@ impl RigAgentLoop {
     /// 1. Explicit completion via nika:complete tool
     ///    - With confidence: compare against threshold → HighConfidence/LowConfidence
     ///    - Without confidence: ExplicitCompletion
-    /// 2. Natural completion (NaturalCompletion)
+    /// 2. Pattern completion (if `completion.mode: pattern`)
+    /// 3. Natural completion — but only when mode is NOT `explicit`
+    ///    When `completion.mode: explicit`, natural end-of-turn without
+    ///    `nika:complete` returns `LowConfidence(0.0)` to trigger retry.
     pub fn determine_status(&self, output: &str) -> RigAgentStatus {
         if self.check_completion_signal(output) {
             // Parse the completion response to extract confidence
@@ -135,10 +138,31 @@ impl RigAgentLoop {
                 }
             }
             // No confidence provided, treat as explicit completion
-            RigAgentStatus::ExplicitCompletion
-        } else {
-            RigAgentStatus::NaturalCompletion
+            return RigAgentStatus::ExplicitCompletion;
         }
+
+        // Check pattern-based completion
+        if let Some(ref completion_config) = self.params.completion {
+            if completion_config.check_pattern_match(output) {
+                return RigAgentStatus::ExplicitCompletion;
+            }
+        }
+
+        // Check if mode is explicit — if so, natural end-of-turn is NOT completion.
+        // The agent must call nika:complete. Returning LowConfidence triggers retry
+        // in the generic provider loop.
+        if let Some(ref completion_config) = self.params.completion {
+            use crate::ast::completion::CompletionMode;
+            if completion_config.mode == CompletionMode::Explicit {
+                tracing::debug!(
+                    task_id = %self.task_id,
+                    "Agent ended turn without calling nika:complete (mode: explicit)"
+                );
+                return RigAgentStatus::LowConfidence(0.0);
+            }
+        }
+
+        RigAgentStatus::NaturalCompletion
     }
 
     /// Get confidence threshold from completion config

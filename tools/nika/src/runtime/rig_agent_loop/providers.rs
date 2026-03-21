@@ -13,6 +13,8 @@ use serde_json;
 use crate::error::NikaError;
 use crate::event::{AgentTurnMetadata, EventKind};
 
+use crate::ast::limits::LimitType;
+
 use super::types::{RigAgentLoopResult, RigAgentStatus};
 use super::RigAgentLoop;
 
@@ -132,8 +134,27 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response
-        let status = self.determine_status(&result.response);
+        // Record turn in limit tracker
+        let cost = crate::provider::cost::calculate_cost(
+            crate::provider::cost::ProviderKind::Claude,
+            &model_name,
+            result.input_tokens,
+            result.output_tokens,
+        );
+        self.limit_tracker
+            .record_turn(result.input_tokens, result.output_tokens, cost);
+
+        // Determine status from response (limits can override)
+        let status = if let Some(exceeded) = self.limit_tracker.check_limits() {
+            match exceeded.limit_type {
+                LimitType::Turns => RigAgentStatus::MaxTurnsReached,
+                LimitType::Tokens => RigAgentStatus::TokenBudgetExceeded,
+                LimitType::Cost => RigAgentStatus::CostLimitReached,
+                LimitType::Duration => RigAgentStatus::DurationLimitReached,
+            }
+        } else {
+            self.determine_status(&result.response)
+        };
 
         // Build metadata WITH token tracking
         let stop_reason = status.as_canonical_str();
@@ -154,9 +175,16 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails
+        // Check guardrails and override status on failure
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -166,12 +194,7 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
-            cost_usd: crate::provider::cost::calculate_cost(
-                crate::provider::cost::ProviderKind::Claude,
-                &model_name,
-                result.input_tokens,
-                result.output_tokens,
-            ),
+            cost_usd: self.limit_tracker.cost_usd(),
             partial_result: None,
         })
     }
@@ -218,8 +241,27 @@ impl RigAgentLoop {
             .stream_with_tools(model, &prompt, tools, max_turns)
             .await?;
 
-        // Determine status from response
-        let status = self.determine_status(&result.response);
+        // Record turn in limit tracker
+        let cost = crate::provider::cost::calculate_cost(
+            crate::provider::cost::ProviderKind::OpenAI,
+            &model_name,
+            result.input_tokens,
+            result.output_tokens,
+        );
+        self.limit_tracker
+            .record_turn(result.input_tokens, result.output_tokens, cost);
+
+        // Determine status from response (limits can override)
+        let status = if let Some(exceeded) = self.limit_tracker.check_limits() {
+            match exceeded.limit_type {
+                LimitType::Turns => RigAgentStatus::MaxTurnsReached,
+                LimitType::Tokens => RigAgentStatus::TokenBudgetExceeded,
+                LimitType::Cost => RigAgentStatus::CostLimitReached,
+                LimitType::Duration => RigAgentStatus::DurationLimitReached,
+            }
+        } else {
+            self.determine_status(&result.response)
+        };
 
         // Build metadata WITH token tracking
         let stop_reason = status.as_canonical_str();
@@ -239,9 +281,16 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails
+        // Check guardrails and override status on failure
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -251,12 +300,7 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count: 0,
             guardrails_passed,
-            cost_usd: crate::provider::cost::calculate_cost(
-                crate::provider::cost::ProviderKind::OpenAI,
-                &model_name,
-                result.input_tokens,
-                result.output_tokens,
-            ),
+            cost_usd: self.limit_tracker.cost_usd(),
             partial_result: None,
         })
     }
@@ -457,11 +501,71 @@ impl RigAgentLoop {
         total_input_tokens += result.input_tokens;
         total_output_tokens += result.output_tokens;
 
+        // Record turn in limit tracker
+        let turn_cost = provider_kind
+            .map(|pk| {
+                crate::provider::cost::calculate_cost(
+                    pk,
+                    model_name,
+                    result.input_tokens,
+                    result.output_tokens,
+                )
+            })
+            .unwrap_or(0.0);
+        self.limit_tracker
+            .record_turn(result.input_tokens, result.output_tokens, turn_cost);
+
+        // Check limits after first turn
+        if let Some(exceeded) = self.limit_tracker.check_limits() {
+            let status = match exceeded.limit_type {
+                LimitType::Turns => RigAgentStatus::MaxTurnsReached,
+                LimitType::Tokens => RigAgentStatus::TokenBudgetExceeded,
+                LimitType::Cost => RigAgentStatus::CostLimitReached,
+                LimitType::Duration => RigAgentStatus::DurationLimitReached,
+            };
+            tracing::warn!(
+                task_id = %self.task_id,
+                limit = %exceeded.limit_type,
+                current = exceeded.current,
+                maximum = exceeded.maximum,
+                "Agent limit exceeded after first turn"
+            );
+            return Ok(RigAgentLoopResult {
+                status,
+                turns: 1,
+                final_output: serde_json::json!({ "response": result.response }),
+                total_tokens: total_input_tokens + total_output_tokens,
+                confidence: None,
+                retry_count: 0,
+                guardrails_passed: true,
+                cost_usd: self.limit_tracker.cost_usd(),
+                partial_result: None,
+            });
+        }
+
         let mut status = self.determine_status(&result.response);
 
         // Retry loop for low confidence
         while self.should_retry(&status, retry_count) {
             retry_count += 1;
+
+            // Check limits before starting a retry
+            if let Some(exceeded) = self.limit_tracker.check_limits() {
+                let limit_status = match exceeded.limit_type {
+                    LimitType::Turns => RigAgentStatus::MaxTurnsReached,
+                    LimitType::Tokens => RigAgentStatus::TokenBudgetExceeded,
+                    LimitType::Cost => RigAgentStatus::CostLimitReached,
+                    LimitType::Duration => RigAgentStatus::DurationLimitReached,
+                };
+                tracing::warn!(
+                    task_id = %self.task_id,
+                    limit = %exceeded.limit_type,
+                    retry = retry_count,
+                    "Agent limit exceeded during retry loop"
+                );
+                status = limit_status;
+                break;
+            }
 
             // Get confidence from status for feedback message
             let confidence = match &status {
@@ -504,6 +608,20 @@ impl RigAgentLoop {
             total_input_tokens += result.input_tokens;
             total_output_tokens += result.output_tokens;
 
+            // Record retry turn in limit tracker
+            let retry_cost = provider_kind
+                .map(|pk| {
+                    crate::provider::cost::calculate_cost(
+                        pk,
+                        model_name,
+                        result.input_tokens,
+                        result.output_tokens,
+                    )
+                })
+                .unwrap_or(0.0);
+            self.limit_tracker
+                .record_turn(result.input_tokens, result.output_tokens, retry_cost);
+
             status = self.determine_status(&result.response);
         }
 
@@ -525,9 +643,18 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails
+        // Check guardrails and override status on failure
         let guardrail_result = self.check_guardrails(&result.response);
         let guardrails_passed = guardrail_result.is_passed();
+
+        // Override status when guardrails fail with terminal actions
+        let status = if guardrail_result.should_fail() {
+            RigAgentStatus::Failed
+        } else if guardrail_result.should_escalate() {
+            RigAgentStatus::Escalated(status.confidence().unwrap_or(0.0))
+        } else {
+            status
+        };
 
         Ok(RigAgentLoopResult {
             status: status.clone(),
@@ -537,16 +664,7 @@ impl RigAgentLoop {
             confidence: status.confidence(),
             retry_count,
             guardrails_passed,
-            cost_usd: provider_kind
-                .map(|pk| {
-                    crate::provider::cost::calculate_cost(
-                        pk,
-                        model_name,
-                        total_input_tokens,
-                        total_output_tokens,
-                    )
-                })
-                .unwrap_or(0.0),
+            cost_usd: self.limit_tracker.cost_usd(),
             partial_result: None,
         })
     }

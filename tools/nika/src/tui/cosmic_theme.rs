@@ -403,8 +403,8 @@ mod tests {
     fn test_theme_from_resolver_cosmic_dark() {
         let theme = Theme::cosmic_dark();
 
-        // Should have Slate-900 background
-        assert_eq!(theme.background, Color::Rgb(15, 23, 42)); // #0f172a
+        // Should have Catppuccin Mocha Base background
+        assert_eq!(theme.background, Color::Rgb(30, 30, 46)); // #1e1e2e
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
 
         // Get cached dark theme
         let dark_theme = cosmic.as_theme();
-        assert_eq!(dark_theme.background, Color::Rgb(15, 23, 42)); // Slate-900
+        assert_eq!(dark_theme.background, Color::Rgb(30, 30, 46)); // Catppuccin Mocha Base
 
         // Cycle to light
         cosmic.cycle();

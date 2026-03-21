@@ -953,8 +953,8 @@ mod tests {
         let dark_theme = ThemeMode::Dark.theme();
         let light_theme = ThemeMode::Light.theme();
 
-        // Dark has Cosmic Dark background (Slate-900)
-        assert_eq!(dark_theme.background, Color::Rgb(15, 23, 42)); // #0f172a
+        // Dark has Cosmic Dark background (Catppuccin Mocha Base)
+        assert_eq!(dark_theme.background, Color::Rgb(30, 30, 46)); // #1e1e2e
 
         // Light has Cosmic Light background (Slate-50)
         assert_eq!(light_theme.background, Color::Rgb(248, 250, 252)); // #f8fafc
@@ -1288,17 +1288,17 @@ mod tests {
     fn test_theme_solarized_maps_to_cosmic_dark() {
         let theme = Theme::solarized();
 
-        assert_eq!(theme.background, Color::Rgb(15, 23, 42)); // Slate-900
-        assert_eq!(theme.text_primary, Color::Rgb(248, 250, 252)); // Slate-50
+        assert_eq!(theme.background, Color::Rgb(30, 30, 46)); // Catppuccin Mocha Base
+        assert_eq!(theme.text_primary, Color::Rgb(205, 214, 244)); // Catppuccin Text
     }
 
     #[test]
     fn test_theme_solarized_has_cosmic_status_colors() {
         let theme = Theme::solarized();
 
-        assert_eq!(theme.status_running, Color::Rgb(245, 158, 11)); // Amber-500
-        assert_eq!(theme.status_success, Color::Rgb(16, 185, 129)); // Emerald-500
-        assert_eq!(theme.status_failed, Color::Rgb(239, 68, 68)); // Red-500
+        assert_eq!(theme.status_running, Color::Rgb(249, 226, 175)); // Catppuccin Yellow
+        assert_eq!(theme.status_success, Color::Rgb(166, 227, 161)); // Catppuccin Green
+        assert_eq!(theme.status_failed, Color::Rgb(243, 139, 168)); // Catppuccin Red
     }
 
     #[test]
@@ -1656,8 +1656,8 @@ mod tests {
     #[test]
     fn test_theme_mode_solarized_theme_returns_cosmic_dark() {
         let solarized_theme = ThemeMode::Solarized.theme();
-        // Solarized maps to Cosmic Dark (Slate-900)
-        assert_eq!(solarized_theme.background, Color::Rgb(15, 23, 42)); // #0f172a
+        // Solarized maps to Cosmic Dark (Catppuccin Mocha Base)
+        assert_eq!(solarized_theme.background, Color::Rgb(30, 30, 46)); // #1e1e2e
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

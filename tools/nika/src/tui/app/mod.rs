@@ -490,22 +490,26 @@ impl App {
                 );
                 self.intro_state = None;
 
-                // CRITICAL: Reset BOTH ratatui internal buffers via terminal.clear().
-                // Ratatui 0.28+ uses retained double-buffering: draw() alternates between
-                // two buffers without resetting them. After the intro, one buffer has view
-                // content but the OTHER still has intro remnants (BASE03 background).
-                // The Clear *widget* only writes to the current back buffer — the alternate
-                // buffer keeps intro content, causing blank/flickering frames.
-                // terminal.clear() resets both buffers, so the next draw() diffs against
-                // a clean slate and flushes the full view to the terminal.
-                if let Some(ref mut terminal) = self.terminal {
-                    if let Err(e) = terminal.clear() {
-                        tracing::error!("Failed to clear terminal after intro: {}", e);
-                    }
-                }
-
+                // No terminal.clear() needed here.
+                // ratatui 0.30 (ratatui-core 0.1.0) Terminal::clear() only resets the
+                // INACTIVE buffer — not both. The Clear widget at render.rs line 113
+                // already resets ALL cells in the active buffer every frame, so both
+                // buffers are handled. Calling terminal.clear() would physically blank
+                // the screen via execute!(Clear(All)), causing a visible flash before
+                // the next draw() fills it in.
+                //
+                // Instead, we render the view skeleton FIRST (empty panels), then call
+                // on_enter() to populate expensive data (file tree, git cache). This
+                // eliminates the blank flash — users see panel borders immediately.
                 self.state.dirty.mark_all();
-                // Call on_enter() NOW when view first becomes visible (not at startup)
+
+                // Render an initial frame BEFORE on_enter() so the view skeleton
+                // (borders, header, status bar) appears instantly. on_enter() may do
+                // slow filesystem I/O (tree build, git status), and without this early
+                // render the screen would remain blank during that work.
+                self.render_unified_frame()?;
+
+                // Now initialize view state (may be slow for large projects)
                 self.call_view_on_enter(self.current_view);
                 tracing::info!(
                     "View {:?} initialized, dirty.all={}",
