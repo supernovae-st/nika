@@ -1,0 +1,14 @@
+# Happy path 18: Transform — upper
+schema: nika/workflow@0.12
+workflow: hp-18-transform-upper
+description: "Verify upper transform converts text to uppercase"
+tasks:
+  - id: gen
+    exec: "echo hello"
+  - id: up
+    depends_on: [gen]
+    with:
+      text: $gen | upper
+    exec:
+      command: "echo {{with.text}}"
+      shell: true

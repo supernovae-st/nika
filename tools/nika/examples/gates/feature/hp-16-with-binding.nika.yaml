@@ -1,0 +1,14 @@
+# Happy path 16: with: binding passes upstream data
+schema: nika/workflow@0.12
+workflow: hp-16-with-binding
+description: "Verify with: binding passes task output to downstream template"
+tasks:
+  - id: producer
+    exec: "echo PAYLOAD"
+  - id: consumer
+    depends_on: [producer]
+    with:
+      data: $producer
+    exec:
+      command: "echo received={{with.data}}"
+      shell: true

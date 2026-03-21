@@ -1,0 +1,9 @@
+# Happy path 08: Fetch with response: full
+schema: nika/workflow@0.12
+workflow: hp-08-fetch-full
+description: "Verify fetch returns full response (status, headers, body)"
+tasks:
+  - id: api
+    fetch:
+      url: "https://httpbin.org/get"
+      response: full

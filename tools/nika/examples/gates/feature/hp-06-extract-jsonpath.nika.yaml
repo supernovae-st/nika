@@ -1,0 +1,10 @@
+# Happy path 06: Fetch with extract: jsonpath
+schema: nika/workflow@0.12
+workflow: hp-06-extract-jsonpath
+description: "Verify fetch jsonpath extraction on httpbin JSON"
+tasks:
+  - id: api
+    fetch:
+      url: "https://httpbin.org/json"
+      extract: jsonpath
+      selector: "$.slideshow.title"

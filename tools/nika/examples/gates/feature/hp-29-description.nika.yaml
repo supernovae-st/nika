@@ -1,0 +1,8 @@
+# Happy path 29: Task with description field
+schema: nika/workflow@0.12
+workflow: hp-29-description
+description: "Verify workflow and task description fields"
+tasks:
+  - id: hello
+    description: "This task has a description"
+    exec: "echo described-task"

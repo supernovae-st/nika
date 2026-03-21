@@ -1,0 +1,11 @@
+# Happy path 10: Fetch with custom headers
+schema: nika/workflow@0.12
+workflow: hp-10-fetch-headers
+description: "Verify fetch sends custom headers to endpoint"
+tasks:
+  - id: get
+    fetch:
+      url: "https://httpbin.org/headers"
+      headers:
+        X-Custom-Header: "nika-test-value"
+        Accept: "application/json"

@@ -1,0 +1,16 @@
+# Happy path 12: Diamond DAG (A -> B,C -> D)
+schema: nika/workflow@0.12
+workflow: hp-12-diamond-dag
+description: "Verify diamond dependency: A fans out to B and C, D waits for both"
+tasks:
+  - id: a
+    exec: "echo A"
+  - id: b
+    depends_on: [a]
+    exec: "echo B"
+  - id: c
+    depends_on: [a]
+    exec: "echo C"
+  - id: d
+    depends_on: [b, c]
+    exec: "echo D"

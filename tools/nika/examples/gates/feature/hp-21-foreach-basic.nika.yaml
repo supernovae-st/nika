@@ -1,0 +1,10 @@
+# Happy path 21: Basic for_each
+schema: nika/workflow@0.12
+workflow: hp-21-foreach-basic
+description: "Verify for_each iterates over inline array"
+tasks:
+  - id: loop
+    for_each: ["alpha", "beta", "gamma"]
+    exec:
+      command: "echo {{with.item}}"
+      shell: true

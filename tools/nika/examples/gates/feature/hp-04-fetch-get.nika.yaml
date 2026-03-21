@@ -1,0 +1,8 @@
+# Happy path 04: Basic fetch GET
+schema: nika/workflow@0.12
+workflow: hp-04-fetch-get
+description: "Verify fetch verb with GET request"
+tasks:
+  - id: get
+    fetch:
+      url: "https://httpbin.org/get"

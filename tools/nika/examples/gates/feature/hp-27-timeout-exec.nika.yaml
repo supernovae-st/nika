@@ -1,0 +1,9 @@
+# Happy path 27: exec with timeout on a fast command
+schema: nika/workflow@0.12
+workflow: hp-27-timeout-exec
+description: "Verify timeout does not kill a fast command"
+tasks:
+  - id: fast
+    exec:
+      command: "echo done"
+      timeout: 5

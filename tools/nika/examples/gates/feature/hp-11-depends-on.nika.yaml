@@ -1,0 +1,10 @@
+# Happy path 11: Simple A -> B dependency
+schema: nika/workflow@0.12
+workflow: hp-11-depends-on
+description: "Verify depends_on blocks B until A completes"
+tasks:
+  - id: a
+    exec: "echo step-A"
+  - id: b
+    depends_on: [a]
+    exec: "echo step-B"

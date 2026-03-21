@@ -1,0 +1,8 @@
+# Happy path 01: Simple infer with mock provider
+schema: nika/workflow@0.12
+workflow: hp-01-infer-simple
+description: "Verify basic infer verb with mock provider"
+provider: mock
+tasks:
+  - id: hello
+    infer: "Say hello"

@@ -1,0 +1,16 @@
+# Happy path 20: Transform chain — parse_json | sort | unique | first
+schema: nika/workflow@0.12
+workflow: hp-20-transform-chain
+description: "Verify chained transforms: parse_json | sort | unique | first"
+tasks:
+  - id: gen
+    exec:
+      command: "echo '[\"banana\",\"apple\",\"banana\",\"cherry\",\"apple\"]'"
+      shell: true
+  - id: result
+    depends_on: [gen]
+    with:
+      data: $gen | parse_json | sort | unique | first
+    exec:
+      command: "echo {{with.data}}"
+      shell: true

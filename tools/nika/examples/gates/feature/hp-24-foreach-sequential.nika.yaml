@@ -1,0 +1,12 @@
+# Happy path 24: for_each with concurrency: 1 (sequential)
+schema: nika/workflow@0.12
+workflow: hp-24-foreach-sequential
+description: "Verify for_each with concurrency 1 runs items one at a time"
+tasks:
+  - id: loop
+    for_each: ["first", "second", "third"]
+    as: step
+    concurrency: 1
+    exec:
+      command: "echo {{with.step}}"
+      shell: true

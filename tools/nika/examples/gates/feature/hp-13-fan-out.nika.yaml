@@ -1,0 +1,19 @@
+# Happy path 13: Fan-out (A -> B,C,D,E parallel)
+schema: nika/workflow@0.12
+workflow: hp-13-fan-out
+description: "Verify fan-out: A produces data, B/C/D/E run in parallel"
+tasks:
+  - id: a
+    exec: "echo source"
+  - id: b
+    depends_on: [a]
+    exec: "echo B"
+  - id: c
+    depends_on: [a]
+    exec: "echo C"
+  - id: d
+    depends_on: [a]
+    exec: "echo D"
+  - id: e
+    depends_on: [a]
+    exec: "echo E"

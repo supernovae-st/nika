@@ -1,0 +1,16 @@
+# Happy path 17: Transform pipeline — parse_json | sort
+schema: nika/workflow@0.12
+workflow: hp-17-transform-sort
+description: "Verify parse_json | sort transform on binding"
+tasks:
+  - id: gen
+    exec:
+      command: "echo '[\"cherry\",\"apple\",\"banana\"]'"
+      shell: true
+  - id: sorted
+    depends_on: [gen]
+    with:
+      arr: $gen | parse_json | sort
+    exec:
+      command: "echo {{with.arr}}"
+      shell: true

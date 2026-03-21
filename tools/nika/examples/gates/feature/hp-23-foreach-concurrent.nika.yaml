@@ -1,0 +1,12 @@
+# Happy path 23: for_each with concurrency: 3
+schema: nika/workflow@0.12
+workflow: hp-23-foreach-concurrent
+description: "Verify for_each respects concurrency limit"
+tasks:
+  - id: loop
+    for_each: ["a", "b", "c", "d", "e", "f"]
+    as: item
+    concurrency: 3
+    exec:
+      command: "echo {{with.item}}"
+      shell: true

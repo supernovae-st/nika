@@ -1,0 +1,10 @@
+# Happy path 05: Fetch POST with body
+schema: nika/workflow@0.12
+workflow: hp-05-fetch-post
+description: "Verify fetch verb with POST method and string body"
+tasks:
+  - id: post
+    fetch:
+      url: "https://httpbin.org/post"
+      method: POST
+      body: "test"

@@ -1,0 +1,10 @@
+# Happy path 30: fetch with retry config
+schema: nika/workflow@0.12
+workflow: hp-30-retry-fetch
+description: "Verify fetch succeeds with retry config on reliable endpoint"
+tasks:
+  - id: reliable
+    fetch:
+      url: "https://httpbin.org/get"
+    retry:
+      max_attempts: 2

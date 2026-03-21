@@ -1,0 +1,7 @@
+# Happy path 02: Simple exec verb
+schema: nika/workflow@0.12
+workflow: hp-02-exec-simple
+description: "Verify basic exec verb echoes output"
+tasks:
+  - id: hello
+    exec: "echo hello"

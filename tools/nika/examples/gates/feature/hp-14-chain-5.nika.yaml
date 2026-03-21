@@ -1,0 +1,19 @@
+# Happy path 14: Linear chain of 5 tasks (A -> B -> C -> D -> E)
+schema: nika/workflow@0.12
+workflow: hp-14-chain-5
+description: "Verify 5-step linear dependency chain executes in order"
+tasks:
+  - id: a
+    exec: "echo A"
+  - id: b
+    depends_on: [a]
+    exec: "echo B"
+  - id: c
+    depends_on: [b]
+    exec: "echo C"
+  - id: d
+    depends_on: [c]
+    exec: "echo D"
+  - id: e
+    depends_on: [d]
+    exec: "echo E"

@@ -1,0 +1,11 @@
+# Happy path 28: exec with custom env: vars
+schema: nika/workflow@0.12
+workflow: hp-28-env-vars
+description: "Verify exec custom env vars are accessible in shell"
+tasks:
+  - id: env
+    exec:
+      command: "echo $MY_VAR"
+      shell: true
+      env:
+        MY_VAR: "nika-test-value"

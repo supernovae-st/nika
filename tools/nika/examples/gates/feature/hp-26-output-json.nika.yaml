@@ -1,0 +1,10 @@
+# Happy path 26: output: { format: json } with mock provider
+schema: nika/workflow@0.12
+workflow: hp-26-output-json
+description: "Verify output format json with mock provider"
+provider: mock
+tasks:
+  - id: json_out
+    infer: "Return a JSON object with key=hello value=world"
+    output:
+      format: json

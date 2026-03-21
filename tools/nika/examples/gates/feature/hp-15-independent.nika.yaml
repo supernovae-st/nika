@@ -1,0 +1,11 @@
+# Happy path 15: Independent tasks (A, B, C run in parallel)
+schema: nika/workflow@0.12
+workflow: hp-15-independent
+description: "Verify independent tasks with no deps run in parallel"
+tasks:
+  - id: a
+    exec: "echo A"
+  - id: b
+    exec: "echo B"
+  - id: c
+    exec: "echo C"

@@ -1,0 +1,14 @@
+# Happy path 25: for_each on nested JSON objects
+schema: nika/workflow@0.12
+workflow: hp-25-foreach-nested
+description: "Verify for_each iterates over array of objects"
+tasks:
+  - id: loop
+    for_each:
+      - name: "alice"
+      - name: "bob"
+      - name: "carol"
+    as: user
+    exec:
+      command: "echo {{with.user}}"
+      shell: true

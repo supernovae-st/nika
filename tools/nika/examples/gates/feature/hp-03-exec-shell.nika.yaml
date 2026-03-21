@@ -1,0 +1,9 @@
+# Happy path 03: exec with shell mode (pipes, env expansion)
+schema: nika/workflow@0.12
+workflow: hp-03-exec-shell
+description: "Verify exec with shell: true enables pipes and env expansion"
+tasks:
+  - id: pipe
+    exec:
+      command: "echo $HOME | wc -c"
+      shell: true

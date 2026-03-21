@@ -1,0 +1,14 @@
+# Happy path 19: Transform — length
+schema: nika/workflow@0.12
+workflow: hp-19-transform-length
+description: "Verify length transform returns character count"
+tasks:
+  - id: gen
+    exec: "echo hello"
+  - id: len
+    depends_on: [gen]
+    with:
+      data: $gen | length
+    exec:
+      command: "echo {{with.data}}"
+      shell: true

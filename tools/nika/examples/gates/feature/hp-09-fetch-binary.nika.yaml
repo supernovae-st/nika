@@ -1,0 +1,9 @@
+# Happy path 09: Fetch with response: binary (CAS storage)
+schema: nika/workflow@0.12
+workflow: hp-09-fetch-binary
+description: "Verify fetch stores binary response in CAS and returns hash"
+tasks:
+  - id: img
+    fetch:
+      url: "https://httpbin.org/image/png"
+      response: binary

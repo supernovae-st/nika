@@ -1,0 +1,11 @@
+# Happy path 22: for_each with custom as: variable name
+schema: nika/workflow@0.12
+workflow: hp-22-foreach-as
+description: "Verify for_each as: renames iteration variable"
+tasks:
+  - id: loop
+    for_each: ["red", "green", "blue"]
+    as: color
+    exec:
+      command: "echo {{with.color}}"
+      shell: true

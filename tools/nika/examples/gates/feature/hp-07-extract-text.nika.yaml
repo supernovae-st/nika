@@ -1,0 +1,12 @@
+# Happy path 07: Fetch with extract: jsonpath on nested path
+# NOTE: extract: text requires fetch-html feature (not in default).
+# This test uses jsonpath on a different selector instead.
+schema: nika/workflow@0.12
+workflow: hp-07-extract-jsonpath-nested
+description: "Verify fetch jsonpath extraction on nested JSON path"
+tasks:
+  - id: nested
+    fetch:
+      url: "https://httpbin.org/json"
+      extract: jsonpath
+      selector: "$.slideshow.slides[0].title"
