@@ -388,16 +388,22 @@ fn task_field_completions() -> Vec<CompletionItem> {
 }
 
 /// Completions for the 5 semantic verbs
+///
+/// Each verb inserts a multi-line scaffold with tab stops so the user
+/// lands directly on the first meaningful field after accepting the
+/// completion.
 #[cfg(feature = "lsp")]
 fn verb_completions() -> Vec<CompletionItem> {
     vec![
         CompletionItem {
             label: "infer".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("infer: ${1:prompt}".to_string()),
+            insert_text: Some(
+                "infer:\n  prompt: ${1:your prompt here}\n  ${0}".to_string(),
+            ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "⚡ LLM text generation. Shorthand accepts a string.".to_string(),
+                "LLM text generation. Shorthand accepts a string.".to_string(),
             )),
             detail: Some("Verb".to_string()),
             ..Default::default()
@@ -405,10 +411,10 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "exec".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("exec: ${1:command}".to_string()),
+            insert_text: Some("exec: ${1:command}\n${0}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "📟 Shell command execution. Defaults to shell: false for security.".to_string(),
+                "Shell command execution. Defaults to shell: false for security.".to_string(),
             )),
             detail: Some("Verb".to_string()),
             ..Default::default()
@@ -416,10 +422,12 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "fetch".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("fetch:\n  url: ${1:https://}\n  method: ${2:GET}".to_string()),
+            insert_text: Some(
+                "fetch:\n  url: ${1:https://}\n  ${0}".to_string(),
+            ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "🛰️ HTTP request.".to_string(),
+                "HTTP request.".to_string(),
             )),
             detail: Some("Verb".to_string()),
             ..Default::default()
@@ -427,10 +435,13 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "invoke".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("invoke:\n  mcp: ${1:server}\n  tool: ${2:tool-name}\n  params:\n    ${3:key}: ${4:value}".to_string()),
+            insert_text: Some(
+                "invoke:\n  tool: ${1:nika:tool}\n  params:\n    ${2:key}: ${3:value}\n${0}"
+                    .to_string(),
+            ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "🔌 MCP tool invocation.".to_string(),
+                "MCP tool invocation.".to_string(),
             )),
             detail: Some("Verb".to_string()),
             ..Default::default()
@@ -438,10 +449,13 @@ fn verb_completions() -> Vec<CompletionItem> {
         CompletionItem {
             label: "agent".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            insert_text: Some("agent:\n  prompt: ${1:goal}\n  mcp: [${2:server}]\n  max_turns: ${3:10}".to_string()),
+            insert_text: Some(
+                "agent:\n  prompt: ${1:agent goal}\n  mcp: [${2}]\n  max_turns: ${3:10}\n${0}"
+                    .to_string(),
+            ),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             documentation: Some(Documentation::String(
-                "🐔 Multi-turn agentic loop with tool calling.".to_string(),
+                "Multi-turn agentic loop with tool calling.".to_string(),
             )),
             detail: Some("Verb".to_string()),
             ..Default::default()
@@ -1188,5 +1202,91 @@ tasks:
         // depending on indentation detection. This test verifies the function runs
         // without panic - actual completions depend on detection accuracy.
         let _ = items; // Allow empty results for now
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_verb_completions_are_multiline_snippets() {
+        let verbs = verb_completions();
+
+        for item in &verbs {
+            assert_eq!(
+                item.insert_text_format,
+                Some(InsertTextFormat::SNIPPET),
+                "Verb '{}' must use SNIPPET format",
+                item.label
+            );
+        }
+
+        let infer = verbs.iter().find(|i| i.label == "infer").unwrap();
+        let infer_text = infer.insert_text.as_deref().unwrap();
+        assert!(
+            infer_text.contains("prompt:"),
+            "infer scaffold must contain prompt: field"
+        );
+        assert!(
+            infer_text.contains('\n'),
+            "infer scaffold must be multi-line"
+        );
+        assert!(
+            infer_text.contains("${0}"),
+            "infer scaffold must contain final tab stop ${{0}}"
+        );
+
+        let exec = verbs.iter().find(|i| i.label == "exec").unwrap();
+        let exec_text = exec.insert_text.as_deref().unwrap();
+        assert!(
+            exec_text.starts_with("exec:"),
+            "exec scaffold must start with exec:"
+        );
+        assert!(
+            exec_text.contains("${0}"),
+            "exec scaffold must contain final tab stop ${{0}}"
+        );
+
+        let fetch = verbs.iter().find(|i| i.label == "fetch").unwrap();
+        let fetch_text = fetch.insert_text.as_deref().unwrap();
+        assert!(
+            fetch_text.contains("url:"),
+            "fetch scaffold must contain url: field"
+        );
+        assert!(
+            fetch_text.contains("${0}"),
+            "fetch scaffold must contain final tab stop ${{0}}"
+        );
+
+        let invoke = verbs.iter().find(|i| i.label == "invoke").unwrap();
+        let invoke_text = invoke.insert_text.as_deref().unwrap();
+        assert!(
+            invoke_text.contains("tool:"),
+            "invoke scaffold must contain tool: field"
+        );
+        assert!(
+            invoke_text.contains("params:"),
+            "invoke scaffold must contain params: block"
+        );
+        assert!(
+            invoke_text.contains("${0}"),
+            "invoke scaffold must contain final tab stop ${{0}}"
+        );
+
+        let agent = verbs.iter().find(|i| i.label == "agent").unwrap();
+        let agent_text = agent.insert_text.as_deref().unwrap();
+        assert!(
+            agent_text.contains("prompt:"),
+            "agent scaffold must contain prompt: field"
+        );
+        assert!(
+            agent_text.contains("mcp:"),
+            "agent scaffold must contain mcp: field"
+        );
+        assert!(
+            agent_text.contains("max_turns:"),
+            "agent scaffold must contain max_turns: field"
+        );
+        assert!(
+            agent_text.contains("${0}"),
+            "agent scaffold must contain final tab stop ${{0}}"
+        );
     }
 }

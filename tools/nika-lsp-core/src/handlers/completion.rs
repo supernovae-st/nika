@@ -143,39 +143,39 @@ fn task_field_completions(prefix: &str, existing_fields: &[String]) -> Vec<Compl
             "Required. Unique task identifier.",
             "0_id",
         ),
-        // The 5 verbs
+        // The 5 verbs -- multi-line scaffolds with tab stops
         item_snippet_fmt(
             "infer",
             CompletionItemKind::KEYWORD,
-            "infer: ${1:prompt}",
+            "infer:\n  prompt: ${1:your prompt here}\n  ${0}",
             "LLM text generation.",
             "1_infer",
         ),
         item_snippet_fmt(
             "exec",
             CompletionItemKind::KEYWORD,
-            "exec: ${1:command}",
+            "exec: ${1:command}\n${0}",
             "Shell command.",
             "1_exec",
         ),
         item_snippet_fmt(
             "fetch",
             CompletionItemKind::KEYWORD,
-            "fetch:\n  url: ${1:https://}\n  method: ${2:GET}",
+            "fetch:\n  url: ${1:https://}\n  ${0}",
             "HTTP request.",
             "1_fetch",
         ),
         item_snippet_fmt(
             "invoke",
             CompletionItemKind::KEYWORD,
-            "invoke:\n  mcp: ${1:server}\n  tool: ${2:tool-name}\n  params:\n    ${3:key}: ${4:value}",
+            "invoke:\n  tool: ${1:nika:tool}\n  params:\n    ${2:key}: ${3:value}\n${0}",
             "MCP tool invocation.",
             "1_invoke",
         ),
         item_snippet_fmt(
             "agent",
             CompletionItemKind::KEYWORD,
-            "agent:\n  prompt: ${1:goal}\n  mcp: [${2:server}]\n  max_turns: ${3:10}",
+            "agent:\n  prompt: ${1:agent goal}\n  mcp: [${2}]\n  max_turns: ${3:10}\n${0}",
             "Multi-turn agentic loop.",
             "1_agent",
         ),
@@ -1209,5 +1209,46 @@ tasks:
         // Position on a blank line after task content (would need careful positioning).
         // Just verify no panics.
         let _ = complete_at(yaml, 3, 4);
+    }
+
+    // -----------------------------------------------------------------------
+    // Verb scaffolds
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn verb_scaffolds_are_multiline_snippets() {
+        let items = task_field_completions("", &[]);
+        let verbs = ["infer", "exec", "fetch", "invoke", "agent"];
+        for verb in verbs {
+            let item = items
+                .iter()
+                .find(|i| i.label == verb)
+                .unwrap_or_else(|| panic!("Missing verb completion: {verb}"));
+            assert_eq!(
+                item.insert_text_format,
+                Some(InsertTextFormat::SNIPPET),
+                "Verb '{verb}' must use SNIPPET format"
+            );
+            let text = item.insert_text.as_deref().unwrap();
+            assert!(
+                text.contains("${0}"),
+                "Verb '{verb}' scaffold must contain final tab stop ${{0}}"
+            );
+        }
+
+        // Verify specific scaffold content
+        let infer = items.iter().find(|i| i.label == "infer").unwrap();
+        assert!(infer.insert_text.as_deref().unwrap().contains("prompt:"));
+
+        let invoke = items.iter().find(|i| i.label == "invoke").unwrap();
+        let invoke_text = invoke.insert_text.as_deref().unwrap();
+        assert!(invoke_text.contains("tool:"));
+        assert!(invoke_text.contains("params:"));
+
+        let agent = items.iter().find(|i| i.label == "agent").unwrap();
+        let agent_text = agent.insert_text.as_deref().unwrap();
+        assert!(agent_text.contains("prompt:"));
+        assert!(agent_text.contains("mcp:"));
+        assert!(agent_text.contains("max_turns:"));
     }
 }

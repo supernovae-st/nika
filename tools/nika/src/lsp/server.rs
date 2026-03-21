@@ -155,6 +155,13 @@ impl LanguageServer for NikaLanguageServer {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
 
+        // NOTE: No debounce needed here. `.nika.yaml` files are typically under
+        // 500 lines -- full reparse + analysis via AstIndex is sub-millisecond,
+        // so running on every keystroke gives instant diagnostics without
+        // measurable overhead. If workflows ever grow to thousands of lines,
+        // consider debouncing (record Instant per URI, skip analysis if <150ms
+        // since last edit, trigger on did_save or next request instead).
+
         // Apply incremental changes
         let text = {
             let mut docs = self.documents.write().await;
