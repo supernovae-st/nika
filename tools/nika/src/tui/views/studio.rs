@@ -24,11 +24,13 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use nika_lsp_core::analysis::context::detect_context;
+use nika_lsp_core::handler::{DefaultHandler, LspHandler};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Widget},
     Frame,
 };
 
@@ -60,6 +62,44 @@ pub enum EditorMode {
     #[default]
     Normal,
     Insert,
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LSP Completion + Hover State (Phase 4 — in-process LSP)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// State for the inline completion popup (triggered by typing or Ctrl+Space).
+#[derive(Default)]
+pub struct CompletionState {
+    /// Whether the popup is currently visible.
+    pub visible: bool,
+    /// Filtered completion items to display.
+    pub items: Vec<CompletionEntry>,
+    /// Currently selected index in the popup.
+    pub selected: usize,
+    /// Column where the trigger happened (for replace-on-accept).
+    pub trigger_col: usize,
+}
+
+/// A single completion entry (mapped from ls_types::CompletionItem).
+pub struct CompletionEntry {
+    /// Display label (e.g. "infer:", "provider:").
+    pub label: String,
+    /// Kind hint (e.g. "Keyword", "Property").
+    pub kind: String,
+    /// Optional detail text shown inline.
+    pub detail: Option<String>,
+    /// Text to insert when accepted (may differ from label).
+    pub insert_text: String,
+}
+
+/// State for the hover tooltip (triggered by K in Normal mode).
+#[derive(Default)]
+pub struct HoverState {
+    /// Whether the tooltip is currently visible.
+    pub visible: bool,
+    /// Markdown content to display.
+    pub content: String,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1697,6 +1737,12 @@ pub struct YamlEditorPanel {
     clipboard: Option<arboard::Clipboard>,
     /// Git status for line-level change indicators
     git_status: Option<GitStatus>,
+    /// In-process LSP handler for completion + hover (Phase 4)
+    lsp_handler: DefaultHandler,
+    /// Inline completion popup state
+    pub completion: CompletionState,
+    /// Hover tooltip state
+    pub hover: HoverState,
 }
 
 impl YamlEditorPanel {
@@ -1726,6 +1772,10 @@ impl YamlEditorPanel {
             clipboard: arboard::Clipboard::new().ok(),
             // Git gutter (initialized on file load)
             git_status: None,
+            // In-process LSP (Phase 4)
+            lsp_handler: DefaultHandler::new(),
+            completion: CompletionState::default(),
+            hover: HoverState::default(),
         }
     }
 
@@ -1818,6 +1868,67 @@ impl YamlEditorPanel {
             self.modified = true;
             self.validation_pending = true;
             self.last_edit_time = Some(Instant::now());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // In-process LSP: Completion + Hover (Phase 4)
+    // Same pattern as DiagnosticsEngine: call nika_lsp_core directly.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Trigger completion at the current cursor position.
+    ///
+    /// Calls `nika_lsp_core::DefaultHandler::completion()` in-process and
+    /// populates the completion popup state.
+    fn trigger_completion(&mut self) {
+        let content = self.buffer.content();
+        let offset = self.buffer.cursor_position() as u32;
+        let context = detect_context(&content, offset, None);
+        let items = self.lsp_handler.completion(&content, offset, &context);
+
+        self.completion.items = items
+            .into_iter()
+            .map(|item| CompletionEntry {
+                label: item.label.clone(),
+                kind: item.kind.map(|k| format!("{:?}", k)).unwrap_or_default(),
+                detail: item.detail.clone(),
+                insert_text: item.insert_text.unwrap_or(item.label),
+            })
+            .collect();
+        self.completion.selected = 0;
+        self.completion.trigger_col = self.buffer.cursor().1;
+        self.completion.visible = !self.completion.items.is_empty();
+    }
+
+    /// Accept the currently selected completion item.
+    ///
+    /// Deletes back to the trigger column, then inserts the completion text.
+    fn accept_completion(&mut self) {
+        if let Some(item) = self.completion.items.get(self.completion.selected) {
+            let insert = item.insert_text.clone();
+            // Delete back to trigger column
+            while self.buffer.cursor().1 > self.completion.trigger_col {
+                self.buffer.backspace();
+            }
+            // Insert completion text
+            for c in insert.chars() {
+                self.buffer.insert_char(c);
+            }
+            self.mark_edited();
+        }
+        self.completion.visible = false;
+    }
+
+    /// Trigger hover tooltip at the current cursor position.
+    fn trigger_hover(&mut self) {
+        let content = self.buffer.content();
+        let offset = self.buffer.cursor_position() as u32;
+        let context = detect_context(&content, offset, None);
+        if let Some(result) = self.lsp_handler.hover(&content, offset, &context) {
+            self.hover = HoverState {
+                visible: true,
+                content: result.contents,
+            };
         }
     }
 
@@ -1981,7 +2092,15 @@ impl View for YamlEditorPanel {
 
 impl YamlEditorPanel {
     fn handle_normal_mode(&mut self, key: KeyEvent) -> ViewAction {
+        // Dismiss hover on any key press in normal mode
+        self.hover.visible = false;
+
         match key.code {
+            // K: Hover documentation (vim-style)
+            KeyCode::Char('K') => {
+                self.trigger_hover();
+                ViewAction::None
+            }
             KeyCode::Char('q') => ViewAction::SwitchView(TuiView::Studio),
             // Ctrl+S to save file (must be before plain 's')
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -2091,6 +2210,44 @@ impl YamlEditorPanel {
     }
 
     fn handle_insert_mode(&mut self, key: KeyEvent) -> ViewAction {
+        // Dismiss hover on any key press in insert mode
+        self.hover.visible = false;
+
+        // ── Completion popup key interception ──────────────────────────
+        // When the popup is visible, intercept navigation + accept keys.
+        if self.completion.visible {
+            match key.code {
+                KeyCode::Down => {
+                    let len = self.completion.items.len();
+                    self.completion.selected =
+                        (self.completion.selected + 1).min(len.saturating_sub(1));
+                    return ViewAction::None;
+                }
+                KeyCode::Up => {
+                    self.completion.selected = self.completion.selected.saturating_sub(1);
+                    return ViewAction::None;
+                }
+                KeyCode::Enter | KeyCode::Tab => {
+                    self.accept_completion();
+                    return ViewAction::None;
+                }
+                KeyCode::Esc => {
+                    self.completion.visible = false;
+                    return ViewAction::None;
+                }
+                _ => {
+                    // Dismiss popup, fall through to normal handling
+                    self.completion.visible = false;
+                }
+            }
+        }
+
+        // ── Ctrl+Space: explicit completion trigger ───────────────────
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char(' ') {
+            self.trigger_completion();
+            return ViewAction::None;
+        }
+
         // Handle Ctrl+Z and Ctrl+Y before other key handlers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             match key.code {
@@ -2319,6 +2476,10 @@ impl YamlEditorPanel {
                 }
                 self.buffer.insert_char(c);
                 self.mark_edited();
+                // Auto-trigger completion on trigger characters
+                if matches!(c, ':' | '.' | '$' | '{' | ' ') {
+                    self.trigger_completion();
+                }
                 ViewAction::None
             }
             KeyCode::Tab => {
@@ -2657,6 +2818,103 @@ impl YamlEditorPanel {
         let status_paragraph = Paragraph::new(status_line)
             .style(Style::default().bg(theme.highlight).fg(theme.text_primary));
         frame.render_widget(status_paragraph, status_area);
+
+        // ── Completion popup overlay ──────────────────────────────────
+        // Rendered LAST so it draws on top of everything else.
+        if self.completion.visible && !self.completion.items.is_empty() {
+            let max_visible = 8.min(self.completion.items.len());
+            let max_label_width = self
+                .completion
+                .items
+                .iter()
+                .take(max_visible)
+                .map(|i| i.label.len())
+                .max()
+                .unwrap_or(10);
+            let popup_width = (max_label_width + 4).min(40) as u16;
+
+            // Position below cursor
+            let gutter = 8u16; // git(1) + diag(2) + linenum(5)
+            let cursor_viewport_row = (self
+                .buffer
+                .cursor()
+                .0
+                .saturating_sub(self.buffer.scroll_offset()))
+                as u16;
+            let popup_x = (content_area.x + gutter + self.buffer.cursor().1 as u16)
+                .min(content_area.right().saturating_sub(popup_width + 2));
+            let popup_y = (content_area.y + cursor_viewport_row + 1)
+                .min(content_area.bottom().saturating_sub(max_visible as u16 + 2));
+
+            let popup_area = Rect::new(popup_x, popup_y, popup_width + 2, max_visible as u16 + 2);
+
+            // Clear area and draw popup
+            frame.render_widget(Clear, popup_area);
+
+            let popup_block = Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Rgb(69, 71, 90)))
+                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+
+            let completion_items: Vec<ListItem> = self
+                .completion
+                .items
+                .iter()
+                .enumerate()
+                .take(max_visible)
+                .map(|(idx, item)| {
+                    let style = if idx == self.completion.selected {
+                        Style::default()
+                            .bg(Color::Rgb(69, 71, 90))
+                            .fg(Color::Rgb(205, 214, 244))
+                    } else {
+                        Style::default().fg(Color::Rgb(186, 194, 222))
+                    };
+                    ListItem::new(Span::styled(&*item.label, style))
+                })
+                .collect();
+
+            frame.render_widget(List::new(completion_items).block(popup_block), popup_area);
+        }
+
+        // ── Hover tooltip overlay ─────────────────────────────────────
+        if self.hover.visible && !self.hover.content.is_empty() {
+            let lines: Vec<&str> = self.hover.content.lines().take(8).collect();
+            let h = lines.len() as u16 + 2;
+            let w = lines.iter().map(|l| l.len()).max().unwrap_or(20).min(60) as u16 + 4;
+
+            let gutter = 8u16;
+            let cursor_vp_row = (self
+                .buffer
+                .cursor()
+                .0
+                .saturating_sub(self.buffer.scroll_offset()))
+                as u16;
+            let popup_x = (content_area.x + gutter).min(content_area.right().saturating_sub(w));
+            let popup_y = content_area.y + cursor_vp_row.saturating_sub(h);
+
+            let popup_area = Rect::new(popup_x, popup_y, w, h);
+
+            frame.render_widget(Clear, popup_area);
+
+            let hover_block = Block::default()
+                .title(" Documentation ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Rgb(180, 190, 254)))
+                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+
+            let text: Vec<Line> = lines
+                .iter()
+                .map(|l| {
+                    Line::from(Span::styled(
+                        l.to_string(),
+                        Style::default().fg(Color::Rgb(205, 214, 244)),
+                    ))
+                })
+                .collect();
+
+            frame.render_widget(Paragraph::new(text).block(hover_block), popup_area);
+        }
     }
 
     /// Render just the DAG structure (for use in StudioView 3-panel layout)
