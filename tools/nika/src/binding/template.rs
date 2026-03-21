@@ -103,24 +103,12 @@ static USE_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Converts [0] to .0 for uniform handling
 static BRACKET_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[(\d+)\]").unwrap());
 
-/// Pre-compiled regex for {{context.files.alias}} or {{context.session.key}} pattern
-static CONTEXT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*context\.(files|session)\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
-});
-
-/// Pre-compiled regex for {{inputs.param}} pattern
-/// Extracts the input parameter name for lookup in workflow inputs
-static INPUTS_RE: LazyLock<Regex> = LazyLock::new(|| {
-    // Match inputs.param or inputs.param.nested.path
-    Regex::new(r"\{\{\s*inputs\.(\w+(?:\.\w+)*)\s*\}\}").unwrap()
-});
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // New 2-pass template engine with iterative parser
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Matches ANY {{...}} block. Content is parsed by parse_template_expr().
-/// Unified regex that replaces per-namespace patterns (USE_RE, CONTEXT_RE, INPUTS_RE).
+/// Unified regex that replaces per-namespace patterns -- dispatched via parse_template_expr().
 static TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{(.*?)\}\}").unwrap());
 
 /// Parsed template expression from inside `{{ ... }}`
@@ -136,9 +124,15 @@ pub enum TemplateExpr {
         transforms: Vec<String>,
     },
     /// Direct context reference: `"context.files.brand"` or `"context.session.key"`
-    Context(String),
+    Context {
+        path: String,
+        transforms: Vec<String>,
+    },
     /// Direct input reference: `"inputs.locale"` or `"inputs.config.theme"`
-    Input(String),
+    Input {
+        path: String,
+        transforms: Vec<String>,
+    },
 }
 
 /// Parse the content inside `{{ ... }}` into a TemplateExpr.
@@ -176,7 +170,16 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
                 details: format!("Empty context path after 'context.' in '{}'", content),
             });
         }
-        return Ok(TemplateExpr::Context(rest.to_string()));
+        let parts: Vec<&str> = rest.split('|').map(str::trim).collect();
+        let path = parts[0].to_string();
+        let transforms: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+        if path.is_empty() {
+            return Err(NikaError::TemplateParse {
+                position: 0,
+                details: format!("Empty context path after 'context.' in '{}'", content),
+            });
+        }
+        return Ok(TemplateExpr::Context { path, transforms });
     }
     if let Some(rest) = trimmed.strip_prefix("inputs.") {
         if rest.is_empty() {
@@ -185,7 +188,16 @@ pub fn parse_template_expr(content: &str) -> Result<TemplateExpr, NikaError> {
                 details: format!("Empty input path after 'inputs.' in '{}'", content),
             });
         }
-        return Ok(TemplateExpr::Input(rest.to_string()));
+        let parts: Vec<&str> = rest.split('|').map(str::trim).collect();
+        let path = parts[0].to_string();
+        let transforms: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+        if path.is_empty() {
+            return Err(NikaError::TemplateParse {
+                position: 0,
+                details: format!("Empty input path after 'inputs.' in '{}'", content),
+            });
+        }
+        return Ok(TemplateExpr::Input { path, transforms });
     }
 
     // Strip "with." prefix to get alias path
@@ -439,7 +451,7 @@ pub fn resolve_with<'a>(
                     }
                 }
             }
-            Ok(TemplateExpr::Context(_) | TemplateExpr::Input(_)) => {
+            Ok(TemplateExpr::Context { .. } | TemplateExpr::Input { .. }) => {
                 // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
@@ -479,22 +491,42 @@ pub fn resolve_with<'a>(
         let mut last_end = 0;
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in CONTEXT_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let category = &cap[1]; // "files" or "session"
-            let path_rest = &cap[2]; // alias or alias.field
-
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            let full_path = format!("context.{}.{}", category, path_rest);
-
+            let full_path = format!("context.{}", path);
             match datastore.resolve_context_path(&full_path) {
                 Some(value) => {
-                    let replacement = context_value_to_string(&value, &full_path)?;
-                    let replacement = if is_in_json_context(&intermediate, m.start()) {
-                        escape_for_json(&replacement)
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
                     } else {
-                        replacement
+                        let s = context_value_to_string(&value, &full_path)?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&s).into_owned()
+                        } else {
+                            s.into_owned()
+                        }
                     };
                     result.push_str(&replacement);
                 }
@@ -523,21 +555,42 @@ pub fn resolve_with<'a>(
         let mut last_end = 0;
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in INPUTS_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let param_name = &cap[1];
-
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            let full_path = format!("inputs.{}", param_name);
-
+            let full_path = format!("inputs.{}", path);
             match datastore.resolve_input_path(&full_path) {
                 Some(value) => {
-                    let replacement = input_value_to_string(&value, &full_path)?;
-                    let replacement = if is_in_json_context(&intermediate, m.start()) {
-                        escape_for_json(&replacement)
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
                     } else {
-                        replacement
+                        let s = input_value_to_string(&value, &full_path)?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&s).into_owned()
+                        } else {
+                            s.into_owned()
+                        }
                     };
                     result.push_str(&replacement);
                 }
@@ -923,7 +976,7 @@ pub fn resolve<'a>(
                     }
                 }
             }
-            Ok(TemplateExpr::Context(_) | TemplateExpr::Input(_)) => {
+            Ok(TemplateExpr::Context { .. } | TemplateExpr::Input { .. }) => {
                 // Leave context/inputs refs for Pass 2 — re-emit as {{...}}
                 result.push_str(&format!("{{{{{}}}}}", content.trim()));
             }
@@ -955,29 +1008,43 @@ pub fn resolve<'a>(
         let mut last_end = 0;
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in CONTEXT_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let category = &cap[1]; // "files" or "session"
-            let path_rest = &cap[2]; // alias or alias.field
-
-            // Copy segment before this match
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            // Build full context path: context.files.alias or context.session.key
-            let full_path = format!("context.{}.{}", category, path_rest);
-
-            // Resolve from datastore
+            let full_path = format!("context.{}", path);
             match datastore.resolve_context_path(&full_path) {
                 Some(value) => {
-                    let replacement = context_value_to_string(&value, &full_path)?;
-
-                    // Escape if we're in a JSON context
-                    let replacement = if is_in_json_context(&intermediate, m.start()) {
-                        escape_for_json(&replacement)
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
                     } else {
-                        replacement
+                        let s = context_value_to_string(&value, &full_path)?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&s).into_owned()
+                        } else {
+                            s.into_owned()
+                        }
                     };
-
                     result.push_str(&replacement);
                 }
                 None => {
@@ -1015,28 +1082,43 @@ pub fn resolve<'a>(
         let mut last_end = 0;
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in INPUTS_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let param_name = &cap[1]; // The parameter name after "inputs."
-
-            // Copy segment before this match
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            // Build full path: inputs.param
-            let full_path = format!("inputs.{}", param_name);
-
-            // Resolve from datastore
+            let full_path = format!("inputs.{}", path);
             match datastore.resolve_input_path(&full_path) {
                 Some(value) => {
-                    let replacement = input_value_to_string(&value, &full_path)?;
-
-                    // Escape if we're in a JSON context
-                    let replacement = if is_in_json_context(&intermediate, m.start()) {
-                        escape_for_json(&replacement)
+                    let replacement = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&value_to_display(&transformed)).into_owned()
+                        } else {
+                            value_to_display(&transformed).into_owned()
+                        }
                     } else {
-                        replacement
+                        let s = input_value_to_string(&value, &full_path)?;
+                        if is_in_json_context(&intermediate, m.start()) {
+                            escape_for_json(&s).into_owned()
+                        } else {
+                            s.into_owned()
+                        }
                     };
-
                     result.push_str(&replacement);
                 }
                 None => {
@@ -1172,18 +1254,34 @@ pub fn resolve_for_shell<'a>(
         let mut last_end = 0;
         let mut context_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in CONTEXT_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let category = &cap[1];
-            let path_rest = &cap[2];
-
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Context { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            let full_path = format!("context.{}.{}", category, path_rest);
-
+            let full_path = format!("context.{}", path);
             match datastore.resolve_context_path(&full_path) {
                 Some(value) => {
-                    let raw_value = context_value_to_string(&value, &full_path)?;
+                    let raw_value = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        value_to_display(&transformed).into_owned()
+                    } else {
+                        context_value_to_string(&value, &full_path)?.into_owned()
+                    };
                     let escaped = escape_for_shell(&raw_value);
                     result.push_str(&escaped);
                 }
@@ -1213,18 +1311,35 @@ pub fn resolve_for_shell<'a>(
         let mut last_end = 0;
         let mut input_errors: SmallVec<[String; 4]> = SmallVec::new();
 
-        for cap in INPUTS_RE.captures_iter(&intermediate) {
+        for cap in TEMPLATE_RE.captures_iter(&intermediate) {
             let m = cap.get(0).unwrap();
-            let param_name = &cap[1];
-
+            let inner = cap[1].trim();
+            let (path, transforms) = match parse_template_expr(inner) {
+                Ok(TemplateExpr::Input { path, transforms }) => (path, transforms),
+                _ => continue,
+            };
             result.push_str(&intermediate[last_end..m.start()]);
-
-            let full_path = format!("inputs.{}", param_name);
-
+            let full_path = format!("inputs.{}", path);
             match datastore.resolve_input_path(&full_path) {
                 Some(value) => {
-                    let replacement = input_value_to_string(&value, &full_path)?;
-                    let escaped = escape_for_shell(&replacement);
+                    let raw_value = if !transforms.is_empty() {
+                        let transform_str = transforms.join(" | ");
+                        let expr = TransformExpr::parse(&transform_str).map_err(|e| {
+                            NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform parse error: {}", e),
+                            }
+                        })?;
+                        let transformed =
+                            expr.apply(&value).map_err(|e| NikaError::TemplateParse {
+                                position: m.start(),
+                                details: format!("Transform apply error: {}", e),
+                            })?;
+                        value_to_display(&transformed).into_owned()
+                    } else {
+                        input_value_to_string(&value, &full_path)?.into_owned()
+                    };
+                    let escaped = escape_for_shell(&raw_value);
                     result.push_str(&escaped);
                 }
                 None => {
@@ -2546,25 +2661,73 @@ mod v028_template_tests {
     #[test]
     fn parse_expr_context_files() {
         let result = parse_template_expr("context.files.brand").unwrap();
-        assert_eq!(result, TemplateExpr::Context("files.brand".to_string()));
+        assert_eq!(
+            result,
+            TemplateExpr::Context {
+                path: "files.brand".to_string(),
+                transforms: vec![]
+            }
+        );
     }
 
     #[test]
     fn parse_expr_context_session() {
         let result = parse_template_expr("context.session.key").unwrap();
-        assert_eq!(result, TemplateExpr::Context("session.key".to_string()));
+        assert_eq!(
+            result,
+            TemplateExpr::Context {
+                path: "session.key".to_string(),
+                transforms: vec![]
+            }
+        );
     }
 
     #[test]
     fn parse_expr_inputs() {
         let result = parse_template_expr("inputs.locale").unwrap();
-        assert_eq!(result, TemplateExpr::Input("locale".to_string()));
+        assert_eq!(
+            result,
+            TemplateExpr::Input {
+                path: "locale".to_string(),
+                transforms: vec![]
+            }
+        );
     }
 
     #[test]
     fn parse_expr_inputs_nested() {
         let result = parse_template_expr("inputs.config.theme").unwrap();
-        assert_eq!(result, TemplateExpr::Input("config.theme".to_string()));
+        assert_eq!(
+            result,
+            TemplateExpr::Input {
+                path: "config.theme".to_string(),
+                transforms: vec![]
+            }
+        );
+    }
+
+    #[test]
+    fn parse_expr_context_with_transforms() {
+        let result = parse_template_expr("context.files.brand | upper").unwrap();
+        assert_eq!(
+            result,
+            TemplateExpr::Context {
+                path: "files.brand".to_string(),
+                transforms: vec!["upper".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn parse_expr_inputs_with_transforms() {
+        let result = parse_template_expr("inputs.topic | lower | trim").unwrap();
+        assert_eq!(
+            result,
+            TemplateExpr::Input {
+                path: "topic".to_string(),
+                transforms: vec!["lower".to_string(), "trim".to_string()]
+            }
+        );
     }
 
     #[test]
