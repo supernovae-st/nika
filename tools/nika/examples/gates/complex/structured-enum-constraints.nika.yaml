@@ -1,6 +1,7 @@
 # COMPLEX-18: Structured output with enums, min/max, and type constraints
 # Tests: enum values, integer constraints, boolean fields, strict schema
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-enum-constraints
 
 tasks:
@@ -9,7 +10,7 @@ tasks:
       Classify this software task: "Implement user authentication with OAuth2"
       Provide priority, effort estimate, category, and whether it's a breaking change.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -42,7 +43,7 @@ tasks:
       Classify this task: "Fix CSS alignment bug in header"
       Provide the same structured fields.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -81,7 +82,7 @@ tasks:
       Task 2 (CSS fix): {{with.task2}}
       Which should be done first and why? One sentence.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Compare two structured classification outputs"
 

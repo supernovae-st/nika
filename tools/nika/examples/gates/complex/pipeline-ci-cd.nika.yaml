@@ -1,6 +1,7 @@
 # COMPLEX-51: Simulated CI/CD pipeline — lint -> test -> build -> deploy -> notify
 # Tests: long sequential chain, exec with shell, parallel gates, conditional-like flow
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-pipeline-ci-cd
 
 artifacts:
@@ -88,7 +89,7 @@ tasks:
       - Unit tests: {{with.unit_out}}
       - Integration: {{with.integ_out}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "ci-cd-report-{{inputs.branch}}.txt"

@@ -1,6 +1,7 @@
 # COMPLEX-19: Structured output chained — output of task1 feeds schema of task2
 # Tests: structured data flowing through pipeline, field access between structured tasks
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-chained
 
 tasks:
@@ -9,7 +10,7 @@ tasks:
       Extract entities from this text:
       "Apple released the new M4 chip in Cupertino. Tim Cook presented it alongside iOS 19."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     structured:
       schema:
@@ -44,7 +45,7 @@ tasks:
       Companies: {{with.companies}}
       People: {{with.people}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -78,7 +79,7 @@ tasks:
       Products: {{with.products}}
       Locations: {{with.locations}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -109,6 +110,6 @@ tasks:
       graph: $build_knowledge_graph
     infer: "Summarize this knowledge graph in 2 sentences: {{with.graph}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Phase 4: Human-readable summary of structured graph"

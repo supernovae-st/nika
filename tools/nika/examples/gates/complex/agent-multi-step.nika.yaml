@@ -1,6 +1,7 @@
 # COMPLEX-26: Agent that must complete a 3-step task with tool usage
 # Tests: agent with multiple tools, multi-turn reasoning, tool_choice
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-multi-step
 
 tasks:
@@ -23,7 +24,7 @@ tasks:
 
         Context: {{with.context}}
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log, nika_emit]
       max_turns: 5
       max_tokens: 200

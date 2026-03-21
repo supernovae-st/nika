@@ -1,6 +1,7 @@
 # COMPLEX-21: Same data saved as json, yaml, and text artifacts
 # Tests: multiple artifact formats from same source, format: json/yaml/text
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-multi-format
 
 artifacts:
@@ -10,7 +11,7 @@ tasks:
   - id: generate_data
     infer: "Generate a project config with name, version, dependencies (array of 3), and build settings."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     structured:
       schema:
@@ -63,7 +64,7 @@ tasks:
       config: $generate_data
     infer: "Format this config as human-readable text with bullet points: {{with.config}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "config-output.txt"

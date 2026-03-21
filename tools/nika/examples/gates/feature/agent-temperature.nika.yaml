@@ -1,11 +1,12 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-temperature
 tasks:
   - id: loop
     agent:
       prompt: "Say hello then call nika_complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [builtin]
       temperature: 0
       max_turns: 2

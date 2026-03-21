@@ -1,6 +1,7 @@
 # COMPLEX-92: Different log levels per task — testing per-task log granularity
 # Tests: workflow log level with varying task complexity for observability
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-log-per-task
 
 log:
@@ -19,7 +20,7 @@ tasks:
       data: $simple_exec | trim
     infer: "Received: {{with.data}}. Reply with exactly one word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     description: "Infer task generates provider-level logs"
 
@@ -45,7 +46,7 @@ tasks:
     agent:
       prompt: "Received: {{with.prev}}. Call nika_complete with result='LOGGED' confidence=1.0 reasoning='log test'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 2
       tools: [builtin]
     description: "Agent generates tool-call logs"

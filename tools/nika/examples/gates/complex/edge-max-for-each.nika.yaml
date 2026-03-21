@@ -1,6 +1,7 @@
 # COMPLEX-60: for_each with 20 items — stress test iteration count
 # Tests: large for_each, concurrency handling, aggregation of many results
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-edge-max-for-each
 
 tasks:
@@ -34,6 +35,6 @@ tasks:
       all: $process_all
     infer: "{{with.count}} items were processed. Summarize the batch in one sentence. Items: {{with.all}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "LLM summary of 20-item batch"

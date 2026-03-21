@@ -1,6 +1,7 @@
 # COMPLEX-95: Workflow designed to run silently — minimal output
 # Tests: workflow without log config (default), tasks that produce minimal output
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-log-quiet
 
 tasks:
@@ -23,7 +24,7 @@ tasks:
       data: $quiet_exec_3 | trim
     infer: "Reply with exactly: OK"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 5
     description: "Minimal infer — shortest possible output"
 

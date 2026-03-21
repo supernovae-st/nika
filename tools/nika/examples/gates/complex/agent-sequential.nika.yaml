@@ -1,6 +1,7 @@
 # COMPLEX-29: 3 agents in sequence, each building on previous agent's output
 # Tests: agent chaining, binding agent output to next agent, sequential reasoning
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-sequential
 
 tasks:
@@ -18,7 +19,7 @@ tasks:
         Design the endpoint structure (3-4 endpoints).
         Call nika_complete with your design as the result, confidence=0.9, reasoning="architecture phase complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 200
@@ -35,7 +36,7 @@ tasks:
         Check for: completeness, consistency, best practices.
         Call nika_complete with your review as the result, confidence=0.85, reasoning="review phase complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 200
@@ -55,7 +56,7 @@ tasks:
         Write clear documentation incorporating the review.
         Call nika_complete with the documentation as result, confidence=0.9, reasoning="documentation phase complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 200

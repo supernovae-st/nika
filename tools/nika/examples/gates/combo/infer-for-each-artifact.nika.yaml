@@ -1,5 +1,6 @@
 # COMBO: infer in for_each + artifact per item
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-infer-for-each-artifact
 
 artifacts:
@@ -11,7 +12,7 @@ tasks:
     as: topic
     infer: "One tip about {{with.topic}} in programming."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: "tip-{{with.topic}}.txt"

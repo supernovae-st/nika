@@ -1,11 +1,12 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-builtin-sleep
 tasks:
   - id: sleeper
     agent:
       prompt: "Call nika_sleep with duration '100ms' then call nika_complete with result 'slept'"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [builtin]
       max_turns: 3
       max_tokens: 100

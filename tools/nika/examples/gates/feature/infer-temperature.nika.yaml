@@ -1,15 +1,16 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-infer-temperature
 tasks:
   - id: cold
     infer: "Reply with exactly one word: COLD"
     provider: openai
-    model: gpt-4.1-mini
+    
     temperature: 0
     max_tokens: 10
   - id: hot
     infer: "Reply with exactly one word: HOT"
     provider: openai
-    model: gpt-4.1-mini
+    
     temperature: 1.5
     max_tokens: 10

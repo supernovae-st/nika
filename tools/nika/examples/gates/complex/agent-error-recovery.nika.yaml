@@ -1,6 +1,7 @@
 # COMPLEX-74: Agent that handles errors gracefully
 # Tests: agent encountering tool failure, recovery behavior, assertion patterns
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-error-recovery
 
 tasks:
@@ -14,7 +15,7 @@ tasks:
         Then use nika_read to read "/tmp/nika-recovery-74.txt" to verify.
         Call nika_complete with result='RECOVERY_OK' confidence=1.0 reasoning='handled missing file gracefully'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 5
       tools: [builtin]
     description: "Agent recovers from read failure"
@@ -31,7 +32,7 @@ tasks:
       status: $recovery_agent | trim
     infer: "Agent recovery status: {{with.status}}. Was the recovery successful? Reply YES or NO."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "Verify recovery independent of failed task"
 

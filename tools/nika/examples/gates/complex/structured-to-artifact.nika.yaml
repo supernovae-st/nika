@@ -1,6 +1,7 @@
 # COMPLEX-90: Structured JSON -> artifact file
 # Tests: structured output directly saved as JSON artifact, binding from structured to template
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-artifact
 
 artifacts:
@@ -16,7 +17,7 @@ tasks:
       - features: array of 4 feature objects, each with name (string) and enabled (boolean)
       - database: object with host, port (integer), name
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -69,7 +70,7 @@ tasks:
       config: $gen_config
     infer: "Describe this app config in 2 sentences: {{with.config}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "config-readme.txt"

@@ -5,6 +5,7 @@
 #              C ──────────> F (cross-diamond dependency)
 # Tests: overlapping diamond patterns, shared nodes, cross-diamond deps
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-dag-diamond-double
 
 tasks:
@@ -18,7 +19,7 @@ tasks:
     with: { d: $a_root }
     infer: "Add UPPER prefix to: {{with.d}}. Return the modified string only."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
 
   - id: c_lower
@@ -42,7 +43,7 @@ tasks:
     with: { d: $d_merge1 | trim }
     infer: "Analyze this: {{with.d}}. One adjective."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
 
   - id: f_cross
@@ -60,6 +61,6 @@ tasks:
       cross: $f_cross | trim
     infer: "Combine '{{with.analysis}}' and '{{with.cross}}' into one summary sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Second diamond merge — final output"

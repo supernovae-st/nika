@@ -2,6 +2,7 @@
 # Pattern: seq -> par(3) -> seq -> par(3) -> seq
 # Tests: phase-based execution, sequential gates between parallel bursts
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-dag-seq-parallel
 
 tasks:
@@ -21,7 +22,7 @@ tasks:
     with: { d: $phase1_init }
     infer: "Transform '{{with.d}}' creatively. 3 words max."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
 
   - id: phase2_c
@@ -54,7 +55,7 @@ tasks:
     with: { d: $phase3_gate | trim }
     infer: "Summarize in 2 words: {{with.d}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
 
   - id: phase4_z

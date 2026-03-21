@@ -1,5 +1,6 @@
 # FEATURE: response_format inside infer block
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-response-format
 tasks:
   - id: json_response
@@ -7,5 +8,5 @@ tasks:
       prompt: "Return a JSON object with key greeting and value hello"
       response_format: json
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

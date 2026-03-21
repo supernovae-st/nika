@@ -1,10 +1,11 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-from-def
 agents:
   researcher:
     system: "You are a research assistant. Complete the task immediately."
     provider: openai
-    model: gpt-4.1-mini
+    
     tools: [builtin]
     max_turns: 2
 tasks:
@@ -12,7 +13,7 @@ tasks:
     agent:
       prompt: "Say DONE and complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [builtin]
       max_turns: 2
       max_tokens: 50

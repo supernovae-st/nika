@@ -1,7 +1,0 @@
-{"id":0,"timestamp_ms":93,"kind":{"type":"workflow_started","task_count":1,"generation_id":"gen-347c2a67-0be8-4049-b590-79ed4c2295cf","workflow_hash":"210561dfcb1c03b4","nika_version":"0.7.2"}}
-{"id":1,"timestamp_ms":94,"kind":{"type":"task_scheduled","task_id":"should_fail","dependencies":[]}}
-{"id":2,"timestamp_ms":95,"kind":{"type":"task_started","task_id":"should_fail","verb":"invoke","inputs":{}}}
-{"id":3,"timestamp_ms":95,"kind":{"type":"mcp_invoke","task_id":"should_fail","call_id":"467636f7-8b1c-4a59-8540-c06f10e6254f","mcp_server":"nonexistent","tool":"some_tool","resource":null,"params":{}}}
-{"id":4,"timestamp_ms":99,"kind":{"type":"mcp_error","server_name":"nonexistent","error":"[NIKA-101] MCP server 'nonexistent' failed to start: Failed to create transport: No such file or directory (os error 2)"}}
-{"id":5,"timestamp_ms":99,"kind":{"type":"task_failed","task_id":"should_fail","error":"[NIKA-101] MCP server 'nonexistent' failed to start: [NIKA-101] MCP server 'nonexistent' failed to start: Failed to create transport: No such file or directory (os error 2)","duration_ms":4}}
-{"id":6,"timestamp_ms":100,"kind":{"type":"workflow_completed","final_output":"","total_duration_ms":8}}

@@ -1,6 +1,7 @@
 # COMPLEX-71: Agent writes file, next task reads and analyzes it
 # Tests: agent with nika_write tool, then nika_read in sequence, data flow between agent tasks
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-write-analyze
 
 artifacts:
@@ -17,7 +18,7 @@ tasks:
         Line 3: End of test file"
         Then call nika_complete with result='WRITE_DONE' confidence=1.0 reasoning='file written successfully'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Agent writes a test file"
@@ -31,7 +32,7 @@ tasks:
         Count the number of lines. Call nika_complete with result='LINES_N' (replace N with count)
         confidence=1.0 reasoning='read and counted lines'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Agent reads back the written file"
@@ -43,7 +44,7 @@ tasks:
       result: $reader_agent | trim
     infer: "The agent reported: {{with.result}}. Confirm if the file read was successful. Reply YES or NO with reason."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Analyze the write-then-read result"
 

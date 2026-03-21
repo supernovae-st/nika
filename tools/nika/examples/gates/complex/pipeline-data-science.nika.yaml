@@ -1,6 +1,7 @@
 # COMPLEX-52: Data science pipeline — load -> clean -> analyze -> visualize -> report
 # Tests: structured output, transform chains, multi-stage data flow
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-pipeline-data-science
 
 artifacts:
@@ -33,7 +34,7 @@ tasks:
       Given this raw dataset summary: {{with.raw}}
       List 3 data cleaning steps you would apply. Return as JSON.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -62,7 +63,7 @@ tasks:
       Metadata: {{with.meta}}
       Provide statistical insights in 3 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Statistical analysis with threshold input"
 
@@ -74,7 +75,7 @@ tasks:
       data: $clean_data
     infer: "For region {{with.region}} with data quality {{with.data.quality_score}}, write one insight sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Per-region analysis via for_each"
 
@@ -87,7 +88,7 @@ tasks:
       Based on: {{with.stats}}
       Describe 2 chart types that would best visualize this data. Return as JSON.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     structured:
       schema:
@@ -122,7 +123,7 @@ tasks:
       - Metadata: {{with.meta}}
       Format as a structured markdown report.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "ds-report-{{inputs.dataset}}.md"

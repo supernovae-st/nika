@@ -1,6 +1,7 @@
 # COMPLEX-56: Empty output handling — task produces empty string, downstream handles it
 # Tests: empty binding propagation, fallback operator on empty, trim of whitespace-only
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-edge-empty-output
 
 tasks:
@@ -46,7 +47,7 @@ tasks:
       ctx: $empty_producer ?? "no data available"
     infer: "You received: '{{with.ctx}}'. Reply with exactly one word describing what you got."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "LLM handling of empty/fallback context"
 

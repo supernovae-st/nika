@@ -1,5 +1,6 @@
 # COMBO: fetch response -> binding -> infer processing
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-fetch-binding-infer
 
 tasks:
@@ -14,5 +15,5 @@ tasks:
       data: $call_api
     infer: "Describe this JSON in one sentence: {{with.data}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

@@ -1,6 +1,7 @@
 # COMPLEX-85: 3 exec tasks chaining data through bindings
 # Tests: exec -> exec -> exec with binding at each step, transform in chain
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-exec-chain
 
 tasks:
@@ -39,7 +40,7 @@ tasks:
       enriched: $step3_enrich | trim
     infer: "Analyze this data chain result: {{with.enriched}}. What was the data flow? Reply in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Analyze the exec data chain"
 

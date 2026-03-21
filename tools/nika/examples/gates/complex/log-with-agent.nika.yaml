@@ -1,6 +1,7 @@
 # COMPLEX-93: Agent using nika_log at multiple levels
 # Tests: agent calling nika_log(debug), nika_log(info), nika_log(warn) in sequence
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-log-agent
 
 log:
@@ -16,7 +17,7 @@ tasks:
         3. Call nika_log with level='warn' and message='Agent warn: analysis took longer than expected'
         Then call nika_complete with result='3_LEVELS_LOGGED' confidence=1.0 reasoning='debug, info, warn all logged'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 5
       tools: [builtin]
     description: "Agent logs at debug, info, and warn levels"
@@ -38,7 +39,7 @@ tasks:
         Call nika_log with level='info' and message='Second agent confirming: previous agent logged successfully'
         Then call nika_complete with result='CONFIRMED' confidence=1.0 reasoning='log chain verified'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Second agent confirms logging chain"

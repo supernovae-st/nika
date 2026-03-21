@@ -1,6 +1,7 @@
 # COMPLEX-89: 3 tasks each with different structured schemas
 # Tests: multiple structured outputs in one workflow, cross-task structured binding
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-multi-task
 
 tasks:
@@ -8,7 +9,7 @@ tasks:
   - id: gen_person
     infer: "Generate a fictional person with name, age, and occupation. Use realistic values."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -27,7 +28,7 @@ tasks:
   - id: gen_address
     infer: "Generate a fictional US address with street, city, state, zip. Use realistic values."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -48,7 +49,7 @@ tasks:
   - id: gen_prefs
     infer: "Generate user preferences: theme (light/dark), language (en/fr/ja), notifications (boolean), max_items (1-100)."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -83,7 +84,7 @@ tasks:
       Preferences: {{with.prefs}}
       Write 2 sentences describing this user.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Combine 3 structured outputs"
 

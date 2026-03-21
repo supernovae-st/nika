@@ -1,5 +1,6 @@
 # COMBO: context files + for_each loop
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-context-for-each
 
 context:
@@ -16,5 +17,5 @@ tasks:
 
       Write a one-sentence {{with.channel}} post for this brand.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

@@ -1,5 +1,6 @@
 # COMBO: context files loaded + used in with: + infer
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-context-binding-infer
 
 context:
@@ -20,5 +21,5 @@ tasks:
 
       Write one sentence about {{with.topic}} for this brand.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

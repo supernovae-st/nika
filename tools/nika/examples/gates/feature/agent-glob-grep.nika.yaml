@@ -1,5 +1,6 @@
 # FEATURE: agent with nika:glob and nika:grep builtins
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-glob-grep
 
 tasks:
@@ -9,7 +10,7 @@ tasks:
         Use nika_glob to find all .yaml files in ./examples/gates/feature/
         Then tell me how many files you found. Reply: "Found N files"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Agent uses glob to find files"

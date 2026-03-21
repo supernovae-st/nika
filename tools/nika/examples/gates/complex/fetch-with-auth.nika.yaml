@@ -1,6 +1,7 @@
 # COMPLEX-78: Fetch with Authorization header from env var binding
 # Tests: $env binding in with:, headers with dynamic values, auth pattern
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-fetch-auth
 
 tasks:
@@ -35,7 +36,7 @@ tasks:
       Expected token pattern: {{with.token}}
       Reply HEADERS_OK or HEADERS_MISSING.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "Verify auth headers in response"
 

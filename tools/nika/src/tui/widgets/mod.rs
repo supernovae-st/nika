@@ -11,10 +11,12 @@
 //! - Header: Top header with view title and navigation hints
 
 // Pre-built widget library for TUI views.
-// Per-module #[allow(dead_code)] for staged widgets awaiting TUI redesign integration.
+// Modules marked with #[allow(dead_code)] contain staged widgets or data types
+// with rendering code stripped but type definitions preserved.
 
 #[allow(dead_code)]
 mod activity_stack;
+#[allow(dead_code)]
 mod agent_steps;
 mod animation;
 mod chat_dag_panel;
@@ -32,6 +34,7 @@ mod dag_node_box;
 mod gauge;
 mod header;
 mod help_overlay;
+#[allow(dead_code)]
 mod infer_stream_box;
 #[allow(dead_code)]
 mod matrix_decrypt;
@@ -55,6 +58,7 @@ mod terminal_size;
 mod timeline;
 pub mod tree;
 mod utils;
+#[allow(dead_code)]
 mod verb_input;
 mod verb_type;
 mod which_key;
@@ -77,7 +81,7 @@ pub use chat_edge_line::{ChatEdgeLine, ChatPosition};
 pub use chat_node_box::{ChatNodeBox, ChatNodeKind, ChatNodeState};
 pub use chat_task_queue::{ChatTaskQueue, ChatTaskQueueItem, ChatTaskState, ChatTaskVerb};
 pub use provider_modal::*;
-// Provider selector types + Verification status + MCP display
+// Provider selector types (data-only, widget rendering stripped)
 pub use provider_selector::{
     McpServerDisplay, ModelInfo, ProviderInfo, SelectorSection, VerifyStatus,
 };
@@ -89,15 +93,15 @@ pub use session_context::{
 };
 // MCP call visualization (data types + widget for ChatView)
 pub use mcp_call_box::{McpCallBox, McpCallData, McpCallStatus, DEFAULT_MAX_RETRIES};
-// Streaming inference display (data types + widget for ChatView)
+// Streaming inference display (data types only, widget rendering stripped)
 pub use infer_stream_box::{InferStatus, InferStreamBox, InferStreamData};
 // Hot/warm/cold activity data types (ActivityStack widget is dead, data types used by ChatView)
 pub use activity_stack::{ActivityItem, ActivityTemp};
-// Command palette (⌘K)
+// Command palette
 pub use command_palette::{default_commands, CommandPalette, CommandPaletteState, PaletteCommand};
 // Verb type (extracted from deprecated dag.rs)
 pub use verb_type::VerbType;
-// DAG node box widget for individual task rendering
+// DAG node box (data types + widget, used by dag_ascii and views)
 pub use dag_node_box::{NodeBox, NodeBoxData, NodeBoxMode};
 // Complete DAG ASCII visualization widget
 pub use dag_ascii::DagAscii;
@@ -106,6 +110,7 @@ pub use dag_ascii::DagAscii;
 pub use gauge::Gauge;
 pub use header::Header;
 pub use scroll_indicator::{ScrollHint, ScrollIndicator};
+// Sparkline (AnimatedLatencySparkline widget kept, others stripped)
 pub use sparkline::{
     AnimatedLatencySparkline, LatencyHistory, LatencySparkline, SparklineAnimation,
 };
@@ -118,14 +123,14 @@ pub use mission_control::{
     ContextItem, ContextStatus, CurrentVerb, MemoryFile, MemoryKind, MissionControlPanel,
     TurnMetrics,
 };
-// Verb input parsing for Chat view
+// Verb input parsing for Chat view (data types only, widget rendering stripped)
 pub use verb_input::{ChatVerb, ParsedInput, SystemCommand, VerbIndicator, VerbPrompt};
 // Mention system for Chat view
 pub use mention_system::{
     highlight_mentions, Mention, MentionAutocomplete, MentionAutocompleteState, MentionSuggestion,
     MentionTrigger, MentionType,
 };
-// Agent steps for Claude Code-like feedback
+// Agent steps (data types only, widget rendering stripped)
 pub use agent_steps::{
     AgentPhase, AgentPhaseIndicator, AgentStep, AgentStepGroup, AgentStepsWidget, StepStatus,
     TokenUsage, ToolCallMetadata,
@@ -158,6 +163,6 @@ pub use which_key::{WhichKey, WhichKeyBinding, WhichKeyGroup, WhichKeyState};
 pub use panels::{
     BrowserAction, BrowserPanel, InfoPanel, TaskBoxFlow, TaskListAction, TaskListPanel,
 };
-// Progress widgets (DownloadProgress + TaskProgress removed — never rendered)
+// Progress widgets (DownloadProgress + TaskProgress removed -- never rendered)
 // Shared utilities
 pub use utils::centered_rect;

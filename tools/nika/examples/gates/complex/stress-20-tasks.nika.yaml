@@ -1,6 +1,7 @@
 # COMPLEX-96: 20 tasks in complex DAG — diamond, fan-out, fan-in, chains
 # Tests: large DAG scheduling, parallel + sequential mix, deep dependency chains
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-20-tasks
 
 tasks:
@@ -64,7 +65,7 @@ tasks:
     with: { d: $c_process | trim }
     infer: "Data: {{with.d}}. Reply with one word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
 
   # Layer 4: Second fan-out from diamond_merge
@@ -100,7 +101,7 @@ tasks:
     with: { d: $mega_merge | trim }
     infer: "DAG output: {{with.d}}. Describe the data flow in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
 
   # Layer 7: Final compile

@@ -1,11 +1,12 @@
 # FEATURE: output: { format: json }
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-output-json
 tasks:
   - id: json_out
     infer: "Return a JSON object with key=hello value=world"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     output:
       format: json

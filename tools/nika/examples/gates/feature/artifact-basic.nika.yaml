@@ -1,5 +1,6 @@
 # FEATURE: artifact: true (simple boolean saves output to default path)
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-artifact-basic
 artifacts:
   dir: ./examples/gates/.test-output/artifacts
@@ -7,6 +8,6 @@ tasks:
   - id: gen
     infer: "Say hello in one word"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact: true

@@ -1,6 +1,7 @@
 # COMPLEX-99: Most realistic complex workflow — multi-stage content analysis platform
 # Tests: real-world pattern combining fetch, exec, infer, agent, for_each, structured, artifacts
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-real-world
 
 artifacts:
@@ -55,7 +56,7 @@ tasks:
       Extract key information from: {{with.raw}}
       Return structured data.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -85,7 +86,7 @@ tasks:
       Content analysis for fields {{with.fields}} with quality score {{with.quality}}.
       Provide 3 content insights.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Content analysis track"
 
@@ -100,7 +101,7 @@ tasks:
       Metadata: {{with.meta}}
       Identify 2 technical observations.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Technical analysis track"
 
@@ -111,7 +112,7 @@ tasks:
       complexity: $extract_structure.complexity ?? "unknown"
     infer: "Quality={{with.quality}}, Complexity={{with.complexity}}. Rate the data source 1-10 and explain in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Quality assessment track"
 
@@ -122,7 +123,7 @@ tasks:
     as: field
     infer: "For the field '{{with.field}}': explain its significance in data analysis in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Expand each key field via for_each"
 
@@ -142,7 +143,7 @@ tasks:
         Then synthesize both reports.
         Call nika_complete with your synthesis as result, confidence=0.9, reasoning='combined content and technical analysis'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 4
       tools: [builtin]
     description: "Agent synthesizes content + technical tracks"
@@ -167,7 +168,7 @@ tasks:
       - Environment: {{with.env}}
       Write a comprehensive 4-sentence summary.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "analysis-report-{{with.timestamp}}.md"

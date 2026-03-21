@@ -1,6 +1,7 @@
 # COMPLEX-67: Same data in 3 formats — JSON, YAML, text
 # Tests: format: json vs yaml vs text on same source data
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-formats
 
 artifacts:
@@ -10,7 +11,7 @@ tasks:
   - id: generate_data
     infer: "Return a JSON object with fields: name (string), count (number), tags (array of 3 strings). Use realistic values."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:

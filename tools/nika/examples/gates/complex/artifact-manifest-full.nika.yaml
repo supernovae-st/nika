@@ -1,6 +1,7 @@
 # COMPLEX-24: Workflow-level manifest with multiple artifact-producing tasks
 # Tests: manifest: true, multiple tasks with artifacts, artifact dir configuration
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-manifest-full
 
 artifacts:
@@ -24,7 +25,7 @@ tasks:
       header: $header_data
     infer: "Write a 2-sentence project summary for: {{with.header}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "{{inputs.project}}-summary.txt"
@@ -37,7 +38,7 @@ tasks:
       header: $header_data
     infer: "Generate project metrics with status, progress percentage, and team size."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -65,7 +66,7 @@ tasks:
       metrics: $report_data
     infer: "Write a 3-item changelog entry based on: {{with.summary}} and metrics: {{with.metrics}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "{{inputs.project}}-changelog.md"

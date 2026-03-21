@@ -1,6 +1,7 @@
 # COMPLEX-25: Artifacts with source binding from specific field
 # Tests: artifact source: pointing to specific with: binding, not LLM output
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-conditional
 
 artifacts:
@@ -19,7 +20,7 @@ tasks:
       meta: $raw_content.metadata
     infer: "This is a decoy — the artifact should contain the report binding, not this LLM output. Say WRONG."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     artifact:
       path: "conditional-report.txt"
@@ -44,7 +45,7 @@ tasks:
       report: $raw_content.report
     infer: "Generate a title for this report: {{with.report}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     artifact:
       path: "conditional-templated.md"

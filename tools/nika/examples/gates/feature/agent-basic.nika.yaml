@@ -1,11 +1,12 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-basic
 tasks:
   - id: loop
     agent:
       prompt: "Say hello and then call nika_complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [builtin]
       max_turns: 2
       max_tokens: 50

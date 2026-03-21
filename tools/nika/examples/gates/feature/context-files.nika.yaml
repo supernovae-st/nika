@@ -1,5 +1,6 @@
 # FEATURE: context: { files: { readme: ./README.md } }
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-context-files
 context:
   files:
@@ -8,5 +9,5 @@ tasks:
   - id: summarize
     infer: "What is the name of this project? Answer in one word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

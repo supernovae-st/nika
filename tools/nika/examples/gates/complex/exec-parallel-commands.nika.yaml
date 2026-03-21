@@ -1,6 +1,7 @@
 # COMPLEX-84: 5 independent exec tasks in parallel
 # Tests: DAG detects no dependencies -> all run concurrently, merge at end
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-exec-parallel
 
 tasks:
@@ -54,6 +55,6 @@ tasks:
       info: $merge_all | trim
     infer: "System info: {{with.info}}. Describe this environment in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "LLM summary of parallel exec results"

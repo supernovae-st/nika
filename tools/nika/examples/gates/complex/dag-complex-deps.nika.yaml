@@ -2,6 +2,7 @@
 # DAG: A -> B,C,D; B -> E; C -> E,F; D -> F,G; E,F -> H; G -> H
 # Tests: non-trivial DAG, cross-layer deps, multiple convergence points
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-dag-cross-deps
 
 tasks:
@@ -20,7 +21,7 @@ tasks:
     with: { d: $a_root }
     infer: "Transform: {{with.d}} -> add C prefix. One line."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     description: "Branch C from root (via LLM)"
 
@@ -71,6 +72,6 @@ tasks:
       F: {{with.f}}
       G: {{with.g}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "H: final convergence of E, F, and G"

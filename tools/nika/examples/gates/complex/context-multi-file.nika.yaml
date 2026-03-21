@@ -1,6 +1,7 @@
 # COMPLEX-42: Load 3 context files — multiple file context injection
 # Tests: multiple context files, context.files.* access, context in prompts
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-context-multi-file
 
 context:
@@ -13,21 +14,21 @@ tasks:
   - id: analyze_style
     infer: "Summarize the key points from this style guide in 1 sentence: {{context.files.style}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Analyze context file 1: style guide"
 
   - id: analyze_readme
     infer: "What is this project about based on: {{context.files.readme}}? One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Analyze context file 2: README"
 
   - id: analyze_cargo
     infer: "Extract the project name and version from: {{context.files.cargo}}. One line."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Analyze context file 3: Cargo.toml"
 
@@ -44,7 +45,7 @@ tasks:
       Package: {{with.cargo_info}}
       Are they consistent? 2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Cross-reference all 3 context file analyses"
 

@@ -1,5 +1,6 @@
 # COMBO: 3-task chain with bindings A -> B -> C
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-binding-chain-3
 
 tasks:
@@ -12,7 +13,7 @@ tasks:
       input: $step_a
     infer: "Transform this text to lowercase: {{with.input}}. Reply with just the result."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
 
   - id: step_c

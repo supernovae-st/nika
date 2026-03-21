@@ -1,6 +1,7 @@
 # COMPLEX-01: 8-task linear chain with bindings and transforms at every stage
 # Tests: deep sequential dependency chains, transforms accumulate through pipeline
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-deep-chain-8
 
 tasks:
@@ -22,7 +23,7 @@ tasks:
       text: $normalize
     infer: "Take this topic '{{with.text}}' and rewrite it as a formal research title in exactly 10 words."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Enrich the normalized text via LLM"
 
@@ -32,7 +33,7 @@ tasks:
       title: $enrich | trim
     infer: "Extract 5 keywords from: '{{with.title}}'. Return as JSON array of strings."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -63,7 +64,7 @@ tasks:
       Write a 2-sentence summary for a research paper titled: "{{with.title}}"
       Keywords: {{with.kw}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Generate summary combining title and keywords"
 

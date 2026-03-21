@@ -1,6 +1,7 @@
 # COMPLEX-73: Agent using 5+ tools in sequence within a single turn
 # Tests: agent tool-use depth, multi-step reasoning, sequential builtin calls
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-multi-tool
 
 tasks:
@@ -15,7 +16,7 @@ tasks:
         5. Use nika_assert with condition=true and message='all tools called'
         6. Call nika_complete with result='ALL_5_TOOLS_USED' confidence=1.0 reasoning='write, read, glob, emit, assert all called'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 8
       tools: [builtin]
     description: "Agent exercises 5+ builtin tools sequentially"

@@ -1,13 +1,14 @@
 //! Sparkline Widget
 //!
 //! Mini chart for visualizing latency and metric history.
-//! Uses ratatui's Sparkline with latency-aware coloring.
-//!
+//! Unused widget variants (MiniSparkline, BorderedSparkline, LatencySparkline)
+//! removed. AnimatedLatencySparkline is used by home.rs.
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Sparkline as RatatuiSparkline, Widget},
+    widgets::{Block, Sparkline as RatatuiSparkline, Widget},
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -37,17 +38,20 @@ pub enum SparklineAnimation {
     Wave,
 }
 
-/// Latency sparkline with threshold-based coloring
+// ═══════════════════════════════════════════════════════════════════════════
+// LATENCY SPARKLINE (kept for backward compat, no longer rendered)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Latency sparkline with threshold-based coloring (stub -- rendering removed)
 pub struct LatencySparkline<'a> {
     data: &'a [u64],
+    #[allow(dead_code)]
     title: &'a str,
-    /// Threshold in ms for warning color (default: 500ms)
     warn_threshold: u64,
-    /// Threshold in ms for error color (default: 2000ms)
     error_threshold: u64,
-    /// Show max value label
+    #[allow(dead_code)]
     show_max: bool,
-    /// Show average value label
+    #[allow(dead_code)]
     show_avg: bool,
 }
 
@@ -99,180 +103,10 @@ impl<'a> LatencySparkline<'a> {
             DEFAULT_SUCCESS_COLOR
         }
     }
-
-    /// Calculate average latency
-    fn average(&self) -> u64 {
-        if self.data.is_empty() {
-            return 0;
-        }
-        self.data.iter().sum::<u64>() / self.data.len() as u64
-    }
-
-    /// Get max latency
-    fn max(&self) -> u64 {
-        self.data.iter().max().copied().unwrap_or(0)
-    }
-}
-
-impl Widget for LatencySparkline<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 5 || area.height < 1 {
-            return;
-        }
-
-        let color = self.get_color();
-
-        // Calculate how much space for labels
-        let label_width = if self.show_max || self.show_avg {
-            10u16 // "avg:999ms" or "max:999ms"
-        } else {
-            0
-        };
-
-        let sparkline_width = area.width.saturating_sub(label_width);
-        let sparkline_area = Rect {
-            x: area.x,
-            y: area.y,
-            width: sparkline_width,
-            height: area.height,
-        };
-
-        // Render sparkline
-        let sparkline = RatatuiSparkline::default()
-            .block(Block::default())
-            .data(self.data)
-            .style(Style::default().fg(color));
-
-        sparkline.render(sparkline_area, buf);
-
-        // Render labels if requested
-        if self.show_max || self.show_avg {
-            let label_x = area.x + sparkline_width + 1;
-            let mut label_y = area.y;
-
-            if self.show_max && area.height >= 1 {
-                let max_str = format_ms(self.max());
-                let max_label = format!("⬆{}", max_str);
-                buf.set_string(label_x, label_y, &max_label, Style::default().fg(color));
-                label_y += 1;
-            }
-
-            if self.show_avg && label_y < area.y + area.height {
-                let avg_str = format_ms(self.average());
-                let avg_label = format!("~{}", avg_str);
-                buf.set_string(
-                    label_x, // Fixed: was incorrectly using label_y as X coordinate
-                    label_y,
-                    &avg_label,
-                    Style::default().fg(Color::Gray),
-                );
-            }
-        }
-    }
-}
-
-/// Compact sparkline with inline label
-pub struct MiniSparkline<'a> {
-    data: &'a [u64],
-    label: &'a str,
-    color: Color,
-}
-
-impl<'a> MiniSparkline<'a> {
-    pub fn new(data: &'a [u64], label: &'a str) -> Self {
-        Self {
-            data,
-            label,
-            color: Color::Cyan,
-        }
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-}
-
-impl Widget for MiniSparkline<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 8 || area.height < 1 {
-            return;
-        }
-
-        // Render label first
-        // SAFETY: Clamp label length to u16::MAX before cast
-        let label_len = self.label.len().min(u16::MAX as usize) as u16;
-        buf.set_string(
-            area.x,
-            area.y,
-            self.label,
-            Style::default().fg(Color::DarkGray),
-        );
-
-        // Sparkline takes remaining space
-        let sparkline_area = Rect {
-            x: area.x + label_len + 1,
-            y: area.y,
-            width: area.width.saturating_sub(label_len + 1),
-            height: 1,
-        };
-
-        let sparkline = RatatuiSparkline::default()
-            .block(Block::default())
-            .data(self.data)
-            .style(Style::default().fg(self.color));
-
-        sparkline.render(sparkline_area, buf);
-    }
-}
-
-/// Sparkline with border and title
-pub struct BorderedSparkline<'a> {
-    data: &'a [u64],
-    title: &'a str,
-    color: Color,
-}
-
-impl<'a> BorderedSparkline<'a> {
-    pub fn new(data: &'a [u64], title: &'a str) -> Self {
-        Self {
-            data,
-            title,
-            color: Color::Cyan,
-        }
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-}
-
-impl Widget for BorderedSparkline<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 6 || area.height < 3 {
-            return;
-        }
-
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(self.title)
-            .border_style(Style::default().fg(Color::DarkGray));
-
-        let inner = block.inner(area);
-        block.render(area, buf);
-
-        let sparkline = RatatuiSparkline::default()
-            .block(Block::default())
-            .data(self.data)
-            .style(Style::default().fg(self.color));
-
-        sparkline.render(inner, buf);
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ANIMATED SPARKLINE
+// ANIMATED SPARKLINE (used by home.rs)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Animated latency sparkline with threshold-based coloring
@@ -281,18 +115,6 @@ impl Widget for BorderedSparkline<'_> {
 /// - `Pulse`: Latest bar glows to indicate recent activity
 /// - `Flow`: Data appears to scroll from right to left
 /// - `Wave`: Subtle oscillation effect on bar heights
-///
-/// # Example
-///
-/// ```ignore
-/// let data = vec![10, 20, 30, 40, 50];
-/// let sparkline = AnimatedLatencySparkline::new(&data)
-///     .frame(state.frame)
-///     .animation(SparklineAnimation::Pulse)
-///     .warn_threshold(500)
-///     .error_threshold(2000);
-/// sparkline.render(area, buf);
-/// ```
 pub struct AnimatedLatencySparkline<'a> {
     data: &'a [u64],
     /// Current animation frame (0-59, wraps for 1-second cycles at 60 FPS)
@@ -464,7 +286,6 @@ impl Widget for AnimatedLatencySparkline<'_> {
 
         // Render pulse indicator (latest bar marker)
         if pulse_active && sparkline_width > 0 {
-            // Draw a glow marker at the rightmost position
             let marker_x = area.x + sparkline_width.saturating_sub(1);
             if marker_x < area.x + area.width {
                 buf.set_string(
@@ -673,15 +494,13 @@ mod tests {
     fn test_animated_sparkline_defaults() {
         let data: Vec<u64> = vec![10, 20, 30];
         let spark = AnimatedLatencySparkline::new(&data);
-        // Verify defaults
-        assert!(!spark.is_pulse_active()); // frame=0 with None animation
+        assert!(!spark.is_pulse_active());
     }
 
     #[test]
     fn test_animated_sparkline_pulse_timing() {
         let data: Vec<u64> = vec![10, 20, 30, 40, 50];
 
-        // Pulse active in first 5 frames of each 15-frame cycle
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(0)
             .animation(SparklineAnimation::Pulse);
@@ -692,7 +511,6 @@ mod tests {
             .animation(SparklineAnimation::Pulse);
         assert!(spark.is_pulse_active());
 
-        // Pulse inactive after 5 frames
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(5)
             .animation(SparklineAnimation::Pulse);
@@ -703,7 +521,6 @@ mod tests {
             .animation(SparklineAnimation::Pulse);
         assert!(!spark.is_pulse_active());
 
-        // Pulse active again at 15 (start of next cycle)
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(15)
             .animation(SparklineAnimation::Pulse);
@@ -714,7 +531,6 @@ mod tests {
     fn test_animated_sparkline_pulse_not_active_with_none_animation() {
         let data: Vec<u64> = vec![10, 20, 30, 40, 50];
 
-        // With None animation, pulse should never be active regardless of frame
         for frame in 0..60 {
             let spark = AnimatedLatencySparkline::new(&data)
                 .frame(frame)
@@ -732,25 +548,19 @@ mod tests {
 
         let transformed = spark.apply_wave_animation(&data);
 
-        // Wave should transform data (values won't all be equal anymore)
-        // Due to sine wave, values should vary
         assert_eq!(transformed.len(), data.len());
-        // Values should be different from original due to wave effect
-        // (unless we happen to hit a point where wave factor is exactly 1.0)
     }
 
     #[test]
     fn test_animated_sparkline_wave_returns_unchanged_for_non_wave() {
         let data: Vec<u64> = vec![10, 20, 30, 40, 50];
 
-        // With None animation
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(30)
             .animation(SparklineAnimation::None);
         let result = spark.apply_wave_animation(&data);
         assert_eq!(result, data);
 
-        // With Pulse animation
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(30)
             .animation(SparklineAnimation::Pulse);
@@ -762,21 +572,18 @@ mod tests {
     fn test_animated_sparkline_flow_rotates_data() {
         let data: Vec<u64> = vec![10, 20, 30, 40, 50];
 
-        // At frame 0, shift is 0, so no rotation
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(0)
             .animation(SparklineAnimation::Flow);
         let result = spark.apply_flow_animation(&data);
         assert_eq!(result, vec![10, 20, 30, 40, 50]);
 
-        // At frame 10, shift is 1
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(10)
             .animation(SparklineAnimation::Flow);
         let result = spark.apply_flow_animation(&data);
         assert_eq!(result, vec![20, 30, 40, 50, 10]);
 
-        // At frame 20, shift is 2
         let spark = AnimatedLatencySparkline::new(&data)
             .frame(20)
             .animation(SparklineAnimation::Flow);
@@ -813,20 +620,18 @@ mod tests {
     fn test_animated_sparkline_custom_thresholds() {
         let data: Vec<u64> = vec![100, 200, 300];
 
-        // Default thresholds (warn=500, error=2000)
         let spark = AnimatedLatencySparkline::new(&data);
         assert_eq!(spark.get_base_color(), DEFAULT_SUCCESS_COLOR);
 
-        // Lower thresholds
         let spark = AnimatedLatencySparkline::new(&data)
             .warn_threshold(250)
             .error_threshold(400);
-        assert_eq!(spark.get_base_color(), DEFAULT_WARN_COLOR); // max=300 > warn=250
+        assert_eq!(spark.get_base_color(), DEFAULT_WARN_COLOR);
 
         let spark = AnimatedLatencySparkline::new(&data)
             .warn_threshold(100)
             .error_threshold(200);
-        assert_eq!(spark.get_base_color(), DEFAULT_ERROR_COLOR); // max=300 > error=200
+        assert_eq!(spark.get_base_color(), DEFAULT_ERROR_COLOR);
     }
 
     #[test]
@@ -840,7 +645,6 @@ mod tests {
             .show_max()
             .show_avg();
 
-        // Just verify the chain compiles and returns a valid object
-        assert!(spark.is_pulse_active() || !spark.is_pulse_active()); // trivially true, but validates construction
+        assert!(spark.is_pulse_active() || !spark.is_pulse_active());
     }
 }

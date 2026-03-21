@@ -1,5 +1,6 @@
 # FEATURE: MCP invoke with Firecrawl (scrape a webpage)
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-mcp-firecrawl
 
 mcp:
@@ -24,5 +25,5 @@ tasks:
       content: $scrape
     infer: "Summarize this page in 2 sentences: {{with.content}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100

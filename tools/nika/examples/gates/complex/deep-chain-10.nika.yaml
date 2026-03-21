@@ -1,6 +1,7 @@
 # COMPLEX-02: 10-task chain mixing exec+infer+fetch — data flows through all 10
 # Tests: verb alternation in long chains, binding propagation, mixed I/O types
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-deep-chain-10
 
 tasks:
@@ -25,7 +26,7 @@ tasks:
       Local: {{with.local}}
       Remote: {{with.remote}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Step 3: LLM compares local and remote data"
 
@@ -45,7 +46,7 @@ tasks:
       text: $t3_infer
     infer: "Given hash '{{with.hash}}' and text '{{with.text}}', create a title in 5 words."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Step 5: Generate title from hash and comparison"
 
@@ -78,7 +79,7 @@ tasks:
       Title: {{with.title}}
       Post result: {{with.post_result}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Step 8: Synthesize title and post result"
 

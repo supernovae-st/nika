@@ -1,5 +1,6 @@
 # COMBO: inputs used in artifact path template
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-inputs-artifact-path
 
 inputs:
@@ -13,7 +14,7 @@ tasks:
   - id: generate
     infer: "Say 'artifact test' and nothing else."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: "{{inputs.filename}}.txt"

@@ -1,10 +1,11 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-emit
 tasks:
   - id: emit_test
     agent:
       prompt: "Call nika_emit with name='test_event' and payload_json='{\"status\":\"ok\"}'. Then call nika_complete with result='EMITTED' confidence=1.0 reasoning='tested emit'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]

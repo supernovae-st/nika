@@ -1,5 +1,6 @@
 # COMBO: inputs used as for_each items source
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-inputs-for-each
 
 inputs:
@@ -12,5 +13,5 @@ tasks:
     as: lang
     infer: "One word to describe {{with.lang}}."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

@@ -1,6 +1,7 @@
 # COMPLEX-59: Very long task IDs at max reasonable length (50 chars)
 # Tests: parser handles long identifiers, bindings with long refs, DAG with long IDs
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-edge-long-ids
 
 tasks:
@@ -21,7 +22,7 @@ tasks:
       clean: $preprocessing_normalization_trim_and_clean_v2 | trim
     infer: "Analyze: {{with.clean}}. Reply with one word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "Long ID doing inference with long ID binding"
 

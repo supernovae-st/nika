@@ -1,6 +1,7 @@
 # COMPLEX-69: Complex artifact template with multiple {{with.x}} and {{inputs.y}} refs
 # Tests: template interpolation with many variables, multi-line templates
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-template
 
 artifacts:
@@ -18,14 +19,14 @@ tasks:
   - id: get_title
     infer: "Generate a creative 5-word title for a software release. Reply with the title only."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     description: "Generate release title"
 
   - id: get_highlights
     infer: "List 3 highlights for a v0.30 release of a workflow engine. Return as JSON array of strings."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Generate release highlights"
 
@@ -44,7 +45,7 @@ tasks:
       Highlights: {{with.highlights}}
       Stats: {{with.stats}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "release-v{{inputs.version}}.md"

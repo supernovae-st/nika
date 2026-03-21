@@ -1,6 +1,7 @@
 # COMPLEX-46: Infer with very long prompt (500+ chars) — prompt length stress test
 # Tests: long prompt handling, multi-line prompts, template expansion in long text
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-long-prompt
 
 tasks:
@@ -37,7 +38,7 @@ tasks:
       - Focus on what makes this system uniquely complex compared to simpler workflow tools
       - Be specific and technical, avoid vague generalities
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Very long prompt (500+ chars) with detailed requirements"
 

@@ -1,6 +1,7 @@
 # COMPLEX-04: 15-task maximum depth chain — pushes sequential depth to the limit
 # Tests: maximum chain depth, binding propagation over 15 hops, mixed verbs
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-deep-chain-15
 
 tasks:
@@ -18,7 +19,7 @@ tasks:
     with: { d: $c02 | trim }
     infer: "Shorten '{{with.d}}' to 3 characters."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
 
   - id: c04
@@ -46,7 +47,7 @@ tasks:
     with: { d: $c06 | trim }
     infer: "Summarize in 5 words: {{with.d}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
 
   - id: c08
@@ -59,7 +60,7 @@ tasks:
     with: { d: $c08 | trim }
     infer: "Reverse the meaning of: '{{with.d}}'. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
 
   - id: c10
@@ -91,7 +92,7 @@ tasks:
       mid: $c07 | trim
     infer: "Merge these into a title: '{{with.recent}}' and '{{with.mid}}'. Max 8 words."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
 
   - id: c14

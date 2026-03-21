@@ -1,6 +1,7 @@
 # COMPLEX-79: Fetch with retry config and error handling
 # Tests: max_retries on fetch, fallback on failure, resilient patterns
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-fetch-retry
 
 tasks:
@@ -48,6 +49,6 @@ tasks:
       post_result: $process_post | trim
     infer: "Two resilient API calls completed. GET: {{with.get_result}}, POST: {{with.post_result}}. Summarize in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Summarize resilient fetch results"

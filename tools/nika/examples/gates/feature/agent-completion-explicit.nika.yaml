@@ -1,5 +1,6 @@
 # FEATURE: completion mode on agent
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-completion
 tasks:
   - id: explicit_agent
@@ -11,4 +12,4 @@ tasks:
       completion:
         mode: explicit
     provider: openai
-    model: gpt-4.1-mini
+    

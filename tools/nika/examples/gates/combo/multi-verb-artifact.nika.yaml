@@ -1,5 +1,6 @@
 # COMBO: exec + infer + fetch all with artifacts
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-multi-verb-artifact
 
 artifacts:
@@ -15,7 +16,7 @@ tasks:
   - id: infer_art
     infer: "Say 'hello world' and nothing else."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: infer-result.txt

@@ -1,6 +1,7 @@
 # COMPLEX-54: Incident response — detect -> triage -> investigate -> remediate -> postmortem
 # Tests: error handling, parallel investigation, binding chains, agent usage
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-pipeline-incident
 
 artifacts:
@@ -39,7 +40,7 @@ tasks:
       Severity: {{inputs.severity}}
       Classify as: infrastructure, application, or dependency. Return JSON.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     structured:
       schema:
@@ -99,7 +100,7 @@ tasks:
         - Dependencies: {{with.deps}}
         Analyze root cause and suggest a fix. Call nika_complete with your recommendation.
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Agent-based root cause analysis and remediation"
@@ -119,7 +120,7 @@ tasks:
       Remediation: {{with.remediation}}
       Include: timeline, root cause, resolution, action items.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "postmortem-{{inputs.service}}.md"

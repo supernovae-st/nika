@@ -1,8 +1,0 @@
-{"id":0,"timestamp_ms":0,"kind":{"type":"workflow_started","task_count":2,"generation_id":"gen-4524c262-986d-405d-8834-d5ae43373622","workflow_hash":"161c63d54085d673","nika_version":"0.7.2"}}
-{"id":1,"timestamp_ms":0,"kind":{"type":"task_scheduled","task_id":"slow1","dependencies":[]}}
-{"id":2,"timestamp_ms":0,"kind":{"type":"task_scheduled","task_id":"slow2","dependencies":[]}}
-{"id":3,"timestamp_ms":0,"kind":{"type":"task_started","task_id":"slow1","verb":"exec","inputs":{}}}
-{"id":4,"timestamp_ms":0,"kind":{"type":"template_resolved","task_id":"slow1","template":"sleep 5","result":"sleep 5"}}
-{"id":5,"timestamp_ms":1,"kind":{"type":"task_started","task_id":"slow2","verb":"exec","inputs":{}}}
-{"id":6,"timestamp_ms":1,"kind":{"type":"template_resolved","task_id":"slow2","template":"sleep 5","result":"sleep 5"}}
-{"id":7,"timestamp_ms":102,"kind":{"type":"workflow_aborted","reason":"Workflow cancelled during execution","duration_ms":101,"running_tasks":["slow1","slow2"]}}

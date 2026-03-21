@@ -1,6 +1,7 @@
 # COMPLEX-17: Structured output producing array of complex objects
 # Tests: array root schema, object items with multiple types, downstream iteration
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-array-objects
 
 tasks:
@@ -9,7 +10,7 @@ tasks:
       Generate an inventory of 4 items for a tech store.
       Each item should have name, price, category, in_stock status, and tags.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -42,7 +43,7 @@ tasks:
     as: item
     infer: "Write a 1-sentence product description for: {{with.item}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
     description: "Iterate over structured array items"
 
@@ -52,7 +53,7 @@ tasks:
       items: $generate_inventory.items
     infer: "Calculate which item is cheapest and which is most expensive from: {{with.items}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Analyze prices from structured array"
 

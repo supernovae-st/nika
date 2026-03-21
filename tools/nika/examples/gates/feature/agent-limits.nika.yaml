@@ -1,5 +1,6 @@
 # FEATURE: limits on agent
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-limits
 tasks:
   - id: limited_agent
@@ -14,4 +15,4 @@ tasks:
         on_limit_reached:
           action: complete_partial
     provider: openai
-    model: gpt-4.1-mini
+    

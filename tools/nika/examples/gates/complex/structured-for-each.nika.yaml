@@ -1,6 +1,7 @@
 # COMPLEX-20: Structured output inside for_each — each iteration produces structured data
 # Tests: structured schema in for_each context, collecting structured results
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-foreach
 
 tasks:
@@ -14,7 +15,7 @@ tasks:
     as: lang
     infer: "Analyze {{with.lang}} programming language. Provide name, paradigm, typing, and performance rating 1-10."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -52,7 +53,7 @@ tasks:
       Given these language analyses: {{with.analyses}}
       Rank them by performance score, highest first. One sentence.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Rank languages using collected structured data"
 

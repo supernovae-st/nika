@@ -47,3 +47,5 @@ tools/nika/src/target-main/
 .claude
 .nika/
 generated/
+crates/nika-cli/.nika/
+crates/nika-runtime/.nika/

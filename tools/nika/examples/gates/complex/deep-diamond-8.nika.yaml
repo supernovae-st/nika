@@ -9,6 +9,7 @@
 #                    │
 #               G ───┘── H (final)
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-deep-diamond-8
 
 tasks:
@@ -22,7 +23,7 @@ tasks:
       data: $a_source
     infer: "Transform this to uppercase and add LEFT prefix: {{with.data}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Left branch: LLM transform"
 
@@ -52,7 +53,7 @@ tasks:
       center: $c_center | trim
     infer: "Combine LEFT='{{with.left}}' and CENTER='{{with.center}}' into one line."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "First diamond merge: left + center"
 
@@ -73,7 +74,7 @@ tasks:
       bottom: $f_merge_cd | trim
     infer: "Create a 1-sentence summary combining: '{{with.top}}' and '{{with.bottom}}'"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Convergence point: merges both diamond outputs"
 

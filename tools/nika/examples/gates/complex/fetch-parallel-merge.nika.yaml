@@ -1,6 +1,7 @@
 # COMPLEX-77: 3 parallel GETs -> merge results
 # Tests: parallel fetch tasks, fan-out/fan-in with HTTP, multi-binding merge
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-fetch-parallel-merge
 
 tasks:
@@ -37,7 +38,7 @@ tasks:
       3. Orders: {{with.orders}}
       Summarize what each endpoint returned in one sentence each. Return as JSON with keys: users, products, orders.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:

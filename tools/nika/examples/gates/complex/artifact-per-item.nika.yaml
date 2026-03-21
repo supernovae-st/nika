@@ -1,6 +1,7 @@
 # COMPLEX-23: for_each producing individual artifact files per iteration
 # Tests: artifact inside for_each, dynamic path per item, per-item file creation
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-per-item
 
 artifacts:
@@ -19,7 +20,7 @@ tasks:
       Write a 3-line cheat sheet for {{with.lang}} programming language.
       Include: hello world, variable declaration, function definition.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "cheatsheet-{{with.lang}}.md"
@@ -36,7 +37,7 @@ tasks:
       Create a table of contents listing these languages: {{with.langs}}
       One line per language with a brief note.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "cheatsheet-index.md"

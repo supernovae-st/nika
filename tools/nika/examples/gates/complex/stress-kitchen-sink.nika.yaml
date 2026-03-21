@@ -3,6 +3,7 @@
 #        transforms, fallback, inputs, context, log, env binding, concurrency,
 #        diamond deps, fan-out/fan-in, template interpolation, multi-artifact
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-kitchen-sink
 
 log:
@@ -76,7 +77,7 @@ tasks:
   - id: infer_basic
     infer: "Reply with exactly: INFER_OK"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     description: "Basic infer"
 
@@ -84,7 +85,7 @@ tasks:
   - id: infer_temp
     infer: "Reply with exactly one random word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     temperature: 0.0
     description: "Infer with temperature=0"
@@ -93,7 +94,7 @@ tasks:
   - id: infer_system
     infer: "What format should I use?"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     system: "Always reply in UPPERCASE only."
     description: "Infer with system prompt"
@@ -108,7 +109,7 @@ tasks:
       Data: {{with.data}}
       Summarize in one word.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     description: "Infer with context files"
 
@@ -116,7 +117,7 @@ tasks:
   - id: structured_out
     infer: "Return JSON with name='Nika', version=30, stable=true."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     structured:
       schema:
@@ -135,7 +136,7 @@ tasks:
   - id: output_json
     infer: "Return JSON: {\"key\":\"val\"}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     output:
       format: json
@@ -195,7 +196,7 @@ tasks:
     as: item
     infer: "Define {{with.item}} in 3 words."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "for_each with infer"
 
@@ -204,7 +205,7 @@ tasks:
     agent:
       prompt: "Call nika_complete with result='AGENT_OK' confidence=1.0 reasoning='basic agent test'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 2
       tools: [builtin]
     description: "Basic agent with builtin tools"
@@ -217,7 +218,7 @@ tasks:
     agent:
       prompt: "Data={{with.data}}. Call nika_complete with result='BOUND_AGENT' confidence=1.0 reasoning='received binding'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 2
       tools: [builtin]
     description: "Agent with upstream binding"
@@ -227,7 +228,7 @@ tasks:
     agent:
       prompt: "Call nika_log with level='info' and message='kitchen sink log'. Then call nika_complete with result='LOGGED' confidence=1.0 reasoning='logged'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 3
       tools: [builtin]
     description: "Agent with nika_log"
@@ -262,7 +263,7 @@ tasks:
       b: $exec_basic | trim
     infer: "Combine: {{with.a}} and {{with.b}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: "ks-template-{{inputs.seed}}.md"
@@ -277,7 +278,7 @@ tasks:
       content: $exec_basic
     infer: "Ignore this."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 5
     artifact:
       path: "ks-source.txt"
@@ -335,7 +336,7 @@ tasks:
 
       Write a 3-sentence verdict on the engine's capabilities.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "kitchen-sink-verdict.md"

@@ -1,6 +1,7 @@
 # COMPLEX-08: for_each where each iteration uses different verbs in sequence
 # Tests: mixed verb types with for_each, binding from for_each to downstream mixed tasks
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-foreach-mixed-verbs
 
 tasks:
@@ -32,7 +33,7 @@ tasks:
     as: response
     infer: "Summarize this HTTP response in exactly 5 words: {{with.response}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     description: "LLM summarizes each fetched response"
 
@@ -57,6 +58,6 @@ tasks:
       Results: {{with.merged}}
       One paragraph, 3 sentences max.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Final report combining all for_each outputs"

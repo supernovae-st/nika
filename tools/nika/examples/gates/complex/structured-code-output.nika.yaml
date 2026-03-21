@@ -1,6 +1,7 @@
 # COMPLEX-88: Generate structured code metadata
 # Tests: structured output describing code, enum for language, detailed schema
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-code
 
 tasks:
@@ -20,7 +21,7 @@ tasks:
       Analyze this code and return structured metadata:
       {{with.code}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -59,7 +60,7 @@ tasks:
       lang: $analyze_code.language ?? "unknown"
     infer: "Code in {{with.lang}}: {{with.meta}}. Write a one-sentence code review."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Use structured code metadata"
 

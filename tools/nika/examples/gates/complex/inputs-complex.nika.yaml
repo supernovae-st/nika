@@ -1,6 +1,7 @@
 # COMPLEX-41: 5+ input parameters with defaults — complex inputs configuration
 # Tests: multiple inputs, default values, input interpolation in prompts/urls/paths
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-inputs-complex
 
 artifacts:
@@ -50,7 +51,7 @@ tasks:
       Config: {{with.config}}
       Write 2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "LLM uses multiple inputs in prompt"
 
@@ -71,7 +72,7 @@ tasks:
       debug_info: $conditional_debug | trim
     infer: "Finalize: {{with.brief}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "{{inputs.project_name}}-{{inputs.environment}}-report.{{inputs.output_format}}"

@@ -1,5 +1,6 @@
 # COMBO: multiple tasks each writing artifacts
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-artifact-multi-task
 
 artifacts:
@@ -15,7 +16,7 @@ tasks:
   - id: body
     infer: "Write one sentence about AI workflows."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: section-body.txt

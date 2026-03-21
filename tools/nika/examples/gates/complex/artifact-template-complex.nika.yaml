@@ -1,6 +1,7 @@
 # COMPLEX-22: Artifact with complex template using multiple bindings and placeholders
 # Tests: {{output}}, {{with.*}}, {{inputs.*}} in artifact template simultaneously
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-template
 
 artifacts:
@@ -29,7 +30,7 @@ tasks:
       Write a 3-sentence project status report for {{inputs.project}} v{{inputs.version}}.
       Current time: {{with.ts}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Generate report body with inputs and timestamp binding"
 
@@ -39,7 +40,7 @@ tasks:
       body: $generate_body | trim
     infer: "Summarize this in one sentence: {{with.body}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
     description: "Generate executive summary from body"
 
@@ -52,7 +53,7 @@ tasks:
       host: $get_hostname | trim
     infer: "Finalize this report by adding a conclusion: {{with.body}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "report-{{inputs.project}}-v{{inputs.version}}.md"

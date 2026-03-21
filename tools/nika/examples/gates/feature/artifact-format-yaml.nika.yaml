@@ -1,5 +1,6 @@
 # FEATURE: artifact with format: yaml
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-artifact-format-yaml
 artifacts:
   dir: ./examples/gates/.test-output/artifacts
@@ -7,7 +8,7 @@ tasks:
   - id: gen
     infer: "Return a YAML object with name: Nika and version: 0.30"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     artifact:
       path: data.yaml

@@ -1,5 +1,6 @@
 # COMBO: for_each + infer with system prompt
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-for-each-infer-system
 
 tasks:
@@ -11,4 +12,4 @@ tasks:
       prompt: "Translate: {{with.phrase}}"
       max_tokens: 50
     provider: openai
-    model: gpt-4.1-mini
+    

@@ -1,6 +1,7 @@
 # COMPLEX-31: Fan-out/fan-in — 1 source -> 5 parallel branches -> 1 merge
 # Tests: wide fan-out, parallel execution, 5-way merge, binding from all branches
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-dag-fan-out-in
 
 tasks:
@@ -13,7 +14,7 @@ tasks:
     with: { data: $source }
     infer: "Analyze performance aspects of: {{with.data}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
 
   - id: branch_security
@@ -21,7 +22,7 @@ tasks:
     with: { data: $source }
     infer: "Analyze security aspects of: {{with.data}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
 
   - id: branch_cost
@@ -29,7 +30,7 @@ tasks:
     with: { data: $source }
     infer: "Analyze cost aspects of: {{with.data}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
 
   - id: branch_scalability
@@ -37,7 +38,7 @@ tasks:
     with: { data: $source }
     infer: "Analyze scalability aspects of: {{with.data}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
 
   - id: branch_reliability
@@ -45,7 +46,7 @@ tasks:
     with: { data: $source }
     infer: "Analyze reliability aspects of: {{with.data}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 60
 
   - id: merge_all
@@ -64,6 +65,6 @@ tasks:
       Scalability: {{with.scale}}
       Reliability: {{with.rel}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "5-way merge of all parallel branches"

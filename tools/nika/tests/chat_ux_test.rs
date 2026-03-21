@@ -10,7 +10,7 @@
 #![cfg(feature = "tui")]
 
 use nika::tui::widgets::{
-    default_commands, ActivityItem, ActivityTemp, CommandPaletteState, InferStatus, InferStreamBox,
+    default_commands, ActivityItem, ActivityTemp, CommandPaletteState, InferStatus,
     InferStreamData, McpCallBox, McpCallData, McpCallStatus, McpServerInfo, McpStatus,
     PaletteCommand, SessionContext, SessionContextBar,
 };
@@ -342,20 +342,7 @@ fn test_infer_stream_progress() {
     assert_eq!(data.progress_percent(), 25.0);
 }
 
-#[test]
-fn test_infer_stream_box_rendering() {
-    let data =
-        InferStreamData::new("claude-sonnet-4-6").with_content("This is a streaming response...");
-
-    let stream_box = InferStreamBox::new(&data);
-
-    let area = Rect::new(0, 0, 60, 10);
-    let mut buffer = Buffer::empty(area);
-    stream_box.render(area, &mut buffer);
-
-    let content = buffer_to_string(&buffer);
-    assert!(!content.trim().is_empty());
-}
+// test_infer_stream_box_rendering removed — Widget impl stripped (data types preserved)
 
 #[test]
 fn test_infer_status_display() {

@@ -1,6 +1,7 @@
 # COMPLEX-16: Deeply nested JSON schema (3 levels) — structured output stress test
 # Tests: nested objects, arrays of objects, 3-level deep schema validation
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-nested
 
 tasks:
@@ -9,7 +10,7 @@ tasks:
       Generate a fictional tech company organizational structure.
       Include a company name, a CEO, and 2 departments each with a head and 2 team members.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -73,6 +74,6 @@ tasks:
       org: $generate_org
     infer: "Analyze this org structure and identify the strongest department: {{with.org}}. One sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "LLM analysis of the nested structured data"

@@ -1,6 +1,7 @@
 # COMPLEX-66: Generate 5 artifact files from one workflow
 # Tests: multiple artifact tasks, different formats, template variations
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-report-suite
 
 artifacts:
@@ -22,7 +23,7 @@ tasks:
       data: $gather_data
     infer: "Write a 2-sentence executive summary for project {{inputs.project}}: {{with.data}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "report-executive.txt"
@@ -37,7 +38,7 @@ tasks:
       raw: $gather_data
     infer: "Reformat this data as clean JSON with added 'status' field (healthy/unhealthy based on pass_rate): {{with.raw}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "report-metrics.json"
@@ -51,7 +52,7 @@ tasks:
       data: $gather_data
     infer: "Generate a 3-item changelog for {{inputs.project}} v{{with.data}}. Short bullet points."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "report-changelog.md"
@@ -66,7 +67,7 @@ tasks:
       metrics: $gather_data
     infer: "Write 3 technical recommendations based on: {{with.metrics}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "report-technical.txt"

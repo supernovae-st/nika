@@ -1,6 +1,7 @@
 # COMPLEX-28: Agent that reads files, searches, and summarizes
 # Tests: agent with file read/glob/grep tools, research workflow
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-research
 
 tasks:
@@ -23,7 +24,7 @@ tasks:
 
         Be concise and factual.
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log, nika_glob, nika_read, nika_grep]
       max_turns: 5
       max_tokens: 200
@@ -36,7 +37,7 @@ tasks:
       findings: $research_agent
     infer: "Format these research findings into a clean bullet-point summary: {{with.findings}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Format agent findings for readability"
 

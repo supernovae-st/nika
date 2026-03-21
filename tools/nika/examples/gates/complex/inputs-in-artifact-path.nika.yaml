@@ -1,6 +1,7 @@
 # COMPLEX-44: Input params used in artifact paths, prompts, and templates
 # Tests: inputs interpolation in artifact path, template, URL, and exec
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-inputs-artifact-path
 
 artifacts:
@@ -38,7 +39,7 @@ tasks:
       Metrics: {{with.metrics}}
       2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Generate report using 4 inputs"
 
@@ -49,7 +50,7 @@ tasks:
       metrics: $gather_metrics
     infer: "Finalize this report: {{with.report}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "{{inputs.team}}-{{inputs.report_type}}-w{{inputs.week}}-{{inputs.year}}.md"

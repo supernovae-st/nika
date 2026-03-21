@@ -1,5 +1,6 @@
 # COMBO: env binding used in template string
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-binding-env-template
 
 tasks:
@@ -14,5 +15,5 @@ tasks:
       home_dir: $get_env
     infer: "The user's home directory is {{with.home_dir}}. What OS is this likely? One word."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

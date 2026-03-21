@@ -1,6 +1,7 @@
 # COMPLEX-43: Context files used inside for_each iterations
 # Tests: context.files.* accessible within for_each body, context + iteration combo
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-context-in-foreach
 
 context:
@@ -20,7 +21,7 @@ tasks:
       Following this style guide: {{context.files.style}}
       Write one sentence about {{with.topic}} in software engineering.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Each for_each iteration uses context.files"
 
@@ -33,7 +34,7 @@ tasks:
       {{with.analyses}}
       2-3 sentences total.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Aggregate context-informed for_each results"
 

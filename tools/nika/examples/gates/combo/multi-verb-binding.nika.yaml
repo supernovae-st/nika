@@ -1,5 +1,6 @@
 # COMBO: exec output bound to infer prompt
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: combo-multi-verb-binding
 
 tasks:
@@ -12,5 +13,5 @@ tasks:
       text: $gather
     infer: "Summarize in 5 words: {{with.text}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50

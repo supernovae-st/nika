@@ -2,6 +2,7 @@ schema: nika/workflow@0.12
 workflow: feat-infer-max-tokens
 provider: openai
 model: gpt-4.1-mini
+
 tasks:
   - id: short
     infer:

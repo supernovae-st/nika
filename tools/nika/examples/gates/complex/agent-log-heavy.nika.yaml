@@ -1,6 +1,7 @@
 # COMPLEX-75: Agent that logs extensively for observability
 # Tests: agent with nika_log at multiple levels, nika_emit for events, verbose tracing
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-log-heavy
 
 log:
@@ -21,7 +22,7 @@ tasks:
         8. Call nika_log with level='info' and message='All phases complete'
         9. Call nika_complete with result='LOGGED_8_EVENTS' confidence=1.0 reasoning='all log and emit calls made'
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 10
       tools: [builtin]
     description: "Agent with extensive logging and event emission"
@@ -32,6 +33,6 @@ tasks:
       result: $verbose_agent | trim
     infer: "The logging agent reported: {{with.result}}. Confirm the observability test passed in one sentence."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Summarize observability test results"

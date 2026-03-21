@@ -1,6 +1,7 @@
 # COMPLEX-97: All 5 verbs inside for_each loops
 # Tests: exec/infer/fetch/agent each used in for_each, binding between for_each tasks
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-verbs-foreach
 
 artifacts:
@@ -28,7 +29,7 @@ tasks:
     as: item
     infer: "Define '{{with.item}}' in exactly 5 words."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     description: "for_each with infer verb"
 
@@ -51,7 +52,7 @@ tasks:
     agent:
       prompt: "For item '{{with.item}}': Call nika_complete with result='AGENT_{{with.item}}' confidence=1.0 reasoning='processed {{with.item}}'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 2
       tools: [builtin]
     description: "for_each with agent verb"
@@ -63,7 +64,7 @@ tasks:
     as: item
     infer: "Write a one-sentence note about {{with.item}}."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     artifact:
       path: "verb-{{with.item}}.txt"
@@ -88,6 +89,6 @@ tasks:
       - artifacts: {{with.artifacts_out}}
       Summarize in 2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Merge all 5 verb for_each results"

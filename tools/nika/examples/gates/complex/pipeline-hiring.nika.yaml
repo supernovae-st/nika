@@ -1,6 +1,7 @@
 # COMPLEX-55: Hiring pipeline — source -> screen -> interview -> evaluate -> offer
 # Tests: for_each with structured output, agent scoring, multi-artifact
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-pipeline-hiring
 
 artifacts:
@@ -28,7 +29,7 @@ tasks:
       {{with.candidate}}
       Rate fit 1-10 and give one-sentence reasoning. Return JSON.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -53,7 +54,7 @@ tasks:
       Generate 3 targeted interview questions for the "{{inputs.role}}" role.
       Return as JSON array of strings.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Generate tailored interview questions"
 
@@ -68,7 +69,7 @@ tasks:
       Simulate an interview for {{with.candidate}} with questions: {{with.questions}}
       Score the interview 1-100. Return JSON with name and score.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     structured:
       schema:
@@ -95,7 +96,7 @@ tasks:
       Interviews: {{with.interviews}}
       Rank candidates and recommend top hire. Return JSON.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -126,7 +127,7 @@ tasks:
       {{with.eval}}
       Role: {{inputs.role}}, Team: {{inputs.team}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     artifact:
       path: "hiring-report-{{inputs.team}}.md"

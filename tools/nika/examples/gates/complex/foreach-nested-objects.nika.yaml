@@ -1,6 +1,7 @@
 # COMPLEX-06: for_each with complex JSON objects — each item is a multi-field object
 # Tests: object iteration, field access within for_each, structured item processing
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-foreach-nested-objects
 
 tasks:
@@ -17,7 +18,7 @@ tasks:
       Evaluate this team member profile and give a 1-sentence assessment:
       {{with.person}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "LLM evaluates each person object"
 
@@ -27,7 +28,7 @@ tasks:
     as: person
     infer: "Rate this person 1-10 based on their profile: {{with.person}}. Return only the number."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "Numeric ranking for each person"
 
@@ -42,7 +43,7 @@ tasks:
       Rankings: {{with.rankings}}
       Write 2-3 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Aggregate all per-person evaluations"
 

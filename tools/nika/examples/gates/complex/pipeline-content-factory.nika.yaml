@@ -1,6 +1,7 @@
 # COMPLEX-53: Content factory — research -> draft -> edit -> translate -> publish
 # Tests: for_each with upstream bindings, multi-artifact, template composition
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-pipeline-content-factory
 
 artifacts:
@@ -28,7 +29,7 @@ tasks:
       From this data: {{with.raw}}
       Extract 4 key facts about {{inputs.topic}}. Return JSON array of strings.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Extract facts from sources"
 
@@ -41,7 +42,7 @@ tasks:
       Write a 3-paragraph article about "{{inputs.topic}}" using these facts:
       {{with.facts}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Generate initial draft"
 
@@ -55,7 +56,7 @@ tasks:
       {{with.draft}}
       Return the improved version only.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Editorial pass"
 
@@ -68,7 +69,7 @@ tasks:
       article: $edit_pass | trim
     infer: "Translate to {{with.lang}}: {{with.article}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Translate edited article per language"
 
@@ -113,6 +114,6 @@ tasks:
       - Translations: {{with.tr}}
       Return 2 sentences with metrics.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "Content factory metrics"

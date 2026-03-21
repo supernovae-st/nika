@@ -1,6 +1,7 @@
 # COMPLEX-45: Every workflow-level config — inputs, context, log, artifacts, mcp
 # Tests: all top-level config blocks simultaneously, maximum workflow configuration
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-full-config
 description: "Workflow exercising every top-level configuration option"
 
@@ -36,7 +37,7 @@ tasks:
   - id: verify_context
     infer: "Summarize in 5 words: {{context.files.style}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 30
     description: "Verify context config"
 
@@ -54,7 +55,7 @@ tasks:
       target: $verify_inputs | trim
     infer: "Write 1 sentence about {{inputs.target}} at {{inputs.depth}} depth."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     description: "Use inputs in LLM prompt"
 
@@ -65,7 +66,7 @@ tasks:
       context_summary: $verify_context | trim
     infer: "Finalize: {{with.content}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 80
     artifact:
       path: "full-config-{{inputs.target}}.md"

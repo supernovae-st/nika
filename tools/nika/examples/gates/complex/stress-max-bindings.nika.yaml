@@ -1,6 +1,7 @@
 # COMPLEX-98: 15+ bindings in single task — maximum with: block
 # Tests: parser handling large with: blocks, template with many interpolations
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-max-bindings
 
 tasks:
@@ -74,7 +75,7 @@ tasks:
       h: $s08 | trim
     infer: "8 values: {{with.a}}, {{with.b}}, {{with.c}}, {{with.d}}, {{with.e}}, {{with.f}}, {{with.g}}, {{with.h}}. Count them. Reply with just the number."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     description: "LLM with 8 bindings"
 

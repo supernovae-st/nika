@@ -2,6 +2,7 @@ schema: nika/workflow@0.12
 workflow: feat-provider-task-override
 provider: openai
 model: gpt-4.1-mini
+
 tasks:
   - id: default_provider
     infer: "Say hello in one word"

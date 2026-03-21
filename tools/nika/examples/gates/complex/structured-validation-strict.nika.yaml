@@ -1,6 +1,7 @@
 # COMPLEX-86: Schema with all JSON Schema features — strict validation
 # Tests: required, enum, minLength, maxLength, minimum, maximum, pattern in structured output
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-structured-strict
 
 tasks:
@@ -14,7 +15,7 @@ tasks:
       - bio: 10-200 characters
       Use realistic values.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     structured:
       schema:
@@ -46,6 +47,6 @@ tasks:
       user: $strict_schema
     infer: "Verify this user object is valid: {{with.user}}. Check all fields exist. Reply VALID or INVALID with reason."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "Verify strict schema output"

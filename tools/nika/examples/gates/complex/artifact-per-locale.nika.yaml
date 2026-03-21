@@ -1,6 +1,7 @@
 # COMPLEX-68: Translate + save artifact per language via for_each
 # Tests: for_each producing individual artifacts, dynamic path with {{with.item}}
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-per-locale
 
 artifacts:
@@ -21,7 +22,7 @@ tasks:
     as: locale
     infer: "Translate to {{with.locale}}: {{inputs.content}}"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     artifact:
       path: "locale-{{with.locale}}.txt"

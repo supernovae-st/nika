@@ -1,6 +1,7 @@
 # COMPLEX-70: Different artifact sources — source: binding vs template vs raw output
 # Tests: artifact source binding, template mode, and default (output) mode
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-artifact-conditional-source
 
 artifacts:
@@ -18,7 +19,7 @@ tasks:
       content: $exec_data
     infer: "Say WRONG — this should NOT appear in the file."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     artifact:
       path: "source-binding-test.txt"
@@ -37,7 +38,7 @@ tasks:
       val: $template_data | trim
     infer: "Say anything — the template overrides."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 10
     artifact:
       path: "template-mode-test.txt"
@@ -49,7 +50,7 @@ tasks:
   - id: artifact_from_output
     infer: "Reply with exactly: DEFAULT_OUTPUT_CONTENT"
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     artifact:
       path: "default-output-test.txt"

@@ -1,33 +1,12 @@
-//! Provider Selector Widget
+//! Provider Selector — Data types only
 //!
-//! Popup for selecting LLM provider and model with streaming indicators.
-//! Inspired by VS Code command palette style.
-//!
-//! All providers check for non-empty API key in environment variables.
+//! The widget rendering code has been removed. Only the `VerifyStatus` enum
+//! (used by `verification.rs` and `app/lifecycle.rs`) is kept.
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, Clear, Widget},
-};
 use std::time::Duration;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// COLORS (VS Code-like dark theme)
-// ═══════════════════════════════════════════════════════════════════════════
-
-const BORDER_COLOR: Color = Color::Rgb(99, 102, 241); // indigo
-const BG_COLOR: Color = Color::Rgb(17, 24, 39); // dark slate
-const TEXT_COLOR: Color = Color::Rgb(229, 231, 235); // light text
-const MUTED_COLOR: Color = Color::Rgb(107, 114, 128); // muted text
-const SELECTED_BG: Color = Color::Rgb(55, 65, 81); // selection bg
-const AVAILABLE_COLOR: Color = Color::Rgb(34, 197, 94); // green
-const UNAVAILABLE_COLOR: Color = Color::Rgb(239, 68, 68); // red
-const STREAMING_COLOR: Color = Color::Rgb(59, 130, 246); // blue
-
-// ═══════════════════════════════════════════════════════════════════════════
+// VERIFY STATUS (used by verification.rs + app/lifecycle.rs)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Connection verification status
@@ -44,6 +23,10 @@ pub enum VerifyStatus {
     Failed,
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECTOR SECTION (used internally by ProviderSelectorState)
+// ═══════════════════════════════════════════════════════════════════════════
+
 /// Selector section for navigation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SelectorSection {
@@ -53,6 +36,10 @@ pub enum SelectorSection {
     /// MCP servers section
     McpServers,
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MCP SERVER DISPLAY
+// ═══════════════════════════════════════════════════════════════════════════
 
 /// MCP server display information
 #[derive(Debug, Clone)]
@@ -105,6 +92,10 @@ impl McpServerDisplay {
         self.error = Some(error.into());
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER INFO + MODEL INFO (data types)
+// ═══════════════════════════════════════════════════════════════════════════
 
 /// Provider information for display
 #[derive(Debug, Clone)]
@@ -366,6 +357,10 @@ impl ProviderInfo {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER SELECTOR STATE (data-only, no rendering)
+// ═══════════════════════════════════════════════════════════════════════════
+
 /// State for the provider selector
 #[derive(Debug, Clone)]
 pub struct ProviderSelectorState {
@@ -455,7 +450,6 @@ impl ProviderSelectorState {
     /// Enter model selection or confirm selection
     pub fn enter(&mut self) -> Option<(String, String)> {
         if self.model_mode {
-            // Confirm model selection - clone IDs before borrowing mutably
             let provider_id = self.providers[self.selected_provider].id.clone();
             let model_id = self.providers[self.selected_provider].models[self.selected_model]
                 .id
@@ -463,7 +457,6 @@ impl ProviderSelectorState {
             self.hide();
             Some((provider_id, model_id))
         } else {
-            // Enter model selection
             self.model_mode = true;
             self.selected_model = 0;
             None
@@ -634,210 +627,6 @@ impl ProviderSelectorState {
             .iter()
             .filter(|s| s.status == VerifyStatus::Verified)
             .count()
-    }
-}
-
-/// Provider Selector widget
-pub struct ProviderSelector<'a> {
-    state: &'a ProviderSelectorState,
-}
-
-impl<'a> ProviderSelector<'a> {
-    pub fn new(state: &'a ProviderSelectorState) -> Self {
-        Self { state }
-    }
-
-    fn render_provider_list(&self, area: Rect, buf: &mut Buffer) {
-        let title = if self.state.model_mode {
-            format!(
-                " {} Select Model ",
-                self.state.providers[self.state.selected_provider].icon
-            )
-        } else {
-            " 🎛️ Select Provider ".to_string()
-        };
-
-        // Draw block with border
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(BORDER_COLOR))
-            .style(Style::default().bg(BG_COLOR))
-            .title(Span::styled(
-                title,
-                Style::default().fg(TEXT_COLOR).add_modifier(Modifier::BOLD),
-            ));
-
-        let inner = block.inner(area);
-        block.render(area, buf);
-
-        if self.state.model_mode {
-            self.render_models(inner, buf);
-        } else {
-            self.render_providers(inner, buf);
-        }
-
-        // Footer hint
-        let hint = if self.state.model_mode {
-            "↑↓ Select • Enter Confirm • Esc Back"
-        } else {
-            "↑↓ Select • Enter Models • Esc Close"
-        };
-        if area.height > 2 {
-            let hint_y = area.y + area.height - 1;
-            let hint_x = area.x + 2;
-            buf.set_string(hint_x, hint_y, hint, Style::default().fg(MUTED_COLOR));
-        }
-    }
-
-    fn render_providers(&self, area: Rect, buf: &mut Buffer) {
-        for (i, provider) in self.state.providers.iter().enumerate() {
-            if i as u16 >= area.height {
-                break;
-            }
-
-            let y = area.y + i as u16;
-            let is_selected = i == self.state.selected_provider;
-
-            // Background for selected
-            if is_selected {
-                for x in area.x..area.x + area.width {
-                    buf[(x, y)].set_bg(SELECTED_BG);
-                }
-            }
-
-            // Icon
-            let icon_style = if provider.available {
-                Style::default().fg(TEXT_COLOR)
-            } else {
-                Style::default().fg(MUTED_COLOR)
-            };
-            buf.set_string(area.x + 1, y, provider.icon, icon_style);
-
-            // Name
-            let name_style = if provider.available {
-                Style::default().fg(TEXT_COLOR)
-            } else {
-                Style::default().fg(MUTED_COLOR)
-            };
-            buf.set_string(area.x + 4, y, &provider.name, name_style);
-
-            // Status indicator
-            let status_x = area.x + area.width.saturating_sub(18);
-            match (&provider.verify_status, provider.available) {
-                (VerifyStatus::Verified, _) => {
-                    // Show latency if verified
-                    let latency_str = provider
-                        .latency
-                        .map(|d| format!("✓ {}ms", d.as_millis()))
-                        .unwrap_or_else(|| "✓ OK".to_string());
-                    buf.set_string(
-                        status_x,
-                        y,
-                        &latency_str,
-                        Style::default().fg(AVAILABLE_COLOR),
-                    );
-                }
-                (VerifyStatus::Verifying, _) => {
-                    buf.set_string(
-                        status_x,
-                        y,
-                        "⟳ Checking...",
-                        Style::default().fg(STREAMING_COLOR),
-                    );
-                }
-                (VerifyStatus::Failed, _) => {
-                    buf.set_string(
-                        status_x,
-                        y,
-                        "✗ Failed",
-                        Style::default().fg(UNAVAILABLE_COLOR),
-                    );
-                }
-                (VerifyStatus::Unknown, true) => {
-                    buf.set_string(status_x, y, "○ Ready", Style::default().fg(AVAILABLE_COLOR));
-                }
-                (VerifyStatus::Unknown, false) => {
-                    buf.set_string(
-                        status_x,
-                        y,
-                        "✗ No Key",
-                        Style::default().fg(UNAVAILABLE_COLOR),
-                    );
-                }
-            }
-
-            // Streaming indicator
-            let stream_x = area.x + area.width.saturating_sub(20);
-            buf.set_string(stream_x, y, "⚡", Style::default().fg(STREAMING_COLOR));
-        }
-    }
-
-    fn render_models(&self, area: Rect, buf: &mut Buffer) {
-        let provider = &self.state.providers[self.state.selected_provider];
-
-        for (i, model) in provider.models.iter().enumerate() {
-            if i as u16 >= area.height {
-                break;
-            }
-
-            let y = area.y + i as u16;
-            let is_selected = i == self.state.selected_model;
-
-            // Background for selected
-            if is_selected {
-                for x in area.x..area.x + area.width {
-                    buf[(x, y)].set_bg(SELECTED_BG);
-                }
-            }
-
-            // Model name
-            buf.set_string(area.x + 2, y, &model.name, Style::default().fg(TEXT_COLOR));
-
-            // Features
-            let mut features = Vec::new();
-            if model.streaming {
-                features.push("⚡");
-            }
-            if model.thinking {
-                features.push("🧠");
-            }
-
-            let features_str = features.join(" ");
-            let features_x = area.x + area.width.saturating_sub(10);
-            buf.set_string(
-                features_x,
-                y,
-                &features_str,
-                Style::default().fg(STREAMING_COLOR),
-            );
-
-            // Context window
-            let ctx_str = format!("{}K", model.context_window / 1000);
-            let ctx_x = area.x + area.width.saturating_sub(16);
-            buf.set_string(ctx_x, y, &ctx_str, Style::default().fg(MUTED_COLOR));
-        }
-    }
-}
-
-impl Widget for ProviderSelector<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if !self.state.visible {
-            return;
-        }
-
-        // Calculate popup size and position (centered)
-        let popup_width = 50.min(area.width.saturating_sub(4));
-        let popup_height = 10.min(area.height.saturating_sub(4));
-        let popup_x = (area.width - popup_width) / 2 + area.x;
-        let popup_y = (area.height - popup_height) / 2 + area.y;
-
-        let popup_area = Rect::new(popup_x, popup_y, popup_width, popup_height);
-
-        // Clear the area first
-        Clear.render(popup_area, buf);
-
-        // Render the provider list
-        self.render_provider_list(popup_area, buf);
     }
 }
 

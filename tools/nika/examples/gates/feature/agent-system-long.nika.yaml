@@ -1,5 +1,6 @@
 # FEATURE: agent with long multi-line system prompt
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-agent-system-long
 tasks:
   - id: verbose_agent
@@ -14,7 +15,7 @@ tasks:
         5. When asked to complete, use the nika_complete tool.
       prompt: "Call nika_complete with result='OK' confidence=1.0 reasoning='system prompt test'"
       provider: openai
-      model: gpt-4.1-mini
+      
       max_turns: 2
       tools: [nika_complete]
       max_tokens: 50

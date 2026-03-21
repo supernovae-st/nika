@@ -1,6 +1,7 @@
 # COMPLEX-57: Special characters in prompts and bindings
 # Tests: quotes, backslashes, newlines, brackets in template interpolation
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-edge-special-chars
 
 tasks:
@@ -35,7 +36,7 @@ tasks:
       The input contains special characters: {{with.raw}}
       Count how many special characters (& | > " [ ]) appear. Reply with just the number.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 20
     description: "LLM processing special char content"
 

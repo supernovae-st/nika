@@ -1,34 +1,17 @@
-//! Verb Input Widget - 5-verb input system for Chat
+//! Verb Input — Data types only
 //!
-//! Supports prefix commands for Nika's 5 semantic verbs:
-//! - `/infer` (default) - LLM text generation
-//! - `/exec` - Shell command execution
-//! - `/fetch` - HTTP request
-//! - `/invoke` - MCP tool call
-//! - `/agent` - Multi-turn agentic loop
-//!
-//! Also supports system commands:
-//! - `/clear` - Clear conversation
-//! - `/help` - Show help
-//! - `/model` - Change model
-//! - `/provider` - Change provider
+//! Widget rendering code (`VerbIndicator`, `VerbPrompt`) removed.
+//! Data types (`ChatVerb`, `ParsedInput`, `SystemCommand`) are used
+//! by `chat/command.rs` and `chat/mod.rs`.
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Paragraph, Widget},
-};
+use ratatui::style::Color;
 
 // Solarized-inspired colors matching Nika's verb icons
-const COLOR_INFER: Color = Color::Rgb(108, 113, 196); // Violet ⚡
-const COLOR_EXEC: Color = Color::Rgb(181, 137, 0); // Yellow 📟
-const COLOR_FETCH: Color = Color::Rgb(42, 161, 152); // Cyan 🛰️
-const COLOR_INVOKE: Color = Color::Rgb(133, 153, 0); // Green 🔌
-const COLOR_AGENT: Color = Color::Rgb(236, 72, 153); // Pink 🐔
-#[allow(dead_code)]
-const COLOR_MUTED: Color = Color::Rgb(88, 110, 117); // Muted text
+const COLOR_INFER: Color = Color::Rgb(108, 113, 196); // Violet
+const COLOR_EXEC: Color = Color::Rgb(181, 137, 0); // Yellow
+const COLOR_FETCH: Color = Color::Rgb(42, 161, 152); // Cyan
+const COLOR_INVOKE: Color = Color::Rgb(133, 153, 0); // Green
+const COLOR_AGENT: Color = Color::Rgb(236, 72, 153); // Pink
 
 /// Chat verb types - maps to Nika's 5 semantic verbs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -214,10 +197,10 @@ impl ParsedInput {
     }
 }
 
-/// Verb indicator widget - shows current verb in input area
+/// Verb indicator (stub -- rendering removed, kept for type export)
 pub struct VerbIndicator {
-    verb: ChatVerb,
-    is_typing_prefix: bool,
+    pub verb: ChatVerb,
+    pub is_typing_prefix: bool,
 }
 
 impl VerbIndicator {
@@ -263,38 +246,11 @@ impl VerbIndicator {
     }
 }
 
-impl Widget for VerbIndicator {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 10 {
-            return;
-        }
-
-        let style = if self.is_typing_prefix {
-            Style::default()
-                .fg(self.verb.color())
-                .add_modifier(Modifier::DIM)
-        } else {
-            Style::default()
-                .fg(self.verb.color())
-                .add_modifier(Modifier::BOLD)
-        };
-
-        let indicator = Line::from(vec![
-            Span::raw(self.verb.icon()),
-            Span::raw(" "),
-            Span::styled(self.verb.label(), style),
-        ]);
-
-        let para = Paragraph::new(indicator);
-        para.render(area, buf);
-    }
-}
-
-/// Input prompt widget with verb indicator
+/// Input prompt widget (stub -- rendering removed, kept for type export)
 pub struct VerbPrompt<'a> {
-    input: &'a str,
-    cursor_pos: usize,
-    focused: bool,
+    pub input: &'a str,
+    pub cursor_pos: usize,
+    pub focused: bool,
 }
 
 impl<'a> VerbPrompt<'a> {
@@ -309,68 +265,6 @@ impl<'a> VerbPrompt<'a> {
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
         self
-    }
-}
-
-impl Widget for VerbPrompt<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 15 || area.height < 1 {
-            return;
-        }
-
-        let indicator = VerbIndicator::from_input(self.input);
-        let verb = indicator.verb;
-
-        // Build the prompt line
-        let prompt_char = if self.focused { ">" } else { " " };
-        let prompt_style = Style::default().fg(verb.color());
-
-        let mut spans = vec![
-            Span::styled(prompt_char, prompt_style),
-            Span::raw(" "),
-            Span::raw(verb.icon()),
-            Span::raw(" "),
-        ];
-
-        // Add input text with cursor
-        let input_chars: Vec<char> = self.input.chars().collect();
-        let cursor_idx = self.cursor_pos.min(input_chars.len());
-
-        // Text before cursor
-        if cursor_idx > 0 {
-            let before: String = input_chars[..cursor_idx].iter().collect();
-            spans.push(Span::raw(before));
-        }
-
-        // Cursor
-        if self.focused {
-            let cursor_char = if cursor_idx < input_chars.len() {
-                input_chars[cursor_idx].to_string()
-            } else {
-                " ".to_string()
-            };
-            spans.push(Span::styled(
-                cursor_char,
-                Style::default().add_modifier(Modifier::REVERSED),
-            ));
-        }
-
-        // Text after cursor
-        if cursor_idx < input_chars.len() {
-            let after_start = if self.focused {
-                cursor_idx + 1
-            } else {
-                cursor_idx
-            };
-            if after_start < input_chars.len() {
-                let after: String = input_chars[after_start..].iter().collect();
-                spans.push(Span::raw(after));
-            }
-        }
-
-        let line = Line::from(spans);
-        let para = Paragraph::new(line);
-        para.render(area, buf);
     }
 }
 

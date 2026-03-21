@@ -1,6 +1,7 @@
 # COMPLEX-82: Gather 5 system info commands -> compile report
 # Tests: parallel exec, system commands, fan-in aggregation, structured compilation
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-exec-system-info
 
 tasks:
@@ -53,7 +54,7 @@ tasks:
       - Disk: {{with.disk}}
       Format as a brief health check summary in 3 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     description: "Compile system info into report"
 

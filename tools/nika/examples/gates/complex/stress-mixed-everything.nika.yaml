@@ -1,6 +1,7 @@
 # COMPLEX-49: All 5 verbs + for_each + artifacts + structured + bindings + transforms
 # Tests: every verb type in one workflow, maximum feature coverage
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-stress-mixed-everything
 
 artifacts:
@@ -39,7 +40,7 @@ tasks:
       Analyze this exec output and extract key info: {{with.exec_data}}
       Topic context: {{inputs.topic}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 150
     structured:
       schema:
@@ -65,7 +66,7 @@ tasks:
         Log your review with nika_log, then complete with a summary.
         Call nika_complete with result="reviewed" confidence=0.9 reasoning="agent review done"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 150
@@ -82,7 +83,7 @@ tasks:
     concurrency: 2
     infer: "Write one fact about the concept '{{with.item}}' related to {{inputs.topic}}."
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 50
     description: "for_each with concurrency"
 
@@ -115,7 +116,7 @@ tasks:
       Style: {{context.files.style}}
       Write 3 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     artifact:
       path: "mixed-everything-{{inputs.topic}}.md"

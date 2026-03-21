@@ -1,6 +1,7 @@
 # COMPLEX-30: 2 parallel agents + merge task — concurrent agent execution
 # Tests: parallel agent execution, merging agent outputs, agent+infer mixing
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-agent-parallel-merge
 
 tasks:
@@ -18,7 +19,7 @@ tasks:
         Give 3 strong arguments for microservices.
         Call nika_complete with your arguments as result, confidence=0.8, reasoning="pro-microservices analysis"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 200
@@ -35,7 +36,7 @@ tasks:
         Give 3 strong arguments for monolith.
         Call nika_complete with your arguments as result, confidence=0.8, reasoning="pro-monolith analysis"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [nika_complete, nika_log]
       max_turns: 3
       max_tokens: 200
@@ -53,7 +54,7 @@ tasks:
       Pro Monolith: {{with.mono_args}}
       Give a final verdict in 2-3 sentences with your recommendation for a startup.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 200
     description: "Merge and judge both parallel agent outputs"
 

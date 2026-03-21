@@ -1,11 +1,12 @@
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: feat-limits-token-budget
 tasks:
   - id: budgeted
     agent:
       prompt: "Say hello and call nika_complete"
       provider: openai
-      model: gpt-4.1-mini
+      
       tools: [builtin]
       max_turns: 2
       token_budget: 500

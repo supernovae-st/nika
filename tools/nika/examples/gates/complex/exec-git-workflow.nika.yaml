@@ -1,6 +1,7 @@
 # COMPLEX-81: git log -> parse -> analyze changes
 # Tests: exec with git commands, multi-line output binding, LLM analysis of real data
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-exec-git
 
 tasks:
@@ -39,7 +40,7 @@ tasks:
       Last change stats: {{with.stats}}
       Summarize the recent development activity in 2 sentences.
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "LLM analysis of git state"
 

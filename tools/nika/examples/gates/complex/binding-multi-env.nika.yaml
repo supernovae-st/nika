@@ -1,6 +1,7 @@
 # COMPLEX-14: 5+ env bindings — comprehensive environment variable access
 # Tests: $env.HOME, $env.USER, $env.PWD, $env.SHELL, $env.PATH binding
 schema: nika/workflow@0.12
+model: gpt-4.1-mini
 workflow: complex-binding-multi-env
 
 tasks:
@@ -34,7 +35,7 @@ tasks:
       Describe this developer's setup in one sentence.
       User: {{with.user}}, Home: {{with.home}}
     provider: openai
-    model: gpt-4.1-mini
+    
     max_tokens: 100
     description: "LLM analyzes environment from multiple env bindings"
 
