@@ -45,6 +45,8 @@ pub struct NikaLanguageServer {
     documents: Arc<RwLock<DocumentStore>>,
     /// AST index for position-aware lookups (Phase 2)
     ast_index: AstIndex,
+    /// Delegated handler from nika-lsp-core (fallback when AST unavailable)
+    core_handler: nika_lsp_core::handler::DefaultHandler,
 }
 
 #[cfg(feature = "lsp")]
@@ -55,6 +57,7 @@ impl NikaLanguageServer {
             client,
             documents: Arc::new(RwLock::new(DocumentStore::new())),
             ast_index: AstIndex::new(),
+            core_handler: nika_lsp_core::handler::DefaultHandler::new(),
         }
     }
 
@@ -341,12 +344,28 @@ impl LanguageServer for NikaLanguageServer {
         let text = docs.get(uri).cloned().unwrap_or_default();
 
         // Use AST-aware hover for semantic context
-        Ok(handlers::hover::compute_hover_with_ast(
-            &self.ast_index,
-            uri,
-            &text,
-            position,
-        ))
+        if let Some(hover) =
+            handlers::hover::compute_hover_with_ast(&self.ast_index, uri, &text, position)
+        {
+            return Ok(Some(hover));
+        }
+
+        // Fallback: use nika-lsp-core handler with CursorContext
+        let offset = super::conversion::position_to_offset(position, &text) as u32;
+        let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
+        if let Some(result) =
+            nika_lsp_core::handler::LspHandler::hover(&self.core_handler, &text, offset, &context)
+        {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: result.contents,
+                }),
+                range: None,
+            }));
+        }
+
+        Ok(None)
     }
 
     async fn goto_definition(
