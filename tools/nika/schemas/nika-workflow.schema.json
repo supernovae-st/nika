@@ -383,6 +383,11 @@
               "type": "array",
               "description": "Multimodal vision content parts (v0.34+).",
               "items": { "$ref": "#/$defs/ContentPart" }
+            },
+            "guardrails": {
+              "type": "array",
+              "description": "Guardrails for validating infer output (v0.12+)",
+              "items": { "$ref": "#/$defs/GuardrailConfig" }
             }
           }
         }
@@ -571,6 +576,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "Timeout in seconds for the MCP tool call"
+        },
+        "resource": {
+          "type": "string",
+          "description": "MCP resource URI to read (mutually exclusive with 'tool')"
         }
       },
       "oneOf": [
@@ -589,7 +598,9 @@
               { "required": ["server"] }
             ]
           }
-        }
+        },
+        { "required": ["mcp", "resource"] },
+        { "required": ["server", "resource"] }
       ]
     },
     "AgentParams": {
@@ -687,6 +698,16 @@
           "type": "string",
           "enum": ["full", "minimal", "debug"],
           "description": "Scope preset for agent capabilities (v0.10+)"
+        },
+        "completion": {
+          "$ref": "#/$defs/CompletionConfig"
+        },
+        "guardrails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GuardrailConfig" }
+        },
+        "limits": {
+          "$ref": "#/$defs/LimitsConfig"
         }
       }
     },
@@ -938,6 +959,98 @@
         "file": {
           "type": "string",
           "description": "Log file path (supports {{context.meta.*}} templates)"
+        }
+      }
+    },
+    "GuardrailConfig": {
+      "type": "object",
+      "description": "Guardrail for validating outputs (v0.12+)",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["length", "schema", "regex", "llm"]
+        },
+        "id": { "type": "string" },
+        "on_failure": {
+          "type": "string",
+          "enum": ["retry", "escalate", "fail"],
+          "default": "retry"
+        },
+        "min_words": { "type": "integer", "minimum": 0 },
+        "max_words": { "type": "integer", "minimum": 0 },
+        "min_chars": { "type": "integer", "minimum": 0 },
+        "max_chars": { "type": "integer", "minimum": 0 },
+        "message": { "type": "string" },
+        "json_schema": { "type": "object" },
+        "pattern": { "type": "string" },
+        "negate": { "type": "boolean", "default": false },
+        "judge_prompt": { "type": "string" },
+        "pass_pattern": { "type": "string" },
+        "judge_model": { "type": "string" },
+        "judge_provider": { "type": "string" }
+      }
+    },
+    "CompletionConfig": {
+      "type": "object",
+      "description": "Agent completion behavior (v0.12+)",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["explicit", "natural", "pattern"],
+          "default": "natural"
+        },
+        "signal": {
+          "type": "object",
+          "properties": {
+            "tool": { "type": "string", "default": "nika:complete" },
+            "fields": {
+              "type": "object",
+              "properties": {
+                "required": { "type": "array", "items": { "type": "string" } },
+                "optional": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "regex": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "properties": {
+            "threshold": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.7 },
+            "max_retries": { "type": "integer", "minimum": 0, "default": 2 }
+          }
+        }
+      }
+    },
+    "LimitsConfig": {
+      "type": "object",
+      "description": "Agent execution limits for cost control (v0.12+)",
+      "properties": {
+        "max_turns": { "type": "integer", "minimum": 0 },
+        "max_tokens": { "type": "integer", "minimum": 0 },
+        "max_cost_usd": { "type": "number", "minimum": 0 },
+        "max_duration_secs": { "type": "integer", "minimum": 0 },
+        "on_limit_reached": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["complete_partial", "fail", "escalate"],
+              "default": "complete_partial"
+            },
+            "save_progress": { "type": "boolean", "default": true },
+            "message": { "type": "string" }
+          }
         }
       }
     },

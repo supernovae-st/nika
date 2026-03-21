@@ -703,6 +703,79 @@ tasks:
             result3
         );
     }
+
+    // ========================================================================
+    // Test: Valid infer with guardrails passes
+    // ========================================================================
+    #[test]
+    fn test_valid_infer_with_guardrails_passes() {
+        let yaml = r#"
+schema: nika/workflow@0.12
+provider: mock
+tasks:
+  - id: guarded
+    infer:
+      prompt: "Generate content"
+      guardrails:
+        - type: length
+          min_words: 100
+          max_words: 500
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)conclusion"
+          on_failure: fail
+"#;
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        assert!(validator.validate_yaml(yaml).is_ok());
+    }
+
+    // ========================================================================
+    // Test: Valid agent with completion + limits + guardrails passes
+    // ========================================================================
+    #[test]
+    fn test_valid_agent_with_completion_limits_guardrails_passes() {
+        let yaml = r#"
+schema: nika/workflow@0.12
+provider: mock
+tasks:
+  - id: advanced_agent
+    agent:
+      prompt: "Research topic"
+      tools: [builtin]
+      max_turns: 10
+      completion:
+        mode: explicit
+      limits:
+        max_cost_usd: 1.0
+        max_duration_secs: 120
+        on_limit_reached:
+          action: complete_partial
+      guardrails:
+        - type: length
+          min_words: 200
+          on_failure: retry
+"#;
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        assert!(validator.validate_yaml(yaml).is_ok());
+    }
+
+    // ========================================================================
+    // Test: Valid invoke with resource passes
+    // ========================================================================
+    #[test]
+    fn test_valid_invoke_with_resource_passes() {
+        let yaml = r#"
+schema: nika/workflow@0.12
+provider: mock
+tasks:
+  - id: read_resource
+    invoke:
+      mcp: novanet
+      resource: "schema://entities"
+"#;
+        let validator = WorkflowSchemaValidator::new().unwrap();
+        assert!(validator.validate_yaml(yaml).is_ok());
+    }
 }
 
 // ========================================================================
