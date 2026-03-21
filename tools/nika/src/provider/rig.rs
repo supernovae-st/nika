@@ -624,6 +624,7 @@ impl RigProvider {
         tools: Vec<Box<dyn ToolDyn>>,
         model: Option<&str>,
         max_tokens: Option<u32>,
+        system: Option<&str>,
     ) -> Result<String, RigInferError> {
         use rig::agent::AgentBuilder;
         use rig::message::ToolChoice as RigToolChoice;
@@ -633,11 +634,14 @@ impl RigProvider {
 
         macro_rules! build_agent_with_tools {
             ($client:expr) => {{
-                let agent = AgentBuilder::new($client.completion_model(model_id))
+                let mut builder = AgentBuilder::new($client.completion_model(model_id))
                     .tools(tools)
                     .tool_choice(RigToolChoice::Required)
-                    .max_tokens(max_tok)
-                    .build();
+                    .max_tokens(max_tok);
+                if let Some(sys) = system {
+                    builder = builder.preamble(sys);
+                }
+                let agent = builder.build();
                 agent
                     .prompt(prompt)
                     .await
