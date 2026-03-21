@@ -36,6 +36,7 @@ impl TokenType {
 const VERBS: &[&str] = &["infer", "exec", "fetch", "invoke", "agent"];
 const TOP_KEYS: &[&str] = &[
     "schema", "workflow", "tasks", "mcp", "context", "inputs", "include", "imports", "edges",
+    "skills", "agents", "artifacts", "log",
 ];
 const TASK_KEYS: &[&str] = &[
     "id",
@@ -57,6 +58,10 @@ const TASK_KEYS: &[&str] = &[
     "as",
     "concurrency",
     "fail_fast",
+    "artifact",
+    "decompose",
+    "skills",
+    "completion",
 ];
 const VERB_SUBKEYS: &[&str] = &[
     "prompt",
@@ -86,6 +91,27 @@ const VERB_SUBKEYS: &[&str] = &[
     "goal",
     "detail",
     "source",
+    "json",
+    "env",
+    "response_format",
+    "tool_choice",
+    "scope",
+    "from",
+    "token_budget",
+    "stop_sequences",
+    "judge_prompt",
+    "judge_model",
+    "pass_pattern",
+    "on_failure",
+    "negate",
+    "pattern",
+    "signal",
+    "confidence",
+    "mode",
+    "on_limit_reached",
+    "max_cost_usd",
+    "max_duration_secs",
+    "save_progress",
 ];
 
 pub fn semantic_tokens(text: &str) -> Vec<RawToken> {

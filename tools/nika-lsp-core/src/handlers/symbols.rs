@@ -76,6 +76,22 @@ pub fn document_symbols(text: &str) -> Vec<SymbolEntry> {
                 end_offset: (offset + line.len()) as u32,
                 children: vec![],
             });
+        } else if trimmed.starts_with("skills:") {
+            symbols.push(SymbolEntry {
+                name: "skills".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
+        } else if trimmed.starts_with("agents:") {
+            symbols.push(SymbolEntry {
+                name: "agents".into(),
+                kind: SymbolKind::Module,
+                offset: offset as u32,
+                end_offset: (offset + line.len()) as u32,
+                children: vec![],
+            });
         } else if trimmed.starts_with("inputs:") {
             symbols.push(SymbolEntry {
                 name: "inputs".into(),

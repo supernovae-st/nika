@@ -139,14 +139,16 @@ fn verb_hover(verb: &str) -> Option<HoverResult> {
         }
         "invoke" => {
             "## `invoke:` — MCP Tool Call\n\n\
-            Calls a tool on an MCP server.\n\n\
-            ```yaml\ninvoke:\n  mcp: novanet\n  tool: novanet_context\n  params:\n    mode: \"page\"\n    focus_key: \"qr-code\"\n```\n\n\
+            Calls a tool on an MCP server, or reads a resource.\n\n\
+            ```yaml\ninvoke:\n  mcp: novanet\n  tool: novanet_context\n  params:\n    mode: \"page\"\n```\n\n\
+            **Resource read:**\n\
+            ```yaml\ninvoke:\n  mcp: novanet\n  resource: \"novanet://entity/qr-code\"\n```\n\n\
             **Builtin tools:** `nika:sleep`, `nika:log`, `nika:emit`, `nika:assert`, `nika:import`, `nika:thumbnail`, ..."
         }
         "agent" => {
             "## `agent:` — Agentic Loop\n\n\
             Runs a multi-turn agent with tool access.\n\n\
-            ```yaml\nagent:\n  prompt: \"Research and summarize\"\n  model: claude-sonnet-4-6\n  mcp: [novanet, perplexity]\n  max_turns: 10\n  depth_limit: 3\n  tools: [nika:read, nika:write]\n  extended_thinking: true\n```"
+            ```yaml\nagent:\n  prompt: \"Research and summarize\"\n  model: claude-sonnet-4-6\n  mcp: [novanet, perplexity]\n  max_turns: 10\n  depth_limit: 3\n  tools: [nika:read, nika:write]\n  extended_thinking: true\n  skills: [research, summarize]\n  guardrails:\n    - type: length\n      max_words: 500\n  completion:\n    mode: explicit\n  limits:\n    max_cost_usd: 0.50\n```"
         }
         _ => return None,
     };
@@ -178,6 +180,15 @@ fn field_hover(prefix: &str) -> Option<HoverResult> {
         "concurrency" => "## `concurrency:` — Parallel Limit\n\nMax parallel iterations for `for_each:` loops.\n\n```yaml\nconcurrency: 5\n```",
         "fail_fast" => "## `fail_fast:` — Stop on First Failure\n\nAbort remaining iterations if one fails.\n\n```yaml\nfail_fast: true\n```",
         "description" => "## `description:` — Workflow Description\n\nHuman-readable description of the workflow.",
+        "guardrails" => "## `guardrails:` — Output Guardrails\n\nValidate LLM output. 4 types: `length`, `schema`, `regex`, `llm`.\n\n```yaml\nguardrails:\n  - type: length\n    max_words: 500\n    on_failure: retry\n  - type: regex\n    pattern: \"^\\\\{\"\n    message: \"Must be JSON\"\n```",
+        "completion" => "## `completion:` — Agent Completion Config\n\nHow the agent signals task completion.\n\n```yaml\ncompletion:\n  mode: explicit  # explicit | natural | pattern\n  signal:\n    tool: nika:complete\n```",
+        "limits" => "## `limits:` — Agent Execution Limits\n\nResource limits for agent loops.\n\n```yaml\nlimits:\n  max_turns: 20\n  max_cost_usd: 0.50\n  max_duration_secs: 120\n```",
+        "skills" => "## `skills:` — Skill Injection\n\nSkills to inject into agent prompt.\n\n```yaml\nskills: [research, summarize]\n```\n\nSkill aliases must be defined in workflow-level `skills:` block.",
+        "artifact" => "## `artifact:` — Output Artifact\n\nSave task output to file.\n\n```yaml\nartifact:\n  path: ./output/result.md\n  source: result\n  mode: overwrite\n```",
+        "decompose" => "## `decompose:` — Runtime DAG Expansion\n\nExpand task into sub-tasks at runtime.\n\n```yaml\ndecompose:\n  strategy: semantic\n  traverse: HAS_CHILD\n  source: $parent\n  max_items: 10\n```",
+        "tool_choice" => "## `tool_choice:` — Tool Selection Mode\n\nControl agent tool usage.\n\n`auto` (default) · `required` · `none`",
+        "scope" => "## `scope:` — Agent Scope Preset\n\n`full` (all tools) · `minimal` (restricted) · `debug` (verbose logging)",
+        "resource" => "## `resource:` — MCP Resource URI\n\nRead a resource from an MCP server (mutually exclusive with `tool:`).\n\n```yaml\ninvoke:\n  mcp: novanet\n  resource: \"novanet://entity/qr-code\"\n```",
         _ => return None,
     };
     Some(HoverResult {
@@ -202,6 +213,10 @@ fn root_key_hover(prefix: &str) -> Option<HoverResult> {
         "provider" => PROVIDER_DOC,
         "inputs" => "## `inputs:` — Workflow Parameters\n\nDeclare input parameters for the workflow.\n\n```yaml\ninputs:\n  topic:\n    type: string\n    description: \"Topic to research\"\n    default: \"AI\"\n```\n\nAccess via `{{inputs.topic}}`.",
         "edges" => "## `edges:` — Explicit DAG Edges\n\nDeclare edges between tasks explicitly.\n\n```yaml\nedges:\n  - from: step1\n    to: step2\n```",
+        "skills" => "## `skills:` — Skill Definitions\n\nMap skill aliases to file paths for prompt augmentation.\n\n```yaml\nskills:\n  research: ./skills/research.md\n  summarize: pkg:@supernovae/summarize\n```\n\nReferenced by agent `skills:` arrays.",
+        "agents" => "## `agents:` — Reusable Agent Definitions\n\nDefine agent configs reusable across tasks.\n\n```yaml\nagents:\n  researcher:\n    system: \"You are a researcher\"\n    tools: [nika:read, perplexity/search]\n```\n\nReference via `from: researcher` in agent tasks.",
+        "artifacts" => "## `artifacts:` — Workflow Artifact Defaults\n\nDefault artifact output configuration.",
+        "log" => "## `log:` — Logging Configuration\n\nWorkflow-level logging settings.\n\n```yaml\nlog:\n  level: info\n  format: json\n```",
         _ => return None,
     };
     Some(HoverResult {

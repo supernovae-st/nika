@@ -50,7 +50,7 @@
       }
     },
     "top-level-keys": {
-      "match": "^(tasks|mcp|context|include|inputs)(:)",
+      "match": "^(tasks|mcp|context|include|inputs|skills|agents|artifacts|log|edges)(:)",
       "captures": {
         "1": { "name": "keyword.control.top-level.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
@@ -73,14 +73,14 @@
       }
     },
     "task-fields": {
-      "match": "^\\s+(with|depends_on|for_each|as|concurrency|fail_fast|output|guard|on_error|retry|timeout|structured)(:)",
+      "match": "^\\s+(with|depends_on|for_each|as|concurrency|fail_fast|output|guard|guardrails|on_error|retry|timeout|structured|artifact|decompose|skills|completion|limits|description)(:)",
       "captures": {
         "1": { "name": "support.type.field.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
       }
     },
     "verb-sub-fields": {
-      "match": "^\\s+(prompt|model|temperature|system|max_tokens|extended_thinking|thinking_budget|command|shell|cwd|url|method|headers|body|mcp|tool|params|max_turns|depth_limit|tools)(:)",
+      "match": "^\\s+(prompt|model|temperature|system|max_tokens|extended_thinking|thinking_budget|response_format|command|shell|cwd|env|url|method|headers|body|json|extract|selector|response|follow_redirects|mcp|tool|resource|params|max_turns|depth_limit|tools|goal|tool_choice|scope|from|token_budget|stop_sequences|source|detail|signal|confidence|mode|on_failure|on_limit_reached|judge_prompt|judge_model|pass_pattern|pattern|negate)(:)",
       "captures": {
         "1": { "name": "variable.other.property.nika" },
         "2": { "name": "punctuation.separator.key-value.nika" }
