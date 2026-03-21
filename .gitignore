@@ -39,3 +39,5 @@ tools/nika/src/target-main/
 # Worktrees
 .worktrees/
 .claude
+.nika/
+generated/
