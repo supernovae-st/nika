@@ -118,7 +118,7 @@ pub fn filter_from_key(key: char) -> Option<TreeFilter> {
 }
 
 /// Filter configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FilterConfig {
     /// Current filter mode
     pub filter: TreeFilter,

@@ -484,71 +484,20 @@ impl App {
 
             // Clear intro_state and initialize view when done
             if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
-                tracing::info!(
-                    "Intro animation completed, transitioning to {:?}",
-                    self.current_view
-                );
+                tracing::debug!("Intro completed, transitioning to {:?}", self.current_view);
                 self.intro_state = None;
-
-                // No terminal.clear() needed here.
-                // ratatui 0.30 (ratatui-core 0.1.0) Terminal::clear() only resets the
-                // INACTIVE buffer — not both. The Clear widget at render.rs line 113
-                // already resets ALL cells in the active buffer every frame, so both
-                // buffers are handled. Calling terminal.clear() would physically blank
-                // the screen via execute!(Clear(All)), causing a visible flash before
-                // the next draw() fills it in.
-                //
-                // Instead, we render the view skeleton FIRST (empty panels), then call
-                // on_enter() to populate expensive data (file tree, git cache). This
-                // eliminates the blank flash — users see panel borders immediately.
+                // No terminal.clear() — physically blanks the screen via Clear(All).
+                // No early render — render_browser() does I/O when cached_tree is None,
+                // so a "skeleton" render would still block on tree build.
+                // Simple flow: mark dirty → on_enter (populates tree) → render.
                 self.state.dirty.mark_all();
-
-                // Render an initial frame BEFORE on_enter() so the view skeleton
-                // (borders, header, status bar) appears instantly. on_enter() may do
-                // slow filesystem I/O (tree build, git status), and without this early
-                // render the screen would remain blank during that work.
-                self.render_unified_frame()?;
-
-                // Now initialize view state (may be slow for large projects)
                 self.call_view_on_enter(self.current_view);
-                tracing::info!(
-                    "View {:?} initialized, dirty.all={}",
-                    self.current_view,
-                    self.state.dirty.all
-                );
             }
 
-            // 4. Render frame based on current view
-            if self.intro_state.is_none() {
-                // Log first few post-intro frames to diagnose blank screen
-                static RENDER_LOG_COUNT: std::sync::atomic::AtomicU8 =
-                    std::sync::atomic::AtomicU8::new(0);
-                let count = RENDER_LOG_COUNT.load(std::sync::atomic::Ordering::Relaxed);
-                if count < 5 {
-                    RENDER_LOG_COUNT.store(count + 1, std::sync::atomic::Ordering::Relaxed);
-                    let term_size = self.terminal.as_ref().and_then(|t| t.size().ok());
-                    tracing::info!(
-                        "Post-intro render #{}: view={:?}, term_size={:?}, dirty.all={}",
-                        count,
-                        self.current_view,
-                        term_size,
-                        self.state.dirty.all
-                    );
-                }
-            }
+            // 4. Render frame
             self.render_unified_frame()?;
 
-            // 5. Get terminal size for input handling (reserved for future mouse support)
-            let _terminal_size = if let Some(ref terminal) = self.terminal {
-                terminal
-                    .size()
-                    .ok()
-                    .map(|size| Rect::new(0, 0, size.width, size.height))
-            } else {
-                None
-            };
-
-            // 6. Poll input events (adaptive tick rate)
+            // 5. Poll input events (adaptive tick rate)
             let tick_rate = if needs_fast_render {
                 Duration::from_millis(FAST_TICK_MS)
             } else {

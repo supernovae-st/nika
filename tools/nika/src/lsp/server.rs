@@ -379,12 +379,30 @@ impl LanguageServer for NikaLanguageServer {
         let text = docs.get(uri).cloned().unwrap_or_default();
 
         // Use AST-aware definition lookup for semantic precision
-        Ok(handlers::definition::find_definition_with_ast(
-            &self.ast_index,
-            uri,
+        if let Some(result) =
+            handlers::definition::find_definition_with_ast(&self.ast_index, uri, &text, position)
+        {
+            return Ok(Some(result));
+        }
+
+        // Fallback: use nika-lsp-core definition handler
+        let offset = super::conversion::position_to_offset(position, &text) as u32;
+        let context = nika_lsp_core::analysis::context::detect_context(&text, offset, None);
+        if let Some(def) = nika_lsp_core::handler::LspHandler::definition(
+            &self.core_handler,
             &text,
-            position,
-        ))
+            offset,
+            &context,
+        ) {
+            let start = super::conversion::offset_to_position(def.offset as usize, &text);
+            let end = super::conversion::offset_to_position(def.end_offset as usize, &text);
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri.clone(),
+                range: Range { start, end },
+            })));
+        }
+
+        Ok(None)
     }
 
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
@@ -396,13 +414,63 @@ impl LanguageServer for NikaLanguageServer {
         let text = docs.get(uri).cloned().unwrap_or_default();
 
         // Use AST-aware code actions for semantic fixes (fuzzy task matching)
-        let actions = handlers::code_action::compute_code_actions_with_ast(
+        let mut actions = handlers::code_action::compute_code_actions_with_ast(
             &self.ast_index,
             uri,
             &text,
             range,
             diagnostics,
         );
+
+        // Merge core code actions (schema upgrade, expand shorthands, add provider)
+        let start_offset = super::conversion::position_to_offset(range.start, &text) as u32;
+        let end_offset = super::conversion::position_to_offset(range.end, &text) as u32;
+        let core_actions = nika_lsp_core::handler::LspHandler::code_actions(
+            &self.core_handler,
+            &text,
+            start_offset,
+            end_offset,
+        );
+        for entry in core_actions {
+            if let Some(edit) = entry.edit {
+                let edit_start = super::conversion::offset_to_position(edit.offset as usize, &text);
+                let edit_end =
+                    super::conversion::offset_to_position(edit.end_offset as usize, &text);
+                let kind = match entry.kind {
+                    nika_lsp_core::handlers::code_action::CodeActionKind::QuickFix => {
+                        CodeActionKind::QUICKFIX
+                    }
+                    nika_lsp_core::handlers::code_action::CodeActionKind::Refactor => {
+                        CodeActionKind::REFACTOR
+                    }
+                };
+                let mut changes = std::collections::HashMap::new();
+                changes.insert(
+                    uri.clone(),
+                    vec![TextEdit {
+                        range: Range {
+                            start: edit_start,
+                            end: edit_end,
+                        },
+                        new_text: edit.new_text,
+                    }],
+                );
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: entry.title,
+                    kind: Some(kind),
+                    is_preferred: Some(entry.is_preferred),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }));
+            }
+        }
+
+        if actions.is_empty() {
+            return Ok(None);
+        }
         Ok(Some(actions))
     }
 

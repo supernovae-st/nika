@@ -499,21 +499,19 @@ impl Widget for StatusBar<'_> {
                 let phase_color = match metrics.phase {
                     WorkflowPhase::Idle => self.theme.text_muted,
                     WorkflowPhase::Parsing | WorkflowPhase::Validating => {
-                        // Animated pulse between cyan and blue
-                        use crate::tui::theme::solarized;
+                        // Animated pulse between sapphire and blue (Catppuccin Mocha)
                         if (self.frame / 8) % 2 == 0 {
-                            solarized::CYAN
+                            Color::Rgb(116, 199, 236) // Sapphire
                         } else {
-                            solarized::BLUE
+                            Color::Rgb(137, 180, 250) // Blue
                         }
                     }
                     WorkflowPhase::Executing => {
-                        // Animated pulse between yellow and orange
-                        use crate::tui::theme::solarized;
+                        // Animated pulse between yellow and peach (Catppuccin Mocha)
                         if (self.frame / 8) % 2 == 0 {
-                            solarized::YELLOW
+                            Color::Rgb(249, 226, 175) // Yellow
                         } else {
-                            solarized::ORANGE
+                            Color::Rgb(250, 179, 135) // Peach
                         }
                     }
                     WorkflowPhase::Completed => self.theme.status_success,
@@ -602,12 +600,11 @@ impl Widget for StatusBar<'_> {
                 let conn_color = match metrics.connection {
                     ConnectionStatus::Connected => self.theme.status_success,
                     ConnectionStatus::Connecting => {
-                        // Animated pulse between yellow and orange
-                        use crate::tui::theme::solarized;
+                        // Animated pulse between yellow and peach (Catppuccin Mocha)
                         if (self.frame / 8) % 2 == 0 {
-                            solarized::YELLOW
+                            Color::Rgb(249, 226, 175) // Yellow
                         } else {
-                            solarized::ORANGE
+                            Color::Rgb(250, 179, 135) // Peach
                         }
                     }
                     ConnectionStatus::Disconnected => self.theme.text_muted,

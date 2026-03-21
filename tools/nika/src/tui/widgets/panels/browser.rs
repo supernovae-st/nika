@@ -298,14 +298,17 @@ impl BrowserPanel {
             }
         }
 
-        // Use theme-aware colors so tree background matches the app
-        self.tree_colors = TreeColors::from_theme(theme);
+        // Only rebuild tree colors when theme actually changes (avoids 16 Color copies per frame)
+        if self.tree_colors.bg != theme.background {
+            self.tree_colors = TreeColors::from_theme(theme);
+        }
 
         // Render TreeWidget
+        // FilterConfig is Copy — no heap allocation on clone
         let tree_widget = TreeWidget::new(&root_node)
             .colors(self.tree_colors.clone())
             .ticker(&self.animation_ticker)
-            .filter(self.filter_config.clone());
+            .filter(self.filter_config);
 
         frame.render_stateful_widget(tree_widget, tree_area, &mut self.tree_state);
     }

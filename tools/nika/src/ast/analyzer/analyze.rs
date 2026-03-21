@@ -271,6 +271,15 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // 6d-ii. Carry workflow-level skills mapping (alias -> path)
+    if let Some(ref skills_spanned) = raw.skills {
+        for (alias_spanned, path_spanned) in &skills_spanned.value {
+            workflow
+                .skills_map
+                .insert(alias_spanned.value.clone(), path_spanned.value.clone());
+        }
+    }
+
     // 6e. Validate tasks array is non-empty
     if raw.tasks.value.is_empty() {
         ctx.errors.push(AnalyzeError::new(

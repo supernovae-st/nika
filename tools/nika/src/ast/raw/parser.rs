@@ -1305,6 +1305,9 @@ pub fn parse(source: &str, file_id: FileId) -> Result<RawWorkflow, ParseError> {
         None => None,
     };
 
+    // Parse workflow-level skills mapping (alias -> path)
+    workflow.skills = parse_string_map(file_id, map, "skills")?;
+
     // Parse tasks
     workflow.tasks = parse_tasks(file_id, map)?;
 

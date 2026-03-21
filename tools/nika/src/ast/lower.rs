@@ -52,6 +52,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
         artifacts,
         log,
         agents,
+        skills_map: _,
         span: _,
     } = analyzed;
 
@@ -620,6 +621,10 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
         agents: workflow
             .agents
             .map(|m| m.into_iter().collect::<IndexMap<_, _>>()),
+        skills_map: workflow
+            .skills
+            .map(|m| m.into_iter().collect())
+            .unwrap_or_default(),
         span: Span::dummy(),
     })
 }

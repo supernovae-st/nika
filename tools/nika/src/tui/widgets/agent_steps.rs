@@ -180,7 +180,6 @@ impl AgentPhase {
 // AGENT PHASE INDICATOR
 // ═══════════════════════════════════════════════════════════════════════════════
 
-use crate::tui::theme::solarized;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
@@ -293,7 +292,7 @@ impl AgentPhaseIndicator {
         let icon = self.phase.animated_icon(self.frame);
         spans.push(Span::styled(
             format!("{} ", icon),
-            Style::default().fg(solarized::CYAN),
+            Style::default().fg(Color::Rgb(116, 199, 236)), // Sapphire
         ));
 
         // Label with Matrix chaos effect
@@ -303,17 +302,17 @@ impl AgentPhaseIndicator {
                 // Revealed: show actual character
                 spans.push(Span::styled(
                     ch.to_string(),
-                    Style::default().fg(solarized::BASE1),
+                    Style::default().fg(Color::Rgb(186, 194, 222)), // Subtext1
                 ));
             } else {
                 // Chaos: show random katakana with color
                 let chaos_char = KATAKANA_CHARS[rng.gen_range(0..KATAKANA_CHARS.len())];
                 let colors = [
-                    solarized::CYAN,
-                    solarized::GREEN,
-                    solarized::YELLOW,
-                    solarized::BLUE,
-                    solarized::MAGENTA,
+                    Color::Rgb(116, 199, 236), // Sapphire
+                    Color::Rgb(166, 227, 161), // Green
+                    Color::Rgb(249, 226, 175), // Yellow
+                    Color::Rgb(137, 180, 250), // Blue
+                    Color::Rgb(203, 166, 247), // Mauve
                 ];
                 let color = colors[rng.gen_range(0..colors.len())];
                 spans.push(Span::styled(
@@ -329,7 +328,7 @@ impl AgentPhaseIndicator {
             spans.push(Span::styled(
                 tool.clone(),
                 Style::default()
-                    .fg(solarized::BLUE)
+                    .fg(Color::Rgb(137, 180, 250)) // Blue
                     .add_modifier(Modifier::BOLD),
             ));
         }
@@ -337,7 +336,10 @@ impl AgentPhaseIndicator {
         // Animated dots
         let dot_count = ((self.frame / 5) % 4) as usize;
         let dots = ".".repeat(dot_count.max(1));
-        spans.push(Span::styled(dots, Style::default().fg(solarized::BASE01)));
+        spans.push(Span::styled(
+            dots,
+            Style::default().fg(Color::Rgb(108, 112, 134)),
+        )); // Overlay0
 
         Line::from(spans)
     }

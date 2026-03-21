@@ -225,6 +225,12 @@ impl RigAgentLoop {
                 builder = builder.tool_choice(tool_choice.into());
             }
 
+            // TODO(stop_sequences): rig-core 0.32.0 AgentBuilder has no .stop_sequences()
+            // method. AgentParams.stop_sequences is parsed but cannot be forwarded until
+            // rig-core adds native support. Passing via .additional_params() is provider-
+            // specific (Claude uses "stop_sequences", OpenAI uses "stop") and fragile.
+            // Revisit when rig-core adds the API.
+
             let agent = builder.build();
 
             // Use stream_prompt() to get token usage via FinalResponse
@@ -334,6 +340,8 @@ impl RigAgentLoop {
             let tool_choice = self.params.effective_tool_choice();
             builder = builder.tool_choice(tool_choice.into());
         }
+
+        // TODO(stop_sequences): see stream_completion_cli() -- rig-core 0.32.0 limitation
 
         let agent = builder.build();
 

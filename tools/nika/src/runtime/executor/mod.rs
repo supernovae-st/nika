@@ -40,6 +40,7 @@ use crate::runtime::boot::PolicyConfig;
 use crate::runtime::builtin::media::context::MediaToolContext;
 use crate::runtime::policy::PolicyEnforcer;
 use crate::runtime::BuiltinToolRouter;
+use crate::runtime::SkillInjector;
 use crate::store::RunContext;
 use crate::tools::{PermissionMode, ToolContext};
 use crate::util::{CONNECT_TIMEOUT, FETCH_TIMEOUT, REDIRECT_LIMIT};
@@ -74,6 +75,12 @@ pub struct TaskExecutor {
     cancel_token: CancellationToken,
     /// CAS store for reading media blobs (used by vision content resolution)
     cas: Arc<CasStore>,
+    /// Shared SkillInjector for loading and caching skill files
+    skill_injector: Arc<SkillInjector>,
+    /// Workflow-level skills mapping (alias -> file path)
+    skills_map: std::collections::HashMap<String, String>,
+    /// Base directory for resolving relative skill paths
+    workflow_base_dir: std::path::PathBuf,
 }
 
 impl TaskExecutor {
@@ -142,6 +149,9 @@ impl TaskExecutor {
             policy_enforcer: Arc::new(RwLock::new(policy_enforcer)),
             cancel_token: CancellationToken::new(),
             cas,
+            skill_injector: Arc::new(SkillInjector::new()),
+            skills_map: std::collections::HashMap::new(),
+            workflow_base_dir: working_dir,
         }
     }
 
@@ -151,6 +161,20 @@ impl TaskExecutor {
     /// instead of waiting for the full INVOKE_TASK_DEADLINE timeout.
     pub fn with_cancel_token(mut self, token: CancellationToken) -> Self {
         self.cancel_token = token;
+        self
+    }
+
+    /// Set the workflow-level skills mapping for agent skill injection.
+    ///
+    /// When set, agents with `skills:` configured will have skill content
+    /// loaded and prepended to their system prompts via `SkillInjector`.
+    pub fn with_skills(
+        mut self,
+        skills_map: std::collections::HashMap<String, String>,
+        base_dir: std::path::PathBuf,
+    ) -> Self {
+        self.skills_map = skills_map;
+        self.workflow_base_dir = base_dir;
         self
     }
 

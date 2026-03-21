@@ -154,6 +154,8 @@ impl RigAgentLoop {
             builder = builder.tool_choice(tool_choice.into());
         }
 
+        // TODO(stop_sequences): see streaming.rs -- rig-core 0.32.0 limitation
+
         let agent = builder.build();
 
         let response = agent
@@ -241,6 +243,8 @@ impl RigAgentLoop {
             let tool_choice = self.params.effective_tool_choice();
             builder = builder.tool_choice(tool_choice.into());
         }
+
+        // TODO(stop_sequences): see streaming.rs -- rig-core 0.32.0 limitation
 
         let agent = builder.build();
 

@@ -217,6 +217,13 @@ impl RigAgentLoop {
             tools.push(Arc::new(spawn_tool));
         }
 
+        // TODO(scope): AgentParams.scope (full/minimal/debug) is parsed but not yet implemented.
+        // When implemented, scope should define preset tool sets:
+        //   - "full": all core + file + media tools (current default)
+        //   - "minimal": only nika:complete + nika:log (for simple Q&A agents)
+        //   - "debug": all tools + nika:assert + verbose logging
+        // For now, tool filtering is controlled via the explicit `tools:` list.
+
         // Add builtin nika:* tools
         // If params.tools is non-empty, only add tools that are explicitly requested.
         // If params.tools is empty, add all core tools.

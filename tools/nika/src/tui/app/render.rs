@@ -5,11 +5,10 @@
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Clear, Paragraph};
+use ratatui::widgets::Clear;
 
 use crate::error::{NikaError, Result};
 
-use super::super::theme::TaskStatus;
 use super::super::views::{TuiView, View};
 use super::super::widgets::{
     check_terminal_size, ConnectionStatus, Header, NikaIntro, StatusBar, StatusMessageWidget,
@@ -33,34 +32,15 @@ impl App {
                 self.state.ensure_timeline_cache();
             }
 
-            // All views use unified layout with Header + Content + StatusBar
-            // Extract read-only values BEFORE taking mutable references
-            // This allows render() to take &mut self for scroll state updates
+            // Extract values BEFORE mutable borrows for the closure
             let total_tokens = self.command_view.chat.total_tokens();
             let provider = self.command_view.chat.provider();
             let chat_status = self.command_view.status_line(&self.state);
-            let _home_status = self
-                .home_view
-                .as_ref()
-                .map(|hv| hv.status_line(&self.state))
-                .unwrap_or_default();
             let studio_status = self.studio_view.status_line(&self.state);
-            let _monitor_status = {
-                let task_count = self.state.tasks.len();
-                let completed = self
-                    .state
-                    .tasks
-                    .values()
-                    .filter(|t| t.status == TaskStatus::Success)
-                    .count();
-                format!("Tasks: {}/{}", completed, task_count)
-            };
 
-            // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
             let state = &self.state;
             let command_view = &mut self.command_view;
-            let _home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
             let control_view = &mut self.control_view;
             let workflow_path = &self.state.workflow.path;
@@ -103,16 +83,12 @@ impl App {
                         }
                     }
 
-                    // ALWAYS paint Clear + background on every frame.
-                    // Ratatui 0.28+ uses retained double-buffering: the back buffer
-                    // keeps content from 2 frames ago. If we skip this, cells not
-                    // explicitly painted by view widgets show stale content (intro
-                    // remnants, old panel content after resize, etc.).
-                    // Cost: ~100μs buffer write — negligible vs terminal I/O since
-                    // ratatui still only flushes the actual diff to the terminal.
+                    // Clear + paint bg every frame (ratatui 0.30 retains buffers).
+                    // set_style is zero-alloc vs Paragraph widget overhead.
                     frame.render_widget(Clear, size);
-                    let bg = Paragraph::new("").style(Style::default().bg(theme.background));
-                    frame.render_widget(bg, size);
+                    frame
+                        .buffer_mut()
+                        .set_style(size, Style::default().bg(theme.background));
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
                     let chunks = Layout::default()

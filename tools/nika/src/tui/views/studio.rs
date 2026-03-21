@@ -404,14 +404,17 @@ impl StudioView {
             }
         }
 
-        // Use theme-aware colors so tree background matches the app background
-        self.tree_colors = TreeColors::from_theme(theme);
+        // Only rebuild tree colors when theme actually changes (avoids 16 Color copies per frame)
+        if self.tree_colors.bg != theme.background {
+            self.tree_colors = TreeColors::from_theme(theme);
+        }
 
         // Render TreeWidget with state
+        // FilterConfig is Copy — no heap allocation on clone
         let tree_widget = TreeWidget::new(&root_node)
             .colors(self.tree_colors.clone())
             .ticker(&self.animation_ticker)
-            .filter(self.filter_config.clone());
+            .filter(self.filter_config);
 
         frame.render_stateful_widget(tree_widget, tree_area, &mut self.tree_state);
     }
@@ -476,6 +479,36 @@ impl StudioView {
 
         let inner = block.inner(area);
         frame.render_widget(block, area);
+
+        // Show placeholder when no file is loaded
+        if self.editor.path.is_none() {
+            // Catppuccin Mocha: Subtext0 for prose
+            let subtext0 = Color::Rgb(166, 173, 200);
+
+            let content_lines = 4u16;
+            let pad_top = inner.height.saturating_sub(content_lines) / 2;
+
+            let mut lines = vec![Line::from(""); pad_top as usize];
+            lines.extend(vec![
+                Line::from(Span::styled(
+                    "No workflow loaded",
+                    Style::default().fg(subtext0).add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Open a .nika.yaml file",
+                    Style::default().fg(subtext0),
+                )),
+                Line::from(Span::styled(
+                    "to see task dependencies",
+                    Style::default().fg(subtext0),
+                )),
+            ]);
+
+            let paragraph = Paragraph::new(lines).alignment(ratatui::layout::Alignment::Center);
+            frame.render_widget(paragraph, inner);
+            return;
+        }
 
         // Render DAG structure from editor's cached workflow
         let yaml = self.editor.buffer.content();
@@ -2181,24 +2214,42 @@ impl YamlEditorPanel {
 
         // Show placeholder when no file is loaded
         if self.path.is_none() {
-            let placeholder = vec![
+            // Catppuccin Mocha: Subtext0 for prose, Lavender for key hints
+            let subtext0 = Color::Rgb(166, 173, 200);
+            let lavender = Color::Rgb(180, 190, 254);
+
+            // Vertically center: total content is 7 lines, pad top accordingly
+            let content_lines = 7u16;
+            let pad_top = content_area.height.saturating_sub(content_lines) / 2;
+
+            let mut placeholder = vec![Line::from(""); pad_top as usize];
+            placeholder.extend(vec![
+                Line::from(Span::styled(
+                    "No file open",
+                    Style::default().fg(subtext0).add_modifier(Modifier::BOLD),
+                )),
                 Line::from(""),
+                Line::from(Span::styled(
+                    "Select a .nika.yaml file",
+                    Style::default().fg(subtext0),
+                )),
+                Line::from(Span::styled(
+                    "from the Browser panel",
+                    Style::default().fg(subtext0),
+                )),
                 Line::from(""),
-                Line::from(vec![Span::styled(
-                    "  No file selected",
-                    Style::default().fg(theme.text_muted),
-                )]),
-                Line::from(""),
-                Line::from(vec![Span::styled(
-                    "  Press [Tab] to focus Browser",
-                    Style::default().fg(theme.text_muted),
-                )]),
-                Line::from(vec![Span::styled(
-                    "  Select a .nika.yaml file with [Enter]",
-                    Style::default().fg(theme.text_muted),
-                )]),
-            ];
-            let paragraph = Paragraph::new(placeholder);
+                Line::from(vec![
+                    Span::styled("[Enter]", Style::default().fg(lavender)),
+                    Span::styled(" Open file", Style::default().fg(subtext0)),
+                ]),
+                Line::from(vec![
+                    Span::styled("[Tab]  ", Style::default().fg(lavender)),
+                    Span::styled(" Switch panel", Style::default().fg(subtext0)),
+                ]),
+            ]);
+
+            let paragraph =
+                Paragraph::new(placeholder).alignment(ratatui::layout::Alignment::Center);
             frame.render_widget(paragraph, content_area);
             return;
         }

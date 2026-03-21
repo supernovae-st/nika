@@ -1066,6 +1066,19 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             );
         }
 
+        // Wire workflow-level skills mapping into the executor for agent skill injection.
+        // TaskExecutor is Clone, so we clone-and-replace to call the builder-style setter.
+        if !self.workflow.skills_map.is_empty() {
+            self.executor = self
+                .executor
+                .clone()
+                .with_skills(self.workflow.skills_map.clone(), base_path.clone());
+            debug!(
+                skills_count = self.workflow.skills_map.len(),
+                "Wired skills mapping into executor"
+            );
+        }
+
         let total_tasks = self.workflow.tasks.len();
         let mut _completed = 0;
 
@@ -2131,6 +2144,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }
@@ -2266,6 +2280,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }
@@ -2410,6 +2425,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }
@@ -3128,6 +3144,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }
@@ -5218,6 +5235,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         }
     }
@@ -5391,6 +5409,7 @@ mod tests {
             artifacts: None,
             log: None,
             agents: None,
+            skills_map: std::collections::HashMap::new(),
             span: Span::dummy(),
         };
 

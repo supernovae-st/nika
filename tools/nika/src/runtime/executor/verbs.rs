@@ -1817,6 +1817,27 @@ impl TaskExecutor {
             mcp_clients,
         )?;
 
+        // Wire skill injection if the agent has skills and the workflow defines a skills map
+        let agent_loop = if agent
+            .skills
+            .as_ref()
+            .is_some_and(|s: &Vec<String>| !s.is_empty())
+            && !self.skills_map.is_empty()
+        {
+            debug!(
+                task_id = %task_id,
+                skills = ?agent.skills,
+                "Wiring skill injection into agent loop"
+            );
+            agent_loop.with_skills(
+                Arc::clone(&self.skill_injector),
+                self.skills_map.clone(),
+                self.workflow_base_dir.clone(),
+            )
+        } else {
+            agent_loop
+        };
+
         // Inject DynamicSubmitTool if structured output is configured.
         // For agent verb, submit_result is available but NOT forced —
         // the agent calls it when ready (unlike infer: which uses tool_choice: Required).
