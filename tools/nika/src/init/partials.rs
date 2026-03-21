@@ -318,7 +318,7 @@ pub const PARTIAL_QUALITY_CHECK: &str = r##"# ═══════════�
 # Useful for content generation workflows.
 #
 # Usage:
-#   include:
+#   imports:
 #     - path: ./partials/quality-check.nika.yaml
 #       prefix: qa_
 #

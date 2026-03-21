@@ -954,7 +954,7 @@ tasks:
         - nika:write
         - nika:glob
       max_turns: 15
-      depth_limit: 2
+      depth_limit: 3
       temperature: 0.4
     artifact:
       path: ./output/research/summary_latest.txt

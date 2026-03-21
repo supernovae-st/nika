@@ -254,6 +254,16 @@ tasks:
   # ─────────────────────────────────────────────────────────────────────────────
   # SIMPLE GET REQUEST
   # ─────────────────────────────────────────────────────────────────────────────
+  # TIP: fetch: supports 9 extract modes for HTML post-processing:
+  #   extract: markdown  -- HTML to clean Markdown
+  #   extract: article   -- Readability main content
+  #   extract: metadata  -- OG, Twitter Cards, JSON-LD
+  #   extract: links     -- Link classification
+  #   extract: jsonpath  -- JSONPath on JSON responses
+  #   extract: feed      -- RSS/Atom feed parsing
+  #   extract: llm_txt   -- AI content discovery
+  # All are now DEFAULT features (no --features flag needed).
+
   - id: simple_get
     fetch:
       # URL to fetch
