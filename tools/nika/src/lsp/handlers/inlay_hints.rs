@@ -25,10 +25,15 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
     let end_line = (range.end.line as usize).min(lines.len());
 
     for (i, line) in lines.iter().enumerate().skip(start_line) {
-        if i > end_line {
+        if i >= end_line {
             break;
         }
         let trimmed = line.trim();
+
+        // Skip comment lines
+        if trimmed.starts_with('#') {
+            continue;
+        }
 
         // 1. Timeout clarification: `timeout: 30` → shows ` seconds`
         if let Some(rest) = trimmed.strip_prefix("timeout:") {
@@ -74,11 +79,10 @@ pub fn compute_inlay_hints(text: &str, range: Range) -> Vec<InlayHint> {
                     .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
                     .collect();
                 if !task_ref.is_empty() {
-                    let abs_pos = line.len();
                     hints.push(InlayHint {
                         position: Position {
                             line: i as u32,
-                            character: abs_pos as u32,
+                            character: utf16_len(line),
                         },
                         label: InlayHintLabel::String(format!(" <- {} output", task_ref)),
                         kind: Some(InlayHintKind::TYPE),

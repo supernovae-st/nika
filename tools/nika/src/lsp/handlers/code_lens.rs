@@ -14,6 +14,12 @@ pub fn compute_code_lenses(text: &str, _uri: &Uri) -> Vec<CodeLens> {
     let mut lenses = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
 
+    // Pre-compute task count (avoid O(n²) scan inside loop)
+    let task_count = lines
+        .iter()
+        .filter(|l| l.trim().starts_with("- id:"))
+        .count();
+
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         let line_range = Range {
@@ -42,12 +48,6 @@ pub fn compute_code_lenses(text: &str, _uri: &Uri) -> Vec<CodeLens> {
 
         // "▶ Run" + task count on tasks: line
         if trimmed == "tasks:" {
-            // Count tasks
-            let task_count = lines
-                .iter()
-                .filter(|l| l.trim().starts_with("- id:"))
-                .count();
-
             lenses.push(CodeLens {
                 range: line_range,
                 command: Some(Command {
