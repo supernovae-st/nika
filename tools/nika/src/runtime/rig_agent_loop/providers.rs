@@ -643,8 +643,100 @@ impl RigAgentLoop {
             metadata: Some(metadata),
         });
 
-        // Check guardrails and override status on failure
-        let guardrail_result = self.check_guardrails(&result.response);
+        // Check guardrails with retry loop for `on_failure: retry`
+        let max_guardrail_retries: u32 = 2;
+        let mut guardrail_retry_count: u32 = 0;
+        let mut guardrail_result = self.check_guardrails(&result.response);
+
+        while guardrail_result.should_retry() && guardrail_retry_count < max_guardrail_retries {
+            guardrail_retry_count += 1;
+
+            // Check limits before starting a guardrail retry
+            if let Some(exceeded) = self.limit_tracker.check_limits() {
+                tracing::warn!(
+                    task_id = %self.task_id,
+                    limit = %exceeded.limit_type,
+                    guardrail_retry = guardrail_retry_count,
+                    "Agent limit exceeded during guardrail retry loop"
+                );
+                break;
+            }
+
+            // Build feedback from guardrail failure messages
+            let feedback = guardrail_result.failure_messages().join("; ");
+            tracing::info!(
+                task_id = %self.task_id,
+                guardrail_retry = guardrail_retry_count,
+                max = max_guardrail_retries,
+                feedback = %feedback,
+                "Retrying due to guardrail failure"
+            );
+
+            // Emit guardrail retry event
+            self.event_log.emit(EventKind::AgentTurn {
+                task_id: Arc::from(self.task_id.as_str()),
+                turn_index: retry_count + guardrail_retry_count + 1,
+                kind: format!("guardrail_retry_{}", guardrail_retry_count),
+                metadata: Some(AgentTurnMetadata {
+                    thinking: None,
+                    response_text: format!(
+                        "Guardrail validation failed, retrying ({}/{}): {}",
+                        guardrail_retry_count, max_guardrail_retries, feedback
+                    ),
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cache_read_tokens: 0,
+                    stop_reason: "guardrail_retry".to_string(),
+                }),
+            });
+
+            // Append guardrail feedback to prompt
+            current_prompt = format!(
+                "{}\n\n[GUARDRAIL RETRY {}/{}] Your previous output failed quality validation:\n{}\n\nPlease fix these issues and try again.\n\nPrevious response:\n{}",
+                base_prompt,
+                guardrail_retry_count,
+                max_guardrail_retries,
+                feedback,
+                result.response
+            );
+
+            // Re-run without tools (agent already has context)
+            result = self
+                .stream_with_tools(model.clone(), &current_prompt, vec![], max_turns)
+                .await?;
+
+            total_input_tokens += result.input_tokens;
+            total_output_tokens += result.output_tokens;
+
+            // Record guardrail retry turn in limit tracker
+            let gr_cost = provider_kind
+                .map(|pk| {
+                    crate::provider::cost::calculate_cost(
+                        pk,
+                        model_name,
+                        result.input_tokens,
+                        result.output_tokens,
+                    )
+                })
+                .unwrap_or(0.0);
+            self.limit_tracker
+                .record_turn(result.input_tokens, result.output_tokens, gr_cost);
+
+            // Re-determine status and re-check guardrails
+            status = self.determine_status(&result.response);
+            guardrail_result = self.check_guardrails(&result.response);
+        }
+
+        // After guardrail retries exhausted, if still failing with retry -> accept anyway
+        // (don't block forever, the guardrails_passed flag will indicate the failure)
+        if guardrail_result.should_retry() {
+            tracing::warn!(
+                task_id = %self.task_id,
+                retries = guardrail_retry_count,
+                "Guardrail retries exhausted, accepting output with guardrails_passed=false"
+            );
+        }
+
         let guardrails_passed = guardrail_result.is_passed();
 
         // Override status when guardrails fail with terminal actions
@@ -656,13 +748,15 @@ impl RigAgentLoop {
             status
         };
 
+        let total_retries = retry_count + guardrail_retry_count;
+
         Ok(RigAgentLoopResult {
             status: status.clone(),
-            turns: (retry_count + 1) as usize,
+            turns: (total_retries + 1) as usize,
             final_output: serde_json::json!({ "response": result.response }),
             total_tokens: total_input_tokens + total_output_tokens,
             confidence: status.confidence(),
-            retry_count,
+            retry_count: total_retries,
             guardrails_passed,
             cost_usd: self.limit_tracker.cost_usd(),
             partial_result: None,

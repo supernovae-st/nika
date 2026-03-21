@@ -148,7 +148,9 @@ pub enum GuardrailCheckResult {
     AllPassed,
 
     /// Some guardrails failed with `on_failure: retry` (default behavior)
-    FailedRetry,
+    ///
+    /// Contains the error messages from each failed guardrail for retry feedback.
+    FailedRetry(Vec<String>),
 
     /// Some guardrails failed with `on_failure: escalate` - needs human intervention
     FailedEscalate,
@@ -165,7 +167,18 @@ impl GuardrailCheckResult {
 
     /// Check if we should retry (default failure behavior)
     pub fn should_retry(&self) -> bool {
-        matches!(self, Self::FailedRetry)
+        matches!(self, Self::FailedRetry(_))
+    }
+
+    /// Get failure messages for retry feedback.
+    ///
+    /// Returns the error messages from failed guardrails, or an empty slice
+    /// if the result is not `FailedRetry`.
+    pub fn failure_messages(&self) -> &[String] {
+        match self {
+            Self::FailedRetry(msgs) => msgs,
+            _ => &[],
+        }
     }
 
     /// Check if we should escalate to human/supervisor

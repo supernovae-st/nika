@@ -112,7 +112,17 @@ impl RigAgentLoop {
         }
 
         // Default: retry (on_failure: retry)
-        GuardrailCheckResult::FailedRetry
+        // Collect error messages from failed guardrails for retry feedback
+        let failure_messages: Vec<String> = results
+            .iter()
+            .filter(|r| !r.passed)
+            .map(|r| {
+                r.message
+                    .clone()
+                    .unwrap_or_else(|| format!("Guardrail '{}' failed", r.guardrail_id))
+            })
+            .collect();
+        GuardrailCheckResult::FailedRetry(failure_messages)
     }
 
     /// Determine agent status based on output content

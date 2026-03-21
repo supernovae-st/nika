@@ -996,11 +996,12 @@ fn test_guardrail_check_result_all_passed() {
 
 #[test]
 fn test_guardrail_check_result_failed_retry() {
-    let result = GuardrailCheckResult::FailedRetry;
+    let result = GuardrailCheckResult::FailedRetry(vec!["test failure".to_string()]);
     assert!(!result.is_passed());
     assert!(result.should_retry());
     assert!(!result.should_escalate());
     assert!(!result.should_fail());
+    assert_eq!(result.failure_messages(), &["test failure".to_string()]);
 }
 
 #[test]
@@ -1088,7 +1089,15 @@ fn test_check_guardrails_failed_retry() {
 
     // Output has only 4 words
     let result = agent.check_guardrails("This is a test");
-    assert_eq!(result, GuardrailCheckResult::FailedRetry);
+    assert!(result.should_retry(), "Expected FailedRetry");
+    assert!(
+        !result.failure_messages().is_empty(),
+        "Should have failure messages"
+    );
+    assert!(
+        result.failure_messages()[0].contains("4 words"),
+        "Message should mention word count"
+    );
 }
 
 #[test]
