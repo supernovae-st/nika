@@ -15,8 +15,32 @@
 //!
 //! ## Adding New Aliases
 //!
-//! To add a new alias, add an entry to `MCP_ALIASES` following the pattern:
-//! `("short-name", "@org/package-name")`
+//! To add a new alias, add an `McpAlias` entry to `MCP_ALIASES` with
+//! the appropriate `category` and `pricing`.
+
+/// Pricing model for an MCP server's underlying service.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpPricing {
+    /// Fully free / open source (no API key needed or free forever)
+    Free,
+    /// Free tier available, paid for higher usage
+    Freemium,
+    /// Requires paid subscription / API key with charges
+    Paid,
+}
+
+/// A known MCP server alias with metadata.
+#[derive(Debug, Clone, Copy)]
+pub struct McpAlias {
+    /// Short alias name (e.g., "replicate")
+    pub name: &'static str,
+    /// npm package name (e.g., "replicate-mcp")
+    pub package: &'static str,
+    /// Category for grouping in CLI display
+    pub category: &'static str,
+    /// Pricing model of the underlying service
+    pub pricing: McpPricing,
+}
 
 /// MCP server aliases (100 total).
 ///
@@ -39,155 +63,671 @@
 /// - **Infrastructure & DevOps (6)**: Docker, Kubernetes, Terraform, etc.
 /// - **Social Media (6)**: Twitter, LinkedIn, YouTube, etc.
 /// - **Maps & Location (4)**: Mapbox, HERE, OpenWeather, etc.
-pub static MCP_ALIASES: &[(&str, &str)] = &[
+pub static MCP_ALIASES: &[McpAlias] = &[
     // =============================================================================
     // ANTHROPIC OFFICIAL (8)
     // =============================================================================
-    ("filesystem", "@modelcontextprotocol/server-filesystem"),
-    ("memory", "@modelcontextprotocol/server-memory"),
-    ("puppeteer", "@modelcontextprotocol/server-puppeteer"),
-    ("brave-search", "@modelcontextprotocol/server-brave-search"),
-    ("google-maps", "@modelcontextprotocol/server-google-maps"),
-    ("fetch", "@modelcontextprotocol/server-fetch"),
-    ("github", "@modelcontextprotocol/server-github"),
-    ("gitlab", "@modelcontextprotocol/server-gitlab"),
+    McpAlias {
+        name: "filesystem",
+        package: "@modelcontextprotocol/server-filesystem",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "memory",
+        package: "@modelcontextprotocol/server-memory",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "puppeteer",
+        package: "@modelcontextprotocol/server-puppeteer",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "brave-search",
+        package: "@modelcontextprotocol/server-brave-search",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "google-maps",
+        package: "@modelcontextprotocol/server-google-maps",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "fetch",
+        package: "@modelcontextprotocol/server-fetch",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "github",
+        package: "@modelcontextprotocol/server-github",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "gitlab",
+        package: "@modelcontextprotocol/server-gitlab",
+        category: "anthropic",
+        pricing: McpPricing::Free,
+    },
     // =============================================================================
     // DATABASES (8)
     // =============================================================================
-    ("neo4j", "@neo4j/mcp-neo4j"),
-    ("postgres", "@modelcontextprotocol/server-postgres"),
-    ("mysql", "mcp-server-mysql"),
-    ("sqlite", "@anthropic/mcp-server-sqlite"),
-    ("mongodb", "mcp-mongodb"),
-    ("redis", "mcp-redis"),
-    ("supabase", "mcp-supabase"),
-    ("neon", "@neondatabase/mcp-server-neon"),
+    McpAlias {
+        name: "neo4j",
+        package: "@neo4j/mcp-neo4j",
+        category: "databases",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "postgres",
+        package: "@modelcontextprotocol/server-postgres",
+        category: "databases",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "mysql",
+        package: "mcp-server-mysql",
+        category: "databases",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "sqlite",
+        package: "@anthropic/mcp-server-sqlite",
+        category: "databases",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "mongodb",
+        package: "mcp-mongodb",
+        category: "databases",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "redis",
+        package: "mcp-redis",
+        category: "databases",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "supabase",
+        package: "mcp-supabase",
+        category: "databases",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "neon",
+        package: "@neondatabase/mcp-server-neon",
+        category: "databases",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // SEARCH & WEB (8)
     // =============================================================================
-    ("perplexity", "perplexity-mcp"),
-    ("firecrawl", "firecrawl-mcp"),
-    ("brave", "@anthropic/mcp-server-brave-search"),
-    ("exa", "exa-mcp-server"),
-    ("tavily", "tavily-mcp"),
-    ("serper", "serper-mcp"),
-    ("searchapi", "searchapi-mcp"),
-    ("bing", "bing-mcp"),
+    McpAlias {
+        name: "perplexity",
+        package: "perplexity-mcp",
+        category: "search",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "firecrawl",
+        package: "firecrawl-mcp",
+        category: "search",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "brave",
+        package: "@anthropic/mcp-server-brave-search",
+        category: "search",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "exa",
+        package: "exa-mcp-server",
+        category: "search",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "tavily",
+        package: "tavily-mcp",
+        category: "search",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "serper",
+        package: "serper-mcp",
+        category: "search",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "searchapi",
+        package: "searchapi-mcp",
+        category: "search",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "bing",
+        package: "bing-mcp",
+        category: "search",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // DEVELOPER TOOLS (8)
     // =============================================================================
-    ("linear", "mcp-linear"),
-    ("sentry", "@modelcontextprotocol/server-sentry"),
-    ("raygun", "raygun-mcp"),
-    ("buildkite", "buildkite-mcp"),
-    ("circleci", "circleci-mcp"),
-    ("vercel", "vercel-mcp"),
-    ("cloudflare", "cloudflare-mcp"),
-    ("aws", "aws-mcp"),
+    McpAlias {
+        name: "linear",
+        package: "mcp-linear",
+        category: "developer",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "sentry",
+        package: "@modelcontextprotocol/server-sentry",
+        category: "developer",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "raygun",
+        package: "raygun-mcp",
+        category: "developer",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "buildkite",
+        package: "buildkite-mcp",
+        category: "developer",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "circleci",
+        package: "circleci-mcp",
+        category: "developer",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "vercel",
+        package: "vercel-mcp",
+        category: "developer",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "cloudflare",
+        package: "cloudflare-mcp",
+        category: "developer",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "aws",
+        package: "aws-mcp",
+        category: "developer",
+        pricing: McpPricing::Paid,
+    },
     // =============================================================================
     // PRODUCTIVITY (8)
     // =============================================================================
-    ("slack", "@anthropic/mcp-server-slack"),
-    ("google-drive", "@anthropic/mcp-server-google-drive"),
-    ("notion", "notion-mcp"),
-    ("airtable", "airtable-mcp"),
-    ("todoist", "todoist-mcp"),
-    ("asana", "asana-mcp"),
-    ("trello", "trello-mcp"),
-    ("monday", "monday-mcp"),
+    McpAlias {
+        name: "slack",
+        package: "@anthropic/mcp-server-slack",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "google-drive",
+        package: "@anthropic/mcp-server-google-drive",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "notion",
+        package: "notion-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "airtable",
+        package: "airtable-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "todoist",
+        package: "todoist-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "asana",
+        package: "asana-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "trello",
+        package: "trello-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "monday",
+        package: "monday-mcp",
+        category: "productivity",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // AI & SPECIALIZED (8)
     // =============================================================================
-    ("langchain", "langchain-mcp"),
-    ("e2b", "@e2b/mcp-server"),
-    (
-        "sequential-thinking",
-        "@modelcontextprotocol/server-sequential-thinking",
-    ),
-    ("context7", "context7-mcp"),
-    ("21st", "21st-mcp"),
-    ("supadata", "supadata-mcp"),
-    ("dataforseo", "dataforseo-mcp"),
-    ("ahrefs", "ahrefs-mcp"),
+    McpAlias {
+        name: "langchain",
+        package: "langchain-mcp",
+        category: "ai",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "e2b",
+        package: "@e2b/mcp-server",
+        category: "ai",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "sequential-thinking",
+        package: "@modelcontextprotocol/server-sequential-thinking",
+        category: "ai",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "context7",
+        package: "context7-mcp",
+        category: "ai",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "21st",
+        package: "21st-mcp",
+        category: "ai",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "supadata",
+        package: "supadata-mcp",
+        category: "ai",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "dataforseo",
+        package: "dataforseo-mcp",
+        category: "ai",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "ahrefs",
+        package: "ahrefs-mcp",
+        category: "ai",
+        pricing: McpPricing::Paid,
+    },
     // =============================================================================
     // AI IMAGE/MEDIA GENERATION (6)
     // =============================================================================
-    ("replicate", "replicate-mcp"),
-    ("comfyui", "comfyui-mcp-server"),
-    ("fal", "fal-mcp"),
-    ("stability", "stability-ai-mcp"),
-    ("elevenlabs", "elevenlabs-mcp"),
-    ("deepgram", "deepgram-mcp"),
+    McpAlias {
+        name: "replicate",
+        package: "replicate-mcp",
+        category: "image",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "comfyui",
+        package: "comfyui-mcp-server",
+        category: "image",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "fal",
+        package: "fal-mcp",
+        category: "image",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "stability",
+        package: "stability-ai-mcp",
+        category: "image",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "elevenlabs",
+        package: "elevenlabs-mcp",
+        category: "image",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "deepgram",
+        package: "deepgram-mcp",
+        category: "image",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // COMMUNICATION (6)
     // =============================================================================
-    ("discord", "discord-mcp"),
-    ("telegram", "telegram-mcp"),
-    ("resend", "resend-mcp"),
-    ("sendgrid", "sendgrid-mcp"),
-    ("twilio", "twilio-mcp"),
-    ("intercom", "intercom-mcp"),
+    McpAlias {
+        name: "discord",
+        package: "discord-mcp",
+        category: "communication",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "telegram",
+        package: "telegram-mcp",
+        category: "communication",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "resend",
+        package: "resend-mcp",
+        category: "communication",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "sendgrid",
+        package: "sendgrid-mcp",
+        category: "communication",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "twilio",
+        package: "twilio-mcp",
+        category: "communication",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "intercom",
+        package: "intercom-mcp",
+        category: "communication",
+        pricing: McpPricing::Paid,
+    },
     // =============================================================================
     // KNOWLEDGE & VECTOR DB (6)
     // =============================================================================
-    ("pinecone", "pinecone-mcp"),
-    ("weaviate", "weaviate-mcp"),
-    ("qdrant", "qdrant-mcp"),
-    ("chroma", "chroma-mcp"),
-    ("milvus", "milvus-mcp"),
-    ("turbopuffer", "turbopuffer-mcp"),
+    McpAlias {
+        name: "pinecone",
+        package: "pinecone-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "weaviate",
+        package: "weaviate-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "qdrant",
+        package: "qdrant-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "chroma",
+        package: "chroma-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "milvus",
+        package: "milvus-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "turbopuffer",
+        package: "turbopuffer-mcp",
+        category: "vectordb",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // ANALYTICS & MONITORING (6)
     // =============================================================================
-    ("posthog", "posthog-mcp"),
-    ("mixpanel", "mixpanel-mcp"),
-    ("datadog", "datadog-mcp"),
-    ("grafana", "grafana-mcp"),
-    ("prometheus", "prometheus-mcp"),
-    ("plausible", "plausible-mcp"),
+    McpAlias {
+        name: "posthog",
+        package: "posthog-mcp",
+        category: "analytics",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "mixpanel",
+        package: "mixpanel-mcp",
+        category: "analytics",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "datadog",
+        package: "datadog-mcp",
+        category: "analytics",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "grafana",
+        package: "grafana-mcp",
+        category: "analytics",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "prometheus",
+        package: "prometheus-mcp",
+        category: "analytics",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "plausible",
+        package: "plausible-mcp",
+        category: "analytics",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // E-COMMERCE & FINANCE (6)
     // =============================================================================
-    ("stripe", "stripe-mcp"),
-    ("shopify", "shopify-mcp"),
-    ("paypal", "paypal-mcp"),
-    ("polygon", "polygon-mcp"),
-    ("coinbase", "coinbase-mcp"),
-    ("alpaca", "alpaca-mcp"),
+    McpAlias {
+        name: "stripe",
+        package: "stripe-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "shopify",
+        package: "shopify-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "paypal",
+        package: "paypal-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Paid,
+    },
+    McpAlias {
+        name: "polygon",
+        package: "polygon-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "coinbase",
+        package: "coinbase-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "alpaca",
+        package: "alpaca-mcp",
+        category: "ecommerce",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // CMS & CONTENT (6)
     // =============================================================================
-    ("wordpress", "wordpress-mcp"),
-    ("contentful", "contentful-mcp"),
-    ("sanity", "sanity-mcp"),
-    ("strapi", "strapi-mcp"),
-    ("ghost", "ghost-mcp"),
-    ("hubspot", "hubspot-mcp"),
+    McpAlias {
+        name: "wordpress",
+        package: "wordpress-mcp",
+        category: "cms",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "contentful",
+        package: "contentful-mcp",
+        category: "cms",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "sanity",
+        package: "sanity-mcp",
+        category: "cms",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "strapi",
+        package: "strapi-mcp",
+        category: "cms",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "ghost",
+        package: "ghost-mcp",
+        category: "cms",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "hubspot",
+        package: "hubspot-mcp",
+        category: "cms",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // INFRASTRUCTURE & DEVOPS (6)
     // =============================================================================
-    ("docker", "docker-mcp"),
-    ("kubernetes", "kubernetes-mcp"),
-    ("terraform", "terraform-mcp"),
-    ("pulumi", "pulumi-mcp"),
-    ("fly", "fly-mcp"),
-    ("railway", "railway-mcp"),
+    McpAlias {
+        name: "docker",
+        package: "docker-mcp",
+        category: "devops",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "kubernetes",
+        package: "kubernetes-mcp",
+        category: "devops",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "terraform",
+        package: "terraform-mcp",
+        category: "devops",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "pulumi",
+        package: "pulumi-mcp",
+        category: "devops",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "fly",
+        package: "fly-mcp",
+        category: "devops",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "railway",
+        package: "railway-mcp",
+        category: "devops",
+        pricing: McpPricing::Freemium,
+    },
     // =============================================================================
     // SOCIAL MEDIA (6)
     // =============================================================================
-    ("twitter", "twitter-mcp"),
-    ("linkedin", "linkedin-mcp"),
-    ("youtube", "youtube-mcp"),
-    ("tiktok", "tiktok-mcp"),
-    ("reddit", "reddit-mcp"),
-    ("mastodon", "mastodon-mcp"),
+    McpAlias {
+        name: "twitter",
+        package: "twitter-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "linkedin",
+        package: "linkedin-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "youtube",
+        package: "youtube-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "tiktok",
+        package: "tiktok-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "reddit",
+        package: "reddit-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
+    McpAlias {
+        name: "mastodon",
+        package: "mastodon-mcp",
+        category: "social",
+        pricing: McpPricing::Free,
+    },
     // =============================================================================
     // MAPS & LOCATION (4)
     // =============================================================================
-    ("mapbox", "mapbox-mcp"),
-    ("here", "here-mcp"),
-    ("openweather", "openweather-mcp"),
-    ("ipinfo", "ipinfo-mcp"),
+    McpAlias {
+        name: "mapbox",
+        package: "mapbox-mcp",
+        category: "maps",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "here",
+        package: "here-mcp",
+        category: "maps",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "openweather",
+        package: "openweather-mcp",
+        category: "maps",
+        pricing: McpPricing::Freemium,
+    },
+    McpAlias {
+        name: "ipinfo",
+        package: "ipinfo-mcp",
+        category: "maps",
+        pricing: McpPricing::Freemium,
+    },
+];
+
+/// All category keys, in display order.
+pub static CATEGORIES: &[(&str, &str)] = &[
+    ("anthropic", "Anthropic Official"),
+    ("databases", "Databases"),
+    ("search", "Search & Web"),
+    ("developer", "Developer Tools"),
+    ("productivity", "Productivity"),
+    ("ai", "AI & Specialized"),
+    ("image", "AI Image/Media"),
+    ("communication", "Communication"),
+    ("vectordb", "Vector DB"),
+    ("analytics", "Analytics & Monitoring"),
+    ("ecommerce", "E-commerce & Finance"),
+    ("cms", "CMS & Content"),
+    ("devops", "Infrastructure & DevOps"),
+    ("social", "Social Media"),
+    ("maps", "Maps & Location"),
 ];
 
 /// Resolve an alias to its full npm package name.
@@ -203,8 +743,8 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
 pub fn resolve_alias(alias: &str) -> Option<&'static str> {
     MCP_ALIASES
         .iter()
-        .find(|(a, _)| *a == alias)
-        .map(|(_, pkg)| *pkg)
+        .find(|a| a.name == alias)
+        .map(|a| a.package)
 }
 
 /// Check if a string is a known alias.
@@ -218,10 +758,10 @@ pub fn resolve_alias(alias: &str) -> Option<&'static str> {
 /// assert!(!is_alias("@neo4j/mcp-neo4j"));
 /// ```
 pub fn is_alias(name: &str) -> bool {
-    MCP_ALIASES.iter().any(|(a, _)| *a == name)
+    MCP_ALIASES.iter().any(|a| a.name == name)
 }
 
-/// List all available aliases.
+/// List all available alias names.
 ///
 /// # Example
 ///
@@ -232,33 +772,17 @@ pub fn is_alias(name: &str) -> bool {
 /// assert!(aliases.len() >= 100);
 /// ```
 pub fn list_aliases() -> Vec<&'static str> {
-    MCP_ALIASES.iter().map(|(a, _)| *a).collect()
+    MCP_ALIASES.iter().map(|a| a.name).collect()
 }
 
 /// Get all aliases in a specific category.
 ///
-/// Categories are determined by index ranges in MCP_ALIASES.
-pub fn aliases_by_category(category: &str) -> Vec<(&'static str, &'static str)> {
-    let (start, end) = match category {
-        "anthropic" => (0, 8),
-        "databases" => (8, 16),
-        "search" => (16, 24),
-        "developer" => (24, 32),
-        "productivity" => (32, 40),
-        "ai" => (40, 48),
-        "image" => (48, 54),
-        "communication" => (54, 60),
-        "vector" => (60, 66),
-        "analytics" => (66, 72),
-        "ecommerce" => (72, 78),
-        "cms" => (78, 84),
-        "devops" => (84, 90),
-        "social" => (90, 96),
-        "maps" => (96, 100),
-        _ => return vec![],
-    };
-
-    MCP_ALIASES[start..end.min(MCP_ALIASES.len())].to_vec()
+/// Filters `MCP_ALIASES` by the `.category` field.
+pub fn aliases_by_category(category: &str) -> Vec<&'static McpAlias> {
+    MCP_ALIASES
+        .iter()
+        .filter(|a| a.category == category)
+        .collect()
 }
 
 /// Resolve a name that might be an alias or a full package name.
@@ -289,6 +813,15 @@ pub fn resolve_name(name: &str) -> Option<String> {
 
     // Try to resolve as alias
     resolve_alias(name).map(|s| s.to_string())
+}
+
+/// Return a display label for a pricing tier.
+pub fn pricing_label(pricing: McpPricing) -> &'static str {
+    match pricing {
+        McpPricing::Free => "FREE",
+        McpPricing::Freemium => "FREEMIUM",
+        McpPricing::Paid => "PAID",
+    }
 }
 
 #[cfg(test)]
@@ -334,16 +867,47 @@ mod tests {
     fn test_aliases_by_category() {
         let anthropic = aliases_by_category("anthropic");
         assert_eq!(anthropic.len(), 8);
-        assert!(anthropic.iter().any(|(a, _)| *a == "filesystem"));
-        assert!(anthropic.iter().any(|(a, _)| *a == "github"));
+        assert!(anthropic.iter().any(|a| a.name == "filesystem"));
+        assert!(anthropic.iter().any(|a| a.name == "github"));
 
         let databases = aliases_by_category("databases");
         assert_eq!(databases.len(), 8);
-        assert!(databases.iter().any(|(a, _)| *a == "neo4j"));
-        assert!(databases.iter().any(|(a, _)| *a == "postgres"));
+        assert!(databases.iter().any(|a| a.name == "neo4j"));
+        assert!(databases.iter().any(|a| a.name == "postgres"));
 
         let unknown = aliases_by_category("unknown");
         assert!(unknown.is_empty());
+    }
+
+    #[test]
+    fn test_aliases_by_category_all_15() {
+        let expected = [
+            ("anthropic", 8),
+            ("databases", 8),
+            ("search", 8),
+            ("developer", 8),
+            ("productivity", 8),
+            ("ai", 8),
+            ("image", 6),
+            ("communication", 6),
+            ("vectordb", 6),
+            ("analytics", 6),
+            ("ecommerce", 6),
+            ("cms", 6),
+            ("devops", 6),
+            ("social", 6),
+            ("maps", 4),
+        ];
+        for (cat, count) in expected {
+            let aliases = aliases_by_category(cat);
+            assert_eq!(
+                aliases.len(),
+                count,
+                "category '{}' should have {} aliases",
+                cat,
+                count
+            );
+        }
     }
 
     #[test]
@@ -367,30 +931,64 @@ mod tests {
 
     #[test]
     fn test_all_aliases_have_valid_packages() {
-        for (alias, package) in MCP_ALIASES {
-            assert!(!alias.is_empty(), "Alias should not be empty");
-            assert!(!package.is_empty(), "Package should not be empty");
+        for alias in MCP_ALIASES {
+            assert!(!alias.name.is_empty(), "Alias name should not be empty");
+            assert!(!alias.package.is_empty(), "Package should not be empty");
             assert!(
-                !alias.contains('/'),
+                !alias.name.contains('/'),
                 "Alias '{}' should not contain '/'",
-                alias
+                alias.name
             );
             assert!(
-                !alias.starts_with('@'),
+                !alias.name.starts_with('@'),
                 "Alias '{}' should not start with '@'",
-                alias
+                alias.name
             );
         }
     }
 
     #[test]
     fn test_no_duplicate_aliases() {
-        let aliases: Vec<_> = MCP_ALIASES.iter().map(|(a, _)| *a).collect();
+        let aliases: Vec<_> = MCP_ALIASES.iter().map(|a| a.name).collect();
         let unique: std::collections::HashSet<_> = aliases.iter().collect();
         assert_eq!(
             aliases.len(),
             unique.len(),
             "Duplicate aliases found in MCP_ALIASES"
         );
+    }
+
+    #[test]
+    fn test_all_categories_covered() {
+        // Every alias must use a known category key
+        let known_cats: Vec<&str> = CATEGORIES.iter().map(|(k, _)| *k).collect();
+        for alias in MCP_ALIASES {
+            assert!(
+                known_cats.contains(&alias.category),
+                "Alias '{}' uses unknown category '{}'",
+                alias.name,
+                alias.category
+            );
+        }
+    }
+
+    #[test]
+    fn test_pricing_label() {
+        assert_eq!(pricing_label(McpPricing::Free), "FREE");
+        assert_eq!(pricing_label(McpPricing::Freemium), "FREEMIUM");
+        assert_eq!(pricing_label(McpPricing::Paid), "PAID");
+    }
+
+    #[test]
+    fn test_categories_count() {
+        assert_eq!(CATEGORIES.len(), 15);
+    }
+
+    #[test]
+    fn test_struct_fields_accessible() {
+        let neo4j = MCP_ALIASES.iter().find(|a| a.name == "neo4j").unwrap();
+        assert_eq!(neo4j.package, "@neo4j/mcp-neo4j");
+        assert_eq!(neo4j.category, "databases");
+        assert_eq!(neo4j.pricing, McpPricing::Freemium);
     }
 }

@@ -13,7 +13,8 @@ pub mod providers;
 
 // Re-export main types for convenient access
 pub use mcp_aliases::{
-    aliases_by_category, is_alias, list_aliases, resolve_alias, resolve_name, MCP_ALIASES,
+    aliases_by_category, is_alias, list_aliases, pricing_label, resolve_alias, resolve_name,
+    McpAlias, McpPricing, CATEGORIES, MCP_ALIASES,
 };
 pub use models::{
     auto_select_quantization, find_model, models_by_type, KnownModel, ModelArchitecture,
