@@ -5,7 +5,7 @@
 //!
 //! - [`providers`] -- 19 known providers (LLM, MCP, Local)
 //! - [`models`] -- 15+ curated models for native inference (mistral.rs)
-//! - [`mcp_aliases`] -- 48 MCP server short-name aliases
+//! - [`mcp_aliases`] -- 100 MCP server short-name aliases
 
 pub mod mcp_aliases;
 pub mod models;

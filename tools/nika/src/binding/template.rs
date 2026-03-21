@@ -241,10 +241,10 @@ fn value_to_display(value: &Value) -> Cow<'_, str> {
 /// Resolve a dot-separated path against a FxHashMap of alias → Value
 ///
 /// Supports nested paths like "data.items.0" or "data.users.0.name".
-fn resolve_alias_path<'a>(
+fn resolve_alias_path(
     path: &str,
-    with_values: &'a FxHashMap<String, Value>,
-) -> Result<&'a Value, NikaError> {
+    with_values: &FxHashMap<String, Value>,
+) -> Result<Value, NikaError> {
     // Guard against pathologically deep paths
     let segment_count = path.split('.').count();
     if segment_count > MAX_PATH_DEPTH {
@@ -274,7 +274,13 @@ fn resolve_alias_path<'a>(
             ),
         })?;
 
-    let mut current = base;
+    // Auto-parse JSON strings so invoke/exec outputs stored as
+    // Value::String('{"hash":"blake3:..."}') can be traversed with
+    // nested paths like {{chart_result.hash}}.
+    // Matches navigate_segments() in binding/resolve.rs (NIKA-253 fix).
+    let effective_base =
+        crate::binding::jsonpath::try_parse_json_str(base).unwrap_or_else(|| base.clone());
+    let mut current = &effective_base;
     let mut traversed: SmallVec<[&str; 8]> = SmallVec::new();
     traversed.push(alias);
 
@@ -314,7 +320,7 @@ fn resolve_alias_path<'a>(
         }
     }
 
-    Ok(current)
+    Ok(current.clone())
 }
 
 /// Resolve all template references in a string
@@ -400,7 +406,7 @@ pub fn resolve_with<'a>(
                                         ),
                                     }
                                 })?;
-                                expr.apply(value).map_err(|e| NikaError::TemplateParse {
+                                expr.apply(&value).map_err(|e| NikaError::TemplateParse {
                                     position: m.start(),
                                     details: format!(
                                         "Transform apply error in '{{{{{}}}}}': {}",
@@ -424,7 +430,7 @@ pub fn resolve_with<'a>(
                                         ),
                                     }
                                 })?;
-                                expr.apply(value).map_err(|e| NikaError::TemplateParse {
+                                expr.apply(&value).map_err(|e| NikaError::TemplateParse {
                                     position: m.start(),
                                     details: format!(
                                         "Transform apply error in '{{{{{}}}}}': {}",
@@ -867,8 +873,13 @@ pub fn resolve<'a>(
                 // Get the resolved value for this alias (supports lazy bindings via RunContext)
                 match bindings.get_resolved(alias, datastore) {
                     Ok(base_value) => {
-                        // Zero-clone traversal: use references until we need the final value
-                        let mut value_ref: &Value = &base_value;
+                        // Auto-parse JSON strings so invoke/exec outputs stored
+                        // as Value::String('{"hash":"blake3:..."}') can be
+                        // traversed with {{with.alias.hash}} (NIKA-253 fix).
+                        let effective_base =
+                            crate::binding::jsonpath::try_parse_json_str(&base_value)
+                                .unwrap_or(base_value);
+                        let mut value_ref: &Value = &effective_base;
                         let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                         traversed_segments.push(alias);
 
@@ -1183,7 +1194,11 @@ pub fn resolve_for_shell<'a>(
 
         match bindings.get_resolved(alias, datastore) {
             Ok(base_value) => {
-                let mut value_ref: &Value = &base_value;
+                // Auto-parse JSON strings (NIKA-253 fix, same as resolve()).
+                let effective_base =
+                    crate::binding::jsonpath::try_parse_json_str(&base_value)
+                        .unwrap_or(base_value);
+                let mut value_ref: &Value = &effective_base;
                 let mut traversed_segments: SmallVec<[&str; 8]> = SmallVec::new();
                 traversed_segments.push(alias);
 
@@ -3576,16 +3591,10 @@ mod v028_template_tests {
     }
 
     #[test]
-    fn media_template_thumb_output_traversal_requires_binding_spec() {
+    fn media_template_thumb_output_traversal_auto_parses_json_string() {
         let (store, bindings) = media_template_fixtures();
 
-        // When "thumb" is bound to the entire invoke output (a JSON string),
-        // the template engine cannot traverse `.hash` because it sees a
-        // Value::String, not a parsed object. This is expected behavior:
-        // the binding spec must declare the specific path (e.g., thumb.hash)
-        // rather than relying on template-level traversal of JSON strings.
-        //
-        // Use the dedicated binding: {{with.thumb_hash}} (bound to $thumb.hash)
+        // Dedicated binding path still works (binding spec resolves the path)
         let result = resolve(
             "Hash via binding spec: {{with.thumb_hash}}",
             &bindings,
@@ -3594,12 +3603,11 @@ mod v028_template_tests {
         .unwrap();
         assert_eq!(result.as_ref(), "Hash via binding spec: blake3:def456");
 
-        // Template-level traversal on a JSON-string value errors correctly
-        let err = resolve("Broken: {{with.thumb.hash}}", &bindings, &store);
-        assert!(
-            err.is_err(),
-            "Traversing .hash on a JSON-string Value::String should error"
-        );
+        // Template-level traversal on a JSON-string value now auto-parses
+        // the JSON string and traverses into it (NIKA-253 fix).
+        // This matches navigate_segments() in binding/resolve.rs.
+        let result = resolve("Direct: {{with.thumb.hash}}", &bindings, &store).unwrap();
+        assert_eq!(result.as_ref(), "Direct: blake3:def456");
     }
 
     #[test]
@@ -3716,6 +3724,103 @@ mod v028_template_tests {
     // ═════════════════════════════════════════════════════════════════════════
     // Regression tests for binding/template bugs
     // ═════════════════════════════════════════════════════════════════════════
+
+    /// NIKA-253: nika:chart output (JSON-string) passed to nika:dimensions
+    /// as `{{with.chart_result.hash}}` failed because the template system
+    /// did not auto-parse JSON strings during nested traversal.
+    ///
+    /// The fix adds try_parse_json_str in resolve(), resolve_with(),
+    /// resolve_alias_path(), and resolve_for_shell() to match the behavior
+    /// already present in navigate_segments() (binding/resolve.rs).
+    #[test]
+    fn regression_nika253_chart_to_dimensions_json_string_traversal() {
+        // Simulate how nika:chart output is stored: MediaToolAdapter returns
+        // a JSON string, run_invoke re-serializes it, make_task_result wraps
+        // it as Value::String (no output: json policy for invoke tasks).
+        let store = RunContext::new();
+        let chart_output_json = serde_json::json!({
+            "hash": "blake3:af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+            "path": "/tmp/cas/af/1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+            "size_bytes": 12345,
+            "mime_type": "image/png",
+            "extension": "png",
+            "deduplicated": false,
+            "metadata": { "chart_type": "bar", "width": 800, "height": 500 }
+        });
+        // Stored as Value::String (the bug scenario: success_str wraps JSON)
+        store.insert(
+            std::sync::Arc::from("gen_chart"),
+            crate::store::TaskResult::success_str(
+                chart_output_json.to_string(),
+                std::time::Duration::from_millis(100),
+            ),
+        );
+
+        // Binding: chart_result: $gen_chart
+        let mut spec: crate::binding::entry::BindingSpec = FxHashMap::default();
+        spec.insert(
+            "chart_result".to_string(),
+            crate::binding::entry::BindingEntry::new("gen_chart"),
+        );
+        let bindings = ResolvedBindings::from_binding_spec(Some(&spec), &store).unwrap();
+
+        // Before the fix: {{with.chart_result.hash}} would fail with
+        // InvalidTraversal because the template system saw Value::String
+        // and refused to traverse into it.
+        //
+        // After the fix: auto-parse parses the JSON string into a Value::Object,
+        // enabling .hash traversal.
+        let result = resolve(
+            "hash: {{with.chart_result.hash}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(
+            result.as_ref(),
+            "hash: blake3:af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
+
+        // Deep nested traversal also works
+        let result = resolve(
+            "type: {{with.chart_result.metadata.chart_type}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(result.as_ref(), "type: bar");
+
+        // Width from metadata
+        let result = resolve(
+            "width: {{with.chart_result.metadata.width}}",
+            &bindings,
+            &store,
+        )
+        .unwrap();
+        assert_eq!(result.as_ref(), "width: 800");
+    }
+
+    /// NIKA-253: resolve_with (used by run_invoke for param templates)
+    /// must also auto-parse JSON strings.
+    #[test]
+    fn regression_nika253_resolve_with_json_string_traversal() {
+        let ds = empty_datastore();
+        let mut with_values = FxHashMap::default();
+        with_values.insert(
+            "chart_out".to_string(),
+            Value::String(
+                r#"{"hash":"blake3:abc123","size_bytes":9999}"#.to_string(),
+            ),
+        );
+
+        let result = resolve_with(
+            "{{chart_out.hash}}",
+            &with_values,
+            &ds,
+        )
+        .unwrap();
+        assert_eq!(result.as_ref(), "blake3:abc123");
+    }
 
     /// Bug 29: normalize_bracket_notation must NOT corrupt literal text outside
     /// `{{...}}` blocks. Brackets like `data[0]` in plain text must be preserved.

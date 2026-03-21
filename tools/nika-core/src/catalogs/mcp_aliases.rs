@@ -1,6 +1,6 @@
 //! MCP server aliases -- short names to npm package mappings.
 //!
-//! This module provides 48 aliases for common MCP servers, allowing users
+//! This module provides 100 aliases for common MCP servers, allowing users
 //! to add servers by short name instead of full npm package path.
 //!
 //! ## Usage
@@ -18,7 +18,7 @@
 //! To add a new alias, add an entry to `MCP_ALIASES` following the pattern:
 //! `("short-name", "@org/package-name")`
 
-/// MCP server aliases (48 total).
+/// MCP server aliases (100 total).
 ///
 /// Maps short names to npm package names for common MCP servers.
 ///
@@ -30,6 +30,15 @@
 /// - **Developer Tools (8)**: GitHub, GitLab, Linear, Sentry, etc.
 /// - **Productivity (8)**: Slack, Google Drive, Notion, etc.
 /// - **AI & Specialized (8)**: Langchain, E2B, Sequential Thinking, etc.
+/// - **AI Image/Media Generation (6)**: Replicate, ComfyUI, FAL, etc.
+/// - **Communication (6)**: Discord, Telegram, Resend, etc.
+/// - **Knowledge & Vector DB (6)**: Pinecone, Weaviate, Qdrant, etc.
+/// - **Analytics & Monitoring (6)**: PostHog, Mixpanel, Datadog, etc.
+/// - **E-commerce & Finance (6)**: Stripe, Shopify, PayPal, etc.
+/// - **CMS & Content (6)**: WordPress, Contentful, Sanity, etc.
+/// - **Infrastructure & DevOps (6)**: Docker, Kubernetes, Terraform, etc.
+/// - **Social Media (6)**: Twitter, LinkedIn, YouTube, etc.
+/// - **Maps & Location (4)**: Mapbox, HERE, OpenWeather, etc.
 pub static MCP_ALIASES: &[(&str, &str)] = &[
     // =============================================================================
     // ANTHROPIC OFFICIAL (8)
@@ -100,6 +109,85 @@ pub static MCP_ALIASES: &[(&str, &str)] = &[
     ("supadata", "supadata-mcp"),
     ("dataforseo", "dataforseo-mcp"),
     ("ahrefs", "ahrefs-mcp"),
+    // =============================================================================
+    // AI IMAGE/MEDIA GENERATION (6)
+    // =============================================================================
+    ("replicate", "replicate-mcp"),
+    ("comfyui", "comfyui-mcp-server"),
+    ("fal", "fal-mcp"),
+    ("stability", "stability-ai-mcp"),
+    ("elevenlabs", "elevenlabs-mcp"),
+    ("deepgram", "deepgram-mcp"),
+    // =============================================================================
+    // COMMUNICATION (6)
+    // =============================================================================
+    ("discord", "discord-mcp"),
+    ("telegram", "telegram-mcp"),
+    ("resend", "resend-mcp"),
+    ("sendgrid", "sendgrid-mcp"),
+    ("twilio", "twilio-mcp"),
+    ("intercom", "intercom-mcp"),
+    // =============================================================================
+    // KNOWLEDGE & VECTOR DB (6)
+    // =============================================================================
+    ("pinecone", "pinecone-mcp"),
+    ("weaviate", "weaviate-mcp"),
+    ("qdrant", "qdrant-mcp"),
+    ("chroma", "chroma-mcp"),
+    ("milvus", "milvus-mcp"),
+    ("turbopuffer", "turbopuffer-mcp"),
+    // =============================================================================
+    // ANALYTICS & MONITORING (6)
+    // =============================================================================
+    ("posthog", "posthog-mcp"),
+    ("mixpanel", "mixpanel-mcp"),
+    ("datadog", "datadog-mcp"),
+    ("grafana", "grafana-mcp"),
+    ("prometheus", "prometheus-mcp"),
+    ("plausible", "plausible-mcp"),
+    // =============================================================================
+    // E-COMMERCE & FINANCE (6)
+    // =============================================================================
+    ("stripe", "stripe-mcp"),
+    ("shopify", "shopify-mcp"),
+    ("paypal", "paypal-mcp"),
+    ("polygon", "polygon-mcp"),
+    ("coinbase", "coinbase-mcp"),
+    ("alpaca", "alpaca-mcp"),
+    // =============================================================================
+    // CMS & CONTENT (6)
+    // =============================================================================
+    ("wordpress", "wordpress-mcp"),
+    ("contentful", "contentful-mcp"),
+    ("sanity", "sanity-mcp"),
+    ("strapi", "strapi-mcp"),
+    ("ghost", "ghost-mcp"),
+    ("hubspot", "hubspot-mcp"),
+    // =============================================================================
+    // INFRASTRUCTURE & DEVOPS (6)
+    // =============================================================================
+    ("docker", "docker-mcp"),
+    ("kubernetes", "kubernetes-mcp"),
+    ("terraform", "terraform-mcp"),
+    ("pulumi", "pulumi-mcp"),
+    ("fly", "fly-mcp"),
+    ("railway", "railway-mcp"),
+    // =============================================================================
+    // SOCIAL MEDIA (6)
+    // =============================================================================
+    ("twitter", "twitter-mcp"),
+    ("linkedin", "linkedin-mcp"),
+    ("youtube", "youtube-mcp"),
+    ("tiktok", "tiktok-mcp"),
+    ("reddit", "reddit-mcp"),
+    ("mastodon", "mastodon-mcp"),
+    // =============================================================================
+    // MAPS & LOCATION (4)
+    // =============================================================================
+    ("mapbox", "mapbox-mcp"),
+    ("here", "here-mcp"),
+    ("openweather", "openweather-mcp"),
+    ("ipinfo", "ipinfo-mcp"),
 ];
 
 /// Resolve an alias to its full npm package name.
@@ -141,7 +229,7 @@ pub fn is_alias(name: &str) -> bool {
 /// use nika_core::catalogs::mcp_aliases::list_aliases;
 ///
 /// let aliases = list_aliases();
-/// assert!(aliases.len() >= 48);
+/// assert!(aliases.len() >= 100);
 /// ```
 pub fn list_aliases() -> Vec<&'static str> {
     MCP_ALIASES.iter().map(|(a, _)| *a).collect()
@@ -158,6 +246,15 @@ pub fn aliases_by_category(category: &str) -> Vec<(&'static str, &'static str)> 
         "developer" => (24, 32),
         "productivity" => (32, 40),
         "ai" => (40, 48),
+        "image" => (48, 54),
+        "communication" => (54, 60),
+        "vector" => (60, 66),
+        "analytics" => (66, 72),
+        "ecommerce" => (72, 78),
+        "cms" => (78, 84),
+        "devops" => (84, 90),
+        "social" => (90, 96),
+        "maps" => (96, 100),
         _ => return vec![],
     };
 
@@ -200,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_mcp_aliases_count() {
-        assert_eq!(MCP_ALIASES.len(), 48);
+        assert_eq!(MCP_ALIASES.len(), 100);
     }
 
     #[test]
@@ -227,7 +324,7 @@ mod tests {
     #[test]
     fn test_list_aliases() {
         let aliases = list_aliases();
-        assert_eq!(aliases.len(), 48);
+        assert_eq!(aliases.len(), 100);
         assert!(aliases.contains(&"neo4j"));
         assert!(aliases.contains(&"github"));
         assert!(aliases.contains(&"perplexity"));
