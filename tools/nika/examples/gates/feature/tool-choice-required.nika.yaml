@@ -1,0 +1,13 @@
+# FEATURE: tool_choice on agent
+schema: nika/workflow@0.12
+workflow: feat-tool-choice
+tasks:
+  - id: forced_tool
+    agent:
+      prompt: "Call nika_complete immediately with result done"
+      tools: [builtin]
+      max_turns: 2
+      max_tokens: 100
+      tool_choice: required
+    provider: openai
+    model: gpt-4.1-mini

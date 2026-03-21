@@ -1,0 +1,17 @@
+# FEATURE: guardrails on agent verb
+schema: nika/workflow@0.12
+workflow: feat-agent-guardrails
+tasks:
+  - id: guarded_agent
+    agent:
+      prompt: "Write exactly 3 bullet points about Rust. Then call nika_complete."
+      tools: [builtin]
+      max_turns: 3
+      max_tokens: 200
+      guardrails:
+        - type: length
+          min_words: 20
+          max_words: 200
+          on_failure: retry
+    provider: openai
+    model: gpt-4.1-mini

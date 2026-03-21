@@ -1,0 +1,17 @@
+# FEATURE: limits on agent
+schema: nika/workflow@0.12
+workflow: feat-agent-limits
+tasks:
+  - id: limited_agent
+    agent:
+      prompt: "Say hello and call nika_complete."
+      tools: [builtin]
+      max_turns: 5
+      max_tokens: 100
+      limits:
+        max_cost_usd: 0.50
+        max_duration_secs: 60
+        on_limit_reached:
+          action: complete_partial
+    provider: openai
+    model: gpt-4.1-mini

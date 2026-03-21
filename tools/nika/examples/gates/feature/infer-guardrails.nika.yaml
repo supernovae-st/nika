@@ -1,0 +1,18 @@
+# FEATURE: guardrails on infer verb
+schema: nika/workflow@0.12
+workflow: feat-infer-guardrails
+tasks:
+  - id: guarded
+    infer:
+      prompt: "Write a short conclusion about AI workflow engines."
+      guardrails:
+        - type: length
+          min_words: 10
+          max_words: 100
+          on_failure: retry
+        - type: regex
+          pattern: "(?i)(workflow|engine|ai)"
+          on_failure: fail
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 200

@@ -1,0 +1,14 @@
+# FEATURE: completion mode on agent
+schema: nika/workflow@0.12
+workflow: feat-agent-completion
+tasks:
+  - id: explicit_agent
+    agent:
+      prompt: "Say hello and call nika_complete with your greeting."
+      tools: [builtin]
+      max_turns: 3
+      max_tokens: 100
+      completion:
+        mode: explicit
+    provider: openai
+    model: gpt-4.1-mini
