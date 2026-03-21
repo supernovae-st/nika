@@ -44,6 +44,13 @@ pub fn find_definition_with_ast(
 
     let line = lines[line_idx];
 
+    // Try depends_on definition (cursor on a task ID inside depends_on array)
+    if let Some(response) =
+        find_depends_on_definition_with_ast(text, line, position.character as usize, ast_index, uri)
+    {
+        return Some(response);
+    }
+
     // Try AST-aware task reference definition first
     if let Some(response) = find_task_reference_definition_with_ast(text, line, ast_index, uri) {
         return Some(response);
@@ -76,6 +83,13 @@ pub fn find_definition(text: &str, position: Position, uri: Uri) -> Option<GotoD
     }
 
     let line = lines[line_idx];
+
+    // Check for depends_on task reference
+    if let Some(response) =
+        find_depends_on_definition(text, line, position.character as usize, &uri)
+    {
+        return Some(response);
+    }
 
     // Check for task reference in with: block
     if let Some(response) = find_task_reference_definition(text, line, &uri) {
@@ -375,6 +389,105 @@ fn find_task_location_with_ast(
     }
 
     None
+}
+
+// ============================================================================
+// depends_on Definition Helpers
+// ============================================================================
+
+/// Extract the task ID at the cursor position from a depends_on line.
+///
+/// Handles both inline array `depends_on: [step1, step2]` and scalar
+/// `depends_on: step1` forms. Returns `None` when the cursor is not on
+/// a recognisable task identifier.
+#[cfg(feature = "lsp")]
+fn extract_depends_on_task_at_cursor(line: &str, col: usize) -> Option<String> {
+    let trimmed = line.trim();
+
+    // Must be a depends_on line
+    let stripped = trimmed.strip_prefix("depends_on:")?;
+    let value = stripped.trim();
+
+    if value.is_empty() {
+        return None;
+    }
+
+    // Scalar form: depends_on: step1
+    if !value.starts_with('[') {
+        let task_id = value.trim_matches('"').trim_matches('\'');
+        if !task_id.is_empty() {
+            // Check cursor is on the value
+            if let Some(val_start) = line.find(task_id) {
+                let val_end = val_start + task_id.len();
+                if col >= val_start && col < val_end {
+                    return Some(task_id.to_string());
+                }
+            }
+        }
+        return None;
+    }
+
+    // Array form: depends_on: [step1, step2]
+    // Walk through the items and find which one the cursor is over
+    let bracket_start = line.find('[')? + 1;
+    let bracket_end = line.find(']')?;
+    let inner = &line[bracket_start..bracket_end];
+
+    let mut offset = bracket_start;
+    for part in inner.split(',') {
+        let ref_name = part.trim().trim_matches('"').trim_matches('\'');
+        if ref_name.is_empty() {
+            offset += part.len() + 1; // +1 for the comma
+            continue;
+        }
+
+        // Find the ref_name within this part (skip leading whitespace)
+        let ref_start_in_part = part.find(ref_name).unwrap_or(0);
+        let abs_start = offset + ref_start_in_part;
+        let abs_end = abs_start + ref_name.len();
+
+        if col >= abs_start && col < abs_end {
+            return Some(ref_name.to_string());
+        }
+
+        offset += part.len() + 1; // +1 for the comma
+    }
+
+    None
+}
+
+/// Find definition for a task ID inside `depends_on:` (text-based)
+#[cfg(feature = "lsp")]
+fn find_depends_on_definition(
+    text: &str,
+    line: &str,
+    col: usize,
+    uri: &Uri,
+) -> Option<GotoDefinitionResponse> {
+    let task_id = extract_depends_on_task_at_cursor(line, col)?;
+    let location = find_task_location(text, &task_id, uri)?;
+    Some(GotoDefinitionResponse::Scalar(location))
+}
+
+/// Find definition for a task ID inside `depends_on:` (AST-aware)
+#[cfg(feature = "lsp")]
+fn find_depends_on_definition_with_ast(
+    text: &str,
+    line: &str,
+    col: usize,
+    ast_index: &AstIndex,
+    uri: &Uri,
+) -> Option<GotoDefinitionResponse> {
+    let task_id = extract_depends_on_task_at_cursor(line, col)?;
+
+    // Try AST-aware location first
+    if let Some(location) = find_task_location_with_ast(text, &task_id, ast_index, uri) {
+        return Some(GotoDefinitionResponse::Scalar(location));
+    }
+
+    // Fall back to text-based search
+    let location = find_task_location(text, &task_id, uri)?;
+    Some(GotoDefinitionResponse::Scalar(location))
 }
 
 // ============================================================================
@@ -942,5 +1055,168 @@ tasks:
         let line = "    prefix: seo_";
         let result = find_include_definition(line, 0, &doc_uri);
         assert!(result.is_none(), "Should return None for non-path line");
+    }
+
+    // ========================================================================
+    // depends_on Go-to-Definition Tests
+    // ========================================================================
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_depends_on_task_scalar() {
+        let line = "    depends_on: step1";
+        // Cursor on 's' of step1 (col 16)
+        let result = extract_depends_on_task_at_cursor(line, 16);
+        assert_eq!(result, Some("step1".to_string()));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_depends_on_task_array_first() {
+        let line = "    depends_on: [step1, step2]";
+        // Find exact position of 'step1' after [
+        let step1_start = line.find('[').unwrap() + 1;
+        let result = extract_depends_on_task_at_cursor(line, step1_start);
+        assert_eq!(result, Some("step1".to_string()));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_depends_on_task_array_second() {
+        let line = "    depends_on: [step1, step2]";
+        // Find position of 'step2'
+        let step2_start = line.find("step2").unwrap();
+        let result = extract_depends_on_task_at_cursor(line, step2_start);
+        assert_eq!(result, Some("step2".to_string()));
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_depends_on_task_not_on_id() {
+        let line = "    depends_on: [step1, step2]";
+        // Cursor on the comma between items
+        let comma_pos = line.find(',').unwrap();
+        let result = extract_depends_on_task_at_cursor(line, comma_pos);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_extract_depends_on_non_depends_line() {
+        let line = "    infer: \"test\"";
+        let result = extract_depends_on_task_at_cursor(line, 4);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_depends_on_definition_text_based() {
+        let text = r#"
+tasks:
+  - id: step1
+    infer: "Hello"
+  - id: step2
+    depends_on: [step1]
+    infer: "World"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let line = "    depends_on: [step1]";
+        let step1_pos = line.find("step1").unwrap();
+        let response = find_depends_on_definition(text, line, step1_pos, &uri);
+
+        assert!(
+            response.is_some(),
+            "Should find definition for task in depends_on"
+        );
+        if let Some(GotoDefinitionResponse::Scalar(location)) = response {
+            assert_eq!(location.range.start.line, 2, "Should point to step1 id line");
+        } else {
+            panic!("Expected GotoDefinitionResponse::Scalar");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_depends_on_definition_with_ast() {
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+tasks:
+  - id: generate
+    infer: "Generate content"
+  - id: process
+    depends_on: [generate]
+    infer: "Process"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let ast_index = AstIndex::new();
+        ast_index.parse_document(&uri, text, 0);
+
+        // Position on "generate" inside depends_on (line 6)
+        let position = Position {
+            line: 6,
+            character: 17, // inside "generate" within [generate]
+        };
+        let response = find_definition_with_ast(&ast_index, &uri, text, position);
+
+        assert!(
+            response.is_some(),
+            "Should find definition for task in depends_on via AST"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_depends_on_definition_multiple_deps() {
+        let text = r#"schema: nika/workflow@0.12
+workflow: test
+tasks:
+  - id: fetch_data
+    exec: "curl http://example.com"
+  - id: transform
+    exec: "jq '.data'"
+  - id: publish
+    depends_on: [fetch_data, transform]
+    infer: "Summarize"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+
+        // Test navigating to second dependency (transform)
+        let line = "    depends_on: [fetch_data, transform]";
+        let transform_pos = line.find("transform").unwrap();
+        let response = find_depends_on_definition(text, line, transform_pos, &uri);
+
+        assert!(
+            response.is_some(),
+            "Should find definition for second dependency"
+        );
+        if let Some(GotoDefinitionResponse::Scalar(location)) = response {
+            assert_eq!(
+                location.range.start.line, 5,
+                "Should point to transform id line"
+            );
+        } else {
+            panic!("Expected GotoDefinitionResponse::Scalar");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_depends_on_definition_unknown_task() {
+        let text = r#"
+tasks:
+  - id: step1
+    infer: "Hello"
+  - id: step2
+    depends_on: [nonexistent]
+    infer: "World"
+"#;
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let line = "    depends_on: [nonexistent]";
+        let pos = line.find("nonexistent").unwrap();
+        let response = find_depends_on_definition(text, line, pos, &uri);
+        assert!(
+            response.is_none(),
+            "Should return None for unknown task in depends_on"
+        );
     }
 }
