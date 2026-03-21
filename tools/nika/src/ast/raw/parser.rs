@@ -563,7 +563,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
             system: None,
             temperature: None,
             max_tokens: None,
-            thinking: None,
+            extended_thinking: None,
             thinking_budget: None,
             content: None,
             response_format: None,
@@ -593,7 +593,7 @@ fn parse_infer_action(file: FileId, node: &Node) -> Result<RawInferAction, Parse
                 system: get_string_field(file, m, "system")?,
                 temperature: get_f64_field(file, m, "temperature")?,
                 max_tokens: get_u32_field(file, m, "max_tokens")?,
-                thinking: get_bool_field(file, m, "extended_thinking")?,
+                extended_thinking: get_bool_field(file, m, "extended_thinking")?,
                 thinking_budget: get_u32_field(file, m, "thinking_budget")?,
                 content,
                 response_format: get_string_field(file, m, "response_format")?,
@@ -719,7 +719,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
         Node::Scalar(s) => Ok(RawExecAction {
             command: Spanned::new(s.as_str().to_string(), span),
             shell: None,
-            working_dir: None,
+            cwd: None,
             env: None,
             timeout_ms: None,
         }),
@@ -734,7 +734,7 @@ fn parse_exec_action(file: FileId, node: &Node) -> Result<RawExecAction, ParseEr
             Ok(RawExecAction {
                 command,
                 shell: get_bool_field(file, m, "shell")?,
-                working_dir: get_string_field(file, m, "cwd")?,
+                cwd: get_string_field(file, m, "cwd")?,
                 env: parse_string_map(file, m, "env")?,
                 // timeout_ms is the primary field (milliseconds).
                 // timeout is the schema alias (seconds) — convert to ms.
@@ -946,7 +946,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(items_str, span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?,
+                    concurrency: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -958,7 +958,7 @@ fn parse_for_each(
                 RawForEach {
                     items: Spanned::new(s.as_str().to_string(), span),
                     as_var: get_string_field(file, map, "as")?,
-                    parallel: get_u32_field(file, map, "concurrency")?,
+                    concurrency: get_u32_field(file, map, "concurrency")?,
                     fail_fast: get_bool_field(file, map, "fail_fast")?,
                 },
                 span,
@@ -1817,7 +1817,7 @@ tasks:
                 );
                 assert!((action.value.temperature.as_ref().unwrap().value - 0.7).abs() < 0.001);
                 assert_eq!(action.value.max_tokens.as_ref().unwrap().value, 1000);
-                assert!(action.value.thinking.as_ref().unwrap().value);
+                assert!(action.value.extended_thinking.as_ref().unwrap().value);
                 assert_eq!(action.value.thinking_budget.as_ref().unwrap().value, 8000);
             }
             _ => panic!("Expected Infer action"),
@@ -1865,7 +1865,7 @@ tasks:
             Some(RawTaskAction::Exec(action)) => {
                 assert_eq!(action.value.command.value, "npm run build");
                 assert!(action.value.shell.as_ref().unwrap().value);
-                assert_eq!(action.value.working_dir.as_ref().unwrap().value, "/app");
+                assert_eq!(action.value.cwd.as_ref().unwrap().value, "/app");
                 assert_eq!(action.value.timeout_ms.as_ref().unwrap().value, 30000);
                 let env = action.value.env.as_ref().unwrap();
                 assert!(env.value.values().any(|v| v.value == "production"));
@@ -2206,7 +2206,7 @@ tasks:
         let for_each = task.value.for_each.as_ref().unwrap();
         assert!(for_each.value.items.value.contains("["));
         assert_eq!(for_each.value.as_var.as_ref().unwrap().value, "item");
-        assert_eq!(for_each.value.parallel.as_ref().unwrap().value, 3);
+        assert_eq!(for_each.value.concurrency.as_ref().unwrap().value, 3);
     }
 
     #[test]

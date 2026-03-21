@@ -1241,7 +1241,7 @@ mod tests {
                     Some(AnalyzedForEach {
                         items: r#"["a", "b", "c"]"#.to_string(),
                         as_var: "item".to_string(),
-                        parallel: Some(3),
+                        concurrency: Some(3),
                         fail_fast: true,
                         span: Span::dummy(),
                     }),

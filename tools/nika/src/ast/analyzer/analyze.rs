@@ -690,7 +690,7 @@ fn analyze_infer(raw: &RawInferAction) -> AnalyzedInferAction {
         system: raw.system.as_ref().map(|s| s.value.clone()),
         temperature: raw.temperature.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
-        thinking: raw.thinking.as_ref().map(|s| s.value),
+        extended_thinking: raw.extended_thinking.as_ref().map(|s| s.value),
         thinking_budget: raw.thinking_budget.as_ref().map(|s| s.value),
         content: raw
             .content
@@ -706,7 +706,7 @@ fn analyze_shell_cmd(raw: &RawExecAction) -> AnalyzedExecAction {
     AnalyzedExecAction {
         command: raw.command.value.clone(),
         shell: raw.shell.as_ref().map(|s| s.value).unwrap_or(false),
-        working_dir: raw.working_dir.as_ref().map(|s| s.value.clone()),
+        cwd: raw.cwd.as_ref().map(|s| s.value.clone()),
         env: raw
             .env
             .as_ref()
@@ -792,7 +792,7 @@ fn analyze_agent(raw: &RawAgentAction) -> AnalyzedAgentAction {
             .as_ref()
             .map(|s| s.value.iter().map(|v| v.value.clone()).collect())
             .unwrap_or_default(),
-        max_iterations: raw.max_turns.as_ref().map(|s| s.value),
+        max_turns: raw.max_turns.as_ref().map(|s| s.value),
         max_tokens: raw.max_tokens.as_ref().map(|s| s.value),
         from: raw.from.as_ref().map(|s| s.value.clone()),
         skills: raw
@@ -926,7 +926,7 @@ fn analyze_for_each(raw: &crate::ast::raw::RawForEach, span: Span) -> AnalyzedFo
             .as_ref()
             .map(|s| s.value.clone())
             .unwrap_or_else(|| "item".to_string()),
-        parallel: Some(raw.parallel.as_ref().map(|s| s.value).unwrap_or(1)),
+        concurrency: Some(raw.concurrency.as_ref().map(|s| s.value).unwrap_or(1)),
         fail_fast: raw.fail_fast.as_ref().map(|s| s.value).unwrap_or(true),
         span,
     }
@@ -1717,7 +1717,7 @@ mod tests {
             RawForEach {
                 items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
                 as_var: None,
-                parallel: None,
+                concurrency: None,
                 fail_fast: None,
             },
             make_span(0, 50),
@@ -1744,7 +1744,7 @@ mod tests {
             RawForEach {
                 items: Spanned::new("[\"a\", \"b\"]".to_string(), make_span(0, 10)),
                 as_var: None,
-                parallel: None,
+                concurrency: None,
                 fail_fast: None,
             },
             make_span(0, 50),
@@ -1927,7 +1927,7 @@ mod tests {
             RawForEach {
                 items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
                 as_var: None,
-                parallel: None,
+                concurrency: None,
                 fail_fast: None,
             },
             make_span(0, 30),
@@ -1981,7 +1981,7 @@ mod tests {
             RawForEach {
                 items: Spanned::new("[\"x\"]".to_string(), make_span(0, 5)),
                 as_var: None,
-                parallel: None,
+                concurrency: None,
                 fail_fast: None,
             },
             make_span(0, 30),
@@ -2172,7 +2172,7 @@ mod tests {
             RawForEach {
                 items: Spanned::new("[\"a\"]".to_string(), make_span(0, 5)),
                 as_var: None,
-                parallel: None,
+                concurrency: None,
                 fail_fast: None,
             },
             make_span(0, 30),

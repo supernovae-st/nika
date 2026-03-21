@@ -102,6 +102,26 @@ pub struct HoverState {
     pub content: String,
 }
 
+/// State for the code action popup (triggered by Ctrl+.).
+#[derive(Default)]
+pub struct CodeActionState {
+    /// Whether the popup is currently visible.
+    pub visible: bool,
+    /// Available code actions: (title, edit).
+    /// Each entry is (display title, Option<TextEdit>).
+    pub actions: Vec<CodeActionDisplay>,
+    /// Currently selected index in the popup.
+    pub selected: usize,
+}
+
+/// A single code action entry for display in the popup.
+pub struct CodeActionDisplay {
+    /// Human-readable title.
+    pub title: String,
+    /// Text edit to apply (byte offsets + replacement text).
+    pub edit: Option<(u32, u32, String)>,
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // StudioView: 3-Panel Layout
 // Browser (20%) | Editor (50%) | DAG Structure (30%)
@@ -948,6 +968,23 @@ impl StudioView {
                 self.editor.buffer.cursor_col = 0;
                 ViewAction::None
             }
+            ('g', 'd') => {
+                // Go to definition via LSP
+                let content = self.editor.buffer.content();
+                let offset = self.editor.buffer.cursor_position() as u32;
+                let context = detect_context(&content, offset, None);
+                if let Some(result) = self
+                    .editor
+                    .lsp_handler
+                    .definition(&content, offset, &context)
+                {
+                    // DefinitionResult has byte offsets — convert to cursor position
+                    self.editor
+                        .buffer
+                        .set_cursor_position(result.offset as usize);
+                }
+                ViewAction::None
+            }
             // z prefix - View/centering commands
             ('z', 'z') => {
                 // Center cursor in viewport
@@ -1743,6 +1780,8 @@ pub struct YamlEditorPanel {
     pub completion: CompletionState,
     /// Hover tooltip state
     pub hover: HoverState,
+    /// Code action popup state (Ctrl+.)
+    pub code_actions: CodeActionState,
 }
 
 impl YamlEditorPanel {
@@ -1776,6 +1815,8 @@ impl YamlEditorPanel {
             lsp_handler: DefaultHandler::new(),
             completion: CompletionState::default(),
             hover: HoverState::default(),
+            // Code actions (Phase 5)
+            code_actions: CodeActionState::default(),
         }
     }
 
@@ -1930,6 +1971,51 @@ impl YamlEditorPanel {
                 content: result.contents,
             };
         }
+    }
+
+    /// Trigger code actions at the current cursor position (Ctrl+.).
+    fn trigger_code_actions(&mut self) {
+        let content = self.buffer.content();
+        let offset = self.buffer.cursor_position() as u32;
+        let actions = self.lsp_handler.code_actions(&content, offset, offset + 1);
+
+        self.code_actions = CodeActionState {
+            visible: !actions.is_empty(),
+            actions: actions
+                .into_iter()
+                .map(|a| CodeActionDisplay {
+                    title: a.title,
+                    edit: a.edit.map(|e| (e.offset, e.end_offset, e.new_text)),
+                })
+                .collect(),
+            selected: 0,
+        };
+    }
+
+    /// Accept the currently selected code action.
+    fn accept_code_action(&mut self) {
+        if let Some(action) = self.code_actions.actions.get(self.code_actions.selected) {
+            if let Some((offset, end_offset, ref new_text)) = action.edit {
+                // Apply the text edit: replace the byte range with new_text.
+                // Strategy: reconstruct buffer content with the edit applied,
+                // then set the content and position the cursor at end of insertion.
+                let content = self.buffer.content();
+                let start = (offset as usize).min(content.len());
+                let end = (end_offset as usize).min(content.len());
+
+                let mut new_content =
+                    String::with_capacity(content.len() - (end - start) + new_text.len());
+                new_content.push_str(&content[..start]);
+                new_content.push_str(new_text);
+                new_content.push_str(&content[end..]);
+
+                self.buffer.set_content(&new_content);
+                // Position cursor at end of inserted text
+                self.buffer.set_cursor_position(start + new_text.len());
+                self.mark_edited();
+            }
+        }
+        self.code_actions.visible = false;
     }
 
     /// Validate the YAML content
@@ -2095,6 +2181,39 @@ impl YamlEditorPanel {
         // Dismiss hover on any key press in normal mode
         self.hover.visible = false;
 
+        // ── Code action popup key interception (Normal mode) ────────────
+        if self.code_actions.visible {
+            match key.code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    let len = self.code_actions.actions.len();
+                    self.code_actions.selected =
+                        (self.code_actions.selected + 1).min(len.saturating_sub(1));
+                    return ViewAction::None;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.code_actions.selected = self.code_actions.selected.saturating_sub(1);
+                    return ViewAction::None;
+                }
+                KeyCode::Enter => {
+                    self.accept_code_action();
+                    return ViewAction::None;
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.code_actions.visible = false;
+                    return ViewAction::None;
+                }
+                _ => {
+                    self.code_actions.visible = false;
+                }
+            }
+        }
+
+        // ── Ctrl+.: trigger code actions ────────────────────────────────
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('.') {
+            self.trigger_code_actions();
+            return ViewAction::None;
+        }
+
         match key.code {
             // K: Hover documentation (vim-style)
             KeyCode::Char('K') => {
@@ -2245,6 +2364,39 @@ impl YamlEditorPanel {
         // ── Ctrl+Space: explicit completion trigger ───────────────────
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char(' ') {
             self.trigger_completion();
+            return ViewAction::None;
+        }
+
+        // ── Code action popup key interception ──────────────────────────
+        if self.code_actions.visible {
+            match key.code {
+                KeyCode::Down => {
+                    let len = self.code_actions.actions.len();
+                    self.code_actions.selected =
+                        (self.code_actions.selected + 1).min(len.saturating_sub(1));
+                    return ViewAction::None;
+                }
+                KeyCode::Up => {
+                    self.code_actions.selected = self.code_actions.selected.saturating_sub(1);
+                    return ViewAction::None;
+                }
+                KeyCode::Enter => {
+                    self.accept_code_action();
+                    return ViewAction::None;
+                }
+                KeyCode::Esc => {
+                    self.code_actions.visible = false;
+                    return ViewAction::None;
+                }
+                _ => {
+                    self.code_actions.visible = false;
+                }
+            }
+        }
+
+        // ── Ctrl+.: trigger code actions ────────────────────────────────
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('.') {
+            self.trigger_code_actions();
             return ViewAction::None;
         }
 
@@ -2914,6 +3066,88 @@ impl YamlEditorPanel {
                 .collect();
 
             frame.render_widget(Paragraph::new(text).block(hover_block), popup_area);
+        }
+
+        // ── Code action popup overlay ───────────────────────────────────
+        if self.code_actions.visible && !self.code_actions.actions.is_empty() {
+            let max_visible = 8.min(self.code_actions.actions.len());
+            let max_title_width = self
+                .code_actions
+                .actions
+                .iter()
+                .take(max_visible)
+                .map(|a| a.title.len())
+                .max()
+                .unwrap_or(20);
+            let popup_width = (max_title_width + 4).min(50) as u16;
+
+            // Position below cursor (same pattern as completion popup)
+            let gutter_ca = 8u16;
+            let cursor_vp_row_ca = (self
+                .buffer
+                .cursor()
+                .0
+                .saturating_sub(self.buffer.scroll_offset()))
+                as u16;
+            let popup_x_ca = (content_area.x + gutter_ca + self.buffer.cursor().1 as u16)
+                .min(content_area.right().saturating_sub(popup_width + 2));
+            let popup_y_ca = (content_area.y + cursor_vp_row_ca + 1)
+                .min(content_area.bottom().saturating_sub(max_visible as u16 + 2));
+
+            let popup_area_ca = Rect::new(
+                popup_x_ca,
+                popup_y_ca,
+                popup_width + 2,
+                max_visible as u16 + 2,
+            );
+
+            frame.render_widget(Clear, popup_area_ca);
+
+            let ca_block = Block::default()
+                .title(" Code Actions ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Rgb(249, 226, 175)))
+                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+
+            let ca_items: Vec<ListItem> = self
+                .code_actions
+                .actions
+                .iter()
+                .enumerate()
+                .take(max_visible)
+                .map(|(idx, action)| {
+                    let style = if idx == self.code_actions.selected {
+                        Style::default()
+                            .bg(Color::Rgb(69, 71, 90))
+                            .fg(Color::Rgb(205, 214, 244))
+                    } else {
+                        Style::default().fg(Color::Rgb(186, 194, 222))
+                    };
+                    // Prefix preferred actions with a lightbulb
+                    let icon = if action.edit.is_some() { "💡 " } else { "  " };
+                    ListItem::new(Span::styled(format!("{}{}", icon, action.title), style))
+                })
+                .collect();
+
+            frame.render_widget(List::new(ca_items).block(ca_block), popup_area_ca);
+        }
+
+        // ── Terminal cursor position (Insert mode) ──────────────────────
+        // Show a blinking cursor in Insert mode so the user knows where
+        // typing will appear.
+        if self.mode == EditorMode::Insert {
+            let gutter_cur = 8u16; // git(1) + diag(2) + linenum(5)
+            let cursor_row = self.buffer.cursor().0;
+            let cursor_col = self.buffer.cursor().1;
+            let scroll_off = self.buffer.scroll_offset();
+
+            if cursor_row >= scroll_off && cursor_row < scroll_off + visible_height {
+                let screen_y = content_area.y + (cursor_row - scroll_off) as u16;
+                let screen_x = content_area.x + gutter_cur + cursor_col as u16;
+                if screen_x < content_area.right() && screen_y < content_area.bottom() {
+                    frame.set_cursor_position(ratatui::layout::Position::new(screen_x, screen_y));
+                }
+            }
         }
     }
 

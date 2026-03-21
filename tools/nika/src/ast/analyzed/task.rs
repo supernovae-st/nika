@@ -141,7 +141,7 @@ pub struct AnalyzedInferAction {
     pub max_tokens: Option<u32>,
 
     /// Enable extended thinking
-    pub thinking: Option<bool>,
+    pub extended_thinking: Option<bool>,
 
     /// Thinking budget tokens
     pub thinking_budget: Option<u32>,
@@ -169,7 +169,7 @@ pub struct AnalyzedExecAction {
     pub shell: bool,
 
     /// Working directory
-    pub working_dir: Option<String>,
+    pub cwd: Option<String>,
 
     /// Environment variables
     pub env: IndexMap<String, String>,
@@ -288,8 +288,8 @@ pub struct AnalyzedAgentAction {
     /// Available tools
     pub tools: Vec<String>,
 
-    /// Maximum iterations
-    pub max_iterations: Option<u32>,
+    /// Maximum turns
+    pub max_turns: Option<u32>,
 
     /// Maximum tokens per response
     pub max_tokens: Option<u32>,
@@ -399,7 +399,7 @@ pub struct AnalyzedForEach {
     pub as_var: String,
 
     /// Maximum concurrency (None = unlimited)
-    pub parallel: Option<u32>,
+    pub concurrency: Option<u32>,
 
     /// Fail fast on first error (default: true)
     pub fail_fast: bool,
@@ -413,7 +413,7 @@ impl Default for AnalyzedForEach {
         Self {
             items: String::new(),
             as_var: "item".to_string(),
-            parallel: Some(1), // Default to sequential
+            concurrency: Some(1), // Default to sequential
             fail_fast: true,
             span: Span::dummy(),
         }
@@ -541,7 +541,7 @@ mod tests {
     fn test_analyzed_for_each_default() {
         let for_each = AnalyzedForEach::default();
         assert_eq!(for_each.as_var, "item");
-        assert_eq!(for_each.parallel, Some(1)); // Sequential by default
+        assert_eq!(for_each.concurrency, Some(1)); // Sequential by default
         assert!(for_each.fail_fast);
     }
 

@@ -1366,7 +1366,7 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         }
                     }
                 } else if let Some(ref for_each) = task.for_each {
-                    // AnalyzedForEach has structured fields: items, as_var, parallel, fail_fast
+                    // AnalyzedForEach has structured fields: items, as_var, concurrency, fail_fast
                     let items_str = &for_each.items;
 
                     if for_each.is_binding() {
@@ -1695,7 +1695,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                         // Get concurrency settings from analyzed for_each
                         let fe = task.for_each.as_ref();
-                        let concurrency = fe.and_then(|f| f.parallel).unwrap_or(1).max(1) as usize;
+                        let concurrency =
+                            fe.and_then(|f| f.concurrency).unwrap_or(1).max(1) as usize;
                         let fail_fast = fe.map(|f| f.fail_fast).unwrap_or(true);
 
                         debug!(
@@ -2237,7 +2238,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: command.to_string(),
                 shell,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -2251,7 +2252,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: items_json.to_string(),
                 as_var: as_var.to_string(),
-                parallel: concurrency,
+                concurrency,
                 fail_fast,
                 span: Span::dummy(),
             }),
@@ -2386,7 +2387,7 @@ mod tests {
                     action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                         command: cmd.to_string(),
                         shell: false,
-                        working_dir: None,
+                        cwd: None,
                         env: IndexMap::new(),
                         timeout_ms: None,
                         span: Span::dummy(),
@@ -3063,7 +3064,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: step1_cmd.to_string(),
                 shell: step1_shell,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -3101,7 +3102,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: step2_cmd.to_string(),
                 shell: false,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -3115,7 +3116,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: for_each_items.to_string(),
                 as_var: "item".to_string(),
-                parallel: None,
+                concurrency: None,
                 fail_fast: true,
                 span: Span::dummy(),
             }),
@@ -3896,7 +3897,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo hi".to_string(),
                 shell: false,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -5154,7 +5155,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: step1_cmd.to_string(),
                 shell: step1_shell,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -5192,7 +5193,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: step2_cmd.to_string(),
                 shell: false,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -5206,7 +5207,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: for_each_template.to_string(),
                 as_var: "item".to_string(),
-                parallel: None,
+                concurrency: None,
                 fail_fast: true,
                 span: Span::dummy(),
             }),
@@ -5331,7 +5332,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "test '{{with.item}}' != 'FAIL' && echo {{with.item}}".to_string(),
                 shell: true,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -5345,7 +5346,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["ok", "FAIL", "ok2"]"#.to_string(),
                 as_var: "item".to_string(),
-                parallel: Some(3),
+                concurrency: Some(3),
                 fail_fast: true,
                 span: Span::dummy(),
             }),
@@ -5366,7 +5367,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo {{with.item}}".to_string(),
                 shell: true,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: None,
                 span: Span::dummy(),
@@ -5380,7 +5381,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["a", "b", "c"]"#.to_string(),
                 as_var: "item".to_string(),
-                parallel: Some(3),
+                concurrency: Some(3),
                 fail_fast: true,
                 span: Span::dummy(),
             }),

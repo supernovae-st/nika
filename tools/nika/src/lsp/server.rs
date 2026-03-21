@@ -158,7 +158,7 @@ fn check_model_compatibility(ast_index: &AstIndex, uri: &Uri, source: &str) -> V
         }
 
         let (extended_thinking, tool_choice_required) = match &task.action {
-            AnalyzedTaskAction::Infer(infer) => (infer.thinking.unwrap_or(false), false),
+            AnalyzedTaskAction::Infer(infer) => (infer.extended_thinking.unwrap_or(false), false),
             AnalyzedTaskAction::Agent(agent) => {
                 let et = agent.extended_thinking.unwrap_or(false);
                 let tc = agent
@@ -527,6 +527,38 @@ impl LanguageServer for NikaLanguageServer {
             result_id: None,
             data: encoded,
         })))
+    }
+
+    // ===== Inlay Hints =====
+
+    async fn inlay_hint(&self, params: InlayHintParams) -> Result<Option<Vec<InlayHint>>> {
+        let uri = &params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let hints = handlers::inlay_hints::compute_inlay_hints(&text, params.range);
+        if hints.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(hints))
+        }
+    }
+
+    // ===== Code Lens =====
+
+    async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
+        let uri = &params.text_document.uri;
+
+        let docs = self.documents.read().await;
+        let text = docs.get(uri).cloned().unwrap_or_default();
+
+        let lenses = handlers::code_lens::compute_code_lenses(&text, uri);
+        if lenses.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(lenses))
+        }
     }
 }
 

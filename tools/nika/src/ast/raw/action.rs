@@ -72,7 +72,7 @@ pub struct RawInferAction {
     pub max_tokens: Option<Spanned<u32>>,
 
     /// Enable extended thinking (Claude)
-    pub thinking: Option<Spanned<bool>>,
+    pub extended_thinking: Option<Spanned<bool>>,
 
     /// Thinking budget tokens
     pub thinking_budget: Option<Spanned<u32>>,
@@ -97,7 +97,7 @@ pub struct RawExecAction {
     pub shell: Option<Spanned<bool>>,
 
     /// Working directory
-    pub working_dir: Option<Spanned<String>>,
+    pub cwd: Option<Spanned<String>>,
 
     /// Environment variables
     pub env: Option<Spanned<IndexMap<Spanned<String>, Spanned<String>>>>,

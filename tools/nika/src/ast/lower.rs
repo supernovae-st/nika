@@ -187,7 +187,7 @@ fn lower_infer(
         max_tokens: infer.max_tokens,
         system: infer.system,
         response_format,
-        extended_thinking: infer.thinking,
+        extended_thinking: infer.extended_thinking,
         thinking_budget: infer.thinking_budget.map(u64::from),
         content: infer
             .content
@@ -203,7 +203,7 @@ fn lower_exec(e: AnalyzedExecAction) -> ExecParams {
         // Convert milliseconds (YAML) to seconds (runtime), ceiling division
         // to avoid losing sub-second values (e.g. 500ms -> 1s, not 0s)
         timeout: e.timeout_ms.map(|ms| ms.div_ceil(1000)),
-        cwd: e.working_dir,
+        cwd: e.cwd,
         env: if e.env.is_empty() {
             None
         } else {
@@ -269,7 +269,7 @@ fn lower_agent(
         model,
         mcp: agent.mcp,
         tools: agent.tools,
-        max_turns: agent.max_iterations,
+        max_turns: agent.max_turns,
         token_budget: agent.token_budget,
         stop_sequences: agent.stop_sequences,
         scope: agent.scope,
@@ -346,7 +346,7 @@ pub(crate) fn lower_for_each(
             // Try parsing as JSON (e.g. `["a","b"]`); fall back to string binding.
             let items = serde_json::from_str(&fe.items)
                 .unwrap_or_else(|_| serde_json::Value::String(fe.items));
-            let concurrency = fe.parallel.map(|p| p as usize);
+            let concurrency = fe.concurrency.map(|p| p as usize);
             (
                 Some(items),
                 Some(fe.as_var),
@@ -649,7 +649,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
             system: infer.system.clone(),
             temperature: infer.temperature,
             max_tokens: infer.max_tokens,
-            thinking: infer.extended_thinking,
+            extended_thinking: infer.extended_thinking,
             thinking_budget: infer
                 .thinking_budget
                 .map(|b| u32::try_from(b).unwrap_or(u32::MAX)),
@@ -691,7 +691,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         TaskAction::Exec { exec } => AnalyzedTaskAction::Exec(AnalyzedExecAction {
             command: exec.command.clone(),
             shell: exec.shell.unwrap_or(false),
-            working_dir: exec.cwd.clone(),
+            cwd: exec.cwd.clone(),
             env: exec
                 .env
                 .as_ref()
@@ -733,7 +733,7 @@ fn unlower_action(action: &TaskAction) -> AnalyzedTaskAction {
         TaskAction::Agent { agent } => AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
             prompt: agent.prompt.clone(),
             tools: agent.tools.clone(),
-            max_iterations: agent.max_turns,
+            max_turns: agent.max_turns,
             max_tokens: agent.max_tokens,
             from: None,
             skills: agent
@@ -799,7 +799,7 @@ fn unlower_for_each(
     Some(AnalyzedForEach {
         items: items_str,
         as_var: as_var.cloned().unwrap_or_else(|| "item".to_string()),
-        parallel: concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
+        concurrency: concurrency.map(|c| u32::try_from(c).unwrap_or(u32::MAX)),
         fail_fast: fail_fast.unwrap_or(true),
         span: Span::dummy(),
     })
@@ -904,7 +904,7 @@ mod tests {
                 system: Some("You are helpful".to_string()),
                 temperature: Some(0.7),
                 max_tokens: Some(100),
-                thinking: Some(true),
+                extended_thinking: Some(true),
                 thinking_budget: Some(8192),
                 content: None,
                 response_format: None,
@@ -958,7 +958,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "npm run build".to_string(),
                 shell: true,
-                working_dir: Some("/app".to_string()),
+                cwd: Some("/app".to_string()),
                 env,
                 timeout_ms: Some(30000),
                 span: Span::dummy(),
@@ -1058,7 +1058,7 @@ mod tests {
             action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "Research AI papers".to_string(),
                 tools: vec!["nika:read".to_string(), "nika:write".to_string()],
-                max_iterations: Some(10),
+                max_turns: Some(10),
                 max_tokens: Some(4096),
                 from: None,
                 skills: vec!["writing".to_string()],
@@ -1136,7 +1136,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["a","b","c"]"#.to_string(),
                 as_var: "item".to_string(),
-                parallel: Some(3),
+                concurrency: Some(3),
                 fail_fast: true,
                 span: Span::dummy(),
             }),
@@ -1158,7 +1158,7 @@ mod tests {
         let (items, as_var, conc, _) = lower_for_each(Some(AnalyzedForEach {
             items: "$my_list".to_string(),
             as_var: "x".to_string(),
-            parallel: None,
+            concurrency: None,
             fail_fast: false,
             span: Span::dummy(),
         }));
@@ -1692,7 +1692,7 @@ mod tests {
         wf.tasks.push(AnalyzedTask {
             action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
                 prompt: "think hard".to_string(),
-                thinking: Some(true),
+                extended_thinking: Some(true),
                 thinking_budget: Some(u32::MAX),
                 ..Default::default()
             }),
@@ -1750,7 +1750,7 @@ mod tests {
             for_each: Some(AnalyzedForEach {
                 items: r#"["a","b","c"]"#.to_string(),
                 as_var: "item".to_string(),
-                parallel: Some(2),
+                concurrency: Some(2),
                 fail_fast: true,
                 span: Span::dummy(),
             }),
@@ -1763,7 +1763,7 @@ mod tests {
         assert!(t.for_each.is_some(), "for_each should survive roundtrip");
         let fe = t.for_each.as_ref().unwrap();
         assert_eq!(fe.as_var, "item");
-        assert_eq!(fe.parallel, Some(2));
+        assert_eq!(fe.concurrency, Some(2));
     }
 
     #[test]
@@ -1975,7 +1975,7 @@ mod tests {
             action: AnalyzedTaskAction::Agent(Box::new(AnalyzedAgentAction {
                 prompt: "do something".to_string(),
                 tools: vec![],
-                max_iterations: Some(5),
+                max_turns: Some(5),
                 max_tokens: None,
                 from: Some("my_agent_def".to_string()),
                 skills: vec![],
@@ -2396,7 +2396,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo hi".to_string(),
                 shell: false,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: Some(500),
                 span: Span::dummy(),
@@ -2427,7 +2427,7 @@ mod tests {
             action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
                 command: "echo hi".to_string(),
                 shell: false,
-                working_dir: None,
+                cwd: None,
                 env: IndexMap::new(),
                 timeout_ms: Some(1000),
                 span: Span::dummy(),
@@ -2524,7 +2524,7 @@ mod tests {
             let agent = AnalyzedAgentAction {
                 prompt: "test".to_string(),
                 tools: vec![],
-                max_iterations: None,
+                max_turns: None,
                 max_tokens: None,
                 from: None,
                 skills: vec![],
@@ -2560,7 +2560,7 @@ mod tests {
             let agent = AnalyzedAgentAction {
                 prompt: "test".to_string(),
                 tools: vec![],
-                max_iterations: None,
+                max_turns: None,
                 max_tokens: None,
                 from: None,
                 skills: vec![],
