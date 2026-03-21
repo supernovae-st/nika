@@ -148,19 +148,19 @@ pub struct PositionIndex {
 impl PositionIndex {
     /// Create an empty index (no spans).
     pub fn empty() -> Self {
-        Self { entries: Vec::new() }
+        Self {
+            entries: Vec::new(),
+        }
     }
 
     /// Build from a list of entries. Sorts by `(start ASC, span_length ASC)`.
     pub fn from_entries(mut entries: Vec<SpanEntry>) -> Self {
         entries.sort_unstable_by(|a, b| {
-            a.start
-                .cmp(&b.start)
-                .then_with(|| {
-                    a.end
-                        .saturating_sub(a.start)
-                        .cmp(&b.end.saturating_sub(b.start))
-                })
+            a.start.cmp(&b.start).then_with(|| {
+                a.end
+                    .saturating_sub(a.start)
+                    .cmp(&b.end.saturating_sub(b.start))
+            })
         });
         Self { entries }
     }
@@ -458,7 +458,7 @@ tasks:
             let idx = LineIndex::new(text);
             assert_eq!(idx.line_count(), 3);
             assert_eq!(idx.line_col(3), (1, 0)); // start of second line
-            // e-acute is 2 bytes in UTF-8
+                                                 // e-acute is 2 bytes in UTF-8
             assert_eq!(idx.line_col(5), (1, 2)); // '\n' after e-acute
             assert_eq!(idx.line_col(6), (2, 0)); // empty third line
         }
@@ -766,10 +766,7 @@ tasks:
 
         #[test]
         fn entries_accessor() {
-            let entries = vec![
-                task_entry(0, 30, "a"),
-                task_entry(40, 70, "b"),
-            ];
+            let entries = vec![task_entry(0, 30, "a"), task_entry(40, 70, "b")];
             let idx = PositionIndex::from_entries(entries);
             assert_eq!(idx.entries().len(), 2);
             assert_eq!(idx.len(), 2);
@@ -791,28 +788,111 @@ tasks:
         fn all_span_kinds() {
             // Ensure each SpanKind variant can be stored and retrieved.
             let entries = vec![
-                SpanEntry { start: 0, end: 10, kind: SpanKind::Schema },
-                SpanEntry { start: 10, end: 20, kind: SpanKind::WorkflowName },
-                SpanEntry { start: 20, end: 30, kind: SpanKind::Task("t".into()) },
-                SpanEntry { start: 30, end: 40, kind: SpanKind::Verb { task_id: "t".into(), verb: "infer".into() } },
-                SpanEntry { start: 40, end: 50, kind: SpanKind::WithBlock { task_id: "t".into() } },
-                SpanEntry { start: 50, end: 60, kind: SpanKind::WithBinding { task_id: "t".into(), alias: "a".into() } },
-                SpanEntry { start: 60, end: 70, kind: SpanKind::DependsOn { task_id: "t".into() } },
-                SpanEntry { start: 70, end: 80, kind: SpanKind::McpServer("s".into()) },
-                SpanEntry { start: 80, end: 90, kind: SpanKind::ContextFile("f".into()) },
-                SpanEntry { start: 90, end: 100, kind: SpanKind::Import { path: "p".into() } },
-                SpanEntry { start: 100, end: 110, kind: SpanKind::Content { task_id: "t".into() } },
-                SpanEntry { start: 110, end: 120, kind: SpanKind::Template { task_id: "t".into(), expr: "e".into() } },
-                SpanEntry { start: 120, end: 130, kind: SpanKind::Guardrails { task_id: "t".into() } },
-                SpanEntry { start: 130, end: 140, kind: SpanKind::ForEach { task_id: "t".into() } },
+                SpanEntry {
+                    start: 0,
+                    end: 10,
+                    kind: SpanKind::Schema,
+                },
+                SpanEntry {
+                    start: 10,
+                    end: 20,
+                    kind: SpanKind::WorkflowName,
+                },
+                SpanEntry {
+                    start: 20,
+                    end: 30,
+                    kind: SpanKind::Task("t".into()),
+                },
+                SpanEntry {
+                    start: 30,
+                    end: 40,
+                    kind: SpanKind::Verb {
+                        task_id: "t".into(),
+                        verb: "infer".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 40,
+                    end: 50,
+                    kind: SpanKind::WithBlock {
+                        task_id: "t".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 50,
+                    end: 60,
+                    kind: SpanKind::WithBinding {
+                        task_id: "t".into(),
+                        alias: "a".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 60,
+                    end: 70,
+                    kind: SpanKind::DependsOn {
+                        task_id: "t".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 70,
+                    end: 80,
+                    kind: SpanKind::McpServer("s".into()),
+                },
+                SpanEntry {
+                    start: 80,
+                    end: 90,
+                    kind: SpanKind::ContextFile("f".into()),
+                },
+                SpanEntry {
+                    start: 90,
+                    end: 100,
+                    kind: SpanKind::Import { path: "p".into() },
+                },
+                SpanEntry {
+                    start: 100,
+                    end: 110,
+                    kind: SpanKind::Content {
+                        task_id: "t".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 110,
+                    end: 120,
+                    kind: SpanKind::Template {
+                        task_id: "t".into(),
+                        expr: "e".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 120,
+                    end: 130,
+                    kind: SpanKind::Guardrails {
+                        task_id: "t".into(),
+                    },
+                },
+                SpanEntry {
+                    start: 130,
+                    end: 140,
+                    kind: SpanKind::ForEach {
+                        task_id: "t".into(),
+                    },
+                },
             ];
             let idx = PositionIndex::from_entries(entries);
             assert_eq!(idx.len(), 14);
 
             // Spot-check a few
             assert_eq!(idx.context_at(5).unwrap().kind, SpanKind::Schema);
-            assert_eq!(idx.context_at(75).unwrap().kind, SpanKind::McpServer("s".into()));
-            assert_eq!(idx.context_at(135).unwrap().kind, SpanKind::ForEach { task_id: "t".into() });
+            assert_eq!(
+                idx.context_at(75).unwrap().kind,
+                SpanKind::McpServer("s".into())
+            );
+            assert_eq!(
+                idx.context_at(135).unwrap().kind,
+                SpanKind::ForEach {
+                    task_id: "t".into()
+                }
+            );
         }
 
         #[test]
@@ -850,10 +930,8 @@ tasks:
 
         #[test]
         fn context_at_with_gap_between_spans() {
-            let idx = PositionIndex::from_entries(vec![
-                task_entry(0, 10, "a"),
-                task_entry(50, 60, "b"),
-            ]);
+            let idx =
+                PositionIndex::from_entries(vec![task_entry(0, 10, "a"), task_entry(50, 60, "b")]);
             // In the gap
             assert!(idx.context_at(25).is_none());
         }

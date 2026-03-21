@@ -7,15 +7,11 @@
 //! extended with content/vision, provider/model catalogs, and depends_on
 //! completions.
 
-use ls_types::{
-    CompletionItem, CompletionItemKind, Documentation, InsertTextFormat,
-};
+use ls_types::{CompletionItem, CompletionItemKind, Documentation, InsertTextFormat};
 use nika_core::catalogs::models::{ModelType, KNOWN_MODELS};
 use nika_core::catalogs::providers::{ProviderCategory, KNOWN_PROVIDERS};
 
-use crate::analysis::context::{
-    extract_task_ids, ContentFocus, CursorContext, InvokeFocus,
-};
+use crate::analysis::context::{extract_task_ids, ContentFocus, CursorContext, InvokeFocus};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -32,27 +28,21 @@ pub fn completions(text: &str, _offset: u32, context: &CursorContext) -> Vec<Com
             existing_fields,
             ..
         } => task_field_completions(prefix, existing_fields),
-        CursorContext::VerbBlock {
-            verb, prefix, ..
-        } => verb_block_completions(verb, prefix),
+        CursorContext::VerbBlock { verb, prefix, .. } => verb_block_completions(verb, prefix),
         CursorContext::WithBlock { .. } => with_block_completions(text),
         CursorContext::Template {
             partial_expr,
             in_transform_chain,
             ..
         } => template_completions(text, partial_expr, *in_transform_chain),
-        CursorContext::InvokeBlock {
-            focus, prefix, ..
-        } => invoke_block_completions(focus, prefix),
+        CursorContext::InvokeBlock { focus, prefix, .. } => invoke_block_completions(focus, prefix),
         CursorContext::McpConfig { prefix, .. } => mcp_config_completions(prefix),
         CursorContext::ProviderContext {
             prefix,
             current_provider,
             ..
         } => provider_completions(prefix, current_provider.as_deref()),
-        CursorContext::ContentPart {
-            focus, prefix, ..
-        } => content_part_completions(focus, prefix),
+        CursorContext::ContentPart { focus, prefix, .. } => content_part_completions(focus, prefix),
         CursorContext::ForEach { prefix, .. } => for_each_completions(prefix),
         CursorContext::SchemaBlock { prefix, .. } => schema_block_completions(prefix),
         CursorContext::DependsOn { existing_deps, .. } => {
@@ -426,10 +416,34 @@ fn invoke_block_completions(focus: &InvokeFocus, prefix: &str) -> Vec<Completion
     match focus {
         InvokeFocus::General => {
             let items = vec![
-                item_snippet_fmt("mcp", CompletionItemKind::PROPERTY, "mcp: ${1:server}", "MCP server name.", "0_mcp"),
-                item_snippet_fmt("tool", CompletionItemKind::PROPERTY, "tool: ${1:tool-name}", "MCP tool name.", "1_tool"),
-                item_snippet_fmt("params", CompletionItemKind::PROPERTY, "params:\n  ${1:key}: ${2:value}", "Tool parameters.", "2_params"),
-                item_snippet_fmt("resource", CompletionItemKind::PROPERTY, "resource: ${1:resource-uri}", "MCP resource URI.", "3_resource"),
+                item_snippet_fmt(
+                    "mcp",
+                    CompletionItemKind::PROPERTY,
+                    "mcp: ${1:server}",
+                    "MCP server name.",
+                    "0_mcp",
+                ),
+                item_snippet_fmt(
+                    "tool",
+                    CompletionItemKind::PROPERTY,
+                    "tool: ${1:tool-name}",
+                    "MCP tool name.",
+                    "1_tool",
+                ),
+                item_snippet_fmt(
+                    "params",
+                    CompletionItemKind::PROPERTY,
+                    "params:\n  ${1:key}: ${2:value}",
+                    "Tool parameters.",
+                    "2_params",
+                ),
+                item_snippet_fmt(
+                    "resource",
+                    CompletionItemKind::PROPERTY,
+                    "resource: ${1:resource-uri}",
+                    "MCP resource URI.",
+                    "3_resource",
+                ),
             ];
             filter_by_prefix(items, prefix)
         }
@@ -574,10 +588,34 @@ fn content_part_completions(focus: &ContentFocus, prefix: &str) -> Vec<Completio
         }
         ContentFocus::ImageUrl | ContentFocus::PartField => {
             let items = vec![
-                item_snippet_fmt("text", CompletionItemKind::PROPERTY, "text: ${1}", "Text content.", "0_text"),
-                item_snippet_fmt("source", CompletionItemKind::PROPERTY, "source: ${1}", "CAS hash or file path.", "1_source"),
-                item_snippet_fmt("url", CompletionItemKind::PROPERTY, "url: ${1:https://}", "Image URL.", "1_url"),
-                item_snippet_fmt("detail", CompletionItemKind::PROPERTY, "detail: ${1|auto,low,high|}", "Image detail level.", "2_detail"),
+                item_snippet_fmt(
+                    "text",
+                    CompletionItemKind::PROPERTY,
+                    "text: ${1}",
+                    "Text content.",
+                    "0_text",
+                ),
+                item_snippet_fmt(
+                    "source",
+                    CompletionItemKind::PROPERTY,
+                    "source: ${1}",
+                    "CAS hash or file path.",
+                    "1_source",
+                ),
+                item_snippet_fmt(
+                    "url",
+                    CompletionItemKind::PROPERTY,
+                    "url: ${1:https://}",
+                    "Image URL.",
+                    "1_url",
+                ),
+                item_snippet_fmt(
+                    "detail",
+                    CompletionItemKind::PROPERTY,
+                    "detail: ${1|auto,low,high|}",
+                    "Image detail level.",
+                    "2_detail",
+                ),
             ];
             filter_by_prefix(items, prefix)
         }
@@ -587,9 +625,27 @@ fn content_part_completions(focus: &ContentFocus, prefix: &str) -> Vec<Completio
 /// Completions for `for_each:` block.
 fn for_each_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
-        item_snippet_fmt("items", CompletionItemKind::PROPERTY, "items: [${1}]", "Array to iterate.", "0_items"),
-        item_snippet_fmt("as", CompletionItemKind::PROPERTY, "as: ${1:item}", "Loop variable name.", "1_as"),
-        item_snippet_fmt("concurrency", CompletionItemKind::PROPERTY, "concurrency: ${1:3}", "Max parallel iterations.", "2_concurrency"),
+        item_snippet_fmt(
+            "items",
+            CompletionItemKind::PROPERTY,
+            "items: [${1}]",
+            "Array to iterate.",
+            "0_items",
+        ),
+        item_snippet_fmt(
+            "as",
+            CompletionItemKind::PROPERTY,
+            "as: ${1:item}",
+            "Loop variable name.",
+            "1_as",
+        ),
+        item_snippet_fmt(
+            "concurrency",
+            CompletionItemKind::PROPERTY,
+            "concurrency: ${1:3}",
+            "Max parallel iterations.",
+            "2_concurrency",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -597,11 +653,41 @@ fn for_each_completions(prefix: &str) -> Vec<CompletionItem> {
 /// Completions for `structured:` / schema block.
 fn schema_block_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
-        item_snippet_fmt("type", CompletionItemKind::PROPERTY, "type: ${1|object,array,string,number,boolean|}", "JSON Schema type.", "0_type"),
-        item_snippet_fmt("properties", CompletionItemKind::PROPERTY, "properties:\n  ${1:field}:\n    type: ${2:string}", "Object properties.", "1_properties"),
-        item_snippet_fmt("required", CompletionItemKind::PROPERTY, "required: [${1}]", "Required properties.", "2_required"),
-        item_snippet_fmt("items", CompletionItemKind::PROPERTY, "items:\n  type: ${1:string}", "Array item schema.", "3_items"),
-        item_snippet_fmt("description", CompletionItemKind::PROPERTY, "description: \"${1}\"", "Field description.", "4_description"),
+        item_snippet_fmt(
+            "type",
+            CompletionItemKind::PROPERTY,
+            "type: ${1|object,array,string,number,boolean|}",
+            "JSON Schema type.",
+            "0_type",
+        ),
+        item_snippet_fmt(
+            "properties",
+            CompletionItemKind::PROPERTY,
+            "properties:\n  ${1:field}:\n    type: ${2:string}",
+            "Object properties.",
+            "1_properties",
+        ),
+        item_snippet_fmt(
+            "required",
+            CompletionItemKind::PROPERTY,
+            "required: [${1}]",
+            "Required properties.",
+            "2_required",
+        ),
+        item_snippet_fmt(
+            "items",
+            CompletionItemKind::PROPERTY,
+            "items:\n  type: ${1:string}",
+            "Array item schema.",
+            "3_items",
+        ),
+        item_snippet_fmt(
+            "description",
+            CompletionItemKind::PROPERTY,
+            "description: \"${1}\"",
+            "Field description.",
+            "4_description",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -616,9 +702,7 @@ fn depends_on_completions(text: &str, existing_deps: &[String]) -> Vec<Completio
             kind: Some(CompletionItemKind::REFERENCE),
             insert_text: Some(id.clone()),
             detail: Some("Task dependency".to_string()),
-            documentation: Some(Documentation::String(format!(
-                "Add '{id}' as a dependency"
-            ))),
+            documentation: Some(Documentation::String(format!("Add '{id}' as a dependency"))),
             sort_text: Some(format!("0_{id}")),
             ..Default::default()
         })
@@ -628,10 +712,34 @@ fn depends_on_completions(text: &str, existing_deps: &[String]) -> Vec<Completio
 /// Completions for `guardrails:` block.
 fn guardrails_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
-        item_snippet_fmt("input", CompletionItemKind::PROPERTY, "input: ${1:rule}", "Input guardrail.", "0_input"),
-        item_snippet_fmt("output", CompletionItemKind::PROPERTY, "output: ${1:rule}", "Output guardrail.", "1_output"),
-        item_snippet_fmt("max_length", CompletionItemKind::PROPERTY, "max_length: ${1:4096}", "Maximum output length.", "2_max_length"),
-        item_snippet_fmt("forbidden_topics", CompletionItemKind::PROPERTY, "forbidden_topics: [${1}]", "Topics to block.", "3_forbidden"),
+        item_snippet_fmt(
+            "input",
+            CompletionItemKind::PROPERTY,
+            "input: ${1:rule}",
+            "Input guardrail.",
+            "0_input",
+        ),
+        item_snippet_fmt(
+            "output",
+            CompletionItemKind::PROPERTY,
+            "output: ${1:rule}",
+            "Output guardrail.",
+            "1_output",
+        ),
+        item_snippet_fmt(
+            "max_length",
+            CompletionItemKind::PROPERTY,
+            "max_length: ${1:4096}",
+            "Maximum output length.",
+            "2_max_length",
+        ),
+        item_snippet_fmt(
+            "forbidden_topics",
+            CompletionItemKind::PROPERTY,
+            "forbidden_topics: [${1}]",
+            "Topics to block.",
+            "3_forbidden",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -639,9 +747,27 @@ fn guardrails_completions(prefix: &str) -> Vec<CompletionItem> {
 /// Completions for `retry:` block.
 fn retry_block_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
-        item_snippet_fmt("max_attempts", CompletionItemKind::PROPERTY, "max_attempts: ${1:3}", "Maximum retry attempts.", "0_max_attempts"),
-        item_snippet_fmt("delay", CompletionItemKind::PROPERTY, "delay: ${1:1s}", "Delay between retries.", "1_delay"),
-        item_snippet_fmt("backoff", CompletionItemKind::PROPERTY, "backoff: ${1|exponential,linear,fixed|}", "Backoff strategy.", "2_backoff"),
+        item_snippet_fmt(
+            "max_attempts",
+            CompletionItemKind::PROPERTY,
+            "max_attempts: ${1:3}",
+            "Maximum retry attempts.",
+            "0_max_attempts",
+        ),
+        item_snippet_fmt(
+            "delay",
+            CompletionItemKind::PROPERTY,
+            "delay: ${1:1s}",
+            "Delay between retries.",
+            "1_delay",
+        ),
+        item_snippet_fmt(
+            "backoff",
+            CompletionItemKind::PROPERTY,
+            "backoff: ${1|exponential,linear,fixed|}",
+            "Backoff strategy.",
+            "2_backoff",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -649,8 +775,20 @@ fn retry_block_completions(prefix: &str) -> Vec<CompletionItem> {
 /// Completions for `limits:` / `timeout:` block.
 fn limits_block_completions(prefix: &str) -> Vec<CompletionItem> {
     let items = vec![
-        item_snippet_fmt("timeout", CompletionItemKind::PROPERTY, "timeout: ${1:30}", "Timeout in seconds.", "0_timeout"),
-        item_snippet_fmt("max_tokens", CompletionItemKind::PROPERTY, "max_tokens: ${1:4096}", "Max output tokens.", "1_max_tokens"),
+        item_snippet_fmt(
+            "timeout",
+            CompletionItemKind::PROPERTY,
+            "timeout: ${1:30}",
+            "Timeout in seconds.",
+            "0_timeout",
+        ),
+        item_snippet_fmt(
+            "max_tokens",
+            CompletionItemKind::PROPERTY,
+            "max_tokens: ${1:4096}",
+            "Max output tokens.",
+            "1_max_tokens",
+        ),
     ];
     filter_by_prefix(items, prefix)
 }
@@ -832,7 +970,10 @@ tasks:
   - id: step1
     ";
         let items = complete_at(yaml, 3, 4);
-        assert!(items.iter().any(|i| i.label == "content"), "Missing content field");
+        assert!(
+            items.iter().any(|i| i.label == "content"),
+            "Missing content field"
+        );
     }
 
     #[test]
@@ -861,7 +1002,10 @@ tasks:
         let items = complete_at(yaml, 4, 6);
         assert!(items.iter().any(|i| i.label == "prompt"), "Missing prompt");
         assert!(items.iter().any(|i| i.label == "model"), "Missing model");
-        assert!(items.iter().any(|i| i.label == "temperature"), "Missing temperature");
+        assert!(
+            items.iter().any(|i| i.label == "temperature"),
+            "Missing temperature"
+        );
         assert!(items.iter().any(|i| i.label == "system"), "Missing system");
     }
 
@@ -918,8 +1062,14 @@ tasks:
         let items = complete_at(yaml, 4, 6);
         assert!(items.iter().any(|i| i.label == "prompt"), "Missing prompt");
         assert!(items.iter().any(|i| i.label == "mcp"), "Missing mcp");
-        assert!(items.iter().any(|i| i.label == "max_turns"), "Missing max_turns");
-        assert!(items.iter().any(|i| i.label == "extended_thinking"), "Missing extended_thinking");
+        assert!(
+            items.iter().any(|i| i.label == "max_turns"),
+            "Missing max_turns"
+        );
+        assert!(
+            items.iter().any(|i| i.label == "extended_thinking"),
+            "Missing extended_thinking"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -957,11 +1107,20 @@ tasks:
     #[test]
     fn provider_completions_include_llm_providers() {
         let items = provider_completions("", None);
-        assert!(items.iter().any(|i| i.label == "anthropic"), "Missing anthropic");
+        assert!(
+            items.iter().any(|i| i.label == "anthropic"),
+            "Missing anthropic"
+        );
         assert!(items.iter().any(|i| i.label == "openai"), "Missing openai");
-        assert!(items.iter().any(|i| i.label == "mistral"), "Missing mistral");
+        assert!(
+            items.iter().any(|i| i.label == "mistral"),
+            "Missing mistral"
+        );
         assert!(items.iter().any(|i| i.label == "groq"), "Missing groq");
-        assert!(items.iter().any(|i| i.label == "deepseek"), "Missing deepseek");
+        assert!(
+            items.iter().any(|i| i.label == "deepseek"),
+            "Missing deepseek"
+        );
         assert!(items.iter().any(|i| i.label == "gemini"), "Missing gemini");
         assert!(items.iter().any(|i| i.label == "xai"), "Missing xai");
     }
@@ -969,7 +1128,10 @@ tasks:
     #[test]
     fn provider_completions_include_aliases() {
         let items = provider_completions("", None);
-        assert!(items.iter().any(|i| i.label == "claude"), "Missing claude alias");
+        assert!(
+            items.iter().any(|i| i.label == "claude"),
+            "Missing claude alias"
+        );
         assert!(items.iter().any(|i| i.label == "gpt"), "Missing gpt alias");
     }
 

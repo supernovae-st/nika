@@ -27,13 +27,7 @@ fn token_text<'a>(src: &'a str, tok: &RawToken) -> &'a str {
 
 /// Assert that exactly one token on `line` (0-based) has the given type
 /// and that its text equals `expected`.
-fn assert_token_on_line(
-    tokens: &[RawToken],
-    src: &str,
-    line: u32,
-    tt: TokenType,
-    expected: &str,
-) {
+fn assert_token_on_line(tokens: &[RawToken], src: &str, line: u32, tt: TokenType, expected: &str) {
     let hits: Vec<_> = tokens
         .iter()
         .filter(|t| t.line == line && t.token_type == tt)
@@ -446,7 +440,10 @@ fn unclosed_template_produces_no_variable() {
     let src = "  x: \"{{with.broken\"\n";
     let toks = semantic_tokens(src);
     let vars = tokens_of(&toks, TokenType::Variable);
-    assert!(vars.is_empty(), "unclosed template should not produce a Variable token");
+    assert!(
+        vars.is_empty(),
+        "unclosed template should not produce a Variable token"
+    );
 }
 
 #[test]
@@ -514,7 +511,10 @@ fn pipe_with_empty_transform_no_function() {
     let src = "  x: \"{{with.doc | }}\"\n";
     let toks = semantic_tokens(src);
     let fns = tokens_of(&toks, TokenType::Function);
-    assert!(fns.is_empty(), "empty transform after pipe should not emit Function");
+    assert!(
+        fns.is_empty(),
+        "empty transform after pipe should not emit Function"
+    );
 }
 
 #[test]
@@ -1173,10 +1173,20 @@ tasks:
         let abs_start = if dl == 0 { prev_start + ds } else { ds };
 
         assert_eq!(abs_line, toks[i].line, "token {i}: line mismatch");
-        assert_eq!(abs_start, toks[i].start_char, "token {i}: start_char mismatch");
+        assert_eq!(
+            abs_start, toks[i].start_char,
+            "token {i}: start_char mismatch"
+        );
         assert_eq!(length, toks[i].length, "token {i}: length mismatch");
-        assert_eq!(type_idx, toks[i].token_type.index(), "token {i}: type mismatch");
-        assert_eq!(modifiers, toks[i].modifiers, "token {i}: modifiers mismatch");
+        assert_eq!(
+            type_idx,
+            toks[i].token_type.index(),
+            "token {i}: type mismatch"
+        );
+        assert_eq!(
+            modifiers, toks[i].modifiers,
+            "token {i}: modifiers mismatch"
+        );
 
         prev_line = abs_line;
         prev_start = abs_start;
@@ -1215,10 +1225,20 @@ tasks:
         let abs_start = if dl == 0 { prev_start + ds } else { ds };
 
         assert_eq!(abs_line, toks[i].line, "token {i}: line mismatch");
-        assert_eq!(abs_start, toks[i].start_char, "token {i}: start_char mismatch");
+        assert_eq!(
+            abs_start, toks[i].start_char,
+            "token {i}: start_char mismatch"
+        );
         assert_eq!(length, toks[i].length, "token {i}: length mismatch");
-        assert_eq!(type_idx, toks[i].token_type.index(), "token {i}: type mismatch");
-        assert_eq!(modifiers, toks[i].modifiers, "token {i}: modifiers mismatch");
+        assert_eq!(
+            type_idx,
+            toks[i].token_type.index(),
+            "token {i}: type mismatch"
+        );
+        assert_eq!(
+            modifiers, toks[i].modifiers,
+            "token {i}: modifiers mismatch"
+        );
 
         prev_line = abs_line;
         prev_start = abs_start;

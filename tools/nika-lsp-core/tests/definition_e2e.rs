@@ -28,7 +28,9 @@ fn goto_def_at(text: &str, offset: u32) -> Option<DefinitionResult> {
 
 /// Find the byte offset right after the first occurrence of `needle` in `text`.
 fn offset_after(text: &str, needle: &str) -> u32 {
-    let pos = text.find(needle).unwrap_or_else(|| panic!("needle {needle:?} not found"));
+    let pos = text
+        .find(needle)
+        .unwrap_or_else(|| panic!("needle {needle:?} not found"));
     (pos + needle.len()) as u32
 }
 
@@ -51,7 +53,10 @@ fn assert_jumps_to_task(text: &str, result: &DefinitionResult, task_id: &str) {
             || span.contains(&format!("id: '{task_id}'")),
         "expected span to reference task '{task_id}', got: {span:?}"
     );
-    assert!(result.file.is_none(), "expected same-file jump (file == None)");
+    assert!(
+        result.file.is_none(),
+        "expected same-file jump (file == None)"
+    );
 }
 
 // ===========================================================================
@@ -206,7 +211,10 @@ tasks:
 ";
     let ctx = depends_on_ctx("nonexistent_task");
     let result = definition(yaml, 0, &ctx);
-    assert!(result.is_none(), "unknown task reference should return None");
+    assert!(
+        result.is_none(),
+        "unknown task reference should return None"
+    );
 }
 
 #[test]
@@ -222,7 +230,10 @@ tasks:
 ";
     let offset = offset_after(yaml, "$missing_task");
     let result = goto_def_at(yaml, offset);
-    assert!(result.is_none(), "with: ref to missing task should return None");
+    assert!(
+        result.is_none(),
+        "with: ref to missing task should return None"
+    );
 }
 
 #[test]
@@ -238,7 +249,10 @@ tasks:
     let offset = (tpl_pos + "{{with.nonexis".len()) as u32;
     let ctx = detect_context(yaml, offset, None);
     let result = definition(yaml, offset, &ctx);
-    assert!(result.is_none(), "template ref to missing alias should return None");
+    assert!(
+        result.is_none(),
+        "template ref to missing alias should return None"
+    );
 }
 
 #[test]
@@ -518,7 +532,10 @@ tasks:
 ";
     let ctx = depends_on_ctx("");
     let result = definition(yaml, 0, &ctx);
-    assert!(result.is_none(), "empty depends_on entry should return None");
+    assert!(
+        result.is_none(),
+        "empty depends_on entry should return None"
+    );
 }
 
 #[test]
@@ -577,7 +594,10 @@ tasks:
     let result = definition(yaml, 0, &ctx).expect("should resolve");
     // The span should match the "- id: target" declaration exactly.
     let span_text = &yaml[result.offset as usize..result.end_offset as usize];
-    assert_eq!(span_text, "- id: target", "span should be exactly the task declaration");
+    assert_eq!(
+        span_text, "- id: target",
+        "span should be exactly the task declaration"
+    );
 }
 
 #[test]

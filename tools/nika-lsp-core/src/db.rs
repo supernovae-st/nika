@@ -419,14 +419,28 @@ mod tests {
             kind: SpanKind::Schema,
         }]);
         db.set_position_index("file:///a.yaml", idx1);
-        assert_eq!(db.snapshot("file:///a.yaml").unwrap().position_index.len(), 1);
+        assert_eq!(
+            db.snapshot("file:///a.yaml").unwrap().position_index.len(),
+            1
+        );
 
         let idx2 = PositionIndex::from_entries(vec![
-            SpanEntry { start: 0, end: 2, kind: SpanKind::Schema },
-            SpanEntry { start: 2, end: 4, kind: SpanKind::WorkflowName },
+            SpanEntry {
+                start: 0,
+                end: 2,
+                kind: SpanKind::Schema,
+            },
+            SpanEntry {
+                start: 2,
+                end: 4,
+                kind: SpanKind::WorkflowName,
+            },
         ]);
         db.set_position_index("file:///a.yaml", idx2);
-        assert_eq!(db.snapshot("file:///a.yaml").unwrap().position_index.len(), 2);
+        assert_eq!(
+            db.snapshot("file:///a.yaml").unwrap().position_index.len(),
+            2
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -485,7 +499,11 @@ tasks:
 
         // 3. Background analysis produces position index
         let idx = PositionIndex::from_entries(vec![
-            SpanEntry { start: 0, end: 15, kind: SpanKind::Schema },
+            SpanEntry {
+                start: 0,
+                end: 15,
+                kind: SpanKind::Schema,
+            },
             SpanEntry {
                 start: 16,
                 end: yaml.len() as u32,

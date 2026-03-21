@@ -136,7 +136,10 @@ fn empty_file_context_is_workflow_root() {
 fn after_schema_line_workflow_root() {
     let yaml = "schema: nika/workflow@0.12\n";
     let items = complete_at(yaml, 1, 0);
-    assert!(!items.is_empty(), "Should get root completions after schema line");
+    assert!(
+        !items.is_empty(),
+        "Should get root completions after schema line"
+    );
     assert_has_label(&items, "tasks");
     assert_has_label(&items, "workflow");
     assert_has_label(&items, "mcp");
@@ -383,7 +386,10 @@ tasks:
         - type: text
           ";
     let items = complete_at(yaml, 6, 10);
-    assert!(!items.is_empty(), "Content part fields should produce completions");
+    assert!(
+        !items.is_empty(),
+        "Content part fields should produce completions"
+    );
     // Should get field-level suggestions (text, source, url, detail)
     assert_all_have_kind(&items);
 }
@@ -562,7 +568,11 @@ tasks:
 ";
     // Position the cursor inside the {{ }} template
     let offset = yaml.find("{{with.").unwrap() + 7; // after "{{with."
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
     // Template context should return with., context.files., inputs., and task shorthands
     assert!(!items.is_empty(), "Template should produce completions");
     assert_all_have_kind(&items);
@@ -606,8 +616,15 @@ tasks:
     infer: \"{{\"
 ";
     let offset = yaml.find("{{").unwrap() + 2;
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
-    assert!(!items.is_empty(), "Template at {{ should produce completions");
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
+    assert!(
+        !items.is_empty(),
+        "Template at {{ should produce completions"
+    );
     assert_has_label(&items, "with.");
     assert_has_label(&items, "context.files.");
     assert_has_label(&items, "inputs.");
@@ -624,7 +641,11 @@ tasks:
     infer: \"{{\"
 ";
     let offset = yaml.find("{{").unwrap() + 2;
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
     assert_has_label(&items, "$generate");
     assert_has_label(&items, "$process");
 }
@@ -644,7 +665,10 @@ tasks:
     let offset = yaml.find("| ").unwrap() + 2;
     let ctx = detect_context(yaml, offset as u32, None);
     let items = completions(yaml, offset as u32, &ctx);
-    assert!(!items.is_empty(), "Transform chain should produce completions");
+    assert!(
+        !items.is_empty(),
+        "Transform chain should produce completions"
+    );
     assert_has_label(&items, "upper");
     assert_has_label(&items, "lower");
     assert_has_label(&items, "trim");
@@ -683,7 +707,11 @@ tasks:
     infer: \"{{with.data | \"
 ";
     let offset = yaml.find("| ").unwrap() + 2;
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
     for item in &items {
         assert_label_kind(&items, &item.label, CompletionItemKind::VALUE);
     }
@@ -856,7 +884,10 @@ fn provider_completions_via_direct_context() {
         prefix: String::new(),
     };
     let items = completions("", 0, &ctx);
-    assert!(!items.is_empty(), "Provider completions should include catalog entries");
+    assert!(
+        !items.is_empty(),
+        "Provider completions should include catalog entries"
+    );
     assert_has_label(&items, "anthropic");
     assert_has_label(&items, "openai");
     assert_has_label(&items, "mistral");
@@ -1072,7 +1103,10 @@ tasks:
 ";
     // Root completions
     let items = complete_at(yaml, 0, 0);
-    assert!(!items.is_empty(), "Root completions should work in large workflow");
+    assert!(
+        !items.is_empty(),
+        "Root completions should work in large workflow"
+    );
     assert_has_label(&items, "schema");
 }
 
@@ -1143,7 +1177,10 @@ tasks:
     depends_on:
       ";
     let items = complete_at(yaml, 22, 6);
-    assert!(!items.is_empty(), "depends_on should list tasks in large workflow");
+    assert!(
+        !items.is_empty(),
+        "depends_on should list tasks in large workflow"
+    );
     // Should have all 10 task IDs
     for i in 1..=10 {
         assert_has_label(&items, &format!("task{i:02}"));
@@ -1177,7 +1214,10 @@ tasks:
     with:
       data: ";
     let items = complete_at(yaml, 22, 12);
-    assert!(!items.is_empty(), "with block should list tasks in large workflow");
+    assert!(
+        !items.is_empty(),
+        "with block should list tasks in large workflow"
+    );
     for i in 1..=10 {
         assert_has_label(&items, &format!("task{i:02}"));
     }
@@ -1210,7 +1250,11 @@ tasks:
     infer: \"{{\"
 ";
     let offset = yaml.rfind("{{").unwrap() + 2;
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
     assert!(!items.is_empty(), "Template should work in large workflow");
     // Should have shorthands for all 10 tasks
     for i in 1..=10 {
@@ -1235,7 +1279,10 @@ tasks:
       content:
         ";
     let items = complete_at(yaml, 6, 8);
-    assert!(!items.is_empty(), "Vision content type completions should be present");
+    assert!(
+        !items.is_empty(),
+        "Vision content type completions should be present"
+    );
     // On a blank line inside content:, we get PartField suggestions
     assert_all_have_kind(&items);
 }
@@ -1252,7 +1299,10 @@ fn vision_workflow_content_via_direct_context() {
         prefix: String::new(),
     };
     let items = completions("", 0, &ctx);
-    assert!(!items.is_empty(), "PartType completions should include type variants");
+    assert!(
+        !items.is_empty(),
+        "PartType completions should include type variants"
+    );
     assert_has_label(&items, "text");
     assert_has_label(&items, "image");
     assert_has_label(&items, "image_url");
@@ -1270,7 +1320,10 @@ tasks:
         - type: image
           ";
     let items = complete_at(yaml, 7, 10);
-    assert!(!items.is_empty(), "Image part field completions should be present");
+    assert!(
+        !items.is_empty(),
+        "Image part field completions should be present"
+    );
     // Should get source, detail, text, url
     assert_all_have_kind(&items);
 }
@@ -1311,7 +1364,10 @@ tasks:
           url: https://example.com/img.png
           detail: ";
     let items = complete_at(yaml, 13, 18);
-    assert!(!items.is_empty(), "Detail completions should work with multiple content parts");
+    assert!(
+        !items.is_empty(),
+        "Detail completions should work with multiple content parts"
+    );
     assert_has_label(&items, "auto");
     assert_has_label(&items, "low");
     assert_has_label(&items, "high");
@@ -1423,7 +1479,10 @@ tasks:
     for_each:
       ";
     let items = complete_at(yaml, 4, 6);
-    assert!(!items.is_empty(), "ForEach block should produce completions");
+    assert!(
+        !items.is_empty(),
+        "ForEach block should produce completions"
+    );
     assert_has_label(&items, "items");
     assert_has_label(&items, "as");
     assert_has_label(&items, "concurrency");
@@ -1498,7 +1557,11 @@ tasks:
     infer: \"{{\"
 ";
     let offset = yaml.find("{{").unwrap() + 2;
-    let _ = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
+    let _ = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
 }
 
 #[test]
@@ -1553,8 +1616,14 @@ fn task_field_prefix_filters() {
     let yaml = "schema: nika/workflow@0.12\ntasks:\n  - id: step1\n    in";
     let items = complete_at(yaml, 3, 6);
     // "in" should match "infer", "invoke", "include" (not at task level), "inputs" (not at task level)
-    assert!(items.iter().any(|i| i.label == "infer"), "Should match 'infer'");
-    assert!(items.iter().any(|i| i.label == "invoke"), "Should match 'invoke'");
+    assert!(
+        items.iter().any(|i| i.label == "infer"),
+        "Should match 'infer'"
+    );
+    assert!(
+        items.iter().any(|i| i.label == "invoke"),
+        "Should match 'invoke'"
+    );
 }
 
 // ===========================================================================
@@ -1685,7 +1754,10 @@ tasks:
     // Completions inside infer block of the last task
     let last_line = yaml.lines().count() - 1;
     let items = complete_at(yaml, last_line, 6);
-    assert!(!items.is_empty(), "Infer completions should work in realistic workflow");
+    assert!(
+        !items.is_empty(),
+        "Infer completions should work in realistic workflow"
+    );
     assert_has_label(&items, "prompt");
     assert_has_label(&items, "model");
     assert_has_label(&items, "temperature");
@@ -1732,8 +1804,15 @@ tasks:
     infer: \"Hello {{\"
 ";
     let offset = yaml.rfind("{{").unwrap() + 2;
-    let items = completions(yaml, offset as u32, &detect_context(yaml, offset as u32, None));
-    assert!(!items.is_empty(), "Template completions should work in realistic workflow");
+    let items = completions(
+        yaml,
+        offset as u32,
+        &detect_context(yaml, offset as u32, None),
+    );
+    assert!(
+        !items.is_empty(),
+        "Template completions should work in realistic workflow"
+    );
     assert_has_label(&items, "with.");
     assert_has_label(&items, "context.files.");
     assert_has_label(&items, "inputs.");
@@ -1750,7 +1829,10 @@ fn unknown_context_returns_empty_completions() {
         prefix: String::new(),
     };
     let items = completions("", 0, &ctx);
-    assert!(items.is_empty(), "Unknown context should return empty completions");
+    assert!(
+        items.is_empty(),
+        "Unknown context should return empty completions"
+    );
 }
 
 #[test]

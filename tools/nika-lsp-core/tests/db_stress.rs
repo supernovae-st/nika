@@ -27,12 +27,15 @@ fn open_100_files_all_snapshots_correct() {
         let uri = format!("file:///project/file_{i}.nika.yaml");
         let expected = format!("schema: '@0.12'\ntasks:\n  task_{i}:\n    infer: openai/gpt-4\n");
 
-        let snap = db.snapshot(&uri).expect(&format!("snapshot missing for file_{i}"));
+        let snap = db
+            .snapshot(&uri)
+            .expect(&format!("snapshot missing for file_{i}"));
+        assert_eq!(&*snap.text, &expected, "text mismatch for file_{i}");
         assert_eq!(
-            &*snap.text, &expected,
-            "text mismatch for file_{i}"
+            snap.line_index.line_count(),
+            5,
+            "line count wrong for file_{i}"
         );
-        assert_eq!(snap.line_index.line_count(), 5, "line count wrong for file_{i}");
     }
 }
 
@@ -142,7 +145,10 @@ fn open_edit_remove_reopen_clean_state() {
     assert!(db.snapshot(uri).is_none());
 
     // Re-open with different content
-    db.set_text(uri, "schema: '@0.13'\ntasks:\n  hello:\n    exec: echo hi\n".into());
+    db.set_text(
+        uri,
+        "schema: '@0.13'\ntasks:\n  hello:\n    exec: echo hi\n".into(),
+    );
     assert_eq!(db.file_count(), 1);
 
     let snap = db.snapshot(uri).unwrap();
@@ -152,7 +158,10 @@ fn open_edit_remove_reopen_clean_state() {
         "position_index must be empty after re-open, got {} entries",
         snap.position_index.len()
     );
-    assert_eq!(&*snap.text, "schema: '@0.13'\ntasks:\n  hello:\n    exec: echo hi\n");
+    assert_eq!(
+        &*snap.text,
+        "schema: '@0.13'\ntasks:\n  hello:\n    exec: echo hi\n"
+    );
     assert_eq!(snap.line_index.line_count(), 5);
 }
 
@@ -280,7 +289,10 @@ fn position_index_lifecycle_set_verify_clear_rebuild() {
     // Step 3: Verify position index is accessible
     let snap = db.snapshot(uri).unwrap();
     assert_eq!(snap.position_index.len(), 2);
-    assert_eq!(snap.position_index.context_at(5).unwrap().kind, SpanKind::Schema);
+    assert_eq!(
+        snap.position_index.context_at(5).unwrap().kind,
+        SpanKind::Schema
+    );
     assert_eq!(
         snap.position_index.context_at(30).unwrap().kind,
         SpanKind::Task("greet".into())
@@ -467,10 +479,7 @@ fn crlf_roundtrip() {
     for offset in 0..text.len() as u32 {
         let (line, col) = idx.line_col(offset);
         let back = idx.offset(line, col);
-        assert_eq!(
-            back, offset,
-            "CRLF roundtrip failed at offset {offset}"
-        );
+        assert_eq!(back, offset, "CRLF roundtrip failed at offset {offset}");
     }
 }
 
@@ -517,7 +526,9 @@ async fn concurrent_writes_to_different_files() {
     for batch in 0..4 {
         for i in 0..25 {
             let uri = format!("file:///concurrent/batch_{batch}/file_{i}.yaml");
-            let snap = db.snapshot(&uri).expect(&format!("missing batch_{batch}/file_{i}"));
+            let snap = db
+                .snapshot(&uri)
+                .expect(&format!("missing batch_{batch}/file_{i}"));
             let expected = format!("batch: {batch}\nfile: {i}\n");
             assert_eq!(&*snap.text, &expected);
         }

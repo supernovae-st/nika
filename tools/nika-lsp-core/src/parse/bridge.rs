@@ -16,8 +16,8 @@ const KNOWN_VERBS: &[&str] = &["infer", "exec", "fetch", "invoke", "agent"];
 
 /// Known top-level keys in a Nika workflow.
 const KNOWN_TOP_LEVEL_KEYS: &[&str] = &[
-    "schema", "workflow", "tasks", "mcp", "context", "imports",
-    "inputs", "edges", "skills", "agents",
+    "schema", "workflow", "tasks", "mcp", "context", "imports", "inputs", "edges", "skills",
+    "agents",
 ];
 
 /// Maximum recursion depth for CST walkers.
@@ -200,11 +200,7 @@ fn process_top_level_pair(text: &str, pair: &Node, result: &mut PartialWorkflow)
     }
 }
 
-fn extract_top_level_mapping(
-    text: &str,
-    mapping: &Node,
-    result: &mut PartialWorkflow,
-) {
+fn extract_top_level_mapping(text: &str, mapping: &Node, result: &mut PartialWorkflow) {
     let mut cursor = mapping.walk();
     for pair in mapping.children(&mut cursor) {
         if pair.kind() == "block_mapping_pair" {
@@ -349,8 +345,7 @@ fn collect_scalar_values(text: &str, node: &Node, out: &mut Vec<String>, depth: 
                 out.push(val);
             }
         }
-        "flow_sequence" | "flow_node" | "block_node" | "block_sequence"
-        | "block_sequence_item" => {
+        "flow_sequence" | "flow_node" | "block_node" | "block_sequence" | "block_sequence_item" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 collect_scalar_values(text, &child, out, depth + 1);
@@ -382,9 +377,7 @@ fn extract_mcp_servers(text: &str, node: &Node, result: &mut PartialWorkflow) {
                     result.mcp_servers.push(PartialField {
                         value: node_text_trimmed(text, &key),
                         key_span,
-                        value_span: pair
-                            .child_by_field_name("value")
-                            .map(|v| node_range(&v)),
+                        value_span: pair.child_by_field_name("value").map(|v| node_range(&v)),
                     });
                 }
             }
@@ -428,9 +421,7 @@ fn extract_file_entries(text: &str, node: &Node, result: &mut PartialWorkflow) {
                     result.context_files.push(PartialField {
                         value: node_text_trimmed(text, &key),
                         key_span,
-                        value_span: pair
-                            .child_by_field_name("value")
-                            .map(|v| node_range(&v)),
+                        value_span: pair.child_by_field_name("value").map(|v| node_range(&v)),
                     });
                 }
             }
@@ -461,9 +452,7 @@ fn extract_input_names(text: &str, node: &Node, result: &mut PartialWorkflow) {
                     result.input_names.push(PartialField {
                         value: node_text_trimmed(text, &key),
                         key_span,
-                        value_span: pair
-                            .child_by_field_name("value")
-                            .map(|v| node_range(&v)),
+                        value_span: pair.child_by_field_name("value").map(|v| node_range(&v)),
                     });
                 }
             }
@@ -564,11 +553,7 @@ where
 }
 
 /// Collect scalar values as PartialFields (for imports, etc.).
-fn collect_scalar_values_into_fields(
-    text: &str,
-    node: &Node,
-    out: &mut Vec<PartialField>,
-) {
+fn collect_scalar_values_into_fields(text: &str, node: &Node, out: &mut Vec<PartialField>) {
     collect_scalar_values_into_fields_inner(text, node, out, 0);
 }
 
@@ -652,7 +637,11 @@ mod tests {
         let pw = partial(yaml);
         assert!(!pw.has_errors);
         assert_eq!(pw.tasks.len(), 5);
-        let verbs: Vec<_> = pw.tasks.iter().map(|t| t.verb.as_deref().unwrap()).collect();
+        let verbs: Vec<_> = pw
+            .tasks
+            .iter()
+            .map(|t| t.verb.as_deref().unwrap())
+            .collect();
         assert_eq!(verbs, &["infer", "exec", "fetch", "invoke", "agent"]);
     }
 
@@ -701,7 +690,8 @@ mod tests {
     #[test]
     fn duplicate_verb_keys_both_in_existing_keys() {
         // Two verbs in same task
-        let yaml = "tasks:\n  - id: dupe\n    infer:\n      prompt: a\n    exec:\n      command: b\n";
+        let yaml =
+            "tasks:\n  - id: dupe\n    infer:\n      prompt: a\n    exec:\n      command: b\n";
         let pw = partial(yaml);
         assert!(!pw.tasks.is_empty());
         let task = &pw.tasks[0];
@@ -778,7 +768,8 @@ mod tests {
 
     #[test]
     fn depends_on_flow_sequence() {
-        let yaml = "tasks:\n  - id: last\n    exec:\n      command: echo\n    depends_on: [gen, run]\n";
+        let yaml =
+            "tasks:\n  - id: last\n    exec:\n      command: echo\n    depends_on: [gen, run]\n";
         let pw = partial(yaml);
         assert_eq!(pw.tasks.len(), 1);
         let task = &pw.tasks[0];
@@ -803,7 +794,8 @@ mod tests {
 
     #[test]
     fn mcp_servers_extracted() {
-        let yaml = "mcp:\n  novanet:\n    command: novanet serve\n  filesystem:\n    command: fs serve\n";
+        let yaml =
+            "mcp:\n  novanet:\n    command: novanet serve\n  filesystem:\n    command: fs serve\n";
         let pw = partial(yaml);
         assert_eq!(pw.mcp_servers.len(), 2);
         let names: Vec<_> = pw.mcp_servers.iter().map(|s| s.value.as_str()).collect();
@@ -855,7 +847,8 @@ mod tests {
 
     #[test]
     fn top_level_keys_tracked() {
-        let yaml = "schema: '@0.12'\nworkflow: test\ntasks:\n  - id: a\n    infer:\n      prompt: x\n";
+        let yaml =
+            "schema: '@0.12'\nworkflow: test\ntasks:\n  - id: a\n    infer:\n      prompt: x\n";
         let pw = partial(yaml);
         let keys: Vec<_> = pw.top_level_keys.iter().map(|k| k.value.as_str()).collect();
         assert!(keys.contains(&"schema"));
@@ -1102,8 +1095,7 @@ mod tests {
             "{}/tests/fixtures/broken/{name}",
             env!("CARGO_MANIFEST_DIR")
         );
-        let yaml = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("fixture {path}: {e}"));
+        let yaml = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("fixture {path}: {e}"));
         partial(&yaml)
     }
 
@@ -1356,7 +1348,8 @@ mod tests {
 
     #[test]
     fn schema_with_double_quotes() {
-        let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t\n    exec:\n      command: x\n";
+        let yaml =
+            "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t\n    exec:\n      command: x\n";
         let pw = partial(yaml);
         assert!(pw.schema.is_some());
     }

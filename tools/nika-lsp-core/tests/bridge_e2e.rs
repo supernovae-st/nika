@@ -17,7 +17,9 @@ use nika_lsp_core::parse::PartialWorkflow;
 /// Parse YAML text through the full pipeline: RecoveryParser -> extract_partial.
 fn partial(yaml: &str) -> PartialWorkflow {
     let mut parser = RecoveryParser::new();
-    let tree = parser.parse(yaml).expect("tree-sitter should always return a tree");
+    let tree = parser
+        .parse(yaml)
+        .expect("tree-sitter should always return a tree");
     extract_partial(yaml, &tree)
 }
 
@@ -102,15 +104,22 @@ tasks:
     assert!(!pw.has_errors, "all-verbs workflow should be valid YAML");
     assert_eq!(pw.tasks.len(), 5, "expected exactly 5 tasks");
 
-    let verbs: Vec<&str> = pw.tasks.iter()
+    let verbs: Vec<&str> = pw
+        .tasks
+        .iter()
         .map(|t| t.verb.as_deref().expect("each task should have a verb"))
         .collect();
     assert_eq!(verbs, &["infer", "exec", "fetch", "invoke", "agent"]);
 
-    let ids: Vec<&str> = pw.tasks.iter()
+    let ids: Vec<&str> = pw
+        .tasks
+        .iter()
         .map(|t| t.id.as_deref().expect("each task should have an id"))
         .collect();
-    assert_eq!(ids, &["t_infer", "t_exec", "t_fetch", "t_invoke", "t_agent"]);
+    assert_eq!(
+        ids,
+        &["t_infer", "t_exec", "t_fetch", "t_invoke", "t_agent"]
+    );
 }
 
 #[test]
@@ -347,8 +356,14 @@ tasks:
 
     // Verify spans are set
     for srv in &pw.mcp_servers {
-        assert!(!srv.key_span.is_empty(), "MCP server key_span should be non-empty");
-        assert!(srv.value_span.is_some(), "MCP server value_span should be present");
+        assert!(
+            !srv.key_span.is_empty(),
+            "MCP server key_span should be non-empty"
+        );
+        assert!(
+            srv.value_span.is_some(),
+            "MCP server value_span should be present"
+        );
     }
 }
 
@@ -380,7 +395,10 @@ tasks:
     let pw = partial(yaml);
 
     assert!(pw.has_errors, "missing colon should produce errors");
-    assert!(!pw.error_ranges.is_empty(), "error_ranges should be populated");
+    assert!(
+        !pw.error_ranges.is_empty(),
+        "error_ranges should be populated"
+    );
 }
 
 #[test]
@@ -444,7 +462,10 @@ tasks:
     // At least the complete task should be found
     assert!(!pw.tasks.is_empty(), "should extract at least one task");
 
-    let complete = pw.tasks.iter().find(|t| t.id.as_deref() == Some("complete_task"));
+    let complete = pw
+        .tasks
+        .iter()
+        .find(|t| t.id.as_deref() == Some("complete_task"));
     assert!(complete.is_some(), "complete task should be found");
     assert_eq!(complete.unwrap().verb.as_deref(), Some("exec"));
 }
@@ -582,7 +603,10 @@ fn performance_1000_lines_valid_yaml() {
 
     // Should be well under 1000 lines, but let's verify the line count
     let line_count = yaml.lines().count();
-    assert!(line_count > 600, "fixture should have many lines, got {line_count}");
+    assert!(
+        line_count > 600,
+        "fixture should have many lines, got {line_count}"
+    );
 
     let start = Instant::now();
     let pw = partial(&yaml);
@@ -619,7 +643,10 @@ fn performance_1000_lines_mixed_content() {
     }
 
     let line_count = yaml.lines().count();
-    assert!(line_count > 800, "fixture should be large, got {line_count} lines");
+    assert!(
+        line_count > 800,
+        "fixture should be large, got {line_count} lines"
+    );
 
     let start = Instant::now();
     let pw = partial(&yaml);
@@ -744,7 +771,10 @@ imports:
     let pw = partial(yaml);
 
     for imp in &pw.imports {
-        assert!(!imp.key_span.is_empty(), "import key_span should be non-empty");
+        assert!(
+            !imp.key_span.is_empty(),
+            "import key_span should be non-empty"
+        );
     }
 }
 
@@ -903,7 +933,8 @@ fn tab_indentation_mixed_with_spaces() {
 
 #[test]
 fn tab_only_indentation() {
-    let yaml = "schema: '@0.12'\nworkflow: tabs\ntasks:\n\t- id: t\n\t\texec:\n\t\t\tcommand: echo\n";
+    let yaml =
+        "schema: '@0.12'\nworkflow: tabs\ntasks:\n\t- id: t\n\t\texec:\n\t\t\tcommand: echo\n";
     let pw = partial(yaml);
     // No panic required; schema might still parse
     if let Some(schema) = &pw.schema {
@@ -938,12 +969,27 @@ tasks:
     let pw = partial(yaml);
 
     let keys: Vec<&str> = pw.top_level_keys.iter().map(|k| k.value.as_str()).collect();
-    assert!(keys.contains(&"schema"), "missing 'schema' in top_level_keys");
-    assert!(keys.contains(&"workflow"), "missing 'workflow' in top_level_keys");
-    assert!(keys.contains(&"imports"), "missing 'imports' in top_level_keys");
-    assert!(keys.contains(&"inputs"), "missing 'inputs' in top_level_keys");
+    assert!(
+        keys.contains(&"schema"),
+        "missing 'schema' in top_level_keys"
+    );
+    assert!(
+        keys.contains(&"workflow"),
+        "missing 'workflow' in top_level_keys"
+    );
+    assert!(
+        keys.contains(&"imports"),
+        "missing 'imports' in top_level_keys"
+    );
+    assert!(
+        keys.contains(&"inputs"),
+        "missing 'inputs' in top_level_keys"
+    );
     assert!(keys.contains(&"mcp"), "missing 'mcp' in top_level_keys");
-    assert!(keys.contains(&"context"), "missing 'context' in top_level_keys");
+    assert!(
+        keys.contains(&"context"),
+        "missing 'context' in top_level_keys"
+    );
     assert!(keys.contains(&"tasks"), "missing 'tasks' in top_level_keys");
 }
 
@@ -1259,7 +1305,10 @@ tasks:
 
     // Schema and workflow
     assert_eq!(pw.schema.as_ref().unwrap().value, "'@0.12'");
-    assert_eq!(pw.workflow_name.as_ref().unwrap().value, "comprehensive-pipeline");
+    assert_eq!(
+        pw.workflow_name.as_ref().unwrap().value,
+        "comprehensive-pipeline"
+    );
 
     // Imports
     assert_eq!(pw.imports.len(), 2);
@@ -1297,7 +1346,9 @@ tasks:
 
     // Top-level keys
     let keys: Vec<&str> = pw.top_level_keys.iter().map(|k| k.value.as_str()).collect();
-    for expected in &["schema", "workflow", "imports", "inputs", "mcp", "context", "tasks"] {
+    for expected in &[
+        "schema", "workflow", "imports", "inputs", "mcp", "context", "tasks",
+    ] {
         assert!(keys.contains(expected), "missing top-level key: {expected}");
     }
 }
@@ -1328,8 +1379,12 @@ tasks:
         assert!(
             window[0].span.end <= window[1].span.start,
             "task {:?} span [{}, {}) overlaps with task {:?} span [{}, {})",
-            window[0].id, window[0].span.start, window[0].span.end,
-            window[1].id, window[1].span.start, window[1].span.end,
+            window[0].id,
+            window[0].span.start,
+            window[0].span.end,
+            window[1].id,
+            window[1].span.start,
+            window[1].span.end,
         );
     }
 }
@@ -1347,8 +1402,14 @@ tasks:
 
     let task = &pw.tasks[0];
     let span_text = &yaml[task.span.start as usize..task.span.end as usize];
-    assert!(span_text.contains("id: spanned"), "span text should contain task id");
-    assert!(span_text.contains("infer:"), "span text should contain verb");
+    assert!(
+        span_text.contains("id: spanned"),
+        "span text should contain task id"
+    );
+    assert!(
+        span_text.contains("infer:"),
+        "span text should contain verb"
+    );
 }
 
 // ===========================================================================
@@ -1517,17 +1578,20 @@ tasks:
         assert!(
             (range.start as usize) <= yaml.len(),
             "error range start {} exceeds text length {}",
-            range.start, yaml.len()
+            range.start,
+            yaml.len()
         );
         assert!(
             (range.end as usize) <= yaml.len(),
             "error range end {} exceeds text length {}",
-            range.end, yaml.len()
+            range.end,
+            yaml.len()
         );
         assert!(
             range.start <= range.end,
             "error range start {} > end {}",
-            range.start, range.end
+            range.start,
+            range.end
         );
     }
 }

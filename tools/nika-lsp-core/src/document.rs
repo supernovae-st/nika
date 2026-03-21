@@ -184,7 +184,7 @@ mod tests {
     fn unicode_edit() {
         let mut doc = Document::new("caf\u{00e9}".into(), 1);
         assert_eq!(doc.len_chars(), 4); // c, a, f, e-acute
-        // Replace the e-acute with "e"
+                                        // Replace the e-acute with "e"
         doc.apply_edit(range(0, 3, 0, 4), "e", 2);
         assert_eq!(doc.text(), "cafe");
     }

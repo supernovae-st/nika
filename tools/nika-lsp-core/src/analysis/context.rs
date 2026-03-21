@@ -202,12 +202,7 @@ pub fn detect_context(
     // Template context: inside {{ ... }}
     // -----------------------------------------------------------------------
     if prefix.contains("{{") && !prefix.contains("}}") {
-        let partial_expr = prefix
-            .rsplit("{{")
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_string();
+        let partial_expr = prefix.rsplit("{{").next().unwrap_or("").trim().to_string();
         let in_transform_chain = partial_expr.contains('|');
         let task_id = find_enclosing_task_id(&lines, line_idx);
         let available_bindings = extract_with_bindings(&lines, line_idx);
@@ -264,16 +259,14 @@ pub fn detect_context(
         match ancestor.as_str() {
             "with:" | "with" => {
                 let alias = if trimmed.contains(':') {
-                    trimmed.split(':').next().map(|s| s.trim_start_matches("- ").to_string())
+                    trimmed
+                        .split(':')
+                        .next()
+                        .map(|s| s.trim_start_matches("- ").to_string())
                 } else {
                     None
                 };
-                let partial_ref = trimmed
-                    .rsplit(':')
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string();
+                let partial_ref = trimmed.rsplit(':').next().unwrap_or("").trim().to_string();
                 return CursorContext::WithBlock {
                     task_id,
                     alias,
@@ -367,8 +360,7 @@ pub fn detect_context(
 
         // Inside invoke: specifically
         if verb == "invoke" {
-            let (focus, mcp_server, tool_name) =
-                detect_invoke_focus(&lines, line_idx, trimmed);
+            let (focus, mcp_server, tool_name) = detect_invoke_focus(&lines, line_idx, trimmed);
             return CursorContext::InvokeBlock {
                 task_id,
                 mcp_server,

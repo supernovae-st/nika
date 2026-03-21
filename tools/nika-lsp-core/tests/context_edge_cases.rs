@@ -4,9 +4,7 @@
 //! cursor context detection: boundary offsets, exotic whitespace, malformed
 //! templates, deep nesting, duplicate verbs, comments, and Unicode task IDs.
 
-use nika_lsp_core::analysis::context::{
-    detect_context, ContentFocus, CursorContext, InvokeFocus,
-};
+use nika_lsp_core::analysis::context::{detect_context, ContentFocus, CursorContext, InvokeFocus};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,9 +142,8 @@ fn very_long_line_at_root() {
 #[test]
 fn very_long_line_in_task() {
     let padding = " ".repeat(10_000);
-    let text = format!(
-        "schema: test\ntasks:\n  - id: step1\n    infer:\n      prompt: {padding}hello\n"
-    );
+    let text =
+        format!("schema: test\ntasks:\n  - id: step1\n    infer:\n      prompt: {padding}hello\n");
     // Cursor at byte 6 of the long prompt line (inside verb block).
     let line_start = text.find("      prompt:").unwrap();
     let c = ctx_at(&text, (line_start + 6) as u32);
@@ -240,8 +237,7 @@ fn multiple_templates_same_line_first_closed() {
     // both "{{" and "}}". When the first template is closed, the prefix
     // contains "}}" which suppresses Template detection for the second "{{".
     // This is a documented edge case of the text-based approach.
-    let text =
-        "schema: test\ntasks:\n  - id: s1\n    infer: \"{{with.a}} and {{with.b\"\n";
+    let text = "schema: test\ntasks:\n  - id: s1\n    infer: \"{{with.a}} and {{with.b\"\n";
     let offset = text.find("with.b").unwrap() + 4;
     let c = ctx_at(text, offset as u32);
     // Because prefix contains both {{ and }}, Template detection is
@@ -256,8 +252,7 @@ fn multiple_templates_same_line_first_closed() {
 fn multiple_templates_all_closed() {
     // All templates closed: prefix contains both {{ and }} so template
     // detection should NOT fire (the last {{ has a matching }}).
-    let text =
-        "schema: test\ntasks:\n  - id: s1\n    infer: \"{{a}} {{b}}\"\n";
+    let text = "schema: test\ntasks:\n  - id: s1\n    infer: \"{{a}} {{b}}\"\n";
     // Cursor after the last }}
     let line_start = text.find("    infer:").unwrap();
     let c = ctx_at(text, (line_start + 4) as u32);
@@ -379,8 +374,7 @@ fn unicode_task_id_cjk() {
 
 #[test]
 fn unicode_in_template_expression() {
-    let text =
-        "schema: test\ntasks:\n  - id: s1\n    infer: \"{{\u{00e9}l\u{00e8}ve.data\"\n";
+    let text = "schema: test\ntasks:\n  - id: s1\n    infer: \"{{\u{00e9}l\u{00e8}ve.data\"\n";
     let offset = text.find("\u{00e9}l\u{00e8}ve").unwrap() + 2;
     let c = ctx_at(text, offset as u32);
     assert!(
@@ -399,8 +393,16 @@ fn deeply_nested_10_levels() {
     // Each level adds 2 more spaces of indentation.
     let mut text = String::from("schema: test\ntasks:\n  - id: deep\n");
     let keys = [
-        "infer:", "content:", "- type: text", "nested1:", "nested2:",
-        "nested3:", "nested4:", "nested5:", "nested6:", "nested7:",
+        "infer:",
+        "content:",
+        "- type: text",
+        "nested1:",
+        "nested2:",
+        "nested3:",
+        "nested4:",
+        "nested5:",
+        "nested6:",
+        "nested7:",
     ];
     for (i, key) in keys.iter().enumerate() {
         let indent = "  ".repeat(i + 2);
@@ -417,8 +419,7 @@ fn deeply_nested_10_levels() {
     // Should not panic and should resolve to something (likely ContentPart
     // because "content:" is an ancestor).
     assert!(
-        !matches!(c, CursorContext::Unknown { .. })
-            || matches!(c, CursorContext::Unknown { .. }),
+        !matches!(c, CursorContext::Unknown { .. }) || matches!(c, CursorContext::Unknown { .. }),
         "Deeply nested (10 levels) should not panic -- got {c:?}"
     );
     // The real assertion: it did not panic. But let's also verify it found
@@ -480,9 +481,7 @@ tasks:
         CursorContext::VerbBlock { task_id, .. } => {
             assert_eq!(task_id.as_deref(), Some("dupe"));
         }
-        other => panic!(
-            "Duplicate verbs: expected TaskField or VerbBlock, got {other:?}"
-        ),
+        other => panic!("Duplicate verbs: expected TaskField or VerbBlock, got {other:?}"),
     }
 }
 
@@ -504,9 +503,7 @@ tasks:
             assert_eq!(verb, "exec");
             assert_eq!(task_id.as_deref(), Some("dupe"));
         }
-        other => panic!(
-            "Cursor in second verb block should be VerbBlock(exec), got {other:?}"
-        ),
+        other => panic!("Cursor in second verb block should be VerbBlock(exec), got {other:?}"),
     }
 }
 
@@ -606,9 +603,7 @@ tasks:
         CursorContext::VerbBlock { verb, .. } => {
             assert_eq!(verb, "infer");
         }
-        other => panic!(
-            "Comment inside verb block should be VerbBlock(infer), got {other:?}"
-        ),
+        other => panic!("Comment inside verb block should be VerbBlock(infer), got {other:?}"),
     }
 }
 
