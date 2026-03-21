@@ -109,6 +109,51 @@ pub fn validate(raw: &RawWorkflow) -> AnalyzeResult<()> {
     // 2.5. Collect include prefixes (tasks with these prefixes are resolved post-analysis)
     collect_include_prefixes(raw, &mut ctx);
 
+    // 2b. Validate model is specified when LLM verbs are used
+    let has_workflow_model = raw.model.is_some();
+    let workflow_provider = raw
+        .provider
+        .as_ref()
+        .map(|p| p.value.as_str())
+        .unwrap_or("");
+    for raw_task in &raw.tasks.value {
+        let task = &raw_task.value;
+        let uses_llm = task
+            .action
+            .as_ref()
+            .is_some_and(|a| matches!(&a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
+        let has_task_model = task.model.is_some();
+        let provider_name = task
+            .provider
+            .as_ref()
+            .map(|p| p.value.as_str())
+            .unwrap_or(workflow_provider);
+        let is_mock = provider_name == "mock";
+
+        if uses_llm && !has_workflow_model && !has_task_model && !is_mock {
+            let span = task.id.span;
+            ctx.errors.push(AnalyzeError {
+                kind: AnalyzeErrorKind::MissingModel,
+                span,
+                message: format!(
+                    "Task '{}' uses {} verb but no model is specified. \
+                     Add `model:` at workflow level or on this task. \
+                     Example: model: gpt-4o-mini",
+                    task.id.value,
+                    if matches!(task.action.as_ref(), Some(RawTaskAction::Agent(_))) {
+                        "agent:"
+                    } else {
+                        "infer:"
+                    }
+                ),
+                suggestion: Some(
+                    "Add `model: gpt-4o-mini` after `provider:` in your workflow".to_string(),
+                ),
+                note: None,
+            });
+        }
+    }
+
     // 3. Build task table (detect duplicates)
     build_task_table(&raw.tasks.value, &mut ctx);
 
@@ -183,6 +228,49 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
     workflow.description = raw.description.map(|s| s.value);
     workflow.provider = raw.provider.map(|s| s.value);
     workflow.model = raw.model.map(|s| s.value);
+
+    // 3b. Validate model is specified when LLM verbs are used
+    let has_workflow_model = workflow.model.is_some();
+    for raw_task in &raw.tasks.value {
+        let task = &raw_task.value;
+        let uses_llm = task
+            .action
+            .as_ref()
+            .is_some_and(|a| matches!(a, RawTaskAction::Infer(_) | RawTaskAction::Agent(_)));
+        let has_task_model = task.model.is_some();
+
+        // Provider 'mock' is exempt (no real API calls)
+        let provider_name = task
+            .provider
+            .as_ref()
+            .map(|p| p.value.as_str())
+            .or(workflow.provider.as_deref())
+            .unwrap_or("");
+        let is_mock = provider_name == "mock";
+
+        if uses_llm && !has_workflow_model && !has_task_model && !is_mock {
+            let span = task.id.span;
+            ctx.errors.push(AnalyzeError {
+                kind: AnalyzeErrorKind::MissingModel,
+                span,
+                message: format!(
+                    "Task '{}' uses {} verb but no model is specified. \
+                     Add `model:` at workflow level or on this task. \
+                     Example: model: gpt-4o-mini",
+                    task.id.value,
+                    if matches!(task.action.as_ref(), Some(RawTaskAction::Agent(_))) {
+                        "agent:"
+                    } else {
+                        "infer:"
+                    }
+                ),
+                suggestion: Some(
+                    "Add `model: gpt-4o-mini` after `provider:` in your workflow".to_string(),
+                ),
+                note: None,
+            });
+        }
+    }
 
     // 4. Analyze MCP server configurations
     if let Some(ref mcp) = raw.mcp {

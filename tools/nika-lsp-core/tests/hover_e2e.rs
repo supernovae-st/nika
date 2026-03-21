@@ -678,3 +678,146 @@ tasks:
     // Unknown position past the schema value
     assert_no_hover(yaml, 0, 20, "full workflow: past schema value");
 }
+
+// ===========================================================================
+// 11. Verb sub-field hover
+// ===========================================================================
+
+#[test]
+fn hover_verb_subfield_prompt_in_infer() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("step1".into()),
+        verb: "infer".into(),
+        existing_subfields: vec![],
+        prefix: "prompt:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "prompt sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Text Prompt") || contents.contains("prompt"),
+        "prompt hover should mention 'Text Prompt' or 'prompt', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_extract_in_fetch() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("req".into()),
+        verb: "fetch".into(),
+        existing_subfields: vec![],
+        prefix: "extract:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "extract sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Post-Processing") || contents.contains("extraction"),
+        "extract hover should mention 'Post-Processing' or 'extraction', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_model_in_agent() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("bot".into()),
+        verb: "agent".into(),
+        existing_subfields: vec![],
+        prefix: "model:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "model sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Model Override") || contents.contains("claude"),
+        "model hover should mention 'Model Override' or 'claude', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_tool_in_invoke() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("call".into()),
+        verb: "invoke".into(),
+        existing_subfields: vec![],
+        prefix: "tool:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "tool sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("MCP Tool"),
+        "tool hover should mention 'MCP Tool', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_max_turns_in_agent() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("bot".into()),
+        verb: "agent".into(),
+        existing_subfields: vec![],
+        prefix: "max_turns:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "max_turns sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Maximum") || contents.contains("iterations"),
+        "max_turns hover should mention 'Maximum' or 'iterations', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_extended_thinking_in_infer() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("step1".into()),
+        verb: "infer".into(),
+        existing_subfields: vec![],
+        prefix: "extended_thinking:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "extended_thinking sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Chain-of-Thought") || contents.contains("Claude"),
+        "extended_thinking hover should mention 'Chain-of-Thought' or 'Claude', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_command_in_exec() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("run".into()),
+        verb: "exec".into(),
+        existing_subfields: vec![],
+        prefix: "command:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(r.is_some(), "command sub-field should have hover");
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("Shell Command") || contents.contains("command"),
+        "command hover should mention 'Shell Command' or 'command', got: {contents}"
+    );
+}
+
+#[test]
+fn hover_verb_subfield_unknown_falls_back_to_verb() {
+    let ctx = CursorContext::VerbBlock {
+        task_id: Some("step1".into()),
+        verb: "infer".into(),
+        existing_subfields: vec![],
+        prefix: "unknown_field:".into(),
+    };
+    let r = hover("", 0, &ctx);
+    assert!(
+        r.is_some(),
+        "unknown sub-field should fall back to verb-level hover"
+    );
+    let contents = r.unwrap().contents;
+    assert!(
+        contents.contains("LLM Generation"),
+        "fallback hover should contain verb doc 'LLM Generation', got: {contents}"
+    );
+}
