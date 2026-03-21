@@ -22,7 +22,7 @@ pub use tower_lsp_server::ls_types::Uri;
 #[cfg(feature = "lsp")]
 use super::super::ast_index::AstIndex;
 #[cfg(feature = "lsp")]
-use super::super::utils::extract_task_ids;
+use nika_lsp_core::analysis::context::extract_task_ids;
 
 /// Compute code actions using AST-aware semantic analysis
 ///

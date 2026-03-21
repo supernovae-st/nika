@@ -51,7 +51,6 @@ mod document_store;
 pub mod handlers;
 pub mod model_intel;
 mod server;
-mod utils;
 
 pub use ast_index::{AstIndex, AstNode, CachedAst};
 

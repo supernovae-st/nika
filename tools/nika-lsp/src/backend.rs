@@ -20,7 +20,6 @@ use crate::ast_integration;
 use crate::completion::{get_completion_context, CompletionContext};
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
-use crate::hover::get_hover;
 use nika_lsp_core::handler::{DefaultHandler, LspHandler};
 
 /// Request to validate a document.
@@ -328,7 +327,21 @@ impl LanguageServer for NikaBackend {
             None => return Ok(None),
         };
 
-        Ok(get_hover(&doc, position))
+        let content = doc.content();
+        let offset = crate::position::position_to_offset(
+            &content, position.line, position.character
+        ).map(|o| o.0).unwrap_or(0);
+        let ctx = nika_lsp_core::analysis::context::detect_context(&content, offset, None);
+        match nika_lsp_core::handlers::hover::hover(&content, offset, &ctx) {
+            Some(result) => Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: result.contents,
+                }),
+                range: None,
+            })),
+            None => Ok(None),
+        }
     }
 
     // ===== Definition =====

@@ -24,7 +24,6 @@ mod backend;
 mod completion;
 mod diagnostics;
 mod document;
-mod hover;
 mod mcp_discovery;
 mod node_context;
 mod position;
