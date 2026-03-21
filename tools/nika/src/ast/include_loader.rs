@@ -464,6 +464,7 @@ mod tests {
         let included_yaml = r#"
 schema: nika/workflow@0.12
 provider: claude
+model: test-model
 tasks:
   - id: helper
     infer: "Help with something"
@@ -491,6 +492,7 @@ tasks:
         let included_yaml = r#"
 schema: nika/workflow@0.12
 provider: claude
+model: test-model
 tasks:
   - id: task1
     infer: "Task 1"
@@ -529,6 +531,7 @@ tasks:
             r#"
 schema: nika/workflow@0.12
 provider: claude
+model: test-model
 tasks:
   - id: a_task
     infer: "A"
@@ -541,6 +544,7 @@ tasks:
             r#"
 schema: nika/workflow@0.12
 provider: claude
+model: test-model
 tasks:
   - id: b_task
     infer: "B"
@@ -644,6 +648,7 @@ tasks:
             r#"
 schema: nika/workflow@0.12
 provider: claude
+model: test-model
 tasks:
   - id: secret
     infer: "Secret task"

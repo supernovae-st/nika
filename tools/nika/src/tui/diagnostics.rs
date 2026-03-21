@@ -409,6 +409,7 @@ mod tests {
         let mut engine = DiagnosticsEngine::new();
         let yaml = r#"schema: nika/workflow@0.12
 workflow: test
+model: test-model
 
 tasks:
   - id: step1

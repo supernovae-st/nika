@@ -112,6 +112,7 @@ fn a06_infer_all_llm_options() {
     // provider/model are task-level fields in the three-phase pipeline
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t1
     provider: openai
@@ -165,7 +166,7 @@ fn a08_infer_thinking_custom_budget() {
 
 #[test]
 fn a09_infer_multiline_prompt_shorthand() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: |\n      Line one.\n      Line two.\n";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: |\n      Line one.\n      Line two.\n";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => {
@@ -694,7 +695,7 @@ fn b10_exec_pipes_and_redirects() {
 
 #[test]
 fn b11_exec_multiline_shorthand() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    exec: |\n      echo first &&\n      echo second\n";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    exec: |\n      echo first &&\n      echo second\n";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Exec { exec } => {
@@ -1567,7 +1568,7 @@ fn e20_agent_full_config() {
 
 #[test]
 fn f01_dag_single_task() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: only\n    infer: \"Solo\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: only\n    infer: \"Solo\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 1);
     assert_eq!(w.flow_count(), 0);
@@ -1577,6 +1578,7 @@ fn f01_dag_single_task() {
 fn f02_dag_linear_two_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: step1
     infer: "First"
@@ -1593,6 +1595,7 @@ tasks:
 fn f03_dag_linear_three_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1612,6 +1615,7 @@ tasks:
 fn f04_dag_fan_out() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: root
     infer: "Root"
@@ -1634,6 +1638,7 @@ tasks:
 fn f05_dag_fan_in() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: src_a
     infer: "A"
@@ -1654,6 +1659,7 @@ tasks:
 fn f06_dag_diamond() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: top
     infer: "Top"
@@ -1681,6 +1687,7 @@ tasks:
 fn f07_dag_parallel_no_deps() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: p1
     infer: "Parallel 1"
@@ -1698,6 +1705,7 @@ tasks:
 fn f08_dag_long_chain() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: s1
     infer: "1"
@@ -1723,6 +1731,7 @@ tasks:
 fn f09_dag_mixed_verbs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: research
     infer: "Research topic"
@@ -1748,6 +1757,7 @@ tasks:
 fn f10_dag_multiple_roots() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: root_a
     infer: "Root A"
@@ -1765,6 +1775,7 @@ tasks:
 fn f11_dag_edges_method() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1786,12 +1797,14 @@ tasks:
 fn f12_dag_hash_different_structure() {
     let yaml1 = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
 "#;
     let yaml2 = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1807,6 +1820,7 @@ tasks:
 fn f13_dag_hash_consistent() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1820,6 +1834,7 @@ tasks:
 fn f14_dag_complex_web() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1845,6 +1860,7 @@ tasks:
 fn f15_dag_single_dep() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1860,6 +1876,7 @@ tasks:
 fn f16_dag_many_deps() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1881,6 +1898,7 @@ tasks:
 fn f17_dag_parallel_then_serial() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: p1
     infer: "P1"
@@ -1901,6 +1919,7 @@ tasks:
 fn f18_dag_ten_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t01
     infer: "1"
@@ -1934,6 +1953,7 @@ fn f19_dag_provider_override() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 provider: claude
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -1980,6 +2000,7 @@ tasks:
 fn g01_with_simple_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -1997,6 +2018,7 @@ tasks:
 fn g02_with_multiple_bindings() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2017,6 +2039,7 @@ tasks:
 fn g03_with_dotted_path() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2034,6 +2057,7 @@ tasks:
 fn g04_with_fallback_string() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2051,6 +2075,7 @@ tasks:
 fn g05_with_fallback_number() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2068,6 +2093,7 @@ tasks:
 fn g06_with_dollar_prefix() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2085,6 +2111,7 @@ tasks:
 fn g07_with_dollar_dotted_path() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2102,6 +2129,7 @@ tasks:
 fn g08_template_in_prompt() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2124,6 +2152,7 @@ tasks:
 fn g09_template_in_exec() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2146,6 +2175,7 @@ tasks:
 fn g10_template_in_fetch_url() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2169,6 +2199,7 @@ tasks:
 fn g11_with_three_bindings() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2189,6 +2220,7 @@ tasks:
 fn g12_with_binding_from_different_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: src_a
     infer: "Source A"
@@ -2211,6 +2243,7 @@ tasks:
 fn g13_template_multiple_in_one_prompt() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2236,6 +2269,7 @@ fn g14_with_no_bindings() {
     // A task without with: block should have None
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: solo
     infer: "No bindings needed"
@@ -2248,6 +2282,7 @@ tasks:
 fn g15_template_in_system_prompt() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate context"
@@ -2272,6 +2307,7 @@ tasks:
 fn g16_with_transform_pipe() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2289,6 +2325,7 @@ tasks:
 fn g17_with_transform_chain() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2306,6 +2343,7 @@ tasks:
 fn g18_with_array_index_path() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -2323,6 +2361,7 @@ tasks:
 fn g19_for_each_with_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: process
     for_each: ["en-US", "fr-FR", "de-DE"]
@@ -2337,6 +2376,7 @@ tasks:
 fn g20_for_each_dollar_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate list"
@@ -2524,6 +2564,7 @@ fn i02_error_bad_schema_version() {
 fn i03_error_duplicate_task_ids() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: dupe
     infer: "First"
@@ -2537,7 +2578,7 @@ tasks:
 
 #[test]
 fn i04_error_missing_task_id() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - infer: \"No id\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - infer: \"No id\"";
     let e = err(yaml);
     let msg = format!("{e}");
     assert!(msg.contains("id") || msg.contains("NIKA"));
@@ -2545,7 +2586,7 @@ fn i04_error_missing_task_id() {
 
 #[test]
 fn i05_error_empty_tasks() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks: []";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks: []";
     let e = err(yaml);
     let msg = format!("{e}");
     assert!(msg.contains("task") || msg.contains("NIKA"));
@@ -2554,7 +2595,7 @@ fn i05_error_empty_tasks() {
 #[test]
 fn i06_no_verb_defaults_to_empty_infer() {
     // A task with no verb defaults to an Infer with empty prompt (not an error at parse time)
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: no_verb";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: no_verb";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Infer { infer } => assert!(infer.prompt.is_empty()),
@@ -2566,6 +2607,7 @@ fn i06_no_verb_defaults_to_empty_infer() {
 fn i07_error_circular_dep_self() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: self_ref
     depends_on: [self_ref]
@@ -2585,6 +2627,7 @@ tasks:
 fn i08_error_circular_dep_pair() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     depends_on: [b]
@@ -2602,6 +2645,7 @@ tasks:
 fn i09_error_dep_nonexistent() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t1
     depends_on: [nonexistent]
@@ -2619,7 +2663,7 @@ tasks:
 
 #[test]
 fn i10_error_bad_yaml_syntax() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n  infer: bad indent";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n  infer: bad indent";
     let result = parse_workflow(yaml);
     // Should fail at parse or validation
     assert!(result.is_err());
@@ -2643,7 +2687,7 @@ fn i12_error_missing_tasks() {
 
 #[test]
 fn i13_error_tasks_not_array() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks: \"not an array\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks: \"not an array\"";
     let result = parse_workflow(yaml);
     assert!(result.is_err());
 }
@@ -2658,7 +2702,7 @@ fn i14_error_empty_schema() {
 
 #[test]
 fn i15_error_task_id_whitespace() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: \"  \"\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: \"  \"\n    infer: \"Hello\"";
     let e = err(yaml);
     let msg = format!("{e}");
     assert!(msg.contains("id") || msg.contains("NIKA"));
@@ -2668,6 +2712,7 @@ fn i15_error_task_id_whitespace() {
 fn i16_error_circular_dep_triangle() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     depends_on: [c]
@@ -2688,7 +2733,7 @@ tasks:
 fn i17_error_task_id_with_special_chars() {
     // Task IDs with spaces or special chars should be rejected
     let yaml =
-        "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: \"has space\"\n    infer: \"Hello\"";
+        "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: \"has space\"\n    infer: \"Hello\"";
     let result = parse_workflow(yaml);
     // The parser should reject IDs with spaces
     assert!(result.is_err());
@@ -2699,6 +2744,7 @@ fn i18_duplicate_dep_accepted() {
     // Duplicate in depends_on list is currently accepted by the pipeline
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -2712,7 +2758,7 @@ tasks:
 
 #[test]
 fn i19_error_task_id_empty() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: \"\"\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: \"\"\n    infer: \"Hello\"";
     let e = err(yaml);
     let msg = format!("{e}");
     assert!(msg.contains("id") || msg.contains("empty") || msg.contains("NIKA"));
@@ -2749,7 +2795,7 @@ fn i23_error_no_schema_field() {
 
 #[test]
 fn i24_error_tasks_null() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:";
     let result = parse_workflow(yaml);
     assert!(result.is_err());
 }
@@ -2939,7 +2985,7 @@ tasks:
 
 #[test]
 fn k01_workflow_default_provider_claude() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.provider, "claude");
 }
@@ -2947,7 +2993,7 @@ fn k01_workflow_default_provider_claude() {
 #[test]
 fn k02_workflow_custom_provider() {
     let yaml =
-        "schema: \"nika/workflow@0.12\"\nprovider: openai\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+        "schema: \"nika/workflow@0.12\"\nprovider: openai\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.provider, "openai");
 }
@@ -2963,6 +3009,7 @@ fn k03_workflow_with_model() {
 fn k04_workflow_mcp_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 mcp:
   servers:
     novanet:
@@ -2984,6 +3031,7 @@ tasks:
 fn k05_workflow_multiple_mcp_servers() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 mcp:
   servers:
     server_a:
@@ -3001,21 +3049,21 @@ tasks:
 
 #[test]
 fn k06_workflow_schema_v10() {
-    let yaml = "schema: \"nika/workflow@0.10\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.10\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.schema, "nika/workflow@0.10");
 }
 
 #[test]
 fn k07_workflow_schema_v11() {
-    let yaml = "schema: \"nika/workflow@0.11\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.11\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.schema, "nika/workflow@0.11");
 }
 
 #[test]
 fn k08_workflow_schema_v12() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.schema, "nika/workflow@0.12");
 }
@@ -3024,6 +3072,7 @@ fn k08_workflow_schema_v12() {
 fn k09_workflow_inputs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 inputs:
   name:
     type: string
@@ -3038,7 +3087,7 @@ tasks:
 
 #[test]
 fn k10_workflow_hash_hex_format() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     let hash = w.compute_hash();
     assert_eq!(hash.len(), 16);
@@ -3937,7 +3986,7 @@ fn m20_fetch_response_full_delete_method() {
 
 #[test]
 fn n01_fetch_extract_markdown_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: summarize\n    depends_on: [scrape]\n    with:\n      page: $scrape\n    infer: \"Summarize: {{with.page}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: summarize\n    depends_on: [scrape]\n    with:\n      page: $scrape\n    infer: \"Summarize: {{with.page}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -3952,7 +4001,7 @@ fn n01_fetch_extract_markdown_then_infer() {
 
 #[test]
 fn n02_fetch_extract_metadata_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_meta\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer: \"Title: {{with.info}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_meta\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer: \"Title: {{with.info}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -3963,7 +4012,7 @@ fn n02_fetch_extract_metadata_then_infer() {
 
 #[test]
 fn n03_fetch_extract_links_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: categorize\n    depends_on: [get_links]\n    with:\n      links: $get_links\n    infer: \"Categorize: {{with.links}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: categorize\n    depends_on: [get_links]\n    with:\n      links: $get_links\n    infer: \"Categorize: {{with.links}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -3974,7 +4023,7 @@ fn n03_fetch_extract_links_then_infer() {
 
 #[test]
 fn n04_fetch_response_full_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: api_call\n    fetch:\n      url: \"https://api.example.com/status\"\n      response: full\n  - id: analyze\n    depends_on: [api_call]\n    with:\n      resp: $api_call\n    infer: \"Analyze: {{with.resp}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: api_call\n    fetch:\n      url: \"https://api.example.com/status\"\n      response: full\n  - id: analyze\n    depends_on: [api_call]\n    with:\n      resp: $api_call\n    infer: \"Analyze: {{with.resp}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -3985,7 +4034,7 @@ fn n04_fetch_response_full_then_infer() {
 
 #[test]
 fn n05_fetch_response_binary_then_invoke_thumbnail() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumb\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 200";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumb\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 200";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4000,7 +4049,7 @@ fn n05_fetch_response_binary_then_invoke_thumbnail() {
 
 #[test]
 fn n06_fetch_extract_text_selector_then_exec() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: text\n      selector: \"h1\"\n  - id: store\n    depends_on: [scrape]\n    with:\n      title: $scrape\n    exec: \"echo {{with.title}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: text\n      selector: \"h1\"\n  - id: store\n    depends_on: [scrape]\n    with:\n      title: $scrape\n    exec: \"echo {{with.title}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4014,7 +4063,7 @@ fn n06_fetch_extract_text_selector_then_exec() {
 
 #[test]
 fn n07_fetch_extract_markdown_chain_three_tasks() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: fetch_page\n    fetch:\n      url: \"https://docs.example.com/api\"\n      extract: markdown\n  - id: summarize\n    depends_on: [fetch_page]\n    with:\n      doc: $fetch_page\n    infer: \"Summarize: {{with.doc}}\"\n  - id: format\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    infer: \"Format: {{with.summary}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: fetch_page\n    fetch:\n      url: \"https://docs.example.com/api\"\n      extract: markdown\n  - id: summarize\n    depends_on: [fetch_page]\n    with:\n      doc: $fetch_page\n    infer: \"Summarize: {{with.doc}}\"\n  - id: format\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    infer: \"Format: {{with.summary}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     let deps1 = w.tasks[1].depends_on.as_ref().unwrap();
@@ -4025,7 +4074,7 @@ fn n07_fetch_extract_markdown_chain_three_tasks() {
 
 #[test]
 fn n08_fetch_extract_jsonpath_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: api\n    fetch:\n      url: \"https://api.example.com/products\"\n      extract: jsonpath\n      selector: \"$.data.products[*].name\"\n  - id: describe\n    depends_on: [api]\n    with:\n      products: $api\n    infer: \"Describe: {{with.products}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: api\n    fetch:\n      url: \"https://api.example.com/products\"\n      extract: jsonpath\n      selector: \"$.data.products[*].name\"\n  - id: describe\n    depends_on: [api]\n    with:\n      products: $api\n    infer: \"Describe: {{with.products}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4039,7 +4088,7 @@ fn n08_fetch_extract_jsonpath_then_infer() {
 
 #[test]
 fn n09_fetch_extract_article_then_agent() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post/123\"\n      extract: article\n  - id: research\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    agent:\n      prompt: \"Analyze: {{with.article}}\"\n      max_turns: 3";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post/123\"\n      extract: article\n  - id: research\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    agent:\n      prompt: \"Analyze: {{with.article}}\"\n      max_turns: 3";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4050,7 +4099,7 @@ fn n09_fetch_extract_article_then_agent() {
 
 #[test]
 fn n10_fetch_extract_feed_then_for_each() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_feed\n    fetch:\n      url: \"https://blog.example.com/rss\"\n      extract: feed\n  - id: process\n    depends_on: [get_feed]\n    for_each: $get_feed\n    as: entry\n    infer: \"Summarize: {{with.entry}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: get_feed\n    fetch:\n      url: \"https://blog.example.com/rss\"\n      extract: feed\n  - id: process\n    depends_on: [get_feed]\n    for_each: $get_feed\n    as: entry\n    infer: \"Summarize: {{with.entry}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4061,7 +4110,7 @@ fn n10_fetch_extract_feed_then_for_each() {
 
 #[test]
 fn n11_fetch_multiple_extracts_parallel() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: get_md\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: combine\n    depends_on: [get_md, get_links]\n    with:\n      md: $get_md\n      links: $get_links\n    infer: \"Content: {{with.md}} Links: {{with.links}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: get_md\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: get_links\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: combine\n    depends_on: [get_md, get_links]\n    with:\n      md: $get_md\n      links: $get_links\n    infer: \"Content: {{with.md}} Links: {{with.links}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     assert!(w.tasks[2]
@@ -4078,14 +4127,14 @@ fn n11_fetch_multiple_extracts_parallel() {
 
 #[test]
 fn n12_fetch_extract_with_dotted_binding_path() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_og\n    depends_on: [scrape]\n    with:\n      title: $scrape.og.title\n    infer: \"OG Title: {{with.title}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: use_og\n    depends_on: [scrape]\n    with:\n      title: $scrape.og.title\n    infer: \"OG Title: {{with.title}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
 }
 
 #[test]
 fn n13_fetch_binary_then_invoke_import() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/file.pdf\"\n      response: binary\n  - id: import\n    depends_on: [dl]\n    with:\n      file: $dl\n    invoke:\n      tool: \"nika:import\"\n      params:\n        source: \"{{with.file}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/file.pdf\"\n      response: binary\n  - id: import\n    depends_on: [dl]\n    with:\n      file: $dl\n    invoke:\n      tool: \"nika:import\"\n      params:\n        source: \"{{with.file}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4096,7 +4145,7 @@ fn n13_fetch_binary_then_invoke_import() {
 
 #[test]
 fn n14_fetch_extract_llm_txt_then_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: ctx\n    fetch:\n      url: \"https://example.com/.well-known/llm.txt\"\n      extract: llm_txt\n  - id: use_ctx\n    depends_on: [ctx]\n    with:\n      c: $ctx\n    infer:\n      system: \"Context: {{with.c}}\"\n      prompt: \"Answer the question\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: ctx\n    fetch:\n      url: \"https://example.com/.well-known/llm.txt\"\n      extract: llm_txt\n  - id: use_ctx\n    depends_on: [ctx]\n    with:\n      c: $ctx\n    infer:\n      system: \"Context: {{with.c}}\"\n      prompt: \"Answer the question\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4107,7 +4156,7 @@ fn n14_fetch_extract_llm_txt_then_infer() {
 
 #[test]
 fn n15_fetch_response_full_status_in_binding() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: check\n    fetch:\n      url: \"https://api.example.com/health\"\n      response: full\n  - id: report\n    depends_on: [check]\n    with:\n      status: $check.status\n    infer: \"Status code: {{with.status}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: check\n    fetch:\n      url: \"https://api.example.com/health\"\n      response: full\n  - id: report\n    depends_on: [check]\n    with:\n      status: $check.status\n    infer: \"Status code: {{with.status}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
 }
@@ -4118,7 +4167,7 @@ fn n15_fetch_response_full_status_in_binding() {
 
 #[test]
 fn o01_fetch_binary_then_vision_content() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: describe\n    depends_on: [download]\n    with:\n      img: $download\n    infer:\n      content:\n        - type: image\n          source: \"{{with.img}}\"\n          detail: high\n        - type: text\n          text: \"Describe this image\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: describe\n    depends_on: [download]\n    with:\n      img: $download\n    infer:\n      content:\n        - type: image\n          source: \"{{with.img}}\"\n          detail: high\n        - type: text\n          text: \"Describe this image\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[0].action {
@@ -4138,7 +4187,7 @@ fn o01_fetch_binary_then_vision_content() {
 
 #[test]
 fn o02_fetch_markdown_then_vision_infer() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: analyze\n    depends_on: [scrape]\n    with:\n      doc: $scrape\n    infer:\n      prompt: \"Analyze: {{with.doc}}\"\n      content:\n        - type: image_url\n          url: \"https://chart.example.com/preview.png\"\n          detail: auto";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://example.com\"\n      extract: markdown\n  - id: analyze\n    depends_on: [scrape]\n    with:\n      doc: $scrape\n    infer:\n      prompt: \"Analyze: {{with.doc}}\"\n      content:\n        - type: image_url\n          url: \"https://chart.example.com/preview.png\"\n          detail: auto";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4152,7 +4201,7 @@ fn o02_fetch_markdown_then_vision_infer() {
 
 #[test]
 fn o03_fetch_extract_and_binary_then_vision_pipeline() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: fetch_html\n    fetch:\n      url: \"https://example.com\"\n      extract: article\n  - id: fetch_image\n    fetch:\n      url: \"https://example.com/hero.jpg\"\n      response: binary\n  - id: analyze\n    depends_on: [fetch_html, fetch_image]\n    with:\n      article: $fetch_html\n      photo: $fetch_image\n    infer:\n      prompt: \"Based on article: {{with.article}}\"\n      content:\n        - type: image\n          source: \"{{with.photo}}\"\n          detail: high";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: fetch_html\n    fetch:\n      url: \"https://example.com\"\n      extract: article\n  - id: fetch_image\n    fetch:\n      url: \"https://example.com/hero.jpg\"\n      response: binary\n  - id: analyze\n    depends_on: [fetch_html, fetch_image]\n    with:\n      article: $fetch_html\n      photo: $fetch_image\n    infer:\n      prompt: \"Based on article: {{with.article}}\"\n      content:\n        - type: image\n          source: \"{{with.photo}}\"\n          detail: high";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     assert!(w.tasks[2]
@@ -4169,7 +4218,7 @@ fn o03_fetch_extract_and_binary_then_vision_pipeline() {
 
 #[test]
 fn o04_fetch_binary_two_images_then_vision_compare() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl1\n    fetch:\n      url: \"https://cdn.example.com/before.jpg\"\n      response: binary\n  - id: dl2\n    fetch:\n      url: \"https://cdn.example.com/after.jpg\"\n      response: binary\n  - id: compare\n    depends_on: [dl1, dl2]\n    with:\n      before: $dl1\n      after: $dl2\n    infer:\n      content:\n        - type: image\n          source: \"{{with.before}}\"\n          detail: high\n        - type: image\n          source: \"{{with.after}}\"\n          detail: high\n        - type: text\n          text: \"Compare these two images\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: dl1\n    fetch:\n      url: \"https://cdn.example.com/before.jpg\"\n      response: binary\n  - id: dl2\n    fetch:\n      url: \"https://cdn.example.com/after.jpg\"\n      response: binary\n  - id: compare\n    depends_on: [dl1, dl2]\n    with:\n      before: $dl1\n      after: $dl2\n    infer:\n      content:\n        - type: image\n          source: \"{{with.before}}\"\n          detail: high\n        - type: image\n          source: \"{{with.after}}\"\n          detail: high\n        - type: text\n          text: \"Compare these two images\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     match &w.tasks[2].action {
@@ -4182,7 +4231,7 @@ fn o04_fetch_binary_two_images_then_vision_compare() {
 
 #[test]
 fn o05_fetch_metadata_then_vision() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: vision\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer:\n      prompt: \"Metadata: {{with.info}}\"\n      content:\n        - type: image_url\n          url: \"https://example.com/og.jpg\"\n          detail: low";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: meta\n    fetch:\n      url: \"https://example.com\"\n      extract: metadata\n  - id: vision\n    depends_on: [meta]\n    with:\n      info: $meta\n    infer:\n      prompt: \"Metadata: {{with.info}}\"\n      content:\n        - type: image_url\n          url: \"https://example.com/og.jpg\"\n          detail: low";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4196,14 +4245,14 @@ fn o05_fetch_metadata_then_vision() {
 
 #[test]
 fn o06_fetch_binary_invoke_thumbnail_then_vision() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumbnail\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 256\n  - id: describe\n    depends_on: [thumbnail]\n    with:\n      thumb: $thumbnail\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: auto\n        - type: text\n          text: \"Describe this thumbnail\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: download\n    fetch:\n      url: \"https://cdn.example.com/photo.jpg\"\n      response: binary\n  - id: thumbnail\n    depends_on: [download]\n    with:\n      img: $download\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.img}}\"\n        width: 256\n  - id: describe\n    depends_on: [thumbnail]\n    with:\n      thumb: $thumbnail\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: auto\n        - type: text\n          text: \"Describe this thumbnail\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
 }
 
 #[test]
 fn o07_fetch_links_then_for_each_fetch_extract() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: sitemap\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: scrape_each\n    depends_on: [sitemap]\n    for_each: $sitemap\n    as: link\n    fetch:\n      url: \"{{with.link}}\"\n      extract: markdown";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: sitemap\n    fetch:\n      url: \"https://example.com\"\n      extract: links\n  - id: scrape_each\n    depends_on: [sitemap]\n    for_each: $sitemap\n    as: link\n    fetch:\n      url: \"{{with.link}}\"\n      extract: markdown";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4214,7 +4263,7 @@ fn o07_fetch_links_then_for_each_fetch_extract() {
 
 #[test]
 fn o08_fetch_article_with_vision_system_prompt() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://news.example.com/article\"\n      extract: article\n  - id: vision\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    provider: claude\n    infer:\n      system: \"Article: {{with.article}}\"\n      content:\n        - type: image_url\n          url: \"https://news.example.com/header.jpg\"\n          detail: high\n        - type: text\n          text: \"Does this image match the article?\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://news.example.com/article\"\n      extract: article\n  - id: vision\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    provider: claude\n    infer:\n      system: \"Article: {{with.article}}\"\n      content:\n        - type: image_url\n          url: \"https://news.example.com/header.jpg\"\n          detail: high\n        - type: text\n          text: \"Does this image match the article?\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4227,14 +4276,14 @@ fn o08_fetch_article_with_vision_system_prompt() {
 
 #[test]
 fn o09_fetch_binary_to_invoke_phash() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/logo.png\"\n      response: binary\n  - id: hash\n    depends_on: [dl]\n    with:\n      img: $dl\n    invoke:\n      tool: \"nika:phash\"\n      params:\n        hash: \"{{with.img}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://cdn.example.com/logo.png\"\n      response: binary\n  - id: hash\n    depends_on: [dl]\n    with:\n      img: $dl\n    invoke:\n      tool: \"nika:phash\"\n      params:\n        hash: \"{{with.img}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
 }
 
 #[test]
 fn o10_fetch_article_then_structured_output() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post\"\n      extract: article\n  - id: extract_data\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    structured: ./schemas/article.json\n    infer: \"Extract title, author from: {{with.article}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://blog.example.com/post\"\n      extract: article\n  - id: extract_data\n    depends_on: [scrape]\n    with:\n      article: $scrape\n    structured: ./schemas/article.json\n    infer: \"Extract title, author from: {{with.article}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     assert!(w.tasks[1].structured.is_some());
@@ -4242,7 +4291,7 @@ fn o10_fetch_article_then_structured_output() {
 
 #[test]
 fn o11_fetch_binary_download_resize_vision_pipeline() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://storage.example.com/img.png\"\n      response: binary\n      timeout: 60\n  - id: resize\n    depends_on: [dl]\n    with:\n      raw: $dl\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.raw}}\"\n        width: 512\n  - id: analyze\n    depends_on: [resize]\n    with:\n      thumb: $resize\n    provider: openai\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: high\n        - type: text\n          text: \"Describe what you see\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: dl\n    fetch:\n      url: \"https://storage.example.com/img.png\"\n      response: binary\n      timeout: 60\n  - id: resize\n    depends_on: [dl]\n    with:\n      raw: $dl\n    invoke:\n      tool: \"nika:thumbnail\"\n      params:\n        hash: \"{{with.raw}}\"\n        width: 512\n  - id: analyze\n    depends_on: [resize]\n    with:\n      thumb: $resize\n    provider: openai\n    infer:\n      content:\n        - type: image\n          source: \"{{with.thumb}}\"\n          detail: high\n        - type: text\n          text: \"Describe what you see\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
     match &w.tasks[0].action {
@@ -4256,7 +4305,7 @@ fn o11_fetch_binary_download_resize_vision_pipeline() {
 
 #[test]
 fn o12_fetch_scrape_summarize_publish_workflow() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: markdown\n      timeout: 30\n  - id: get_meta\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: metadata\n  - id: summarize\n    depends_on: [scrape, get_meta]\n    with:\n      content: $scrape\n      meta: $get_meta\n    infer:\n      system: \"You are a technical writer\"\n      prompt: \"Summarize: {{with.content}} Meta: {{with.meta}}\"\n  - id: publish\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    fetch:\n      url: \"https://api.example.com/publish\"\n      method: POST\n      json:\n        content: \"{{with.summary}}\"\n      response: full";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: scrape\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: markdown\n      timeout: 30\n  - id: get_meta\n    fetch:\n      url: \"https://docs.example.com\"\n      extract: metadata\n  - id: summarize\n    depends_on: [scrape, get_meta]\n    with:\n      content: $scrape\n      meta: $get_meta\n    infer:\n      system: \"You are a technical writer\"\n      prompt: \"Summarize: {{with.content}} Meta: {{with.meta}}\"\n  - id: publish\n    depends_on: [summarize]\n    with:\n      summary: $summarize\n    fetch:\n      url: \"https://api.example.com/publish\"\n      method: POST\n      json:\n        content: \"{{with.summary}}\"\n      response: full";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 4);
     match &w.tasks[3].action {
@@ -4270,21 +4319,21 @@ fn o12_fetch_scrape_summarize_publish_workflow() {
 
 #[test]
 fn o13_fetch_binary_two_downloads_then_quality_compare() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: original\n    fetch:\n      url: \"https://cdn.example.com/original.jpg\"\n      response: binary\n  - id: optimized\n    fetch:\n      url: \"https://cdn.example.com/optimized.jpg\"\n      response: binary\n  - id: quality\n    depends_on: [original, optimized]\n    with:\n      orig: $original\n      opt: $optimized\n    invoke:\n      tool: \"nika:quality\"\n      params:\n        reference: \"{{with.orig}}\"\n        distorted: \"{{with.opt}}\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: original\n    fetch:\n      url: \"https://cdn.example.com/original.jpg\"\n      response: binary\n  - id: optimized\n    fetch:\n      url: \"https://cdn.example.com/optimized.jpg\"\n      response: binary\n  - id: quality\n    depends_on: [original, optimized]\n    with:\n      orig: $original\n      opt: $optimized\n    invoke:\n      tool: \"nika:quality\"\n      params:\n        reference: \"{{with.orig}}\"\n        distorted: \"{{with.opt}}\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 3);
 }
 
 #[test]
 fn o14_fetch_feed_then_for_each_vision() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: rss\n    fetch:\n      url: \"https://photo-blog.example.com/feed\"\n      extract: feed\n  - id: review\n    depends_on: [rss]\n    for_each: $rss\n    as: item\n    infer:\n      content:\n        - type: image_url\n          url: \"{{with.item}}\"\n          detail: low\n        - type: text\n          text: \"Rate this photo 1-10\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: rss\n    fetch:\n      url: \"https://photo-blog.example.com/feed\"\n      extract: feed\n  - id: review\n    depends_on: [rss]\n    for_each: $rss\n    as: item\n    infer:\n      content:\n        - type: image_url\n          url: \"{{with.item}}\"\n          detail: low\n        - type: text\n          text: \"Rate this photo 1-10\"";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
 }
 
 #[test]
 fn o15_fetch_article_then_agent_with_mcp() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: research\n    fetch:\n      url: \"https://arxiv.org/abs/2401.00001\"\n      extract: article\n  - id: deep_analysis\n    depends_on: [research]\n    with:\n      paper: $research\n    agent:\n      prompt: \"Analyze: {{with.paper}}\"\n      system: \"You are a research assistant\"\n      mcp:\n        - novanet\n      max_turns: 5";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: research\n    fetch:\n      url: \"https://arxiv.org/abs/2401.00001\"\n      extract: article\n  - id: deep_analysis\n    depends_on: [research]\n    with:\n      paper: $research\n    agent:\n      prompt: \"Analyze: {{with.paper}}\"\n      system: \"You are a research assistant\"\n      mcp:\n        - novanet\n      max_turns: 5";
     let w = ok(yaml);
     assert_eq!(w.tasks.len(), 2);
     match &w.tasks[1].action {
@@ -4303,7 +4352,7 @@ fn o15_fetch_article_then_agent_with_mcp() {
 #[test]
 fn p01_fetch_shorthand_string_is_error() {
     let yaml =
-        "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    fetch: \"https://example.com\"";
+        "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    fetch: \"https://example.com\"";
     let e = err(yaml);
     let msg = format!("{e}");
     assert!(msg.contains("mapping") || msg.contains("NIKA"));
@@ -4311,7 +4360,7 @@ fn p01_fetch_shorthand_string_is_error() {
 
 #[test]
 fn p02_fetch_all_fields_combined() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    retry:\n      max_attempts: 3\n      delay_ms: 1000\n      backoff: 2.0\n    fetch:\n      url: \"https://api.example.com/data\"\n      method: POST\n      headers:\n        Content-Type: application/json\n        Authorization: \"Bearer token123\"\n      json:\n        key: value\n        nested:\n          deep: true\n      timeout: 60\n      follow_redirects: false\n      response: full\n      extract: jsonpath\n      selector: \"$.data.results\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    retry:\n      max_attempts: 3\n      delay_ms: 1000\n      backoff: 2.0\n    fetch:\n      url: \"https://api.example.com/data\"\n      method: POST\n      headers:\n        Content-Type: application/json\n        Authorization: \"Bearer token123\"\n      json:\n        key: value\n        nested:\n          deep: true\n      timeout: 60\n      follow_redirects: false\n      response: full\n      extract: jsonpath\n      selector: \"$.data.results\"";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Fetch { fetch } => {
@@ -4501,6 +4550,7 @@ fn p12_fetch_extract_selector_id_with_hash() {
 fn q01_fetch_binary_vision_cas_bridge() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: download_photo
     fetch:
@@ -4541,6 +4591,7 @@ tasks:
 fn q02_fetch_extract_markdown_then_infer_with_result() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -4570,6 +4621,7 @@ tasks:
 fn q03_fetch_extract_metadata_then_infer_analyze() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: meta
     fetch:
@@ -4597,6 +4649,7 @@ tasks:
 fn q04_fetch_extract_links_then_infer_classify() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: get_links
     fetch:
@@ -4620,6 +4673,7 @@ tasks:
 fn q05_fetch_response_full_then_infer_on_body() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: api_call
     fetch:
@@ -4647,6 +4701,7 @@ tasks:
 fn q06_vision_content_five_image_parts() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gallery
     infer:
@@ -4748,6 +4803,7 @@ fn q09_vision_plus_extended_thinking() {
 fn q10_fetch_binary_then_vision_with_system_and_max_tokens() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: dl
     fetch:
@@ -4784,6 +4840,7 @@ tasks:
 fn q11_fetch_two_pages_vision_comparison() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: page_a
     fetch:
@@ -4819,6 +4876,7 @@ tasks:
 fn q12_fetch_markdown_with_inline_image() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -4843,6 +4901,7 @@ tasks:
 fn q13_fetch_extract_then_vision_with_output_json() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -4897,6 +4956,7 @@ fn q14_vision_mixed_cas_and_url_images() {
 fn q15_fetch_metadata_vision_og_image() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: meta
     fetch:
@@ -4922,6 +4982,7 @@ fn q16_vision_with_provider_override_per_task() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 provider: claude
+model: test-model
 tasks:
   - id: claude_vision
     infer:
@@ -4974,6 +5035,7 @@ fn q17_vision_content_only_text_parts() {
 fn q18_fetch_links_then_vision_per_link() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: get_links
     fetch:
@@ -5013,6 +5075,7 @@ fn q19_vision_with_structured_output() {
 fn q20_fetch_binary_chain_import_thumbnail_vision() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: dl
     fetch:
@@ -5063,6 +5126,7 @@ tasks:
 fn r01_for_each_items_fetch_extract_markdown_per_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape_all
     for_each: ["https://a.com", "https://b.com", "https://c.com"]
@@ -5084,6 +5148,7 @@ tasks:
 fn r02_for_each_items_fetch_extract_metadata_per_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: meta_all
     for_each: ["https://a.com", "https://b.com"]
@@ -5103,6 +5168,7 @@ tasks:
 fn r03_for_each_invoke_per_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: process
     for_each: ["file1.jpg", "file2.jpg", "file3.jpg"]
@@ -5126,6 +5192,7 @@ tasks:
 fn r04_for_each_with_vision_content() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: review_images
     for_each: ["blake3:img1", "blake3:img2", "blake3:img3"]
@@ -5150,6 +5217,7 @@ tasks:
 fn r05_for_each_with_response_full() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: check_apis
     for_each: ["https://a.com/api", "https://b.com/api"]
@@ -5171,6 +5239,7 @@ tasks:
 fn r06_for_each_dollar_binding_then_fetch() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: get_items
     fetch:
@@ -5194,6 +5263,7 @@ tasks:
 fn r07_for_each_with_concurrency() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: parallel_scrape
     for_each: ["https://a.com", "https://b.com", "https://c.com", "https://d.com"]
@@ -5211,6 +5281,7 @@ tasks:
 fn r08_for_each_with_fail_fast_false() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape_resilient
     for_each: ["https://a.com", "https://b.com"]
@@ -5228,6 +5299,7 @@ tasks:
 fn r09_for_each_exec_per_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: build_all
     for_each: ["app-a", "app-b", "app-c"]
@@ -5245,6 +5317,7 @@ tasks:
 fn r10_for_each_infer_per_locale() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: translate
     for_each: ["en-US", "fr-FR", "de-DE", "ja-JP", "ko-KR"]
@@ -5262,6 +5335,7 @@ tasks:
 fn r11_for_each_with_depends_on_and_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: get_urls
     infer: "List 5 URLs"
@@ -5286,6 +5360,7 @@ tasks:
 fn r12_for_each_default_as_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: process
     for_each: ["a", "b", "c"]
@@ -5300,6 +5375,7 @@ tasks:
 fn r13_for_each_agent_per_item() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: research
     for_each: ["quantum computing", "machine learning", "blockchain"]
@@ -5321,6 +5397,7 @@ tasks:
 fn r14_for_each_with_output_format() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: extract
     for_each: ["https://a.com", "https://b.com"]
@@ -5340,6 +5417,7 @@ tasks:
 fn r15_for_each_with_concurrency_and_fail_fast() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: batch
     for_each: ["a", "b", "c", "d", "e", "f"]
@@ -5437,6 +5515,7 @@ fn s05_agent_with_depth_limit_and_token_budget() {
 fn s06_agent_after_fetch_with_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -5529,7 +5608,7 @@ fn s10_agent_with_model_override() {
 
 #[test]
 fn s11_agent_multiline_system_prompt() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    agent:\n      prompt: \"Analyze the codebase\"\n      system: |\n        You are a senior software engineer.\n        Focus on: architecture, patterns, and potential issues.\n        Be thorough but concise.\n      max_turns: 15";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    agent:\n      prompt: \"Analyze the codebase\"\n      system: |\n        You are a senior software engineer.\n        Focus on: architecture, patterns, and potential issues.\n        Be thorough but concise.\n      max_turns: 15";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Agent { agent } => {
@@ -5592,6 +5671,7 @@ fn s15_agent_temperature_zero_deterministic() {
 fn t01_five_task_pipeline_all_verbs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -5634,6 +5714,7 @@ tasks:
 fn t02_diamond_dag_fetch_infer_merge() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: source
     fetch:
@@ -5670,6 +5751,7 @@ tasks:
 fn t03_fan_out_three_parallel_fetches_fan_in_summarize() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: fetch_a
     fetch:
@@ -5700,6 +5782,7 @@ tasks:
 fn t04_fetch_binary_thumbnail_quality_infer_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: download
     fetch:
@@ -5738,6 +5821,7 @@ tasks:
 fn t05_fetch_extract_metadata_then_infer_structured_output() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: meta
     fetch:
@@ -5765,6 +5849,7 @@ tasks:
 fn t06_ten_task_workflow_all_five_verbs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t01
     infer: "Generate idea"
@@ -5837,6 +5922,7 @@ tasks:
 fn t07_parallel_fetch_merge_infer() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: api_a
     fetch:
@@ -5867,6 +5953,7 @@ tasks:
 fn t08_scrape_extract_store_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -5907,6 +5994,7 @@ fn t09_multi_provider_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
 provider: claude
+model: test-model
 tasks:
   - id: draft
     infer:
@@ -5943,6 +6031,7 @@ tasks:
 fn t10_wide_fan_out_eight_branches() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: root
     infer: "Root"
@@ -5983,6 +6072,7 @@ tasks:
 fn t11_exec_then_fetch_then_infer() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: build
     exec: "cargo build --release"
@@ -6012,6 +6102,7 @@ tasks:
 fn t12_nested_with_binding_chain() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: raw
     infer: "Generate data"
@@ -6040,6 +6131,7 @@ tasks:
 fn t13_vision_after_two_fetches() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: fetch_md
     fetch:
@@ -6069,6 +6161,7 @@ tasks:
 fn t14_invoke_chain_import_optimize_convert() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: import
     invoke:
@@ -6102,6 +6195,7 @@ tasks:
 fn t15_mcp_invoke_then_agent() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 mcp:
   servers:
     novanet:
@@ -6133,6 +6227,7 @@ tasks:
 fn t16_double_diamond_dag() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: start
     infer: "Start"
@@ -6164,6 +6259,7 @@ tasks:
 fn t17_for_each_then_merge() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: expand
     for_each: ["topic-a", "topic-b", "topic-c"]
@@ -6184,6 +6280,7 @@ tasks:
 fn t18_structured_output_chain() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: extract
     structured:
@@ -6215,6 +6312,7 @@ tasks:
 fn t19_multi_output_format_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen_json
     output:
@@ -6248,6 +6346,7 @@ tasks:
 fn t20_long_chain_ten_steps() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: s01
     infer: "Step 1"
@@ -6294,6 +6393,7 @@ tasks:
 fn t21_all_verbs_in_parallel() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: infer_task
     infer: "Generate"
@@ -6350,6 +6450,7 @@ tasks:
 fn t23_fetch_retry_with_extract() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     retry:
@@ -6375,6 +6476,7 @@ tasks:
 fn t24_for_each_with_structured_output() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: batch
     for_each: ["Product A", "Product B", "Product C"]
@@ -6398,6 +6500,7 @@ tasks:
 fn t25_decompose_with_infer() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     decompose:
@@ -6414,6 +6517,7 @@ tasks:
 fn t26_multiple_with_bindings_from_four_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -6441,6 +6545,7 @@ tasks:
 fn t27_exec_with_env_and_cwd_then_fetch() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: build
     exec:
@@ -6472,6 +6577,7 @@ tasks:
 fn t28_fetch_jsonpath_then_for_each_infer() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: api
     fetch:
@@ -6493,6 +6599,7 @@ tasks:
 fn t29_agent_with_context_binding() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: fetch_context
     fetch:
@@ -6526,6 +6633,7 @@ tasks:
 fn t30_complex_web_dag_seven_tasks() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -6798,6 +6906,7 @@ tasks:
 fn v02_maximum_complexity_single_task() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: mega_task
     provider: claude
@@ -6845,7 +6954,7 @@ tasks:
 
 #[test]
 fn v03_schema_010_still_parses() {
-    let yaml = "schema: \"nika/workflow@0.10\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.10\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.schema, "nika/workflow@0.10");
 }
@@ -6864,7 +6973,7 @@ fn v05_all_providers_at_workflow_level() {
     ];
     for p in &providers {
         let yaml = format!(
-            "schema: \"nika/workflow@0.12\"\nprovider: {}\ntasks:\n  - id: t1\n    infer: \"Test\"",
+            "schema: \"nika/workflow@0.12\"\nprovider: {}\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Test\"",
             p
         );
         let w = ok(&yaml);
@@ -6874,9 +6983,15 @@ fn v05_all_providers_at_workflow_level() {
 
 #[test]
 fn v06_schema_hash_differs_across_versions() {
-    let v10 = ok("schema: \"nika/workflow@0.10\"\ntasks:\n  - id: t1\n    infer: \"A\"");
-    let v11 = ok("schema: \"nika/workflow@0.11\"\ntasks:\n  - id: t1\n    infer: \"A\"");
-    let v12 = ok("schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"A\"");
+    let v10 = ok(
+        "schema: \"nika/workflow@0.10\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"A\"",
+    );
+    let v11 = ok(
+        "schema: \"nika/workflow@0.11\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"A\"",
+    );
+    let v12 = ok(
+        "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"A\"",
+    );
     assert_ne!(v10.compute_hash(), v11.compute_hash());
     assert_ne!(v11.compute_hash(), v12.compute_hash());
 }
@@ -6885,6 +7000,7 @@ fn v06_schema_hash_differs_across_versions() {
 fn v07_workflow_inputs_with_multiple_params() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 inputs:
   name:
     type: string
@@ -6907,7 +7023,7 @@ tasks:
 
 #[test]
 fn v08_workflow_no_inputs() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert!(w.inputs.is_none());
 }
@@ -6915,13 +7031,17 @@ fn v08_workflow_no_inputs() {
 #[test]
 fn v09_workflow_no_model() {
     let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
-    let w = ok(yaml);
-    assert!(w.model.is_none());
+    let e = err(yaml);
+    let msg = format!("{e}");
+    assert!(
+        msg.contains("NIKA-034") || msg.contains("model"),
+        "expected MissingModel error, got: {msg}"
+    );
 }
 
 #[test]
 fn v10_workflow_no_mcp() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert!(w.mcp.is_none());
 }
@@ -6934,6 +7054,7 @@ fn v10_workflow_no_mcp() {
 fn w01_fetch_metadata_with_json_output() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: meta
     fetch:
@@ -6961,6 +7082,7 @@ tasks:
 fn w02_fetch_links_with_json_output() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: links
     fetch:
@@ -7076,6 +7198,7 @@ fn w12_structured_with_vision_and_output() {
 fn w13_fetch_extract_then_structured_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: scrape
     fetch:
@@ -7128,6 +7251,7 @@ fn w15_structured_and_output_both_with_schema() {
 fn x01_context_files_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 context:
   files:
     brand: ./context/brand.md
@@ -7146,6 +7270,7 @@ tasks:
 fn x02_context_with_session() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 context:
   files:
     data: ./context/data.json
@@ -7163,6 +7288,7 @@ tasks:
 fn x03_include_path_spec() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 imports:
   - path: ./lib/seo-tasks.nika.yaml
     prefix: seo_
@@ -7180,6 +7306,7 @@ tasks:
 fn x04_include_multiple_specs() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 imports:
   - path: ./lib/common.nika.yaml
     prefix: common_
@@ -7213,6 +7340,7 @@ fn x05_skill_definitions_in_agent() {
 fn x06_agents_definition() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 agents:
   researcher:
     system: "You are a researcher"
@@ -7231,6 +7359,7 @@ tasks:
 fn x07_context_empty_files() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 context:
   files: {}
 tasks:
@@ -7245,7 +7374,7 @@ tasks:
 
 #[test]
 fn x08_no_context_no_include() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert!(w.context.is_none());
     assert!(w.include.is_none());
@@ -7255,6 +7384,7 @@ fn x08_no_context_no_include() {
 fn x09_workflow_with_log_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 log:
   level: debug
 tasks:
@@ -7269,6 +7399,7 @@ tasks:
 fn x10_workflow_with_artifacts_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 artifacts:
   dir: ./output
 tasks:
@@ -7308,6 +7439,7 @@ fn y03_output_with_fetch() {
 fn y04_task_level_artifact_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     artifact:
@@ -7322,6 +7454,7 @@ tasks:
 fn y05_task_level_log_config() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: debug_task
     log:
@@ -7411,28 +7544,28 @@ fn z02_very_long_css_selector() {
 #[test]
 fn z03_task_id_with_underscores() {
     let yaml =
-        "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: my_long_task_name\n    infer: \"Test\"";
+        "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: my_long_task_name\n    infer: \"Test\"";
     let w = ok(yaml);
     assert_eq!(w.tasks[0].id, "my_long_task_name");
 }
 
 #[test]
 fn z04_task_id_with_hyphens() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: my-task-name\n    infer: \"Test\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: my-task-name\n    infer: \"Test\"";
     let w = ok(yaml);
     assert_eq!(w.tasks[0].id, "my-task-name");
 }
 
 #[test]
 fn z05_task_id_with_numbers() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: task123\n    infer: \"Test\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: task123\n    infer: \"Test\"";
     let w = ok(yaml);
     assert_eq!(w.tasks[0].id, "task123");
 }
 
 #[test]
 fn z06_many_tasks_twenty() {
-    let mut yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n".to_string();
+    let mut yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n".to_string();
     for i in 1..=20 {
         yaml.push_str(&format!("  - id: t{:02}\n    infer: \"Task {}\"\n", i, i));
     }
@@ -7472,6 +7605,7 @@ fn z08_fetch_url_with_special_chars() {
 fn z09_infer_prompt_with_template_syntax() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -7496,7 +7630,7 @@ tasks:
 
 #[test]
 fn z10_exec_command_with_heredoc_style() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    exec: |\n      set -e\n      echo \"Step 1\"\n      echo \"Step 2\"\n      echo \"Done\"\n";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    exec: |\n      set -e\n      echo \"Step 1\"\n      echo \"Step 2\"\n      echo \"Done\"\n";
     let w = ok(yaml);
     match &w.tasks[0].action {
         TaskAction::Exec { exec } => {
@@ -7563,6 +7697,7 @@ tasks:
 fn z14_with_fallback_null_coalesce() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate"
@@ -7750,6 +7885,7 @@ fn aa05_agent_full_form_still_works() {
 fn aa06_depends_on_still_works() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: a
     infer: "A"
@@ -7765,6 +7901,7 @@ tasks:
 fn aa07_with_binding_still_works() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Gen"
@@ -7858,6 +7995,7 @@ tasks:
 fn aa13_for_each_array_still_works() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t1
     for_each: ["a", "b", "c"]
@@ -7872,6 +8010,7 @@ tasks:
 fn aa14_for_each_dollar_binding_still_works() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: gen
     infer: "Generate list"
@@ -7887,7 +8026,7 @@ tasks:
 
 #[test]
 fn aa15_workflow_default_provider_still_claude() {
-    let yaml = "schema: \"nika/workflow@0.12\"\ntasks:\n  - id: t1\n    infer: \"Hello\"";
+    let yaml = "schema: \"nika/workflow@0.12\"\nmodel: test-model\ntasks:\n  - id: t1\n    infer: \"Hello\"";
     let w = ok(yaml);
     assert_eq!(w.provider, "claude");
 }
@@ -8201,6 +8340,7 @@ fn ab26_invoke_nika_grep() {
 fn ac01_bug7_schema_ref_survives_pipeline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: structured_task
     infer: "Generate JSON"
@@ -8223,6 +8363,7 @@ tasks:
 fn ac02_dollar_ref_alias_removed() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: ref_task
     infer: "Generate JSON"
@@ -8241,6 +8382,7 @@ tasks:
 fn ac02b_schema_ref_works() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: ref_task
     infer: "Generate JSON"
@@ -8263,6 +8405,7 @@ tasks:
 fn ac03_bug8_schema_string_file_path() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t1
     infer: "Generate"
@@ -8285,6 +8428,7 @@ tasks:
 fn ac04_bug8_inline_schema_stays_inline() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: t1
     infer: "Generate"
@@ -8312,6 +8456,7 @@ tasks:
 fn ac05_bug41_invalid_http_method_defaults_to_get() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: bad_method
     fetch:
@@ -8333,6 +8478,7 @@ tasks:
 fn ac06_bug42_output_max_retries() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: retry_task
     infer: "Generate JSON"
@@ -8356,6 +8502,7 @@ tasks:
 fn ac07_bug43_response_format_json() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: json_response
     infer:
@@ -8380,6 +8527,7 @@ tasks:
 fn ac08_bug43_response_format_markdown() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: md_response
     infer:
@@ -8404,6 +8552,7 @@ tasks:
 fn ac09_bug43_response_format_text() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: text_response
     infer:
@@ -8428,6 +8577,7 @@ tasks:
 fn ac10_bug43_response_format_absent() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: no_rf
     infer: "Simple prompt"
@@ -8449,6 +8599,7 @@ tasks:
 fn ac11_bug44_sub_second_exec_timeout() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: fast_cmd
     exec:
@@ -8473,6 +8624,7 @@ tasks:
 fn ac12_bug44_exact_second_fetch_timeout() {
     let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 tasks:
   - id: fetch_5s
     fetch:

@@ -1595,3 +1595,174 @@ tasks:
         );
     }
 }
+
+// ===========================================================================
+// Fixture-based tests — broken YAML error recovery
+// ===========================================================================
+
+/// Load a broken fixture file and run through bridge.
+fn fixture(name: &str) -> PartialWorkflow {
+    let path = format!(
+        "{}/tests/fixtures/broken/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to read fixture {path}: {e}"));
+    partial(&content)
+}
+
+#[test]
+fn fixture_unclosed_bracket_recovers_tasks() {
+    let pw = fixture("unclosed-bracket.broken.yaml");
+    assert!(pw.has_errors, "unclosed bracket should produce errors");
+    // Should still extract task IDs despite the broken depends_on
+    assert!(
+        !pw.tasks.is_empty(),
+        "should recover at least some tasks from unclosed bracket"
+    );
+}
+
+#[test]
+fn fixture_unclosed_brace_no_panic() {
+    let pw = fixture("unclosed-brace.broken.yaml");
+    // Main invariant: never panics. Recovery may or may not find tasks.
+    assert!(pw.has_errors, "unclosed brace should produce errors");
+    let _ = pw.tasks.len(); // just verify access doesn't panic
+}
+
+#[test]
+fn fixture_missing_value_recovers_schema() {
+    let pw = fixture("missing-value.broken.yaml");
+    // Schema line exists even if some values are missing
+    assert!(
+        pw.schema.is_some(),
+        "should recover schema from missing-value fixture"
+    );
+}
+
+#[test]
+fn fixture_partial_verb_no_panic() {
+    let pw = fixture("partial-verb.broken.yaml");
+    assert!(pw.has_errors, "verbs without colons should produce errors");
+    // Recovery from verb-without-colon is partial — main invariant: no panic
+    let _ = pw.tasks.len();
+}
+
+#[test]
+fn fixture_multi_error_never_panics() {
+    let pw = fixture("multi-error.broken.yaml");
+    assert!(pw.has_errors, "multi-error fixture should have errors");
+    assert!(
+        !pw.error_ranges.is_empty(),
+        "multi-error should have at least one error range"
+    );
+}
+
+#[test]
+fn fixture_duplicate_keys_recovers() {
+    let pw = fixture("duplicate-keys.broken.yaml");
+    // Duplicate keys are valid YAML but semantically wrong
+    // Bridge should still extract structure
+    assert!(
+        !pw.tasks.is_empty(),
+        "should recover tasks from duplicate-keys fixture"
+    );
+}
+
+#[test]
+fn fixture_empty_task_list_no_panic() {
+    let pw = fixture("empty-task-list.broken.yaml");
+    assert!(
+        pw.schema.is_some(),
+        "should recover schema from empty task list"
+    );
+    // tasks: with no items → 0 tasks, no panic
+    assert_eq!(pw.tasks.len(), 0, "empty task list should have 0 tasks");
+}
+
+#[test]
+fn fixture_broken_mcp_recovers_schema() {
+    let pw = fixture("broken-mcp.broken.yaml");
+    assert!(
+        pw.schema.is_some(),
+        "should recover schema despite broken mcp config"
+    );
+}
+
+#[test]
+fn fixture_mixed_tabs_spaces_no_panic() {
+    let pw = fixture("mixed-tabs-spaces.broken.yaml");
+    // Just verify it doesn't panic — mixed tabs are unpredictable
+    let _ = pw.tasks.len();
+    let _ = pw.has_errors;
+}
+
+#[test]
+fn fixture_unicode_keys_no_panic() {
+    let pw = fixture("unicode-in-keys.broken.yaml");
+    // Bridge should not panic on non-ASCII key names
+    let _ = pw.tasks.len();
+    let _ = pw.has_errors;
+}
+
+#[test]
+fn fixture_very_long_line_no_panic() {
+    let pw = fixture("very-long-line.broken.yaml");
+    // Should handle 5000+ char lines without panicking or hanging
+    assert!(
+        pw.schema.is_some(),
+        "should recover schema from very long line fixture"
+    );
+}
+
+#[test]
+fn fixture_nested_error_no_panic() {
+    let pw = fixture("nested-error.broken.yaml");
+    assert!(pw.has_errors, "nested errors should be detected");
+    // Recovery quality varies — main invariant: no panic
+    let _ = pw.tasks.len();
+}
+
+#[test]
+fn fixture_trailing_content_no_panic() {
+    let pw = fixture("trailing-content.broken.yaml");
+    // YAML multi-document (---) may confuse tree-sitter — main invariant: no panic
+    let _ = pw.schema;
+    let _ = pw.tasks.len();
+}
+
+#[test]
+fn fixture_bad_indent_recovery() {
+    let pw = fixture("bad-indent-recovery.broken.yaml");
+    assert!(pw.has_errors, "bad indentation should produce errors");
+    // Schema at correct indent should still be found
+    assert!(
+        pw.schema.is_some(),
+        "should recover schema despite bad indentation"
+    );
+}
+
+/// Smoke test: ALL fixtures parse without panic.
+#[test]
+fn all_fixtures_never_panic() {
+    let fixture_dir = format!("{}/tests/fixtures/broken", env!("CARGO_MANIFEST_DIR"));
+    let entries = std::fs::read_dir(&fixture_dir)
+        .unwrap_or_else(|e| panic!("Cannot read fixture dir: {e}"));
+
+    let mut count = 0;
+    for entry in entries {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "yaml") {
+            let content = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
+            let _pw = partial(&content);
+            count += 1;
+        }
+    }
+    assert!(
+        count >= 20,
+        "Expected at least 20 fixture files, found {}",
+        count
+    );
+}

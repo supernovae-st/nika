@@ -917,6 +917,7 @@ infer: "Generate JSON"
     fn test_mcp_config_inline_minimal() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 mcp:
   servers:
     test_server:
@@ -939,6 +940,7 @@ tasks:
     fn test_mcp_config_inline_full() {
         let yaml = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 mcp:
   servers:
     novanet:
