@@ -252,6 +252,7 @@ impl App {
         };
         let cosmic_theme = CosmicTheme::new(theme_variant);
         let theme = cosmic_theme.as_theme();
+        let intro_bg = theme.background; // Capture before theme moves into struct
 
         Ok(Self {
             workflow_path,
@@ -284,7 +285,7 @@ impl App {
             session_id: None,
             event_buffer: Vec::with_capacity(64), // PERF: Pre-allocated buffer
             verification_cache: Arc::new(Mutex::new(VerificationCache::default())),
-            intro_state: Some(NikaIntroState::new()),
+            intro_state: Some(NikaIntroState::with_bg(intro_bg)),
         })
     }
 
@@ -482,20 +483,55 @@ impl App {
             }
 
             // Clear intro_state and initialize view when done
-            // IMPORTANT: Don't call terminal.clear() here - it interferes with ratatui's
-            // differential rendering. The Clear widget in render.rs handles this properly.
             if self.intro_state.as_ref().is_some_and(|i| i.is_done()) {
+                tracing::info!(
+                    "Intro animation completed, transitioning to {:?}",
+                    self.current_view
+                );
                 self.intro_state = None;
-                // Force full redraw so Clear + background paint over intro remnants.
-                // Previously mark_all() lived in an unreachable else branch above:
-                // intro.tick() can flip is_done() in the same tick, so the else never
-                // ran, and on the next tick intro_state was already None.
+
+                // CRITICAL: Reset BOTH ratatui internal buffers via terminal.clear().
+                // Ratatui 0.28+ uses retained double-buffering: draw() alternates between
+                // two buffers without resetting them. After the intro, one buffer has view
+                // content but the OTHER still has intro remnants (BASE03 background).
+                // The Clear *widget* only writes to the current back buffer — the alternate
+                // buffer keeps intro content, causing blank/flickering frames.
+                // terminal.clear() resets both buffers, so the next draw() diffs against
+                // a clean slate and flushes the full view to the terminal.
+                if let Some(ref mut terminal) = self.terminal {
+                    if let Err(e) = terminal.clear() {
+                        tracing::error!("Failed to clear terminal after intro: {}", e);
+                    }
+                }
+
                 self.state.dirty.mark_all();
                 // Call on_enter() NOW when view first becomes visible (not at startup)
                 self.call_view_on_enter(self.current_view);
+                tracing::info!(
+                    "View {:?} initialized, dirty.all={}",
+                    self.current_view,
+                    self.state.dirty.all
+                );
             }
 
             // 4. Render frame based on current view
+            if self.intro_state.is_none() {
+                // Log first few post-intro frames to diagnose blank screen
+                static RENDER_LOG_COUNT: std::sync::atomic::AtomicU8 =
+                    std::sync::atomic::AtomicU8::new(0);
+                let count = RENDER_LOG_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+                if count < 5 {
+                    RENDER_LOG_COUNT.store(count + 1, std::sync::atomic::Ordering::Relaxed);
+                    let term_size = self.terminal.as_ref().and_then(|t| t.size().ok());
+                    tracing::info!(
+                        "Post-intro render #{}: view={:?}, term_size={:?}, dirty.all={}",
+                        count,
+                        self.current_view,
+                        term_size,
+                        self.state.dirty.all
+                    );
+                }
+            }
             self.render_unified_frame()?;
 
             // 5. Get terminal size for input handling (reserved for future mouse support)

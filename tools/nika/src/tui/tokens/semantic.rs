@@ -112,50 +112,81 @@ pub struct SemanticColors {
 impl SemanticColors {
     /// Create Cosmic Dark semantic colors 🌌
     ///
-    /// Deep space aesthetic with violet/cyan accents
-    pub fn cosmic_dark(palette: &ColorPalette) -> Self {
+    /// Catppuccin Mocha base — warm dark pastels with hacking blue accents.
+    /// Replaces the old cold Slate palette with Mocha's cozy neutrals.
+    pub fn cosmic_dark(_palette: &ColorPalette) -> Self {
+        // ═══════════════════════════════════════════════════════════════════
+        // CATPPUCCIN MOCHA PALETTE  (https://catppuccin.com/palette)
+        // ═══════════════════════════════════════════════════════════════════
+        // Backgrounds
+        const CRUST: Color = Color::Rgb(17, 17, 27); // #11111b - deepest
+        const MANTLE: Color = Color::Rgb(24, 24, 37); // #181825 - panels
+        const BASE: Color = Color::Rgb(30, 30, 46); // #1e1e2e - canvas
+        const SURFACE0: Color = Color::Rgb(49, 50, 68); // #313244 - borders
+        const SURFACE1: Color = Color::Rgb(69, 71, 90); // #45475a - focus
+        const SURFACE2: Color = Color::Rgb(88, 91, 112); // #585b70 - hover
+
+        // Text
+        const TEXT: Color = Color::Rgb(205, 214, 244); // #cdd6f4 - primary
+        const SUBTEXT1: Color = Color::Rgb(186, 194, 222); // #bac2de - secondary
+        const SUBTEXT0: Color = Color::Rgb(166, 173, 200); // #a6adc8 - muted
+        const OVERLAY0: Color = Color::Rgb(108, 112, 134); // #6c7086 - disabled
+
+        // Accents
+        const LAVENDER: Color = Color::Rgb(180, 190, 254); // #b4befe - 🦋 brand
+        const BLUE: Color = Color::Rgb(137, 180, 250); // #89b4fa - hacking
+        const SAPPHIRE: Color = Color::Rgb(116, 199, 236); // #74c7ec - cyber glow
+        const MAUVE: Color = Color::Rgb(203, 166, 247); // #cba6f7 - infer verb
+        const PINK: Color = Color::Rgb(245, 194, 231); // #f5c2e7 - agent verb
+        const PEACH: Color = Color::Rgb(250, 179, 135); // #fab387 - exec verb
+        const SKY: Color = Color::Rgb(137, 220, 235); // #89dceb - fetch verb
+        const TEAL: Color = Color::Rgb(148, 226, 213); // #94e2d5 - invoke verb
+        const GREEN: Color = Color::Rgb(166, 227, 161); // #a6e3a1 - success
+        const YELLOW: Color = Color::Rgb(249, 226, 175); // #f9e2af - warning
+        const RED: Color = Color::Rgb(243, 139, 168); // #f38ba8 - error
+
         Self {
-            // Backgrounds - Slate for depth
-            bg_primary: palette.slate_900,   // #0f172a - Deep space
-            bg_secondary: palette.slate_800, // #1e293b - Elevated
-            bg_tertiary: palette.slate_700,  // #334155 - Cards
-            bg_hover: palette.slate_700,     // #334155 - Hover
-            bg_active: palette.violet_900,   // #4c1d95 - Active (violet tint)
+            // Backgrounds — warm Mocha neutrals
+            bg_primary: BASE,      // #1e1e2e - warm dark (NOT blue-green)
+            bg_secondary: MANTLE,  // #181825 - elevated panels
+            bg_tertiary: SURFACE0, // #313244 - cards, modals
+            bg_hover: SURFACE1,    // #45475a - hover highlight
+            bg_active: SURFACE2,   // #585b70 - active/selected
 
-            // Text - High contrast for readability
-            text_primary: palette.slate_50, // #f8fafc - Bright white
-            text_secondary: palette.slate_300, // #cbd5e1 - Muted
-            text_muted: palette.slate_500,  // #64748b - Hints
-            text_disabled: palette.slate_600, // #475569 - Disabled
-            text_inverse: palette.slate_900, // #0f172a - On light
+            // Text — soft white, easy on eyes
+            text_primary: TEXT,       // #cdd6f4 - main content
+            text_secondary: SUBTEXT1, // #bac2de - descriptions
+            text_muted: SUBTEXT0,     // #a6adc8 - hints, placeholders
+            text_disabled: OVERLAY0,  // #6c7086 - disabled
+            text_inverse: CRUST,      // #11111b - on light surfaces
 
-            // Borders - Subtle definition
-            border_default: palette.slate_700,  // #334155
-            border_focused: palette.violet_500, // #8b5cf6 - Violet focus
-            border_subtle: palette.slate_800,   // #1e293b
+            // Borders — visible but not harsh
+            border_default: SURFACE0, // #313244 - panel edges
+            border_focused: LAVENDER, // #b4befe - 🦋 Nika focus glow
+            border_subtle: MANTLE,    // #181825 - dividers
 
-            // Accents - Cosmic palette
-            accent_primary: palette.violet_500, // #8b5cf6 - 🦋 Brand
-            accent_secondary: palette.cyan_400, // #22d3ee - 🌌 Glow
-            accent_tertiary: palette.pink_500,  // #ec4899 - Nebula
+            // Accents — Catppuccin + hacking blue
+            accent_primary: LAVENDER,  // #b4befe - 🦋 brand
+            accent_secondary: BLUE,    // #89b4fa - hacking blue accent
+            accent_tertiary: SAPPHIRE, // #74c7ec - cyber glow
 
-            // Status - Clear semantics
-            status_success: palette.emerald_500, // #10b981
-            status_warning: palette.amber_500,   // #f59e0b
-            status_error: palette.red_500,       // #ef4444
-            status_info: palette.blue_500,       // #3b82f6
+            // Status — clear pastel semantics
+            status_success: GREEN,  // #a6e3a1
+            status_warning: YELLOW, // #f9e2af
+            status_error: RED,      // #f38ba8
+            status_info: BLUE,      // #89b4fa
 
-            // Verbs - Distinct colors per action
-            verb_infer: palette.violet_500,   // #8b5cf6 - LLM
-            verb_exec: palette.amber_500,     // #f59e0b - Shell
-            verb_fetch: palette.cyan_500,     // #06b6d4 - HTTP
-            verb_invoke: palette.emerald_500, // #10b981 - MCP
-            verb_agent: palette.rose_500,     // #f43f5e - Agent
+            // Verbs — distinct Catppuccin mapping
+            verb_infer: MAUVE, // #cba6f7 - ⚡ LLM (purple glow)
+            verb_exec: PEACH,  // #fab387 - 📟 shell (warm)
+            verb_fetch: SKY,   // #89dceb - 🛰️ HTTP (cool cyan)
+            verb_invoke: TEAL, // #94e2d5 - 🔌 MCP (teal-green)
+            verb_agent: PINK,  // #f5c2e7 - 🐔 agent (soft pink)
 
-            // Scrollbar - Accent-colored
-            scrollbar_thumb: palette.violet_600, // #7c3aed
-            scrollbar_track: palette.slate_800,  // #1e293b
-            scrollbar_arrows: palette.slate_400, // #94a3b8
+            // Scrollbar — subtle accent
+            scrollbar_thumb: SURFACE1,  // #45475a
+            scrollbar_track: MANTLE,    // #181825
+            scrollbar_arrows: SUBTEXT0, // #a6adc8
         }
     }
 

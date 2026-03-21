@@ -50,15 +50,15 @@ const EXPLOSION_CHARS: &[char] = &[
     '◐', '◑', '◒', '◓', '★', '☆', '✦', '✧',
 ];
 
-/// Explosion colors (bright to faded)
+/// Explosion colors — Catppuccin Mocha accents with hacking blue
 const EXPLOSION_COLORS: &[Color] = &[
-    solarized::CYAN,
-    solarized::GREEN,
-    solarized::BLUE,
-    solarized::VIOLET,
-    solarized::MAGENTA,
-    solarized::YELLOW,
-    solarized::ORANGE,
+    Color::Rgb(137, 180, 250), // Blue #89b4fa - hacking
+    Color::Rgb(116, 199, 236), // Sapphire #74c7ec - cyber
+    Color::Rgb(180, 190, 254), // Lavender #b4befe - brand
+    Color::Rgb(203, 166, 247), // Mauve #cba6f7 - glow
+    Color::Rgb(148, 226, 213), // Teal #94e2d5 - matrix
+    Color::Rgb(137, 220, 235), // Sky #89dceb - cool
+    Color::Rgb(245, 194, 231), // Pink #f5c2e7 - spark
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -100,6 +100,8 @@ pub struct NikaIntroState {
     pub phase: IntroPhase,
     pub frame: u16,
     pub opacity: f32,
+    /// Background color — matched to the app theme for seamless transition
+    pub bg: Color,
     particles: Vec<Particle>,
     rng: SmallRng,
 }
@@ -112,10 +114,16 @@ impl Default for NikaIntroState {
 
 impl NikaIntroState {
     pub fn new() -> Self {
+        Self::with_bg(solarized::BASE03)
+    }
+
+    /// Create with a specific background color (from theme).
+    pub fn with_bg(bg: Color) -> Self {
         Self {
             phase: IntroPhase::FadeIn,
             frame: 0,
             opacity: 0.0,
+            bg,
             particles: Vec::new(),
             rng: SmallRng::seed_from_u64(42),
         }
@@ -248,9 +256,10 @@ impl Widget for NikaIntro<'_> {
             return;
         }
 
-        // Fill background first to ensure clean slate
-        // Without this, random terminal artifacts could show through
-        let bg_style = Style::default().bg(solarized::BASE03);
+        // Fill background using the theme-matched color for seamless transition.
+        // Previously hardcoded to solarized::BASE03, causing a visible color
+        // jump when the intro faded to the Cosmic Dark theme (Slate-900).
+        let bg_style = Style::default().bg(self.state.bg);
         buf.set_style(area, bg_style);
 
         match self.state.phase {
@@ -268,7 +277,8 @@ impl Widget for NikaIntro<'_> {
                 let start_y = area.y + (area.height.saturating_sub(logo_height)) / 2;
 
                 let opacity = self.state.opacity;
-                let color = apply_opacity(solarized::CYAN, opacity);
+                // Catppuccin Lavender for the logo — hacking blue glow
+                let color = apply_opacity(Color::Rgb(180, 190, 254), opacity); // Lavender
 
                 for (row, line) in logo.iter().enumerate() {
                     let y = start_y + row as u16;
@@ -277,34 +287,34 @@ impl Widget for NikaIntro<'_> {
                     }
                 }
 
-                // Add 🦋 decorations
+                // Add 🦋 decorations with Catppuccin accents
                 if opacity > 0.5 {
                     let butterfly = "🦋";
-                    // Top left
+                    // Top left — Mauve
                     if start_x > 4 && start_y > 1 {
                         buf.set_string(
                             start_x - 4,
                             start_y - 1,
                             butterfly,
-                            Style::default().fg(solarized::MAGENTA),
+                            Style::default().fg(Color::Rgb(203, 166, 247)), // Mauve
                         );
                     }
-                    // Top right
+                    // Top right — Blue (hacking)
                     if start_x + logo_width + 2 < area.x + area.width {
                         buf.set_string(
                             start_x + logo_width + 2,
                             start_y - 1,
                             butterfly,
-                            Style::default().fg(solarized::VIOLET),
+                            Style::default().fg(Color::Rgb(137, 180, 250)), // Blue
                         );
                     }
-                    // Bottom center
+                    // Bottom center — Sapphire (cyber)
                     if start_y + logo_height < area.y + area.height {
                         buf.set_string(
                             start_x + logo_width / 2,
                             start_y + logo_height,
                             butterfly,
-                            Style::default().fg(solarized::CYAN),
+                            Style::default().fg(Color::Rgb(116, 199, 236)), // Sapphire
                         );
                     }
                 }

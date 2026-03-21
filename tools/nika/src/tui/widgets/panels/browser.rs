@@ -298,8 +298,8 @@ impl BrowserPanel {
             }
         }
 
-        // Use solarized colors
-        self.tree_colors = TreeColors::solarized_dark();
+        // Use theme-aware colors so tree background matches the app
+        self.tree_colors = TreeColors::from_theme(theme);
 
         // Render TreeWidget
         let tree_widget = TreeWidget::new(&root_node)

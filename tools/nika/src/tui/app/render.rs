@@ -103,13 +103,16 @@ impl App {
                         }
                     }
 
-                    // Only clear on full redraw (view switch, resize, first frame)
-                    // Ratatui's differential rendering handles incremental updates
-                    if state.dirty.all {
-                        frame.render_widget(Clear, size);
-                        let bg = Paragraph::new("").style(Style::default().bg(theme.background));
-                        frame.render_widget(bg, size);
-                    }
+                    // ALWAYS paint Clear + background on every frame.
+                    // Ratatui 0.28+ uses retained double-buffering: the back buffer
+                    // keeps content from 2 frames ago. If we skip this, cells not
+                    // explicitly painted by view widgets show stale content (intro
+                    // remnants, old panel content after resize, etc.).
+                    // Cost: ~100μs buffer write — negligible vs terminal I/O since
+                    // ratatui still only flushes the actual diff to the terminal.
+                    frame.render_widget(Clear, size);
+                    let bg = Paragraph::new("").style(Style::default().bg(theme.background));
+                    frame.render_widget(bg, size);
 
                     // Layout: Header (1) + Content (dynamic) + StatusBar (1)
                     let chunks = Layout::default()

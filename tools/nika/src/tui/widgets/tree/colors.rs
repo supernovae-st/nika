@@ -96,6 +96,31 @@ impl TreeColors {
         }
     }
 
+    /// Create TreeColors from a Theme (Cosmic-aware)
+    ///
+    /// Maps the app's Theme colors to tree-specific colors, ensuring the
+    /// file browser background matches the rest of the UI (no BASE03 gap).
+    pub fn from_theme(theme: &crate::tui::theme::Theme) -> Self {
+        Self {
+            bg: theme.background,
+            fg: theme.text_primary,
+            selected_bg: theme.selection,
+            selected_fg: theme.text_primary,
+            directory: solarized::BLUE,
+            file: theme.text_secondary,
+            hidden: theme.text_muted,
+            ecosystem: solarized::YELLOW,
+            ecosystem_glow: solarized::ORANGE,
+            git_modified: theme.git_modified,
+            git_added: theme.git_added,
+            git_deleted: theme.git_deleted,
+            git_untracked: solarized::CYAN,
+            indent_guide: theme.text_muted,
+            branch_lines: theme.text_muted,
+            dimmed: theme.text_muted,
+        }
+    }
+
     /// Solarized Light theme
     pub fn solarized_light() -> Self {
         Self {
