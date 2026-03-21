@@ -55,7 +55,7 @@ src/
 | 070-089 | With block + DAG validation |
 | 090-099 | JSONPath/IO/Execution |
 | 100-109 | MCP |
-| 110-119 | Agent |
+| 110-119 | Agent + Guardrails (112 = guardrail violation) |
 | 120-129 | Resilience |
 | 130-139 | TUI/Config |
 | 140-151 | AST analysis (Phase 2) |

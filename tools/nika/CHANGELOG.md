@@ -7,6 +7,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.35.4](https://github.com/supernovae-st/nika/releases/tag/v0.35.4) - 2026-03-21
+
+### Added
+- **Guardrails for `infer:` tasks** — `guardrails:` field now supported on infer verb (length, schema, regex validation). Previously agent-only. Error code `NIKA-112` for violations with `on_failure: fail`.
+- **`TaskSkipped` event** — tasks blocked by dependency failures emit `⊘ skipped` with reason instead of silently disappearing.
+- **`render_new_events()`** — incremental event rendering for CLI mode. All 41 event types now render inline (provider calls, MCP, guardrails, structured output, media, vision).
+- **`render_quiet_summary()`** — single-line summary for `--quiet` mode.
+- **`compute_layers()` + `layer_count()`** — shared DAG layer computation in `dag::flow` (replaces 4 duplicated implementations).
+- **`EventLog::events_since(id)`** — incremental event draining for CLI renderer.
+- **Strict MCP validation for `agent:` tasks** — `nika check --strict` now validates agent MCP server connectivity (not just invoke tasks).
+
+### Fixed
+- **CLI event wiring** — CliRenderer receives all 41 event types (previously only 3: TaskScheduled, TaskCompleted, TaskFailed). Sub-events like ProviderCalled, McpInvoke, GuardrailPassed now render in CLI mode.
+- **Double stats accumulation** — removed `render_stats_only()`, stats accumulated once in `render()` via incremental draining.
+- **ANSI padding** — pad plain text THEN apply color at 6 locations. Columns now align correctly in all terminal widths.
+- **Summary failure state** — shows `✗ F A I L E D` with root cause when tasks fail (was always `✓ D O N E`).
+- **Workflow name roundtrip** — `name:` preserved through `lower()`/`unlower()` (was silently dropped).
+- **Verb icon on TaskCompleted/TaskFailed** — Col3 verb icon (✧⎈☄⊛❋) now displayed on completion lines.
+- **Gantt timeline** — bars colored by verb type (magenta/yellow/cyan/green/red).
+- **`--detail min`** — compact single-line summary instead of full box.
+- **`--detail json`** — header suppressed to avoid corrupting NDJSON stream.
+- **Tokens formatter** — supports millions (`1.2M` instead of `1000k`).
+- **Cost thresholds** — green <$0.01, yellow <$0.10, red ≥$0.10 (was all yellow).
+- **Preview box size label** — uses `chars().count()` not byte length.
+
+### Changed
+- `stripped_len()` and `floor_char_boundary()` unified in `colors.rs` (single source of truth).
+- `pub use legacy::*` replaced with explicit re-exports (6 symbols).
+- `task_starts` stores `(timestamp, verb)` tuple for verb lookup on completion.
+- Tests: 6846 passing (up from 6841).
+
 ## [0.35.2](https://github.com/supernovae-st/nika/releases/tag/v0.35.2) - 2026-03-20
 
 ### Fixed

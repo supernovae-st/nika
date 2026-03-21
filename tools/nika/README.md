@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.35.2-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.35.4-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-6735+%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-6846+%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -54,12 +54,14 @@ cargo build --release
 - **47 Bug Fixes** — Security/correctness audit: SSRF, vision limits, binary size (v0.35.2)
 - **Structured Output** — DynamicSubmitTool + 5-layer architecture (v0.30.0)
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
-- **6,735+ lib tests passing** | 34 proptests | Zero clippy warnings
+- **Guardrails for infer:** — length, schema, regex validation on LLM output (v0.35.4)
+- **CLI Display Overhaul** — full event stream, verb colors, ANSI padding fix (v0.35.4)
+- **6,846+ lib tests passing** | 34 proptests | Zero clippy warnings
 
 ## Architecture
 
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime
-- **4-View TUI** — Studio, Runner, Chat, Settings
+- **3-View TUI** — Studio, Command, Control
 - **IndexedDag** — Vec-based adjacency with Kahn's topological sort
 - **8 LLM Providers** — Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, Native
 
