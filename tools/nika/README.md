@@ -1,261 +1,109 @@
-# Nika
+# Nika — Developer Reference
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
 [![Version](https://img.shields.io/badge/version-0.36.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-8000+%20passing-brightgreen)](src/)
-[![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
-DAG workflow runner for AI tasks with MCP integration.
+Source code for the `nika` binary. For user-facing docs, see [root README](../../README.md).
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  YAML Workflow → DAG Validation → Parallel Execution → Results     │
-│                                                                     │
-│  Verbs: infer | exec | fetch | invoke | agent                      │
-│                                                                     │
-│  Features: for_each parallelism | MCP tools | TUI | Observability  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Quick Start
+## Build
 
 ```bash
-# Run a workflow
-nika run examples/use-cases/blog-pipeline.nika.yaml
-
-# Validate without executing
-nika check examples/gates/feature/infer-basic.nika.yaml
-
-# Interactive TUI
-nika ui
+cargo build --release           # Release build
+cargo build                     # Debug build
+cargo build --no-default-features  # Minimal (no TUI, no native, no media)
 ```
 
-## Installation
+## Test
 
 ```bash
-# From source
-git clone https://github.com/supernovae-st/nika
-cd nika/tools/nika
-cargo build --release
-
-# Binary location
-./target/release/nika --help
+cargo test --lib                # 7,400+ unit tests (safe — no keychain)
+cargo test --lib --features lsp # + 283 LSP tests
+cargo clippy -- -D warnings     # Zero warnings policy
+cargo fmt --check               # Format check
 ```
 
-## v0.35 Features
+**WARNING:** `cargo test` (without `--lib`) runs contract tests that may trigger macOS Keychain popups. Always use `--lib` for safe testing.
 
-- **Vision Support** — Multimodal `content:` for infer: with CAS images (v0.34.0)
-- **26 Media Tools** — 3 tiers: import/thumbnail/chart/provenance/QR/PDF (v0.34.0)
-- **Fetch Extraction** — 9 extract modes: markdown, article, feed, links, etc. (v0.35.0)
-- **Pipe Transforms** — `{{with.data | uppercase | trim}}` in all templates (v0.35.1)
-- **8 LLM Providers** — +Gemini, +xAI (Grok) alongside Claude, OpenAI, Mistral, Groq, DeepSeek
-- **TUI Redesign** — Tailwind colors, rounded borders, streaming cursor (v0.35.2)
-- **47 Bug Fixes** — Security/correctness audit: SSRF, vision limits, binary size (v0.35.2)
-- **Structured Output** — DynamicSubmitTool + 5-layer architecture (v0.30.0)
-- **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
-- **Guardrails for infer:** — length, schema, regex validation on LLM output (v0.36.0)
-- **CLI Display Overhaul** — full event stream, verb colors, ANSI padding fix (v0.36.0)
-- **8,000+ lib tests passing** | 34 proptests | Zero clippy warnings
+## Source Tree
 
-## Architecture
+```
+src/
+├── main.rs              # CLI entry (clap)
+├── lib.rs               # Public API
+├── error.rs             # NikaError (NIKA-XXX codes)
+├── config.rs            # Configuration types
+├── core/                # Zero-dep definitions (providers, models, mcp_aliases)
+├── ast/                 # Three-phase: Raw → Analyzed → Lower
+│   ├── raw/             #   Phase 1: YAML → Raw AST (spans)
+│   ├── analyzed/        #   Phase 2: Validated, resolved
+│   ├── analyzer/        #   Validation + transformation
+│   └── lower.rs         #   Phase 3: Analyzed → Runtime types
+├── dag/                 # DAG validation + cycle detection
+├── runtime/             # Execution engine
+│   ├── runner.rs        #   Main workflow runner
+│   ├── executor/        #   Task executor (5 verb dispatch)
+│   ├── rig_agent_loop/  #   Agent loop (per-provider)
+│   ├── builtin/         #   12 core + 26 media tools
+│   │   └── media/       #   Media: import, thumbnail, chart, etc.
+│   └── security.rs      #   Command blocklist + env validation
+├── mcp/                 # MCP client (rmcp 0.16, pool, retry)
+├── provider/            # 8 LLM providers (rig-core + mistral.rs)
+├── binding/             # Data flow: templates, transforms, JSONPath
+├── tools/               # File tools: read, write, edit, glob, grep
+├── event/               # 41 event types + NDJSON tracing
+├── media/               # CAS store (blake3 + zstd)
+├── cli/                 # CLI subcommands
+├── display/             # CLI rendering (summary, dag_render, colors)
+├── init/                # nika init templates (6 tiers, 30 workflows)
+├── tui/                 # Terminal UI (3 views: Studio, Command, Control)
+├── lsp/                 # Embedded LSP (feature-gated)
+├── secrets/             # Keyring + daemon IPC
+├── registry/            # Package registry client
+├── store/               # RunContext + TaskResult
+├── io/                  # Atomic file I/O
+├── source/              # Source spans + registry
+└── util/                # Constants, fs helpers
+```
 
-- **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime
-- **3-View TUI** — Studio, Command, Control
-- **IndexedDag** — Vec-based adjacency with Kahn's topological sort
-- **8 LLM Providers** — Claude, OpenAI, Mistral, Groq, DeepSeek, Gemini, xAI, Native
+## Error Codes
 
-## Security
+| Range | Category |
+|:------|:---------|
+| `000-009` | Workflow parsing |
+| `010-019` | Schema validation |
+| `020-029` | DAG (cycles, missing deps) |
+| `030-039` | Provider errors |
+| `040-049` | Template/binding |
+| `050-059` | Security (path traversal, blocked commands) |
+| `060-069` | Output validation |
+| `100-109` | MCP (connection, tool errors) |
+| `110-119` | Agent + Guardrails |
+| `200-219` | Builtin tools |
+| `251-259` | Media pipeline |
+| `290-297` | Media tools |
+| `300-309` | Structured output |
+
+## Security Model
 
 - `exec:` defaults to `shell: false` (no shell injection)
 - Command blocklist (30+ patterns: `rm -rf`, `sudo`, reverse shells)
 - Unicode NFKC normalization + zero-width character stripping
 - API key stripping from child processes
 - MCP env var validation (LD_PRELOAD blocked)
-
-## Features
-
-### context: File Loading (v0.14+)
-
-Load external files at workflow start:
-
-```yaml
-schema: nika/workflow@0.12
-context:
-  files:
-    brand: ./context/brand-guidelines.md
-    data: ./context/config.json
-    templates: ./context/*.yaml
-  session: .nika/sessions/previous.json
-tasks:
-  - id: generate
-    infer: |
-      Using brand guidelines: {{context.files.brand}}
-      With data: {{context.files.data}}
-```
-
-### include: DAG Fusion (v0.14+)
-
-Merge tasks from external workflows:
-
-```yaml
-schema: nika/workflow@0.12
-include:
-  - path: ./partials/setup.nika.yaml
-    prefix: setup_
-  - path: ./partials/teardown.nika.yaml
-    prefix: teardown_
-tasks:
-  - id: main_task
-    infer: "Main workflow logic"
-    depends_on: [setup_init]
-    # teardown_cleanup runs after via depends_on in the included partial
-```
-
-### Parallel for_each (v0.3+)
-
-Execute tasks in parallel with `for_each`:
-
-```yaml
-tasks:
-  - id: generate_all
-    for_each: ["fr-FR", "en-US", "es-ES", "de-DE", "ja-JP"]
-    as: locale
-    invoke:
-      mcp: novanet
-      tool: novanet_context
-      params:
-        focus_key: "entity:qr-code"
-        locale: "{{with.locale}}"
-        mode: block
-```
-
-Each iteration runs via `tokio::spawn` for true concurrency.
-
-### Agent with Tools
-
-Autonomous multi-turn execution with MCP tools:
-
-```yaml
-tasks:
-  - id: analysis
-    agent:
-      prompt: |
-        Analyze "qr-code" using NovaNet tools.
-        Use novanet_describe and novanet_search.
-        Say "DONE" when complete.
-      mcp:
-        - novanet
-      max_turns: 8
-```
-
-## Semantic Verbs
-
-| Verb | Purpose | Example |
-|------|---------|---------|
-| `infer:` | LLM generation | `infer: "Summarize this"` |
-| `exec:` | Shell command | `exec: { command: "echo hello" }` |
-| `fetch:` | HTTP request | `fetch: { url: "https://..." }` |
-| `invoke:` | MCP tool call | `invoke: { mcp: novanet, tool: novanet_context }` |
-| `agent:` | Autonomous loop | `agent: { prompt: "...", mcp: [...] }` |
-
-## MCP Integration
-
-Nika connects to MCP servers for tool calling:
-
-```yaml
-schema: "nika/workflow@0.12"
-provider: claude
-
-mcp:
-  novanet:
-    command: cargo
-    args: [run, --manifest-path, path/to/novanet-mcp/Cargo.toml]
-    env:
-      NOVANET_MCP_NEO4J_URI: bolt://localhost:7687
-```
-
-## Examples
-
-| Example | Description |
-|---------|-------------|
-| `v09-context-loading.nika.yaml` | context: field demo (v0.14+) |
-| `v03-parallel-locales.nika.yaml` | Parallel generation for 5 locales |
-| `v03-agent-with-tools.nika.yaml` | Agent-driven competitive analysis |
-| `v05-lazy-bindings.nika.yaml` | Lazy bindings with defaults |
-| `v05-spawn-agent.nika.yaml` | Nested agent spawning |
-| `invoke-novanet.nika.yaml` | Basic MCP invoke |
-| `agent-novanet.nika.yaml` | Agent with NovaNet tools |
-
-## Architecture
-
-```
-src/
-├── ast/          # YAML → Rust structs
-├── dag/          # DAG validation
-├── runtime/      # Execution engine
-│   ├── executor.rs       # Task dispatch (5 verbs + for_each)
-│   ├── runner.rs         # Workflow orchestration
-│   ├── context_loader.rs # context: file loading
-│   ├── include_loader.rs # include: DAG fusion
-│   └── rig_agent_loop.rs # RigAgentLoop with rig::AgentBuilder
-├── mcp/          # MCP client (rmcp v0.16)
-├── provider/     # rig-core provider (RigProvider wrapper)
-├── event/        # Observability (41 event types)
-├── binding/      # Data flow ({{with.alias}}, {{context.files.*}})
-└── tui/          # Terminal UI (3 views, 40+ widgets)
-```
-
-## Commands
-
-```bash
-# Workflow execution
-nika run <workflow.yaml>      # Execute workflow
-nika check <workflow.yaml>    # Validate syntax
-nika <workflow.yaml>          # Direct execution (positional)
-
-# Interactive modes
-nika                          # Home view (browse workflows)
-nika chat                     # Chat view (conversational agent)
-nika studio                   # Studio view (YAML editor)
-
-# Trace inspection
-nika trace list               # List traces
-nika trace show <id>          # Show trace events
-nika trace export <id>        # Export to JSON
-```
-
-## Testing
-
-```bash
-cargo test --lib              # All 8,000+ tests (safe — no keychain)
-cargo test mcp                # MCP tests
-cargo test --features integration  # Real MCP tests
-cargo test tui                # TUI widget tests
-```
-
-### Test Breakdown (v0.36.0)
-- **8,000+ lib tests** + 34 property tests
-- Zero clippy warnings
-- Schema @0.12 validation in CI
+- SSRF URL scheme validation (http/https only)
+- YAML bomb protection (serde-saphyr Budget limits)
 
 ## ARMADA Quality System
 
-Every contribution passes through the 10-station ARMADA checkpoint:
+Every commit passes 10 stations:
 
 ```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║  🏴‍☠️ ARMADA — 10 QUALITY STATIONS                                             ║
-╠═══════════════════════════════════════════════════════════════════════════════╣
-║   Station 1: 🔧 Format       | Station 6: 🔒 Security                          ║
-║   Station 2: 📎 Lint         | Station 7: 📐 Schema Validation (v0.1-v0.9)     ║
-║   Station 3: 🧪 Tests        | Station 8: 🧠 Claude AI                         ║
-║   Station 4: 📊 Coverage     | Station 9: 📝 Conventional                      ║
-║   Station 5: 📖 Docs         | Station 10: ⚓ Version Lock                     ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+Format → Lint → Tests → Coverage → Docs
+Security → Schema → AI Review → Conventional → Version Lock
 ```
 
-**Captain's Orders:** Nika will NEVER be version 1.0.0. See [CONTRIBUTING.md](../../CONTRIBUTING.md).
+**Captain's Orders:** Nika will NEVER be version 1.0.0.
 
 ## License
 
