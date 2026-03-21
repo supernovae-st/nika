@@ -116,18 +116,57 @@ const VERBS: &[&str] = &["infer", "exec", "fetch", "invoke", "agent"];
 /// Sub-fields within verb blocks
 #[cfg(feature = "lsp")]
 const VERB_FIELDS: &[&str] = &[
+    // shared / infer
     "prompt",
+    "model",
+    "temperature",
+    "max_tokens",
+    "system",
+    "response_format",
+    "extended_thinking",
+    "thinking_budget",
+    // exec
     "command",
+    "shell",
+    "cwd",
+    "env",
+    // fetch v0.35
     "url",
     "method",
     "headers",
     "body",
+    "extract",
+    "selector",
+    "response",
+    "json",
+    "follow_redirects",
+    // invoke
     "tool",
     "params",
     "mcp",
+    "resource",
+    "timeout",
+    // agent
     "goal",
     "max_turns",
+    "tools",
+    "tool_choice",
+    "depth_limit",
+    "token_budget",
+    "stop_sequences",
+    "scope",
+    "skills",
+    // mcp top-level
     "servers",
+    // vision v0.34
+    "content",
+    "source",
+    "detail",
+    // task-level
+    "retry",
+    "description",
+    "artifact",
+    "log",
 ];
 
 /// Compute semantic tokens using text-based scanning (fallback)
@@ -1089,6 +1128,97 @@ tasks:
             decl_tokens.len() >= 2,
             "Should find at least 2 task ID declarations"
         );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_tokens_v035_fetch_sub_fields() {
+        let text = r#"schema: nika/workflow@0.12
+tasks:
+  - id: scrape
+    fetch:
+      url: "https://example.com"
+      extract: markdown
+      selector: ".main"
+      response: full
+      follow_redirects: true
+"#;
+        let tokens = compute_semantic_tokens(text);
+        let lines: Vec<&str> = text.lines().collect();
+        let prop_tokens: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.token_type == TOKEN_TYPE_PROPERTY && t.line >= 4)
+            .collect();
+        // Extract token text for verification
+        let prop_names: Vec<&str> = prop_tokens
+            .iter()
+            .map(|t| {
+                let line = lines[t.line as usize];
+                &line[t.start as usize..(t.start + t.length) as usize]
+            })
+            .collect();
+        for expected in &["url", "extract", "selector", "response", "follow_redirects"] {
+            assert!(
+                prop_names.contains(expected),
+                "Should find '{}' as property, found: {:?}",
+                expected,
+                prop_names
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_tokens_vision_and_agent_sub_fields() {
+        let text = r#"schema: nika/workflow@0.12
+tasks:
+  - id: see
+    infer:
+      content:
+        - type: image
+          source: "abc123"
+          detail: high
+      extended_thinking: true
+      thinking_budget: 8192
+  - id: act
+    agent:
+      goal: "Research"
+      tools: [nika:read]
+      tool_choice: auto
+      depth_limit: 3
+      scope: project
+"#;
+        let tokens = compute_semantic_tokens(text);
+        let lines: Vec<&str> = text.lines().collect();
+        let prop_tokens: Vec<_> = tokens
+            .iter()
+            .filter(|t| t.token_type == TOKEN_TYPE_PROPERTY)
+            .collect();
+        let prop_names: Vec<&str> = prop_tokens
+            .iter()
+            .map(|t| {
+                let line = lines[t.line as usize];
+                &line[t.start as usize..(t.start + t.length) as usize]
+            })
+            .collect();
+        for expected in &[
+            "content",
+            "source",
+            "detail",
+            "extended_thinking",
+            "thinking_budget",
+            "tools",
+            "tool_choice",
+            "depth_limit",
+            "scope",
+        ] {
+            assert!(
+                prop_names.contains(expected),
+                "Should find '{}' as property, found: {:?}",
+                expected,
+                prop_names
+            );
+        }
     }
 
     #[test]
