@@ -54,6 +54,34 @@
         "path": "./syntaxes/nika.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "nika",
+        "path": "./snippets/nika.code-snippets"
+      }
+    ],
+    "commands": [
+      {
+        "command": "nika.runWorkflow",
+        "title": "Nika: Run Current Workflow",
+        "icon": "$(play)"
+      },
+      {
+        "command": "nika.checkWorkflow",
+        "title": "Nika: Validate Current Workflow",
+        "icon": "$(check)"
+      },
+      {
+        "command": "nika.newWorkflow",
+        "title": "Nika: New Workflow File",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "nika.restartServer",
+        "title": "Nika: Restart Language Server",
+        "icon": "$(refresh)"
+      }
+    ],
     "configuration": {
       "title": "Nika",
       "properties": {

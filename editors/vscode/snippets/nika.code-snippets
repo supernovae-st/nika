@@ -1,0 +1,266 @@
+{
+  "New Workflow": {
+    "prefix": ["workflow", "nika"],
+    "description": "Complete Nika workflow file",
+    "body": [
+      "schema: \"@0.12\"",
+      "workflow: ${1:my-workflow}",
+      "description: \"${2:What this workflow does}\"",
+      "provider: ${3|anthropic,openai,mistral,groq,deepseek,gemini,xai,native|}",
+      "",
+      "tasks:",
+      "  - id: ${4:first-task}",
+      "    infer: \"${5:Your prompt here}\"",
+      "$0"
+    ]
+  },
+  "Task": {
+    "prefix": ["task", "newtask"],
+    "description": "New task block",
+    "body": [
+      "  - id: ${1:task-id}",
+      "    ${2|infer,exec,fetch,invoke,agent|}: ${3:\"$0\"}"
+    ]
+  },
+  "Infer Task": {
+    "prefix": ["infer", "llm", "prompt"],
+    "description": "LLM inference task with prompt",
+    "body": [
+      "  - id: ${1:generate}",
+      "    infer:",
+      "      prompt: |",
+      "        ${2:Your prompt here}",
+      "      model: ${3|claude-sonnet-4-20250514,claude-opus-4-20250514,gpt-4o,gpt-4.1,mistral-large-latest,llama-4-maverick,gemini-2.5-pro,deepseek-chat|}",
+      "      ${4:temperature: 0.7}",
+      "$0"
+    ]
+  },
+  "Infer with System": {
+    "prefix": ["infersys", "system"],
+    "description": "Infer task with system prompt",
+    "body": [
+      "  - id: ${1:generate}",
+      "    infer:",
+      "      system: \"${2:You are a helpful assistant.}\"",
+      "      prompt: |",
+      "        ${3:Your prompt here}",
+      "      model: ${4|claude-sonnet-4-20250514,gpt-4o,mistral-large-latest|}",
+      "$0"
+    ]
+  },
+  "Exec Task": {
+    "prefix": ["exec", "shell", "cmd"],
+    "description": "Shell command task",
+    "body": [
+      "  - id: ${1:run}",
+      "    exec: \"${2:echo hello}\"",
+      "$0"
+    ]
+  },
+  "Exec Multi-line": {
+    "prefix": ["execblock", "shellblock"],
+    "description": "Multi-line shell command",
+    "body": [
+      "  - id: ${1:run}",
+      "    exec:",
+      "      command: |",
+      "        ${2:echo hello}",
+      "      shell: ${3|bash,sh,zsh|}",
+      "      ${4:timeout: 30}",
+      "$0"
+    ]
+  },
+  "Fetch Task": {
+    "prefix": ["fetch", "http", "api"],
+    "description": "HTTP request task",
+    "body": [
+      "  - id: ${1:request}",
+      "    fetch:",
+      "      url: \"${2:https://api.example.com}\"",
+      "      method: ${3|GET,POST,PUT,DELETE,PATCH|}",
+      "      ${4:headers:}",
+      "        ${5:Content-Type: application/json}",
+      "$0"
+    ]
+  },
+  "Fetch with Extract": {
+    "prefix": ["fetchextract", "scrape"],
+    "description": "HTTP request with extraction",
+    "body": [
+      "  - id: ${1:scrape}",
+      "    fetch:",
+      "      url: \"${2:https://example.com}\"",
+      "      extract: ${3|markdown,article,text,selector,metadata,links,jsonpath,feed,llm_txt|}",
+      "      ${4:selector: \"${5:main}\"}",
+      "$0"
+    ]
+  },
+  "Invoke Task": {
+    "prefix": ["invoke", "mcp", "tool"],
+    "description": "MCP tool invocation",
+    "body": [
+      "  - id: ${1:call}",
+      "    invoke:",
+      "      tool: \"${2:server/tool_name}\"",
+      "      params:",
+      "        ${3:key}: ${4:value}",
+      "$0"
+    ]
+  },
+  "Invoke Nika Tool": {
+    "prefix": ["niktool", "builtin"],
+    "description": "Invoke a built-in nika: tool",
+    "body": [
+      "  - id: ${1:media}",
+      "    invoke:",
+      "      tool: \"nika:${2|import,thumbnail,dimensions,thumbhash,dominant_color,pipeline,convert,strip,metadata,optimize,svg_render,phash,compare,chart,provenance,verify,qr_validate,quality|}\"",
+      "      params:",
+      "        ${3:input}: \"${4:\\{\\{with.$5\\}\\}}\"",
+      "$0"
+    ]
+  },
+  "Agent Task": {
+    "prefix": ["agent", "loop", "agentic"],
+    "description": "Multi-turn agent loop",
+    "body": [
+      "  - id: ${1:assistant}",
+      "    agent:",
+      "      system: \"${2:You are a helpful assistant.}\"",
+      "      goal: \"${3:Complete the user's request}\"",
+      "      tools:",
+      "        - ${4:server/tool_name}",
+      "      max_turns: ${5:10}",
+      "$0"
+    ]
+  },
+  "With Bindings": {
+    "prefix": ["with", "bind"],
+    "description": "Data binding block",
+    "body": [
+      "    with:",
+      "      ${1:alias}: \\$${2:source_task}",
+      "$0"
+    ]
+  },
+  "Depends On": {
+    "prefix": ["depends", "dep", "after"],
+    "description": "Task dependency",
+    "body": [
+      "    depends_on: [${1:task_id}]"
+    ]
+  },
+  "For Each Loop": {
+    "prefix": ["foreach", "loop", "iterate"],
+    "description": "Parallel iteration over items",
+    "body": [
+      "  - id: ${1:process}",
+      "    for_each:",
+      "      items: \"\\{\\{with.${2:data}\\}\\}\"",
+      "      as: ${3:item}",
+      "      concurrency: ${4:3}",
+      "    ${5|infer,exec,fetch,invoke|}: \"${6:Process \\{\\{item\\}\\}}\"",
+      "$0"
+    ]
+  },
+  "MCP Server Config": {
+    "prefix": ["mcpserver", "mcpconfig"],
+    "description": "MCP server configuration block",
+    "body": [
+      "mcp:",
+      "  ${1:server-name}:",
+      "    command: ${2|npx,uvx,node,python|}",
+      "    args:",
+      "      - ${3:package-name}",
+      "$0"
+    ]
+  },
+  "Guard Block": {
+    "prefix": ["guard", "guardrail"],
+    "description": "Guardrail validation on task output",
+    "body": [
+      "    guard:",
+      "      - rule: \"${1:Output must be valid JSON}\"",
+      "        on_fail: ${2|error,warn,retry|}",
+      "$0"
+    ]
+  },
+  "Retry Block": {
+    "prefix": ["retry", "resilience"],
+    "description": "Retry configuration",
+    "body": [
+      "    retry:",
+      "      max_attempts: ${1:3}",
+      "      delay: ${2:2}",
+      "      backoff: ${3|exponential,linear,fixed|}",
+      "$0"
+    ]
+  },
+  "Structured Output": {
+    "prefix": ["structured", "json", "schema"],
+    "description": "Structured JSON output with schema",
+    "body": [
+      "    output:",
+      "      format: json",
+      "    structured:",
+      "      schema:",
+      "        type: object",
+      "        properties:",
+      "          ${1:name}:",
+      "            type: ${2|string,number,boolean,array,object|}",
+      "            description: \"${3:Description}\"",
+      "        required: [${4:\"$1\"}]",
+      "$0"
+    ]
+  },
+  "Vision Content": {
+    "prefix": ["vision", "image", "content"],
+    "description": "Multimodal vision content block",
+    "body": [
+      "  - id: ${1:analyze}",
+      "    infer:",
+      "      content:",
+      "        - type: image",
+      "          source: \"${2:\\{\\{with.photo.media[0].hash\\}\\}}\"",
+      "          detail: ${3|high,low,auto|}",
+      "        - type: text",
+      "          text: \"${4:Describe this image}\"",
+      "$0"
+    ]
+  },
+  "Pipeline (2 tasks)": {
+    "prefix": ["pipe2", "chain2"],
+    "description": "Two-task pipeline with dependency",
+    "body": [
+      "  - id: ${1:step1}",
+      "    ${2|infer,exec,fetch,invoke|}: \"${3:First step}\"",
+      "",
+      "  - id: ${4:step2}",
+      "    with:",
+      "      prev: \\$$1",
+      "    ${5|infer,exec,fetch,invoke|}: \"${6:Process \\{\\{with.prev\\}\\}}\"",
+      "    depends_on: [$1]",
+      "$0"
+    ]
+  },
+  "Pipeline (3 tasks)": {
+    "prefix": ["pipe3", "chain3"],
+    "description": "Three-task pipeline with chained dependencies",
+    "body": [
+      "  - id: ${1:research}",
+      "    infer: \"${2:Research the topic}\"",
+      "",
+      "  - id: ${3:draft}",
+      "    with:",
+      "      data: \\$$1",
+      "    infer: \"${4:Draft based on \\{\\{with.data\\}\\}}\"",
+      "    depends_on: [$1]",
+      "",
+      "  - id: ${5:refine}",
+      "    with:",
+      "      draft: \\$$3",
+      "    infer: \"${6:Refine and polish \\{\\{with.draft\\}\\}}\"",
+      "    depends_on: [$3]",
+      "$0"
+    ]
+  }
+}
