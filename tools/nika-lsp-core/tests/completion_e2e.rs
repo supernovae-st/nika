@@ -197,7 +197,6 @@ fn task_field_meta_fields_present() {
     assert_has_label(&items, "for_each");
     assert_has_label(&items, "retry");
     assert_has_label(&items, "timeout");
-    assert_has_label(&items, "guardrails");
     assert_has_label(&items, "provider");
     assert_has_label(&items, "model");
     assert_has_label(&items, "structured");
@@ -226,7 +225,6 @@ fn task_field_meta_are_property_kind() {
         "for_each",
         "retry",
         "timeout",
-        "guardrails",
         "provider",
         "model",
         "structured",
@@ -1406,7 +1404,7 @@ tasks:
     assert_has_label(&items, "method");
     assert_has_label(&items, "headers");
     assert_has_label(&items, "body");
-    assert_has_label(&items, "retry");
+    assert_no_label(&items, "retry"); // retry is task-level, not fetch sub-field
     assert_all_have_kind(&items);
 }
 

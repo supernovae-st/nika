@@ -262,13 +262,6 @@ fn task_field_completions(prefix: &str, existing_fields: &[String]) -> Vec<Compl
             "3_timeout",
         ),
         item_snippet_fmt(
-            "guardrails",
-            CompletionItemKind::PROPERTY,
-            "guardrails:\n  ${1:input}: ${2:rule}",
-            "Input/output guardrails.",
-            "3_guardrails",
-        ),
-        item_snippet_fmt(
             "provider",
             CompletionItemKind::PROPERTY,
             "provider: ${1|claude,openai,mistral,groq,deepseek,gemini,xai|}",
@@ -332,6 +325,7 @@ fn verb_block_completions(verb: &str, prefix: &str) -> Vec<CompletionItem> {
             item_snippet_fmt("extended_thinking", CompletionItemKind::PROPERTY, "extended_thinking: true\nthinking_budget: ${1:8192}", "Enable extended thinking (Claude).", "4_thinking"),
             item_snippet_fmt("thinking_budget", CompletionItemKind::PROPERTY, "thinking_budget: ${1:8192}", "Token budget for extended thinking.", "4_thinking_budget"),
             item_snippet_fmt("content", CompletionItemKind::PROPERTY, "content:\n  - type: ${1|text,image,image_url|}\n    ${2:text}: ${3:value}", "Multimodal vision content.", "5_content"),
+            item_snippet_fmt("guardrails", CompletionItemKind::PROPERTY, "guardrails:\n  - type: ${1|length,schema,regex,llm|}\n    ${2:max_words}: ${3:500}", "Output guardrails (length, schema, regex, llm).", "6_guardrails"),
         ],
         "exec" => vec![
             item_snippet_fmt("command", CompletionItemKind::PROPERTY, "command: ${1}", "Shell command to run.", "0_command"),
@@ -351,12 +345,12 @@ fn verb_block_completions(verb: &str, prefix: &str) -> Vec<CompletionItem> {
             item_snippet_fmt("response", CompletionItemKind::PROPERTY, "response: ${1|full,binary|}", "Response mode: full (status+headers+body JSON) or binary (CAS storage).", "4_response"),
             item_snippet_fmt("timeout", CompletionItemKind::PROPERTY, "timeout: ${1:30}", "Timeout in seconds.", "5_timeout"),
             item_snippet_fmt("follow_redirects", CompletionItemKind::PROPERTY, "follow_redirects: ${1|true,false|}", "Follow HTTP redirects. Default: true.", "5_follow"),
-            item_snippet_fmt("retry", CompletionItemKind::PROPERTY, "retry:\n  max_attempts: ${1:3}\n  delay: ${2:1}", "Retry configuration.", "6_retry"),
         ],
         "invoke" => vec![
             item_snippet_fmt("mcp", CompletionItemKind::PROPERTY, "mcp: ${1:server}", "Required. MCP server name.", "0_mcp"),
             item_snippet_fmt("tool", CompletionItemKind::PROPERTY, "tool: ${1:tool-name}", "Required. MCP tool name (or nika:builtin).", "1_tool"),
             item_snippet_fmt("params", CompletionItemKind::PROPERTY, "params:\n  ${1:key}: ${2:value}", "Tool parameters.", "2_params"),
+            item_snippet_fmt("resource", CompletionItemKind::PROPERTY, "resource: ${1:novanet://entity/name}", "MCP resource URI (mutually exclusive with tool:).", "3_resource"),
             item_snippet_fmt("timeout", CompletionItemKind::PROPERTY, "timeout: ${1:60}", "Timeout in seconds (default: 300).", "3_timeout"),
         ],
         "agent" => vec![
@@ -378,6 +372,7 @@ fn verb_block_completions(verb: &str, prefix: &str) -> Vec<CompletionItem> {
             item_snippet_fmt("extended_thinking", CompletionItemKind::PROPERTY, "extended_thinking: true\nthinking_budget: ${1:8192}", "Enable extended thinking.", "6_extended_thinking"),
             item_snippet_fmt("thinking_budget", CompletionItemKind::PROPERTY, "thinking_budget: ${1:8192}", "Token budget for extended thinking.", "6_thinking_budget"),
             item_snippet_fmt("from", CompletionItemKind::PROPERTY, "from: ${1:agent-name}", "Reference a reusable agent definition.", "7_from"),
+            item_snippet_fmt("guardrails", CompletionItemKind::PROPERTY, "guardrails:\n  - type: ${1|length,schema,regex,llm|}\n    ${2:max_words}: ${3:500}", "Output guardrails (length, schema, regex, llm).", "8_guardrails"),
         ],
         _ => vec![],
     };
