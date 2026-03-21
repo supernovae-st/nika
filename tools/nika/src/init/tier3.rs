@@ -61,6 +61,7 @@ pub const WORKFLOW_08_AGENT_BASIC: &str = r##"# ╔═════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: agent-file-explorer
 
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -280,6 +281,7 @@ pub const WORKFLOW_09_STRUCTURED_OUTPUT: &str = r##"# ╔═══════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: structured-output-artifacts
 
 # ─────────────────────────────────────────────────────────────────────────────────

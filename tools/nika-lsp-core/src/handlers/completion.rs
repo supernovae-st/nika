@@ -129,7 +129,7 @@ fn workflow_root_completions(prefix: &str) -> Vec<CompletionItem> {
             "model",
             CompletionItemKind::KEYWORD,
             "model: ${1:claude-sonnet-4-6}",
-            "Optional. Default model for all tasks.",
+            "Required for LLM tasks. Model for infer/agent verbs.",
             "81_model",
         ),
         item_snippet_fmt(

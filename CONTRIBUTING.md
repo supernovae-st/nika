@@ -41,7 +41,7 @@ Thank you for your interest in contributing to Nika! This document provides guid
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-See [ARMADA Design](docs/plans/2025-02-25-nika-fortress-design.md) for details.
+See the ARMADA CI workflows in `.github/workflows/` for details.
 
 ## ARMADA Quality System
 
@@ -176,7 +176,7 @@ type(scope): description
 [optional body]
 
 Co-Authored-By: Claude <noreply@anthropic.com>
-Co-Authored-By: Nika <agent@nika.sh>
+Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
 ```
 
 ### Types
@@ -201,7 +201,7 @@ fix(mcp): handle timeout in tool calls
 docs(readme): update installation guide
 refactor(runtime): simplify executor logic
 test(binding): add lazy resolution tests
-chore(ci): update rust version to 1.75
+chore(ci): update rust version to 1.86
 ```
 
 ## Pull Request Process
@@ -322,7 +322,7 @@ pub fn my_function(param: &str) -> Result<Output, Error> {
 
 ### Prerequisites
 
-- Rust 1.75+ (rustup recommended)
+- Rust 1.86+ (rustup recommended)
 - Git 2.40+
 - cargo-nextest (for testing)
 

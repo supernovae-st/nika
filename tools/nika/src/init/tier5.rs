@@ -69,6 +69,7 @@ pub const WORKFLOW_11_CODE_REVIEW: &str = r##"# ╔═════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: code-review-pipeline
 
 # Sample code for review - contains intentional vulnerabilities for detection!
@@ -399,6 +400,7 @@ pub const WORKFLOW_12_LOCALIZATION: &str = r##"# ╔═════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: content-localization-pipeline
 
 inputs:
@@ -568,6 +570,7 @@ pub const WORKFLOW_13_SEO_CONTENT: &str = r##"# ╔═════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: seo-content-generator
 
 inputs:
@@ -779,6 +782,7 @@ pub const WORKFLOW_14_DOCS_GENERATOR: &str = r##"# ╔════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: docs-generator
 
 tasks:
@@ -858,6 +862,7 @@ pub const WORKFLOW_15_ETL: &str = r##"# ╔════════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: data-etl-pipeline
 
 tasks:
@@ -927,6 +932,7 @@ pub const WORKFLOW_16_RESEARCH: &str = r##"# ╔══════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: research-assistant
 
 inputs:
@@ -967,6 +973,7 @@ pub const WORKFLOW_17_PR_REVIEW: &str = r##"# ╔══════════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: pr-review-bot
 
 inputs:
@@ -1051,6 +1058,7 @@ pub const WORKFLOW_18_MEETING: &str = r##"# ╔═══════════
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: meeting-processor
 
 inputs:
@@ -1128,6 +1136,7 @@ pub const WORKFLOW_19_API_HEALTH: &str = r##"# ╔══════════
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: api-health-checker
 
 tasks:
@@ -1183,6 +1192,7 @@ pub const WORKFLOW_20_KNOWLEDGE_EXTRACT: &str = r##"# ╔═══════�
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 
 schema: nika/workflow@0.12
+model: gpt-4o-mini
 workflow: knowledge-extractor
 
 inputs:

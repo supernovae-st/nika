@@ -225,11 +225,13 @@ impl RigAgentLoop {
                 builder = builder.tool_choice(tool_choice.into());
             }
 
-            // TODO(stop_sequences): rig-core 0.32.0 AgentBuilder has no .stop_sequences()
-            // method. AgentParams.stop_sequences is parsed but cannot be forwarded until
-            // rig-core adds native support. Passing via .additional_params() is provider-
-            // specific (Claude uses "stop_sequences", OpenAI uses "stop") and fragile.
-            // Revisit when rig-core adds the API.
+            // Inject stop_sequences via additional_params (provider-specific key)
+            if let Some(stop_params) = Self::stop_sequences_params(
+                &self.params.provider.clone().unwrap_or_default(),
+                &self.params.stop_sequences,
+            ) {
+                builder = builder.additional_params(stop_params);
+            }
 
             let agent = builder.build();
 
@@ -341,7 +343,13 @@ impl RigAgentLoop {
             builder = builder.tool_choice(tool_choice.into());
         }
 
-        // TODO(stop_sequences): see stream_completion_cli() -- rig-core 0.32.0 limitation
+        // Inject stop_sequences via additional_params (provider-specific key)
+        if let Some(stop_params) = Self::stop_sequences_params(
+            &self.params.provider.clone().unwrap_or_default(),
+            &self.params.stop_sequences,
+        ) {
+            builder = builder.additional_params(stop_params);
+        }
 
         let agent = builder.build();
 

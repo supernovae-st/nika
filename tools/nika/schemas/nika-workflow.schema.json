@@ -31,7 +31,7 @@
     },
     "model": {
       "type": "string",
-      "description": "Default model override (e.g., claude-sonnet-4-6, gpt-4o)",
+      "description": "Required for LLM tasks. Model to use for infer/agent verbs (e.g., gpt-4o-mini, claude-sonnet-4-6)",
       "examples": ["claude-sonnet-4-6", "gpt-4o-mini", "gemini-2.0-flash"]
     },
     "context": {

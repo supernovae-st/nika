@@ -164,6 +164,24 @@ impl rig::tool::ToolDyn for ArcToolAdapter {
 }
 
 impl RigAgentLoop {
+    /// Build `additional_params` JSON for stop_sequences injection.
+    ///
+    /// rig-core has no native `.stop_sequences()` on AgentBuilder, but
+    /// `additional_params` is `#[serde(flatten)]`-ed into the request body,
+    /// so we inject the provider-specific key directly.
+    fn stop_sequences_params(provider: &str, sequences: &[String]) -> Option<serde_json::Value> {
+        if sequences.is_empty() {
+            return None;
+        }
+        let key = match provider {
+            "anthropic" | "claude" => "stop_sequences",
+            "gemini" => "stopSequences",
+            // OpenAI, Mistral, Groq, DeepSeek, xAI all use "stop"
+            _ => "stop",
+        };
+        Some(serde_json::json!({ key: sequences }))
+    }
+
     /// Create a new rig-based agent loop
     ///
     /// # Errors

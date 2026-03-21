@@ -158,7 +158,13 @@ impl RigAgentLoop {
             builder = builder.tool_choice(tool_choice.into());
         }
 
-        // TODO(stop_sequences): see streaming.rs -- rig-core 0.32.0 limitation
+        // Inject stop_sequences via additional_params (provider-specific key)
+        if let Some(stop_params) = Self::stop_sequences_params(
+            &self.params.provider.clone().unwrap_or_default(),
+            &self.params.stop_sequences,
+        ) {
+            builder = builder.additional_params(stop_params);
+        }
 
         let agent = builder.build();
 
@@ -252,7 +258,13 @@ impl RigAgentLoop {
             builder = builder.tool_choice(tool_choice.into());
         }
 
-        // TODO(stop_sequences): see streaming.rs -- rig-core 0.32.0 limitation
+        // Inject stop_sequences via additional_params (provider-specific key)
+        if let Some(stop_params) = Self::stop_sequences_params(
+            &self.params.provider.clone().unwrap_or_default(),
+            &self.params.stop_sequences,
+        ) {
+            builder = builder.additional_params(stop_params);
+        }
 
         let agent = builder.build();
 
