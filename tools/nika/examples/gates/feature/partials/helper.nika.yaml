@@ -1,4 +1,0 @@
-schema: nika/workflow@0.12
-tasks:
-  - id: helper_task
-    exec: "echo helper ran"

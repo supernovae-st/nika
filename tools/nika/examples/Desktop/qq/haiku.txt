@@ -1,3 +1,0 @@
-Ownership claimed here
-No dangling pointers remain
-Memory at peace

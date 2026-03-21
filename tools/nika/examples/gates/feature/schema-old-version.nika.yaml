@@ -1,6 +1,0 @@
-# FEATURE: older schema version to verify migration hint
-schema: nika/workflow@0.10
-workflow: feat-schema-old-version
-tasks:
-  - id: check
-    exec: "echo 'old schema test'"
