@@ -840,7 +840,50 @@ fn verb_value_completions_with_ast(
         }
     }
 
+    // For infer and agent verbs, add model names from the catalog
+    if verb == "infer" || verb == "agent" {
+        items.extend(model_catalog_completions());
+    }
+
     items
+}
+
+/// Generate completion items from the ModelCatalog.
+///
+/// Each known cloud model becomes a completion item with provider, tier,
+/// and pricing information. Items are grouped by provider via sort_text.
+#[cfg(feature = "lsp")]
+fn model_catalog_completions() -> Vec<CompletionItem> {
+    use crate::lsp::model_intel::{LifecycleStatus, MODEL_CATALOG};
+
+    MODEL_CATALOG
+        .iter()
+        .map(|info| {
+            let deprecated_note = match &info.lifecycle {
+                LifecycleStatus::Deprecated { replacement, .. } => {
+                    format!(" (deprecated, use {})", replacement)
+                }
+                LifecycleStatus::Preview => " (preview)".to_string(),
+                LifecycleStatus::Active => String::new(),
+            };
+
+            CompletionItem {
+                label: info.id.to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                detail: Some(format!(
+                    "{} -- {} | {}{}",
+                    info.display_name,
+                    info.provider.name(),
+                    info.tier.label(),
+                    deprecated_note,
+                )),
+                documentation: Some(Documentation::String(info.description.to_string())),
+                sort_text: Some(format!("model_{}_{}", info.provider.name(), info.id,)),
+                deprecated: Some(matches!(info.lifecycle, LifecycleStatus::Deprecated { .. })),
+                ..Default::default()
+            }
+        })
+        .collect()
 }
 
 /// Binding completions using AstIndex for accurate task names
@@ -1132,6 +1175,127 @@ tasks:
         // Verify that we have the base completions (5 for agent)
         // Plus any MCP server names if parsed correctly
         assert!(items.len() >= 5);
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_model_catalog_completions_not_empty() {
+        let items = model_catalog_completions();
+        assert!(!items.is_empty(), "Model catalog should have entries");
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_model_catalog_completions_contain_known_models() {
+        let items = model_catalog_completions();
+        assert!(
+            items.iter().any(|i| i.label == "claude-sonnet-4-6"),
+            "Should contain Claude Sonnet 4"
+        );
+        assert!(
+            items.iter().any(|i| i.label == "gpt-4o"),
+            "Should contain GPT-4o"
+        );
+        assert!(
+            items.iter().any(|i| i.label == "gemini-2.0-flash"),
+            "Should contain Gemini 2.0 Flash"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_model_catalog_completions_have_provider_detail() {
+        let items = model_catalog_completions();
+        let sonnet = items
+            .iter()
+            .find(|i| i.label == "claude-sonnet-4-6")
+            .expect("Should have claude-sonnet-4-6");
+        let detail = sonnet.detail.as_ref().unwrap();
+        assert!(detail.contains("Claude"), "Detail should mention provider");
+        assert!(
+            detail.contains("Standard"),
+            "Detail should mention tier: {}",
+            detail
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_model_catalog_completions_deprecated_flagged() {
+        let items = model_catalog_completions();
+        let gpt4_turbo = items
+            .iter()
+            .find(|i| i.label == "gpt-4-turbo")
+            .expect("Should have gpt-4-turbo");
+        assert_eq!(
+            gpt4_turbo.deprecated,
+            Some(true),
+            "gpt-4-turbo should be flagged as deprecated"
+        );
+        let detail = gpt4_turbo.detail.as_ref().unwrap();
+        assert!(
+            detail.contains("deprecated"),
+            "Detail should mention deprecation: {}",
+            detail
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_model_catalog_completions_active_not_deprecated() {
+        let items = model_catalog_completions();
+        let gpt4o = items
+            .iter()
+            .find(|i| i.label == "gpt-4o")
+            .expect("Should have gpt-4o");
+        assert_eq!(
+            gpt4o.deprecated,
+            Some(false),
+            "gpt-4o should NOT be flagged as deprecated"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_verb_value_completions_with_ast_infer_includes_models() {
+        use super::super::super::ast_index::AstIndex;
+        let index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let items = verb_value_completions_with_ast("infer", &index, &uri);
+        assert!(
+            items.iter().any(|i| i.label == "prompt"),
+            "Should have prompt field"
+        );
+        assert!(
+            items.iter().any(|i| i.label == "claude-sonnet-4-6"),
+            "Should have model catalog entries"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_verb_value_completions_with_ast_agent_includes_models() {
+        use super::super::super::ast_index::AstIndex;
+        let index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let items = verb_value_completions_with_ast("agent", &index, &uri);
+        assert!(
+            items.iter().any(|i| i.label == "gpt-4o"),
+            "Agent completions should include model catalog"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_verb_value_completions_with_ast_exec_no_models() {
+        use super::super::super::ast_index::AstIndex;
+        let index = AstIndex::new();
+        let uri = "file:///test.nika.yaml".parse::<Uri>().unwrap();
+        let items = verb_value_completions_with_ast("exec", &index, &uri);
+        assert!(
+            !items.iter().any(|i| i.label == "claude-sonnet-4-6"),
+            "exec completions should NOT include model catalog"
+        );
     }
 
     #[test]
