@@ -7,70 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### LSP — Phase C Intelligence + Full Sync
-
-#### Added
-- **Inlay hints** (5 types) — timeout seconds, binding source, dependency count, max_turns iterations, concurrency parallel
-- **CodeLens** (3 types) — "Validate" on schema line, "Run Workflow" on tasks line, task count badge
-- **Workflow root completions** — provider, model, description, skills, agents, artifacts, log now auto-complete at top level
-- **Agent completions** — `from:` (reusable agent ref) + `thinking_budget:` added
-- **Hover docs** — provider, model, log task-level overrides documented
-- **Semantic token keywords** — +20 keywords: aliases (thinking, working_dir, max_iterations, server), retry sub-fields (max_attempts, delay, backoff), decompose sub-fields (strategy, traverse, mcp_server, max_items, max_depth), content parts
-
-#### Fixed
-- **10 hover_e2e test failures** — updated test expectations to match expanded hover handler (DependsOn, ForEach, InvokeBlock, McpConfig, ContentFocus now return docs)
-- **Semantic token overflow** — tokens now sorted by (line, start_char) before delta-encoding (prevents subtraction overflow on interleaved tokens)
-- **Completion sort_text uniqueness** — root completions use unique sort keys (prevents non-deterministic ordering)
-- **Clippy** — char array pattern + identical if-block dedup across all 3 LSP crates
-
-#### Changed
-- **UseBlock → WithBlock** — standalone nika-lsp context detection updated from legacy `use:` to `with:` syntax
-- **Schema version** — standalone nika-lsp tests updated from v0.10 to v0.12
-- **Parse bridge** — `artifacts` and `log` added to `KNOWN_TOP_LEVEL_KEYS`
-- **TextMate grammar** — +3 task fields (provider, model, log) + ~20 verb sub-fields (aliases, retry config, decompose config)
-- **AST field renames** — `thinking` → `extended_thinking` (infer), `max_iterations` → `max_turns` (agent), `working_dir` → `cwd` (exec), `parallel` → `concurrency` (for_each)
-
-### Performance (P0: TUI Quick Wins)
-
-5 targeted optimizations reducing per-frame rendering overhead:
+## [0.36.0](https://github.com/supernovae-st/nika/releases/tag/v0.36.0) - 2026-03-21
 
 ```
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║  ⚡ P0: TUI PERFORMANCE QUICK WINS                                           ║
+║  🦋 NIKA v0.36.0 — LSP PHASE C + FULL INTELLIGENCE                           ║
+║  References | Document Links | Folding | 100 MCP Aliases | UTF-8 TUI        ║
 ╠═══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                               ║
-║  1. DirtyFlags → render pipeline   Skip unchanged panels                     ║
-║  2. DAG cache in MonitorView       Build once, invalidate on change          ║
-║  3. JSON cache in MonitorView      Format once, cache response strings       ║
-║  4. Active-view-only ticking       1 view tick/frame instead of 4            ║
-║  5. Conditional Clear              Ratatui differential rendering enabled    ║
-║                                                                               ║
-║  Tests: 5,026 passing | Zero clippy warnings                                ║
-║  Commits: 5 granular perf(tui) commits                                      ║
+║  v0.35.5  VS Code Extension + Schema Sync                                    ║
+║  v0.35.6  LSP Phase B — Handler Delegation                                   ║
+║  v0.35.7  Runtime Wiring — Guardrails + Skills                               ║
+║  v0.35.8  TUI Studio Redesign + LSP Fixes                                    ║
+║  v0.36.0  LSP Phase C — Full Intelligence                                    ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-- **DirtyFlags in render pipeline** — Views skip re-rendering when their data hasn't changed
-- **DAG construction cache** — MonitorView caches `StableDag` and only rebuilds on task state changes
-- **JSON formatting cache** — MonitorView caches `serde_json::to_string_pretty()` results
-- **Active-view-only ticking** — Only the current view's `tick()` runs per frame (+ background tick for ChatView streaming)
-- **Conditional Clear** — Full screen clear only on view switch, resize, or first frame; ratatui's differential rendering handles incremental updates
+See [tools/nika/CHANGELOG.md](tools/nika/CHANGELOG.md) for detailed per-release notes (v0.35.5 → v0.36.0).
 
-### Refactored
+### Highlights
 
-#### use_wiring → with_spec Migration Complete
-
-Removed the deprecated `use_wiring` field from `Task` struct and all consumers:
-
-- **AST** — `Task.use_wiring` field removed, `with_spec` is the sole binding system
-- **DAG** — Dead `use_wiring` code paths removed from flow.rs and validate.rs
-- **DAG validation** — `validate_use_wiring()` renamed to `validate_bindings()`
-- **Include loader** — Removed `use_wiring` prefixing code and `prefix_binding_path()` helper
-- **Error messages** — Updated from `use.alias` to `with.alias` terminology
-- **LSP** — Completions, hover docs, and reserved fields updated to `with:` syntax
-- **TUI** — Studio YAML highlighter and standalone validator updated
-- **Tests** — All tests and benchmarks updated to use `with_spec`
+- **LSP Phase C** — references, document links, folding ranges, inlay hints (5 types), CodeLens (3 types)
+- **LSP Phase B** — `LspHandler` trait + `DefaultHandler` delegation, enriched hover/definition/code_action/semantic_tokens
+- **Runtime wiring** — guardrails enforcement, `LimitTracker`, `CompletionConfig`, skills injection in agent loop
+- **TUI Studio** — split into 6-module directory, diagnostic gutter, go-to-def, code actions, Theme 60 fields
+- **VS Code extension** — 21 snippets + 4 commands, blue butterfly icons
+- **100 MCP aliases** — expanded from 48
+- **AST field renames** — `thinking` → `extended_thinking`, `max_iterations` → `max_turns`, `working_dir` → `cwd`
+- **UTF-8 safe TextBuffer** — char index, not byte offset
+- **Schema sync** — JSON schema aligned with Rust AST (guardrails, completion, limits, resource)
+- **Default features** expanded to 22/24
 
 ## [0.27.0] - 2026-03-12
 

@@ -7,6 +7,102 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.36.0](https://github.com/supernovae-st/nika/releases/tag/v0.36.0) - 2026-03-21
+
+```
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║  🦋 NIKA v0.36.0 — LSP PHASE C + FULL INTELLIGENCE                           ║
+║  References | Document Links | Folding | 100 MCP Aliases | UTF-8 TUI        ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  ✨ LSP Phase C: references, document links, folding ranges                   ║
+║  🔌 MCP aliases expanded 48→100                                               ║
+║  🖥️ TUI Studio split into 6-module directory                                  ║
+║  🔤 UTF-8 safe TextBuffer (char index, not byte offset)                       ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+```
+
+### Added
+- **LSP references handler** — find all references to a task ID across the workflow
+- **LSP document links** — clickable references to tasks and files in editors
+- **LSP folding ranges** — collapse tasks, `with:` blocks, and MCP configs
+- **100 MCP aliases** — expanded from 48, covering all common MCP servers
+- **Init templates** updated with guardrails, completion, and extract modes
+
+### Fixed
+- **TextBuffer UTF-8 safety** — character index instead of byte offset prevents TUI cursor drift on multibyte chars
+- **StatusBar animation** — wired frame counter + real MCP connection status display
+- **NIKA-253** — template JSON auto-parse fix for MCP invoke params
+
+### Changed
+- **TUI Studio** split from monolithic 2500-line file into 6-module directory (buffer, lsp, syntax, render, keymap, tests)
+- **README** completely rewritten with comprehensive feature documentation
+- **Vision docs** updated with init partials
+
+## [0.35.8](https://github.com/supernovae-st/nika/releases/tag/v0.35.8) - 2026-03-21
+
+### Added
+- **TUI diagnostic gutter** — error/warning icons in line gutter with underlines
+- **TUI go-to-definition** — jump to task definition from editor (`gd` in vi mode)
+- **TUI code actions** — quick fix suggestions in editor
+- **TUI terminal cursor** — blinking cursor at insertion point
+- **TUI StatusBar animation** — wired telemetry + animation frames
+
+### Fixed
+- **LSP 10 bugs** — UTF-16 position encoding, CRLF line endings, char boundary panics, stale diagnostics
+- **Semantic token sort overflow** — tokens sorted by (line, start_char) before delta-encoding
+- **Completion sort_text** — unique sort keys prevent non-deterministic ordering
+- **Schema mismatches** — 4 remaining schema-parser gaps resolved
+- **RetryConfig alignment** — `delay_ms`, `backoff`, `max_retries` names match parser
+
+### Changed
+- **AST field renames** — `thinking` → `extended_thinking`, `max_iterations` → `max_turns`, `working_dir` → `cwd`, `parallel` → `concurrency`
+- **Theme system** — expanded to 60 fields, all Color::Rgb migrated to Theme fields
+- **LSP cleanup** — deleted legacy `utils.rs` + standalone `hover.rs` (-540 LOC)
+
+## [0.35.7](https://github.com/supernovae-st/nika/releases/tag/v0.35.7) - 2026-03-21
+
+### Added
+- **Guardrails enforcement** wired in agent executor — `LimitTracker` tracks turn count + token budget
+- **CompletionConfig** wired in agent loop — explicit/natural/pattern completion modes active at runtime
+- **Skills injection** in agent executor — `skills:` definitions merged into agent system prompt
+- **Default features expanded** to 22/24 — `fetch-extract`, `fetch-article`, `fetch-feed`, `media-chart` now default
+
+### Fixed
+- **9 media E2E tests** updated for NK compression framing header
+- **LSP handler alignment** — grammar and handlers synced with recent AST changes
+
+## [0.35.6](https://github.com/supernovae-st/nika/releases/tag/v0.35.6) - 2026-03-21
+
+### Added
+- **`LspHandler` trait** + `DefaultHandler` delegation pattern — protocol-agnostic LSP intelligence shared between embedded TUI and standalone server
+- **Enriched hover** — full documentation for all verbs, fields, providers, and models
+- **Enriched definition** — go-to-def for `depends_on:`, `with:` refs, `from:` agent refs
+- **Enriched code actions** — 6 quick-fix actions (missing schema, wrong verb, deprecated fields, etc.)
+- **Enriched semantic tokens** — all verb sub-fields and aliases tokenized
+- **Enriched symbols** — nested task outline with verb icons
+- **Embedded LSP fallback** — TUI hover delegates to nika-lsp-core when local analysis insufficient
+
+### Changed
+- Default features expanded: `fetch-extract`, `fetch-article`, `fetch-feed`, `media-chart` added
+
+## [0.35.5](https://github.com/supernovae-st/nika/releases/tag/v0.35.5) - 2026-03-21
+
+### Added
+- **VS Code extension** — 21 YAML snippets + 4 commands (Run, Check, Init, Open TUI) for Tab-magic workflow authoring
+- **Blue butterfly SVG icons** for VS Code extension
+- **`nika doctor`** — LSP + editor integration checks (LSP binary, VS Code extension, Cursor/Zed config)
+- **LSP hover enrichment** — full documentation for all verbs and fields
+- **Schema sync** — JSON schema updated with guardrails, completion, limits, resource fields
+- **AST pipeline** — guardrails, completion, limits wired through agent analysis phase
+- **6 gate test workflows** — guardrails, completion, limits, tool_choice examples
+
+### Fixed
+- **CI** — removed stale `jobs` feature from SAST workflow
+- **TUI** — clear both ratatui buffers after intro animation (fixes ghost pixels)
+- **Test** — `wiring_views` updated for 3-View architecture
+
 ## [0.35.4](https://github.com/supernovae-st/nika/releases/tag/v0.35.4) - 2026-03-21
 
 ### Added
