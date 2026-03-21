@@ -52,6 +52,7 @@ pub struct McpConfigInline {
 #[derive(Debug, Clone)]
 pub struct Workflow {
     pub schema: String,
+    pub name: Option<String>,
     pub provider: String,
     pub model: Option<String>,
     /// MCP server configurations

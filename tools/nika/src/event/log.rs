@@ -783,6 +783,10 @@ impl EventLog {
         self.with_events(|events| serde_json::to_value(events).unwrap_or(Value::Null))
     }
 
+    pub fn events_since(&self, since_id: u64) -> Vec<Event> {
+        self.with_events(|events| events.iter().filter(|e| e.id > since_id).cloned().collect())
+    }
+
     /// Number of events
     pub fn len(&self) -> usize {
         self.events.read().len()

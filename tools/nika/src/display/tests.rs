@@ -155,7 +155,10 @@ fn tokens_above_10k_are_integer_k() {
     assert_eq!(colors::tokens(10_000), "10k");
     assert_eq!(colors::tokens(15_000), "15k");
     assert_eq!(colors::tokens(100_000), "100k");
-    assert_eq!(colors::tokens(1_000_000), "1000k");
+    assert_eq!(colors::tokens(999_999), "999k");
+    assert_eq!(colors::tokens(1_000_000), "1.0M");
+    assert_eq!(colors::tokens(1_500_000), "1.5M");
+    assert_eq!(colors::tokens(10_000_000), "10.0M");
 }
 
 // ═══════════════════════════════════════════════════════════════════════

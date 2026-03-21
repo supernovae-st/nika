@@ -224,9 +224,12 @@ impl Runner {
 
     /// Set the CLI detail level for event rendering.
     pub fn with_detail_level(mut self, detail: crate::display::DetailLevel) -> Self {
-        if !self.quiet {
-            self.cli_renderer = Some(crate::display::CliRenderer::new(detail));
-        }
+        let effective_detail = if self.quiet {
+            crate::display::DetailLevel::Min
+        } else {
+            detail
+        };
+        self.cli_renderer = Some(crate::display::CliRenderer::new(effective_detail));
         self
     }
 
@@ -1097,31 +1100,26 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         if let Some(ref mut renderer) = self.cli_renderer {
             if total_tasks > 1 {
                 use crate::display::dag::{StaticDagEdge, StaticDagTask};
-                let mut depths: std::collections::HashMap<&str, usize> = self
+                let nodes: Vec<&str> = self
                     .workflow
                     .tasks
                     .iter()
-                    .map(|t| (t.name.as_str(), 0))
+                    .map(|t| t.name.as_str())
                     .collect();
-                let mut changed = true;
-                let mut iters = 0;
-                while changed && iters < 100 {
-                    changed = false;
-                    iters += 1;
-                    for task in &self.workflow.tasks {
-                        for dep_id in &task.depends_on {
-                            if let Some(dep_name) = self.workflow.task_table.get_name(*dep_id) {
-                                if let Some(&dep_depth) = depths.get(dep_name) {
-                                    let new_depth = dep_depth + 1;
-                                    if new_depth > depths[task.name.as_str()] {
-                                        depths.insert(&task.name, new_depth);
-                                        changed = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                let edges: Vec<(&str, &str)> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .flat_map(|task| {
+                        task.depends_on.iter().filter_map(|dep_id| {
+                            self.workflow
+                                .task_table
+                                .get_name(*dep_id)
+                                .map(|dep_name| (dep_name, task.name.as_str()))
+                        })
+                    })
+                    .collect();
+                let depths = crate::dag::flow::compute_layers(&nodes, &edges);
                 let dag_tasks: Vec<StaticDagTask> = self
                     .workflow
                     .tasks
@@ -1915,19 +1913,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                 let success = task_result.is_success();
                                 let skipped = task_result.is_skipped();
 
-                                // Render task result via CliRenderer
-                                let duration_ms = task_result.duration.as_millis() as u64;
+                                // Render new events via CliRenderer
                                 if let Some(ref mut r) = self.cli_renderer {
-                                    if success {
-                                        r.render_kind(&EventKind::TaskCompleted {
-                                            task_id: Arc::clone(&store_id),
-                                            output: Arc::new(serde_json::Value::String(task_result.output_str().to_string())),
-                                            duration_ms,
-                                        });
-                                    } else {
-                                        let err_msg = task_result.error().unwrap_or("unknown error").to_string();
-                                        r.render_kind(&EventKind::TaskFailed { task_id: Arc::clone(&store_id), error: err_msg, duration_ms });
-                                    }
+                                    let new_events =
+                                        self.event_log.events_since(r.last_rendered_id());
+                                    r.render_new_events(&new_events);
                                 }
 
                                 // Store individual result
@@ -2058,12 +2048,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         let trace_path = self.write_trace();
 
         if let Some(ref mut renderer) = self.cli_renderer {
-            let events = self.event_log.events();
-            for event in &events {
-                renderer.render_stats_only(event);
-            }
+            let remaining = self.event_log.events_since(renderer.last_rendered_id());
+            renderer.render_new_events(&remaining);
             let total_duration_ms = workflow_start.elapsed().as_millis() as u64;
-            renderer.render_summary(total_duration_ms, trace_path.as_deref());
+            if self.quiet {
+                renderer.render_quiet_summary(total_duration_ms);
+            } else {
+                renderer.render_summary(total_duration_ms, trace_path.as_deref());
+            }
         } else if !self.quiet {
             let elapsed = workflow_start.elapsed();
             let elapsed_str = if elapsed.as_secs() >= 60 {

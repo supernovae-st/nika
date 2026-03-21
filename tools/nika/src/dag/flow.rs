@@ -23,6 +23,39 @@ use crate::ast::Workflow;
 use crate::error::NikaError;
 use crate::util::intern;
 
+/// Compute topological depth for each node in a DAG.
+///
+/// Returns a map from node name to its depth (layer). Root nodes have depth 0.
+/// Edges are `(from, to)` pairs where `from` must complete before `to`.
+pub fn compute_layers<'a>(
+    nodes: &[&'a str],
+    edges: &[(&'a str, &'a str)],
+) -> std::collections::HashMap<&'a str, usize> {
+    let mut depths: std::collections::HashMap<&'a str, usize> =
+        nodes.iter().map(|&n| (n, 0)).collect();
+    let mut changed = true;
+    let mut iters = 0;
+    while changed && iters < 100 {
+        changed = false;
+        iters += 1;
+        for &(from, to) in edges {
+            if let (Some(&from_depth), Some(&to_depth)) = (depths.get(from), depths.get(to)) {
+                let new_depth = from_depth + 1;
+                if new_depth > to_depth {
+                    depths.insert(to, new_depth);
+                    changed = true;
+                }
+            }
+        }
+    }
+    depths
+}
+
+/// Get the number of layers from a depth map.
+pub fn layer_count(depths: &std::collections::HashMap<&str, usize>) -> usize {
+    depths.values().max().copied().unwrap_or(0) + 1
+}
+
 /// Stack-allocated deps: most tasks have 0-4 dependencies
 pub(crate) type DepVec = SmallVec<[Arc<str>; 4]>;
 
@@ -1243,6 +1276,7 @@ mod tests {
 
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "test".to_string(),
             model: None,
             mcp: None,
@@ -1310,6 +1344,7 @@ mod tests {
 
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "test".to_string(),
             model: None,
             mcp: None,
@@ -1401,6 +1436,7 @@ mod tests {
 
         let workflow = Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "test".to_string(),
             model: None,
             mcp: None,

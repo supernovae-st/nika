@@ -361,6 +361,7 @@ mod tests {
     async fn test_resolve_assets_empty() {
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -399,6 +400,7 @@ mod tests {
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -451,6 +453,7 @@ temperature: 0.5
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -493,6 +496,7 @@ temperature: 0.5
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -535,6 +539,7 @@ You are an expert SEO content writer.
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -565,6 +570,7 @@ You are an expert SEO content writer.
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -630,6 +636,7 @@ system: "You are a researcher."
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,
@@ -690,6 +697,7 @@ system: "You are an agent with defaults."
 
         let workflow = crate::ast::Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,

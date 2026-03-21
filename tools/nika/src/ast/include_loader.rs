@@ -322,6 +322,7 @@ mod tests {
     fn make_test_workflow() -> Workflow {
         Workflow {
             schema: "nika/workflow@0.12".to_string(),
+            name: None,
             provider: "claude".to_string(),
             model: None,
             mcp: None,

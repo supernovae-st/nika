@@ -39,7 +39,7 @@ use crate::source::Span;
 pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
     let AnalyzedWorkflow {
         schema_version,
-        name: _,
+        name,
         description: _,
         provider,
         model,
@@ -80,6 +80,7 @@ pub fn lower(analyzed: AnalyzedWorkflow) -> Result<Workflow, NikaError> {
 
     Ok(Workflow {
         schema: schema_version.as_str().to_string(),
+        name,
         provider: provider.unwrap_or_else(|| "claude".to_string()),
         model,
         mcp,
@@ -603,7 +604,7 @@ pub fn unlower(workflow: Workflow) -> Result<AnalyzedWorkflow, NikaError> {
 
     Ok(AnalyzedWorkflow {
         schema_version,
-        name: None,
+        name: workflow.name,
         description: None,
         provider: Some(workflow.provider),
         model: workflow.model,
@@ -2098,15 +2099,16 @@ mod tests {
 
     /// L9: `workflow.name` and `workflow.description` are dropped.
     #[test]
-    fn roundtrip_workflow_name_description_lost() {
+    fn roundtrip_workflow_name_preserved_description_lost() {
         let mut wf = dummy_workflow();
         wf.name = Some("My workflow".to_string());
         wf.description = Some("Does important things".to_string());
         let lowered = lower(wf).unwrap();
         let unlowered = unlower(lowered).unwrap();
-        assert!(
-            unlowered.name.is_none(),
-            "Workflow name should be lost after roundtrip"
+        assert_eq!(
+            unlowered.name,
+            Some("My workflow".to_string()),
+            "Workflow name should be preserved after roundtrip"
         );
         assert!(
             unlowered.description.is_none(),

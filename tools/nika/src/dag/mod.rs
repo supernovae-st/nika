@@ -9,7 +9,7 @@
 //! The DAG represents task dependencies and execution order.
 //! Dag is immutable after construction (architectural decision #2).
 
-mod flow;
+pub mod flow;
 pub mod indexed;
 mod stable;
 mod validate;

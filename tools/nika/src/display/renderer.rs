@@ -38,6 +38,7 @@ pub struct RunStats {
     pub guardrails_escalations: u32,
     pub structured_attempts: u32,
     pub structured_success_layer: Option<u8>,
+    pub root_failure: Option<String>,
     /// Per-task timing: (task_id, verb, start_offset_ms, duration_ms)
     pub task_timeline: Vec<(String, String, u64, u64)>,
     /// Per-provider call: (task_id, in, out, cache, ttft_ms, cost)
@@ -65,9 +66,11 @@ pub struct CliRenderer {
     /// Terminal width for layout
     term_width: u16,
     /// Track task start times for timeline
-    task_starts: HashMap<String, u64>,
+    task_starts: HashMap<String, (u64, String)>,
     /// Workflow start timestamp for offset calculation
     workflow_start_ms: u64,
+    /// Last rendered event ID for incremental rendering
+    last_rendered_id: u64,
 }
 
 impl CliRenderer {
@@ -85,7 +88,12 @@ impl CliRenderer {
             term_width,
             task_starts: HashMap::new(),
             workflow_start_ms: 0,
+            last_rendered_id: 0,
         }
+    }
+
+    pub fn last_rendered_id(&self) -> u64 {
+        self.last_rendered_id
     }
 
     /// Set task-to-layer mapping (called after DAG analysis).
@@ -101,79 +109,12 @@ impl CliRenderer {
             .to_string()
     }
 
-    pub fn render_stats_only(&mut self, event: &crate::event::Event) {
-        match &event.kind {
-            EventKind::ProviderResponded {
-                input_tokens,
-                output_tokens,
-                cache_read_tokens,
-                ttft_ms,
-                cost_usd,
-                ..
-            } => {
-                self.stats.total_input_tokens += input_tokens;
-                self.stats.total_output_tokens += output_tokens;
-                self.stats.total_cache_tokens += cache_read_tokens;
-                self.stats.total_cost += cost_usd;
-                if let Some(t) = ttft_ms {
-                    self.stats.ttft_values.push(*t);
-                }
-                self.stats.provider_calls.push(ProviderCallStat {
-                    task_id: event.kind.task_id().unwrap_or("?").to_string(),
-                    input_tokens: *input_tokens,
-                    output_tokens: *output_tokens,
-                    cache_tokens: *cache_read_tokens,
-                    ttft_ms: *ttft_ms,
-                    cost: *cost_usd,
-                });
+    pub fn render_new_events(&mut self, events: &[crate::event::Event]) {
+        for event in events {
+            if event.id > self.last_rendered_id {
+                self.render(event);
+                self.last_rendered_id = event.id;
             }
-            EventKind::TaskStarted { task_id, .. } => {
-                self.task_starts
-                    .insert(task_id.to_string(), event.timestamp_ms);
-            }
-            EventKind::WorkflowStarted { .. } => {
-                self.workflow_start_ms = event.timestamp_ms;
-            }
-            EventKind::McpInvoke { .. } => {
-                self.stats.mcp_calls += 1;
-            }
-            EventKind::McpRetry { .. } => {
-                self.stats.mcp_retries += 1;
-            }
-            EventKind::McpError { .. } => {
-                self.stats.mcp_errors += 1;
-            }
-            EventKind::MediaStored {
-                deduplicated,
-                size_bytes,
-                ..
-            } => {
-                self.stats.media_stored += 1;
-                self.stats.media_bytes += size_bytes;
-                if *deduplicated {
-                    self.stats.media_dedup += 1;
-                }
-            }
-            EventKind::ArtifactWritten { size, .. } => {
-                self.stats.artifacts_count += 1;
-                self.stats.artifacts_bytes += size;
-            }
-            EventKind::GuardrailPassed { .. } => {
-                self.stats.guardrails_passed += 1;
-            }
-            EventKind::GuardrailFailed { .. } => {
-                self.stats.guardrails_failed += 1;
-            }
-            EventKind::GuardrailEscalation { .. } => {
-                self.stats.guardrails_escalations += 1;
-            }
-            EventKind::StructuredOutputAttempt { .. } => {
-                self.stats.structured_attempts += 1;
-            }
-            EventKind::StructuredOutputSuccess { layer, .. } => {
-                self.stats.structured_success_layer = Some(*layer);
-            }
-            _ => {}
         }
     }
 
@@ -277,12 +218,13 @@ impl CliRenderer {
                         .join(", ")
                 };
                 // Look up verb for this task — will be filled by TaskStarted
+                let padded_id = format!("{:<14}", task_id);
                 println!(
-                    "{}  {} {} {:<14} {} {}",
+                    "{}  {} {} {} {} {}",
                     self.ts(),
                     icons::pending(),
                     " ".normal(), // placeholder — verb not known yet at schedule time
-                    task_id.bold(),
+                    padded_id.bold(),
                     "scheduled".dimmed(),
                     format!("deps: {}", deps_str).dimmed()
                 );
@@ -290,13 +232,14 @@ impl CliRenderer {
 
             EventKind::TaskStarted { task_id, verb, .. } => {
                 self.task_starts
-                    .insert(task_id.to_string(), event.timestamp_ms);
+                    .insert(task_id.to_string(), (event.timestamp_ms, verb.to_string()));
+                let padded_id = format!("{:<14}", task_id);
                 println!(
-                    "{}  {} {} {:<14} {}",
+                    "{}  {} {} {} {}",
                     self.ts(),
                     icons::running(),
                     icons::verb(verb),
-                    task_id.bold(),
+                    padded_id.bold(),
                     "running".white()
                 );
             }
@@ -309,22 +252,30 @@ impl CliRenderer {
                 self.stats.tasks_passed += 1;
                 let dur_secs = *duration_ms as f32 / 1000.0;
 
+                // Look up verb
+                let verb = self
+                    .task_starts
+                    .get(task_id.as_ref())
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_default();
+
                 // Record timeline
-                if let Some(start) = self.task_starts.get(task_id.as_ref()) {
-                    // We'd need verb here — stored from TaskStarted
+                if let Some((start, _)) = self.task_starts.get(task_id.as_ref()) {
                     self.stats.task_timeline.push((
                         task_id.to_string(),
-                        String::new(), // verb filled later or from a lookup
+                        verb.clone(),
                         start - self.workflow_start_ms,
                         *duration_ms,
                     ));
                 }
 
+                let padded_id = format!("{:<14}", task_id);
                 println!(
-                    "{}  {} {:<16} {}",
+                    "{}  {} {} {} {}",
                     self.ts(),
                     icons::success(),
-                    task_id.bold(),
+                    icons::verb(&verb),
+                    padded_id.bold(),
                     colors::duration(dur_secs)
                 );
 
@@ -340,12 +291,22 @@ impl CliRenderer {
                 duration_ms,
             } => {
                 self.stats.tasks_failed += 1;
+                if self.stats.root_failure.is_none() {
+                    self.stats.root_failure = Some(task_id.to_string());
+                }
                 let dur_secs = *duration_ms as f32 / 1000.0;
+                let verb = self
+                    .task_starts
+                    .get(task_id.as_ref())
+                    .map(|(_, v)| v.clone())
+                    .unwrap_or_default();
+                let padded_id = format!("{:<14}", task_id);
                 println!(
-                    "{}  {} {:<16} {}",
+                    "{}  {} {} {} {}",
                     self.ts(),
                     icons::failed(),
-                    task_id.bold().red(),
+                    icons::verb(&verb),
+                    padded_id.bold().red(),
                     colors::duration(dur_secs)
                 );
                 println!(
@@ -1025,7 +986,7 @@ impl CliRenderer {
 
         let max_width = (self.term_width as usize).min(72).saturating_sub(16);
         let dashes = "╌".repeat(max_width);
-        let size_label = format!("{} ch", text.len());
+        let size_label = format!("{} ch", text.chars().count());
         let padding = max_width.saturating_sub(size_label.len() + 1);
 
         println!(
@@ -1091,9 +1052,37 @@ impl CliRenderer {
         );
     }
 
+    pub fn render_quiet_summary(&self, total_duration_ms: u64) {
+        let dur_secs = total_duration_ms as f32 / 1000.0;
+        let total = self.stats.tasks_passed + self.stats.tasks_failed + self.stats.tasks_skipped;
+        let status = if self.stats.tasks_failed > 0 {
+            icons::failed()
+        } else {
+            icons::success()
+        };
+        let cost_str = if self.stats.total_cost > 0.0 {
+            format!(" · {}", colors::cost(self.stats.total_cost))
+        } else {
+            String::new()
+        };
+        println!(
+            "{} {} · {}/{}{}",
+            status,
+            colors::duration(dur_secs),
+            self.stats.tasks_passed,
+            total,
+            cost_str
+        );
+    }
+
     /// Render the full summary footer.
     pub fn render_summary(&self, total_duration_ms: u64, trace_path: Option<&str>) {
         if self.detail.is_json() {
+            return;
+        }
+
+        if self.detail == DetailLevel::Min {
+            self.render_quiet_summary(total_duration_ms);
             return;
         }
 
@@ -1107,13 +1096,27 @@ impl CliRenderer {
         println!("╭{}╮", border.dimmed());
         println!("│{}│", " ".repeat(w));
 
-        // Done line
-        let done = format!(
-            "  {}  D O N E                                              {}",
-            icons::success(),
-            colors::duration(dur_secs)
-        );
-        println!("│{}│", pad_right(&done, w));
+        // Done/Failed line
+        if self.stats.tasks_failed > 0 {
+            let root_cause = self.stats.root_failure.as_deref().unwrap_or("unknown");
+            let failed_line = format!(
+                "  {}  F A I L E D                                            {}",
+                icons::failed(),
+                colors::duration(dur_secs)
+            );
+            println!("│{}│", pad_right(&failed_line, w));
+            println!(
+                "│{}│",
+                pad_right(&format!("  root cause: {}", root_cause.red()), w)
+            );
+        } else {
+            let done = format!(
+                "  {}  D O N E                                              {}",
+                icons::success(),
+                colors::duration(dur_secs)
+            );
+            println!("│{}│", pad_right(&done, w));
+        }
         println!("│{}│", " ".repeat(w));
 
         // Tasks
@@ -1351,7 +1354,7 @@ impl CliRenderer {
             let total_ms = total_duration_ms;
             let bar_width = 38;
 
-            for (task_id, _verb, start_ms, dur_ms) in &self.stats.task_timeline {
+            for (task_id, verb, start_ms, dur_ms) in &self.stats.task_timeline {
                 let start_pct = *start_ms as f64 / total_ms as f64;
                 let dur_pct = *dur_ms as f64 / total_ms as f64;
                 let start_col = (start_pct * bar_width as f64).round() as usize;
@@ -1367,14 +1370,24 @@ impl CliRenderer {
                     }
                 }
                 // Color the bar based on verb
+                let colored_bar = match verb.as_str() {
+                    "infer" => bar.magenta().to_string(),
+                    "exec" => bar.yellow().to_string(),
+                    "fetch" => bar.cyan().to_string(),
+                    "invoke" => bar.green().to_string(),
+                    "agent" => bar.red().to_string(),
+                    _ => bar,
+                };
                 let dur_secs = *dur_ms as f32 / 1000.0;
+                let padded_id = format!("{:<12}", task_id);
                 println!(
                     "│{}│",
                     pad_right(
                         &format!(
-                            "  {:<12} {} {:>5}",
-                            task_id.dimmed(),
-                            bar,
+                            "  {} {} {} {:>5}",
+                            icons::verb(verb),
+                            padded_id.dimmed(),
+                            colored_bar,
                             colors::duration(dur_secs)
                         ),
                         w
@@ -1427,13 +1440,14 @@ impl CliRenderer {
                     .ttft_ms
                     .map(|t| format!("{}ms", t))
                     .unwrap_or_else(|| "—".to_string());
+                let padded_task = format!("{:<12}", call.task_id);
                 println!(
                     "│{}│",
                     pad_right(
                         &format!(
-                            "  {}   {:<12} {:>5}  {:>5}  {:>5}   {}",
+                            "  {}   {} {:>5}  {:>5}  {:>5}   {}",
                             i + 1,
-                            call.task_id,
+                            padded_task,
                             colors::tokens(call.input_tokens),
                             colors::tokens(call.output_tokens),
                             colors::tokens(call.cache_tokens),
@@ -1490,22 +1504,7 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
     }
 }
 
-/// Get the display width of a string, stripping ANSI escape codes.
-fn stripped_len(s: &str) -> usize {
-    // Simple ANSI stripper — removes \x1b[...m sequences
-    let mut len = 0;
-    let mut in_escape = false;
-    for ch in s.chars() {
-        if ch == '\x1b' {
-            in_escape = true;
-        } else if in_escape && ch == 'm' {
-            in_escape = false;
-        } else if !in_escape {
-            len += 1;
-        }
-    }
-    len
-}
+use super::colors::{floor_char_boundary, stripped_len};
 
 /// Pad a string to width, accounting for ANSI escape codes.
 fn pad_right(s: &str, width: usize) -> String {
@@ -1515,22 +1514,6 @@ fn pad_right(s: &str, width: usize) -> String {
     } else {
         format!("{}{}", s, " ".repeat(width - visible))
     }
-}
-
-/// Find the largest byte index `<= i` that is a valid char boundary.
-///
-/// Equivalent to `str::floor_char_boundary` (stable since 1.91) but works on
-/// our MSRV (1.86).
-fn floor_char_boundary(s: &str, i: usize) -> usize {
-    if i >= s.len() {
-        return s.len();
-    }
-    let mut pos = i;
-    // Walk backward until we find a byte that is NOT a UTF-8 continuation byte
-    while pos > 0 && !s.is_char_boundary(pos) {
-        pos -= 1;
-    }
-    pos
 }
 
 /// Generate a token bar: █ for filled, ░ for empty.

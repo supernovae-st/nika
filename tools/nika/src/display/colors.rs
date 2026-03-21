@@ -38,8 +38,10 @@ pub fn tokens(n: u64) -> String {
         n.to_string()
     } else if n < 10_000 {
         format!("{:.1}k", n as f64 / 1000.0)
-    } else {
+    } else if n < 1_000_000 {
         format!("{}k", n / 1000)
+    } else {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
     }
 }
 
@@ -118,9 +120,11 @@ pub fn cost(usd: f64) -> ColoredString {
     if usd < 0.001 {
         format!("${:.4}", usd).dimmed()
     } else if usd < 0.01 {
-        format!("${:.3}", usd).yellow()
+        format!("${:.3}", usd).green()
+    } else if usd < 0.10 {
+        format!("${:.2}", usd).yellow()
     } else {
-        format!("${:.2}", usd).yellow().bold()
+        format!("${:.2}", usd).red().bold()
     }
 }
 
@@ -140,7 +144,7 @@ pub fn ttft(ms: u64) -> ColoredString {
 ///
 /// Equivalent to `str::floor_char_boundary` (stable since 1.91) but works on
 /// our MSRV (1.86).
-fn floor_char_boundary(s: &str, i: usize) -> usize {
+pub fn floor_char_boundary(s: &str, i: usize) -> usize {
     if i >= s.len() {
         return s.len();
     }

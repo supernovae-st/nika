@@ -732,33 +732,23 @@ async fn run_workflow(
         workflow.model = Some(m);
     }
 
-    if !quiet {
+    if !quiet && !detail.is_json() {
         let layer_count = {
-            let mut depths: std::collections::HashMap<&str, usize> = workflow
+            let nodes: Vec<&str> = workflow.tasks.iter().map(|t| t.name.as_str()).collect();
+            let edges: Vec<(&str, &str)> = workflow
                 .tasks
                 .iter()
-                .map(|t| (t.name.as_str(), 0))
+                .flat_map(|task| {
+                    task.depends_on.iter().filter_map(|dep_id| {
+                        workflow
+                            .task_table
+                            .get_name(*dep_id)
+                            .map(|dep_name| (dep_name, task.name.as_str()))
+                    })
+                })
                 .collect();
-            let mut changed = true;
-            let mut iters = 0;
-            while changed && iters < 100 {
-                changed = false;
-                iters += 1;
-                for task in &workflow.tasks {
-                    for dep_id in &task.depends_on {
-                        if let Some(dep_name) = workflow.task_table.get_name(*dep_id) {
-                            if let Some(&dep_depth) = depths.get(dep_name) {
-                                let new_depth = dep_depth + 1;
-                                if new_depth > depths[task.name.as_str()] {
-                                    depths.insert(&task.name, new_depth);
-                                    changed = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            depths.values().max().copied().unwrap_or(0) + 1
+            let depths = nika::dag::flow::compute_layers(&nodes, &edges);
+            nika::dag::flow::layer_count(&depths)
         };
         let gen_id = format!("{:08x}", rand::random::<u32>());
         nika::display::header::print_header(
