@@ -1,6 +1,6 @@
 [package]
 name = "nika-core"
-version = "0.35.4"
+version = "0.36.0"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 description = "Lightweight AST and analysis core for Nika workflows"

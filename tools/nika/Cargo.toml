@@ -55,7 +55,7 @@ fetch-extract = ["fetch-html", "fetch-markdown"]
 
 [dependencies]
 # Core AST and analysis (protocol-agnostic)
-nika-core = { path = "../nika-core", version = "0.35.4" }
+nika-core = { path = "../nika-core", version = "0.36.0" }
 
 # CLI
 clap = { version = "4.6", features = ["derive"] }
@@ -192,7 +192,7 @@ terminal_size = "0.4"  # Terminal dimensions for responsive CLI output (always-o
 
 # LSP Server (feature-gated) - v0.22 Language Server Protocol support
 tower-lsp-server = { version = "0.23", optional = true }
-nika-lsp-core = { path = "../nika-lsp-core", version = "0.35.4" }  # Always available (pure sync library, used by TUI completion + LSP)
+nika-lsp-core = { path = "../nika-lsp-core", version = "0.36.0" }  # Always available (pure sync library, used by TUI completion + LSP)
 
 # Media pipeline (2 genuinely new + 4 zero-cost promotes from transitive)
 blake3 = { version = "1.8", features = ["mmap"] }

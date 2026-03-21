@@ -149,7 +149,7 @@ tasks:
       # Environment variables for this command
       env:
         APP_NAME: "Nika"
-        APP_VERSION: "0.30.5"
+        APP_VERSION: "0.36.0"
         NODE_ENV: "production"
         DEBUG: "false"
 

@@ -1,9 +1,9 @@
 # Nika
 
 [![ARMADA](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml/badge.svg)](https://github.com/SuperNovae-studio/nika/actions/workflows/armada-checkpoints.yml)
-[![Version](https://img.shields.io/badge/version-0.35.4-blue?logo=rust&logoColor=white)](Cargo.toml)
+[![Version](https://img.shields.io/badge/version-0.36.0-blue?logo=rust&logoColor=white)](Cargo.toml)
 [![Version Lock](https://img.shields.io/badge/0.x.x-forever-orange?logo=semver&logoColor=white)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-6846+%20passing-brightgreen)](src/)
+[![Tests](https://img.shields.io/badge/tests-8000+%20passing-brightgreen)](src/)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](../../LICENSE)
 
 DAG workflow runner for AI tasks with MCP integration.
@@ -54,9 +54,9 @@ cargo build --release
 - **47 Bug Fixes** — Security/correctness audit: SSRF, vision limits, binary size (v0.35.2)
 - **Structured Output** — DynamicSubmitTool + 5-layer architecture (v0.30.0)
 - **Three-Phase AST** — YAML → Raw → Analyzed → Lower → Runtime (v0.28.1)
-- **Guardrails for infer:** — length, schema, regex validation on LLM output (v0.35.4)
-- **CLI Display Overhaul** — full event stream, verb colors, ANSI padding fix (v0.35.4)
-- **6,846+ lib tests passing** | 34 proptests | Zero clippy warnings
+- **Guardrails for infer:** — length, schema, regex validation on LLM output (v0.36.0)
+- **CLI Display Overhaul** — full event stream, verb colors, ANSI padding fix (v0.36.0)
+- **8,000+ lib tests passing** | 34 proptests | Zero clippy warnings
 
 ## Architecture
 
@@ -228,14 +228,14 @@ nika trace export <id>        # Export to JSON
 ## Testing
 
 ```bash
-cargo test --lib              # All 6,846+ tests (safe — no keychain)
+cargo test --lib              # All 8,000+ tests (safe — no keychain)
 cargo test mcp                # MCP tests
 cargo test --features integration  # Real MCP tests
 cargo test tui                # TUI widget tests
 ```
 
-### Test Breakdown (v0.35.4)
-- **6,846+ lib tests** + 34 property tests
+### Test Breakdown (v0.36.0)
+- **8,000+ lib tests** + 34 property tests
 - Zero clippy warnings
 - Schema @0.12 validation in CI
 

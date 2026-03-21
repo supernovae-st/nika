@@ -1,6 +1,6 @@
 [package]
 name = "nika-lsp"
-version = "0.35.4"
+version = "0.36.0"
 edition = "2021"
 description = "Language Server Protocol implementation for Nika workflows"
 license = "MIT"
@@ -39,10 +39,10 @@ serde_json = "1"
 
 # Nika validation (workspace dependency)
 # Path used for local dev, version used for crates.io publishing
-nika = { path = "../nika", version = "0.35.4" }
+nika = { path = "../nika", version = "0.36.0" }
 
 # Protocol-agnostic LSP intelligence (shared with embedded nika lsp)
-nika-lsp-core = { path = "../nika-lsp-core", version = "0.35.4" }
+nika-lsp-core = { path = "../nika-lsp-core", version = "0.36.0" }
 
 # Text manipulation (rope for efficient edits)
 ropey = "1.6"
