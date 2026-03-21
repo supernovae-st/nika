@@ -542,9 +542,6 @@ impl StudioView {
 
         // Show placeholder when no file is loaded
         if self.editor.path.is_none() {
-            // Catppuccin Mocha: Subtext0 for prose
-            let subtext0 = Color::Rgb(166, 173, 200);
-
             let content_lines = 4u16;
             let pad_top = inner.height.saturating_sub(content_lines) / 2;
 
@@ -552,16 +549,18 @@ impl StudioView {
             lines.extend(vec![
                 Line::from(Span::styled(
                     "No workflow loaded",
-                    Style::default().fg(subtext0).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.text_muted)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(
                     "Open a .nika.yaml file",
-                    Style::default().fg(subtext0),
+                    Style::default().fg(theme.text_muted),
                 )),
                 Line::from(Span::styled(
                     "to see task dependencies",
-                    Style::default().fg(subtext0),
+                    Style::default().fg(theme.text_muted),
                 )),
             ]);
 
@@ -2698,10 +2697,6 @@ impl YamlEditorPanel {
 
         // Show placeholder when no file is loaded
         if self.path.is_none() {
-            // Catppuccin Mocha: Subtext0 for prose, Lavender for key hints
-            let subtext0 = Color::Rgb(166, 173, 200);
-            let lavender = Color::Rgb(180, 190, 254);
-
             // Vertically center: total content is 7 lines, pad top accordingly
             let content_lines = 7u16;
             let pad_top = content_area.height.saturating_sub(content_lines) / 2;
@@ -2710,25 +2705,27 @@ impl YamlEditorPanel {
             placeholder.extend(vec![
                 Line::from(Span::styled(
                     "No file open",
-                    Style::default().fg(subtext0).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(theme.text_muted)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(Span::styled(
                     "Select a .nika.yaml file",
-                    Style::default().fg(subtext0),
+                    Style::default().fg(theme.text_muted),
                 )),
                 Line::from(Span::styled(
                     "from the Browser panel",
-                    Style::default().fg(subtext0),
+                    Style::default().fg(theme.text_muted),
                 )),
                 Line::from(""),
                 Line::from(vec![
-                    Span::styled("[Enter]", Style::default().fg(lavender)),
-                    Span::styled(" Open file", Style::default().fg(subtext0)),
+                    Span::styled("[Enter]", Style::default().fg(theme.border_focused)),
+                    Span::styled(" Open file", Style::default().fg(theme.text_muted)),
                 ]),
                 Line::from(vec![
-                    Span::styled("[Tab]  ", Style::default().fg(lavender)),
-                    Span::styled(" Switch panel", Style::default().fg(subtext0)),
+                    Span::styled("[Tab]  ", Style::default().fg(theme.border_focused)),
+                    Span::styled(" Switch panel", Style::default().fg(theme.text_muted)),
                 ]),
             ]);
 
@@ -2789,13 +2786,13 @@ impl YamlEditorPanel {
                 let diag_gutter = if let Some(diag) = self.diagnostics.most_severe_on_line(i) {
                     match diag.severity {
                         DiagnosticSeverity::Error => {
-                            Span::styled("● ", Style::default().fg(Color::Rgb(243, 139, 168)))
+                            Span::styled("● ", Style::default().fg(theme.diagnostic_error))
                         }
                         DiagnosticSeverity::Warning => {
-                            Span::styled("▲ ", Style::default().fg(Color::Rgb(249, 226, 175)))
+                            Span::styled("▲ ", Style::default().fg(theme.diagnostic_warning))
                         }
                         DiagnosticSeverity::Hint => {
-                            Span::styled("◆ ", Style::default().fg(Color::Rgb(137, 180, 250)))
+                            Span::styled("◆ ", Style::default().fg(theme.diagnostic_hint))
                         }
                     }
                 } else {
@@ -2862,9 +2859,9 @@ impl YamlEditorPanel {
                 continue; // Off-screen
             }
             let underline_color = match diag.severity {
-                DiagnosticSeverity::Error => Color::Rgb(243, 139, 168),
-                DiagnosticSeverity::Warning => Color::Rgb(249, 226, 175),
-                DiagnosticSeverity::Hint => Color::Rgb(137, 180, 250),
+                DiagnosticSeverity::Error => theme.diagnostic_error,
+                DiagnosticSeverity::Warning => theme.diagnostic_warning,
+                DiagnosticSeverity::Hint => theme.diagnostic_hint,
             };
             let y = content_area.y + (diag.start_line - scroll_offset) as u16;
             let start_x = content_area.x + gutter_width + diag.start_col as u16;
@@ -2934,9 +2931,9 @@ impl YamlEditorPanel {
                     DiagnosticSeverity::Hint => "◆ ",
                 };
                 let color = match d.severity {
-                    DiagnosticSeverity::Error => Color::Rgb(243, 139, 168),
-                    DiagnosticSeverity::Warning => Color::Rgb(249, 226, 175),
-                    DiagnosticSeverity::Hint => Color::Rgb(137, 180, 250),
+                    DiagnosticSeverity::Error => theme.diagnostic_error,
+                    DiagnosticSeverity::Warning => theme.diagnostic_warning,
+                    DiagnosticSeverity::Hint => theme.diagnostic_hint,
                 };
                 let text = format!("{}{}: {} ", icon, d.code, d.message);
                 (text, color)
@@ -3003,8 +3000,8 @@ impl YamlEditorPanel {
 
             let popup_block = Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Rgb(69, 71, 90)))
-                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+                .border_style(Style::default().fg(theme.popup_border))
+                .style(Style::default().bg(theme.popup_bg));
 
             let completion_items: Vec<ListItem> = self
                 .completion
@@ -3015,10 +3012,10 @@ impl YamlEditorPanel {
                 .map(|(idx, item)| {
                     let style = if idx == self.completion.selected {
                         Style::default()
-                            .bg(Color::Rgb(69, 71, 90))
-                            .fg(Color::Rgb(205, 214, 244))
+                            .bg(theme.popup_selected)
+                            .fg(theme.text_primary)
                     } else {
-                        Style::default().fg(Color::Rgb(186, 194, 222))
+                        Style::default().fg(theme.text_secondary)
                     };
                     ListItem::new(Span::styled(&*item.label, style))
                 })
@@ -3050,15 +3047,15 @@ impl YamlEditorPanel {
             let hover_block = Block::default()
                 .title(" Documentation ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Rgb(180, 190, 254)))
-                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+                .border_style(Style::default().fg(theme.border_focused))
+                .style(Style::default().bg(theme.popup_bg));
 
             let text: Vec<Line> = lines
                 .iter()
                 .map(|l| {
                     Line::from(Span::styled(
                         l.to_string(),
-                        Style::default().fg(Color::Rgb(205, 214, 244)),
+                        Style::default().fg(theme.text_primary),
                     ))
                 })
                 .collect();
@@ -3104,8 +3101,8 @@ impl YamlEditorPanel {
             let ca_block = Block::default()
                 .title(" Code Actions ")
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Rgb(249, 226, 175)))
-                .style(Style::default().bg(Color::Rgb(24, 24, 37)));
+                .border_style(Style::default().fg(theme.diagnostic_warning))
+                .style(Style::default().bg(theme.popup_bg));
 
             let ca_items: Vec<ListItem> = self
                 .code_actions
@@ -3116,10 +3113,10 @@ impl YamlEditorPanel {
                 .map(|(idx, action)| {
                     let style = if idx == self.code_actions.selected {
                         Style::default()
-                            .bg(Color::Rgb(69, 71, 90))
-                            .fg(Color::Rgb(205, 214, 244))
+                            .bg(theme.popup_selected)
+                            .fg(theme.text_primary)
                     } else {
-                        Style::default().fg(Color::Rgb(186, 194, 222))
+                        Style::default().fg(theme.text_secondary)
                     };
                     // Prefix preferred actions with a lightbulb
                     let icon = if action.edit.is_some() { "💡 " } else { "  " };
