@@ -9,6 +9,8 @@
 
 use nika_core::ast::analyzed::AnalyzedWorkflow;
 
+use crate::parse::PartialWorkflow;
+
 // ---------------------------------------------------------------------------
 // InvokeFocus / ContentFocus
 // ---------------------------------------------------------------------------
@@ -162,6 +164,60 @@ pub enum CursorContext {
 // ---------------------------------------------------------------------------
 // Text-based context detection
 // ---------------------------------------------------------------------------
+
+/// Detect cursor context with error-recovery parsing.
+///
+/// Runs tree-sitter recovery parser first, then uses the resulting
+/// `PartialWorkflow` to augment text-based detection. This enables
+/// completions, hover, and diagnostics even on broken YAML.
+pub fn detect_context_with_recovery(text: &str, offset: u32) -> CursorContext {
+    let partial = crate::parse::parse_and_extract(text);
+    detect_context_with_partial(text, offset, &partial)
+}
+
+/// Detect cursor context using a pre-parsed `PartialWorkflow`.
+///
+/// Use this when you already have a `PartialWorkflow` (avoids double-parsing).
+pub fn detect_context_with_partial(
+    text: &str,
+    offset: u32,
+    partial: &PartialWorkflow,
+) -> CursorContext {
+    // Use partial workflow for task-aware context when inside a task span
+    let offset_usize = offset as usize;
+    for task in &partial.tasks {
+        if task.span.contains(offset) {
+            // We're inside a task — use structural info for better detection
+            let existing_fields = task.existing_keys.clone();
+            let task_id = task.id.clone();
+
+            // If we have a verb, detect verb sub-field context
+            if let Some(ref verb) = task.verb {
+                let before = &text[..offset_usize.min(text.len())];
+                let last_line_start = before.rfind('\n').map_or(0, |p| p + 1);
+                let current_line = &text[last_line_start..text[last_line_start..].find('\n').map_or(text.len(), |p| last_line_start + p)];
+                let trimmed = current_line.trim();
+                let prefix = trimmed.to_string();
+
+                // Check if cursor is inside the verb block (deeper indent)
+                if let Some(verb_span) = &task.verb_span {
+                    if offset > verb_span.start && !trimmed.is_empty() {
+                        // Inside verb block — offer verb sub-fields
+                        return CursorContext::VerbBlock {
+                            task_id,
+                            verb: verb.clone(),
+                            existing_subfields: existing_fields,
+                            prefix,
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to text-based detection
+    detect_context(text, offset, None)
+}
 
 /// Detect the cursor context from document text and byte offset.
 ///

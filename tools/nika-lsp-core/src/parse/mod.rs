@@ -136,6 +136,25 @@ pub struct PartialWorkflow {
     pub top_level_keys: Vec<PartialField>,
 }
 
+/// Parse text with error recovery and extract structural information.
+///
+/// This is the main entry point for the error-recovery pipeline.
+/// Always returns a result, even for broken YAML — tree-sitter never fails.
+///
+/// # Example
+/// ```ignore
+/// let partial = parse_and_extract("schema: nika/workflow@0.12\ntasks:\n  - id: step1\n");
+/// assert!(partial.schema.is_some());
+/// assert_eq!(partial.tasks.len(), 1);
+/// ```
+pub fn parse_and_extract(text: &str) -> PartialWorkflow {
+    let mut parser = recovery::RecoveryParser::new();
+    match parser.parse(text) {
+        Some(tree) => bridge::extract_partial(text, &tree),
+        None => PartialWorkflow::default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
