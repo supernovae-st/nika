@@ -366,6 +366,11 @@ impl App {
                 self.set_status(&format!("Error: {}", msg));
             }
 
+            // Status message (success, info, warning, error) with auto-dismiss
+            ViewAction::StatusMessage(msg) => {
+                self.state.status_messages.push(msg);
+            }
+
             // Launch wizard
             ViewAction::LaunchWizard => {
                 self.should_launch_wizard = true;

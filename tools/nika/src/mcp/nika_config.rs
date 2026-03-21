@@ -718,7 +718,7 @@ servers:
 
     #[test]
     fn test_spn_mcp_server_types_with_secrets() {
-        // Test all common MCP server types that use secrets from spn
+        // Test all common MCP server types that use secrets from nika
         let yaml = r#"
 version: 1
 servers:

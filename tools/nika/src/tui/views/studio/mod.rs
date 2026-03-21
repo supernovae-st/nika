@@ -59,7 +59,8 @@ use crate::tui::widgets::tree::{
     TreeFilter, TreeNode, TreeState,
 };
 use crate::tui::widgets::{
-    centered_rect, CommandPalette, CommandPaletteState, MatrixRain, WhichKey, WhichKeyState,
+    centered_rect, CommandPalette, CommandPaletteState, MatrixRain, StatusMessage, WhichKey,
+    WhichKeyState,
 };
 use crate::util::atomic_write;
 
@@ -388,6 +389,29 @@ impl View for StudioView {
 
         // Global shortcuts first
         match (key.code, key.modifiers) {
+            // Ctrl+S: Save file (global — works from any panel and any editor mode)
+            (KeyCode::Char('s'), mods) if mods.contains(KeyModifiers::CONTROL) => {
+                match self.editor.save_file() {
+                    Ok(()) => {
+                        let name = self
+                            .editor
+                            .path
+                            .as_ref()
+                            .and_then(|p| p.file_name())
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("file");
+                        state
+                            .status_messages
+                            .push(StatusMessage::success(format!("Saved: {}", name)));
+                    }
+                    Err(e) => {
+                        state
+                            .status_messages
+                            .push(StatusMessage::error(format!("Save failed: {}", e)));
+                    }
+                }
+                return ViewAction::None;
+            }
             // Ctrl+P: Open command palette
             (KeyCode::Char('p'), KeyModifiers::CONTROL) => {
                 self.command_palette.open();
@@ -649,10 +673,28 @@ impl StudioView {
             // Space (leader) prefix - Common commands
             (' ', 'w') => {
                 // Save file
-                if let Err(e) = self.editor.save_file() {
-                    tracing::error!("Failed to save: {}", e);
+                match self.editor.save_file() {
+                    Ok(()) => {
+                        let name = self
+                            .editor
+                            .path
+                            .as_ref()
+                            .and_then(|p| p.file_name())
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("file");
+                        ViewAction::StatusMessage(StatusMessage::success(format!(
+                            "Saved: {}",
+                            name
+                        )))
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to save: {}", e);
+                        ViewAction::StatusMessage(StatusMessage::error(format!(
+                            "Save failed: {}",
+                            e
+                        )))
+                    }
                 }
-                ViewAction::None
             }
             (' ', 'f') => {
                 // Find file (open command palette)

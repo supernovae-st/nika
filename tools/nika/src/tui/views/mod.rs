@@ -278,6 +278,8 @@ pub enum ViewAction {
     SendChatMessage(String),
     /// Show an error message
     Error(String),
+    /// Show a status message (success, info, warning, error) with auto-dismiss
+    StatusMessage(crate::tui::widgets::StatusMessage),
     // ═══════════════════════════════════════════════════════════════════════
     // Chat Agent Command Actions (Task 5.1)
     // ═══════════════════════════════════════════════════════════════════════

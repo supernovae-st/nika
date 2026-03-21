@@ -386,8 +386,8 @@ mod tests {
 
     #[test]
     fn test_parse_nested_path() {
-        let uri = PkgUri::parse("pkg:@spn/writing@1.2.3/skills/mermaid/SKILL.md").unwrap();
-        assert_eq!(uri.scope, Some("spn".to_string()));
+        let uri = PkgUri::parse("pkg:@nika/writing@1.2.3/skills/mermaid/SKILL.md").unwrap();
+        assert_eq!(uri.scope, Some("nika".to_string()));
         assert_eq!(uri.name, "writing");
         assert_eq!(uri.version, Some("1.2.3".to_string()));
         assert_eq!(uri.path, "skills/mermaid/SKILL.md");
@@ -485,11 +485,11 @@ mod tests {
 
     #[test]
     fn test_resolve_nested_path() {
-        let uri = PkgUri::parse("pkg:@spn/writing@1.0.0/skills/mermaid/SKILL.md").unwrap();
+        let uri = PkgUri::parse("pkg:@nika/writing@1.0.0/skills/mermaid/SKILL.md").unwrap();
         let resolved = uri.resolve().unwrap();
 
         let home = dirs::home_dir().unwrap();
-        let expected = home.join(".nika/packages/@spn/writing/1.0.0/skills/mermaid/SKILL.md");
+        let expected = home.join(".nika/packages/@nika/writing/1.0.0/skills/mermaid/SKILL.md");
         assert_eq!(resolved, expected);
     }
 

@@ -880,7 +880,7 @@ tasks:
 # ┌────────────────────────────────────────────────────────────────────────────┐
 # │ skills:                                                                     │
 # │   writer: ./skills/writing.md              # Local file                    │
-# │   coder: pkg:@spn/core@1.0.0/skills/coding.md  # From registry             │
+# │   coder: pkg:@nika/core@1.0.0/skills/coding.md  # From registry             │
 # └────────────────────────────────────────────────────────────────────────────┘
 #
 # SECURITY NOTE:

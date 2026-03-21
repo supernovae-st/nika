@@ -41,7 +41,7 @@
 pub mod cost;
 pub mod rig;
 
-// Native inference via spn-native (requires native-inference feature)
+// Native inference via mistral.rs (requires native-inference feature)
 #[cfg(feature = "native-inference")]
 pub mod native;
 

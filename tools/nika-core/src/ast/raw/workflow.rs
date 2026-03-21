@@ -42,7 +42,7 @@ pub struct RawWorkflow {
     /// imports:
     ///   - path: ./partials/setup.nika.yaml
     ///     prefix: setup_
-    ///   - path: pkg:@spn/core@1.0/seo.nika.yaml
+    ///   - path: pkg:@nika/core@1.0/seo.nika.yaml
     /// ```
     pub imports: Option<Spanned<Vec<Spanned<RawImportSpec>>>>,
 

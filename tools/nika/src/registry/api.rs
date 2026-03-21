@@ -35,10 +35,10 @@
 //! let results = client.search("workflow").await?;
 //!
 //! // Get package info
-//! let info = client.get_package("@spn/core").await?;
+//! let info = client.get_package("@nika/core").await?;
 //!
 //! // Download package
-//! let bytes = client.download("@spn/core", "1.0.0").await?;
+//! let bytes = client.download("@nika/core", "1.0.0").await?;
 //! ```
 
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ pub enum RegistryApiError {
 /// Package metadata from the registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageInfo {
-    /// Package name (e.g., "@spn/core")
+    /// Package name (e.g., "@nika/core")
     pub name: String,
 
     /// Latest version
@@ -282,13 +282,13 @@ impl RegistryClient {
     ///
     /// # Arguments
     ///
-    /// * `name` - Package name (e.g., "@spn/core")
+    /// * `name` - Package name (e.g., "@nika/core")
     ///
     /// # Example
     ///
     /// ```rust,ignore
     /// let client = RegistryClient::new();
-    /// let info = client.get_package("@spn/core").await?;
+    /// let info = client.get_package("@nika/core").await?;
     /// println!("Latest version: {}", info.latest_version);
     /// ```
     pub async fn get_package(&self, name: &str) -> Result<PackageInfo, RegistryApiError> {
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_encode_package_name() {
-        assert_eq!(encode_package_name("@spn/core"), "@spn%2Fcore");
+        assert_eq!(encode_package_name("@nika/core"), "@nika%2Fcore");
         assert_eq!(encode_package_name("simple-pkg"), "simple-pkg");
         assert_eq!(
             encode_package_name("@workflows/seo-audit"),
@@ -594,14 +594,14 @@ mod tests {
     #[test]
     fn test_package_info_deserialize() {
         let json = r#"{
-            "name": "@spn/core",
+            "name": "@nika/core",
             "latest_version": "1.0.0",
             "description": "Core skills",
             "versions": ["1.0.0", "0.9.0"]
         }"#;
 
         let info: PackageInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(info.name, "@spn/core");
+        assert_eq!(info.name, "@nika/core");
         assert_eq!(info.latest_version, "1.0.0");
         assert_eq!(info.versions.len(), 2);
     }
@@ -609,7 +609,7 @@ mod tests {
     #[test]
     fn test_version_info_deserialize() {
         let json = r#"{
-            "name": "@spn/core",
+            "name": "@nika/core",
             "version": "1.0.0",
             "description": "Core skills package",
             "skills": [
@@ -618,7 +618,7 @@ mod tests {
         }"#;
 
         let info: VersionInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(info.name, "@spn/core");
+        assert_eq!(info.name, "@nika/core");
         assert_eq!(info.version, "1.0.0");
         assert!(info.skills.is_some());
         assert_eq!(info.skills.as_ref().unwrap().len(), 1);
@@ -632,7 +632,7 @@ mod tests {
             "per_page": 20,
             "results": [
                 {
-                    "name": "@spn/core",
+                    "name": "@nika/core",
                     "version": "1.0.0",
                     "description": "Core package",
                     "score": 0.95
@@ -643,7 +643,7 @@ mod tests {
         let response: SearchResponse = serde_json::from_str(json).unwrap();
         assert_eq!(response.total, 42);
         assert_eq!(response.results.len(), 1);
-        assert_eq!(response.results[0].name, "@spn/core");
+        assert_eq!(response.results[0].name, "@nika/core");
     }
 
     #[test]

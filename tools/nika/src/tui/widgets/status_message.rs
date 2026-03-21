@@ -66,7 +66,7 @@ impl StatusLevel {
 }
 
 /// A status message with auto-dismiss
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StatusMessage {
     /// Severity level
     pub level: StatusLevel,

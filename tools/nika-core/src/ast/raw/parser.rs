@@ -1290,7 +1290,7 @@ fn parse_context_config(
 /// imports:
 ///   - path: ./partials/setup.nika.yaml
 ///     prefix: setup_
-///   - path: pkg:@spn/core@1.0/seo.nika.yaml
+///   - path: pkg:@nika/core@1.0/seo.nika.yaml
 /// ```
 fn parse_imports(
     file_id: FileId,
@@ -1947,7 +1947,7 @@ schema: "nika/workflow@0.12"
 imports:
   - path: ./partials/setup.nika.yaml
     prefix: setup_
-  - path: "pkg:@spn/core@1.0/seo.nika.yaml"
+  - path: "pkg:@nika/core@1.0/seo.nika.yaml"
 tasks:
   - id: main_task
     infer: "Main logic"
@@ -1968,7 +1968,7 @@ tasks:
 
         assert_eq!(
             imports.value[1].value.path.value,
-            "pkg:@spn/core@1.0/seo.nika.yaml"
+            "pkg:@nika/core@1.0/seo.nika.yaml"
         );
         assert!(imports.value[1].value.prefix.is_none());
     }

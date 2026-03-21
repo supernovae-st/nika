@@ -677,7 +677,7 @@ mod tests {
     #[test]
     fn test_update_packages() {
         let mut view = SettingsView::new();
-        view.update_packages(vec!["@spn/core@1.0".into()]);
+        view.update_packages(vec!["@nika/core@1.0".into()]);
         assert_eq!(view.installed_packages.len(), 1);
     }
 
