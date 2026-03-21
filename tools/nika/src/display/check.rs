@@ -89,7 +89,7 @@ pub fn print_check_header(file: &str, strict: bool, version: &str) {
     println!("\u{2502}  {}{}\u{2502}", file.bold(), " ".repeat(file_pad));
 
     println!("\u{2502}{}\u{2502}", " ".repeat(inner));
-    println!("\u{256E}{}\u{256F}", border.dimmed());
+    println!("\u{2570}{}\u{256F}", border.dimmed());
     println!();
 }
 
