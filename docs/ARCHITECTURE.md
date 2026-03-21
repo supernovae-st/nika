@@ -1,234 +1,174 @@
-# Nika v0.8.0 Architecture
+# Nika Architecture
 
-**Native Intelligence Kernel Agent**
+Schema `nika/workflow@0.12` | v0.36.0
 
 ---
 
 ## Overview
 
-Nika is a DAG workflow runner for AI tasks that connects to knowledge graphs via MCP.
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         NIKA v0.8.0                              │
+│                         NIKA v0.36.0                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  YAML Workflow                                                  │
+│  .nika.yaml                                                     │
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
-│  │   DAG Builder   │  ← Validate dependencies                   │
+│  │ Three-Phase AST │  Raw → Analyzed → Lowered                  │
 │  └─────────────────┘                                            │
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
-│  │    Executor     │  ← Parallel task execution (for_each)      │
+│  │   IndexedDag    │  Kahn's topological sort                   │
 │  └─────────────────┘                                            │
-│       │                                                         │
-│       ├── infer  → LLM (8 providers: Claude, OpenAI, etc)       │
-│       ├── exec   → Shell                                        │
-│       ├── fetch  → HTTP Client                                  │
-│       ├── invoke → MCP Client (tools + resources)               │
-│       └── agent  → Agentic Loop + Full Streaming                │
 │       │                                                         │
 │       ▼                                                         │
 │  ┌─────────────────┐                                            │
-│  │   RunContext     │  ← Task results for downstream             │
+│  │    Executor     │  Parallel task execution                   │
+│  └─────────────────┘                                            │
+│       │                                                         │
+│       ├── infer  → LLM (8 providers via rig-core)               │
+│       ├── exec   → Shell (blocklist + NFKC)                     │
+│       ├── fetch  → HTTP (9 extract modes)                       │
+│       ├── invoke → MCP Client (rmcp 0.16)                       │
+│       └── agent  → Agentic Loop (guardrails + completion)       │
+│       │                                                         │
+│       ▼                                                         │
+│  ┌─────────────────┐                                            │
+│  │   RunContext    │  Task results + CAS media                   │
 │  └─────────────────┘                                            │
 │                                                                 │
-│  TUI: 3 Views (Studio, Command, Control)                       │
-│       Full Streaming + Real-time Trace Visualization           │
+│  TUI: 3 Views (Studio, Command, Control)                        │
+│  LSP: 12 handlers (nika-lsp-core + nika-lsp)                    │
+│  43 builtin tools | 41 event types | NDJSON traces              │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5 Semantic Verbs
+## Crates
 
-| Verb | Purpose | v0.1 | v0.2 |
-|------|---------|------|------|
-| `infer:` | LLM inference | ✓ | ✓ |
-| `exec:` | Shell command | ✓ | ✓ |
-| `fetch:` | HTTP request | ✓ | ✓ |
-| `invoke:` | MCP tool/resource | - | NEW |
-| `agent:` | Agentic loop with MCP | - | NEW |
+```
+nika/
+├── tools/nika/          # CLI binary + TUI + runtime (100k+ LOC)
+├── tools/nika-core/     # Zero-dep AST core (binding, catalogs, spans)
+├── tools/nika-lsp-core/ # Protocol-agnostic LSP intelligence
+└── tools/nika-lsp/      # Standalone LSP server (tower-lsp-server 0.23)
+```
 
----
-
-## Module Structure
+## Source Tree (tools/nika/)
 
 ```
 src/
-├── main.rs           # CLI entry point
-├── lib.rs            # Library exports
-├── error.rs          # NikaError enum
-│
-├── ast/              # Domain model
-│   ├── workflow.rs   # Workflow, Task
-│   ├── action.rs     # TaskAction (5 variants)
-│   ├── infer.rs      # InferParams
-│   ├── exec.rs       # ExecParams
-│   ├── fetch.rs      # FetchParams
-│   ├── invoke.rs     # InvokeParams (NEW)
-│   └── agent.rs      # AgentParams (NEW)
-│
-├── dag/              # DAG validation
-│   └── validate.rs   # Cycle detection, depends_on resolution
-│
-├── runtime/          # Execution engine
-│   ├── runner.rs     # Workflow runner
-│   ├── executor.rs   # Task executor
-│   ├── agent_loop.rs # Agentic execution (NEW)
-│   └── output.rs     # Output processing
-│
-├── binding/          # Data flow
-│   ├── entry.rs      # BindingEntry, BindingSpec
-│   ├── template.rs   # {{with.alias}} substitution
-│   └── resolve.rs    # Path resolution
-│
-├── mcp/              # MCP client (NEW)
-│   ├── mod.rs        # Module entry
-│   ├── client.rs     # McpClient
-│   └── types.rs      # McpConfig, ToolCall, etc.
-│
-├── store/            # Runtime state
-│   └── datastore.rs  # TaskResult storage
-│
-├── provider/         # LLM providers
-│   ├── mod.rs        # LlmProvider trait
-│   ├── types.rs      # Message, ToolDefinition (NEW)
-│   ├── claude.rs     # Anthropic API
-│   └── openai.rs     # OpenAI API
-│
-└── validation/       # Schema validation
-    └── schema.rs     # Version checking
+├── main.rs              # CLI entry (clap)
+├── lib.rs               # Public API
+├── error.rs             # NikaError (NIKA-XXX codes, 50+ ranges)
+├── ast/                 # Three-phase: Raw → Analyzed → Lower (40+ files)
+│   ├── raw/             #   Phase 1: YAML → Raw AST (spans)
+│   ├── analyzed/        #   Phase 2: Validated, resolved
+│   ├── analyzer/        #   Validation + transformation
+│   └── lower.rs         #   Phase 3: → Runtime types
+├── dag/                 # DAG validation + cycle detection
+│   ├── flow.rs          #   Immutable HashMap DAG
+│   ├── indexed.rs       #   Vec adjacency + Kahn's algorithm
+│   └── stable.rs        #   petgraph StableGraph (TUI)
+├── runtime/             # Execution engine
+│   ├── runner.rs        #   Workflow orchestration
+│   ├── executor/        #   5 verb dispatch + decompose
+│   ├── rig_agent_loop/  #   Agent loop (chat, streaming, thinking)
+│   ├── builtin/         #   43 tools (12 core + 26 media + 5 file)
+│   └── security.rs      #   Command blocklist + env validation
+├── mcp/                 # MCP client pool (rmcp 0.16)
+├── provider/            # 8 providers (rig-core + mistral.rs native)
+├── binding/             # Templates, transforms (27), JSONPath
+├── event/               # 41 event types + NDJSON tracing
+├── media/               # CAS store (blake3 + zstd)
+├── display/             # CLI rendering (summary, dag_render, colors)
+├── tui/                 # Terminal UI (3 views, 40+ widgets)
+├── lsp/                 # Embedded LSP (feature-gated)
+├── cli/                 # Subcommands
+├── init/                # 30 templates (6 tiers)
+├── secrets/             # Keyring + daemon IPC
+└── tools/               # File tools (read, write, edit, glob, grep)
 ```
 
 ---
 
-## Key Types
+## 5 Semantic Verbs
 
-### TaskAction (5 variants)
-
-```rust
-pub enum TaskAction {
-    // v0.1
-    Infer { infer: InferParams },
-    Exec { exec: ExecParams },
-    Fetch { fetch: FetchParams },
-
-    // v0.2 (NEW)
-    Invoke { invoke: InvokeParams },
-    Agent { agent: AgentParams },
-}
-```
-
-### InvokeParams
-
-```rust
-pub struct InvokeParams {
-    pub mcp: String,                    // MCP server name
-    pub tool: Option<String>,           // Tool to call
-    pub params: Option<serde_json::Value>,
-    pub resource: Option<String>,       // Resource URI to read
-}
-```
-
-### AgentParams
-
-```rust
-pub struct AgentParams {
-    pub prompt: String,
-    pub provider: Option<String>,
-    pub model: Option<String>,
-    pub mcp: Vec<String>,               // MCP servers to access
-    pub max_turns: Option<u32>,
-    pub stop_sequences: Vec<String>,
-    pub scope: Option<String>,
-}
-```
-
-### McpClient
-
-```rust
-pub struct McpClient {
-    config: McpConfig,
-    service: Arc<RwLock<Option<rmcp::Client>>>,
-}
-
-impl McpClient {
-    pub async fn call_tool(&self, name: &str, params: Value) -> Result<ToolResult>;
-    pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent>;
-    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>>;
-}
-```
+| Verb | Purpose | Key Features |
+|------|---------|--------------|
+| `infer:` | LLM generation | Vision, extended thinking, structured output, guardrails |
+| `exec:` | Shell command | Blocklist, timeout, NFKC normalization |
+| `fetch:` | HTTP + extraction | 9 modes: markdown, article, jsonpath, feed, etc. |
+| `invoke:` | MCP tool call | Schema validation, retry, connection pooling |
+| `agent:` | Multi-turn loop | Guardrails, completion modes, stop_sequences, HITL |
 
 ---
 
-## Workflow Schema v0.12
+## Key Architectural Decisions
 
-```yaml
-schema: "nika/workflow@0.12"
-provider: claude
+### Three-Phase AST Pipeline
 
-# MCP server configurations
-mcp:
-  novanet:
-    command: "cargo"
-    args: ["run", "-p", "novanet-mcp"]
-    env:
-      NEO4J_URI: "bolt://localhost:7687"
-
-tasks:
-  - id: context
-    invoke:
-      mcp: novanet
-      tool: novanet_context
-      params:
-        entity: "qr-code"
-        locale: "fr-FR"
-        forms: ["text", "title"]
-
-  - id: generate_locales
-    depends_on: [context]
-    for_each: ["en-US", "fr-FR", "de-DE"]
-    as: locale
-    invoke:
-      mcp: novanet
-      tool: novanet_context
-      params:
-        entity: "qr-code"
-        locale: "{{with.locale}}"
-
-  - id: synthesize
-    depends_on: [context, generate_locales]
-    with:
-      ctx: context
-      results: generate_locales
-    agent:
-      prompt: "Synthesize {{with.results}} using context {{with.ctx}}"
-      mcp: [novanet]
-      max_turns: 10
-      tool_choice: auto
 ```
+YAML → Raw (spans) → Analyzed (validated) → Lowered (runtime types)
+```
+
+rustc-inspired. Each phase has pure guarantees. No validation after Lower.
+
+### Immutable DAG
+
+After construction, the dependency graph is frozen. Enables safe concurrent execution via tokio.
+
+### Content-Addressable Storage (CAS)
+
+blake3 hashing, zstd compression, reflink-copy. Media never duplicated. 26 tools operate on CAS hashes.
+
+### Structured Output (5-Layer Defense)
+
+0: Provider-native (DynamicSubmitTool) → 1: Extractor → 2: Extract+Validate → 3: Retry → 4: LLM repair
+
+### Event Sourcing
+
+41 event types, NDJSON traces, append-only EventLog. Full replay capability for debugging.
+
+### Zero Cypher
+
+Nika never talks to databases directly. All graph access goes through MCP `invoke:`.
 
 ---
 
-## Execution Flow
+## Providers
 
-```
-1. Parse YAML workflow
-2. Build DAG from depends_on declarations
-3. Validate (cycles, missing deps)
-4. Connect MCP servers
-5. Execute tasks in topological order:
-   - Parallel when no dependencies
-   - Wait for upstream completion
-   - Substitute {{with.alias}} templates
-6. Store results in RunContext
-7. Return final outputs
-```
+| Provider | Via | Features |
+|----------|-----|----------|
+| Claude | rig-core | Extended thinking, vision, streaming |
+| OpenAI | rig-core | Vision, structured output |
+| Mistral | rig-core | Streaming, tool calling |
+| Groq | rig-core | High-speed inference |
+| DeepSeek | rig-core | Reasoning, streaming |
+| Gemini | rig-core | Vision, multimodal |
+| xAI | rig-core | Streaming, tool calling |
+| Native | mistral.rs | Local GGUF + VisionHf, offline |
+
+---
+
+## Dependencies
+
+| Crate | Purpose |
+|-------|---------|
+| rig-core 0.32 | LLM provider abstraction |
+| rmcp 0.16 | MCP client (stdio transport) |
+| mistral.rs 0.7 | Local GGUF inference |
+| ratatui 0.30 | Terminal UI framework |
+| petgraph | DAG (StableGraph) |
+| tree-sitter | YAML syntax highlighting |
+| serde-saphyr | YAML parsing (with bomb protection) |
+| blake3 | CAS hashing |
+| reqwest | HTTP client |
+| tokio | Async runtime |
 
 ---
 
@@ -239,7 +179,7 @@ tasks:
 │             AGENT LOOP                  │
 ├─────────────────────────────────────────┤
 │                                         │
-│  1. Initial prompt                      │
+│  1. Initial prompt + skills injection   │
 │       │                                 │
 │       ▼                                 │
 │  2. LLM response (with tool defs)       │
@@ -254,72 +194,26 @@ tasks:
 │       ◄────────────────────┘            │
 │       │                                 │
 │  3. Check stop conditions               │
+│       ├── Guardrails (length/schema/    │
+│       │    regex/LLM validation)        │
+│       ├── Completion mode (explicit/    │
+│       │    natural/pattern)             │
+│       ├── stop_sequences matched?       │
+│       ├── Confidence threshold?         │
+│       └── max_turns / token_budget?     │
 │       │                                 │
 │       ├── Met? → Return result          │
-│       │                                 │
 │       └── Not met? → Continue loop      │
-│                                         │
-│  4. max_turns reached → Stop            │
 │                                         │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-## Dependencies
-
-| Crate | Purpose |
-|-------|---------|
-| clap | CLI argument parsing |
-| tokio | Async runtime |
-| serde | Serialization |
-| serde_yaml | YAML parsing |
-| reqwest | HTTP client |
-| dashmap | Concurrent hashmap |
-| thiserror | Error types |
-| tracing | Logging |
-| rmcp | MCP client (NEW v0.2) |
-
----
-
 ## NovaNet Integration
 
-Nika v0.2 connects to NovaNet via MCP:
-
 ```
-NIKA WORKFLOW
-     │
-     │ invoke: novanet_context
-     ▼
-NOVANET MCP
-     │
-     │ Cypher queries (hidden)
-     ▼
-NEO4J (61 nodes, 182 arcs)
+NIKA WORKFLOW ──invoke:──> NOVANET MCP ──Cypher──> NEO4J
 ```
 
-**Key principle**: Zero Cypher in workflow YAML. NovaNet MCP provides semantic tools.
-
----
-
-## v0.8.0 Features (Complete)
-
-- `for_each:` - Parallel iteration with concurrency control ✅
-- `spawn_agent` - Nested agents with depth limits ✅
-- `decompose:` - Runtime DAG expansion ✅
-- `lazy:` bindings - Deferred context loading ✅
-- Full streaming - All 8 providers with real-time token delivery ✅
-- TUI 3-view architecture - Studio, Command, Control ✅
-- Edit history - Undo/Redo in Studio with intelligent coalescing ✅
-- Session persistence - Auto-save chat conversations ✅
-- Config system - `.nika/config.toml` for user preferences ✅
-- Solarized theme - Third theme option alongside Default and Custom ✅
-
-## Future (v0.9+)
-
-- `guard:` - Conditional execution
-- `output.schema:` - JSON Schema validation with runtime checks
-- `invoke.prompt:` - MCP prompt templates
-- Manifest file (`nika.yaml`) for multi-workflow projects
-- Native `.rmcp_tools()` via rmcp version upgrade
-- Mouse selection and clipboard integration in TUI
+Zero Cypher in workflow YAML. NovaNet MCP provides semantic tools.
