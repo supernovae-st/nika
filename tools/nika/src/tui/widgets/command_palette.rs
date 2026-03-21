@@ -144,22 +144,18 @@ pub fn default_commands() -> Vec<PaletteCommand> {
             .with_shortcut("⌘V")
             .with_icon("✅")
             .with_category("Edit"),
-        // === View Navigation ===
-        PaletteCommand::new("chat", "1: Chat View", "Switch to chat agent")
-            .with_shortcut("1")
-            .with_icon("💬")
-            .with_category("View"),
-        PaletteCommand::new("home", "2: Home View", "Switch to file browser")
-            .with_shortcut("2")
-            .with_icon("🏠")
-            .with_category("View"),
-        PaletteCommand::new("studio", "3: Studio View", "Switch to YAML editor")
-            .with_shortcut("3")
+        // === View Navigation (3-view architecture) ===
+        PaletteCommand::new("studio", "1: Studio", "YAML editor with browser + DAG")
+            .with_shortcut("1/s")
             .with_icon("📝")
             .with_category("View"),
-        PaletteCommand::new("monitor", "4: Monitor View", "Switch to execution monitor")
-            .with_shortcut("4")
-            .with_icon("📊")
+        PaletteCommand::new("command", "2: Command", "Chat agent + workflow execution")
+            .with_shortcut("2/c")
+            .with_icon("⚡")
+            .with_category("View"),
+        PaletteCommand::new("control", "3: Control", "Providers, MCP, preferences")
+            .with_shortcut("3/x")
+            .with_icon("⚙")
             .with_category("View"),
         // === Chat Commands ===
         PaletteCommand::new("help", "Help", "Show help documentation")

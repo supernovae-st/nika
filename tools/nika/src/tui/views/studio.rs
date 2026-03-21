@@ -830,11 +830,10 @@ impl StudioView {
     /// Execute a command from the palette
     fn execute_palette_command(&mut self, cmd_id: &str) -> ViewAction {
         match cmd_id {
-            // View switching
-            "chat" => ViewAction::SwitchView(TuiView::Command),
-            "home" => ViewAction::SwitchView(TuiView::Command),
+            // View switching (3-view: Studio, Command, Control)
             "studio" => ViewAction::SwitchView(TuiView::Studio),
-            "monitor" => ViewAction::SwitchView(TuiView::Control),
+            "command" | "chat" | "home" | "monitor" => ViewAction::SwitchView(TuiView::Command),
+            "control" => ViewAction::SwitchView(TuiView::Control),
             // Workflow actions
             "run" => {
                 // Run the current workflow
