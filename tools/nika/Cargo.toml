@@ -19,9 +19,11 @@ name = "nika"
 path = "src/main.rs"
 
 [features]
-default = ["tui", "nika-daemon", "native-inference", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart"]
-# NOTE: native-keychain removed from default — use env vars for API keys.
-# Re-enable with: cargo build --features native-keychain
+default = ["tui", "nika-daemon", "native-inference", "media-core", "fetch-extract", "fetch-article", "fetch-feed", "media-chart", "media-phash", "media-pdf", "media-iqa", "media-qr", "media-compression"]
+# Only 2 features remain opt-in:
+#   - media-provenance (C2PA): heavy dep (openssl, crypto) + legal/compliance use case
+#   - lsp: editor-specific, not needed for CLI users
+# Everything else is default. Run `nika media tools` to verify.
 tui = ["dep:ratatui", "dep:crossterm", "dep:tui-input", "dep:arboard", "dep:nucleo", "dep:tree-sitter", "dep:tree-sitter-yaml", "dep:streaming-iterator", "dep:git2", "dep:openssl"]
 lsp = ["dep:tower-lsp-server", "dep:nika-lsp-core", "tokio/io-std", "tokio/io-util"]  # Language Server Protocol support (v0.23)
 nika-daemon = ["dep:spn-client"]  # Use nika daemon for unified secret management (v0.27)
