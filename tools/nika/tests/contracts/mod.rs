@@ -1,7 +1,7 @@
-//! Contract Tests for Nika CLI (v0.28: spn→nika fusion complete)
+//! Nika CLI contract tests
 //!
-//! These tests verify the behavior of features migrated from spn to nika.
-//! All commands now use `nika` as the primary CLI.
+//! These tests verify the behavior of `nika` CLI commands.
+//! All commands use `nika` as the primary CLI.
 //!
 //! # Test Categories
 //!
@@ -23,7 +23,7 @@
 //! # Philosophy
 //!
 //! Contract tests verify behavior, not implementation. They ensure nika
-//! commands work correctly after the spn→nika fusion.
+//! commands work correctly.
 
 mod daemon_contracts;
 mod jobs_contracts;
@@ -38,22 +38,12 @@ mod sync_contracts;
 pub mod common {
     use std::process::{Command, Output};
 
-    /// Execute nika command and return output (primary CLI since v0.28)
+    /// Execute nika command and return output
     pub fn run_nika(args: &[&str]) -> Output {
         Command::new("nika")
             .args(args)
             .output()
             .expect("Failed to execute nika command")
-    }
-
-    /// Execute spn command and return output (deprecated, forwards to nika)
-    #[deprecated(since = "0.28.0", note = "Use run_nika instead - spn is deprecated")]
-    #[allow(dead_code)]
-    pub fn run_spn(args: &[&str]) -> Output {
-        Command::new("spn")
-            .args(args)
-            .output()
-            .expect("Failed to execute spn command")
     }
 
     /// Check if nika daemon is running
@@ -93,6 +83,7 @@ pub mod common {
         "groq",
         "deepseek",
         "gemini",
+        "xai",
     ];
 
     /// MCP providers (not shown in `nika provider list`, managed via `nika mcp`)
@@ -114,6 +105,7 @@ pub mod common {
         "groq",
         "deepseek",
         "gemini",
+        "xai",
         "neo4j",
         "github",
         "slack",
@@ -123,7 +115,7 @@ pub mod common {
     ];
 
     /// Known MCP aliases count
-    pub const MCP_ALIAS_COUNT: usize = 48;
+    pub const MCP_ALIAS_COUNT: usize = 113;
 
     /// Known models count
     pub const KNOWN_MODEL_COUNT: usize = 16;

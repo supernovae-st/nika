@@ -1,7 +1,6 @@
 //! Package Manager Contract Tests
 //!
 //! These tests define the expected behavior of `nika add/remove/install` commands.
-//! After migration, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (20 total)
 //!
@@ -20,15 +19,15 @@
 //! 13. pkg publish --dry-run
 //! 14. pkg init creates manifest
 //! 15. Dependency resolution algorithm
-//! 16. Scoped package names (@spn/*)
+//! 16. Scoped package names (@nika/*)
 //! 17. Package types (9 types)
 //! 18. Registry sparse index format
 //! 19. Lockfile format
-//! 20. Manifest (spn.yaml) format
+//! 20. Manifest (nika.yaml) format
 
 use super::common::run_nika;
 
-/// Contract: `spn add` updates spn.yaml manifest
+/// Contract: `nika add` updates nika.yaml manifest
 #[test]
 fn contract_pkg_add_updates_manifest() {
     // Test with a hypothetical package (dry-run or help)
@@ -48,7 +47,7 @@ fn contract_pkg_add_updates_manifest() {
     );
 }
 
-/// Contract: `spn add` supports version constraints
+/// Contract: `nika add` supports version constraints
 #[test]
 fn contract_pkg_add_version_constraint() {
     let output = run_nika(&["add", "--help"]);
@@ -68,7 +67,7 @@ fn contract_pkg_add_version_constraint() {
     );
 }
 
-/// Contract: `spn remove` updates manifest
+/// Contract: `nika remove` updates manifest
 #[test]
 fn contract_pkg_remove_updates_manifest() {
     let output = run_nika(&["remove", "--help"]);
@@ -87,7 +86,7 @@ fn contract_pkg_remove_updates_manifest() {
     );
 }
 
-/// Contract: `spn install` reads spn.yaml
+/// Contract: `nika install` reads nika.yaml
 #[test]
 fn contract_pkg_install_reads_manifest() {
     let output = run_nika(&["install", "--help"]);
@@ -98,9 +97,9 @@ fn contract_pkg_install_reads_manifest() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Help should mention manifest or spn.yaml
+    // Help should mention manifest or nika.yaml
     assert!(
-        combined.contains("spn.yaml")
+        combined.contains("nika.yaml")
             || combined.contains("manifest")
             || combined.contains("install")
             || combined.contains("dependencies"),
@@ -158,7 +157,7 @@ fn contract_pkg_search_queries_registry() {
     );
 }
 
-/// Contract: `spn search` supports type filter
+/// Contract: `nika search` supports type filter
 #[test]
 fn contract_pkg_search_type_filter() {
     let output = run_nika(&["search", "--help"]);
@@ -180,7 +179,7 @@ fn contract_pkg_search_type_filter() {
     let _ = has_type_option;
 }
 
-/// Contract: `spn list` shows installed packages
+/// Contract: `nika list` shows installed packages
 #[test]
 fn contract_pkg_list_shows_installed() {
     let output = run_nika(&["list", "--help"]);
@@ -245,7 +244,7 @@ fn contract_pkg_publish_dry_run() {
     );
 }
 
-/// Contract: `spn init` creates spn.yaml
+/// Contract: `nika init` creates nika.yaml
 #[test]
 fn contract_pkg_init_creates_manifest() {
     let output = run_nika(&["init", "--help"]);
@@ -260,7 +259,7 @@ fn contract_pkg_init_creates_manifest() {
     assert!(
         combined.contains("init")
             || combined.contains("create")
-            || combined.contains("spn.yaml")
+            || combined.contains("nika.yaml")
             || combined.contains("manifest"),
         "init help should describe manifest creation. Got: {}",
         combined
@@ -271,13 +270,13 @@ fn contract_pkg_init_creates_manifest() {
 #[test]
 fn contract_pkg_scoped_names() {
     // Document the scoped package name format
-    // @spn/writing-skills
-    // @nika/core-workflows (after migration)
+    // @nika/writing-skills
+    // @nika/core-workflows
 
     // The format follows npm conventions: @scope/package
     let scoped_pattern = regex::Regex::new(r"^@[a-z0-9-]+/[a-z0-9-]+$").unwrap();
 
-    let valid_names = ["@spn/core", "@spn/writing-skills", "@nika/workflows"];
+    let valid_names = ["@nika/core", "@nika/writing-skills", "@nika/workflows"];
 
     for name in &valid_names {
         assert!(
@@ -324,23 +323,23 @@ fn contract_pkg_registry_format() {
     // Similar to crates.io and npm
 
     // Index structure:
-    // /@spn/core/index.json - package metadata
-    // /@spn/core/1.0.0.json - version-specific metadata
+    // /@nika/core/index.json - package metadata
+    // /@nika/core/1.0.0.json - version-specific metadata
 
     // This is a documentation test
 }
 
-/// Contract: Lockfile format (spn.lock)
+/// Contract: Lockfile format (nika.lock)
 #[test]
 fn contract_pkg_lockfile_format() {
     // Document the lockfile format
-    // spn.lock contains exact versions of all dependencies
+    // nika.lock contains exact versions of all dependencies
     // Format is YAML for human readability
 
     // Structure:
     // version: 1
     // packages:
-    //   "@spn/core":
+    //   "@nika/core":
     //     version: "1.0.0"
     //     checksum: "sha256:..."
     //     dependencies: [...]
@@ -348,20 +347,20 @@ fn contract_pkg_lockfile_format() {
     // This is a documentation test
 }
 
-/// Contract: Manifest format (spn.yaml)
+/// Contract: Manifest format (nika.yaml)
 #[test]
 fn contract_pkg_manifest_format() {
     // Document the manifest format
-    // spn.yaml is the project manifest
+    // nika.yaml is the project manifest
 
     // Structure:
     // name: my-project
     // version: 0.1.0
     // type: workflow
     // dependencies:
-    //   "@spn/core": "^1.0.0"
+    //   "@nika/core": "^1.0.0"
     // devDependencies:
-    //   "@spn/testing": "^1.0.0"
+    //   "@nika/testing": "^1.0.0"
 
     // This is a documentation test
 }
@@ -385,7 +384,7 @@ fn contract_pkg_dependency_resolution() {
 /// Contract: Package without subcommand shows help
 #[test]
 fn contract_pkg_no_subcommand_shows_help() {
-    // spn (without arguments) should show top-level help
+    // nika (without arguments) should show top-level help
     // which includes package commands
 
     let output = run_nika(&["--help"]);
@@ -402,7 +401,7 @@ fn contract_pkg_no_subcommand_shows_help() {
             || combined.contains("remove")
             || combined.contains("install")
             || combined.contains("search"),
-        "spn --help should show package commands. Got: {}",
+        "nika --help should show package commands. Got: {}",
         combined
     );
 }
@@ -418,7 +417,7 @@ fn contract_pkg_type_option() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // spn uses --type for package type specification (workflow, schema, job)
+    // nika uses --type for package type specification (workflow, schema, job)
     assert!(
         combined.contains("--type") || combined.contains("-t") || combined.contains("type"),
         "add should support --type option. Got: {}",

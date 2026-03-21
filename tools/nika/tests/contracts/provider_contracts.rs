@@ -1,7 +1,6 @@
 //! Provider Contract Tests
 //!
-//! These tests define the expected behavior of `spn provider *` commands.
-//! After migration, `nika provider *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika provider *` commands.
 //!
 //! # Tests (15 total)
 //!
@@ -44,7 +43,7 @@ fn contract_provider_list_returns_all_providers() {
     }
 }
 
-/// Contract: `spn provider list` shows status (configured/not configured)
+/// Contract: `nika provider list` shows status (configured/not configured)
 #[test]
 fn contract_provider_list_shows_status() {
     let output = run_nika(&["provider", "list"]);
@@ -54,7 +53,7 @@ fn contract_provider_list_shows_status() {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // Output should contain status indicators
-    // spn uses: 📦 for configured, ○ for not configured
+    // nika uses: 📦 for configured, ○ for not configured
     assert!(
         stdout.contains('✓')
             || stdout.contains('✗')
@@ -67,7 +66,7 @@ fn contract_provider_list_shows_status() {
     );
 }
 
-/// Contract: `spn provider list` distinguishes LLM and MCP providers
+/// Contract: `nika provider list` distinguishes LLM and MCP providers
 #[test]
 fn contract_provider_list_shows_categories() {
     let output = run_nika(&["provider", "list"]);
@@ -115,7 +114,7 @@ fn contract_provider_get_unknown_returns_error() {
     );
 }
 
-/// Contract: `spn provider test` validates anthropic key format (sk-ant-)
+/// Contract: `nika provider test` validates anthropic key format (sk-ant-)
 #[test]
 fn contract_provider_test_validates_anthropic_format() {
     // Skip if no ANTHROPIC_API_KEY is set
@@ -149,7 +148,7 @@ fn contract_provider_test_validates_anthropic_format() {
     }
 }
 
-/// Contract: `spn provider test` rejects malformed keys
+/// Contract: `nika provider test` rejects malformed keys
 #[test]
 fn contract_provider_test_rejects_invalid_key() {
     // Set a clearly invalid key temporarily
@@ -180,7 +179,7 @@ fn contract_provider_test_rejects_invalid_key() {
     std::env::remove_var("TEST_INVALID_KEY");
 }
 
-/// Contract: `spn provider migrate` is idempotent
+/// Contract: `nika provider migrate` is idempotent
 #[test]
 fn contract_provider_migrate_is_idempotent() {
     // Run migrate twice - second run should not fail
@@ -206,7 +205,7 @@ fn contract_provider_migrate_is_idempotent() {
     );
 }
 
-/// Contract: `spn provider status` shows detailed information
+/// Contract: `nika provider status` shows detailed information
 #[test]
 fn contract_provider_status_shows_detail() {
     let output = run_nika(&["provider", "status"]);
@@ -235,7 +234,7 @@ fn contract_provider_status_shows_detail() {
 #[test]
 fn contract_provider_priority_keychain_over_env() {
     // This test documents the expected priority:
-    // 1. spn daemon (IPC)
+    // 1. nika daemon (IPC)
     // 2. OS Keychain
     // 3. Environment variable
 
@@ -314,7 +313,7 @@ fn contract_provider_get_masks_key() {
     }
 }
 
-/// Contract: `spn provider list --json` returns JSON format (if supported)
+/// Contract: `nika provider list --json` returns JSON format (if supported)
 #[test]
 fn contract_provider_list_json_format() {
     let output = run_nika(&["provider", "list", "--json"]);
@@ -357,7 +356,7 @@ fn contract_provider_names_case_insensitive() {
     );
 }
 
-/// Contract: `spn provider` with no subcommand shows help
+/// Contract: `nika provider` with no subcommand shows help
 #[test]
 fn contract_provider_no_subcommand_shows_help() {
     let output = run_nika(&["provider"]);

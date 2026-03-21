@@ -1,7 +1,6 @@
 //! Setup Wizard Contract Tests
 //!
 //! These tests define the expected behavior of `nika setup *` commands.
-//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (10 total)
 //!
@@ -18,7 +17,7 @@
 
 use super::common::run_nika;
 
-/// Contract: `spn setup` runs full 4-step wizard
+/// Contract: `nika setup` runs full 4-step wizard
 #[test]
 fn contract_setup_full_wizard() {
     let output = run_nika(&["setup", "--help"]);
@@ -59,7 +58,7 @@ fn contract_setup_wizard_subcommand() {
     );
 }
 
-/// Contract: `spn setup` has nika subcommand for Nika-specific setup
+/// Contract: `nika setup` has nika subcommand for Nika-specific setup
 #[test]
 fn contract_setup_has_subcommands() {
     let output = run_nika(&["setup", "--help"]);
@@ -70,7 +69,7 @@ fn contract_setup_has_subcommands() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // spn setup has subcommands: nika, novanet, claude-code
+    // nika setup has subcommands: nika, novanet, claude-code
     assert!(
         combined.contains("nika") || combined.contains("novanet") || combined.contains("claude"),
         "setup should have subcommands. Got: {}",
@@ -78,7 +77,7 @@ fn contract_setup_has_subcommands() {
     );
 }
 
-/// Contract: `spn setup novanet` configures NovaNet
+/// Contract: `nika setup novanet` configures NovaNet
 #[test]
 fn contract_setup_novanet_subcommand() {
     let output = run_nika(&["setup", "--help"]);
@@ -89,7 +88,7 @@ fn contract_setup_novanet_subcommand() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // spn setup has novanet subcommand
+    // nika setup has novanet subcommand
     assert!(
         combined.contains("novanet") || combined.contains("NovaNet"),
         "setup should have novanet subcommand. Got: {}",
@@ -97,7 +96,7 @@ fn contract_setup_novanet_subcommand() {
     );
 }
 
-/// Contract: `spn setup --models` only configures local models
+/// Contract: `nika setup --models` only configures local models
 #[test]
 fn contract_setup_models_only() {
     let output = run_nika(&["setup", "--help"]);
@@ -115,7 +114,7 @@ fn contract_setup_models_only() {
     let _ = has_models;
 }
 
-/// Contract: `spn setup nika` runs Nika-specific installer
+/// Contract: `nika setup nika` runs Nika-specific installer
 #[test]
 fn contract_setup_nika() {
     let output = run_nika(&["setup", "nika", "--help"]);

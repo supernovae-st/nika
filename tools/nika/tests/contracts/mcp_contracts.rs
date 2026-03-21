@@ -1,7 +1,6 @@
 //! MCP Config Contract Tests
 //!
-//! These tests define the expected behavior of `spn mcp *` commands.
-//! After migration, `nika mcp *` must exhibit identical behavior.
+//! These tests define the expected behavior of `nika mcp *` commands.
 //!
 //! # Tests (12 total)
 //!
@@ -11,7 +10,7 @@
 //! 4. mcp remove deletes server
 //! 5. mcp test validates connection
 //! 6. mcp tools lists available tools
-//! 7. 48 MCP aliases all resolve
+//! 7. 113 MCP aliases all resolve
 //! 8. MCP secret injection works
 //! 9. MCP config file location
 //! 10. MCP server env var expansion
@@ -20,7 +19,7 @@
 
 use super::common::{run_nika, MCP_ALIAS_COUNT};
 
-/// Contract: `spn mcp list` shows configured servers
+/// Contract: `nika mcp list` shows configured servers
 #[test]
 fn contract_mcp_list_shows_servers() {
     let output = run_nika(&["mcp", "list"]);
@@ -43,7 +42,7 @@ fn contract_mcp_list_shows_servers() {
     );
 }
 
-/// Contract: `spn mcp add` with known alias creates entry
+/// Contract: `nika mcp add` with known alias creates entry
 #[test]
 fn contract_mcp_add_with_alias() {
     // Test with a well-known alias that doesn't require external deps
@@ -73,7 +72,7 @@ fn contract_mcp_add_with_alias() {
     );
 }
 
-/// Contract: All 48 MCP aliases are recognized
+/// Contract: All 113 MCP aliases are recognized
 #[test]
 fn contract_mcp_all_aliases_recognized() {
     // Get list of available aliases
@@ -108,7 +107,7 @@ fn contract_mcp_all_aliases_recognized() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let alias_count = stdout.lines().filter(|l| !l.is_empty()).count();
 
-    // Should have at least 48 aliases
+    // Should have at least 113 aliases
     assert!(
         alias_count >= MCP_ALIAS_COUNT || stdout.contains(&MCP_ALIAS_COUNT.to_string()),
         "Should have {} MCP aliases. Got count: {}",
@@ -180,7 +179,7 @@ fn contract_mcp_test_validates_connection() {
     );
 }
 
-/// Contract: `spn mcp tools` lists available MCP tools
+/// Contract: `nika mcp tools` lists available MCP tools
 #[test]
 fn contract_mcp_tools_lists_available() {
     // Try to list tools for non-existent server
@@ -234,12 +233,12 @@ fn contract_mcp_config_scope() {
     );
 }
 
-/// Contract: MCP secret injection with ${spn:secret} syntax
+/// Contract: MCP secret injection with ${nika:secret} syntax
 #[test]
 fn contract_mcp_secret_injection() {
     // Document the secret injection syntax
     // env:
-    //   NEO4J_PASSWORD: ${spn:neo4j}
+    //   NEO4J_PASSWORD: ${nika:neo4j}
     //
     // This test verifies the syntax is documented, not that injection works
     // (which requires daemon integration)
@@ -268,7 +267,7 @@ fn contract_mcp_env_var_expansion() {
     // This is a documentation test - actual expansion tested in daemon_contracts
 }
 
-/// Contract: `spn mcp` with no subcommand shows help
+/// Contract: `nika mcp` with no subcommand shows help
 #[test]
 fn contract_mcp_no_subcommand_shows_help() {
     let output = run_nika(&["mcp"]);
@@ -304,8 +303,8 @@ fn contract_mcp_config_default_location() {
 /// Contract: MCP foreign server detection
 #[test]
 fn contract_mcp_foreign_server_detection() {
-    // Document that spn sync can detect foreign MCP servers
-    // (servers configured in editor but not in spn)
+    // Document that nika sync can detect foreign MCP servers
+    // (servers configured in editor but not in nika)
 
     let output = run_nika(&["sync", "status"]);
 

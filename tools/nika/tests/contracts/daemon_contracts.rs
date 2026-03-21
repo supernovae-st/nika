@@ -47,7 +47,7 @@ fn contract_daemon_start_creates_socket() {
     }
 }
 
-/// Contract: `spn daemon start` creates PID file
+/// Contract: `nika daemon start` creates PID file
 #[test]
 fn contract_daemon_start_creates_pid() {
     let home = std::env::var("HOME").unwrap_or_default();
@@ -63,7 +63,7 @@ fn contract_daemon_start_creates_pid() {
     }
 }
 
-/// Contract: `spn daemon stop` performs graceful shutdown
+/// Contract: `nika daemon stop` performs graceful shutdown
 #[test]
 fn contract_daemon_stop_graceful() {
     let output = run_nika(&["daemon", "stop", "--help"]);
@@ -82,7 +82,7 @@ fn contract_daemon_stop_graceful() {
     );
 }
 
-/// Contract: `spn daemon status` shows running state
+/// Contract: `nika daemon status` shows running state
 #[test]
 fn contract_daemon_status_shows_state() {
     let output = run_nika(&["daemon", "status"]);
@@ -105,7 +105,7 @@ fn contract_daemon_status_shows_state() {
     );
 }
 
-/// Contract: `spn daemon logs` shows recent logs
+/// Contract: `nika daemon logs` shows recent logs
 #[test]
 fn contract_daemon_logs() {
     let output = run_nika(&["daemon", "logs", "--help"]);
@@ -124,7 +124,7 @@ fn contract_daemon_logs() {
     );
 }
 
-/// Contract: `spn daemon restart` restarts service
+/// Contract: `nika daemon restart` restarts service
 #[test]
 fn contract_daemon_restart() {
     let output = run_nika(&["daemon", "restart", "--help"]);
@@ -260,7 +260,7 @@ fn contract_ipc_error_codes() {
 #[test]
 fn contract_daemon_auto_start() {
     // Document that daemon auto-starts when:
-    // 1. spn provider get is called
+    // 1. nika provider get is called
     // 2. Daemon is not running
     // 3. No --no-daemon flag specified
 
@@ -274,6 +274,6 @@ fn contract_daemon_health() {
     // Method: "health"
     // Response: {"status": "ok", "uptime": 3600, "version": "0.17.0"}
 
-    // spn daemon status uses this internally
+    // nika daemon status uses this internally
     // This is a protocol contract
 }

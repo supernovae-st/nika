@@ -1,7 +1,6 @@
 //! Model Management Contract Tests
 //!
 //! These tests define the expected behavior of `nika model *` commands.
-//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (10 total)
 //!
@@ -18,7 +17,7 @@
 
 use super::common::{run_nika, KNOWN_MODEL_COUNT};
 
-/// Contract: `spn model list` shows local and remote models
+/// Contract: `nika model list` shows local and remote models
 #[test]
 fn contract_model_list_shows_all() {
     let output = run_nika(&["model", "list"]);
@@ -40,7 +39,7 @@ fn contract_model_list_shows_all() {
     );
 }
 
-/// Contract: `spn model list --local` shows only local models
+/// Contract: `nika model list --local` shows only local models
 #[test]
 fn contract_model_list_local_filter() {
     let output = run_nika(&["model", "list", "--local"]);
@@ -61,7 +60,7 @@ fn contract_model_list_local_filter() {
     let _ = stdout;
 }
 
-/// Contract: `spn model list --remote` shows available models
+/// Contract: `nika model list --remote` shows available models
 #[test]
 fn contract_model_list_remote_filter() {
     let output = run_nika(&["model", "list", "--remote"]);
@@ -82,7 +81,7 @@ fn contract_model_list_remote_filter() {
     let _ = stdout;
 }
 
-/// Contract: `spn model pull` downloads from HuggingFace
+/// Contract: `nika model pull` downloads from HuggingFace
 #[test]
 fn contract_model_pull_from_hf() {
     let output = run_nika(&["model", "pull", "--help"]);
@@ -104,7 +103,7 @@ fn contract_model_pull_from_hf() {
     );
 }
 
-/// Contract: `spn model status` shows loaded models
+/// Contract: `nika model status` shows loaded models
 #[test]
 fn contract_model_status_shows_loaded() {
     let output = run_nika(&["model", "status"]);
@@ -127,7 +126,7 @@ fn contract_model_status_shows_loaded() {
     );
 }
 
-/// Contract: `spn model info` displays model metadata
+/// Contract: `nika model info` displays model metadata
 #[test]
 fn contract_model_info_metadata() {
     let output = run_nika(&["model", "info", "--help"]);
@@ -149,7 +148,7 @@ fn contract_model_info_metadata() {
     );
 }
 
-/// Contract: `spn model delete` removes local model
+/// Contract: `nika model delete` removes local model
 #[test]
 fn contract_model_delete_removes_local() {
     // Try to delete non-existent model
@@ -176,7 +175,7 @@ fn contract_model_delete_removes_local() {
 /// Contract: 16 known models defined in KNOWN_MODELS
 #[test]
 fn contract_model_known_count() {
-    // Document the 16 known models from spn-core
+    // Document the 16 known models from nika-core
     let known_models = [
         "llama3.2:1b",
         "llama3.2:3b",
@@ -237,7 +236,7 @@ fn contract_model_auto_quantization() {
     // This is a documentation test
 }
 
-/// Contract: `spn model` with no subcommand shows help
+/// Contract: `nika model` with no subcommand shows help
 #[test]
 fn contract_model_no_subcommand_shows_help() {
     let output = run_nika(&["model"]);

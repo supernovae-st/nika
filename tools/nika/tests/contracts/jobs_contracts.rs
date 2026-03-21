@@ -1,7 +1,6 @@
 //! Jobs System Contract Tests
 //!
 //! These tests define the expected behavior of `nika job *` commands.
-//! After v0.28 fusion, `nika` is the primary CLI (spn is deprecated).
 //!
 //! # Tests (10 total)
 //!
@@ -18,7 +17,7 @@
 
 use super::common::run_nika;
 
-/// Contract: `spn job list` shows all jobs
+/// Contract: `nika job list` shows all jobs
 #[test]
 fn contract_job_list_shows_all() {
     let output = run_nika(&["job", "list"]);
@@ -46,13 +45,13 @@ fn contract_job_list_shows_all() {
     );
 }
 
-/// Contract: `spn job status <id>` shows job details
+/// Contract: `nika job status <id>` shows job details
 #[test]
 fn contract_job_status_shows_details() {
     let output = run_nika(&["job", "status", "nonexistent-job-id"]);
 
     // Should fail gracefully for non-existent job
-    // Job command may not exist in current spn version
+    // Job command may not exist in current nika version
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -72,7 +71,7 @@ fn contract_job_status_shows_details() {
     );
 }
 
-/// Contract: `spn job cancel <id>` cancels running job
+/// Contract: `nika job cancel <id>` cancels running job
 #[test]
 fn contract_job_cancel() {
     let output = run_nika(&["job", "cancel", "nonexistent-job-id"]);
@@ -95,7 +94,7 @@ fn contract_job_cancel() {
     );
 }
 
-/// Contract: `spn job retry <id>` retries failed job
+/// Contract: `nika job retry <id>` retries failed job
 #[test]
 fn contract_job_retry() {
     let output = run_nika(&["job", "retry", "nonexistent-job-id"]);
