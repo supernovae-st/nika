@@ -130,8 +130,7 @@ const VERB_SUBKEYS: &[&str] = &[
     "max_cost_usd",
     "max_duration_secs",
     "save_progress",
-    // Content part fields
-    "type",
+    // Content part fields (note: "type" has special handling as TokenType::Type)
     "text",
 ];
 
@@ -215,9 +214,11 @@ pub fn semantic_tokens(text: &str) -> Vec<RawToken> {
 }
 
 pub fn encode_tokens(tokens: &[RawToken]) -> Vec<u32> {
-    let mut data = Vec::with_capacity(tokens.len() * 5);
+    let mut sorted: Vec<_> = tokens.to_vec();
+    sorted.sort_by_key(|t| (t.line, t.start_char));
+    let mut data = Vec::with_capacity(sorted.len() * 5);
     let (mut pl, mut ps) = (0u32, 0u32);
-    for t in tokens {
+    for t in &sorted {
         let dl = t.line - pl;
         let ds = if dl == 0 {
             t.start_char - ps
