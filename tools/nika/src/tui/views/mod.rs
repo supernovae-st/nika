@@ -31,15 +31,8 @@ mod studio;
 mod view_trait;
 mod wizard;
 // Main view exports
-#[allow(unused_imports)]
-pub use chat::{ChatMode, ChatView, MessageRole};
-#[allow(unused_imports)]
-pub use home::HomeView as BrowseView;
-#[allow(unused_imports)]
-pub use monitor::MonitorView as RunnerView;
+pub use chat::ChatView;
 pub use settings::SettingsView;
-#[allow(unused_imports)]
-pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 
 // Internal re-exports (original struct names used internally)
 // StudioView is now the 3-panel view (Browser + Editor + DAG)
