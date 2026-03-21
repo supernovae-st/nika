@@ -1823,6 +1823,22 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                             TaskResult::success(Value::Array(vec![]), std::time::Duration::ZERO),
                         );
                     }
+                } else if task.for_each.is_some() {
+                    // for_each was declared but items could not be resolved
+                    // (unrecognized pattern, malformed JSON, malformed template).
+                    // Fail explicitly instead of silently running as a regular task.
+                    self.datastore.insert(
+                        intern(&task.name),
+                        TaskResult::failed(
+                            format!(
+                                "for_each items could not be resolved for task '{}'. \
+                                 Check the binding reference.",
+                                task.name
+                            ),
+                            std::time::Duration::ZERO,
+                        ),
+                    );
+                    continue;
                 } else {
                     // Regular task without for_each
                     let task = task.clone();
