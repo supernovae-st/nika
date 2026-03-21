@@ -1,0 +1,13 @@
+# FEATURE: invoke with MCP resource read
+schema: nika/workflow@0.12
+workflow: feat-invoke-resource
+provider: mock
+mcp:
+  test_server:
+    command: echo
+    args: ["test"]
+tasks:
+  - id: read_resource
+    invoke:
+      mcp: test_server
+      resource: "schema://entities"

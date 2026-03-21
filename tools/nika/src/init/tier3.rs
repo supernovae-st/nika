@@ -114,6 +114,20 @@ tasks:
       temperature: 0.3                 # Lower = more focused
 
       # ─────────────────────────────────────────────────────────────────────────
+      # 🛡️ GUARDRAILS: Safety constraints on agent output
+      # ─────────────────────────────────────────────────────────────────────────
+      guardrails:
+        - type: length
+          min_words: 50
+          on_failure: retry
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # ✅ COMPLETION: How the agent signals it's done
+      # ─────────────────────────────────────────────────────────────────────────
+      completion:
+        mode: explicit
+
+      # ─────────────────────────────────────────────────────────────────────────
       # 🧠 SYSTEM PROMPT
       # ─────────────────────────────────────────────────────────────────────────
       system: |
@@ -295,6 +309,10 @@ tasks:
     # 📐 OUTPUT SCHEMA - JSON Schema validation
     # ─────────────────────────────────────────────────────────────────────────────
     # The LLM output MUST match this schema. If not, Nika retries up to 3 times.
+    #
+    # TIP: 'structured:' is the newer, more powerful alternative to 'output: schema:'.
+    # It supports 5-layer defense: tool injection, prompt, parsing, retry, repair.
+    # Example: structured: { schema: { type: object, ... }, enable_retry: true }
 
     output:
       schema:

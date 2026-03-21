@@ -1,11 +1,11 @@
 //! Partial Workflows for DAG Fusion
 //!
-//! These are reusable workflow fragments that can be included
-//! in other workflows via the `include:` directive.
+//! These are reusable workflow fragments that can be imported
+//! in other workflows via the `imports:` directive.
 //!
 //! Usage:
 //! ```yaml
-//! include:
+//! imports:
 //!   - path: ./partials/logging-setup.nika.yaml
 //!     prefix: log_
 //! ```
@@ -24,7 +24,7 @@ pub const PARTIAL_LOGGING: &str = r##"# ═════════════�
 # Use with prefix to namespace task IDs.
 #
 # Usage:
-#   include:
+#   imports:
 #     - path: ./partials/logging-setup.nika.yaml
 #       prefix: log_
 #
@@ -64,7 +64,7 @@ pub const PARTIAL_ERROR_HANDLING: &str = r##"# ═══════════
 # Provides error notification and logging tasks.
 #
 # Usage:
-#   include:
+#   imports:
 #     - path: ./partials/error-handling.nika.yaml
 #       prefix: err_
 #
@@ -135,7 +135,7 @@ pub const PARTIAL_VALIDATION: &str = r##"# ════════════�
 # Ensures data quality before and after processing.
 #
 # Usage:
-#   include:
+#   imports:
 #     - path: ./partials/validation.nika.yaml
 #       prefix: val_
 #
@@ -229,7 +229,7 @@ pub const PARTIAL_NOTIFICATION: &str = r##"# ═══════════�
 # Supports multiple notification channels.
 #
 # Usage:
-#   include:
+#   imports:
 #     - path: ./partials/notification.nika.yaml
 #       prefix: notify_
 #
