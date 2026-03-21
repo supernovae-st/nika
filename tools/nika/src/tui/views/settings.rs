@@ -299,12 +299,12 @@ impl View for SettingsView {
             .direction(Direction::Vertical)
             .margin(1)
             .constraints([
-                Constraint::Length(4), // 1. Providers section
-                Constraint::Length(4), // 2. MCP Servers section
-                Constraint::Length(4), // 3. Secrets section
-                Constraint::Length(4), // 4. Packages section
-                Constraint::Length(5), // 5. Preferences section (taller for shortcuts)
-                Constraint::Min(0),    // Footer
+                Constraint::Min(3), // 1. Providers section
+                Constraint::Min(3), // 2. MCP Servers section
+                Constraint::Min(3), // 3. Secrets section
+                Constraint::Min(3), // 4. Packages section
+                Constraint::Min(3), // 5. Preferences section
+                Constraint::Min(0), // Footer
             ])
             .split(area);
 

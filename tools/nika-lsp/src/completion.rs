@@ -1,47 +1,43 @@
-//! Completion context detection for MCP discovery fallback.
+//! MCP completion fallback.
 //!
-//! The main completion pipeline delegates to `nika-lsp-core`. This module
-//! is retained ONLY for two functions used by backend.rs:
-//! - `get_completion_context()` — determines MCP-specific context
-//! - `extract_mcp_servers()` — extracts server names from mcp: blocks
+//! Main completion delegates to nika-lsp-core. This module handles
+//! MCP-specific context detection and server name extraction.
 
 use tower_lsp_server::ls_types::Position;
 
 use crate::document::DocumentState;
-use crate::node_context::{find_context_at_position, AstContext};
 
-/// Completion context for MCP-specific completion.
+/// MCP-specific completion context.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompletionContext {
-    /// MCP server reference (in mcp: config block or invoke: mcp field)
     McpServer,
-    /// MCP tool reference (after mcp: server is specified)
     McpTool { server: String },
-    /// Any other context (handled by nika-lsp-core)
     Other,
 }
 
-/// Analyze the document position to determine if MCP completion is needed.
-///
-/// Returns `McpServer` or `McpTool` for MCP-specific contexts,
-/// `Other` for everything else (delegated to nika-lsp-core).
+/// Detect if cursor is in an MCP-relevant context.
 pub fn get_completion_context(doc: &DocumentState, position: Position) -> CompletionContext {
     let content = doc.content();
-    let ast_result = find_context_at_position(&content, position.line, position.character);
+    let offset = crate::position::position_to_offset(&content, position.line, position.character)
+        .map(|o| o.0)
+        .unwrap_or(0);
+    let ctx = nika_lsp_core::analysis::context::detect_context(&content, offset, None);
 
-    match &ast_result.context {
-        AstContext::McpConfig { .. } => CompletionContext::McpServer,
-        AstContext::InvokeBlock {
+    match &ctx {
+        nika_lsp_core::analysis::context::CursorContext::McpConfig { .. } => {
+            CompletionContext::McpServer
+        }
+        nika_lsp_core::analysis::context::CursorContext::InvokeBlock {
             mcp_server: Some(server),
             ..
         } => CompletionContext::McpTool {
             server: server.clone(),
         },
-        AstContext::InvokeBlock {
+        nika_lsp_core::analysis::context::CursorContext::InvokeBlock {
             mcp_server: None, ..
         } => CompletionContext::McpServer,
         _ => {
-            // Fallback: line-based detection for mcp: context
+            // Fallback: line-based MCP detection
             let lines: Vec<&str> = content.lines().collect();
             if (position.line as usize) < lines.len() {
                 let trimmed = lines[position.line as usize].trim();
@@ -55,8 +51,6 @@ pub fn get_completion_context(doc: &DocumentState, position: Position) -> Comple
 }
 
 /// Extract MCP server names from the document content.
-///
-/// Parses the YAML looking for `mcp:` block with server definitions.
 pub fn extract_mcp_servers(content: &str) -> Vec<String> {
     let mut servers = Vec::new();
     let mut in_mcp_block = false;
@@ -105,13 +99,6 @@ mod tests {
 
     #[test]
     fn extract_mcp_servers_empty() {
-        let servers = extract_mcp_servers("tasks:\n  - id: step1\n");
-        assert!(servers.is_empty());
-    }
-
-    #[test]
-    fn extract_mcp_servers_no_mcp_block() {
-        let servers = extract_mcp_servers("schema: v0.12\nworkflow: test\n");
-        assert!(servers.is_empty());
+        assert!(extract_mcp_servers("tasks:\n  - id: step1\n").is_empty());
     }
 }

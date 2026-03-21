@@ -14,6 +14,7 @@
 // Modules marked with #[allow(dead_code)] contain staged widgets or data types
 // with rendering code stripped but type definitions preserved.
 
+// Types-only: ActivityItem used, ActivityStack struct unused
 #[allow(dead_code)]
 mod activity_stack;
 #[allow(dead_code)]
@@ -25,17 +26,22 @@ mod chat_node_box;
 mod chat_task_queue;
 mod command_palette;
 mod dag_ascii;
+// Internal to dag_ascii: edge rendering, some items staged
 #[allow(dead_code)]
 mod dag_edge;
+// Internal to dag_ascii: layout algorithm, some items staged
 #[allow(dead_code)]
 mod dag_layout;
+// Used by dag_ascii, some builder methods staged
 #[allow(dead_code)]
 mod dag_node_box;
 mod gauge;
 mod header;
 mod help_overlay;
+// Types-only: widget rendering stripped, data types exported for ChatView
 #[allow(dead_code)]
 mod infer_stream_box;
+// Active widget with some staged constants/types
 #[allow(dead_code)]
 mod matrix_decrypt;
 mod matrix_rain;
@@ -45,10 +51,12 @@ mod mission_control;
 mod nika_intro;
 mod pro_status_bar;
 pub mod provider_modal;
+// Types-only: data types for ProviderModal
 #[allow(dead_code)]
 mod provider_selector;
 mod scroll_indicator;
 mod session_context;
+// Partially active: AnimatedLatencySparkline used, rest stripped
 #[allow(dead_code)]
 mod sparkline;
 mod status_bar;
@@ -58,12 +66,13 @@ mod terminal_size;
 mod timeline;
 pub mod tree;
 mod utils;
+// Types-only: ChatVerb/ParsedInput used by command parser
 #[allow(dead_code)]
 mod verb_input;
 mod verb_type;
 mod which_key;
 
-// Micro-widgets for F1-style inline telemetry (staged for TUI redesign Phase 6)
+// Staged for Phase 6 TUI redesign — 100% complete, awaiting integration
 #[allow(dead_code)]
 pub mod micro;
 

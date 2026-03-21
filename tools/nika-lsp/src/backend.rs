@@ -58,23 +58,6 @@ impl NikaBackend {
 
         backend
     }
-
-    /// Extract task IDs from a document using AST parsing.
-    ///
-    /// Uses `ast_integration::extract_task_ids_from_ast()` for accurate
-    /// parsing with fallback to string patterns for incomplete YAML.
-    ///
-    /// Retained as backup -- completion now delegates to nika-lsp-core.
-    #[allow(dead_code)]
-    fn extract_task_ids(&self, uri: &Uri) -> Vec<String> {
-        let doc = match self.documents.get(uri) {
-            Some(d) => d,
-            None => return vec![],
-        };
-
-        let content = doc.content();
-        ast_integration::extract_task_ids_from_ast(&content)
-    }
 }
 
 /// Background worker that processes validation requests.

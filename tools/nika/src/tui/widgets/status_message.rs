@@ -138,11 +138,7 @@ impl StatusMessage {
     pub fn remaining_secs(&self) -> Option<u64> {
         self.duration.map(|d| {
             let elapsed = self.timestamp.elapsed();
-            if elapsed < d {
-                (d - elapsed).as_secs()
-            } else {
-                0
-            }
+            d.saturating_sub(elapsed).as_secs()
         })
     }
 }

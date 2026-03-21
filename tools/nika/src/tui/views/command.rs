@@ -67,18 +67,6 @@ impl CommandView {
         self.mode = CommandMode::Monitor;
     }
 
-    /// Switch to Chat mode
-    #[allow(dead_code)]
-    pub fn switch_to_chat(&mut self) {
-        self.mode = CommandMode::Chat;
-    }
-
-    /// Check if currently in chat mode
-    #[allow(dead_code)]
-    pub fn is_chat(&self) -> bool {
-        self.mode == CommandMode::Chat
-    }
-
     /// Convert task type string to VerbColor
     fn verb_from_task_type(task_type: Option<&str>) -> VerbColor {
         match task_type {
@@ -473,14 +461,6 @@ mod tests {
         let mut view = CommandView::new();
         view.switch_to_monitor();
         assert_eq!(view.mode, CommandMode::Monitor);
-    }
-
-    #[test]
-    fn test_switch_to_chat() {
-        let mut view = CommandView::new();
-        view.switch_to_monitor();
-        view.switch_to_chat();
-        assert!(view.is_chat());
     }
 
     #[test]

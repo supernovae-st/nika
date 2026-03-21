@@ -387,13 +387,6 @@ impl InvokeBox {
         }
     }
 
-    /// Format JSON value for single-line display
-    #[allow(dead_code)]
-    fn format_json_oneline(value: &serde_json::Value, max_len: usize) -> String {
-        let json_str = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
-        Self::truncate(&json_str, max_len)
-    }
-
     /// Render in compact mode (single line)
     fn render_compact(&self, area: Rect, buf: &mut Buffer) {
         let verb = VerbColor::Invoke;
@@ -813,28 +806,6 @@ mod tests {
 
         box_.toggle_result();
         assert!(box_.expanded_result);
-    }
-
-    #[test]
-    fn test_format_json_oneline() {
-        let value = serde_json::json!({"key": "value", "num": 42});
-        let formatted = InvokeBox::format_json_oneline(&value, 50);
-
-        assert!(formatted.contains("key"));
-        assert!(formatted.contains("value"));
-        assert!(formatted.contains("42"));
-        assert!(!formatted.contains('\n'));
-    }
-
-    #[test]
-    fn test_format_json_oneline_truncation() {
-        let value = serde_json::json!({
-            "very_long_key": "very_long_value_that_should_be_truncated"
-        });
-        let formatted = InvokeBox::format_json_oneline(&value, 20);
-
-        assert!(formatted.len() <= 20);
-        assert!(formatted.ends_with("..."));
     }
 
     #[test]

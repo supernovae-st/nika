@@ -669,11 +669,12 @@ async fn main() {
         Some(Commands::Ui { view, workflow }) => {
             use nika::tui::TuiView;
             let initial_view = match view.as_deref() {
-                Some("chat") | Some("c") => Some(TuiView::Command),
-                Some("studio") | Some("editor") | Some("d") | Some("explorer") | Some("e")
-                | Some("home") => Some(TuiView::Studio),
-                Some("runner") | Some("r") | Some("monitor") => Some(TuiView::Command),
-                Some("settings") | Some(",") => Some(TuiView::Control),
+                Some("chat" | "c") => Some(TuiView::Command),
+                Some("studio" | "editor" | "d" | "explorer" | "e" | "home") => {
+                    Some(TuiView::Studio)
+                }
+                Some("runner" | "r" | "monitor") => Some(TuiView::Command),
+                Some("settings" | ",") => Some(TuiView::Control),
                 Some(unknown) => {
                     eprintln!(
                         "{} Unknown view '{}'. Valid: studio, chat, runner, settings",

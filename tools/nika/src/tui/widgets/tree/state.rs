@@ -418,6 +418,10 @@ impl TreeState {
     }
 
     /// Find a node by ID in the tree (recursive search)
+    ///
+    /// `self` is the method receiver for API ergonomics; the search is purely
+    /// tree-structural and does not read any `TreeState` fields.
+    #[allow(clippy::only_used_in_recursion)]
     pub fn find_node<'a>(&self, root: &'a TreeNode, target: NodeId) -> Option<&'a TreeNode> {
         if root.id == target {
             return Some(root);
@@ -434,6 +438,9 @@ impl TreeState {
         self.find_parent_recursive(root, target, None)
     }
 
+    /// `self` is the method receiver for consistency with `find_node`; the search
+    /// is purely tree-structural and does not read any `TreeState` fields.
+    #[allow(clippy::only_used_in_recursion)]
     fn find_parent_recursive(
         &self,
         node: &TreeNode,

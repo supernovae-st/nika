@@ -331,9 +331,13 @@ impl MatrixRain {
 
         for i in 0..num_drops {
             // Stagger drops based on column and index
-            let base_y =
-                (col as i16 * 7 + i as i16 * 17 + self.frame as i16 * 2) % (height as i16 * 2);
-            let y = base_y - height as i16;
+            // Safe casts: clamp u16 to i16 range to prevent wrapping
+            let col_i16 = col.min(i16::MAX as u16) as i16;
+            let i_i16 = (i as u16).min(i16::MAX as u16) as i16;
+            let frame_i16 = self.frame as i16;
+            let height_i16 = height.min(i16::MAX as u16) as i16;
+            let base_y = (col_i16 * 7 + i_i16 * 17 + frame_i16 * 2) % (height_i16 * 2);
+            let y = base_y - height_i16;
 
             let speed = rng.gen_range(1..=2); // Slower movement
             let color_idx = rng.gen_range(0..RAIN_COLORS.len());
@@ -419,8 +423,13 @@ impl MatrixRain {
                 (22, 10), // Top/bottom center
             ];
             for (i, (dx, dy)) in deco_positions.iter().enumerate() {
-                let x = (pattern_start_x as i16 + dx).max(area.x as i16) as u16;
-                let y = (pattern_start_y as i16 + dy).max(area.y as i16) as u16;
+                // Safe casts: clamp u16 to i16 range to prevent wrapping
+                let start_x_i16 = pattern_start_x.min(i16::MAX as u16) as i16;
+                let start_y_i16 = pattern_start_y.min(i16::MAX as u16) as i16;
+                let area_x_i16 = area.x.min(i16::MAX as u16) as i16;
+                let area_y_i16 = area.y.min(i16::MAX as u16) as i16;
+                let x = (start_x_i16 + dx).max(area_x_i16) as u16;
+                let y = (start_y_i16 + dy).max(area_y_i16) as u16;
                 if x < area.x + area.width - 1 && y < area.y + area.height {
                     // Rotate through sparkle emojis for shimmer effect
                     let emoji_idx = (i + (self.frame as usize / 2)) % DECO_EMOJIS.len();
@@ -473,14 +482,18 @@ impl MatrixRain {
                         let offset_x = (angle.cos() * dist) as i16;
                         let offset_y = (angle.sin() * dist * 0.5) as i16; // Flatter spread
 
-                        let new_x = (base_x as i16 + offset_x)
-                            .max(area.x as i16)
-                            .min((area.x + area.width - 2) as i16)
-                            as u16;
-                        let new_y = (base_y as i16 + offset_y)
-                            .max(area.y as i16)
-                            .min((area.y + area.height - 1) as i16)
-                            as u16;
+                        // Safe casts: clamp u16 to i16 range to prevent wrapping
+                        let base_x_i16 = base_x.min(i16::MAX as u16) as i16;
+                        let base_y_i16 = base_y.min(i16::MAX as u16) as i16;
+                        let area_x_i16 = area.x.min(i16::MAX as u16) as i16;
+                        let area_y_i16 = area.y.min(i16::MAX as u16) as i16;
+                        let max_x_i16 =
+                            (area.x + area.width).saturating_sub(2).min(i16::MAX as u16) as i16;
+                        let max_y_i16 = (area.y + area.height)
+                            .saturating_sub(1)
+                            .min(i16::MAX as u16) as i16;
+                        let new_x = (base_x_i16 + offset_x).max(area_x_i16).min(max_x_i16) as u16;
+                        let new_y = (base_y_i16 + offset_y).max(area_y_i16).min(max_y_i16) as u16;
 
                         // Smooth fade out during explosion
                         let fade = (1.0 - local_eased.powf(1.5)).max(0.0);
@@ -531,13 +544,16 @@ impl Widget for MatrixRain {
             let drops = self.generate_drops(col, area.height, &mut rng);
 
             for drop in drops {
+                // Safe cast: drop.speed is u8 (1..=2), self.frame is u8 — no wrapping risk
                 let current_y = drop.y + (self.frame as i16 / drop.speed as i16);
 
                 // Render the drop and its short trail
                 for trail_offset in 0..=drop.trail {
                     let y = current_y - trail_offset as i16;
 
-                    if y >= 0 && y < area.height as i16 {
+                    // Safe cast: area.height is u16, clamp to i16 range
+                    let height_i16 = area.height.min(i16::MAX as u16) as i16;
+                    if y >= 0 && y < height_i16 {
                         let x = area.x + col;
                         let y_pos = area.y + y as u16;
 

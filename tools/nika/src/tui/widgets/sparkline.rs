@@ -45,31 +45,17 @@ pub enum SparklineAnimation {
 /// Latency sparkline with threshold-based coloring (stub -- rendering removed)
 pub struct LatencySparkline<'a> {
     data: &'a [u64],
-    #[allow(dead_code)]
-    title: &'a str,
     warn_threshold: u64,
     error_threshold: u64,
-    #[allow(dead_code)]
-    show_max: bool,
-    #[allow(dead_code)]
-    show_avg: bool,
 }
 
 impl<'a> LatencySparkline<'a> {
     pub fn new(data: &'a [u64]) -> Self {
         Self {
             data,
-            title: "",
             warn_threshold: 500,
             error_threshold: 2000,
-            show_max: false,
-            show_avg: false,
         }
-    }
-
-    pub fn title(mut self, title: &'a str) -> Self {
-        self.title = title;
-        self
     }
 
     pub fn warn_threshold(mut self, ms: u64) -> Self {
@@ -79,16 +65,6 @@ impl<'a> LatencySparkline<'a> {
 
     pub fn error_threshold(mut self, ms: u64) -> Self {
         self.error_threshold = ms;
-        self
-    }
-
-    pub fn show_max(mut self) -> Self {
-        self.show_max = true;
-        self
-    }
-
-    pub fn show_avg(mut self) -> Self {
-        self.show_avg = true;
         self
     }
 

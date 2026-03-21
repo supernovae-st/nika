@@ -31,8 +31,8 @@ impl ChatView {
             }
             // j/Down = Scroll down
             KeyCode::Char('j') | KeyCode::Down => {
-                // Max scroll based on content (HELP_SECTIONS has ~30 lines)
-                self.help_overlay.scroll_down(30);
+                let max = self.help_overlay.content_height();
+                self.help_overlay.scroll_down(max);
                 ViewAction::None
             }
             // k/Up = Scroll up
@@ -47,7 +47,7 @@ impl ChatView {
             }
             // G = Scroll to bottom
             KeyCode::Char('G') => {
-                self.help_overlay.scroll = 30;
+                self.help_overlay.scroll = self.help_overlay.content_height();
                 ViewAction::None
             }
             // PageUp
@@ -57,7 +57,8 @@ impl ChatView {
             }
             // PageDown
             KeyCode::PageDown => {
-                self.help_overlay.scroll_page_down(30, 10);
+                let max = self.help_overlay.content_height();
+                self.help_overlay.scroll_page_down(max, 10);
                 ViewAction::None
             }
             _ => ViewAction::None,

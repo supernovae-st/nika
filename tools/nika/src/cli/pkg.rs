@@ -392,8 +392,7 @@ pub async fn handle_pkg_command(action: PkgAction) -> Result<(), NikaError> {
                     // Use locked version if available
                     lockfile
                         .find_version(name)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| version_spec.clone())
+                        .map_or_else(|| version_spec.clone(), |v| v.to_string())
                 } else {
                     // Use version spec or fetch latest
                     if version_spec == "*" || version_spec == "latest" {

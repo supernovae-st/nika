@@ -147,6 +147,19 @@ impl HelpOverlayState {
     pub fn scroll_page_down(&mut self, max_scroll: usize, page_size: usize) {
         self.scroll = (self.scroll + page_size).min(max_scroll);
     }
+
+    /// Calculate total content height from HELP_SECTIONS
+    ///
+    /// Each section contributes: 1 title line + keybinding count + 1 trailing blank line.
+    pub fn content_height(&self) -> usize {
+        let mut height = 0;
+        for section in HELP_SECTIONS {
+            height += 2; // Title + blank line
+            height += section.keybindings.len();
+            height += 1; // Spacing after section
+        }
+        height
+    }
 }
 
 /// Help overlay widget
@@ -157,18 +170,6 @@ pub struct HelpOverlay<'a> {
 impl<'a> HelpOverlay<'a> {
     pub fn new(state: &'a HelpOverlayState) -> Self {
         Self { state }
-    }
-
-    /// Calculate total content height
-    #[allow(dead_code)]
-    fn content_height(&self) -> usize {
-        let mut height = 0;
-        for section in HELP_SECTIONS {
-            height += 2; // Title + blank line
-            height += section.keybindings.len();
-            height += 1; // Spacing after section
-        }
-        height
     }
 
     /// Build content lines
@@ -376,15 +377,6 @@ mod tests {
             assert!(!section.title.is_empty());
             assert!(!section.keybindings.is_empty());
         }
-    }
-
-    #[test]
-    fn test_help_overlay_content_height() {
-        let state = HelpOverlayState::new();
-        let overlay = HelpOverlay::new(&state);
-
-        let height = overlay.content_height();
-        assert!(height > 0);
     }
 
     #[test]

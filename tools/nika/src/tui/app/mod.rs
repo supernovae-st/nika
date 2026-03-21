@@ -163,7 +163,13 @@ impl App {
         let command_view = CommandView::new();
         let mut studio_view = StudioView::new();
         // Load workflow file into studio view
-        let _ = studio_view.load_file(workflow_path.to_path_buf());
+        if let Err(e) = studio_view.load_file(workflow_path.to_path_buf()) {
+            tracing::error!(
+                "Failed to load workflow file {}: {}",
+                workflow_path.display(),
+                e
+            );
+        }
         let control_view = ControlView::new();
 
         // Initialize LLM response channel
@@ -348,7 +354,14 @@ impl App {
     ///
     /// Used by `nika studio <file>` to open a specific workflow.
     pub fn with_studio_file(mut self, path: std::path::PathBuf) -> Self {
-        let _ = self.studio_view.load_file(path);
+        if let Err(e) = self.studio_view.load_file(path.clone()) {
+            tracing::error!("Failed to load studio file {}: {}", path.display(), e);
+            self.command_view.chat.add_system_message(format!(
+                "Failed to load file {}: {}",
+                path.display(),
+                e
+            ));
+        }
         self
     }
 
@@ -385,7 +398,7 @@ impl App {
     /// - Control (3/x): Configuration and preferences
     ///
     /// Returns `Ok(true)` if the wizard should be launched after TUI exit
-    pub async fn run_unified(mut self) -> Result<bool> {
+    pub fn run_unified(mut self) -> Result<bool> {
         tracing::info!("TUI (unified) started");
 
         let startup_report = startup::verify_startup()?;

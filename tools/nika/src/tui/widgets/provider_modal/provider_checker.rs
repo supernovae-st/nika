@@ -56,7 +56,7 @@ impl ProviderChecker {
             "groq" => self.check_groq().await,
             "deepseek" => self.check_deepseek().await,
             "gemini" => self.check_gemini().await,
-            "native" => self.check_native().await,
+            "native" => self.check_native(),
             _ => Err("Unknown provider".to_string()),
         };
 
@@ -188,7 +188,7 @@ impl ProviderChecker {
     }
 
     /// Check native inference availability
-    async fn check_native(&self) -> Result<(), String> {
+    fn check_native(&self) -> Result<(), String> {
         // Native inference via mistral.rs
         // Check if the native-inference feature is enabled
         #[cfg(feature = "native-inference")]

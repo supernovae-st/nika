@@ -1,6 +1,6 @@
 [package]
 name = "nika-lsp-core"
-version = "0.36.0"
+version = "0.37.0"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>"]
 description = "Protocol-agnostic LSP intelligence for Nika workflows"

@@ -162,91 +162,6 @@ impl ChatMode {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Helper Types
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/// Text selection state
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct TextSelection {
-    pub active: bool,
-    pub start: SelectionPos,
-    pub end: SelectionPos,
-}
-
-/// Selection position in text
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct SelectionPos {
-    pub line: usize,
-    pub col: usize,
-}
-
-#[allow(dead_code)]
-impl TextSelection {
-    pub fn new() -> Self {
-        Self {
-            active: false,
-            start: SelectionPos::default(),
-            end: SelectionPos::default(),
-        }
-    }
-
-    pub fn start_selection(&mut self, line: usize, col: usize) {
-        self.active = true;
-        self.start = SelectionPos { line, col };
-        self.end = SelectionPos { line, col };
-    }
-
-    pub fn update_selection(&mut self, line: usize, col: usize) {
-        if self.active {
-            self.end = SelectionPos { line, col };
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.active = false;
-        self.start = SelectionPos::default();
-        self.end = SelectionPos::default();
-    }
-
-    /// Get normalized selection range (start always before end)
-    pub fn normalized(&self) -> (SelectionPos, SelectionPos) {
-        if self.start.line < self.end.line
-            || (self.start.line == self.end.line && self.start.col <= self.end.col)
-        {
-            (self.start, self.end)
-        } else {
-            (self.end, self.start)
-        }
-    }
-
-    /// Check if position is within selection
-    pub fn contains(&self, line: usize, col: usize) -> bool {
-        if !self.active {
-            return false;
-        }
-        let (start, end) = self.normalized();
-        if line < start.line || line > end.line {
-            return false;
-        }
-        if line == start.line && col < start.col {
-            return false;
-        }
-        if line == end.line && col > end.col {
-            return false;
-        }
-        true
-    }
-}
-
-impl Default for TextSelection {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Serializable Chat Session (HIGH 8 - Persistent Sessions)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -407,31 +322,5 @@ mod tests {
     fn test_chat_mode_icon() {
         assert_eq!(ChatMode::Infer.icon(), "⚡");
         assert_eq!(ChatMode::Agent.icon(), "🐔");
-    }
-
-    #[test]
-    fn test_text_selection_normalized() {
-        let mut sel = TextSelection::new();
-        sel.start_selection(5, 10);
-        sel.update_selection(3, 5);
-
-        let (start, end) = sel.normalized();
-        assert_eq!(start.line, 3);
-        assert_eq!(start.col, 5);
-        assert_eq!(end.line, 5);
-        assert_eq!(end.col, 10);
-    }
-
-    #[test]
-    fn test_text_selection_contains() {
-        let mut sel = TextSelection::new();
-        sel.start_selection(2, 5);
-        sel.update_selection(4, 10);
-
-        assert!(sel.contains(3, 0));
-        assert!(sel.contains(2, 5));
-        assert!(sel.contains(4, 10));
-        assert!(!sel.contains(1, 0));
-        assert!(!sel.contains(5, 0));
     }
 }

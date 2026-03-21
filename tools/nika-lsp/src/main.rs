@@ -25,7 +25,6 @@ mod completion;
 mod diagnostics;
 mod document;
 mod mcp_discovery;
-mod node_context;
 mod position;
 mod template_validation;
 

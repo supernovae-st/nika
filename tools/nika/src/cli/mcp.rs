@@ -341,7 +341,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                         }
                         println!();
                     }
-                    Ok(Some(_)) | Ok(None) => {
+                    Ok(Some(_) | None) => {
                         if global && !project {
                             println!("{} No global MCP servers configured", "ℹ".cyan());
                             if let Some(p) = global_config_path() {
@@ -381,7 +381,7 @@ pub async fn handle_mcp_command(action: McpAction) -> Result<(), NikaError> {
                         }
                         println!();
                     }
-                    Ok(Some(_)) | Ok(None) => {
+                    Ok(Some(_) | None) => {
                         if project && !global {
                             println!("{} No project MCP servers configured", "ℹ".cyan());
                             if let Some(p) = project_config_path() {

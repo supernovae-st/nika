@@ -323,12 +323,7 @@ fn check_trace_directory() -> Vec<DiagnosticCheck> {
     if let Ok(entries) = fs::read_dir(&trace_dir) {
         let count = entries
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map(|ext| ext == "ndjson")
-                    .unwrap_or(false)
-            })
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "ndjson"))
             .count();
 
         if count > 10_000 {
@@ -367,8 +362,7 @@ fn check_workflow_files() -> DiagnosticCheck {
                 .filter(|e| {
                     e.file_name()
                         .to_str()
-                        .map(|s| s.ends_with(".nika.yaml"))
-                        .unwrap_or(false)
+                        .is_some_and(|s| s.ends_with(".nika.yaml"))
                 })
                 .count()
         })
@@ -382,8 +376,7 @@ fn check_workflow_files() -> DiagnosticCheck {
         .filter(|e| {
             e.file_name()
                 .to_str()
-                .map(|s| s.ends_with(".nika.yaml"))
-                .unwrap_or(false)
+                .is_some_and(|s| s.ends_with(".nika.yaml"))
         })
         .count();
 

@@ -1010,19 +1010,49 @@ impl View for MonitorView {
 
         // Removed internal footer - global StatusBar handles this now
         // 4-panel grid (2x2) using full area
+        // Adapt layout based on render_mode:
+        // - Compact: tasks are single-line, give more vertical space to detail panels
+        // - Expanded: balanced 50/50 split
+        // - Full: tasks are multi-line, give more vertical space to mission panel
+        let (v_top, v_bottom) = match self.render_mode {
+            RenderMode::Compact => (40, 60),
+            RenderMode::Expanded => (50, 50),
+            RenderMode::Full => (60, 40),
+        };
+        // Adapt horizontal split based on terminal width
+        // - Narrow (<120 cols): give more space to left panels (mission/detail)
+        // - Standard: balanced 50/50
+        // - Wide (>=160 cols): give more space to right panels (DAG/reasoning)
+        let (h_left, h_right) = if area.width < 120 {
+            (55, 45)
+        } else if area.width >= 160 {
+            (45, 55)
+        } else {
+            (50, 50)
+        };
+
         let rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([
+                Constraint::Percentage(v_top),
+                Constraint::Percentage(v_bottom),
+            ])
             .split(area);
 
         let top_panels = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([
+                Constraint::Percentage(h_left),
+                Constraint::Percentage(h_right),
+            ])
             .split(rows[0]);
 
         let bottom_panels = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([
+                Constraint::Percentage(h_left),
+                Constraint::Percentage(h_right),
+            ])
             .split(rows[1]);
 
         // Refresh caches before rendering (only rebuild if data changed)

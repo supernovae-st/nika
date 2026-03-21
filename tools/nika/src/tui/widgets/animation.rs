@@ -230,10 +230,10 @@ impl Easing {
     /// Elastic easing (overshoots then settles) - Phase 11-12
     /// Good for error feedback that needs attention
     pub fn elastic(t: f32) -> f32 {
-        if t == 0.0 {
+        if t <= 0.0 {
             return 0.0;
         }
-        if t == 1.0 {
+        if t >= 1.0 {
             return 1.0;
         }
 
@@ -247,10 +247,10 @@ impl Easing {
     /// Spring easing (oscillating settle) - Phase 11-12
     /// Good for bouncy UI elements
     pub fn spring(t: f32) -> f32 {
-        if t == 0.0 {
+        if t <= 0.0 {
             return 0.0;
         }
-        if t == 1.0 {
+        if t >= 1.0 {
             return 1.0;
         }
 

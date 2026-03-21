@@ -196,9 +196,10 @@ async fn handle_import(
         })?;
 
     // Detect MIME type via magic bytes
-    let mime_type = infer::get(&data)
-        .map(|t| t.mime_type().to_string())
-        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let mime_type = infer::get(&data).map_or_else(
+        || "application/octet-stream".to_string(),
+        |t| t.mime_type().to_string(),
+    );
 
     let size = data.len() as u64;
 
@@ -275,11 +276,10 @@ fn handle_stats(store: &CasStore, quiet: bool) -> Result<(), NikaError> {
         std::collections::BTreeMap::new();
     for entry in &entries {
         // Extract shard prefix (first 2 chars of hash after "blake3:")
-        let shard = entry
-            .hash
-            .strip_prefix("blake3:")
-            .map(|h: &str| h[..2.min(h.len())].to_string())
-            .unwrap_or_else(|| "??".to_string());
+        let shard = entry.hash.strip_prefix("blake3:").map_or_else(
+            || "??".to_string(),
+            |h: &str| h[..2.min(h.len())].to_string(),
+        );
         let counter = shards.entry(shard).or_insert((0, 0));
         counter.0 += 1;
         counter.1 += entry.size;

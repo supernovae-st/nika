@@ -13,7 +13,7 @@ use crate::document::DocumentState;
 
 /// Regex to find `{{with.alias}}` patterns with their positions.
 /// Captures the full match and the path (e.g., "alias.field").
-/// Also matches legacy `{{use.alias}}` for backwards compatibility.
+/// Also matches legacy `{{use.alias}}` syntax for migration support.
 static USE_TEMPLATE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{\{\s*(?:with|use)\.(\w+(?:\.\w+)*)(?:\s*\|\s*\w+)?\s*\}\}").unwrap());
 
@@ -51,8 +51,8 @@ fn extract_refs_with_positions(text: &str) -> Vec<TemplateRef> {
 
 /// Validate template references in a workflow.
 ///
-/// Checks that all `{{use.alias}}` references in task prompts
-/// are defined in the task's `use:` block.
+/// Checks that all `{{with.alias}}` references in task prompts
+/// are defined in the task's `with:` block.
 pub fn validate_templates(
     raw: &RawWorkflow,
     analyzed: &AnalyzedWorkflow,
@@ -98,8 +98,8 @@ pub fn validate_templates(
                     // Build suggestion with available aliases
                     let suggestion = if declared_aliases.is_empty() {
                         format!(
-                            "No bindings declared in 'use:' block for task '{}'. \
-                             Add a 'use:' block with alias definitions.",
+                            "No bindings declared in 'with:' block for task '{}'. \
+                             Add a 'with:' block with alias definitions.",
                             task_id
                         )
                     } else {

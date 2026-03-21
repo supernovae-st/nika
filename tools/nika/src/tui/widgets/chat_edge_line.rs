@@ -179,8 +179,8 @@ impl ChatEdgeLine {
             Some(ChatPosition::new(x, self.from.y))
         } else {
             // Diagonal - just show at midpoint
-            let mid_x = (self.from.x + self.to.x) / 2;
-            let mid_y = (self.from.y + self.to.y) / 2;
+            let mid_x = self.from.x / 2 + self.to.x / 2;
+            let mid_y = self.from.y / 2 + self.to.y / 2;
             Some(ChatPosition::new(mid_x, mid_y))
         }
     }

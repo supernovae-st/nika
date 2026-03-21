@@ -299,7 +299,7 @@ pub async fn run_tui(workflow_path: &std::path::Path) -> crate::error::Result<()
     // 5. Create and run TUI with event receiver
     // Use run_unified() for the 3-view architecture (Studio/Command/Control)
     let app = App::new(workflow_path)?.with_broadcast_receiver(event_rx);
-    let tui_result = app.run_unified().await.map(|_| ());
+    let tui_result = app.run_unified().map(|_| ());
 
     // 6. Abort runner if TUI exits early (user pressed q)
     runner_handle.abort();
@@ -362,7 +362,7 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
                     println!("{}", "Starting setup wizard...".dimmed());
                     println!();
                     // Run the wizard
-                    run_tui_wizard().await?;
+                    run_tui_wizard()?;
                     println!();
                     println!("{}", "Setup complete! Starting Nika...".green());
                     println!();
@@ -383,12 +383,12 @@ pub async fn run_tui_standalone() -> crate::error::Result<()> {
     // Create and run standalone app with unified 3-view architecture
     // Starts in Studio view (3-panel: Browser | Editor | DAG)
     let app = App::new_standalone(state)?;
-    let launch_wizard = app.run_unified().await?;
+    let launch_wizard = app.run_unified()?;
 
     // Check if wizard was requested from Settings view
     if launch_wizard {
         println!();
-        run_tui_wizard().await?;
+        run_tui_wizard()?;
     }
 
     Ok(())
@@ -424,7 +424,7 @@ pub async fn run_tui_chat(
         .with_initial_view(TuiView::Command)
         .with_chat_overrides(provider, model);
 
-    app.run_unified().await.map(|_| ())
+    app.run_unified().map(|_| ())
 }
 
 /// Run the TUI in Studio mode (workflow editor)
@@ -457,7 +457,7 @@ pub async fn run_tui_studio(workflow: Option<std::path::PathBuf>) -> crate::erro
         app = app.with_studio_file(full_path);
     }
 
-    app.run_unified().await.map(|_| ())
+    app.run_unified().map(|_| ())
 }
 
 /// Run the TUI with customizable options (view and workflow)
@@ -502,7 +502,7 @@ pub async fn run_tui_with_options(
         app = app.with_studio_file(full_path);
     }
 
-    app.run_unified().await.map(|_| ())
+    app.run_unified().map(|_| ())
 }
 
 /// Find project root by looking for Cargo.toml or .git
@@ -566,7 +566,7 @@ pub async fn run_tui_with_options(
 /// This is the entry point for `nika setup` command.
 /// Runs a full-screen setup wizard separate from the 3-view TUI.
 #[cfg(feature = "tui")]
-pub async fn run_tui_wizard() -> crate::error::Result<()> {
+pub fn run_tui_wizard() -> crate::error::Result<()> {
     use crossterm::{
         event::{self, Event, KeyEventKind},
         execute,
@@ -631,7 +631,7 @@ pub async fn run_tui_wizard() -> crate::error::Result<()> {
 }
 
 #[cfg(not(feature = "tui"))]
-pub async fn run_tui_wizard() -> crate::error::Result<()> {
+pub fn run_tui_wizard() -> crate::error::Result<()> {
     Err(crate::error::NikaError::ValidationError {
         reason: "TUI feature not enabled. Rebuild with --features tui".to_string(),
     })
