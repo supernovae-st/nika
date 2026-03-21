@@ -20,7 +20,20 @@ pub struct HoverResult {
 /// templates, root keys, and content parts.
 pub fn hover(_text: &str, _offset: u32, context: &CursorContext) -> Option<HoverResult> {
     match context {
-        CursorContext::VerbBlock { ref verb, .. } => verb_hover(verb),
+        CursorContext::VerbBlock {
+            ref verb,
+            ref prefix,
+            ..
+        } => {
+            // Try sub-field hover first (e.g., "prompt:" inside infer:)
+            let sub_key = prefix.trim().trim_end_matches(':');
+            if !sub_key.is_empty() {
+                if let Some(r) = verb_subfield_hover(verb, sub_key) {
+                    return Some(r);
+                }
+            }
+            verb_hover(verb)
+        }
         CursorContext::TaskField { prefix, .. } => field_hover(prefix),
         CursorContext::WorkflowRoot { prefix } => root_key_hover(prefix),
         CursorContext::ContentPart { focus, .. } => content_hover(focus),
@@ -159,6 +172,57 @@ fn verb_hover(verb: &str) -> Option<HoverResult> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Verb Sub-field Documentation
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn verb_subfield_hover(verb: &str, key: &str) -> Option<HoverResult> {
+    let doc = match key {
+        "prompt" => match verb {
+            "infer" => "## `prompt:` — Text Prompt\n\nThe text sent to the LLM. Supports `{{with.alias}}` templates.\n\nOptional when `content:` is present (vision/multimodal).",
+            "agent" => "## `prompt:` — Agent Goal\n\nThe goal/instruction for the agentic loop.\n\nThe agent will use tools to accomplish this goal.",
+            _ => return None,
+        },
+        "system" => "## `system:` — System Prompt\n\nSystem-level instructions for the LLM.\n\n```yaml\nsystem: |\n  You are a senior researcher.\n  Always cite sources.\n```",
+        "model" => "## `model:` — Model Override\n\nOverride the default model for this verb.\n\n**Claude:** `claude-sonnet-4-6` · `claude-opus-4` · `claude-haiku-4-5`\n\n**OpenAI:** `gpt-4o` · `gpt-4o-mini` · `o1` · `o3`\n\n**Others:** `mistral-large` · `gemma-3-27b` · `deepseek-chat`",
+        "temperature" => "## `temperature:` — Sampling Temperature\n\nControls randomness. Range: `0.0` (deterministic) to `2.0` (creative).\n\n| Value | Use Case |\n|-------|----------|\n| 0.0 | Factual extraction |\n| 0.3-0.5 | Analysis, summaries |\n| 0.7 | General creative |\n| 1.0+ | Brainstorming |",
+        "max_tokens" => "## `max_tokens:` — Maximum Output Tokens\n\nLimit the LLM response length.\n\n| Model | Max Context |\n|-------|-------------|\n| claude-sonnet-4-6 | 8,192 output |\n| gpt-4o | 16,384 output |\n| o1 | 100,000 output |",
+        "extended_thinking" | "thinking" => "## `extended_thinking:` — Chain-of-Thought Reasoning\n\n**Claude-only.** Enables step-by-step reasoning.\n\n```yaml\nextended_thinking: true\nthinking_budget: 8192\n```\n\nRequires a Claude model. Other providers will error (NIKA-032).",
+        "thinking_budget" => "## `thinking_budget:` — Thinking Token Budget\n\nMax tokens for the thinking/reasoning phase.\n\nOnly used when `extended_thinking: true`.",
+        "command" => "## `command:` — Shell Command\n\nThe command to execute.\n\n```yaml\ncommand: \"npm run build\"\n```\n\nWith `shell: false` (default), uses secure shlex parsing.",
+        "shell" => "## `shell:` — Shell Mode\n\n`true` — Run via `sh -c` (allows pipes, redirects, env expansion)\n\n`false` (default) — Secure shlex parsing (prevents injection)",
+        "cwd" | "working_dir" => "## `cwd:` — Working Directory\n\nSet the working directory for the command.\n\n```yaml\ncwd: ./project\n```",
+        "env" => "## `env:` — Environment Variables\n\nEnvironment variables passed to the command.\n\n```yaml\nenv:\n  NODE_ENV: production\n  API_KEY: $SECRET\n```",
+        "url" => "## `url:` — Request URL\n\n**Required.** The HTTP URL to fetch.\n\n```yaml\nurl: \"https://api.example.com/data\"\n```",
+        "method" => "## `method:` — HTTP Method\n\n`GET` (default) · `POST` · `PUT` · `DELETE` · `PATCH` · `HEAD` · `OPTIONS`",
+        "headers" => "## `headers:` — HTTP Headers\n\n```yaml\nheaders:\n  Authorization: \"Bearer {{inputs.token}}\"\n  Content-Type: application/json\n```",
+        "body" => "## `body:` — Request Body\n\nRaw string body for POST/PUT requests.\n\nFor JSON, prefer `json:` which auto-serializes.",
+        "json" => "## `json:` — JSON Request Body\n\nJSON object auto-serialized as request body.\n\n```yaml\njson:\n  query: \"{{with.topic}}\"\n  limit: 10\n```",
+        "extract" => "## `extract:` — Post-Processing Mode\n\n9 extraction modes for HTML/JSON responses:\n\n| Mode | Description |\n|------|-------------|\n| `markdown` | Clean Markdown via htmd |\n| `article` | Main content via Readability |\n| `text` | Visible text (+ optional `selector:`) |\n| `selector` | Raw HTML by CSS selector |\n| `metadata` | OG, Twitter Cards, JSON-LD |\n| `links` | Link classification |\n| `jsonpath` | JSONPath query (use `selector:`) |\n| `feed` | RSS/Atom/JSON Feed parsing |\n| `llm_txt` | AI-era .well-known/llm.txt |",
+        "selector" => "## `selector:` — CSS/JSONPath Selector\n\nUsed with `extract: text`, `extract: selector`, or `extract: jsonpath`.\n\n```yaml\nextract: selector\nselector: \"article.main h1\"\n```",
+        "response" => "## `response:` — Response Mode\n\n`full` — JSON with status, headers, body, final URL\n\n`binary` — Store in CAS, return hash for media pipeline",
+        "follow_redirects" => "## `follow_redirects:` — Follow Redirects\n\n`true` (default) — Follow HTTP 3xx redirects\n\n`false` — Return redirect response directly",
+        "tool" => "## `tool:` — MCP Tool Name\n\n**Required.** Name of the MCP tool to invoke.\n\n```yaml\ntool: novanet_context\n```\n\n**Builtin tools:** `nika:sleep` · `nika:log` · `nika:import` · `nika:thumbnail` · ...",
+        "mcp" => "## `mcp:` — MCP Server\n\nThe MCP server providing the tool.\n\n```yaml\nmcp: novanet\n```\n\nFor agents: array of servers `mcp: [novanet, perplexity]`",
+        "params" => "## `params:` — Tool Parameters\n\nJSON parameters passed to the MCP tool.\n\n```yaml\nparams:\n  mode: page\n  entity_id: qr-code\n```",
+        "resource" => "## `resource:` — MCP Resource URI\n\nRead a resource (mutually exclusive with `tool:`).\n\n```yaml\nresource: \"novanet://entity/qr-code\"\n```",
+        "tools" => "## `tools:` — Agent Tools\n\nBuiltin tools available to the agent.\n\n```yaml\ntools: [nika:read, nika:write, nika:edit]\n```",
+        "skills" => "## `skills:` — Agent Skills\n\nSkills to inject into the agent's system prompt.\n\n```yaml\nskills: [research, summarize]\n```\n\nMust be defined in workflow-level `skills:` block.",
+        "max_turns" | "max_iterations" => "## `max_turns:` — Maximum Iterations\n\nMax conversation turns before stopping the agent loop.\n\n```yaml\nmax_turns: 10\n```",
+        "depth_limit" => "## `depth_limit:` — Recursion Depth\n\nMax `spawn_agent` recursion depth.\n\n```yaml\ndepth_limit: 3\n```",
+        "token_budget" => "## `token_budget:` — Total Token Budget\n\nMax total tokens (input + output) across all turns.\n\n```yaml\ntoken_budget: 100000\n```",
+        "from" => "## `from:` — Agent Definition Reference\n\nReference a reusable agent defined in `agents:` block.\n\n```yaml\nagents:\n  researcher:\n    system: \"You are a researcher\"\n    tools: [perplexity/search]\n\ntasks:\n  - id: research\n    agent:\n      from: researcher\n      prompt: \"Find papers on AI\"\n```",
+        "tool_choice" => "## `tool_choice:` — Tool Selection Strategy\n\n`auto` (default) — Model decides when to use tools\n\n`required` — Must use a tool every turn\n\n`none` — Disable tool use",
+        "scope" => "## `scope:` — Agent Scope Preset\n\n`full` — All configured tools\n\n`minimal` — Restricted tool set\n\n`debug` — Verbose logging enabled",
+        "stop_sequences" => "## `stop_sequences:` — Stop Sequences\n\nStrings that cause generation to stop.\n\n```yaml\nstop_sequences: [\"END\", \"DONE\"]\n```",
+        _ => return None,
+    };
+    Some(HoverResult {
+        contents: doc.to_string(),
+        range: None,
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Field Documentation
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -218,6 +282,8 @@ fn root_key_hover(prefix: &str) -> Option<HoverResult> {
         "edges" => "## `edges:` — Explicit DAG Edges\n\nDeclare edges between tasks explicitly.\n\n```yaml\nedges:\n  - from: step1\n    to: step2\n```",
         "skills" => "## `skills:` — Skill Definitions\n\nMap skill aliases to file paths for prompt augmentation.\n\n```yaml\nskills:\n  research: ./skills/research.md\n  summarize: pkg:@supernovae/summarize\n```\n\nReferenced by agent `skills:` arrays.",
         "agents" => "## `agents:` — Reusable Agent Definitions\n\nDefine agent configs reusable across tasks.\n\n```yaml\nagents:\n  researcher:\n    system: \"You are a researcher\"\n    tools: [nika:read, perplexity/search]\n```\n\nReference via `from: researcher` in agent tasks.",
+        "imports" => "## `imports:` — External Imports\n\nImport tasks or skills from external sources.\n\n```yaml\nimports:\n  - path: ./shared/common.nika.yaml\n    prefix: common_\n```\n\nAlias for `include:`.",
+        "pkg" => "## `pkg:` — Package Includes\n\nInclude packages from the Nika registry.\n\n```yaml\npkg:\n  include:\n    - pkg:@supernovae/seo@1.0\n```",
         "artifacts" => "## `artifacts:` — Workflow Artifact Defaults\n\nDefault artifact output configuration.",
         "log" => "## `log:` — Logging Configuration\n\nWorkflow-level logging settings.\n\n```yaml\nlog:\n  level: info\n  format: json\n```",
         _ => return None,
@@ -391,10 +457,56 @@ mod tests {
     }
 
     #[test]
+    fn verb_subfields_have_hover() {
+        // Common fields that should work for any verb
+        for key in [
+            "model",
+            "temperature",
+            "system",
+            "extended_thinking",
+            "thinking_budget",
+        ] {
+            let result = verb_subfield_hover("infer", key);
+            assert!(
+                result.is_some(),
+                "Missing verb sub-field hover for infer.{}",
+                key
+            );
+        }
+        // Verb-specific fields
+        assert!(verb_subfield_hover("infer", "prompt").is_some());
+        assert!(verb_subfield_hover("agent", "prompt").is_some());
+        assert!(verb_subfield_hover("exec", "command").is_some());
+        assert!(verb_subfield_hover("exec", "shell").is_some());
+        assert!(verb_subfield_hover("fetch", "url").is_some());
+        assert!(verb_subfield_hover("fetch", "extract").is_some());
+        assert!(verb_subfield_hover("invoke", "tool").is_some());
+        assert!(verb_subfield_hover("invoke", "resource").is_some());
+        assert!(verb_subfield_hover("agent", "max_turns").is_some());
+        assert!(verb_subfield_hover("agent", "from").is_some());
+        assert!(verb_subfield_hover("agent", "tools").is_some());
+    }
+
+    #[test]
+    fn extract_hover_has_all_modes() {
+        let r = verb_subfield_hover("fetch", "extract").unwrap();
+        for mode in [
+            "markdown", "article", "text", "selector", "metadata", "links", "jsonpath", "feed",
+            "llm_txt",
+        ] {
+            assert!(
+                r.contents.contains(mode),
+                "Extract hover missing mode: {}",
+                mode
+            );
+        }
+    }
+
+    #[test]
     fn all_root_keys_have_hover() {
         for k in [
             "schema", "workflow", "tasks", "mcp", "context", "include", "provider", "inputs",
-            "edges",
+            "edges", "imports", "pkg",
         ] {
             let result = root_key_hover(k);
             assert!(result.is_some(), "Missing hover for root key: {}", k);
