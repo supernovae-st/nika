@@ -159,6 +159,7 @@ mod tests {
     fn test_validate_valid_workflow() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -179,6 +180,7 @@ tasks:
     fn test_validate_unknown_task_reference() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1

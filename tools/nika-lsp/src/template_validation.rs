@@ -204,6 +204,7 @@ mod tests {
     fn test_valid_template_reference() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -225,6 +226,7 @@ tasks:
     fn test_undefined_template_reference() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -247,6 +249,7 @@ tasks:
     fn test_no_with_block() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -264,6 +267,7 @@ tasks:
     fn test_multiple_undefined_references() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: producer
@@ -283,6 +287,7 @@ tasks:
     fn test_nested_path_validation() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -305,6 +310,7 @@ tasks:
     fn test_agent_prompt_validation() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
@@ -325,6 +331,7 @@ tasks:
     fn test_exec_command_validation() {
         let content = r#"
 schema: "nika/workflow@0.12"
+model: test-model
 workflow: test
 tasks:
   - id: step1
