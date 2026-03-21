@@ -4,6 +4,8 @@
 //!                     wiring_checkpoint_9 (Provider selection) +
 //!                     wiring_checkpoint_10 (Full TUI navigation)
 //!
+//! Updated for 3-View architecture (v0.35): Studio, Command, Control
+//!
 //! Verifies: MonitorView, RigProvider, TuiView enum, ViewAction,
 //!           View trait polymorphism, and key event handling.
 
@@ -91,13 +93,12 @@ fn focus_prev_cycles_four_panels() {
 }
 
 #[test]
-fn panel_id_has_four_variants() {
-    let all = PanelId::panels_for_view(TuiView::Runner);
-    assert_eq!(all.len(), 4, "MonitorView should have 4 panels");
-    assert_eq!(all[0], PanelId::RunnerMission);
-    assert_eq!(all[1], PanelId::RunnerDag);
-    assert_eq!(all[2], PanelId::RunnerNovanet);
-    assert_eq!(all[3], PanelId::RunnerReasoning);
+fn panel_id_command_view_has_chat_panels() {
+    let all = PanelId::panels_for_view(TuiView::Command);
+    assert_eq!(all.len(), 3, "Command view should have 3 chat panels");
+    assert_eq!(all[0], PanelId::ChatConversation);
+    assert_eq!(all[1], PanelId::ChatInput);
+    assert_eq!(all[2], PanelId::ChatContext);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -332,7 +333,7 @@ fn studio_view_constructs() {
 
 #[test]
 #[allow(deprecated)]
-fn runner_view_constructs() {
+fn monitor_view_constructs() {
     let _view = MonitorView::new();
 }
 
@@ -347,7 +348,7 @@ fn settings_view_constructs() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TuiView Enum (was WIRING-10)
+// TuiView Enum — 3-View Architecture (Studio, Command, Control)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
@@ -357,28 +358,26 @@ fn tui_view_default_is_studio() {
 }
 
 #[test]
-fn tui_view_all_four() {
+fn tui_view_all_three() {
     let all = TuiView::all();
-    assert_eq!(all.len(), 4, "All views should be 4 (v0.22 4-Views)");
+    assert_eq!(all.len(), 3, "All views should be 3 (v0.35 3-Views)");
     assert_eq!(all[0], TuiView::Studio);
-    assert_eq!(all[1], TuiView::Runner);
-    assert_eq!(all[2], TuiView::Chat);
-    assert_eq!(all[3], TuiView::Settings);
+    assert_eq!(all[1], TuiView::Command);
+    assert_eq!(all[2], TuiView::Control);
 }
 
 #[test]
 fn tui_view_all_including_auxiliary() {
     let all = TuiView::all_including_auxiliary();
-    assert_eq!(all.len(), 4, "All views should be 4");
+    assert_eq!(all.len(), 3, "All views should be 3");
     assert_eq!(all, TuiView::all());
 }
 
 #[test]
 fn tui_view_is_auxiliary() {
     assert!(!TuiView::Studio.is_auxiliary());
-    assert!(!TuiView::Runner.is_auxiliary());
-    assert!(!TuiView::Chat.is_auxiliary());
-    assert!(TuiView::Settings.is_auxiliary());
+    assert!(!TuiView::Command.is_auxiliary());
+    assert!(TuiView::Control.is_auxiliary());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -386,28 +385,26 @@ fn tui_view_is_auxiliary() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
-fn tui_view_next_cycles_all_four() {
-    assert_eq!(TuiView::Studio.next(), TuiView::Runner);
-    assert_eq!(TuiView::Runner.next(), TuiView::Chat);
-    assert_eq!(TuiView::Chat.next(), TuiView::Settings);
+fn tui_view_next_cycles_all_three() {
+    assert_eq!(TuiView::Studio.next(), TuiView::Command);
+    assert_eq!(TuiView::Command.next(), TuiView::Control);
     assert_eq!(
-        TuiView::Settings.next(),
+        TuiView::Control.next(),
         TuiView::Studio,
         "Should cycle back"
     );
 }
 
 #[test]
-fn tui_view_prev_cycles_all_four() {
-    assert_eq!(TuiView::Studio.prev(), TuiView::Settings);
-    assert_eq!(TuiView::Runner.prev(), TuiView::Studio);
-    assert_eq!(TuiView::Chat.prev(), TuiView::Runner);
-    assert_eq!(TuiView::Settings.prev(), TuiView::Chat);
+fn tui_view_prev_cycles_all_three() {
+    assert_eq!(TuiView::Studio.prev(), TuiView::Control);
+    assert_eq!(TuiView::Command.prev(), TuiView::Studio);
+    assert_eq!(TuiView::Control.prev(), TuiView::Command);
 }
 
 #[test]
 fn tui_view_toggle_is_next() {
-    assert_eq!(TuiView::Chat.toggle(), TuiView::Chat.next());
+    assert_eq!(TuiView::Command.toggle(), TuiView::Command.next());
     assert_eq!(TuiView::Studio.toggle(), TuiView::Studio.next());
 }
 
@@ -418,33 +415,29 @@ fn tui_view_toggle_is_next() {
 #[test]
 fn tui_view_numbers() {
     assert_eq!(TuiView::Studio.number(), 1);
-    assert_eq!(TuiView::Runner.number(), 2);
-    assert_eq!(TuiView::Chat.number(), 3);
-    assert_eq!(TuiView::Settings.number(), 4);
+    assert_eq!(TuiView::Command.number(), 2);
+    assert_eq!(TuiView::Control.number(), 3);
 }
 
 #[test]
 fn tui_view_titles() {
     assert_eq!(TuiView::Studio.title(), "NIKA STUDIO");
-    assert_eq!(TuiView::Runner.title(), "NIKA RUNNER");
-    assert_eq!(TuiView::Chat.title(), "NIKA CHAT");
-    assert_eq!(TuiView::Settings.title(), "NIKA SETTINGS");
+    assert_eq!(TuiView::Command.title(), "NIKA COMMAND");
+    assert_eq!(TuiView::Control.title(), "NIKA CONTROL");
 }
 
 #[test]
 fn tui_view_icons() {
     assert_eq!(TuiView::Studio.icon(), "📝");
-    assert_eq!(TuiView::Runner.icon(), "▶");
-    assert_eq!(TuiView::Chat.icon(), "💬");
-    assert_eq!(TuiView::Settings.icon(), "⚙");
+    assert_eq!(TuiView::Command.icon(), "▶");
+    assert_eq!(TuiView::Control.icon(), "⚙");
 }
 
 #[test]
 fn tui_view_shortcuts() {
     assert_eq!(TuiView::Studio.shortcut(), 's');
-    assert_eq!(TuiView::Runner.shortcut(), 'r');
-    assert_eq!(TuiView::Chat.shortcut(), 'c');
-    assert_eq!(TuiView::Settings.shortcut(), ',');
+    assert_eq!(TuiView::Command.shortcut(), 'c');
+    assert_eq!(TuiView::Control.shortcut(), 'x');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -465,9 +458,9 @@ fn view_action_quit() {
 
 #[test]
 fn view_action_switch_view() {
-    let action = ViewAction::SwitchView(TuiView::Chat);
+    let action = ViewAction::SwitchView(TuiView::Command);
     match action {
-        ViewAction::SwitchView(view) => assert_eq!(view, TuiView::Chat),
+        ViewAction::SwitchView(view) => assert_eq!(view, TuiView::Command),
         _ => panic!("Expected SwitchView"),
     }
 }
@@ -542,7 +535,7 @@ fn studio_view_search_key() {
 
 #[test]
 #[allow(deprecated)]
-fn studio_view_switch_to_runner() {
+fn studio_view_switch_to_command() {
     let mut view = StudioView::new();
     let mut state = TuiState::new("test.nika.yaml");
 
@@ -550,7 +543,7 @@ fn studio_view_switch_to_runner() {
     let action = view.handle_key(key_2, &mut state);
 
     assert!(
-        matches!(action, ViewAction::SwitchView(TuiView::Runner)),
-        "2 should switch to Runner"
+        matches!(action, ViewAction::SwitchView(TuiView::Command)),
+        "2 should switch to Command"
     );
 }
