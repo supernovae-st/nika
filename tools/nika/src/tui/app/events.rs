@@ -72,18 +72,7 @@ impl App {
     /// Poll for complete LLM responses
     fn poll_llm_responses(&mut self) {
         while let Ok(response) = self.llm_response_rx.try_recv() {
-            // Update chat overlay
-            if let Some(last) = self.state.ui.chat_overlay.messages.last() {
-                if last.content == "Thinking..." {
-                    self.state.ui.chat_overlay.messages.pop();
-                }
-            }
-            self.state
-                .ui
-                .chat_overlay
-                .add_nika_message(response.clone());
-
-            // Update chat view
+            // Update chat view (ChatView is the single source of truth)
             if let Some(last) = self.command_view.chat.messages.last() {
                 if last.content == "Thinking..." || last.content.starts_with("$ ") {
                     self.command_view.chat.messages.pop();

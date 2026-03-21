@@ -106,29 +106,6 @@ pub enum Action {
     // ═══ View Navigation Actions ═══
     /// Switch to a specific view (number keys 1/2/3/4)
     SwitchView(TuiView),
-    // ═══ Chat Overlay Actions ═══
-    /// Insert character in chat overlay input
-    ChatOverlayInput(char),
-    /// Backspace in chat overlay input
-    ChatOverlayBackspace,
-    /// Delete character in chat overlay input
-    ChatOverlayDelete,
-    /// Move cursor left in chat overlay
-    ChatOverlayCursorLeft,
-    /// Move cursor right in chat overlay
-    ChatOverlayCursorRight,
-    /// Navigate history up in chat overlay
-    ChatOverlayHistoryUp,
-    /// Navigate history down in chat overlay
-    ChatOverlayHistoryDown,
-    /// Send message in chat overlay
-    ChatOverlaySend,
-    /// Clear chat overlay messages
-    ChatOverlayClear,
-    /// Scroll up in chat overlay
-    ChatOverlayScrollUp,
-    /// Scroll down in chat overlay
-    ChatOverlayScrollDown,
     // ═══ View-Specific Actions ═══
     /// Action delegated from a view's handle_key() that needs App-level handling
     ViewSpecific(ViewAction),
@@ -161,7 +138,6 @@ impl Action {
             | ViewAction::OpenInStudio(_)
             | ViewAction::ValidateWorkflow(_)
             | ViewAction::SendChatMessage(_)
-            | ViewAction::ToggleChatOverlay
             | ViewAction::SetTheme(_)
             | ViewAction::VerifyProviders
             | ViewAction::RefreshVerification

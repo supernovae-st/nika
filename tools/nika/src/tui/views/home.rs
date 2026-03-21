@@ -1056,8 +1056,8 @@ impl View for HomeView {
                 return ViewAction::None;
             }
 
-            // Chat overlay toggle
-            KeyCode::Char('c') => return ViewAction::ToggleChatOverlay,
+            // Chat: switch to Command view
+            KeyCode::Char('c') => return ViewAction::SwitchView(TuiView::Command),
 
             // View switching: number keys
             // 1=Studio, 2=Command, 3=Control

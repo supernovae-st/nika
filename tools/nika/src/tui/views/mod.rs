@@ -276,8 +276,6 @@ pub enum ViewAction {
     OpenInStudio(std::path::PathBuf),
     /// Send a message to the chat agent
     SendChatMessage(String),
-    /// Toggle chat overlay
-    ToggleChatOverlay,
     /// Show an error message
     Error(String),
     // ═══════════════════════════════════════════════════════════════════════

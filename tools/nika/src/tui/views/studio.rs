@@ -1893,7 +1893,7 @@ impl YamlEditorPanel {
                 self.mode = EditorMode::Insert;
                 ViewAction::None
             }
-            KeyCode::Char('c') => ViewAction::ToggleChatOverlay,
+            KeyCode::Char('c') => ViewAction::SwitchView(TuiView::Command),
             // Toggle DAG expanded/minimal mode
             KeyCode::Char('e') | KeyCode::Char('E') => {
                 self.toggle_dag_mode();

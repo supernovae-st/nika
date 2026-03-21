@@ -195,8 +195,6 @@ pub enum TuiMode {
     Metrics,
     /// Settings overlay (API keys, provider config)
     Settings,
-    /// Chat overlay (contextual AI assistance)
-    ChatOverlay,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

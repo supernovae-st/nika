@@ -1,11 +1,10 @@
-//! UI state slice — focus, mode, scroll, theme, overlays
+//! UI state slice — focus, mode, scroll, theme, tab state
 //!
 //! Extracted from TuiState to isolate UI interaction state
 //! from execution and data tracking concerns.
 
 use std::collections::HashMap;
 
-use super::chat_overlay::ChatOverlayState;
 use super::types::{PanelId, TuiMode};
 use crate::tui::theme::ThemeMode;
 use crate::tui::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
@@ -13,7 +12,7 @@ use crate::tui::views::{DagTab, MissionTab, NovanetTab, ReasoningTab};
 /// UI-related state extracted from TuiState
 ///
 /// Holds focus tracking, interaction mode, scroll positions,
-/// theme preferences, and overlay states.
+/// theme preferences, and tab state.
 #[derive(Debug)]
 pub struct UiState {
     /// Currently focused panel
@@ -24,8 +23,6 @@ pub struct UiState {
     pub scroll: HashMap<PanelId, usize>,
     /// Theme mode: dark or light
     pub theme_mode: ThemeMode,
-    /// Chat overlay state (contextual AI assistance)
-    pub chat_overlay: ChatOverlayState,
 
     // ── Tab state ──
     /// Mission Control panel tab (Progress / IO / Output)
@@ -45,7 +42,6 @@ impl Default for UiState {
             mode: TuiMode::Normal,
             scroll: HashMap::new(),
             theme_mode: ThemeMode::default(),
-            chat_overlay: ChatOverlayState::new(),
             mission_tab: MissionTab::default(),
             dag_tab: DagTab::default(),
             novanet_tab: NovanetTab::default(),

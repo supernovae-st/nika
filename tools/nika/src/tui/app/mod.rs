@@ -108,7 +108,7 @@ pub struct App {
     pub(crate) studio_view: StudioView,
     /// Control view (wraps SettingsView)
     pub(crate) control_view: ControlView,
-    // ═══ LLM Integration for ChatOverlay ═══
+    // ═══ LLM Integration for ChatView ═══
     /// Channel for receiving LLM responses (complete responses)
     pub(crate) llm_response_rx: mpsc::Receiver<String>,
     // llm_response_tx removed — sender held but never used (Phase 1 cleanup)

@@ -80,10 +80,10 @@ impl App {
                 self.handle_scroll_down();
             }
             Action::ScrollToTop => {
-                self.state.ui.chat_overlay.scroll = 0;
+                // No-op: scroll handled by individual views
             }
             Action::ScrollToBottom => {
-                self.state.ui.chat_overlay.scroll = usize::MAX;
+                // No-op: scroll handled by individual views
             }
 
             // ═══ Pause/Step ═══
@@ -182,21 +182,6 @@ impl App {
             | Action::SettingsCursorLeft
             | Action::SettingsCursorRight => {
                 // Settings overlay actions - handled by SettingsView
-            }
-
-            // ═══ Chat Overlay ═══
-            Action::ChatOverlayInput(_)
-            | Action::ChatOverlayBackspace
-            | Action::ChatOverlayDelete
-            | Action::ChatOverlayCursorLeft
-            | Action::ChatOverlayCursorRight
-            | Action::ChatOverlayHistoryUp
-            | Action::ChatOverlayHistoryDown
-            | Action::ChatOverlaySend
-            | Action::ChatOverlayClear
-            | Action::ChatOverlayScrollUp
-            | Action::ChatOverlayScrollDown => {
-                // Chat overlay actions - handled by ChatView
             }
 
             // ═══ Mode Change ═══
@@ -376,12 +361,6 @@ impl App {
                 self.refresh_native_models();
             }
 
-            // Chat overlay
-            ViewAction::ToggleChatOverlay => {
-                // Note: Chat overlay visibility is controlled via input mode, not state toggle
-                self.set_status("Chat overlay toggled");
-            }
-
             // Error handling
             ViewAction::Error(msg) => {
                 self.set_status(&format!("Error: {}", msg));
@@ -453,14 +432,12 @@ impl App {
 
     /// Handle scroll up action for current view
     fn handle_scroll_up(&mut self) {
-        // Delegate to current view's scroll handler
-        self.state.ui.chat_overlay.scroll_up();
+        // No-op: scroll handled by individual views via their own state
     }
 
     /// Handle scroll down action for current view
     fn handle_scroll_down(&mut self) {
-        // Delegate to current view's scroll handler
-        self.state.ui.chat_overlay.scroll_down();
+        // No-op: scroll handled by individual views via their own state
     }
 
     /// Run a workflow from a file path

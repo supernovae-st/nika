@@ -9,7 +9,7 @@
 //! - `scroll` - Panel scroll state management
 //! - `notification` - Notification system
 //! - `settings` - Settings overlay state
-//! - `chat_overlay` - Chat overlay for contextual AI assistance
+//! - `chat_overlay` - Chat overlay message types (data-only, used by session persistence)
 //! - `cache` - JSON formatting cache
 //!
 //! ## Animation Frame Standard
@@ -37,6 +37,7 @@
 
 mod agent_state;
 mod cache;
+#[allow(dead_code)]
 mod chat_overlay;
 mod mcp_state;
 mod notification;

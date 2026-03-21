@@ -763,7 +763,6 @@ fn test_tui_mode_all_variants() {
     let help = TuiMode::Help;
     let metrics = TuiMode::Metrics;
     let settings = TuiMode::Settings;
-    let chat_overlay = TuiMode::ChatOverlay;
 
     // Test basic equality
     assert_eq!(normal, TuiMode::Normal);
@@ -772,7 +771,6 @@ fn test_tui_mode_all_variants() {
     assert_eq!(help, TuiMode::Help);
     assert_eq!(metrics, TuiMode::Metrics);
     assert_eq!(settings, TuiMode::Settings);
-    assert_eq!(chat_overlay, TuiMode::ChatOverlay);
 
     // Test inequality
     assert_ne!(normal, streaming);
@@ -2100,339 +2098,28 @@ fn test_mcp_response_invalidates_mcp_cache() {
 }
 
 // ═══════════════════════════════════════════
-// CHAT OVERLAY STATE TESTS
+// CHAT OVERLAY MESSAGE TYPE TESTS
+// (ChatOverlayState is data-only, used by session persistence)
 // ═══════════════════════════════════════════
-
-#[test]
-fn test_chat_overlay_state_new() {
-    let state = ChatOverlayState::new();
-    assert_eq!(state.messages.len(), 1);
-    assert_eq!(state.messages[0].role, ChatOverlayMessageRole::System);
-    assert!(state.input.is_empty());
-    assert_eq!(state.cursor, 0);
-    assert_eq!(state.scroll, 0);
-    assert!(state.history.is_empty());
-    assert!(state.history_index.is_none());
-    // New streaming fields
-    assert!(!state.is_streaming);
-    assert!(state.partial_response.is_empty());
-    // Model name depends on env vars, so just check it's not empty
-    assert!(!state.current_model.is_empty());
-}
-
-#[test]
-fn test_chat_overlay_streaming() {
-    let mut state = ChatOverlayState::new();
-    assert!(!state.is_streaming);
-
-    state.start_streaming();
-    assert!(state.is_streaming);
-    assert!(state.partial_response.is_empty());
-
-    state.append_streaming("Hello ");
-    state.append_streaming("world!");
-    assert_eq!(state.partial_response, "Hello world!");
-
-    let result = state.finish_streaming();
-    assert_eq!(result, "Hello world!");
-    assert!(!state.is_streaming);
-    assert!(state.partial_response.is_empty());
-}
-
-#[test]
-fn test_chat_overlay_set_model() {
-    let mut state = ChatOverlayState::new();
-    state.set_model("gpt-4o-mini");
-    assert_eq!(state.current_model, "gpt-4o-mini");
-}
-
-#[test]
-fn test_chat_overlay_tool_message() {
-    let mut state = ChatOverlayState::new();
-    state.add_tool_message("Tool output: OK");
-    assert_eq!(state.messages.len(), 2);
-    assert_eq!(state.messages[1].role, ChatOverlayMessageRole::Tool);
-    assert_eq!(state.messages[1].content, "Tool output: OK");
-}
-
-#[test]
-fn test_chat_overlay_insert_char() {
-    let mut state = ChatOverlayState::new();
-    state.insert_char('h');
-    state.insert_char('i');
-    assert_eq!(state.input, "hi");
-    assert_eq!(state.cursor, 2);
-}
-
-#[test]
-fn test_chat_overlay_backspace() {
-    let mut state = ChatOverlayState::new();
-    state.input = "hello".to_string();
-    state.cursor = 5;
-
-    state.backspace();
-    assert_eq!(state.input, "hell");
-    assert_eq!(state.cursor, 4);
-
-    // Backspace at start does nothing
-    state.cursor = 0;
-    state.backspace();
-    assert_eq!(state.input, "hell");
-    assert_eq!(state.cursor, 0);
-}
-
-#[test]
-fn test_chat_overlay_delete() {
-    let mut state = ChatOverlayState::new();
-    state.input = "hello".to_string();
-    state.cursor = 0;
-
-    state.delete();
-    assert_eq!(state.input, "ello");
-    assert_eq!(state.cursor, 0);
-
-    // Delete at end does nothing
-    state.cursor = 4;
-    state.delete();
-    assert_eq!(state.input, "ello");
-}
-
-#[test]
-fn test_chat_overlay_cursor_movement() {
-    let mut state = ChatOverlayState::new();
-    state.input = "hello".to_string();
-    state.cursor = 3;
-
-    state.cursor_left();
-    assert_eq!(state.cursor, 2);
-
-    state.cursor_right();
-    assert_eq!(state.cursor, 3);
-
-    state.cursor_home();
-    assert_eq!(state.cursor, 0);
-
-    state.cursor_end();
-    assert_eq!(state.cursor, 5);
-
-    // Boundary checks
-    state.cursor_home();
-    state.cursor_left();
-    assert_eq!(state.cursor, 0);
-
-    state.cursor_end();
-    state.cursor_right();
-    assert_eq!(state.cursor, 5);
-}
-
-#[test]
-fn test_chat_overlay_undo_after_typing() {
-    let mut state = ChatOverlayState::new();
-
-    // Type some text with checkpoints
-    state.edit_history.checkpoint("a", 1);
-    state.input = "a".to_string();
-    state.cursor = 1;
-
-    state.edit_history.checkpoint("ab", 2);
-    state.input = "ab".to_string();
-    state.cursor = 2;
-
-    // Undo should restore previous state
-    assert!(state.can_undo());
-    assert!(state.undo());
-    assert_eq!(state.input, "a");
-    assert_eq!(state.cursor, 1);
-}
-
-#[test]
-fn test_chat_overlay_redo_after_undo() {
-    let mut state = ChatOverlayState::new();
-
-    state.edit_history.checkpoint("hello", 5);
-    state.input = "hello".to_string();
-    state.cursor = 5;
-
-    state.edit_history.checkpoint("hello world", 11);
-    state.input = "hello world".to_string();
-    state.cursor = 11;
-
-    // Undo
-    state.undo();
-    assert_eq!(state.input, "hello");
-
-    // Redo should restore
-    assert!(state.can_redo());
-    assert!(state.redo());
-    assert_eq!(state.input, "hello world");
-}
-
-#[test]
-fn test_chat_overlay_undo_empty_returns_false() {
-    let state = ChatOverlayState::new();
-    assert!(!state.can_undo());
-}
-
-#[test]
-fn test_chat_overlay_redo_empty_returns_false() {
-    let state = ChatOverlayState::new();
-    assert!(!state.can_redo());
-}
-
-#[test]
-fn test_chat_overlay_add_user_message() {
-    let mut state = ChatOverlayState::new();
-    state.input = "hello Nika".to_string();
-    state.cursor = 10;
-
-    let result = state.add_user_message();
-    assert!(result.is_some());
-    assert_eq!(result.unwrap(), "hello Nika");
-
-    // Input should be cleared
-    assert!(state.input.is_empty());
-    assert_eq!(state.cursor, 0);
-
-    // Message should be added
-    assert_eq!(state.messages.len(), 2);
-    assert_eq!(state.messages[1].role, ChatOverlayMessageRole::User);
-    assert_eq!(state.messages[1].content, "hello Nika");
-
-    // History should be updated
-    assert_eq!(state.history.len(), 1);
-    assert_eq!(state.history[0], "hello Nika");
-}
-
-#[test]
-fn test_chat_overlay_add_user_message_empty_returns_none() {
-    let mut state = ChatOverlayState::new();
-    state.input = "   ".to_string(); // Just whitespace
-
-    let result = state.add_user_message();
-    assert!(result.is_none());
-    assert_eq!(state.messages.len(), 1); // No new message added
-}
-
-#[test]
-fn test_chat_overlay_add_nika_message() {
-    let mut state = ChatOverlayState::new();
-    state.add_nika_message("Hello there!");
-
-    assert_eq!(state.messages.len(), 2);
-    assert_eq!(state.messages[1].role, ChatOverlayMessageRole::Nika);
-    assert_eq!(state.messages[1].content, "Hello there!");
-}
-
-#[test]
-fn test_chat_overlay_history_navigation() {
-    let mut state = ChatOverlayState::new();
-
-    // Add some history
-    state.history = vec![
-        "first message".to_string(),
-        "second message".to_string(),
-        "third message".to_string(),
-    ];
-
-    // Navigate up through history
-    state.history_up();
-    assert_eq!(state.history_index, Some(2));
-    assert_eq!(state.input, "third message");
-
-    state.history_up();
-    assert_eq!(state.history_index, Some(1));
-    assert_eq!(state.input, "second message");
-
-    state.history_up();
-    assert_eq!(state.history_index, Some(0));
-    assert_eq!(state.input, "first message");
-
-    // At oldest, doesn't go further
-    state.history_up();
-    assert_eq!(state.history_index, Some(0));
-
-    // Navigate down
-    state.history_down();
-    assert_eq!(state.history_index, Some(1));
-    assert_eq!(state.input, "second message");
-
-    state.history_down();
-    assert_eq!(state.history_index, Some(2));
-    assert_eq!(state.input, "third message");
-
-    // Past newest clears input
-    state.history_down();
-    assert!(state.history_index.is_none());
-    assert!(state.input.is_empty());
-}
-
-#[test]
-fn test_chat_overlay_history_up_empty() {
-    let mut state = ChatOverlayState::new();
-    // No history
-    state.history_up();
-    assert!(state.history_index.is_none());
-    assert!(state.input.is_empty());
-}
-
-#[test]
-fn test_chat_overlay_clear() {
-    let mut state = ChatOverlayState::new();
-    state.add_nika_message("Message 1");
-    state.add_nika_message("Message 2");
-    state.scroll = 5;
-
-    state.clear();
-
-    assert_eq!(state.messages.len(), 1);
-    assert_eq!(state.messages[0].role, ChatOverlayMessageRole::System);
-    assert!(state.messages[0].content.contains("cleared"));
-    assert_eq!(state.scroll, 0);
-}
-
-#[test]
-fn test_chat_overlay_scroll() {
-    let mut state = ChatOverlayState::new();
-    assert_eq!(state.scroll, 0);
-
-    state.scroll_up();
-    assert_eq!(state.scroll, 1);
-
-    state.scroll_up();
-    assert_eq!(state.scroll, 2);
-
-    state.scroll_down();
-    assert_eq!(state.scroll, 1);
-
-    state.scroll_down();
-    assert_eq!(state.scroll, 0);
-
-    // Can't go below 0
-    state.scroll_down();
-    assert_eq!(state.scroll, 0);
-}
-
-#[test]
-fn test_tui_mode_chat_overlay_variant() {
-    let mode = TuiMode::ChatOverlay;
-    assert_eq!(mode, TuiMode::ChatOverlay);
-    assert_ne!(mode, TuiMode::Normal);
-    assert_ne!(mode, TuiMode::Settings);
-}
-
-#[test]
-fn test_tui_state_has_chat_overlay() {
-    let state = TuiState::new("test.yaml");
-    // Chat overlay should be initialized with welcome message
-    assert_eq!(state.ui.chat_overlay.messages.len(), 1);
-    assert!(state.ui.chat_overlay.input.is_empty());
-}
 
 #[test]
 fn test_chat_overlay_message_new() {
     let msg = ChatOverlayMessage::new(ChatOverlayMessageRole::User, "test message");
     assert_eq!(msg.role, ChatOverlayMessageRole::User);
     assert_eq!(msg.content, "test message");
+}
+
+#[test]
+fn test_chat_overlay_message_roles() {
+    let user = ChatOverlayMessage::new(ChatOverlayMessageRole::User, "hello");
+    let nika = ChatOverlayMessage::new(ChatOverlayMessageRole::Nika, "hi");
+    let system = ChatOverlayMessage::new(ChatOverlayMessageRole::System, "welcome");
+    let tool = ChatOverlayMessage::new(ChatOverlayMessageRole::Tool, "result");
+
+    assert_eq!(user.role, ChatOverlayMessageRole::User);
+    assert_eq!(nika.role, ChatOverlayMessageRole::Nika);
+    assert_eq!(system.role, ChatOverlayMessageRole::System);
+    assert_eq!(tool.role, ChatOverlayMessageRole::Tool);
 }
 
 // ═══ PanelScrollState Tests ═══
