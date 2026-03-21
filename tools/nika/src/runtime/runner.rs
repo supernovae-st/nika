@@ -118,6 +118,7 @@ struct IterationResult {
     /// For for_each: (parent_id, index) to enable aggregation
     for_each_info: Option<(Arc<str>, usize)>,
     /// Paths of artifacts written during this task (for CLI reporting)
+    #[allow(dead_code)]
     artifact_paths: Vec<PathBuf>,
 }
 
@@ -146,6 +147,8 @@ pub struct Runner {
     resolved_assets: ResolvedAssets,
     /// Trace retention config (max_traces + retention_days)
     trace_config: TraceConfig,
+    /// CLI event stream renderer (None when quiet or TUI mode)
+    cli_renderer: Option<crate::display::CliRenderer>,
 }
 
 impl Runner {
@@ -198,6 +201,7 @@ impl Runner {
             resume_notify: Arc::new(Notify::new()),
             resolved_assets: ResolvedAssets::default(),
             trace_config: TraceConfig::default(),
+            cli_renderer: None,
         })
     }
 
@@ -215,6 +219,14 @@ impl Runner {
     /// When omitted, defaults to 100 max traces and 7-day retention.
     pub fn with_trace_config(mut self, config: TraceConfig) -> Self {
         self.trace_config = config;
+        self
+    }
+
+    /// Set the CLI detail level for event rendering.
+    pub fn with_detail_level(mut self, detail: crate::display::DetailLevel) -> Self {
+        if !self.quiet {
+            self.cli_renderer = Some(crate::display::CliRenderer::new(detail));
+        }
         self
     }
 
@@ -1081,43 +1093,68 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             }
         }
 
-        // Create LiveDag for in-place rendering during execution
-        let mut live_dag = if !self.quiet && total_tasks > 1 {
-            use crate::display::{DagTask, DagTaskStatus, LiveDag};
-
-            let dag_tasks: Vec<DagTask> = self
-                .workflow
-                .tasks
-                .iter()
-                .map(|t| DagTask {
-                    id: t.name.clone(),
-                    verb: t.action.verb_name().to_string(),
-                    status: DagTaskStatus::Pending,
-                    meta: None,
-                })
-                .collect();
-
-            let mut deps_map = std::collections::HashMap::new();
-            for task in &self.workflow.tasks {
-                if !task.depends_on.is_empty() {
-                    let dep_names: Vec<String> = task
-                        .depends_on
-                        .iter()
-                        .filter_map(|id| self.workflow.task_table.get_name(*id))
-                        .map(|s| s.to_string())
-                        .collect();
-                    if !dep_names.is_empty() {
-                        deps_map.insert(task.name.clone(), dep_names);
+        // Print static DAG + set up CliRenderer task layers
+        if let Some(ref mut renderer) = self.cli_renderer {
+            if total_tasks > 1 {
+                use crate::display::dag::{StaticDagEdge, StaticDagTask};
+                let mut depths: std::collections::HashMap<&str, usize> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .map(|t| (t.name.as_str(), 0))
+                    .collect();
+                let mut changed = true;
+                let mut iters = 0;
+                while changed && iters < 100 {
+                    changed = false;
+                    iters += 1;
+                    for task in &self.workflow.tasks {
+                        for dep_id in &task.depends_on {
+                            if let Some(dep_name) = self.workflow.task_table.get_name(*dep_id) {
+                                if let Some(&dep_depth) = depths.get(dep_name) {
+                                    let new_depth = dep_depth + 1;
+                                    if new_depth > depths[task.name.as_str()] {
+                                        depths.insert(&task.name, new_depth);
+                                        changed = true;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                let dag_tasks: Vec<StaticDagTask> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .map(|t| StaticDagTask {
+                        id: t.name.clone(),
+                        verb: t.action.verb_name().to_string(),
+                        layer: depths[t.name.as_str()],
+                    })
+                    .collect();
+                let mut dag_edges = Vec::new();
+                for task in &self.workflow.tasks {
+                    for dep_id in &task.depends_on {
+                        if let Some(dep_name) = self.workflow.task_table.get_name(*dep_id) {
+                            dag_edges.push(StaticDagEdge {
+                                from: dep_name.to_string(),
+                                to: task.name.clone(),
+                            });
+                        }
+                    }
+                }
+                crate::display::dag::print_static_dag(&dag_tasks, &dag_edges);
+                println!("{}", "\u{254C}".repeat(69).dimmed());
+                println!();
+                let task_layers: std::collections::HashMap<Arc<str>, usize> = self
+                    .workflow
+                    .tasks
+                    .iter()
+                    .map(|t| (Arc::from(t.name.as_str()), depths[t.name.as_str()]))
+                    .collect();
+                renderer.set_task_layers(task_layers);
             }
-
-            let mut dag = LiveDag::new(dag_tasks, deps_map);
-            dag.draw();
-            Some(dag)
-        } else {
-            None
-        };
+        }
 
         loop {
             // Check for cancellation at start of each loop iteration
@@ -1174,10 +1211,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
             }
 
+            let mut renderer = self.cli_renderer.take();
+
             let ready = self.get_ready_tasks();
 
             // Check for completion or deadlock
             if ready.is_empty() {
+                self.cli_renderer = renderer;
+
                 if self.all_done() {
                     break;
                 }
@@ -1247,19 +1288,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
 
                 // EMIT: TaskScheduled
                 let deps = self.flow_graph.get_dependencies(&task.name);
-                self.event_log.emit(EventKind::TaskScheduled {
+                let sched_kind = EventKind::TaskScheduled {
                     task_id: Arc::clone(&task_id),
                     dependencies: deps.to_vec(),
-                });
-
-                if !self.quiet && live_dag.is_none() {
-                    println!(
-                        "  {} {} {}",
-                        "[⟳]".yellow(),
-                        &task_id,
-                        "running...".dimmed()
-                    );
+                };
+                if let Some(ref mut r) = renderer {
+                    r.render_kind(&sched_kind);
                 }
+                self.event_log.emit(sched_kind);
 
                 // Check if task has decompose - expands to for_each items
                 // decompose takes priority over for_each (they're mutually exclusive)
@@ -1813,6 +1849,8 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                 }
             }
 
+            self.cli_renderer = renderer;
+
             // Collect for_each results for aggregation: parent_id -> Vec<(index, result)>
             // Use IndexMap to preserve insertion order (deterministic iteration)
             let mut for_each_results: IndexMap<Arc<str>, Vec<(usize, TaskResult)>> =
@@ -1854,117 +1892,25 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                                     store_id,
                                     result: task_result,
                                     for_each_info,
-                                    artifact_paths,
+                                    artifact_paths: _,
                                 } = iteration_result;
 
                                 _completed += 1;
                                 let success = task_result.is_success();
                                 let skipped = task_result.is_skipped();
 
-                                let symbol = if success { "✓" } else if skipped { "⊘" } else { "✗" };
-                                let symbol_colored = if success {
-                                    symbol.green()
-                                } else if skipped {
-                                    symbol.yellow()
-                                } else {
-                                    symbol.red()
-                                };
-                                let duration_str =
-                                    crate::display::format_duration(task_result.duration.as_secs_f32());
-
-                                // Update live DAG if active
-                                if let Some(ref mut dag) = live_dag {
-                                    use crate::display::DagTaskStatus as DS;
-                                    let parent_id = store_id
-                                        .find('[')
-                                        .map(|i| &store_id[..i])
-                                        .unwrap_or(&store_id);
-                                    let status = if success { DS::Success }
-                                        else if skipped { DS::Skipped }
-                                        else { DS::Failed };
-                                    let meta = if success {
-                                        Some(format!("{:.1}s", task_result.duration.as_secs_f32()))
-                                    } else {
-                                        task_result.error().map(|err| format!("✗ {}", &err[..err.len().min(30)]))
-                                    };
-                                    dag.update_task(parent_id, status, meta);
-                                    dag.redraw();
-                                }
-
-                                if !self.quiet && live_dag.is_none() {
-                                    // IMP-3: Look up task description and verb for richer output
-                                    // (only when live DAG is not active — DAG shows status visually)
-                                    let parent_name = store_id
-                                        .find('[')
-                                        .map(|i| &store_id[..i])
-                                        .unwrap_or(&store_id);
-                                    let task_info = self
-                                        .workflow
-                                        .tasks
-                                        .iter()
-                                        .find(|t| t.name == parent_name);
-                                    let desc = task_info.and_then(|t| t.description.as_deref());
-                                    let verb_name = task_info
-                                        .map(|t| t.action.verb_name())
-                                        .unwrap_or("exec");
-                                    let icon = crate::display::verb_icon(verb_name);
-
-                                    if let Some(d) = desc {
-                                        println!(
-                                            "  {} {} {} {} — {}",
-                                            icon,
-                                            &*store_id,
-                                            symbol_colored,
-                                            duration_str,
-                                            d.dimmed()
-                                        );
-                                    } else {
-                                        println!(
-                                            "  {} {} {} {}",
-                                            icon, &*store_id, symbol_colored, duration_str
-                                        );
-                                    }
-
-                                    if let Some(err) = task_result.error() {
-                                        if !skipped {
-                                            println!("      {} {}", "Error:".red(), err);
-                                        }
-                                    }
-
-                                    // IMP-4: Show intermediate output preview (first line only)
+                                // Render task result via CliRenderer
+                                let duration_ms = task_result.duration.as_millis() as u64;
+                                if let Some(ref mut r) = self.cli_renderer {
                                     if success {
-                                        let out = task_result.output_str();
-                                        if !out.is_empty() {
-                                            // Take only the first non-empty line for clean display
-                                            let first_line = out
-                                                .lines()
-                                                .find(|l| !l.trim().is_empty())
-                                                .unwrap_or(&out);
-                                            let preview = if first_line.len() > 120 {
-                                                format!(
-                                                    "{}…",
-                                                    crate::util::truncate_str(first_line, 120)
-                                                )
-                                            } else if out.contains('\n') {
-                                                format!("{}…", first_line)
-                                            } else {
-                                                first_line.to_string()
-                                            };
-                                            println!(
-                                                "      {} {}",
-                                                "→".dimmed(),
-                                                preview.dimmed()
-                                            );
-                                        }
-                                    }
-
-                                    // IMP-6: Report artifact writes to the user
-                                    for path in &artifact_paths {
-                                        println!(
-                                            "      {} {}",
-                                            "artifact:".cyan(),
-                                            path.display().to_string().dimmed()
-                                        );
+                                        r.render_kind(&EventKind::TaskCompleted {
+                                            task_id: Arc::clone(&store_id),
+                                            output: Arc::new(serde_json::Value::String(task_result.output_str().to_string())),
+                                            duration_ms,
+                                        });
+                                    } else {
+                                        let err_msg = task_result.error().unwrap_or("unknown error").to_string();
+                                        r.render_kind(&EventKind::TaskFailed { task_id: Arc::clone(&store_id), error: err_msg, duration_ms });
                                     }
                                 }
 
@@ -2095,7 +2041,14 @@ Please provide a corrected JSON response that strictly matches the schema."#,
         // Write execution trace to .nika/traces/
         let trace_path = self.write_trace();
 
-        if !self.quiet {
+        if let Some(ref mut renderer) = self.cli_renderer {
+            let events = self.event_log.events();
+            for event in &events {
+                renderer.render_stats_only(event);
+            }
+            let total_duration_ms = workflow_start.elapsed().as_millis() as u64;
+            renderer.render_summary(total_duration_ms, trace_path.as_deref());
+        } else if !self.quiet {
             let elapsed = workflow_start.elapsed();
             let elapsed_str = if elapsed.as_secs() >= 60 {
                 format!(
@@ -2106,8 +2059,6 @@ Please provide a corrected JSON response that strictly matches the schema."#,
             } else {
                 format!("{:.1}s", elapsed.as_secs_f64())
             };
-
-            // Compute total tokens and cost from events
             let events = self.event_log.events();
             let (total_tokens, total_cost) =
                 events.iter().fold((0u64, 0.0f64), |(tokens, cost), e| {
@@ -2123,34 +2074,11 @@ Please provide a corrected JSON response that strictly matches the schema."#,
                         (tokens, cost)
                     }
                 });
-
             crate::display::print_done_summary(
                 &elapsed_str,
                 total_tokens,
                 total_cost,
                 trace_path.as_deref(),
-            );
-        }
-
-        // Check for task failures — report for CI visibility
-        let events = self.event_log.events();
-        let failed_tasks: Vec<&str> = events
-            .iter()
-            .filter_map(|e| {
-                if let EventKind::TaskFailed { task_id, .. } = &e.kind {
-                    Some(task_id.as_ref())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        if !failed_tasks.is_empty() && !self.quiet {
-            println!(
-                "{} {} task(s) had errors: {}",
-                "⚠".yellow(),
-                failed_tasks.len(),
-                failed_tasks.join(", ").dimmed()
             );
         }
 

@@ -22,26 +22,12 @@ const VERTICAL: &str = "\u{2502}"; // │
 /// - invoke: 🔌 Emerald/Green
 /// - agent:  🐔 Rose/Magenta
 pub fn verb_icon(verb: &str) -> colored::ColoredString {
-    match verb {
-        "infer" => "⚡".purple(),
-        "exec" => "📟".yellow(),
-        "fetch" => "🛰️".cyan(),
-        "invoke" => "🔌".green(),
-        "agent" => "🐔".magenta(),
-        _ => "●".white(),
-    }
+    crate::display::icons::verb(verb)
 }
 
 /// Return the canonical emoji for a verb (uncolored, for DAG boxes).
 pub fn verb_emoji(verb: &str) -> &'static str {
-    match verb {
-        "infer" => "⚡",
-        "exec" => "📟",
-        "fetch" => "🛰️",
-        "invoke" => "🔌",
-        "agent" => "🐔",
-        _ => "●",
-    }
+    crate::display::icons::verb_plain(verb)
 }
 
 /// Print a header box around workflow metadata.
@@ -248,21 +234,7 @@ pub fn print_doctor_summary(pass_count: usize, warn_count: usize, fail_count: us
 /// - 1-5s: yellow (moderate)
 /// - > 5s: red (slow)
 pub fn format_duration(secs: f32) -> colored::ColoredString {
-    let text = if secs < 0.1 {
-        format!("{:.0}ms", secs * 1000.0)
-    } else if secs < 60.0 {
-        format!("{:.1}s", secs)
-    } else {
-        format!("{}m{:.0}s", (secs / 60.0) as u32, secs % 60.0)
-    };
-
-    if secs < 1.0 {
-        text.green()
-    } else if secs < 5.0 {
-        text.yellow()
-    } else {
-        text.red()
-    }
+    crate::display::colors::duration(secs)
 }
 
 /// Print a workflow summary line with task counts by verb.
@@ -293,8 +265,10 @@ pub struct DagTask {
     pub id: String,
     pub verb: String,
     pub status: DagTaskStatus,
-    /// Optional metadata (duration, tokens, error)
+    /// Optional metadata (duration, tokens, error) — line 1
     pub meta: Option<String>,
+    /// Additional property tags for check mode (structured, mcp, guardrails, etc.)
+    pub tags: Vec<String>,
 }
 
 /// Task status for coloring.
@@ -337,7 +311,9 @@ impl LiveDag {
         }
         let layers = compute_layers(&self.tasks, &self.deps);
         let has_meta = self.tasks.iter().any(|t| t.meta.is_some());
-        let box_lines = if has_meta { 4 } else { 3 }; // top + content + [meta] + bottom
+        let max_tags = self.tasks.iter().map(|t| t.tags.len()).max().unwrap_or(0);
+        // top + content + [meta] + [tag lines] + bottom
+        let box_lines = 2 + 1 + (if has_meta { 1 } else { 0 }) + max_tags;
 
         // header: 3 lines (blank + stats + blank)
         // per layer: box_lines
@@ -489,14 +465,7 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
         .iter()
         .map(|id| {
             let task = tasks.iter().find(|t| t.id == *id).unwrap();
-            let icon = match task.verb.as_str() {
-                "infer" => "⚡",
-                "exec" => "📟",
-                "fetch" => "🛰️",
-                "invoke" => "🔌",
-                "agent" => "🐔",
-                _ => "●",
-            };
+            let icon = crate::display::icons::verb_plain(&task.verb);
             let label = format!("{} {}", icon, task.id);
             let dw = display_width(&label);
             (task, label, dw)
@@ -556,6 +525,32 @@ fn render_v3_boxes(layer: &[String], tasks: &[DagTask]) {
             meta_line.push_str(&colorize(&content, task.status));
         }
         println!("{}", meta_line);
+    }
+
+    // Tag lines (if any task has tags)
+    let max_tag_count = boxes
+        .iter()
+        .map(|(t, _, _)| t.tags.len())
+        .max()
+        .unwrap_or(0);
+    for tag_idx in 0..max_tag_count {
+        let mut tag_line = String::from("    ");
+        for (i, (task, _, dw)) in boxes.iter().enumerate() {
+            if i > 0 {
+                tag_line.push_str("  ");
+            }
+            let w = dw + BOX_PAD * 2;
+            let tag_display = if let Some(tag) = task.tags.get(tag_idx) {
+                let tw = display_width(tag);
+                let pad = w.saturating_sub(tw + BOX_PAD);
+                format!("{}{}{}", " ".repeat(BOX_PAD), tag, " ".repeat(pad))
+            } else {
+                " ".repeat(w)
+            };
+            let content = format!("║{}║", tag_display);
+            tag_line.push_str(&colorize(&content, task.status));
+        }
+        println!("{}", tag_line);
     }
 
     // Bottom border: ╚════════╤═════╝ (with ╤ at center for edge drop)
@@ -723,16 +718,8 @@ fn render_v3_edges(
 /// Calculate terminal display width of a string.
 /// Emojis are 2 columns, ASCII is 1 column.
 fn display_width(s: &str) -> usize {
-    let mut w = 0;
-    for ch in s.chars() {
-        if ch.len_utf8() >= 3 {
-            // Multi-byte char (emoji, CJK) → 2 columns
-            w += 2;
-        } else {
-            w += 1;
-        }
-    }
-    w
+    use unicode_width::UnicodeWidthStr;
+    UnicodeWidthStr::width(s)
 }
 
 /// Compute center column position for each box in a layer.
@@ -745,14 +732,7 @@ fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize
     for (i, task_id) in layer.iter().enumerate() {
         let task = tasks.iter().find(|t| t.id == *task_id);
         let verb = task.map(|t| t.verb.as_str()).unwrap_or("exec");
-        let icon = match verb {
-            "infer" => "⚡",
-            "exec" => "📟",
-            "fetch" => "🛰️",
-            "invoke" => "🔌",
-            "agent" => "🐔",
-            _ => "●",
-        };
+        let icon = crate::display::icons::verb_plain(verb);
         let label = format!("{} {}", icon, task_id);
         let dw = display_width(&label) + BOX_PAD * 2 + 2; // +2 for ║ borders
         let center = col + dw / 2;
@@ -761,4 +741,474 @@ fn compute_box_centers(layer: &[String], tasks: &[DagTask]) -> Vec<(usize, usize
     }
 
     positions
+}
+
+/// Extract display tags from a workflow task for DAG boxes.
+///
+/// Tags provide at-a-glance metadata inside DAG boxes during `nika check`:
+/// - `"structured"` -- task has structured output spec or output.schema
+/// - `"mcp:NAME"` -- invoke verb targeting an MCP server
+/// - `"timeout:Ns"` -- custom timeout configured (in seconds)
+/// - `"vision:Nimg"` -- infer with content containing N images
+/// - `"extract:MODE"` -- fetch with extraction mode
+pub fn task_display_tags(task: &crate::ast::analyzed::AnalyzedTask) -> Vec<String> {
+    use crate::ast::analyzed::AnalyzedTaskAction;
+
+    let mut tags = Vec::new();
+
+    // Structured output
+    if task.structured.is_some()
+        || task
+            .output
+            .as_ref()
+            .and_then(|o| o.schema.as_ref())
+            .is_some()
+    {
+        tags.push("structured".to_string());
+    }
+
+    // MCP server (invoke verb)
+    if let AnalyzedTaskAction::Invoke(ref invoke) = task.action {
+        if let Some(ref server) = invoke.server {
+            tags.push(format!("mcp:{}", server));
+        }
+    }
+
+    // Agent MCP servers
+    if let AnalyzedTaskAction::Agent(ref agent) = task.action {
+        if !agent.mcp.is_empty() {
+            tags.push(format!("mcp:{}", agent.mcp.join(",")));
+        }
+    }
+
+    // Timeout (from action-level timeout_ms, converted to seconds for display)
+    let timeout_ms = match &task.action {
+        AnalyzedTaskAction::Exec(ref e) => e.timeout_ms,
+        AnalyzedTaskAction::Fetch(ref f) => f.timeout_ms,
+        AnalyzedTaskAction::Invoke(ref i) => i.timeout_ms,
+        _ => None,
+    };
+    if let Some(ms) = timeout_ms {
+        let secs = ms / 1000;
+        tags.push(format!("timeout:{}s", secs));
+    }
+
+    // Vision content (infer with images)
+    if let AnalyzedTaskAction::Infer(ref infer) = task.action {
+        if let Some(ref content) = infer.content {
+            let img_count = content
+                .iter()
+                .filter(|c| {
+                    matches!(
+                        c,
+                        crate::ast::content::AnalyzedContentPart::Image { .. }
+                            | crate::ast::content::AnalyzedContentPart::ImageUrl { .. }
+                    )
+                })
+                .count();
+            if img_count > 0 {
+                tags.push(format!("vision:{}img", img_count));
+            }
+        }
+    }
+
+    // Fetch extract mode
+    if let AnalyzedTaskAction::Fetch(ref fetch) = task.action {
+        if let Some(ref extract) = fetch.extract {
+            tags.push(format!("extract:{}", extract));
+        }
+    }
+
+    tags
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dag_task_has_tags_field() {
+        let task = DagTask {
+            id: "test".to_string(),
+            verb: "infer".to_string(),
+            status: DagTaskStatus::Pending,
+            meta: None,
+            tags: vec!["structured".to_string(), "mcp:novanet".to_string()],
+        };
+        assert_eq!(task.tags.len(), 2);
+        assert_eq!(task.tags[0], "structured");
+        assert_eq!(task.tags[1], "mcp:novanet");
+    }
+
+    #[test]
+    fn dag_task_empty_tags() {
+        let task = DagTask {
+            id: "test".to_string(),
+            verb: "exec".to_string(),
+            status: DagTaskStatus::Success,
+            meta: Some("0.3s".to_string()),
+            tags: Vec::new(),
+        };
+        assert!(task.tags.is_empty());
+    }
+
+    #[test]
+    fn verb_plain_icons_used_in_boxes() {
+        // Verify verb_plain returns single-width characters (not multi-byte emoji)
+        let icon = crate::display::icons::verb_plain("infer");
+        assert_eq!(icon, "\u{2727}"); // checkmark-like
+        let icon = crate::display::icons::verb_plain("exec");
+        assert_eq!(icon, "\u{2388}"); // helm
+        let icon = crate::display::icons::verb_plain("fetch");
+        assert_eq!(icon, "\u{2604}"); // comet
+        let icon = crate::display::icons::verb_plain("invoke");
+        assert_eq!(icon, "\u{229B}"); // circled asterisk
+        let icon = crate::display::icons::verb_plain("agent");
+        assert_eq!(icon, "\u{274B}"); // heavy teardrop
+    }
+
+    #[test]
+    fn display_width_uses_unicode_width() {
+        // ASCII: 1 column per char
+        assert_eq!(display_width("hello"), 5);
+        // Cosmic icons are single-width
+        assert_eq!(display_width("\u{2727}"), 1);
+        assert_eq!(display_width("\u{2388}"), 1);
+    }
+
+    #[test]
+    fn count_dag_lines_includes_tags() {
+        use std::collections::HashMap;
+        let tasks = vec![
+            DagTask {
+                id: "a".to_string(),
+                verb: "infer".to_string(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: vec!["structured".to_string()],
+            },
+            DagTask {
+                id: "b".to_string(),
+                verb: "exec".to_string(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: Vec::new(),
+            },
+        ];
+        let mut deps = HashMap::new();
+        deps.insert("b".to_string(), vec!["a".to_string()]);
+
+        let dag = LiveDag::new(tasks, deps);
+        let lines = dag.count_dag_lines();
+        // 2 layers, 1 tag line max:
+        // header: 3 lines
+        // layer 1: top + content + 1 tag + bottom = 4 lines
+        // edge: 2 lines
+        // layer 2: top + content + 1 tag + bottom = 4 lines
+        // trailing: 1 line
+        // total: 3 + 4 + 2 + 4 + 1 = 14
+        assert_eq!(lines, 14);
+    }
+
+    #[test]
+    fn count_dag_lines_with_meta_and_tags() {
+        use std::collections::HashMap;
+        let tasks = vec![
+            DagTask {
+                id: "a".to_string(),
+                verb: "infer".to_string(),
+                status: DagTaskStatus::Success,
+                meta: Some("0.5s".to_string()),
+                tags: vec!["structured".to_string(), "vision:2img".to_string()],
+            },
+            DagTask {
+                id: "b".to_string(),
+                verb: "fetch".to_string(),
+                status: DagTaskStatus::Pending,
+                meta: None,
+                tags: Vec::new(),
+            },
+        ];
+        let mut deps = HashMap::new();
+        deps.insert("b".to_string(), vec!["a".to_string()]);
+
+        let dag = LiveDag::new(tasks, deps);
+        let lines = dag.count_dag_lines();
+        // 2 layers, has_meta=true, max_tags=2:
+        // header: 3
+        // layer 1: top + content + meta + 2 tags + bottom = 6 lines
+        // edge: 2
+        // layer 2: top + content + meta + 2 tags + bottom = 6 lines
+        // trailing: 1
+        // total: 3 + 6 + 2 + 6 + 1 = 18
+        assert_eq!(lines, 18);
+    }
+
+    #[test]
+    fn task_display_tags_structured_from_spec() {
+        use crate::ast::analyzed::*;
+        use crate::ast::output::SchemaRef;
+        use crate::ast::structured::StructuredOutputSpec;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "test_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: Some(StructuredOutputSpec::with_schema(SchemaRef::Inline(
+                serde_json::json!({"type": "object"}),
+            ))),
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"structured".to_string()));
+    }
+
+    #[test]
+    fn task_display_tags_mcp_invoke() {
+        use crate::ast::analyzed::*;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "invoke_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Invoke(AnalyzedInvokeAction {
+                server: Some("novanet".to_string()),
+                tool: "search".to_string(),
+                params: None,
+                timeout_ms: Some(30_000),
+                span: Span::dummy(),
+            }),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"mcp:novanet".to_string()));
+        assert!(tags.contains(&"timeout:30s".to_string()));
+    }
+
+    #[test]
+    fn task_display_tags_fetch_extract() {
+        use crate::ast::analyzed::*;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "fetch_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Fetch(AnalyzedFetchAction {
+                url: "https://example.com".to_string(),
+                extract: Some("markdown".to_string()),
+                ..AnalyzedFetchAction::default()
+            }),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"extract:markdown".to_string()));
+    }
+
+    #[test]
+    fn task_display_tags_empty_for_plain_exec() {
+        use crate::ast::analyzed::*;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "simple_exec".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Exec(AnalyzedExecAction {
+                command: "echo hello".to_string(),
+                ..AnalyzedExecAction::default()
+            }),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.is_empty());
+    }
+
+    #[test]
+    fn task_display_tags_vision_images() {
+        use crate::ast::analyzed::*;
+        use crate::ast::content::{AnalyzedContentPart, ImageDetail};
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "vision_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction {
+                content: Some(vec![
+                    AnalyzedContentPart::Image {
+                        source: "abc123".to_string(),
+                        detail: ImageDetail::High,
+                    },
+                    AnalyzedContentPart::Text {
+                        text: "Describe this".to_string(),
+                    },
+                    AnalyzedContentPart::ImageUrl {
+                        url: "https://example.com/img.png".to_string(),
+                        detail: ImageDetail::Auto,
+                    },
+                ]),
+                ..AnalyzedInferAction::default()
+            }),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"vision:2img".to_string()));
+    }
+
+    #[test]
+    fn task_display_tags_agent_mcp() {
+        use crate::ast::analyzed::*;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "agent_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Agent(AnalyzedAgentAction {
+                prompt: "Do something".to_string(),
+                mcp: vec!["novanet".to_string(), "github".to_string()],
+                ..AnalyzedAgentAction::default()
+            }),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: None,
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"mcp:novanet,github".to_string()));
+    }
+
+    #[test]
+    fn task_display_tags_structured_from_output_schema() {
+        use crate::ast::analyzed::*;
+        use crate::binding::WithSpec;
+        use crate::source::Span;
+
+        let task = AnalyzedTask {
+            id: TaskId::new(0),
+            name: "schema_task".to_string(),
+            description: None,
+            action: AnalyzedTaskAction::Infer(AnalyzedInferAction::default()),
+            provider: None,
+            model: None,
+            with_spec: WithSpec::default(),
+            depends_on: Vec::new(),
+            implicit_deps: Vec::new(),
+            output: Some(AnalyzedOutput {
+                format: OutputFormat::Json,
+                schema: Some(serde_json::json!({"type": "object"})),
+                schema_ref: None,
+                max_retries: None,
+                span: Span::dummy(),
+            }),
+            for_each: None,
+            retry: None,
+            decompose: None,
+            concurrency: None,
+            fail_fast: None,
+            artifact: None,
+            log: None,
+            structured: None,
+            span: Span::dummy(),
+        };
+
+        let tags = task_display_tags(&task);
+        assert!(tags.contains(&"structured".to_string()));
+    }
 }
