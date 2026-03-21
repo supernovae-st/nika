@@ -29,6 +29,12 @@ Thumbs.db
 .turbo/
 node_modules/
 
+# VS Code extension build artifacts
+editors/vscode/out/
+editors/vscode/node_modules/
+editors/vscode/package-lock.json
+*.vsix
+
 # Test artifacts
 *.profraw
 coverage/
