@@ -443,6 +443,17 @@ impl TuiState {
                 self.invalidate_timeline_cache();
             }
 
+            EventKind::TaskSkipped { task_id, reason } => {
+                if let Some(task) = self.tasks.get_mut(task_id.as_ref()) {
+                    task.status = TaskStatus::Skipped;
+                    task.error = Some(format!("skipped: {}", reason));
+                }
+                self.dirty.progress = true;
+                self.dirty.dag = true;
+                self.dirty.status = true;
+                self.invalidate_timeline_cache();
+            }
+
             // ═══════════════════════════════════════════
             // MCP EVENTS
             // ═══════════════════════════════════════════

@@ -1222,19 +1222,43 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
         })
         .collect();
 
+    // Also collect agent tasks that reference MCP servers
+    let agent_tasks: Vec<(&str, Vec<String>)> = workflow
+        .tasks
+        .iter()
+        .filter_map(|t| {
+            if let TaskAction::Agent { agent: ref params } = t.action {
+                if !params.mcp.is_empty() {
+                    Some((t.id.as_str(), params.mcp.clone()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let mut mcp_results: Vec<McpCheckResult> = Vec::new();
     let mut all_valid = true;
     let mut total_calls = 0u32;
     let mut valid_calls = 0u32;
     let mut total_param_errors = 0u32;
 
-    if !invoke_tasks.is_empty() {
+    if !invoke_tasks.is_empty() || !agent_tasks.is_empty() {
         let mcp_validator = McpValidator::new(ValidationConfig::default());
 
-        let mcp_servers: std::collections::HashSet<&str> = invoke_tasks
+        let mut mcp_servers: std::collections::HashSet<&str> = invoke_tasks
             .iter()
             .filter_map(|(_, p)| p.mcp.as_deref())
             .collect();
+
+        // Add MCP servers referenced by agent tasks
+        for (_, servers) in &agent_tasks {
+            for server in servers {
+                mcp_servers.insert(server.as_str());
+            }
+        }
 
         let mcp_configs = workflow
             .mcp
@@ -1313,6 +1337,20 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
                     validations.push(McpCallValidation {
                         task_id: task_id.to_string(),
                         tool_name: "(resource read)".to_string(),
+                        valid: true,
+                        errors: vec![],
+                    });
+                }
+            }
+
+            // Agent tasks — connectivity validated, tools are dynamic
+            for (task_id, servers) in &agent_tasks {
+                if servers.iter().any(|s| s.as_str() == server_name) {
+                    total_calls += 1;
+                    valid_calls += 1;
+                    validations.push(McpCallValidation {
+                        task_id: task_id.to_string(),
+                        tool_name: "(agent: dynamic tools)".to_string(),
                         valid: true,
                         errors: vec![],
                     });
@@ -1425,7 +1463,9 @@ async fn validate_workflow_strict(file: &str) -> Result<(), NikaError> {
             .map(|t| {
                 let status = if failed_task_ids.contains(&t.id) {
                     DagTaskStatus::Failed
-                } else if invoke_tasks.iter().any(|(id, _)| *id == t.id) {
+                } else if invoke_tasks.iter().any(|(id, _)| *id == t.id)
+                    || agent_tasks.iter().any(|(id, _)| *id == t.id)
+                {
                     DagTaskStatus::Success
                 } else {
                     DagTaskStatus::Pending

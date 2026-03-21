@@ -514,7 +514,24 @@ const VERB_DOCUMENTATION: &[(&str, &str)] = &[
             Authorization: \"Bearer $TOKEN\"\n\
           body: '{\"key\": \"value\"}'\n\
           timeout: 10s\n\
+          extract: markdown\n\
+          selector: \".main-content\"\n\
+          response: full\n\
+          follow_redirects: true\n\
         ```\n\n\
+        ### Extract Modes (9 modes)\n\
+        - `extract: markdown` — Clean Markdown via htmd\n\
+        - `extract: article` — Main article content (Readability)\n\
+        - `extract: text` — Visible text, optionally filtered by selector\n\
+        - `extract: selector` — Raw HTML matching CSS selector\n\
+        - `extract: metadata` — OG, Twitter Cards, JSON-LD, SEO tags\n\
+        - `extract: links` — Link classification (internal/external)\n\
+        - `extract: jsonpath` — JSONPath query on JSON responses\n\
+        - `extract: feed` — RSS/Atom/JSON Feed parsing\n\
+        - `extract: llm_txt` — AI-era content discovery\n\n\
+        ### Response Modes\n\
+        - `response: full` — JSON with status, headers, body\n\
+        - `response: binary` — Store in CAS, return hash\n\n\
         **Icon:** 🛰️",
     ),
     (
@@ -924,6 +941,34 @@ tasks:
         let h = hover.unwrap();
         if let HoverContents::Markup(m) = h.contents {
             assert!(m.value.contains("Loop Item"));
+        } else {
+            panic!("Expected markup content");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "lsp")]
+    fn test_fetch_hover_includes_extract_and_response() {
+        let hover = check_verb_hover("    fetch:", 4);
+        assert!(hover.is_some());
+        let h = hover.unwrap();
+        if let HoverContents::Markup(m) = h.contents {
+            assert!(
+                m.value.contains("Extract Modes"),
+                "fetch hover should document extract modes"
+            );
+            assert!(
+                m.value.contains("Response Modes"),
+                "fetch hover should document response modes"
+            );
+            assert!(
+                m.value.contains("extract: markdown"),
+                "fetch hover should list markdown extract"
+            );
+            assert!(
+                m.value.contains("response: full"),
+                "fetch hover should list full response mode"
+            );
         } else {
             panic!("Expected markup content");
         }

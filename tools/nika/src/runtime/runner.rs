@@ -347,10 +347,9 @@ impl Runner {
                             );
 
                             // Emit event for observability
-                            self.event_log.emit(EventKind::TaskFailed {
+                            self.event_log.emit(EventKind::TaskSkipped {
                                 task_id: Arc::from(task.name.as_str()),
-                                error: format!("Cannot run: dependency '{}' failed", dep.as_ref()),
-                                duration_ms: 0,
+                                reason: format!("dependency '{}' failed", dep.as_ref()),
                             });
 
                             debug!(
@@ -4357,21 +4356,21 @@ mod tests {
         // Trigger dependency failure propagation
         let _ = runner.get_ready_tasks();
 
-        // Check that a TaskFailed event was emitted for b
+        // Check that a TaskSkipped event was emitted for b
         let events = runner.event_log.events();
-        let fail_events: Vec<_> = events
+        let skip_events: Vec<_> = events
             .iter()
             .filter(|e| {
                 matches!(
                     &e.kind,
-                    EventKind::TaskFailed { task_id, .. } if task_id.as_ref() == "b"
+                    EventKind::TaskSkipped { task_id, .. } if task_id.as_ref() == "b"
                 )
             })
             .collect();
         assert_eq!(
-            fail_events.len(),
+            skip_events.len(),
             1,
-            "Should emit exactly one TaskFailed event for b"
+            "Should emit exactly one TaskSkipped event for b"
         );
     }
 

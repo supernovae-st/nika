@@ -318,6 +318,19 @@ impl CliRenderer {
                 );
             }
 
+            EventKind::TaskSkipped { task_id, reason } => {
+                self.stats.tasks_skipped += 1;
+                let padded_id = format!("{:<14}", task_id);
+                println!(
+                    "{}  {} {} {} {}",
+                    self.ts(),
+                    "\u{2298}".dimmed(),
+                    " ".normal(),
+                    padded_id.dimmed(),
+                    format!("skipped \u{2014} {}", reason).dimmed()
+                );
+            }
+
             // ═══════════════════════════════════════
             // FINE-GRAINED
             // ═══════════════════════════════════════

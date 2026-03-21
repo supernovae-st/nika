@@ -199,6 +199,12 @@ pub enum EventKind {
         error: String,
         duration_ms: u64,
     },
+    /// A task was skipped because a dependency failed.
+    TaskSkipped {
+        task_id: Arc<str>,
+        /// The dependency that failed causing the skip
+        reason: String,
+    },
 
     // ═══════════════════════════════════════════
     // FINE-GRAINED (template/provider)
@@ -608,6 +614,7 @@ impl EventKind {
             | Self::TaskStarted { task_id, .. }
             | Self::TaskCompleted { task_id, .. }
             | Self::TaskFailed { task_id, .. }
+            | Self::TaskSkipped { task_id, .. }
             | Self::TemplateResolved { task_id, .. }
             | Self::ProviderCalled { task_id, .. }
             | Self::ProviderResponded { task_id, .. }
