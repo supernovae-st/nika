@@ -295,11 +295,14 @@ pub fn analyze(raw: RawWorkflow) -> AnalyzeResult<AnalyzedWorkflow> {
         }
     }
 
+    // Copy task table to workflow BEFORE cycle detection so that
+    // detect_cycles_dfs can resolve TaskId → name via workflow.task_table.
+    // Previously the table was copied AFTER detection, leaving it empty and
+    // producing error messages like "cyclic dependency detected: " with no names.
+    workflow.task_table = ctx.task_table.clone();
+
     // 9. Detect cyclic dependencies
     detect_cycles(&workflow, &mut ctx);
-
-    // Copy task table to workflow
-    workflow.task_table = ctx.task_table;
 
     // Build result
     if ctx.errors.is_empty() {
