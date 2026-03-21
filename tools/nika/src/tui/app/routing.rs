@@ -394,7 +394,7 @@ impl App {
             ViewAction::None
             | ViewAction::Quit
             | ViewAction::SwitchView(_)
-            | ViewAction::OpenSettings => {
+            | ViewAction::OpenControl => {
                 // These are converted to Action variants directly
             }
         }
@@ -419,7 +419,7 @@ impl App {
 
         // Set appropriate input mode
         self.input_mode = match view {
-            TuiView::Chat => InputMode::Insert,
+            TuiView::Command => InputMode::Insert,
             _ => InputMode::Normal,
         };
 
@@ -433,9 +433,8 @@ impl App {
     pub(super) fn call_view_on_enter(&mut self, view: TuiView) {
         match view {
             TuiView::Studio => self.studio_view.on_enter(&mut self.state),
-            TuiView::Runner => self.monitor_view.on_enter(&mut self.state),
-            TuiView::Chat => self.chat_view.on_enter(&mut self.state),
-            TuiView::Settings => self.settings_view.on_enter(&mut self.state),
+            TuiView::Command => self.chat_view.on_enter(&mut self.state),
+            TuiView::Control => self.settings_view.on_enter(&mut self.state),
         }
     }
 
@@ -443,9 +442,8 @@ impl App {
     fn call_view_on_leave(&mut self, view: TuiView) {
         match view {
             TuiView::Studio => self.studio_view.on_leave(&mut self.state),
-            TuiView::Runner => self.monitor_view.on_leave(&mut self.state),
-            TuiView::Chat => self.chat_view.on_leave(&mut self.state),
-            TuiView::Settings => self.settings_view.on_leave(&mut self.state),
+            TuiView::Command => self.chat_view.on_leave(&mut self.state),
+            TuiView::Control => self.settings_view.on_leave(&mut self.state),
         }
     }
 
@@ -560,7 +558,7 @@ impl App {
         });
 
         // 8. Switch to Runner view and update status
-        self.switch_to_view(TuiView::Runner);
+        self.switch_to_view(TuiView::Command);
         self.set_status(&format!("Running: {}", path.display()));
     }
 

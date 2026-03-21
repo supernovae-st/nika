@@ -1002,7 +1002,7 @@ impl View for HomeView {
         // 1. Reserved keys - check these first before TreeAction
         match key.code {
             // 's' opens Settings view
-            KeyCode::Char('s') => return ViewAction::OpenSettings,
+            KeyCode::Char('s') => return ViewAction::OpenControl,
 
             // Shift+T or Ctrl+t toggles theme
             KeyCode::Char('T') => return ViewAction::ToggleTheme,
@@ -1062,9 +1062,9 @@ impl View for HomeView {
             // View switching: number keys
             // 1=Studio, 2=Runner, 3=Chat, 4=Settings
             KeyCode::Char('1') => return ViewAction::SwitchView(TuiView::Studio),
-            KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Runner),
-            KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Settings),
+            KeyCode::Char('2') => return ViewAction::SwitchView(TuiView::Command),
+            KeyCode::Char('3') => return ViewAction::SwitchView(TuiView::Command),
+            KeyCode::Char('4') => return ViewAction::SwitchView(TuiView::Control),
 
             // Validate selected workflow
             KeyCode::Char('v') => {

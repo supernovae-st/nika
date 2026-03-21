@@ -691,9 +691,9 @@ impl View for StudioView {
                 return ViewAction::ToggleTheme;
             }
             // View switching: number keys 2-4
-            (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Runner),
-            (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Chat),
-            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Settings),
+            (KeyCode::Char('2'), _) => return ViewAction::SwitchView(TuiView::Command),
+            (KeyCode::Char('3'), _) => return ViewAction::SwitchView(TuiView::Command),
+            (KeyCode::Char('4'), _) => return ViewAction::SwitchView(TuiView::Control),
             _ => {}
         }
 
@@ -831,10 +831,10 @@ impl StudioView {
     fn execute_palette_command(&mut self, cmd_id: &str) -> ViewAction {
         match cmd_id {
             // View switching
-            "chat" => ViewAction::SwitchView(TuiView::Chat),
-            "home" => ViewAction::SwitchView(TuiView::Runner),
+            "chat" => ViewAction::SwitchView(TuiView::Command),
+            "home" => ViewAction::SwitchView(TuiView::Command),
             "studio" => ViewAction::SwitchView(TuiView::Studio),
-            "monitor" => ViewAction::SwitchView(TuiView::Settings),
+            "monitor" => ViewAction::SwitchView(TuiView::Control),
             // Workflow actions
             "run" => {
                 // Run the current workflow
@@ -850,7 +850,7 @@ impl StudioView {
                 ViewAction::None
             }
             // Help - switch to Settings view which has help info
-            "help" => ViewAction::SwitchView(TuiView::Settings),
+            "help" => ViewAction::SwitchView(TuiView::Control),
             _ => ViewAction::None,
         }
     }
@@ -1885,7 +1885,7 @@ impl YamlEditorPanel {
                 ViewAction::None
             }
             // 's' opens Settings view
-            KeyCode::Char('s') => ViewAction::OpenSettings,
+            KeyCode::Char('s') => ViewAction::OpenControl,
             // Shift+T or Ctrl+t toggles theme
             KeyCode::Char('T') => ViewAction::ToggleTheme,
             KeyCode::Char('t') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -1910,9 +1910,9 @@ impl YamlEditorPanel {
             }
             // View switching: number keys
             // 1=Studio (current), 2=Runner, 3=Chat, 4=Settings
-            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Runner),
-            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Chat),
-            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Settings),
+            KeyCode::Char('2') => ViewAction::SwitchView(TuiView::Command),
+            KeyCode::Char('3') => ViewAction::SwitchView(TuiView::Command),
+            KeyCode::Char('4') => ViewAction::SwitchView(TuiView::Control),
             KeyCode::Up | KeyCode::Char('k') => {
                 self.buffer.cursor_up();
                 ViewAction::None

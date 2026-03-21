@@ -50,19 +50,14 @@ impl PanelId {
                 PanelId::StudioDag,
                 PanelId::StudioDiagnostics,
             ],
-            TuiView::Runner => &[
-                PanelId::RunnerMission,
-                PanelId::RunnerDag,
-                PanelId::RunnerNovanet,
-                PanelId::RunnerReasoning,
-            ],
-            TuiView::Chat => &[
+            // Command view includes chat panels (Phase 4 will add runner panels)
+            TuiView::Command => &[
                 PanelId::ChatConversation,
                 PanelId::ChatInput,
                 PanelId::ChatContext,
             ],
-            // Settings is auxiliary view without panel navigation
-            TuiView::Settings => &[],
+            // Control is auxiliary view without panel navigation
+            TuiView::Control => &[],
         }
     }
 
@@ -75,12 +70,14 @@ impl PanelId {
             | PanelId::StudioDag
             | PanelId::StudioDiagnostics => TuiView::Studio,
             // Chat panels
-            PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => TuiView::Chat,
+            PanelId::ChatConversation | PanelId::ChatInput | PanelId::ChatContext => {
+                TuiView::Command
+            }
             // Runner panels
             PanelId::RunnerMission
             | PanelId::RunnerDag
             | PanelId::RunnerNovanet
-            | PanelId::RunnerReasoning => TuiView::Runner,
+            | PanelId::RunnerReasoning => TuiView::Command,
         }
     }
 
@@ -88,10 +85,9 @@ impl PanelId {
     pub fn default_for_view(view: TuiView) -> PanelId {
         match view {
             TuiView::Studio => PanelId::StudioEditor,
-            TuiView::Runner => PanelId::RunnerMission,
-            TuiView::Chat => PanelId::ChatInput,
+            TuiView::Command => PanelId::ChatInput,
             // Settings doesn't have panels - default to Studio editor
-            TuiView::Settings => PanelId::StudioEditor,
+            TuiView::Control => PanelId::StudioEditor,
         }
     }
 }
@@ -224,7 +220,7 @@ mod tests {
         let mut state = FocusState::new(PanelId::StudioFiles);
         state.focus(PanelId::StudioDag);
         state.focus(PanelId::StudioEditor);
-        state.reset_to_view(TuiView::Chat);
+        state.reset_to_view(TuiView::Command);
         assert_eq!(state.current(), PanelId::ChatInput);
         assert!(!state.back()); // Stack cleared
     }
@@ -235,15 +231,12 @@ mod tests {
         let studio_panels = PanelId::panels_for_view(TuiView::Studio);
         assert_eq!(studio_panels.len(), 4);
 
-        let chat_panels = PanelId::panels_for_view(TuiView::Chat);
-        assert_eq!(chat_panels.len(), 3);
+        let command_panels = PanelId::panels_for_view(TuiView::Command);
+        assert_eq!(command_panels.len(), 3);
 
-        let runner_panels = PanelId::panels_for_view(TuiView::Runner);
-        assert_eq!(runner_panels.len(), 4);
-
-        // Settings has no panels
-        let settings_panels = PanelId::panels_for_view(TuiView::Settings);
-        assert_eq!(settings_panels.len(), 0);
+        // Control has no panels
+        let control_panels = PanelId::panels_for_view(TuiView::Control);
+        assert_eq!(control_panels.len(), 0);
     }
 
     #[test]
@@ -254,8 +247,8 @@ mod tests {
         assert_eq!(PanelId::StudioDag.view(), TuiView::Studio);
         assert_eq!(PanelId::StudioDiagnostics.view(), TuiView::Studio);
         // Chat panels
-        assert_eq!(PanelId::ChatInput.view(), TuiView::Chat);
+        assert_eq!(PanelId::ChatInput.view(), TuiView::Command);
         // Runner panels
-        assert_eq!(PanelId::RunnerDag.view(), TuiView::Runner);
+        assert_eq!(PanelId::RunnerDag.view(), TuiView::Command);
     }
 }

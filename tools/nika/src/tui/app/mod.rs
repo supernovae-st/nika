@@ -205,7 +205,7 @@ impl App {
             retry_requested: false,
             should_launch_wizard: false,
             // 4-view architecture - start in Monitor mode for workflow execution
-            current_view: TuiView::Runner,
+            current_view: TuiView::Command,
             input_mode: InputMode::Normal,
             chat_view,
             home_view: None, // No home view in execution mode
@@ -343,7 +343,7 @@ impl App {
     pub fn with_initial_view(mut self, view: TuiView) -> Self {
         self.current_view = view;
         // Auto-enter Insert mode for Chat view so users can type immediately
-        if view == TuiView::Chat {
+        if view == TuiView::Command {
             self.input_mode = InputMode::Insert;
         }
         self
@@ -459,9 +459,8 @@ impl App {
             // PERF: Only tick the active view (saves ~3 view ticks per frame)
             match self.current_view {
                 TuiView::Studio => self.studio_view.tick(&mut self.state),
-                TuiView::Runner => self.monitor_view.tick(&mut self.state),
-                TuiView::Chat => self.chat_view.tick(),
-                TuiView::Settings => self.settings_view.tick(&mut self.state),
+                TuiView::Command => self.chat_view.tick(),
+                TuiView::Control => self.settings_view.tick(&mut self.state),
             }
             // HomeView only exists in browse mode — tick only when visible
             // (rain_fading animation needs ticking even briefly after transition)
@@ -472,7 +471,7 @@ impl App {
             }
             // Background tick: ChatView needs ticking for streaming animations
             // even when user is on a different view
-            if self.current_view != TuiView::Chat && self.chat_view.is_streaming {
+            if self.current_view != TuiView::Command && self.chat_view.is_streaming {
                 self.chat_view.tick();
             }
 

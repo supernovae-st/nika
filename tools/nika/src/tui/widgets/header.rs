@@ -24,9 +24,9 @@ use crate::tui::views::TuiView;
 /// Order: Studio, Runner, Chat, Settings
 const TAB_NAMES: &[(&str, TuiView)] = &[
     ("Studio", TuiView::Studio),
-    ("Runner", TuiView::Runner),
-    ("Chat", TuiView::Chat),
-    ("⚙", TuiView::Settings), // Settings uses icon for brevity
+    ("Runner", TuiView::Command),
+    ("Chat", TuiView::Command),
+    ("⚙", TuiView::Control), // Settings uses icon for brevity
 ];
 
 /// Header configuration
@@ -247,14 +247,14 @@ mod tests {
     #[test]
     fn test_header_with_status() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Runner, &theme).status("Running 2/3");
+        let header = Header::new(TuiView::Command, &theme).status("Running 2/3");
         assert_eq!(header.status, Some("Running 2/3"));
     }
 
     #[test]
     fn test_tab_style_active() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Chat, &theme);
+        let header = Header::new(TuiView::Command, &theme);
         let style = header.tab_style(true);
         assert!(style.add_modifier.contains(Modifier::BOLD));
     }
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn test_tab_style_inactive() {
         let theme = Theme::dark();
-        let header = Header::new(TuiView::Chat, &theme);
+        let header = Header::new(TuiView::Command, &theme);
         let style = header.tab_style(false);
         assert!(!style.add_modifier.contains(Modifier::BOLD));
     }
@@ -292,8 +292,8 @@ mod tests {
         // Verify 4-view architecture: Studio, Runner, Chat, Settings
         assert_eq!(TAB_NAMES.len(), 4);
         assert_eq!(TAB_NAMES[0], ("Studio", TuiView::Studio));
-        assert_eq!(TAB_NAMES[1], ("Runner", TuiView::Runner));
-        assert_eq!(TAB_NAMES[2], ("Chat", TuiView::Chat));
-        assert_eq!(TAB_NAMES[3], ("⚙", TuiView::Settings));
+        assert_eq!(TAB_NAMES[1], ("Runner", TuiView::Command));
+        assert_eq!(TAB_NAMES[2], ("Chat", TuiView::Command));
+        assert_eq!(TAB_NAMES[3], ("⚙", TuiView::Control));
     }
 }

@@ -366,7 +366,7 @@ impl<'a> StatusBar<'a> {
 
         // Fallback to static hints
         match self.view {
-            TuiView::Chat => vec![
+            TuiView::Command => vec![
                 KeyHint::new("Enter", "Send"),
                 KeyHint::new("Up/Down", "History"),
                 KeyHint::new("Tab", "Views"),
@@ -378,19 +378,11 @@ impl<'a> StatusBar<'a> {
                 KeyHint::new("Esc", "Normal"),
                 KeyHint::new("F5", "Run"),
                 KeyHint::new("Ctrl+S", "Save"),
-                KeyHint::new("c", "Chat"),
+                KeyHint::new("c", "Command"),
                 KeyHint::new("q", "Back"),
             ],
-            TuiView::Runner => vec![
-                KeyHint::new("1-4", "Focus"),
-                KeyHint::new("Tab", "Cycle"),
-                KeyHint::new("Space", "Pause"),
-                KeyHint::new("r", "Restart"),
-                KeyHint::new("c", "Chat"),
-                KeyHint::new("q", "Stop"),
-            ],
-            // Settings is auxiliary view
-            TuiView::Settings => vec![
+            // Control is auxiliary view
+            TuiView::Control => vec![
                 KeyHint::new("Tab", "Next"),
                 KeyHint::new("Enter", "Select"),
                 KeyHint::new("Esc", "Back"),
@@ -702,7 +694,7 @@ mod tests {
     fn test_status_bar_custom_hints() {
         let theme = Theme::dark();
         let custom = vec![KeyHint::new("x", "Custom")];
-        let bar = StatusBar::new(TuiView::Chat, &theme).hints(custom);
+        let bar = StatusBar::new(TuiView::Command, &theme).hints(custom);
         assert!(bar.hints.is_some());
         assert_eq!(bar.hints.unwrap().len(), 1);
     }
@@ -774,7 +766,7 @@ mod tests {
     fn test_status_bar_with_metrics() {
         let theme = Theme::dark();
         let metrics = StatusMetrics::new().provider(Provider::Claude).tokens(5000);
-        let bar = StatusBar::new(TuiView::Runner, &theme).metrics(metrics);
+        let bar = StatusBar::new(TuiView::Command, &theme).metrics(metrics);
         assert!(bar.metrics.is_some());
     }
 

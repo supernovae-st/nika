@@ -29,7 +29,7 @@ impl App {
 
         if let Some(ref mut terminal) = self.terminal {
             // Ensure timeline cache is up-to-date before rendering Monitor view
-            if current_view == TuiView::Runner {
+            if current_view == TuiView::Command {
                 self.state.ensure_timeline_cache();
             }
 
@@ -45,7 +45,7 @@ impl App {
                 .map(|hv| hv.status_line(&self.state))
                 .unwrap_or_default();
             let studio_status = self.studio_view.status_line(&self.state);
-            let monitor_status = {
+            let _monitor_status = {
                 let task_count = self.state.tasks.len();
                 let completed = self
                     .state
@@ -63,7 +63,7 @@ impl App {
             let _home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
             let settings_view = &mut self.settings_view;
-            let monitor_view = &mut self.monitor_view;
+            let _monitor_view = &mut self.monitor_view;
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state;
             // P0 Fix: Use is_paused() accessor for unified pause state
@@ -77,9 +77,8 @@ impl App {
             // Get custom status text from current view (using pre-computed values)
             let status_text = match current_view {
                 TuiView::Studio => studio_status,
-                TuiView::Runner => monitor_status,
-                TuiView::Chat => chat_status,
-                TuiView::Settings => settings_view.status_line(state),
+                TuiView::Command => chat_status,
+                TuiView::Control => settings_view.status_line(state),
             };
 
             terminal
@@ -138,20 +137,17 @@ impl App {
                         TuiView::Studio => {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Runner => {
-                            monitor_view.render(frame, chunks[1], state, theme);
-                        }
-                        TuiView::Chat => {
+                        TuiView::Command => {
                             chat_view.render(frame, chunks[1], state, theme);
                         }
-                        TuiView::Settings => {
+                        TuiView::Control => {
                             settings_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
                     // Render status message if active (just above status bar)
                     // Skip when overlays are visible to prevent overlap
-                    let overlay_visible = matches!(current_view, TuiView::Chat)
+                    let overlay_visible = matches!(current_view, TuiView::Command)
                         && (chat_view.provider_modal.visible
                             || chat_view.command_palette.visible
                             || chat_view.help_overlay.visible);

@@ -422,7 +422,7 @@ pub async fn run_tui_chat(
 
     // Create app with provider/model overrides
     let app = App::new_standalone(state)?
-        .with_initial_view(TuiView::Chat)
+        .with_initial_view(TuiView::Command)
         .with_chat_overrides(provider, model);
 
     app.run_unified().await.map(|_| ())

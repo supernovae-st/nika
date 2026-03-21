@@ -146,7 +146,7 @@ impl Action {
             ViewAction::Quit => Action::Quit,
             ViewAction::SwitchView(view) => Action::SwitchView(view),
             ViewAction::ToggleTheme => Action::ToggleTheme,
-            ViewAction::OpenSettings => Action::SwitchView(TuiView::Settings),
+            ViewAction::OpenControl => Action::SwitchView(TuiView::Control),
 
             // Chat/Editor/Agent actions need App-level orchestration
             ViewAction::ChatInfer(_)
@@ -214,14 +214,14 @@ mod tests {
 
     #[test]
     fn test_from_view_action_open_settings() {
-        let result = Action::from_view_action(ViewAction::OpenSettings);
-        assert_eq!(result, Action::SwitchView(TuiView::Settings));
+        let result = Action::from_view_action(ViewAction::OpenControl);
+        assert_eq!(result, Action::SwitchView(TuiView::Control));
     }
 
     #[test]
     fn test_from_view_action_switch_view() {
-        let result = Action::from_view_action(ViewAction::SwitchView(TuiView::Chat));
-        assert_eq!(result, Action::SwitchView(TuiView::Chat));
+        let result = Action::from_view_action(ViewAction::SwitchView(TuiView::Command));
+        assert_eq!(result, Action::SwitchView(TuiView::Command));
     }
 
     #[test]

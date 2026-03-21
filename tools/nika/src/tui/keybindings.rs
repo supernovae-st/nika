@@ -77,7 +77,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         category: KeyCategory::Global,
     });
 
-    // View navigation (in Normal mode) - 4-Views Architecture
+    // View navigation (in Normal mode) - 3-Views Architecture
     if mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('1'),
@@ -88,19 +88,13 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
         bindings.push(Keybinding {
             code: KeyCode::Char('2'),
             modifiers: KeyModifiers::NONE,
-            description: "Runner view",
+            description: "Command view",
             category: KeyCategory::ViewNav,
         });
         bindings.push(Keybinding {
             code: KeyCode::Char('3'),
             modifiers: KeyModifiers::NONE,
-            description: "Chat Playground",
-            category: KeyCategory::ViewNav,
-        });
-        bindings.push(Keybinding {
-            code: KeyCode::Char('4'),
-            modifiers: KeyModifiers::NONE,
-            description: "Settings view",
+            description: "Control view",
             category: KeyCategory::ViewNav,
         });
     }
@@ -120,7 +114,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
     });
 
     // Mode switching
-    if view == TuiView::Chat && mode == InputMode::Normal {
+    if view == TuiView::Command && mode == InputMode::Normal {
         bindings.push(Keybinding {
             code: KeyCode::Char('i'),
             modifiers: KeyModifiers::NONE,
@@ -167,7 +161,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
 
     // View-specific bindings
     match view {
-        TuiView::Chat => {
+        TuiView::Command => {
             if mode == InputMode::Insert {
                 bindings.push(Keybinding {
                     code: KeyCode::Enter,
@@ -265,32 +259,13 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
                 description: "Paste from clipboard",
                 category: KeyCategory::Chat,
             });
-        }
-        TuiView::Runner => {
+            // Monitor bindings (also available in Command view)
             if mode == InputMode::Normal {
                 bindings.push(Keybinding {
                     code: KeyCode::Char(' '),
                     modifiers: KeyModifiers::NONE,
                     description: "Toggle pause",
                     category: KeyCategory::Monitor,
-                });
-                bindings.push(Keybinding {
-                    code: KeyCode::Char('r'),
-                    modifiers: KeyModifiers::NONE,
-                    description: "Retry workflow",
-                    category: KeyCategory::Monitor,
-                });
-                bindings.push(Keybinding {
-                    code: KeyCode::Char('y'),
-                    modifiers: KeyModifiers::NONE,
-                    description: "Yank (copy to clipboard)",
-                    category: KeyCategory::Action,
-                });
-                bindings.push(Keybinding {
-                    code: KeyCode::Char('e'),
-                    modifiers: KeyModifiers::NONE,
-                    description: "Export trace",
-                    category: KeyCategory::Action,
                 });
             }
         }
@@ -330,7 +305,7 @@ pub fn keybindings_for_context(view: TuiView, mode: InputMode) -> Vec<Keybinding
             }
         }
         // Settings is auxiliary view with minimal keybindings
-        TuiView::Settings => {
+        TuiView::Control => {
             // Settings uses default navigation (Tab, Esc, arrows)
             // No additional view-specific bindings needed
         }
@@ -384,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_keybindings_for_chat_normal() {
-        let bindings = keybindings_for_context(TuiView::Chat, InputMode::Normal);
+        let bindings = keybindings_for_context(TuiView::Command, InputMode::Normal);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Char('i')));
         assert!(bindings
             .iter()
@@ -403,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_keybindings_for_chat_insert() {
-        let bindings = keybindings_for_context(TuiView::Chat, InputMode::Insert);
+        let bindings = keybindings_for_context(TuiView::Command, InputMode::Insert);
         assert!(bindings.iter().any(|b| b.code == KeyCode::Esc));
         assert!(bindings.iter().any(|b| b.code == KeyCode::Enter));
         // Ctrl+K/T/M also available in Insert mode

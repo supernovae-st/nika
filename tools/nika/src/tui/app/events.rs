@@ -141,34 +141,33 @@ impl App {
             return Action::Continue;
         }
 
-        // 4. View switching - 4-view architecture
-        // Allow Alt+1-4 in ANY mode for view switching
+        // 4. View switching - 3-view architecture
+        // Allow Alt+1-3 in ANY mode for view switching
         // This ensures users can always navigate even in Insert/Search mode
         let alt_pressed = modifiers.contains(KeyModifiers::ALT);
         let is_normal = self.input_mode == InputMode::Normal;
 
-        // In Settings view, 1/2/3 are theme shortcuts — don't steal them for view switching.
-        // Alt+1-4 always works for view switching regardless of current view.
-        let on_settings = self.current_view == TuiView::Settings;
-        let on_chat = self.current_view == TuiView::Chat;
-        if alt_pressed || (is_normal && modifiers.is_empty() && !on_settings) {
+        // In Control view, 1/2/3 are theme shortcuts — don't steal them for view switching.
+        // Alt+1-3 always works for view switching regardless of current view.
+        let on_control = self.current_view == TuiView::Control;
+        let on_command = self.current_view == TuiView::Command;
+        if alt_pressed || (is_normal && modifiers.is_empty() && !on_control) {
             if let Some(view) = match code {
                 KeyCode::Char('1') => Some(TuiView::Studio),
-                KeyCode::Char('2') => Some(TuiView::Runner),
-                KeyCode::Char('3') => Some(TuiView::Chat),
-                KeyCode::Char('4') => Some(TuiView::Settings),
+                KeyCode::Char('2') => Some(TuiView::Command),
+                KeyCode::Char('3') => Some(TuiView::Control),
                 _ => None,
             } {
                 return Action::SwitchView(view);
             }
         }
 
-        // Letter shortcuts for view switching (Normal mode only, not in Chat where they're text input)
-        if is_normal && modifiers.is_empty() && !on_chat {
+        // Letter shortcuts for view switching (Normal mode only, not in Command where they're text input)
+        if is_normal && modifiers.is_empty() && !on_command {
             if let Some(view) = match code {
                 KeyCode::Char('s') => Some(TuiView::Studio),
-                KeyCode::Char('r') => Some(TuiView::Runner),
-                KeyCode::Char('c') => Some(TuiView::Chat),
+                KeyCode::Char('c') => Some(TuiView::Command),
+                KeyCode::Char('x') => Some(TuiView::Control),
                 _ => None,
             } {
                 return Action::SwitchView(view);
@@ -192,9 +191,8 @@ impl App {
 
         match self.current_view {
             TuiView::Studio => self.studio_view.handle_key(key, &mut self.state),
-            TuiView::Runner => self.monitor_view.handle_key(key, &mut self.state),
-            TuiView::Chat => self.chat_view.handle_key(key, &mut self.state),
-            TuiView::Settings => self.settings_view.handle_key(key, &mut self.state),
+            TuiView::Command => self.chat_view.handle_key(key, &mut self.state),
+            TuiView::Control => self.settings_view.handle_key(key, &mut self.state),
         }
     }
 
