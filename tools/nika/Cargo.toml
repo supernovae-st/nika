@@ -1,6 +1,6 @@
 [package]
 name = "nika"
-version = "0.35.3"
+version = "0.35.4"
 edition = "2021"
 authors = ["Thibaut MÉLEN <thibaut@supernovae.studio>", "SuperNovae Studio <contact@supernovae.studio>"]
 description = "Semantic YAML workflow engine for AI tasks - DAG execution, MCP integration, multi-provider LLM support"

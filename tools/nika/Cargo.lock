@@ -5310,7 +5310,7 @@ dependencies = [
 
 [[package]]
 name = "nika"
-version = "0.35.3"
+version = "0.35.4"
 dependencies = [
  "arboard",
  "async-stream",
@@ -5428,7 +5428,7 @@ dependencies = [
 
 [[package]]
 name = "nika-core"
-version = "0.35.3"
+version = "0.35.4"
 dependencies = [
  "chrono",
  "indexmap 2.13.0",
@@ -5449,7 +5449,7 @@ dependencies = [
 
 [[package]]
 name = "nika-lsp-core"
-version = "0.35.3"
+version = "0.35.4"
 dependencies = [
  "dashmap",
  "ls-types",
