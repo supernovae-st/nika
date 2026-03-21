@@ -81,6 +81,27 @@ impl NikaLanguageServer {
         // Check model compatibility (after Phase 2 analysis)
         diagnostics.extend(self.model_compatibility_diagnostics(uri, text));
 
+        // Add tree-sitter recovery diagnostics for syntax errors
+        let partial = nika_lsp_core::parse::parse_and_extract(text);
+        if partial.has_errors {
+            for err_range in &partial.error_ranges {
+                let start = super::conversion::offset_to_position(err_range.start as usize, text);
+                let end = super::conversion::offset_to_position(err_range.end as usize, text);
+                diagnostics.push(Diagnostic {
+                    range: Range { start, end },
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    code: Some(NumberOrString::String("NIKA-SYNTAX".to_string())),
+                    code_description: None,
+                    source: Some("nika".to_string()),
+                    message: "YAML syntax error — completions may be incomplete in this region"
+                        .to_string(),
+                    related_information: None,
+                    tags: None,
+                    data: None,
+                });
+            }
+        }
+
         // Publish diagnostics
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, None)
