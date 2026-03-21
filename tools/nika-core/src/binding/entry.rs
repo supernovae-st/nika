@@ -643,11 +643,11 @@ impl<'de> Visitor<'de> for WithEntryVisitor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::transform::TransformOp;
     use super::super::types::BindingSource;
-    use serde_saphyr as serde_yaml;
+    use super::*;
     use serde_json::json;
+    use serde_saphyr as serde_yaml;
 
     // ═══════════════════════════════════════════════════════════════
     // parse_binding_entry() tests - TDD: write these first

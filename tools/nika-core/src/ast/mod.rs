@@ -90,15 +90,13 @@ pub fn parse_analyzed(yaml: &str) -> Result<AnalyzedWorkflow, CoreError> {
     })?;
 
     // Phase 2: Raw -> Analyzed (validation, reference resolution)
-    analyzer::analyze(raw)
-        .into_result()
-        .map_err(|errors| {
-            let messages: Vec<String> = errors
-                .iter()
-                .map(|e| format!("[{}] {}", e.kind.code(), e))
-                .collect();
-            CoreError::ValidationError {
-                reason: messages.join("; "),
-            }
-        })
+    analyzer::analyze(raw).into_result().map_err(|errors| {
+        let messages: Vec<String> = errors
+            .iter()
+            .map(|e| format!("[{}] {}", e.kind.code(), e))
+            .collect();
+        CoreError::ValidationError {
+            reason: messages.join("; "),
+        }
+    })
 }
