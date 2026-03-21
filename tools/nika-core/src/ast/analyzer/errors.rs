@@ -177,12 +177,15 @@ pub enum AnalyzeErrorKind {
     UnsupportedFeature,
     /// Invalid binding expression in `with:` block
     InvalidBinding,
+    /// NIKA-034: model: required when infer/agent verb is used
+    MissingModel,
 }
 
 impl AnalyzeErrorKind {
     /// Get the error code in NIKA-XXX format.
     ///
     /// AST analysis errors use range NIKA-140-150:
+    /// - NIKA-034: model: required for LLM verbs
     /// - NIKA-140: Unknown task reference
     /// - NIKA-141: Duplicate task ID
     /// - NIKA-142: Invalid schema version
@@ -201,6 +204,7 @@ impl AnalyzeErrorKind {
             Self::MissingField => "NIKA-145",
             Self::UnsupportedFeature => "NIKA-149",
             Self::InvalidBinding => "NIKA-151",
+            Self::MissingModel => "NIKA-034",
         }
     }
 }
@@ -452,6 +456,7 @@ mod tests {
         assert_eq!(AnalyzeErrorKind::MissingField.code(), "NIKA-145");
         assert_eq!(AnalyzeErrorKind::UnsupportedFeature.code(), "NIKA-149");
         assert_eq!(AnalyzeErrorKind::InvalidBinding.code(), "NIKA-151");
+        assert_eq!(AnalyzeErrorKind::MissingModel.code(), "NIKA-034");
     }
 
     #[test]
@@ -604,6 +609,7 @@ tasks:
             (AnalyzeErrorKind::MissingField, "NIKA-145"),
             (AnalyzeErrorKind::UnsupportedFeature, "NIKA-149"),
             (AnalyzeErrorKind::InvalidBinding, "NIKA-151"),
+            (AnalyzeErrorKind::MissingModel, "NIKA-034"),
         ];
 
         for (kind, expected_code) in kinds {

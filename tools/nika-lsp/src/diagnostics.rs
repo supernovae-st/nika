@@ -25,7 +25,8 @@ pub fn to_lsp_diagnostic(
         | AnalyzeErrorKind::DuplicateTask
         | AnalyzeErrorKind::InvalidSchema
         | AnalyzeErrorKind::CyclicDependency
-        | AnalyzeErrorKind::MissingField => DiagnosticSeverity::ERROR,
+        | AnalyzeErrorKind::MissingField
+        | AnalyzeErrorKind::MissingModel => DiagnosticSeverity::ERROR,
 
         // Errors that might cause runtime issues
         AnalyzeErrorKind::InvalidValue
