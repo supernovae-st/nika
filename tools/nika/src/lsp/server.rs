@@ -108,20 +108,30 @@ impl NikaLanguageServer {
             .await;
     }
 
-    /// Convert analysis errors to LSP diagnostics
+    /// Convert analysis errors to LSP diagnostics.
+    ///
+    /// Includes "did you mean?" suggestions from the analyzer when available
+    /// (e.g., NIKA-140 unknown task references with fuzzy match).
     fn errors_to_diagnostics(&self, errors: &[AnalyzeError], source: &str) -> Vec<Diagnostic> {
         errors
             .iter()
-            .map(|e| Diagnostic {
-                range: span_to_range(&e.span, source),
-                severity: Some(DiagnosticSeverity::ERROR), // All analysis errors are errors
-                code: Some(NumberOrString::String(e.kind.code().to_string())),
-                code_description: None,
-                source: Some("nika".to_string()),
-                message: e.message.clone(),
-                related_information: None,
-                tags: None,
-                data: None,
+            .map(|e| {
+                let message = if let Some(ref suggestion) = e.suggestion {
+                    format!("{} ({})", e.message, suggestion)
+                } else {
+                    e.message.clone()
+                };
+                Diagnostic {
+                    range: span_to_range(&e.span, source),
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(NumberOrString::String(e.kind.code().to_string())),
+                    code_description: None,
+                    source: Some("nika".to_string()),
+                    message,
+                    related_information: None,
+                    tags: None,
+                    data: None,
+                }
             })
             .collect()
     }
