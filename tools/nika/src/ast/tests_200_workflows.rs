@@ -8469,3 +8469,67 @@ tasks:
         _ => panic!("expected Fetch action"),
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AD. Production workflow gate tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Gate test: all use-case workflows must parse through the full pipeline.
+#[test]
+fn ad01_all_use_case_workflows_parse_and_validate() {
+    let examples_dir = std::path::Path::new("examples/use-cases");
+    if !examples_dir.exists() {
+        return; // skip if not in correct dir
+    }
+
+    let mut count = 0;
+    for entry in std::fs::read_dir(examples_dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+            let yaml = std::fs::read_to_string(&path).unwrap();
+            let result = parse_workflow(&yaml);
+            assert!(
+                result.is_ok(),
+                "Failed to parse {}: {:?}",
+                path.display(),
+                result.err()
+            );
+            count += 1;
+        }
+    }
+    assert!(
+        count >= 10,
+        "Expected at least 10 use-case workflows, found {}",
+        count
+    );
+}
+
+/// Gate test: all gate/e2e/audit/trap/stress/monster workflows must parse.
+#[test]
+fn ad02_all_gate_workflows_parse() {
+    let gates_dir = std::path::Path::new("examples/gates");
+    if !gates_dir.exists() {
+        return; // skip if not in correct dir
+    }
+
+    let mut count = 0;
+    for entry in std::fs::read_dir(gates_dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
+            let yaml = std::fs::read_to_string(&path).unwrap();
+            let result = parse_workflow(&yaml);
+            assert!(
+                result.is_ok(),
+                "Failed to parse {}: {:?}",
+                path.display(),
+                result.err()
+            );
+            count += 1;
+        }
+    }
+    assert!(
+        count >= 10,
+        "Expected at least 10 gate workflows, found {}",
+        count
+    );
+}
