@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Nika butterfly — dark theme (bright blue for dark backgrounds) -->
+  <!-- Left upper wing -->
+  <path d="M16 12 C13 5, 4 3, 3 10 C2 15, 9 17, 16 14" fill="#60A5FA"/>
+  <!-- Right upper wing -->
+  <path d="M16 12 C19 5, 28 3, 29 10 C30 15, 23 17, 16 14" fill="#60A5FA"/>
+  <!-- Left lower wing -->
+  <path d="M16 17 C11 16, 5 20, 7 25 C9 29, 14 27, 16 21" fill="#93C5FD"/>
+  <!-- Right lower wing -->
+  <path d="M16 17 C21 16, 27 20, 25 25 C23 29, 18 27, 16 21" fill="#93C5FD"/>
+  <!-- Body -->
+  <ellipse cx="16" cy="16" rx="1.2" ry="7" fill="#BFDBFE"/>
+  <!-- Antennae -->
+  <path d="M15.5 9 Q13 5, 11 4" fill="none" stroke="#BFDBFE" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M16.5 9 Q19 5, 21 4" fill="none" stroke="#BFDBFE" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- Antenna tips -->
+  <circle cx="11" cy="4" r="0.8" fill="#60A5FA"/>
+  <circle cx="21" cy="4" r="0.8" fill="#60A5FA"/>
+</svg>
