@@ -654,8 +654,8 @@ mod tests {
             store_result.pipeline_ms
         );
 
-        // Verify CAS file content matches original
-        let stored_data = tokio::fs::read(&media_ref.path).await.unwrap();
+        // Verify CAS file content matches original (read_raw strips NK framing header)
+        let stored_data = CasStore::read_raw(&media_ref.path).await.unwrap();
         assert_eq!(
             stored_data, png,
             "SILENT BUG: stored data doesn't match original!"
@@ -1921,14 +1921,19 @@ mod tests {
 
         let data_a = vec![0xAA_u8; 1000];
         let data_b = vec![0xBB_u8; 2000];
-        store.store(&data_a).await.unwrap();
-        store.store(&data_b).await.unwrap();
+        let r_a = store.store(&data_a).await.unwrap();
+        let r_b = store.store(&data_b).await.unwrap();
+
+        // Measure actual on-disk sizes before cleaning (compression may shrink data)
+        let on_disk_a = std::fs::metadata(&r_a.path).unwrap().len();
+        let on_disk_b = std::fs::metadata(&r_b.path).unwrap().len();
 
         let clean = store.clean_all();
         assert_eq!(clean.removed, 2);
         assert_eq!(
-            clean.bytes_freed, 3000,
-            "bytes_freed must equal sum of file sizes"
+            clean.bytes_freed,
+            on_disk_a + on_disk_b,
+            "bytes_freed must equal sum of on-disk file sizes"
         );
     }
 
@@ -2286,7 +2291,14 @@ mod tests {
         let entry = &entries[0];
         assert_eq!(entry.hash, store_result.hash);
         assert_eq!(entry.path, store_result.path);
-        assert_eq!(entry.size, data.len() as u64);
+
+        // entry.size is on-disk size; with media-compression the NK framing
+        // header adds 4 bytes.
+        #[cfg(feature = "media-compression")]
+        let expected_size = data.len() as u64 + 4;
+        #[cfg(not(feature = "media-compression"))]
+        let expected_size = data.len() as u64;
+        assert_eq!(entry.size, expected_size);
     }
 
     #[tokio::test]
@@ -3404,8 +3416,8 @@ mod tests {
         assert_eq!(media_ref.created_by, "pipeline_test");
         assert!(media_ref.path.exists(), "CAS file should exist on disk");
 
-        // Verify CAS file content is correct (not corrupted)
-        let on_disk = tokio::fs::read(&media_ref.path).await.unwrap();
+        // Verify CAS file content is correct (read_raw strips NK framing header)
+        let on_disk = CasStore::read_raw(&media_ref.path).await.unwrap();
         assert_eq!(
             on_disk, png_data,
             "CAS stored data must match original PNG bytes"
@@ -4076,9 +4088,9 @@ mod tests {
         );
 
         // ───────────────────────────────────────────────────
-        // Final sanity: verify CAS files on disk are intact
+        // Final sanity: verify CAS files on disk are intact (read_raw strips NK framing)
         // ───────────────────────────────────────────────────
-        let stored_data_0 = tokio::fs::read(&media_refs[0].path)
+        let stored_data_0 = CasStore::read_raw(&media_refs[0].path)
             .await
             .expect("CAS file for media_ref[0] should be readable");
         assert_eq!(
@@ -4086,7 +4098,7 @@ mod tests {
             "CAS stored data for png1 must match original bytes"
         );
 
-        let stored_data_1 = tokio::fs::read(&media_refs[1].path)
+        let stored_data_1 = CasStore::read_raw(&media_refs[1].path)
             .await
             .expect("CAS file for media_ref[1] should be readable");
         assert_eq!(
@@ -4120,9 +4132,9 @@ mod tests {
             metadata: serde_json::Map::new(),
         };
 
-        // Verify CAS file exists and is readable
+        // Verify CAS file exists and is readable (read_raw strips NK framing header)
         assert!(media_ref.path.exists(), "CAS file should exist");
-        let cas_data = tokio::fs::read(&media_ref.path).await.unwrap();
+        let cas_data = CasStore::read_raw(&media_ref.path).await.unwrap();
         assert_eq!(cas_data, binary_data, "CAS data should match original");
 
         // Create artifact writer
@@ -4526,13 +4538,17 @@ mod tests {
         let resolved = ctx.resolve_path("integrity_task.media[0].hash");
         assert_eq!(resolved.unwrap().as_str().unwrap(), sr.hash);
 
-        // Integrity check: path exists and size matches
+        // Integrity check: path exists and on-disk size accounts for NK framing
         assert!(media_ref.path.exists(), "CAS file should exist");
         let meta = std::fs::metadata(&media_ref.path).unwrap();
+        #[cfg(feature = "media-compression")]
+        let expected_on_disk = media_ref.size_bytes + 4; // NK framing header
+        #[cfg(not(feature = "media-compression"))]
+        let expected_on_disk = media_ref.size_bytes;
         assert_eq!(
             meta.len(),
-            media_ref.size_bytes,
-            "file size must match MediaRef.size_bytes"
+            expected_on_disk,
+            "on-disk file size must account for framing overhead"
         );
 
         // Delete CAS file
@@ -4570,6 +4586,9 @@ mod tests {
         let r_old = store.store(&data_old).await.unwrap();
         let r_new = store.store(&data_new).await.unwrap();
 
+        // Measure on-disk size before GC (compression may shrink data)
+        let on_disk_old = std::fs::metadata(&r_old.path).unwrap().len();
+
         // Backdate file 1 mtime to 2 hours ago
         let two_hours_ago = SystemTime::now() - Duration::from_secs(2 * 3600);
         let file = std::fs::File::open(&r_old.path).unwrap();
@@ -4588,10 +4607,11 @@ mod tests {
         // File 2 should be preserved
         assert!(r_new.path.exists(), "recent file should be preserved by GC");
 
-        // Correct bytes_freed count
+        // bytes_freed reports actual on-disk size (may differ from logical size
+        // due to compression)
         assert_eq!(
-            clean.bytes_freed, 500,
-            "bytes_freed should equal the old file's size (500)"
+            clean.bytes_freed, on_disk_old,
+            "bytes_freed should equal the old file's on-disk size"
         );
 
         // Verify store still lists 1 file

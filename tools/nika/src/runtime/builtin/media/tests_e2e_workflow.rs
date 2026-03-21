@@ -1136,7 +1136,8 @@ mod tests {
         let path = std::path::Path::new(path_str);
 
         assert!(path.exists(), "CAS path should exist on disk: {}", path_str);
-        let on_disk = std::fs::read(path).unwrap();
+        // read_raw strips NK framing header so we get the original PNG bytes
+        let on_disk = CasStore::read_raw(path).await.unwrap();
         assert!(!on_disk.is_empty(), "file on disk should not be empty");
         assert_eq!(
             &on_disk[..4],
