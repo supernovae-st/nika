@@ -227,7 +227,8 @@ impl App {
             // The poll_stream_chunks() method in events.rs handles the responses.
             // ═══════════════════════════════════════════════════════════════════
             ViewAction::ChatInfer(prompt) => {
-                self.chat_view
+                self.command_view
+                    .chat
                     .add_user_message(format!("/infer {}", prompt));
                 self.set_status("Inferring...");
                 self.spawn_chat_command(move |mut agent, tx| async move {
@@ -240,7 +241,9 @@ impl App {
                 });
             }
             ViewAction::ChatExec(cmd) => {
-                self.chat_view.add_user_message(format!("/exec {}", cmd));
+                self.command_view
+                    .chat
+                    .add_user_message(format!("/exec {}", cmd));
                 self.set_status("Executing...");
                 self.spawn_chat_command(move |mut agent, tx| async move {
                     agent.set_stream_chunk_tx(tx.clone());
@@ -250,7 +253,8 @@ impl App {
                 });
             }
             ViewAction::ChatFetch(url, method) => {
-                self.chat_view
+                self.command_view
+                    .chat
                     .add_user_message(format!("/fetch {} {}", method, url));
                 self.set_status("Fetching...");
                 self.spawn_chat_command(move |mut agent, tx| async move {
@@ -264,7 +268,7 @@ impl App {
                 });
             }
             ViewAction::ChatInvoke(tool, server, params) => {
-                self.chat_view.add_user_message(format!(
+                self.command_view.chat.add_user_message(format!(
                     "/invoke {} {}",
                     tool,
                     server.as_deref().unwrap_or("(auto)")
@@ -280,7 +284,9 @@ impl App {
                 });
             }
             ViewAction::ChatAgent(goal, max_turns, extended, servers) => {
-                self.chat_view.add_user_message(format!("/agent {}", goal));
+                self.command_view
+                    .chat
+                    .add_user_message(format!("/agent {}", goal));
                 self.set_status("Running agent...");
                 self.spawn_chat_command(move |agent, tx| async move {
                     let result = agent
@@ -292,7 +298,7 @@ impl App {
                 });
             }
             ViewAction::ChatClear => {
-                self.chat_view.messages.clear();
+                self.command_view.chat.messages.clear();
                 self.set_status("Chat cleared");
             }
             ViewAction::ChatModelSwitch(provider) => {
@@ -303,7 +309,7 @@ impl App {
                 self.set_status("MCP action received");
             }
             ViewAction::SendChatMessage(msg) => {
-                self.chat_view.add_user_message(msg.clone());
+                self.command_view.chat.add_user_message(msg.clone());
                 self.set_status("Message sent");
                 tracing::debug!("SendChatMessage: {}", msg);
             }
@@ -433,8 +439,8 @@ impl App {
     pub(super) fn call_view_on_enter(&mut self, view: TuiView) {
         match view {
             TuiView::Studio => self.studio_view.on_enter(&mut self.state),
-            TuiView::Command => self.chat_view.on_enter(&mut self.state),
-            TuiView::Control => self.settings_view.on_enter(&mut self.state),
+            TuiView::Command => self.command_view.on_enter(&mut self.state),
+            TuiView::Control => self.control_view.on_enter(&mut self.state),
         }
     }
 
@@ -442,8 +448,8 @@ impl App {
     fn call_view_on_leave(&mut self, view: TuiView) {
         match view {
             TuiView::Studio => self.studio_view.on_leave(&mut self.state),
-            TuiView::Command => self.chat_view.on_leave(&mut self.state),
-            TuiView::Control => self.settings_view.on_leave(&mut self.state),
+            TuiView::Command => self.command_view.on_leave(&mut self.state),
+            TuiView::Control => self.control_view.on_leave(&mut self.state),
         }
     }
 
@@ -557,7 +563,8 @@ impl App {
             }
         });
 
-        // 8. Switch to Runner view and update status
+        // 8. Switch to Command view in Monitor mode and update status
+        self.command_view.switch_to_monitor();
         self.switch_to_view(TuiView::Command);
         self.set_status(&format!("Running: {}", path.display()));
     }

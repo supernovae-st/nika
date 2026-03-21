@@ -36,9 +36,9 @@ impl App {
             // All views use unified layout with Header + Content + StatusBar
             // Extract read-only values BEFORE taking mutable references
             // This allows render() to take &mut self for scroll state updates
-            let total_tokens = self.chat_view.total_tokens();
-            let provider = self.chat_view.provider();
-            let chat_status = self.chat_view.status_line(&self.state);
+            let total_tokens = self.command_view.chat.total_tokens();
+            let provider = self.command_view.chat.provider();
+            let chat_status = self.command_view.status_line(&self.state);
             let _home_status = self
                 .home_view
                 .as_ref()
@@ -59,11 +59,10 @@ impl App {
             // Extract references to avoid borrow issues with the closure
             let theme = &self.theme;
             let state = &self.state;
-            let chat_view = &mut self.chat_view;
+            let command_view = &mut self.command_view;
             let _home_view = &mut self.home_view;
             let studio_view = &mut self.studio_view;
-            let settings_view = &mut self.settings_view;
-            let _monitor_view = &mut self.monitor_view;
+            let control_view = &mut self.control_view;
             let workflow_path = &self.state.workflow.path;
             let intro_state = &self.intro_state;
             // P0 Fix: Use is_paused() accessor for unified pause state
@@ -78,7 +77,7 @@ impl App {
             let status_text = match current_view {
                 TuiView::Studio => studio_status,
                 TuiView::Command => chat_status,
-                TuiView::Control => settings_view.status_line(state),
+                TuiView::Control => control_view.status_line(state),
             };
 
             terminal
@@ -138,19 +137,19 @@ impl App {
                             studio_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Command => {
-                            chat_view.render(frame, chunks[1], state, theme);
+                            command_view.render(frame, chunks[1], state, theme);
                         }
                         TuiView::Control => {
-                            settings_view.render(frame, chunks[1], state, theme);
+                            control_view.render(frame, chunks[1], state, theme);
                         }
                     }
 
                     // Render status message if active (just above status bar)
                     // Skip when overlays are visible to prevent overlap
                     let overlay_visible = matches!(current_view, TuiView::Command)
-                        && (chat_view.provider_modal.visible
-                            || chat_view.command_palette.visible
-                            || chat_view.help_overlay.visible);
+                        && (command_view.chat.provider_modal.visible
+                            || command_view.chat.command_palette.visible
+                            || command_view.chat.help_overlay.visible);
 
                     if !overlay_visible {
                         if let Some(msg) = state.status_messages.current() {

@@ -58,7 +58,7 @@ use super::startup;
 use super::state::TuiState;
 use super::theme::Theme;
 use super::verification::VerificationCache;
-use super::views::{ChatView, HomeView, MonitorView, SettingsView, StudioView, TuiView, View};
+use super::views::{CommandView, ControlView, HomeView, StudioView, TuiView, View};
 use super::widgets::NikaIntroState;
 
 // Note: Frame rate is now adaptive - see FAST_TICK_MS/SLOW_TICK_MS in run_unified()
@@ -100,16 +100,14 @@ pub struct App {
     /// Current input mode (Normal, Insert, Command, Search)
     pub(crate) input_mode: InputMode,
     // focus_state removed — was never read (Phase 1 cleanup)
-    /// Chat view state
-    pub(crate) chat_view: ChatView,
+    /// Command view (wraps ChatView + MonitorView)
+    pub(crate) command_view: CommandView,
     /// Home view state (file browser)
     pub(crate) home_view: Option<HomeView>,
     /// Studio view state
     pub(crate) studio_view: StudioView,
-    /// Settings view state
-    pub(crate) settings_view: SettingsView,
-    /// Monitor view state
-    pub(crate) monitor_view: MonitorView,
+    /// Control view (wraps SettingsView)
+    pub(crate) control_view: ControlView,
     // ═══ LLM Integration for ChatOverlay ═══
     /// Channel for receiving LLM responses (complete responses)
     pub(crate) llm_response_rx: mpsc::Receiver<String>,
@@ -162,12 +160,11 @@ impl App {
         let state = TuiState::new(&workflow_path.display().to_string());
 
         // Initialize views
-        let chat_view = ChatView::new();
+        let command_view = CommandView::new();
         let mut studio_view = StudioView::new();
         // Load workflow file into studio view
         let _ = studio_view.load_file(workflow_path.to_path_buf());
-        let settings_view = SettingsView::new();
-        let monitor_view = MonitorView::new();
+        let control_view = ControlView::new();
 
         // Initialize LLM response channel
         let (_llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -207,11 +204,10 @@ impl App {
             // 4-view architecture - start in Monitor mode for workflow execution
             current_view: TuiView::Command,
             input_mode: InputMode::Normal,
-            chat_view,
+            command_view,
             home_view: None, // No home view in execution mode
             studio_view,
-            settings_view,
-            monitor_view,
+            control_view,
             llm_response_rx,
             stream_chunk_rx,
             stream_chunk_tx,
@@ -232,11 +228,10 @@ impl App {
         let state = TuiState::new("Standalone Mode");
 
         // Initialize views
-        let chat_view = ChatView::new();
+        let command_view = CommandView::new();
         let home_view = HomeView::new(standalone_state.root.clone());
         let studio_view = StudioView::new();
-        let settings_view = SettingsView::new();
-        let monitor_view = MonitorView::new();
+        let control_view = ControlView::new();
 
         // Initialize LLM response channel
         let (_llm_response_tx, llm_response_rx) = mpsc::channel(32);
@@ -276,11 +271,10 @@ impl App {
             // 4-view architecture - start in Studio mode for standalone
             current_view: TuiView::Studio,
             input_mode: InputMode::Normal,
-            chat_view,
+            command_view,
             home_view: Some(home_view),
             studio_view,
-            settings_view,
-            monitor_view,
+            control_view,
             llm_response_rx,
             stream_chunk_rx,
             stream_chunk_tx,
@@ -442,8 +436,8 @@ impl App {
             self.poll_runtime_events();
 
             // 2. Determine if we need fast rendering
-            let is_streaming = self.chat_view.is_streaming;
-            let has_inline_content = !self.chat_view.inline_content.is_empty();
+            let is_streaming = self.command_view.chat.is_streaming;
+            let has_inline_content = !self.command_view.chat.inline_content.is_empty();
             let intro_active = self
                 .intro_state
                 .as_ref()
@@ -459,8 +453,8 @@ impl App {
             // PERF: Only tick the active view (saves ~3 view ticks per frame)
             match self.current_view {
                 TuiView::Studio => self.studio_view.tick(&mut self.state),
-                TuiView::Command => self.chat_view.tick(),
-                TuiView::Control => self.settings_view.tick(&mut self.state),
+                TuiView::Command => self.command_view.tick(&mut self.state),
+                TuiView::Control => self.control_view.tick(&mut self.state),
             }
             // HomeView only exists in browse mode — tick only when visible
             // (rain_fading animation needs ticking even briefly after transition)
@@ -471,8 +465,8 @@ impl App {
             }
             // Background tick: ChatView needs ticking for streaming animations
             // even when user is on a different view
-            if self.current_view != TuiView::Command && self.chat_view.is_streaming {
-                self.chat_view.tick();
+            if self.current_view != TuiView::Command && self.command_view.chat.is_streaming {
+                self.command_view.chat.tick();
             }
 
             if let Some(ref mut intro) = self.intro_state {

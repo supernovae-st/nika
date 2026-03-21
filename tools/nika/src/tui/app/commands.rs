@@ -35,7 +35,9 @@ impl App {
             tracing::info!(servers = ?server_names, "Loaded MCP server configurations");
 
             // Update ChatView's session context with actual MCP servers
-            self.chat_view.set_mcp_servers(server_names.iter().cloned());
+            self.command_view
+                .chat
+                .set_mcp_servers(server_names.iter().cloned());
 
             self.mcp_pool.set_configs(mcp_configs);
         }

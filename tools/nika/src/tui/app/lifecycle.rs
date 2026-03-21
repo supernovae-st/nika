@@ -471,7 +471,7 @@ impl App {
         }
 
         // Get chat state from the chat view
-        let chat_state = self.chat_view.get_chat_state();
+        let chat_state = self.command_view.chat.get_chat_state();
 
         // Save session (guard: won't save empty sessions)
         match save_session(&chat_state) {

@@ -22,6 +22,8 @@
 //! Shortcuts: [1-3] jump directly, [s/c/x] letter shortcuts.
 
 mod chat;
+pub mod command;
+mod control;
 mod home;
 mod monitor;
 mod settings;
@@ -41,6 +43,8 @@ pub use studio::{EditorMode, YamlEditorPanel as EditorView};
 
 // Internal re-exports (original struct names used internally)
 // StudioView is now the 3-panel view (Browser + Editor + DAG)
+pub use command::CommandView;
+pub use control::ControlView;
 pub use home::HomeView;
 pub use monitor::MonitorView;
 pub use studio::YamlEditorPanel;

@@ -84,12 +84,12 @@ impl App {
                 .add_nika_message(response.clone());
 
             // Update chat view
-            if let Some(last) = self.chat_view.messages.last() {
+            if let Some(last) = self.command_view.chat.messages.last() {
                 if last.content == "Thinking..." || last.content.starts_with("$ ") {
-                    self.chat_view.messages.pop();
+                    self.command_view.chat.messages.pop();
                 }
             }
-            self.chat_view.add_nika_message(response, None);
+            self.command_view.chat.add_nika_message(response, None);
         }
     }
 
@@ -98,20 +98,22 @@ impl App {
         while let Ok(chunk) = self.stream_chunk_rx.try_recv() {
             match chunk {
                 StreamChunk::Token(token) => {
-                    if !self.chat_view.is_streaming {
+                    if !self.command_view.chat.is_streaming {
                         use crate::tui::widgets::DecryptVerb;
-                        self.chat_view.start_streaming_with_verb(DecryptVerb::Infer);
+                        self.command_view
+                            .chat
+                            .start_streaming_with_verb(DecryptVerb::Infer);
                     }
-                    self.chat_view.append_streaming(&token);
+                    self.command_view.chat.append_streaming(&token);
                 }
                 StreamChunk::Done(_) => {
-                    self.chat_view.finalize_thinking();
+                    self.command_view.chat.finalize_thinking();
                 }
                 StreamChunk::Error(err) => {
-                    if self.chat_view.is_streaming {
-                        self.chat_view.finish_streaming();
+                    if self.command_view.chat.is_streaming {
+                        self.command_view.chat.finish_streaming();
                     }
-                    self.chat_view.show_error(&err);
+                    self.command_view.chat.show_error(&err);
                 }
                 _ => {}
             }
@@ -191,8 +193,8 @@ impl App {
 
         match self.current_view {
             TuiView::Studio => self.studio_view.handle_key(key, &mut self.state),
-            TuiView::Command => self.chat_view.handle_key(key, &mut self.state),
-            TuiView::Control => self.settings_view.handle_key(key, &mut self.state),
+            TuiView::Command => self.command_view.handle_key(key, &mut self.state),
+            TuiView::Control => self.control_view.handle_key(key, &mut self.state),
         }
     }
 
