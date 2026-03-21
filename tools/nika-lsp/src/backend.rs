@@ -21,6 +21,7 @@ use crate::completion::{get_completion_context, CompletionContext};
 use crate::diagnostics::validate_document;
 use crate::document::DocumentState;
 use crate::hover::get_hover;
+use nika_lsp_core::handler::{DefaultHandler, LspHandler};
 
 /// Request to validate a document.
 pub struct ValidationRequest {
@@ -37,6 +38,8 @@ pub struct NikaBackend {
     documents: DashMap<Uri, DocumentState>,
     /// Validation request channel
     validation_tx: mpsc::Sender<ValidationRequest>,
+    /// Delegated handler from nika-lsp-core
+    handler: DefaultHandler,
 }
 
 impl NikaBackend {
@@ -48,6 +51,7 @@ impl NikaBackend {
             client: client.clone(),
             documents: DashMap::new(),
             validation_tx: tx,
+            handler: DefaultHandler::new(),
         };
 
         // Spawn validation worker
@@ -138,6 +142,30 @@ impl LanguageServer for NikaBackend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 // Definition (future)
                 definition_provider: Some(OneOf::Left(true)),
+                // Semantic tokens
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: nika_lsp_core::handlers::semantic_tokens::token_legend()
+                                    .into_iter()
+                                    .map(SemanticTokenType::new)
+                                    .collect(),
+                                token_modifiers: vec![
+                                    SemanticTokenModifier::DECLARATION,
+                                    SemanticTokenModifier::DEFINITION,
+                                ],
+                            },
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            range: None,
+                            ..Default::default()
+                        },
+                    ),
+                ),
+                // Document symbols
+                document_symbol_provider: Some(OneOf::Left(true)),
+                // Code actions
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 // Diagnostics
                 diagnostic_provider: Some(DiagnosticServerCapabilities::Options(
                     DiagnosticOptions {
@@ -357,6 +385,153 @@ impl LanguageServer for NikaBackend {
 
         Ok(None)
     }
+
+    // ===== Semantic Tokens (delegated to nika-lsp-core) =====
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let raw_tokens = self.handler.semantic_tokens(&text);
+        let data = nika_lsp_core::handlers::semantic_tokens::encode_tokens(&raw_tokens);
+        let lsp_data: Vec<SemanticToken> = data
+            .chunks_exact(5)
+            .map(|c| SemanticToken {
+                delta_line: c[0],
+                delta_start: c[1],
+                length: c[2],
+                token_type: c[3],
+                token_modifiers_bitset: c[4],
+            })
+            .collect();
+
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data: lsp_data,
+        })))
+    }
+
+    // ===== Document Symbols (delegated to nika-lsp-core) =====
+
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let entries = self.handler.symbols(&text);
+        let symbols = entries.into_iter().map(|e| to_lsp_symbol(&text, e)).collect();
+        Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+    }
+
+    // ===== Code Actions (delegated to nika-lsp-core) =====
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = &params.text_document.uri;
+        let text = match self.documents.get(uri) {
+            Some(d) => d.content(),
+            None => return Ok(None),
+        };
+
+        let start = position_to_offset(&text, params.range.start);
+        let end = position_to_offset(&text, params.range.end);
+        let entries = self.handler.code_actions(&text, start, end);
+
+        let actions: Vec<CodeActionOrCommand> = entries
+            .into_iter()
+            .filter_map(|e| {
+                let edit = e.edit?;
+                let range = offset_range(&text, edit.offset, edit.end_offset);
+                let kind = match e.kind {
+                    nika_lsp_core::handlers::code_action::CodeActionKind::QuickFix => {
+                        CodeActionKind::QUICKFIX
+                    }
+                    nika_lsp_core::handlers::code_action::CodeActionKind::Refactor => {
+                        CodeActionKind::REFACTOR
+                    }
+                };
+                let mut changes = std::collections::HashMap::new();
+                changes.insert(
+                    uri.clone(),
+                    vec![tower_lsp_server::ls_types::TextEdit {
+                        range,
+                        new_text: edit.new_text,
+                    }],
+                );
+                Some(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: e.title,
+                    kind: Some(kind),
+                    is_preferred: Some(e.is_preferred),
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }))
+            })
+            .collect();
+
+        if actions.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(actions))
+    }
+}
+
+/// Convert nika-lsp-core SymbolEntry to LSP DocumentSymbol.
+fn to_lsp_symbol(
+    text: &str,
+    entry: nika_lsp_core::handlers::symbols::SymbolEntry,
+) -> DocumentSymbol {
+    let range = offset_range(text, entry.offset, entry.end_offset);
+    let kind = match entry.kind {
+        nika_lsp_core::handlers::symbols::SymbolKind::File => SymbolKind::FILE,
+        nika_lsp_core::handlers::symbols::SymbolKind::Module => SymbolKind::MODULE,
+        nika_lsp_core::handlers::symbols::SymbolKind::Function => SymbolKind::FUNCTION,
+        nika_lsp_core::handlers::symbols::SymbolKind::Property => SymbolKind::PROPERTY,
+        nika_lsp_core::handlers::symbols::SymbolKind::Variable => SymbolKind::VARIABLE,
+    };
+    #[allow(deprecated)]
+    DocumentSymbol {
+        name: entry.name,
+        detail: None,
+        kind,
+        tags: None,
+        deprecated: None,
+        range,
+        selection_range: range,
+        children: if entry.children.is_empty() {
+            None
+        } else {
+            Some(entry.children.into_iter().map(|c| to_lsp_symbol(text, c)).collect())
+        },
+    }
+}
+
+/// Convert byte offsets to LSP Range.
+fn offset_range(text: &str, start_offset: u32, end_offset: u32) -> Range {
+    let start = offset_to_position(text, start_offset);
+    let end = offset_to_position(text, end_offset);
+    Range { start, end }
+}
+
+/// Convert byte offset to LSP Position.
+fn offset_to_position(text: &str, offset: u32) -> Position {
+    let offset = (offset as usize).min(text.len());
+    let before = &text[..offset];
+    let line = before.matches('\n').count() as u32;
+    let character = before.rfind('\n').map(|p| offset - p - 1).unwrap_or(offset) as u32;
+    Position { line, character }
 }
 
 /// Convert LSP Position to byte offset in the document text.
@@ -368,7 +543,7 @@ fn position_to_offset(text: &str, position: Position) -> u32 {
     let mut offset = 0u32;
     for (i, line) in text.lines().enumerate() {
         if i == position.line as usize {
-            return offset + (position.character as u32).min(line.len() as u32);
+            return offset + position.character.min(line.len() as u32);
         }
         offset += line.len() as u32 + 1; // +1 for \n
     }
